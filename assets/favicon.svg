@@ -1,0 +1,50 @@
+<svg width="830" height="830" xmlns="http://www.w3.org/2000/svg" viewBox="-415 -495 830 830">
+<style>
+  .vD{display:none}
+  @media (prefers-color-scheme: dark){ .vD{display:block} .vL{display:none} }
+</style>
+<g class="vL"><defs>
+  <radialGradient id="bggL" cx="50%" cy="45%" r="72%">
+    <stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#f2f6ea"/>
+  </radialGradient>
+  <linearGradient id="goldgL" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#f0cf55"/><stop offset="55%" stop-color="#dfb32b"/>
+    <stop offset="100%" stop-color="#a8871c"/>
+  </linearGradient>
+  <linearGradient id="bodygL" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#3f7a24"/><stop offset="100%" stop-color="#2d5a1a"/>
+  </linearGradient>
+  <linearGradient id="leafgL" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0%" stop-color="#2d5a1a"/><stop offset="100%" stop-color="#3f7a24"/>
+  </linearGradient>
+  <linearGradient id="textgL" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#3f7a24"/><stop offset="100%" stop-color="#1d3f10"/>
+  </linearGradient>
+  <filter id="glowL" x="-150%" y="-150%" width="400%" height="400%">
+    <feGaussianBlur stdDeviation="5" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="blur18L"><feGaussianBlur stdDeviation="18"/></filter></defs><g><path d="M-6,-270 C 10,-330 40,-360 92,-372 C 96,-352 88,-322 62,-302 C 40,-286 16,-280 -6,-270 Z" fill="url(#leafgL)" stroke="#5f9c2e" stroke-width="4" stroke-linejoin="round"/><path d="M-14,-286 C -40,-400 -120,-472 -212,-478 C -222,-380 -160,-300 -60,-278 C -44,-276 -26,-278 -14,-286 Z" fill="url(#leafgL)" stroke="#5f9c2e" stroke-width="5" stroke-linejoin="round"/><path d="M-30,-292 C -80,-330 -140,-400 -196,-462" fill="none" stroke="#5f9c2e" stroke-width="4" opacity="0.7" stroke-linecap="round"/><ellipse cx="0" cy="300" rx="36" ry="20" fill="url(#bodygL)" stroke="#5f9c2e" stroke-width="5"/><path d="M0,-292 C 138,-286 252,-172 252,-6 C 252,168 138,278 0,292 C -138,278 -252,168 -252,-6 C -252,-172 -138,-286 0,-292 Z" fill="url(#bodygL)" stroke="#5f9c2e" stroke-width="7"/><path d="M0,-292 C 138,-286 252,-172 252,-6 C 252,168 138,278 0,292 C -138,278 -252,168 -252,-6 C -252,-172 -138,-286 0,-292 Z" transform="scale(0.94)" fill="#2d5a1a" opacity="0.7"/><path d="M0,-238 C 112,-232 202,-148 202,-16 C 202,120 112,206 0,240 C -112,206 -202,120 -202,-16 C -202,-148 -112,-232 0,-238 Z" transform="scale(0.88)" fill="none" stroke="url(#goldgL)" stroke-width="52"/><circle cx="0" cy="-188" r="8" fill="#a8871c" opacity="0.6"/><circle cx="61" cy="-176" r="8" fill="#a8871c" opacity="0.6"/><circle cx="114" cy="-143" r="8" fill="#a8871c" opacity="0.6"/><circle cx="154" cy="-92" r="8" fill="#a8871c" opacity="0.6"/><circle cx="175" cy="-29" r="8" fill="#a8871c" opacity="0.6"/><circle cx="175" cy="37" r="8" fill="#a8871c" opacity="0.6"/><circle cx="154" cy="100" r="8" fill="#a8871c" opacity="0.6"/><circle cx="114" cy="151" r="8" fill="#a8871c" opacity="0.6"/><circle cx="61" cy="184" r="8" fill="#a8871c" opacity="0.6"/><circle cx="0" cy="196" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-61" cy="184" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-114" cy="151" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-154" cy="100" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-175" cy="37" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-175" cy="-29" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-154" cy="-92" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-114" cy="-143" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-61" cy="-176" r="8" fill="#a8871c" opacity="0.6"/><path d="M0,-238 C 112,-232 202,-148 202,-16 C 202,120 112,206 0,240 C -112,206 -202,120 -202,-16 C -202,-148 -112,-232 0,-238 Z" transform="scale(0.765)" fill="#2d5a1a"/><path d="M0,-158 C 52,-138 96,-128 128,-124 L 128,-30 C 128,62 76,132 0,166 C -76,132 -128,62 -128,-30 L -128,-124 C -96,-128 -52,-138 0,-158 Z" fill="#3f7a24" stroke="#5f9c2e" stroke-width="3.5" opacity="0.9" transform="translate(0,10) scale(0.88)"/><line x1="0" y1="-128" x2="0" y2="-56" stroke="#dfb32b" stroke-width="4" opacity="0.8"/><g filter="url(#glowL)"><circle cx="0" cy="-8" r="50" fill="url(#goldgL)"/><path d="M-19,20 L-31,112 L31,112 L19,20 Z" fill="url(#goldgL)"/></g></g></g>
+<g class="vD"><defs>
+  <radialGradient id="bggD" cx="50%" cy="45%" r="72%">
+    <stop offset="0%" stop-color="#0b1508"/><stop offset="100%" stop-color="#050a04"/>
+  </radialGradient>
+  <linearGradient id="goldgD" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#f6dd6a"/><stop offset="55%" stop-color="#e8c132"/>
+    <stop offset="100%" stop-color="#a8871c"/>
+  </linearGradient>
+  <linearGradient id="bodygD" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#4a8c2a"/><stop offset="100%" stop-color="#24471a"/>
+  </linearGradient>
+  <linearGradient id="leafgD" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0%" stop-color="#24471a"/><stop offset="100%" stop-color="#4a8c2a"/>
+  </linearGradient>
+  <linearGradient id="textgD" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#4a8c2a"/><stop offset="100%" stop-color="#16300f"/>
+  </linearGradient>
+  <filter id="glowD" x="-150%" y="-150%" width="400%" height="400%">
+    <feGaussianBlur stdDeviation="5" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="blur18D"><feGaussianBlur stdDeviation="18"/></filter></defs><g><ellipse cx="0" cy="322" rx="95" ry="12" fill="#8fce3c" opacity="0.35" filter="url(#blur18D)"/><path d="M-6,-270 C 10,-330 40,-360 92,-372 C 96,-352 88,-322 62,-302 C 40,-286 16,-280 -6,-270 Z" fill="url(#leafgD)" stroke="#8fce3c" stroke-width="4" stroke-linejoin="round"/><path d="M-14,-286 C -40,-400 -120,-472 -212,-478 C -222,-380 -160,-300 -60,-278 C -44,-276 -26,-278 -14,-286 Z" fill="url(#leafgD)" stroke="#8fce3c" stroke-width="5" stroke-linejoin="round"/><path d="M-30,-292 C -80,-330 -140,-400 -196,-462" fill="none" stroke="#8fce3c" stroke-width="4" opacity="0.7" stroke-linecap="round"/><ellipse cx="0" cy="300" rx="36" ry="20" fill="url(#bodygD)" stroke="#8fce3c" stroke-width="5"/><path d="M0,-292 C 138,-286 252,-172 252,-6 C 252,168 138,278 0,292 C -138,278 -252,168 -252,-6 C -252,-172 -138,-286 0,-292 Z" fill="url(#bodygD)" stroke="#8fce3c" stroke-width="7"/><path d="M0,-292 C 138,-286 252,-172 252,-6 C 252,168 138,278 0,292 C -138,278 -252,168 -252,-6 C -252,-172 -138,-286 0,-292 Z" transform="scale(0.94)" fill="#24471a" opacity="0.7"/><path d="M0,-238 C 112,-232 202,-148 202,-16 C 202,120 112,206 0,240 C -112,206 -202,120 -202,-16 C -202,-148 -112,-232 0,-238 Z" transform="scale(0.88)" fill="none" stroke="url(#goldgD)" stroke-width="52"/><circle cx="0" cy="-188" r="8" fill="#a8871c" opacity="0.6"/><circle cx="61" cy="-176" r="8" fill="#a8871c" opacity="0.6"/><circle cx="114" cy="-143" r="8" fill="#a8871c" opacity="0.6"/><circle cx="154" cy="-92" r="8" fill="#a8871c" opacity="0.6"/><circle cx="175" cy="-29" r="8" fill="#a8871c" opacity="0.6"/><circle cx="175" cy="37" r="8" fill="#a8871c" opacity="0.6"/><circle cx="154" cy="100" r="8" fill="#a8871c" opacity="0.6"/><circle cx="114" cy="151" r="8" fill="#a8871c" opacity="0.6"/><circle cx="61" cy="184" r="8" fill="#a8871c" opacity="0.6"/><circle cx="0" cy="196" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-61" cy="184" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-114" cy="151" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-154" cy="100" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-175" cy="37" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-175" cy="-29" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-154" cy="-92" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-114" cy="-143" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-61" cy="-176" r="8" fill="#a8871c" opacity="0.6"/><path d="M0,-238 C 112,-232 202,-148 202,-16 C 202,120 112,206 0,240 C -112,206 -202,120 -202,-16 C -202,-148 -112,-232 0,-238 Z" transform="scale(0.765)" fill="#16300f"/><path d="M0,-158 C 52,-138 96,-128 128,-124 L 128,-30 C 128,62 76,132 0,166 C -76,132 -128,62 -128,-30 L -128,-124 C -96,-128 -52,-138 0,-158 Z" fill="#24471a" stroke="#8fce3c" stroke-width="3.5" opacity="0.9" transform="translate(0,10) scale(0.88)"/><line x1="0" y1="-128" x2="0" y2="-56" stroke="#e8c132" stroke-width="4" opacity="0.8"/><g filter="url(#glowD)"><circle cx="0" cy="-8" r="50" fill="url(#goldgD)"/><path d="M-19,20 L-31,112 L31,112 L19,20 Z" fill="url(#goldgD)"/></g></g></g>
+</svg>

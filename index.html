@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CA Doc — Conditional Access Documenter · Limon-IT</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header>
+  <div class="hwrap">
+    <div class="logo">
+      <img src="assets/logo-mark-light.svg" width="34" height="34" alt="Limon-IT">
+      <b>Limon-<span>IT</span></b>
+    </div>
+    <span class="app-tag">CA Doc</span>
+    <span class="mini muted">cadoc.limon-it.nl</span>
+    <div class="spacer"></div>
+    <div class="tenant" id="tenantBox">
+      <div><div id="tenantName" style="font-weight:600"></div><div class="mini" id="tenantUser"></div></div>
+      <div class="avatar" id="avatar"></div>
+      <button class="btn" id="signOutBtn">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ============ LOGIN ============ -->
+  <section id="screen-login" class="screen active">
+    <div class="login-card">
+      <img src="assets/logo-mark-light.svg" width="76" height="76" alt="Limon-IT">
+      <h1>Conditional Access Documenter</h1>
+      <p>Sign in with your Microsoft Entra account to generate clear, complete documentation of your Conditional Access policies — including the newest policy settings.</p>
+      <button class="btn primary ms-btn" id="signInBtn">
+        <svg width="17" height="17" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+        Sign in with Microsoft
+      </button>
+      <div class="login-note">
+        Multi-tenant · read-only Graph permissions: <code>Policy.Read.All</code> <code>Directory.Read.All</code><br>
+        Runs entirely in your browser — no policy data leaves your session.
+      </div>
+      <div class="login-note"><a href="?demo=1">View a demo with sample policies →</a></div>
+    </div>
+  </section>
+
+  <!-- ============ LOADING ============ -->
+  <section id="screen-loading" class="screen">
+    <div class="login-card">
+      <div class="spinner"></div>
+      <h1 style="font-size:18px">Reading your tenant…</h1>
+      <p class="mini muted" id="loadStatus">Fetching Conditional Access policies</p>
+    </div>
+  </section>
+
+  <!-- ============ POLICY LIST ============ -->
+  <section id="screen-list" class="screen">
+    <div class="toolbar">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#12331f" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="searchBox" placeholder="Search policies…">
+      </div>
+      <div class="chip-filter" id="stateChips"></div>
+      <button class="btn" id="docAllBtn">Document all</button>
+      <button class="btn lemon" id="exportBtn" disabled>Export</button>
+    </div>
+
+    <div class="selbar" id="selbar">
+      <span><b id="selCount">0</b> policies selected</span>
+      <span class="mini selhint" id="selHint"></span>
+      <div class="spacer"></div>
+      <button class="btn ghost" id="docSelBtn">Document selection</button>
+      <button class="btn ghost" id="clearSelBtn">Clear</button>
+    </div>
+
+    <div class="list-card">
+      <table class="plist" id="ptable">
+        <thead><tr>
+          <th style="width:36px"><input type="checkbox" id="selAll"></th>
+          <th>Policy</th><th>State</th><th>Users</th><th>Target resources</th><th>Grant</th><th>Modified</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ DOCUMENTATION ============ -->
+  <section id="screen-doc" class="screen">
+    <button class="back" id="backBtn">← Back to policy list</button>
+    <div class="toolbar">
+      <h2 style="font-size:19px;letter-spacing:-.02em;flex:1">Documentation preview <span class="mini muted" id="docCount"></span></h2>
+      <div class="seg">
+        <button class="active" id="segCards">Cards</button>
+        <button id="segMatrix">Matrix</button>
+      </div>
+      <button class="btn lemon" id="exportBtn2">Export</button>
+    </div>
+    <div class="cards" id="cardsView"></div>
+    <div class="matrix-wrap" id="matrixView" style="display:none">
+      <table class="matrix" id="mtable"></table>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="fwrap">
+    <span>© 2026 Limon-IT · CA Doc</span>
+    <div class="spacer"></div>
+    <a href="https://limon-it.nl">limon-it.nl</a>
+  </div>
+</footer>
+
+<!-- ============ EXPORT MODAL ============ -->
+<div class="modal-bg" id="exportModal">
+  <div class="modal">
+    <h3>Export documentation</h3>
+    <p id="expDesc"></p>
+    <div id="expOptPng" class="exp-opt" data-fmt="png">
+      <div class="exp-ic png">PNG</div>
+      <div><b>PNG image</b><div class="mini">One high-resolution image per policy card</div></div>
+    </div>
+    <div id="expOptPdf" class="exp-opt" data-fmt="pdf">
+      <div class="exp-ic pdf">PDF</div>
+      <div><b>PDF document</b><div class="mini">Branded cover page + one page per policy</div></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="expMatrix" checked> Include settings matrix as appendix (PDF)</label>
+    <div class="row">
+      <button class="btn" id="expCancel">Cancel</button>
+      <button class="btn primary" id="expGo">Export</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="js/authConfig.js"></script>
+<script src="js/labels.js"></script>
+<script src="js/graph.js"></script>
+<script src="js/model.js"></script>
+<script src="js/render.js"></script>
+<script src="js/export.js"></script>
+<script src="js/demo.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

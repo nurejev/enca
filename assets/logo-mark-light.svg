@@ -1,0 +1,22 @@
+<svg width="830" height="830" xmlns="http://www.w3.org/2000/svg" viewBox="-415 -495 830 830"><defs>
+  <radialGradient id="bggX" cx="50%" cy="45%" r="72%">
+    <stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#f2f6ea"/>
+  </radialGradient>
+  <linearGradient id="goldgX" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#f0cf55"/><stop offset="55%" stop-color="#dfb32b"/>
+    <stop offset="100%" stop-color="#a8871c"/>
+  </linearGradient>
+  <linearGradient id="bodygX" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#3f7a24"/><stop offset="100%" stop-color="#2d5a1a"/>
+  </linearGradient>
+  <linearGradient id="leafgX" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0%" stop-color="#2d5a1a"/><stop offset="100%" stop-color="#3f7a24"/>
+  </linearGradient>
+  <linearGradient id="textgX" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#3f7a24"/><stop offset="100%" stop-color="#1d3f10"/>
+  </linearGradient>
+  <filter id="glowX" x="-150%" y="-150%" width="400%" height="400%">
+    <feGaussianBlur stdDeviation="5" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="blur18X"><feGaussianBlur stdDeviation="18"/></filter></defs><g><path d="M-6,-270 C 10,-330 40,-360 92,-372 C 96,-352 88,-322 62,-302 C 40,-286 16,-280 -6,-270 Z" fill="url(#leafgX)" stroke="#5f9c2e" stroke-width="4" stroke-linejoin="round"/><path d="M-14,-286 C -40,-400 -120,-472 -212,-478 C -222,-380 -160,-300 -60,-278 C -44,-276 -26,-278 -14,-286 Z" fill="url(#leafgX)" stroke="#5f9c2e" stroke-width="5" stroke-linejoin="round"/><path d="M-30,-292 C -80,-330 -140,-400 -196,-462" fill="none" stroke="#5f9c2e" stroke-width="4" opacity="0.7" stroke-linecap="round"/><ellipse cx="0" cy="300" rx="36" ry="20" fill="url(#bodygX)" stroke="#5f9c2e" stroke-width="5"/><path d="M0,-292 C 138,-286 252,-172 252,-6 C 252,168 138,278 0,292 C -138,278 -252,168 -252,-6 C -252,-172 -138,-286 0,-292 Z" fill="url(#bodygX)" stroke="#5f9c2e" stroke-width="7"/><path d="M0,-292 C 138,-286 252,-172 252,-6 C 252,168 138,278 0,292 C -138,278 -252,168 -252,-6 C -252,-172 -138,-286 0,-292 Z" transform="scale(0.94)" fill="#2d5a1a" opacity="0.7"/><path d="M0,-238 C 112,-232 202,-148 202,-16 C 202,120 112,206 0,240 C -112,206 -202,120 -202,-16 C -202,-148 -112,-232 0,-238 Z" transform="scale(0.88)" fill="none" stroke="url(#goldgX)" stroke-width="52"/><circle cx="0" cy="-188" r="8" fill="#a8871c" opacity="0.6"/><circle cx="61" cy="-176" r="8" fill="#a8871c" opacity="0.6"/><circle cx="114" cy="-143" r="8" fill="#a8871c" opacity="0.6"/><circle cx="154" cy="-92" r="8" fill="#a8871c" opacity="0.6"/><circle cx="175" cy="-29" r="8" fill="#a8871c" opacity="0.6"/><circle cx="175" cy="37" r="8" fill="#a8871c" opacity="0.6"/><circle cx="154" cy="100" r="8" fill="#a8871c" opacity="0.6"/><circle cx="114" cy="151" r="8" fill="#a8871c" opacity="0.6"/><circle cx="61" cy="184" r="8" fill="#a8871c" opacity="0.6"/><circle cx="0" cy="196" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-61" cy="184" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-114" cy="151" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-154" cy="100" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-175" cy="37" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-175" cy="-29" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-154" cy="-92" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-114" cy="-143" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-61" cy="-176" r="8" fill="#a8871c" opacity="0.6"/><path d="M0,-238 C 112,-232 202,-148 202,-16 C 202,120 112,206 0,240 C -112,206 -202,120 -202,-16 C -202,-148 -112,-232 0,-238 Z" transform="scale(0.765)" fill="#2d5a1a"/><path d="M0,-158 C 52,-138 96,-128 128,-124 L 128,-30 C 128,62 76,132 0,166 C -76,132 -128,62 -128,-30 L -128,-124 C -96,-128 -52,-138 0,-158 Z" fill="#3f7a24" stroke="#5f9c2e" stroke-width="3.5" opacity="0.9" transform="translate(0,10) scale(0.88)"/><line x1="0" y1="-128" x2="0" y2="-56" stroke="#dfb32b" stroke-width="4" opacity="0.8"/><g filter="url(#glowX)"><circle cx="0" cy="-8" r="50" fill="url(#goldgX)"/><path d="M-19,20 L-31,112 L31,112 L19,20 Z" fill="url(#goldgX)"/></g></g></svg>
