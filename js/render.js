@@ -29,6 +29,35 @@ const Render = (() => {
       .map(([k, t]) => `<button class="fchip ${active === k ? "active" : ""}" data-state="${k}">${t} (${counts[k]})</button>`).join("");
   }
 
+  // Compact summary card for the on-site cards view (multiple per row).
+  function summaryCard(p, selected) {
+    const enforcement = p.grant.mode === "block" ? "Block"
+      : p.grant.controls[0] === "No controls (grant)"
+        ? (p.session.length ? "Session only" : "Grant")
+        : (p.session.length ? "Grant + Session" : "Grant");
+    return `<div class="scard" data-open="${p.id}">
+      <div class="scard-top">
+        <div class="scard-ic"><img src="assets/logo-mark-light.svg" width="24" height="24" alt=""></div>
+        <div class="scard-title">
+          <h3>${esc(p.name)}</h3>
+          <div class="mini">Modified ${p.modified} · ${p.seq}</div>
+        </div>
+        <div class="scard-right">${stateChip(p.state)}<input type="checkbox" data-sel="${p.id}" ${selected && selected.has(p.id) ? "checked" : ""}></div>
+      </div>
+      <div class="scard-grid">
+        <div><label>User Scope</label><b>${esc(p.users.inc[0] || "")}${p.users.exc.length ? ` <span class="excl-note">(−${p.users.exc.length})</span>` : ""}</b></div>
+        <div><label>Applications</label><b>${esc(p.apps.inc[0] || "")}${p.apps.exc.length ? ` <span class="excl-note">(−${p.apps.exc.length})</span>` : ""}</b></div>
+        <div><label>Enforcement</label><b>${enforcement}</b></div>
+        <div><label>New CA settings</label><b>${p.usesNew ? '<span class="tag new">yes</span>' : "—"}</b></div>
+      </div>
+      <div class="scard-controls"><label>Grant Controls</label>
+        ${p.grant.controls.map(g => `<span class="tag ${p.grant.mode === "block" ? "block" : "grant"}">${esc(g)}</span>`).join("")}
+        ${p.session.map(s => `<span class="tag${s.isNew ? " new" : ""}">${esc(s.t)}</span>`).join("")}
+      </div>
+      <div class="scard-foot">Policy ID: ${esc(p.id)}</div>
+    </div>`;
+  }
+
   // opts.export: neutral output (no Limon-IT branding, no buttons);
   // opts.logo: tenant branding logo (data URL) used instead, when available.
   function card(p, tenantName, opts = {}) {
@@ -98,5 +127,5 @@ const Render = (() => {
     return html + "</tbody>";
   }
 
-  return { listRows, stateChips, card, matrix, stateChip };
+  return { listRows, stateChips, card, summaryCard, matrix, stateChip };
 })();

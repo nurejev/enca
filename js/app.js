@@ -41,7 +41,7 @@
   function openDoc(ids) {
     currentDoc = ids;
     const ps = ids.map(id => policies.find(p => p.id === id));
-    $("cardsView").innerHTML = ps.map(p => Render.card(p, tenantName)).join("");
+    $("cardsView").innerHTML = ps.map(p => Render.summaryCard(p, selected)).join("");
     $("mtable").innerHTML = Render.matrix(ps);
     $("docCount").textContent = `· ${ps.length} ${ps.length === 1 ? "policy" : "policies"}`;
     setDocView(docView);
@@ -181,7 +181,21 @@
   $("expOptPdf").addEventListener("click", () => { fmt = "pdf"; syncFmt(); });
   $("expCancel").addEventListener("click", () => $("exportModal").classList.remove("open"));
   $("expGo").addEventListener("click", doExport);
+  // summary card: checkbox = select, click elsewhere = open detail modal
   $("cardsView").addEventListener("click", (e) => {
+    if (e.target.matches("[data-sel]")) return; // handled by change event
+    const sc = e.target.closest("[data-open]"); if (!sc) return;
+    const p = policies.find(x => x.id === sc.dataset.open);
+    $("detailBody").innerHTML = Render.card(p, tenantName);
+    $("detailModal").classList.add("open");
+  });
+  $("cardsView").addEventListener("change", (e) => {
+    const cb = e.target.closest("[data-sel]"); if (!cb) return;
+    cb.checked ? selected.add(cb.dataset.sel) : selected.delete(cb.dataset.sel);
+    refreshList(); // keep list checkboxes + selbar in sync
+  });
+  $("detailModal").addEventListener("click", (e) => {
+    if (e.target.id === "detailModal") { $("detailModal").classList.remove("open"); return; }
     const b = e.target.closest("[data-png]"); if (!b) return;
     const p = policies.find(x => x.id === b.dataset.png);
     toast(`Exporting <span>${p.seq}.png</span>…`);
