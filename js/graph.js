@@ -126,8 +126,21 @@ const Graph = (() => {
     onStatus?.("Fetching organization info…");
     let org = null;
     try { org = (await gget("/organization"))?.value?.[0] || null; } catch {}
+    // tenant branding logo (used in exports); fails silently if not set / no permission
+    let logo = null;
+    if (org?.id) {
+      try {
+        const t = await token();
+        const r = await fetch(`${AUTH_CONFIG.graphBase}/organization/${org.id}/branding/localizations/default/bannerLogo`,
+          { headers: { Authorization: "Bearer " + t } });
+        if (r.ok) {
+          const b = await r.blob();
+          if (b.size > 0) logo = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); });
+        }
+      } catch {}
+    }
     const resolve = await buildResolver(policies, onStatus);
-    return { policies, org, resolve, account };
+    return { policies, org, logo, resolve, account };
   }
 
   return { init, signIn, signOut, loadTenant, get account() { return account; } };

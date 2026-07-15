@@ -5,6 +5,7 @@
   const $ = (id) => document.getElementById(id);
   let policies = [];          // view models
   let tenantName = "";
+  let tenantLogo = null;      // tenant branding logo (data URL) for neutral exports
   let selected = new Set();
   let stateFilter = "all", query = "", docView = "cards", fmt = "png";
   let currentDoc = [];        // ids in the doc preview
@@ -76,11 +77,11 @@
       if (fmt === "png") {
         for (const p of ps) {
           toast(`Exporting <span>${p.seq}.png</span>…`);
-          await Exporter.policyPng(p, tenantName);
+          await Exporter.policyPng(p, tenantName, tenantLogo);
         }
         toast("PNG export <span>done</span>");
       } else {
-        await Exporter.policiesPdf(ps, tenantName, $("expMatrix").checked, (m) => toast(m));
+        await Exporter.policiesPdf(ps, tenantName, $("expMatrix").checked, (m) => toast(m), tenantLogo);
         toast("PDF export <span>done</span>");
       }
     } catch (e) {
@@ -93,8 +94,9 @@
   async function loadFromGraph() {
     show("screen-loading");
     try {
-      const { policies: raw, org, resolve, account } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
+      const { policies: raw, org, logo, resolve, account } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
       tenantName = org?.displayName || account?.tenantId || "";
+      tenantLogo = logo || null;
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
       $("tenantName").textContent = tenantName;
@@ -114,6 +116,7 @@
 
   function loadDemo() {
     tenantName = DEMO_DATA.tenantName;
+    tenantLogo = null;
     const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
     policies = DEMO_DATA.policies.map((r, i) => buildViewModel(r, resolve, i));
     $("tenantName").textContent = tenantName;
@@ -165,6 +168,9 @@
   $("clearSelBtn").addEventListener("click", () => { selected.clear(); refreshList(); $("selAll").checked = false; });
   $("docSelBtn").addEventListener("click", () => openDoc([...selected]));
   $("docAllBtn").addEventListener("click", () => openDoc(policies.map(p => p.id)));
+  // Cards/Matrix toggle on the list screen: opens the doc view (selection, or all)
+  $("segCardsList").addEventListener("click", () => { docView = "cards"; openDoc(selected.size ? [...selected] : policies.map(p => p.id)); });
+  $("segMatrixList").addEventListener("click", () => { docView = "matrix"; openDoc(selected.size ? [...selected] : policies.map(p => p.id)); });
   $("backBtn").addEventListener("click", () => show("screen-list"));
   $("segCards").addEventListener("click", () => setDocView("cards"));
   $("segMatrix").addEventListener("click", () => setDocView("matrix"));
@@ -179,7 +185,7 @@
     const b = e.target.closest("[data-png]"); if (!b) return;
     const p = policies.find(x => x.id === b.dataset.png);
     toast(`Exporting <span>${p.seq}.png</span>…`);
-    Exporter.policyPng(p, tenantName).catch(err => { console.error(err); toast("Export failed"); });
+    Exporter.policyPng(p, tenantName, tenantLogo).catch(err => { console.error(err); toast("Export failed"); });
   });
 
   // ---------- boot ----------
