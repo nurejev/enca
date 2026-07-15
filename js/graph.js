@@ -38,12 +38,19 @@ const Graph = (() => {
     }
   }
 
+  // never attach the access token to anything but Microsoft Graph
+  function safeGraphUrl(url) {
+    const full = url.startsWith("http") ? url : AUTH_CONFIG.graphBase + url;
+    if (new URL(full).hostname !== "graph.microsoft.com") throw new Error("Blocked non-Graph URL");
+    return full;
+  }
+
   async function gget(url) {
     const t = await token();
-    const r = await fetch(url.startsWith("http") ? url : AUTH_CONFIG.graphBase + url, {
+    const r = await fetch(safeGraphUrl(url), {
       headers: { Authorization: "Bearer " + t, ConsistencyLevel: "eventual" },
     });
-    if (!r.ok) throw new Error(`Graph ${r.status}: ${url}`);
+    if (!r.ok) throw new Error(`Graph request failed (${r.status})`);
     return r.json();
   }
 
@@ -59,12 +66,12 @@ const Graph = (() => {
 
   async function gpost(url, body) {
     const t = await token();
-    const r = await fetch(AUTH_CONFIG.graphBase + url, {
+    const r = await fetch(safeGraphUrl(url), {
       method: "POST",
       headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!r.ok) throw new Error(`Graph ${r.status}: ${url}`);
+    if (!r.ok) throw new Error(`Graph request failed (${r.status})`);
     return r.json();
   }
 
@@ -134,7 +141,7 @@ const Graph = (() => {
     if (org?.id) {
       try {
         const t = await token();
-        const r = await fetch(`${AUTH_CONFIG.graphBase}/organization/${org.id}/branding/localizations/default/bannerLogo`,
+        const r = await fetch(safeGraphUrl(`/organization/${org.id}/branding/localizations/default/bannerLogo`),
           { headers: { Authorization: "Bearer " + t } });
         if (r.ok) {
           const b = await r.blob();

@@ -16,9 +16,11 @@ Runs 100% in the browser (static site) — no backend, no policy data leaves the
 **Option A — script (recommended):**
 
 ```powershell
-Install-Module Microsoft.Graph.Applications -Scope CurrentUser   # once
+Install-Module Microsoft.Graph.Applications -Scope CurrentUser -RequiredVersion 2.25.0   # once, pinned
 ./New-CaDocAppRegistration.ps1
 ```
+
+Re-runs: pass `-AppObjectId <object-id>` (shown in the summary output) to target the exact registration instead of matching by display name.
 
 Reuses your current Graph session if connected (otherwise signs in interactively), creates/updates the multi-tenant SPA registration with both redirect URIs and the delegated permissions, grants admin consent in your tenant, and writes the client ID into `js/authConfig.js` automatically.
 
@@ -94,6 +96,12 @@ js/export.js        PNG (html-to-image) and PDF (jsPDF, cover + cards + matrix)
 js/demo.js          sample policies for ?demo=1
 CNAME               cadoc.limon-it.nl (GitHub Pages custom domain)
 ```
+
+## Security
+
+- All JavaScript libraries are self-hosted in `vendor/` (no CDN at runtime); a meta Content-Security-Policy restricts scripts to same-origin and network calls to graph.microsoft.com / login.microsoftonline.com. GitHub Pages cannot send CSP headers, and `frame-ancestors` cannot be enforced from a meta tag.
+- Access tokens are only ever attached to `graph.microsoft.com` (hostname validated).
+- Permission justification: `Policy.Read.All` reads the CA policies; `Directory.Read.All` is required to resolve user/group/role/service-principal GUIDs to display names — without it the documentation would show raw IDs. Both are read-only delegated permissions; nothing is written to the tenant.
 
 ## Notes
 

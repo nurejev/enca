@@ -22,6 +22,9 @@
 [CmdletBinding()]
 param(
   [string]$AppName = "CA Documenter (Limon-IT)",
+  # Preferred: target the app registration by its immutable Object ID
+  # (display-name lookup can match the wrong app if names collide).
+  [string]$AppObjectId,
   [string[]]$RedirectUris = @("https://cadoc.limon-it.nl", "http://localhost:8080"),
   [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All"),
   [string]$AuthConfigPath = (Join-Path $PSScriptRoot "js/authConfig.js"),
@@ -64,9 +67,15 @@ $appParams = @{
   Web                    = @{ ImplicitGrantSettings = @{ EnableAccessTokenIssuance = $false; EnableIdTokenIssuance = $false } }
 }
 
-$app = Get-MgApplication -Filter "displayName eq '$AppName'" | Select-Object -First 1
+$app = if ($AppObjectId) {
+  Get-MgApplication -ApplicationId $AppObjectId
+} else {
+  $matches2 = @(Get-MgApplication -Filter "displayName eq '$AppName'")
+  if ($matches2.Count -gt 1) { throw "Multiple apps named '$AppName' found. Re-run with -AppObjectId <object-id> to target the right one." }
+  $matches2 | Select-Object -First 1
+}
 if ($app) {
-  Write-Host "App '$AppName' already exists - updating..." -ForegroundColor Yellow
+  Write-Host "App '$($app.DisplayName)' ($($app.Id)) exists - updating..." -ForegroundColor Yellow
   Update-MgApplication -ApplicationId $app.Id @appParams
   $app = Get-MgApplication -ApplicationId $app.Id
 } else {

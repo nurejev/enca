@@ -16,6 +16,7 @@
     $(id).classList.add("active");
     window.scrollTo(0, 0);
   }
+  const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   function toast(msg) {
     const t = $("toast"); t.innerHTML = msg; t.classList.add("show");
     clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 3200);
@@ -53,6 +54,17 @@
       ? "One policy exports as PNG, multiple as a combined PDF"
       : "Multiple selected — will export as a combined PDF";
   }
+  // #10: warn when directory lookups partially failed and raw GUIDs remain
+  function warnUnresolved() {
+    const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    let n = 0;
+    for (const p of policies) {
+      [...p.users.inc, ...p.users.exc, ...p.apps.inc, ...p.apps.exc, ...p.net.inc, ...p.net.exc, ...p.grant.controls]
+        .forEach(v => { if (guid.test(String(v))) n++; });
+    }
+    if (n) setTimeout(() => toast(`⚠ ${n} object name(s) could not be resolved — exports will show raw IDs for these`), 3500);
+  }
+
   function showDetail(id) {
     const p = policies.find(x => x.id === id); if (!p) return;
     $("detailBody").innerHTML = Render.card(p, tenantName);
@@ -112,10 +124,11 @@
       selected = new Set();
       refreshViews();
       show("screen-list");
-      toast(`Signed in to <span>${tenantName}</span> — ${policies.length} Conditional Access policies loaded`);
+      toast(`Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
+      warnUnresolved();
     } catch (e) {
-      console.error(e);
-      alert("Could not load policies: " + e.message + "\n\nCheck that admin consent was granted for Policy.Read.All and Directory.Read.All.");
+      console.error("Policy load failed:", e); // full details for diagnostics
+      alert("Could not load the Conditional Access policies from your tenant.\n\nMost common cause: admin consent for this app has not been granted yet in your tenant. Ask an administrator to consent, then try again.");
       show("screen-login");
     }
   }
