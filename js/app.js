@@ -38,10 +38,23 @@
     $("stateChips").innerHTML = Render.stateChips(policies, stateFilter);
     $("cardsView").innerHTML = Render.groupedCards(vis, selected, collapsedGroups)
       || '<p class="mini" style="padding:20px">No policies match the current filter.</p>';
-    document.querySelector("#ptable tbody").innerHTML = Render.listRows(policies, selected, stateFilter, query);
+    document.querySelector("#ptable tbody").innerHTML = Render.listRows(policies, selected, stateFilter, query, collapsedGroups);
     $("mtable").innerHTML = Render.matrix(vis.length ? vis : policies);
+    // group checkboxes: indeterminate when only part of the group is selected
+    document.querySelectorAll("[data-gsel]").forEach(cb => {
+      const ids = groupIds(cb.dataset.gsel);
+      const n = ids.filter(id => selected.has(id)).length;
+      cb.indeterminate = n > 0 && n < ids.length;
+    });
     setView(viewMode);
     updateSelbar();
+  }
+  function groupIds(key) {
+    return visible().filter(p => String(Render.caGroup(p.name).key) === String(key)).map(p => p.id);
+  }
+  function toggleGroupSel(key, on) {
+    groupIds(key).forEach(id => on ? selected.add(id) : selected.delete(id));
+    refreshViews();
   }
   function setView(v) {
     viewMode = v;
@@ -207,28 +220,37 @@
   $("viewMatrix").addEventListener("click", () => setView("matrix"));
   $("clearSelBtn").addEventListener("click", () => { selected.clear(); refreshViews(); $("selAll").checked = false; });
 
-  // list view: name opens detail, checkbox selects
+  // list view: name opens detail, checkbox selects, group header collapses/selects group
   document.querySelector("#ptable tbody").addEventListener("click", (e) => {
+    const gr = e.target.closest(".grouprow");
+    if (gr) {
+      if (e.target.matches("[data-gsel]")) return; // handled by change event
+      const k = gr.dataset.gkey;
+      collapsedGroups.has(k) ? collapsedGroups.delete(k) : collapsedGroups.add(k);
+      refreshViews();
+      return;
+    }
     const open = e.target.closest("[data-open]");
     if (open) showDetail(open.dataset.open);
   });
   document.querySelector("#ptable tbody").addEventListener("change", (e) => {
+    const g = e.target.closest("[data-gsel]");
+    if (g) { toggleGroupSel(g.dataset.gsel, g.checked); return; }
     const cb = e.target.closest("[data-sel]"); if (!cb) return;
     cb.checked ? selected.add(cb.dataset.sel) : selected.delete(cb.dataset.sel);
     refreshViews();
   });
   $("selAll").addEventListener("change", (e) => {
-    document.querySelectorAll("#ptable tbody [data-sel]").forEach(cb => {
-      cb.checked = e.target.checked;
-      e.target.checked ? selected.add(cb.dataset.sel) : selected.delete(cb.dataset.sel);
-    });
+    // operates on the data (all filtered policies), including collapsed groups
+    visible().forEach(p => e.target.checked ? selected.add(p.id) : selected.delete(p.id));
     refreshViews();
   });
 
   // cards view: checkbox selects, click elsewhere opens detail modal
   $("cardsView").addEventListener("click", (e) => {
-    const gh = e.target.closest(".cardgroup"); // persona header: collapse/expand
+    const gh = e.target.closest(".cardgroup"); // persona header: collapse/expand or group-select
     if (gh) {
+      if (e.target.matches("[data-gsel]")) return; // handled by change event
       const k = gh.dataset.gkey;
       collapsedGroups.has(k) ? collapsedGroups.delete(k) : collapsedGroups.add(k);
       refreshViews();
@@ -239,6 +261,8 @@
     showDetail(sc.dataset.open);
   });
   $("cardsView").addEventListener("change", (e) => {
+    const g = e.target.closest("[data-gsel]");
+    if (g) { toggleGroupSel(g.dataset.gsel, g.checked); return; }
     const cb = e.target.closest("[data-sel]"); if (!cb) return;
     cb.checked ? selected.add(cb.dataset.sel) : selected.delete(cb.dataset.sel);
     refreshViews();

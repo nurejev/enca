@@ -16,11 +16,8 @@ const Render = (() => {
     return items.map(i => `<li${cls ? ` class="${cls}"` : ""}>${cls === "excl" ? "− " : ""}${esc(i)}</li>`).join("");
   };
 
-  function listRows(policies, selected, stateFilter, query) {
-    return policies
-      .filter(p => stateFilter === "all" || p.state === stateFilter)
-      .filter(p => !query || p.name.toLowerCase().includes(query))
-      .map(p => `<tr>
+  function listRow(p, selected) {
+    return `<tr>
         <td><input type="checkbox" data-sel="${p.id}" ${selected.has(p.id) ? "checked" : ""}></td>
         <td><div class="pname" data-open="${p.id}">${esc(p.name)}</div>
             <div class="mini">${p.seq}${p.usesNew ? ' · <span class="tag new">uses new CA settings</span>' : ""}</div></td>
@@ -29,7 +26,33 @@ const Render = (() => {
         <td class="mini">${esc(p.apps.inc.slice(0, 2).join(", "))}${p.apps.inc.length > 2 ? "…" : ""}</td>
         <td class="mini">${esc(p.grant.controls[0] || "")}</td>
         <td class="mini">${p.modified}</td>
-      </tr>`).join("");
+      </tr>`;
+  }
+
+  // List view grouped by persona (CA number range), with a collapsible header row
+  // and a group-level select checkbox.
+  function listRows(policies, selected, stateFilter, query, collapsed) {
+    const vis = policies
+      .filter(p => stateFilter === "all" || p.state === stateFilter)
+      .filter(p => !query || p.name.toLowerCase().includes(query));
+    const groups = new Map();
+    vis.forEach(p => {
+      const g = caGroup(p.name);
+      if (!groups.has(g.key)) groups.set(g.key, { label: g.label, items: [] });
+      groups.get(g.key).items.push({ p, num: g.num });
+    });
+    return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([key, g]) => {
+      const isCollapsed = collapsed && collapsed.has(String(key));
+      const allSel = g.items.every(x => selected.has(x.p.id));
+      let html = `<tr class="grouprow${isCollapsed ? " collapsed" : ""}" data-gkey="${key}">
+        <td><input type="checkbox" data-gsel="${key}" ${allSel ? "checked" : ""} title="Select whole group"></td>
+        <td colspan="6"><span class="caret">▶</span> <b>${esc(g.label)}</b> <span class="mini">${g.items.length} ${g.items.length === 1 ? "policy" : "policies"}${isCollapsed ? " · click to expand" : ""}</span></td>
+      </tr>`;
+      if (!isCollapsed) html += g.items
+        .sort((a, b) => (a.num ?? 1e9) - (b.num ?? 1e9) || a.p.name.localeCompare(b.p.name))
+        .map(x => listRow(x.p, selected)).join("");
+      return html;
+    }).join("");
   }
 
   function stateChips(policies, active) {
@@ -70,7 +93,9 @@ const Render = (() => {
     });
     return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([key, g]) => {
       const isCollapsed = collapsed && collapsed.has(String(key));
+      const allSel = g.items.every(x => selected.has(x.p.id));
       return `<div class="cardgroup${isCollapsed ? " collapsed" : ""}" data-gkey="${key}">
+        <input type="checkbox" data-gsel="${key}" ${allSel ? "checked" : ""} title="Select whole group">
         <span class="caret">▶</span><h3>${esc(g.label)}</h3>
         <span class="mini">${g.items.length} ${g.items.length === 1 ? "policy" : "policies"}${isCollapsed ? " · click to expand" : ""}</span>
       </div>` +
