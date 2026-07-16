@@ -112,7 +112,19 @@ const Exporter = (() => {
     await addCover(pdf, tenantName, policies.length, logo);
 
     const failed = [];
+    let lastGroup = null;
     for (let i = 0; i < policies.length; i++) {
+      // persona divider page when entering a new CA number range
+      const g = Render.caGroup(policies[i].name);
+      if (g.label !== lastGroup) {
+        lastGroup = g.label;
+        pdf.addPage();
+        pdf.setFillColor(241, 242, 248); pdf.rect(0, 0, A4.w, A4.h, "F");
+        pdf.setFillColor(50, 63, 75); pdf.rect(0, 90, A4.w, 26, "F");
+        pdf.setTextColor(255, 255, 255); pdf.setFontSize(22); pdf.setFont("helvetica", "bold");
+        pdf.text(g.label, MARGIN, 107);
+        pdf.setFont("helvetica", "normal");
+      }
       onProgress?.(`Rendering ${policies[i].seq} (${i + 1}/${policies.length})…`);
       const st = stage(Render.card(policies[i], tenantName, { export: true, logo }));
       try {
@@ -153,7 +165,8 @@ const Exporter = (() => {
       const st = stage(Render.card(policies[i], tenantName, { export: true, logo }));
       try {
         const url = await nodeToPng(st.firstElementChild);
-        zip.file(`${policies[i].seq}-${safe(policies[i].name)}.png`, url.split(",")[1], { base64: true });
+        const folder = safe(Render.caGroup(policies[i].name).label); // persona folder per CA range
+        zip.file(`${folder}/${policies[i].seq}-${safe(policies[i].name)}.png`, url.split(",")[1], { base64: true });
       } catch (e) { console.error(`ZIP: ${policies[i].seq} failed`, e); }
       finally { st.remove(); }
     }
@@ -182,7 +195,13 @@ const Exporter = (() => {
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`);
     const rels = [], body = [];
-    images.forEach((img, i) => {
+    let imgN = 0;
+    images.forEach((img) => {
+      if (img.heading) { // persona group heading
+        body.push(`<w:p><w:r><w:rPr><w:b/><w:sz w:val="32"/></w:rPr><w:t>${xesc(img.heading)}</w:t></w:r></w:p>`);
+        return;
+      }
+      const i = imgN++;
       const rid = `rIdImg${i + 1}`;
       zip.file(`word/media/image${i + 1}.png`, img.base64, { base64: true });
       rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image${i + 1}.png"/>`);
@@ -211,7 +230,10 @@ ${body.join("\n")}
 
   async function policiesDocx(policies, tenantName, logo, onProgress) {
     const images = [];
+    let lastGroup = null;
     for (let i = 0; i < policies.length; i++) {
+      const g = Render.caGroup(policies[i].name);
+      if (g.label !== lastGroup) { lastGroup = g.label; images.push({ heading: g.label }); }
       onProgress?.(`Rendering ${policies[i].seq} (${i + 1}/${policies.length})…`);
       const st = stage(Render.card(policies[i], tenantName, { export: true, logo }));
       try {
@@ -221,7 +243,7 @@ ${body.join("\n")}
       } catch (e) { console.error(`DOCX: ${policies[i].seq} failed`, e); }
       finally { st.remove(); }
     }
-    if (!images.length) throw new Error("no policy cards could be rendered");
+    if (!images.some(x => x.base64)) throw new Error("no policy cards could be rendered");
     onProgress?.("Building Word document…");
     const zip = buildDocx(images, `Conditional Access documentation — ${tenantName || "tenant"} — ${new Date().toISOString().slice(0, 10)}`);
     const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });

@@ -79,6 +79,11 @@ table.plist tr:hover td{background:#fafdf9}
 input[type=checkbox]{width:16px;height:16px;accent-color:var(--green)}
 .excl-note{color:var(--off)}
 
+/* persona group header spanning the full cards grid */
+.cardgroup{grid-column:1/-1;display:flex;align-items:baseline;gap:10px;margin-top:10px;padding-bottom:6px;border-bottom:2px solid var(--border)}
+.cardgroup:first-child{margin-top:0}
+.cardgroup h3{font-size:15px;letter-spacing:-.01em;color:var(--green)}
+
 /* ---------- cards view (compact summary cards, multiple per row) ---------- */
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;align-items:start}
 .scard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;display:flex;flex-direction:column;gap:13px;cursor:pointer;transition:.15s}

@@ -29,6 +29,43 @@ const Render = (() => {
       .map(([k, t]) => `<button class="fchip ${active === k ? "active" : ""}" data-state="${k}">${t} (${counts[k]})</button>`).join("");
   }
 
+  // Persona group from the CA number in the policy name (persona-based CA framework):
+  // CA000-099 Global, CA100-199 Admins, CA200-299 Internals, CA300-399 Externals,
+  // CA400-499 Guest users, CA500-599 Guest admins, CA600-699 M365 service accounts,
+  // CA700-799 Azure service accounts, CA800-899 Corp service accounts,
+  // CA900-999 Workload identities, CA1000-1099 DevOps.
+  const CA_RANGES = {
+    0: "Global", 100: "Admins", 200: "Internals", 300: "Externals",
+    400: "Guest users", 500: "Guest admins", 600: "Microsoft 365 service accounts",
+    700: "Azure service accounts", 800: "Corp service accounts",
+    900: "Workload identities", 1000: "DevOps",
+  };
+  function caGroup(name) {
+    const m = /CA(\d{3,4})/i.exec(name || "");
+    if (!m) return { key: 99999, num: null, label: "Other / unnumbered" };
+    const n = +m[1];
+    const base = Math.floor(n / 100) * 100;
+    const persona = CA_RANGES[base] || `CA${base}+`;
+    const hi = base + 99;
+    return { key: base, num: n, label: `${persona} (CA${String(base).padStart(3, "0")}–CA${String(hi).padStart(3, "0")})` };
+  }
+
+  // Cards view grouped by CA number range, with a section header per persona.
+  function groupedCards(vis, selected) {
+    const groups = new Map();
+    vis.forEach(p => {
+      const g = caGroup(p.name);
+      if (!groups.has(g.key)) groups.set(g.key, { label: g.label, items: [] });
+      groups.get(g.key).items.push({ p, num: g.num });
+    });
+    return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([, g]) =>
+      `<div class="cardgroup"><h3>${esc(g.label)}</h3><span class="mini">${g.items.length} ${g.items.length === 1 ? "policy" : "policies"}</span></div>` +
+      g.items
+        .sort((a, b) => (a.num ?? 1e9) - (b.num ?? 1e9) || a.p.name.localeCompare(b.p.name))
+        .map(x => summaryCard(x.p, selected)).join("")
+    ).join("");
+  }
+
   // Compact summary card for the on-site cards view (multiple per row).
   function summaryCard(p, selected) {
     const enforcement = p.grant.mode === "block" ? "Block"
@@ -140,5 +177,5 @@ const Render = (() => {
     return html + "</tbody>";
   }
 
-  return { listRows, stateChips, card, summaryCard, matrix, stateChip };
+  return { listRows, stateChips, card, summaryCard, groupedCards, caGroup, matrix, stateChip };
 })();

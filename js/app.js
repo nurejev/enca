@@ -35,7 +35,7 @@
   function refreshViews() {
     const vis = visible();
     $("stateChips").innerHTML = Render.stateChips(policies, stateFilter);
-    $("cardsView").innerHTML = vis.map(p => Render.summaryCard(p, selected)).join("")
+    $("cardsView").innerHTML = Render.groupedCards(vis, selected)
       || '<p class="mini" style="padding:20px">No policies match the current filter.</p>';
     document.querySelector("#ptable tbody").innerHTML = Render.listRows(policies, selected, stateFilter, query);
     $("mtable").innerHTML = Render.matrix(vis.length ? vis : policies);
@@ -99,6 +99,11 @@
   async function doExport() {
     $("exportModal").classList.remove("open");
     const ps = currentExport.map(id => policies.find(p => p.id === id));
+    // export in persona order (CA number ranges): Global, Admins, Internals, …
+    ps.sort((a, b) => {
+      const ga = Render.caGroup(a.name), gb = Render.caGroup(b.name);
+      return ga.key - gb.key || (ga.num ?? 1e9) - (gb.num ?? 1e9) || a.name.localeCompare(b.name);
+    });
     try {
       if (fmt === "png") {
         for (const p of ps) {
