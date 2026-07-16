@@ -138,7 +138,9 @@ table.matrix td .dot{display:inline-block;width:8px;height:8px;border-radius:50%
 .an-table tr.urow{cursor:pointer}
 .an-table tr.urow:hover td{background:#fafdf9}
 .uupn{color:var(--muted);font-family:ui-monospace,Consolas,monospace;font-size:11px}
-.caret{display:inline-block;width:13px;color:#b9ccbe;font-size:10px}
+.caret{display:inline-block;width:13px;color:#b9ccbe;font-size:10px;transition:transform .15s}
+tr.urow.open .caret{transform:rotate(90deg);color:var(--accent2)}
+tr.urow.open td{background:var(--soft)}
 .pill{display:inline-block;padding:1px 9px;border-radius:11px;font-weight:700;font-size:11px;min-width:22px;text-align:center}
 .pill.green{background:#e5f3d9;color:var(--on)}
 .pill.amber{background:#fdf3c9;color:var(--report)}

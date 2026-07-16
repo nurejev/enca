@@ -334,8 +334,9 @@
     if (pl) { openPolicyByName(pl.dataset.pol); return; }
     const tr = e.target.closest(".urow"); if (!tr) return;
     const next = tr.nextElementSibling;
-    if (next && next.classList.contains("detail")) { next.remove(); return; }
+    if (next && next.classList.contains("detail")) { next.remove(); tr.classList.remove("open"); return; }
     tr.insertAdjacentHTML("afterend", Analyzer.userDetail(anReport[+tr.dataset.user]));
+    tr.classList.add("open");
   });
   $("anMHead").addEventListener("click", (e) => {
     const pl = e.target.closest(".pol-link");

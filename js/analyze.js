@@ -358,7 +358,9 @@ thead th{position:sticky;top:0;background:#f1f2f8;padding:9px 14px;text-align:le
 td{padding:8px 14px;border-bottom:1px solid #f0f0f5;vertical-align:top}.num{text-align:right}
 tr.urow{cursor:pointer}tr.urow:hover{background:#fafbff}
 .uname{font-weight:600}.uupn{color:#6b7280;font-family:monospace;font-size:11px}
-.caret{display:inline-block;width:13px;color:#999;font-size:10px}
+.caret{display:inline-block;width:13px;color:#999;font-size:10px;transition:transform .15s}
+tr.urow.open .caret{transform:rotate(90deg);color:#323f4b}
+tr.urow.open td{background:#f1f2f8}
 .pill{display:inline-block;padding:1px 9px;border-radius:11px;font-weight:700;font-size:11px}
 .pill.green{background:#e6f5ec;color:#0a7d39}.pill.amber{background:#fff3cd;color:#8a5a00}.pill.red{background:#fde8e6;color:#c0392b}.pill.zero{background:#f0f1f6;color:#9aa0ab}
 .tag{padding:1px 7px;border-radius:4px;font-size:10px;font-weight:600;background:#f0f1f6}
@@ -437,7 +439,8 @@ document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{V=t
 document.getElementById("mprev").addEventListener("click",()=>{MP--;drawMatrix();});
 document.getElementById("mnext").addEventListener("click",()=>{MP++;drawMatrix();});
 tb.addEventListener("click",e=>{const tr=e.target.closest(".urow");if(!tr)return;const d=tr.nextElementSibling;
- if(d&&d.classList.contains("detail")){d.remove();return;}tr.insertAdjacentHTML("afterend",detail(R[+tr.dataset.i]));});
+ if(d&&d.classList.contains("detail")){d.remove();tr.classList.remove("open");return;}
+ tr.insertAdjacentHTML("afterend",detail(R[+tr.dataset.i]));tr.classList.add("open");});
 draw();
 </script></body></html>`;
   }
