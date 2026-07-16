@@ -7,6 +7,7 @@
   let tenantName = "";
   let tenantLogo = null;      // tenant branding logo (data URL) for neutral exports
   let selected = new Set();
+  let collapsedGroups = new Set();  // collapsed persona sections in cards view
   let stateFilter = "all", query = "", viewMode = "cards", fmt = "png";
   let currentExport = [];
   let isDemo = false;
@@ -35,7 +36,7 @@
   function refreshViews() {
     const vis = visible();
     $("stateChips").innerHTML = Render.stateChips(policies, stateFilter);
-    $("cardsView").innerHTML = Render.groupedCards(vis, selected)
+    $("cardsView").innerHTML = Render.groupedCards(vis, selected, collapsedGroups)
       || '<p class="mini" style="padding:20px">No policies match the current filter.</p>';
     document.querySelector("#ptable tbody").innerHTML = Render.listRows(policies, selected, stateFilter, query);
     $("mtable").innerHTML = Render.matrix(vis.length ? vis : policies);
@@ -226,6 +227,13 @@
 
   // cards view: checkbox selects, click elsewhere opens detail modal
   $("cardsView").addEventListener("click", (e) => {
+    const gh = e.target.closest(".cardgroup"); // persona header: collapse/expand
+    if (gh) {
+      const k = gh.dataset.gkey;
+      collapsedGroups.has(k) ? collapsedGroups.delete(k) : collapsedGroups.add(k);
+      refreshViews();
+      return;
+    }
     if (e.target.matches("[data-sel]")) return; // handled by change event
     const sc = e.target.closest("[data-open]"); if (!sc) return;
     showDetail(sc.dataset.open);

@@ -50,20 +50,24 @@ const Render = (() => {
     return { key: base, num: n, label: `${persona} (CA${String(base).padStart(3, "0")}–CA${String(hi).padStart(3, "0")})` };
   }
 
-  // Cards view grouped by CA number range, with a section header per persona.
-  function groupedCards(vis, selected) {
+  // Cards view grouped by CA number range, with a collapsible section header per persona.
+  function groupedCards(vis, selected, collapsed) {
     const groups = new Map();
     vis.forEach(p => {
       const g = caGroup(p.name);
       if (!groups.has(g.key)) groups.set(g.key, { label: g.label, items: [] });
       groups.get(g.key).items.push({ p, num: g.num });
     });
-    return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([, g]) =>
-      `<div class="cardgroup"><h3>${esc(g.label)}</h3><span class="mini">${g.items.length} ${g.items.length === 1 ? "policy" : "policies"}</span></div>` +
-      g.items
+    return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([key, g]) => {
+      const isCollapsed = collapsed && collapsed.has(String(key));
+      return `<div class="cardgroup${isCollapsed ? " collapsed" : ""}" data-gkey="${key}">
+        <span class="caret">▶</span><h3>${esc(g.label)}</h3>
+        <span class="mini">${g.items.length} ${g.items.length === 1 ? "policy" : "policies"}${isCollapsed ? " · click to expand" : ""}</span>
+      </div>` +
+      (isCollapsed ? "" : g.items
         .sort((a, b) => (a.num ?? 1e9) - (b.num ?? 1e9) || a.p.name.localeCompare(b.p.name))
-        .map(x => summaryCard(x.p, selected)).join("")
-    ).join("");
+        .map(x => summaryCard(x.p, selected)).join(""));
+    }).join("");
   }
 
   // Compact summary card for the on-site cards view (multiple per row).
