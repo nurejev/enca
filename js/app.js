@@ -58,6 +58,7 @@
     $("selbar").classList.toggle("visible", n > 0);
     $("exportBtn").disabled = policies.length === 0;
     $("analyzeBtn").disabled = policies.length === 0;
+    $("refreshBtn").disabled = policies.length === 0;
     $("selHint").textContent = n <= 1
       ? "One policy exports as PNG, multiple as a combined PDF"
       : "Multiple selected — will export as a combined PDF";
@@ -117,13 +118,14 @@
   }
 
   // ---------- data loading ----------
-  async function loadFromGraph() {
+  async function loadFromGraph(isRefresh) {
     show("screen-loading");
     try {
       const { policies: raw, org, logo, resolve, account } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
       tenantName = org?.displayName || account?.tenantId || "";
       tenantLogo = logo || null;
       isDemo = false; anReport = null;
+      $("anResults").style.display = "none"; $("anStatus").textContent = "";
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
       $("tenantName").textContent = tenantName;
@@ -133,7 +135,9 @@
       selected = new Set();
       refreshViews();
       show("screen-list");
-      toast(`Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
+      toast(isRefresh
+        ? `Refreshed from Entra — <span>${policies.length}</span> Conditional Access policies`
+        : `Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
       warnUnresolved();
     } catch (e) {
       console.error("Policy load failed:", e); // full details for diagnostics
@@ -146,6 +150,7 @@
     tenantName = DEMO_DATA.tenantName;
     tenantLogo = null;
     isDemo = true; anReport = null;
+    $("anResults").style.display = "none"; $("anStatus").textContent = "";
     const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
     policies = DEMO_DATA.policies.map((r, i) => buildViewModel(r, resolve, i));
     $("tenantName").textContent = tenantName;
@@ -228,6 +233,12 @@
     const p = policies.find(x => x.id === b.dataset.png);
     toast(`Exporting <span>${p.seq}.png</span>…`);
     Exporter.policyPng(p, tenantName, tenantLogo).catch(err => { console.error(err); toast("Export failed"); });
+  });
+
+  // refresh: re-fetch policies from Entra (keeps current view; analysis becomes stale and is reset)
+  $("refreshBtn").addEventListener("click", async () => {
+    if (isDemo) { loadDemo(); toast("Demo data <span>reloaded</span>"); return; }
+    await loadFromGraph(true);
   });
 
   // ---------- impact analysis (on demand only) ----------
