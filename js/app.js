@@ -112,8 +112,8 @@
         toast("PDF export <span>done</span>");
       }
     } catch (e) {
-      console.error(e);
-      toast("Export failed — see browser console");
+      console.error("Export failed:", e);
+      toast(`Export failed: <span>${esc(e.message || e)}</span>`);
     }
   }
 

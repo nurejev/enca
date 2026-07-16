@@ -15,9 +15,11 @@ const Exporter = (() => {
   }
 
   async function nodeToPng(node) {
+    // skipFonts: system font stack, no @font-face to embed (avoids CSS fetches)
+    const opts = { pixelRatio: 2, backgroundColor: "#ffffff", skipFonts: true };
     // double render works around fonts/images not ready on first pass
-    await htmlToImage.toPng(node, { pixelRatio: 2, backgroundColor: "#ffffff" });
-    return htmlToImage.toPng(node, { pixelRatio: 2, backgroundColor: "#ffffff" });
+    await htmlToImage.toPng(node, opts);
+    return htmlToImage.toPng(node, opts);
   }
 
   function download(dataUrl, filename) {
@@ -99,6 +101,7 @@ const Exporter = (() => {
     const pdf = new jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     await addCover(pdf, tenantName, policies.length, logo);
 
+    const failed = [];
     for (let i = 0; i < policies.length; i++) {
       onProgress?.(`Rendering ${policies[i].seq} (${i + 1}/${policies.length})…`);
       const st = stage(Render.card(policies[i], tenantName, { export: true, logo }));
@@ -107,8 +110,15 @@ const Exporter = (() => {
         await addImagePaged(pdf, st.firstElementChild);
         pdf.setFontSize(8); pdf.setTextColor(120, 130, 140);
         pdf.text(`${policies[i].seq} — ${policies[i].name}`.slice(0, 120), MARGIN, A4.h - 4);
+      } catch (e) {
+        // keep going: note the failure on the page instead of aborting the whole PDF
+        console.error(`PDF: rendering ${policies[i].seq} failed`, e);
+        failed.push(policies[i].seq);
+        pdf.setFontSize(12); pdf.setTextColor(176, 74, 58);
+        pdf.text(`${policies[i].seq} — ${policies[i].name}\n\nCould not render this policy card (${e.message || e}).`, MARGIN, 30);
       } finally { st.remove(); }
     }
+    if (failed.length === policies.length) throw new Error("all policy cards failed to render: " + (failed.join(", ")));
 
     if (includeMatrix) {
       onProgress?.("Rendering settings matrix…");
@@ -117,8 +127,10 @@ const Exporter = (() => {
       try {
         pdf.addPage();
         await addImagePaged(pdf, st.firstElementChild);
-      } finally { st.remove(); }
+      } catch (e) { console.error("PDF: matrix appendix failed", e); }
+      finally { st.remove(); }
     }
+    if (failed.length) onProgress?.(`Done with ${failed.length} card(s) skipped: ${failed.join(", ")}`);
 
     pdf.save(`ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.pdf`);
   }
