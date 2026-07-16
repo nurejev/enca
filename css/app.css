@@ -151,6 +151,8 @@ tr.detail>td{background:#fafdf9;padding:12px 18px}
 .panel.enforced{border-left:3px solid var(--on)}
 .panel.bypass{border-left:3px solid var(--off)}
 .panel-h{padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)}
+.pol-link{cursor:pointer;font-weight:600}
+.pol-link:hover{color:var(--accent2);text-decoration:underline}
 .plist2{list-style:none;margin:0;padding:0}
 .plist2 li{padding:8px 12px;border-bottom:1px solid #f0f5f1;font-size:13px}
 .plist2 li:last-child{border-bottom:0}

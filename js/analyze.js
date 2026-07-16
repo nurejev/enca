@@ -292,8 +292,9 @@ const Analyzer = (() => {
   }
 
   function userDetail(r) {
-    const ap = r.applied.map(a => `<li>${esc(a.policy)}<div class="mini">${esc(a.controls)}${a.reportOnly ? " · report-only" : ""}</div></li>`).join("") || '<li class="mini">None</li>';
-    const by = r.bypassing.map(b => `<li>${esc(b.policy)} <span class="mini">(${esc(b.reason || "excluded")})</span>
+    const pol = (name) => `<span class="pol-link" data-pol="${esc(name)}" title="Show policy card">${esc(name)}</span>`;
+    const ap = r.applied.map(a => `<li>${pol(a.policy)}<div class="mini">${esc(a.controls)}${a.reportOnly ? " · report-only" : ""}</div></li>`).join("") || '<li class="mini">None</li>';
+    const by = r.bypassing.map(b => `<li>${pol(b.policy)} <span class="mini">(${esc(b.reason || "excluded")})</span>
       ${b.risky ? '<span class="tag block">risky</span>' : b.covered ? `<span class="tag grant">covered</span>` : ""}
       <div class="mini">${esc(b.controls)}${b.coveredBy.length ? " · covered by: " + esc(b.coveredBy.join(", ")) : ""}${b.partial.length ? " · partial: " + esc(b.partial.map(p => `${p.policy} (missing ${p.shortfall.join(", ")})`).join("; ")) : ""}</div></li>`).join("") || '<li class="mini">None</li>';
     return `<tr class="detail"><td colspan="6"><div class="detail-grid">
@@ -321,7 +322,7 @@ const Analyzer = (() => {
     page = Math.min(Math.max(0, page), pages - 1);
     const slice = rowIdx.slice(page * pageSize, (page + 1) * pageSize);
     const head = `<th class="ucol">User (${rowIdx.length})</th>` + pols.map(p =>
-      `<th class="pcol"><div class="ph" title="${esc(p.name)} — ${esc(p.controls)}">${esc(p.name)}${p.enforced ? "" : " [RO]"}</div></th>`).join("");
+      `<th class="pcol"><div class="ph pol-link" data-pol="${esc(p.name)}" title="${esc(p.name)} — ${esc(p.controls)} (click for policy card)">${esc(p.name)}${p.enforced ? "" : " [RO]"}</div></th>`).join("");
     const body = slice.map(i => {
       const r = report[i], { m, why } = maps[i];
       return `<tr><td class="ucol"><span class="uname">${esc(r.user)}</span><div class="uupn">${esc(r.upn)}</div></td>` +

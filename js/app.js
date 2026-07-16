@@ -324,11 +324,22 @@
       toast(`Group <span>${g.label}</span> added (${g.users.size} members)`);
     } finally { $("anGroupAdd").disabled = false; }
   });
+  // policy names in analysis (detail lists + matrix column headers) open the policy card
+  function openPolicyByName(name) {
+    const p = policies.find(x => x.name === name);
+    if (p) showDetail(p.id);
+  }
   $("anBody").addEventListener("click", (e) => {
+    const pl = e.target.closest(".pol-link");
+    if (pl) { openPolicyByName(pl.dataset.pol); return; }
     const tr = e.target.closest(".urow"); if (!tr) return;
     const next = tr.nextElementSibling;
     if (next && next.classList.contains("detail")) { next.remove(); return; }
     tr.insertAdjacentHTML("afterend", Analyzer.userDetail(anReport[+tr.dataset.user]));
+  });
+  $("anMHead").addEventListener("click", (e) => {
+    const pl = e.target.closest(".pol-link");
+    if (pl) openPolicyByName(pl.dataset.pol);
   });
 
   $("anExport").addEventListener("click", () => {
