@@ -144,8 +144,10 @@
   // ---------- data loading ----------
   async function loadFromGraph(isRefresh) {
     show("screen-loading");
+    let phase = "loading the Conditional Access policies from your tenant";
     try {
       const { policies: raw, org, logo, resolve, account } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
+      phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
       tenantLogo = logo || null;
       isDemo = false; anReport = null;
@@ -164,8 +166,11 @@
         : `Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
       warnUnresolved();
     } catch (e) {
-      console.error("Policy load failed:", e); // full details for diagnostics
-      alert("Could not load the Conditional Access policies from your tenant.\n\nMost common cause: admin consent for this app has not been granted yet in your tenant. Ask an administrator to consent, then try again.");
+      console.error("Failed while " + phase + ":", e); // full details for diagnostics
+      alert(`Something went wrong while ${phase}.\n\nError: ${e.message || e}\n\n` +
+        (phase.startsWith("loading")
+          ? "If this mentions 401/403: admin consent for this app may not be granted in your tenant yet."
+          : "This looks like an app bug — please report the error text above."));
       show("screen-login");
     }
   }
