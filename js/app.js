@@ -99,17 +99,18 @@
   function openExport() {
     currentExport = selected.size ? [...selected] : visible().map(p => p.id);
     if (!currentExport.length) return;
-    fmt = currentExport.length > 1 ? "pdf" : "png";
+    fmt = currentExport.length > 1 ? "docx" : "png";
     syncFmt();
     $("expDesc").textContent = selected.size
       ? (currentExport.length > 1
-        ? `${currentExport.length} policies selected — recommended export is a single combined PDF.`
+        ? `${currentExport.length} policies selected — recommended export is a Word document (one card per page).`
         : "1 policy selected — recommended export is a PNG image.")
-      : `No selection — exporting all ${currentExport.length} policies in the current view as a combined PDF.`;
+      : `No selection — exporting all ${currentExport.length} policies in the current view.`;
     $("exportModal").classList.add("open");
   }
   function syncFmt() {
     ["Png", "Pdf", "Docx", "Zip"].forEach(f => $("expOpt" + f).classList.toggle("sel", fmt === f.toLowerCase()));
+    $("expMatrixWrap").style.display = fmt === "pdf" ? "flex" : "none"; // appendix only applies to PDF
   }
   async function doExport() {
     $("exportModal").classList.remove("open");
