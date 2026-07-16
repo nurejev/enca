@@ -94,8 +94,7 @@
     $("exportModal").classList.add("open");
   }
   function syncFmt() {
-    $("expOptPng").classList.toggle("sel", fmt === "png");
-    $("expOptPdf").classList.toggle("sel", fmt === "pdf");
+    ["Png", "Pdf", "Docx", "Zip"].forEach(f => $("expOpt" + f).classList.toggle("sel", fmt === f.toLowerCase()));
   }
   async function doExport() {
     $("exportModal").classList.remove("open");
@@ -107,6 +106,12 @@
           await Exporter.policyPng(p, tenantName, tenantLogo);
         }
         toast("PNG export <span>done</span>");
+      } else if (fmt === "docx") {
+        await Exporter.policiesDocx(ps, tenantName, tenantLogo, (m) => toast(m));
+        toast("Word export <span>done</span> — images can be copied straight into other documents");
+      } else if (fmt === "zip") {
+        await Exporter.policiesZip(ps, tenantName, tenantLogo, (m) => toast(m));
+        toast("PNG bundle <span>done</span>");
       } else {
         await Exporter.policiesPdf(ps, tenantName, $("expMatrix").checked, (m) => toast(m), tenantLogo);
         toast("PDF export <span>done</span>");
@@ -388,8 +393,7 @@
 
   // export modal
   $("exportBtn").addEventListener("click", openExport);
-  $("expOptPng").addEventListener("click", () => { fmt = "png"; syncFmt(); });
-  $("expOptPdf").addEventListener("click", () => { fmt = "pdf"; syncFmt(); });
+  ["png", "pdf", "docx", "zip"].forEach(f => $("expOpt" + f[0].toUpperCase() + f.slice(1)).addEventListener("click", () => { fmt = f; syncFmt(); }));
   $("expCancel").addEventListener("click", () => $("exportModal").classList.remove("open"));
   $("expGo").addEventListener("click", doExport);
 

@@ -145,5 +145,88 @@ const Exporter = (() => {
     pdf.save(`ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 
-  return { policyPng, policiesPdf };
+  // ---------- bulk PNG bundle (.zip): every card as a separate high-res PNG ----------
+  async function policiesZip(policies, tenantName, logo, onProgress) {
+    const zip = new JSZip();
+    for (let i = 0; i < policies.length; i++) {
+      onProgress?.(`Rendering ${policies[i].seq} (${i + 1}/${policies.length})…`);
+      const st = stage(Render.card(policies[i], tenantName, { export: true, logo }));
+      try {
+        const url = await nodeToPng(st.firstElementChild);
+        zip.file(`${policies[i].seq}-${safe(policies[i].name)}.png`, url.split(",")[1], { base64: true });
+      } catch (e) { console.error(`ZIP: ${policies[i].seq} failed`, e); }
+      finally { st.remove(); }
+    }
+    onProgress?.("Building zip…");
+    const blob = await zip.generateAsync({ type: "blob" });
+    download(URL.createObjectURL(blob), `ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.zip`);
+  }
+
+  // ---------- Word document (.docx): one card image per page ----------
+  const EMU_PER_PX = 9525; // 96 dpi
+  const xesc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+
+  function buildDocx(images, title) {
+    // images: [{ name, base64, wPx, hPx }] — wPx/hPx are CSS pixels (already /pixelRatio)
+    const usableEmu = Math.round(10.69 * 914400); // A4 landscape minus 0.5" margins
+    const zip = new JSZip();
+    zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Default Extension="png" ContentType="image/png"/>
+<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`);
+    zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+    const rels = [], body = [];
+    images.forEach((img, i) => {
+      const rid = `rIdImg${i + 1}`;
+      zip.file(`word/media/image${i + 1}.png`, img.base64, { base64: true });
+      rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image${i + 1}.png"/>`);
+      let cx = img.wPx * EMU_PER_PX, cy = img.hPx * EMU_PER_PX;
+      if (cx > usableEmu) { cy = Math.round(cy * usableEmu / cx); cx = usableEmu; }
+      body.push(`<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">
+<wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${i + 1}" name="${xesc(img.name)}"/>
+<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+<pic:nvPicPr><pic:cNvPr id="${i + 1}" name="${xesc(img.name)}"/><pic:cNvPicPr/></pic:nvPicPr>
+<pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`);
+    });
+    zip.file("word/_rels/document.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join("")}</Relationships>`);
+    zip.file("word/document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<w:body>
+<w:p><w:r><w:t>${xesc(title)}</w:t></w:r></w:p>
+${body.join("\n")}
+<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720"/></w:sectPr>
+</w:body></w:document>`);
+    return zip;
+  }
+
+  async function policiesDocx(policies, tenantName, logo, onProgress) {
+    const images = [];
+    for (let i = 0; i < policies.length; i++) {
+      onProgress?.(`Rendering ${policies[i].seq} (${i + 1}/${policies.length})…`);
+      const st = stage(Render.card(policies[i], tenantName, { export: true, logo }));
+      try {
+        const url = await nodeToPng(st.firstElementChild);
+        const img = await loadImg(url);
+        images.push({ name: `${policies[i].seq} — ${policies[i].name}`, base64: url.split(",")[1], wPx: img.width / 2, hPx: img.height / 2 });
+      } catch (e) { console.error(`DOCX: ${policies[i].seq} failed`, e); }
+      finally { st.remove(); }
+    }
+    if (!images.length) throw new Error("no policy cards could be rendered");
+    onProgress?.("Building Word document…");
+    const zip = buildDocx(images, `Conditional Access documentation — ${tenantName || "tenant"} — ${new Date().toISOString().slice(0, 10)}`);
+    const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    download(URL.createObjectURL(blob), `ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.docx`);
+  }
+
+  return { policyPng, policiesPdf, policiesZip, policiesDocx, buildDocx };
 })();
