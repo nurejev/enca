@@ -71,7 +71,7 @@ const Render = (() => {
     0: "Global", 100: "Admins", 200: "Internals", 300: "Externals",
     400: "Guest users", 500: "Guest admins", 600: "Microsoft 365 service accounts",
     700: "Azure service accounts", 800: "Corp service accounts",
-    900: "Workload identities", 1000: "DevOps",
+    900: "Workload identities", 1000: "DevOps", 1100: "E-Admins",
   };
   function caGroup(name) {
     const m = /CA(\d{3,4})/i.exec(name || "");
