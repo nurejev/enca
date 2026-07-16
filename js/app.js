@@ -288,8 +288,8 @@
     anFilter = c.dataset.f; renderAnalysis();
   });
   $("anSearch").addEventListener("input", (e) => { anQuery = e.target.value.toLowerCase(); anPage = 0; renderAnalysis(); });
-  $("anTabUsers").addEventListener("click", () => { anTab = "users"; renderAnalysis(); });
-  $("anTabMatrix").addEventListener("click", () => { anTab = "matrix"; renderAnalysis(); });
+  $("anTabUsers").addEventListener("click", () => { anTab = "users"; if (!anReport) { $("anStatus").textContent = "Run the analysis first."; return; } renderAnalysis(); });
+  $("anTabMatrix").addEventListener("click", () => { anTab = "matrix"; if (!anReport) { $("anStatus").textContent = "Run the analysis first."; return; } renderAnalysis(); });
   $("anMPrev").addEventListener("click", () => { anPage--; renderAnalysis(); });
   $("anMNext").addEventListener("click", () => { anPage++; renderAnalysis(); });
   $("anBody").addEventListener("click", (e) => {
