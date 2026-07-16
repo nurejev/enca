@@ -12,6 +12,7 @@
   let isDemo = false;
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
   let anPols = [], anMaps = [], anTab = "users", anPage = 0;
+  let anGroups = [], anGroupSel = "";   // persona/scope group filter
   const AN_PAGE_SIZE = 50;
 
   // ---------- helpers ----------
@@ -240,7 +241,7 @@
     $("anRun").disabled = true;
     const status = (m) => $("anStatus").textContent = m;
     try {
-      const { lookup, users, ctx } = isDemo
+      const { lookup, users, scopeGroups, ctx } = isDemo
         ? Analyzer.collectDemo(vms)
         : await Analyzer.collect(vms, scope, status);
       status(`Evaluating ${users.length} users × ${lookup.length} policies…`);
@@ -248,6 +249,8 @@
       anReport = Analyzer.evaluate(lookup, users, ctx);
       anPols = Analyzer.policyMeta(lookup);
       anMaps = Analyzer.buildMatrixMaps(anReport);
+      anGroups = scopeGroups || []; anGroupSel = "";
+      refreshGroupSelect();
       anFilter = "all"; anQuery = ""; anPage = 0; $("anSearch").value = "";
       renderAnalysis();
       status(`Done — ${users.length} users, ${lookup.length} policies.`);
@@ -257,6 +260,14 @@
     } finally { $("anRun").disabled = false; }
   });
 
+  function refreshGroupSelect() {
+    const sel = $("anGroup");
+    sel.innerHTML = '<option value="">All groups</option>' + anGroups.map((g, i) =>
+      `<option value="${i}" ${String(i) === anGroupSel ? "selected" : ""}>${(g.category ? g.category + " · " : "")}${g.label} (${g.users.size})</option>`).join("");
+  }
+  function groupMemberSet() {
+    return anGroupSel === "" ? null : anGroups[+anGroupSel]?.users || null;
+  }
   function renderAnalysis() {
     if (!anReport) return;
     const s = Analyzer.summary(anReport);
@@ -271,9 +282,9 @@
     $("anTabUsers").classList.toggle("active", anTab === "users");
     $("anTabMatrix").classList.toggle("active", anTab === "matrix");
     if (anTab === "users") {
-      $("anBody").innerHTML = Analyzer.userRows(anReport, anFilter, anQuery);
+      $("anBody").innerHTML = Analyzer.userRows(anReport, anFilter, anQuery, groupMemberSet());
     } else {
-      const rows = Analyzer.filterRows(anReport, anFilter, anQuery);
+      const rows = Analyzer.filterRows(anReport, anFilter, anQuery, groupMemberSet());
       const m = Analyzer.matrixTable(anReport, anMaps, anPols, rows, anPage, AN_PAGE_SIZE);
       anPage = m.page;
       $("anMHead").innerHTML = m.head;
@@ -292,6 +303,27 @@
   $("anTabMatrix").addEventListener("click", () => { anTab = "matrix"; if (!anReport) { $("anStatus").textContent = "Run the analysis first."; return; } renderAnalysis(); });
   $("anMPrev").addEventListener("click", () => { anPage--; renderAnalysis(); });
   $("anMNext").addEventListener("click", () => { anPage++; renderAnalysis(); });
+  $("anGroup").addEventListener("change", (e) => { anGroupSel = e.target.value; anPage = 0; renderAnalysis(); });
+  $("anGroupAdd").addEventListener("click", async () => {
+    const val = $("anGroupInput").value.trim(); if (!val || !anReport) return;
+    $("anGroupAdd").disabled = true;
+    try {
+      let g = null;
+      if (isDemo) {
+        const ids = DEMO_DATA.scopeGroups?.[val];
+        g = ids ? { label: val, category: "Custom", users: new Set(ids) } : null;
+      } else {
+        g = await Analyzer.resolveGroup(val);
+        if (g) g.category = "Custom";
+      }
+      if (!g) { toast("Group <span>not found</span>"); return; }
+      if (!anGroups.some(x => x.label === g.label)) anGroups.push(g);
+      anGroupSel = String(anGroups.findIndex(x => x.label === g.label));
+      $("anGroupInput").value = "";
+      refreshGroupSelect(); anPage = 0; renderAnalysis();
+      toast(`Group <span>${g.label}</span> added (${g.users.size} members)`);
+    } finally { $("anGroupAdd").disabled = false; }
+  });
   $("anBody").addEventListener("click", (e) => {
     const tr = e.target.closest(".urow"); if (!tr) return;
     const next = tr.nextElementSibling;
@@ -307,7 +339,7 @@
       policies: new Set(anReport.flatMap(r => [...r.applied.map(a => a.policy), ...r.bypassing.map(b => b.policy)])).size,
       scope: `${$("anScope").value} users${$("anReportOnly").checked ? ", incl. report-only" : ""}`,
     };
-    const html = Analyzer.exportHtml(meta, anReport, anPols);
+    const html = Analyzer.exportHtml(meta, anReport, anPols, anGroups);
     const blob = new Blob([html], { type: "text/html" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);

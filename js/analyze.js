@@ -8,6 +8,63 @@
 const Analyzer = (() => {
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 
+  // Well-known persona groups offered as scope filters.
+  const PRESET_GROUPS = {
+    "Deploy / test": [
+      "CAD-SEC-U-DG-GLO", "CAD-SEC-U-DG-ADM", "CAD-SEC-U-DG-INT", "CAD-SEC-U-DG-EXT",
+      "CAD-SEC-U-DG-GUESTUSERS", "CAD-SEC-U-DG-GUESTAdmins", "CAD-SEC-U-DG-SA",
+      "CAD-SEC-U-DG-DevOps", "CAD-SEC-U-DG-FW",
+    ],
+    "Production": [
+      "CAB-SEC-U-BreakGlass", "Emergency_Access1", "Emergency_Access2",
+      "CAB-SEC-U-Persona-Admins", "CAB-SEC-U-Persona-GuestAdmins", "CAB-SEC-U-Persona-Guests",
+      "CAB-SEC-U-Persona-Internals", "CAB-SEC-U-Persona-Externals",
+      "CAB-SEC-U-Persona-Microsoft365ServiceAccounts", "CAB-SEC-U-Persona-DevOps",
+    ],
+  };
+
+  const isGuidStr = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || "");
+
+  // Resolve one group (display name or object ID) to {label, users:Set}. Returns null if not found.
+  async function resolveGroup(nameOrId, groupsMap) {
+    groupsMap = groupsMap || new Map();
+    const expand = async (id) => {
+      let m = groupsMap.get(id);
+      if (!m) {
+        m = new Set((await Graph.ggetAll(`/groups/${id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`)).map(x => x.id));
+        groupsMap.set(id, m);
+      }
+      return m;
+    };
+    try {
+      if (isGuidStr(nameOrId)) {
+        const users = await expand(nameOrId);
+        let label = nameOrId;
+        try { label = ((await Graph.gpost("/directoryObjects/getByIds", { ids: [nameOrId], types: ["group"] })).value || [])[0]?.displayName || nameOrId; } catch {}
+        return { label, users };
+      }
+      const flt = encodeURIComponent(`displayName eq '${nameOrId.replace(/'/g, "''")}'`);
+      const found = await Graph.ggetAll(`/groups?$filter=${flt}&$select=id,displayName`);
+      if (!found.length) return null;
+      const users = new Set();
+      for (const g of found) (await expand(g.id)).forEach(x => users.add(x));
+      return { label: found[0].displayName, users };
+    } catch { return null; }
+  }
+
+  // Resolve all preset groups that exist in the tenant (missing ones are skipped).
+  async function resolveScopeGroups(groupsMap, onStatus) {
+    const out = [];
+    for (const [category, names] of Object.entries(PRESET_GROUPS)) {
+      for (const name of names) {
+        onStatus?.(`Checking scope group ${name}…`);
+        const g = await resolveGroup(name, groupsMap);
+        if (g && g.users.size) out.push({ ...g, category });
+      }
+    }
+    return out;
+  }
+
   // ---------- policy lookup (from raw Graph policies) ----------
   function buildLookup(vms) {
     return vms.filter(vm => vm.raw.state !== "disabled").map(vm => {
@@ -138,8 +195,11 @@ const Analyzer = (() => {
       try { ((await Graph.gpost("/directoryObjects/getByIds", { ids: [...gids], types: ["group"] })).value || []).forEach(o => names[o.id] = o.displayName); } catch {}
     }
 
+    onStatus("Resolving persona scope groups…");
+    const scopeGroups = await resolveScopeGroups(groups, onStatus);
+
     const guests = new Set(users.filter(u => u.userType === "Guest").map(u => u.id));
-    return { lookup, users, ctx: { groups, roles, guests, names } };
+    return { lookup, users, scopeGroups, ctx: { groups, roles, guests, names } };
   }
 
   // Demo-mode collection: uses DEMO_DATA instead of Graph.
@@ -149,7 +209,8 @@ const Analyzer = (() => {
     const roles = new Map(Object.entries(DEMO_DATA.roleMembers || {}).map(([k, v]) => [k, new Set(v)]));
     const users = DEMO_DATA.analyzeUsers || [];
     const guests = new Set(users.filter(u => u.userType === "Guest").map(u => u.id));
-    return { lookup, users, ctx: { groups, roles, guests, names: DEMO_DATA.names } };
+    const scopeGroups = Object.entries(DEMO_DATA.scopeGroups || {}).map(([label, ids]) => ({ label, category: "Demo", users: new Set(ids) }));
+    return { lookup, users, scopeGroups, ctx: { groups, roles, guests, names: DEMO_DATA.names } };
   }
 
   // ---------- evaluation ----------
@@ -179,6 +240,7 @@ const Analyzer = (() => {
         .filter(Q => !Q.isBlock && (Q.controls.has("mfa") || [...Q.controls].some(c => c.startsWith("authStrength:"))))
         .map(Q => Q.name);
       report.push({
+        id: u.id,
         user: u.displayName || u.userPrincipalName, upn: u.userPrincipalName || "",
         enabled: !!u.accountEnabled, guest: u.userType === "Guest",
         applied: applied.map(P => ({ policy: P.name, controls: P.controlsLabel, reportOnly: !P.enforced })),
@@ -202,9 +264,10 @@ const Analyzer = (() => {
 
   // ---------- results rendering (in-app) ----------
   function pill(n, cls) { return `<span class="pill ${n ? cls : "zero"}">${n}</span>`; }
-  function filterRows(report, filter, query) {
+  function filterRows(report, filter, query, memberSet) {
     const idx = [];
     report.forEach((r, i) => {
+      if (memberSet && !memberSet.has(r.id)) return;
       if (filter === "risky" && !r.riskyCount) return;
       if (filter === "nomfa" && r.mfaCovered) return;
       if (filter === "noenforce" && r.enforcedCount) return;
@@ -213,8 +276,8 @@ const Analyzer = (() => {
     });
     return idx;
   }
-  function userRows(report, filter, query) {
-    const rows = filterRows(report, filter, query).map(i => report[i]);
+  function userRows(report, filter, query, memberSet) {
+    const rows = filterRows(report, filter, query, memberSet).map(i => report[i]);
     return rows.map((r) => {
       const idx = report.indexOf(r);
       return `<tr class="urow" data-user="${idx}">
@@ -272,10 +335,11 @@ const Analyzer = (() => {
   }
 
   // ---------- standalone shareable HTML export (neutral branding) ----------
-  function exportHtml(meta, report, pols) {
+  function exportHtml(meta, report, pols, groups) {
     const sum = summary(report);
     const data = JSON.stringify(report).replace(/</g, "\\u003c");
     const polData = JSON.stringify(pols || []).replace(/</g, "\\u003c");
+    const grpData = JSON.stringify((groups || []).map(g => ({ label: g.label, category: g.category || "", ids: [...g.users] }))).replace(/</g, "\\u003c");
     return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Conditional Access Impact Report — ${esc(meta.tenant)}</title>
@@ -329,7 +393,7 @@ tr.urow{cursor:pointer}tr.urow:hover{background:#fafbff}
   <div class="card gap" data-f="noenforce"><div class="n">${sum.noEnforce}</div><div class="l">No enforcing policy</div></div>
 </div>
 <div class="tabs"><div class="tab active" data-v="users">Users</div><div class="tab" data-v="matrix">Matrix</div></div>
-<div class="controls"><input id="q" placeholder="Search user or UPN…"></div>
+<div class="controls"><input id="q" placeholder="Search user or UPN…"> <select id="gsel"><option value="">All groups</option></select></div>
 <div id="v-users" class="view">
 <table><thead><tr><th>User</th><th class="num">Applied</th><th class="num">Enforced</th><th class="num">Bypassing</th><th class="num">Risky</th><th>MFA</th></tr></thead><tbody id="tb"></tbody></table>
 </div>
@@ -339,7 +403,7 @@ tr.urow{cursor:pointer}tr.urow:hover{background:#fafbff}
 </div>
 <footer>Generated ${esc(meta.date)} · Conditional Access impact analysis · static report, data embedded — safe to share as a single file</footer>
 <script>
-const R=${data},P=${polData};let F="all",Q="",V="users",MP=0;const MSZ=50;
+const R=${data},P=${polData},G=${grpData};let F="all",Q="",V="users",MP=0,GS=null;const MSZ=50;
 const SYM={ok:"✓",ro:"✓",no:"✗",na:"·"};
 const MAPS=R.map(r=>{const m={},w={};r.applied.forEach(a=>m[a.policy]=a.reportOnly?"ro":"ok");r.bypassing.forEach(b=>{m[b.policy]="no";w[b.policy]=b.reason||"";});return{m,w};});
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
@@ -352,8 +416,12 @@ function detail(r){const ap=r.applied.map(a=>'<li>'+esc(a.policy)+'<div class="m
  const by=r.bypassing.map(b=>'<li>'+esc(b.policy)+' <span class="mini">('+esc(b.reason||'excluded')+')</span> '+(b.risky?'<span class="tag block">risky</span>':b.covered?'<span class="tag grant">covered</span>':'')+'<div class="mini">'+esc(b.controls)+(b.coveredBy.length?' · covered by: '+esc(b.coveredBy.join(", ")):'')+(b.partial.length?' · partial: '+esc(b.partial.map(p=>p.policy+' (missing '+p.shortfall.join(", ")+')').join("; ")):'')+'</div></li>').join("")||'<li class="mini">None</li>';
  return '<tr class="detail"><td colspan="6"><div class="detail-grid"><div class="panel enforced"><div class="panel-h">Applied ('+r.applied.length+')</div><ul class="plist2">'+ap+'</ul></div><div class="panel bypass"><div class="panel-h">Bypassing ('+r.bypassing.length+')</div><ul class="plist2">'+by+'</ul></div></div></td></tr>';}
 function fidx(){return R.map((r,i)=>i).filter(i=>{const r=R[i];
+ if(GS&&!GS.has(r.id))return false;
  if(F==="risky"&&!r.riskyCount)return false;if(F==="nomfa"&&r.mfaCovered)return false;if(F==="noenforce"&&r.enforcedCount)return false;
  return !Q||r.user.toLowerCase().includes(Q)||r.upn.toLowerCase().includes(Q);});}
+const gsel=document.getElementById("gsel");
+G.forEach((g,i)=>{const o=document.createElement("option");o.value=i;o.textContent=(g.category?g.category+" · ":"")+g.label+" ("+g.ids.length+")";gsel.appendChild(o);});
+gsel.addEventListener("change",()=>{GS=gsel.value===""?null:new Set(G[+gsel.value].ids);MP=0;draw();});
 function drawMatrix(){const idx=fidx();const pages=Math.max(1,Math.ceil(idx.length/MSZ));if(MP>=pages)MP=pages-1;if(MP<0)MP=0;
  document.getElementById("mh").innerHTML='<th class="ucol">User ('+idx.length+')</th>'+P.map(p=>'<th class="pcol"><div class="ph" title="'+esc(p.name)+' — '+esc(p.controls)+'">'+esc(p.name)+(p.enforced?'':' [RO]')+'</div></th>').join("");
  document.getElementById("mb").innerHTML=idx.slice(MP*MSZ,(MP+1)*MSZ).map(i=>{const r=R[i],mm=MAPS[i];
@@ -373,5 +441,5 @@ draw();
 </script></body></html>`;
   }
 
-  return { collect, collectDemo, evaluate, summary, filterRows, userRows, userDetail, policyMeta, buildMatrixMaps, matrixTable, exportHtml };
+  return { collect, collectDemo, evaluate, summary, filterRows, userRows, userDetail, policyMeta, buildMatrixMaps, matrixTable, exportHtml, resolveGroup };
 })();

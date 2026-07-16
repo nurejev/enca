@@ -89,4 +89,10 @@ const DEMO_DATA = {
   ],
   roleMembers: { "62e90394-69f5-4237-9190-012177145e10": ["u-admin"] },
   groupMembers: {},
+  scopeGroups: {
+    "CAB-SEC-U-BreakGlass": ["u-break1", "u-break2"],
+    "CAB-SEC-U-Persona-Admins": ["u-admin"],
+    "CAB-SEC-U-Persona-Internals": ["u-emp1", "u-emp2", "u-old"],
+    "CAB-SEC-U-Persona-Guests": ["u-guest1"],
+  },
 };
