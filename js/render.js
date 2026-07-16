@@ -103,13 +103,26 @@ const Render = (() => {
     </div>`;
   }
 
-  function matrix(ps) {
+  // Collapse long cell lists (e.g. a policy targeting dozens of roles).
+  // opts.full disables clipping — used for PDF export so nothing is hidden.
+  const CLIP = 6;
+  function clipList(lines, full) {
+    if (!lines.length) return "—";
+    if (full || lines.length <= CLIP + 1) return lines.join("<br>");
+    const rest = lines.slice(CLIP);
+    return `<span class="clipgrp">${lines.slice(0, CLIP).join("<br>")}` +
+      `<span class="clip-rest" hidden><br>${rest.join("<br>")}</span>` +
+      `<br><button type="button" class="clip-btn" data-more="${rest.length}">▾ ${rest.length} more</button></span>`;
+  }
+
+  function matrix(ps, opts = {}) {
+    const full = !!opts.full;
     const rows = [
       ["State", p => stateChip(p.state)],
-      ["Users incl.", p => esc(p.users.inc.join("\n")).replace(/\n/g, "<br>")],
-      ["Users excl.", p => esc(p.users.exc.join("\n")).replace(/\n/g, "<br>") || "—"],
-      ["Target resources", p => esc(p.apps.inc.join("\n")).replace(/\n/g, "<br>")
-        + (p.apps.exc.length ? `<br><span class="excl-note">− ${esc(p.apps.exc.join("\n− ")).replace(/\n/g, "<br>")}</span>` : "")
+      ["Users incl.", p => clipList(p.users.inc.map(esc), full)],
+      ["Users excl.", p => clipList(p.users.exc.map(x => `<span class="excl-note">− ${esc(x)}</span>`), full)],
+      ["Target resources", p => clipList(p.apps.inc.map(esc), full)
+        + (p.apps.exc.length ? `<br>${clipList(p.apps.exc.map(x => `<span class="excl-note">− ${esc(x)}</span>`), full)}` : "")
         + (p.apps.filter ? `<br>Filter (${p.apps.filter.mode}): <code>${esc(p.apps.filter.rule)}</code>` : "")],
       ["Network", p => esc(p.net.inc.join(", ")) + (p.net.exc.length ? `<br><span class="excl-note">− ${esc(p.net.exc.join(", "))}</span>` : "")],
       ["Platforms", p => (esc(p.cond.platforms.join(", ")) || "—")
@@ -120,7 +133,7 @@ const Render = (() => {
       ["Insider risk", p => esc(p.cond.insider.join(", ")) || "—"],
       ["Device filter", p => p.cond.devFilter ? `${p.cond.devFilter.mode}: <code>${esc(p.cond.devFilter.rule)}</code>` : "—"],
       ["Grant / Block", p => `<span class="dot ${p.grant.mode === "block" ? "r" : "g"}"></span>${esc(p.grant.controls.join(` ${p.grant.op || ""} `))}`],
-      ["Session", p => esc(p.session.map(s => s.t).join("\n")).replace(/\n/g, "<br>") || "—"],
+      ["Session", p => clipList(p.session.map(s => esc(s.t)), full)],
     ];
     let html = "<thead><tr><th></th>" + ps.map(p => `<th>${p.seq}<br><span style="font-weight:400;opacity:.8">${esc(p.name)}</span></th>`).join("") + "</tr></thead><tbody>";
     rows.forEach(([label, fn]) => { html += `<tr><th>${label}</th>` + ps.map(p => `<td>${fn(p)}</td>`).join("") + "</tr>"; });

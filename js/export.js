@@ -112,7 +112,7 @@ const Exporter = (() => {
 
     if (includeMatrix) {
       onProgress?.("Rendering settings matrix…");
-      const st = stage(`<div class="matrix-wrap" style="width:2000px"><table class="matrix">${Render.matrix(policies)}</table></div>`);
+      const st = stage(`<div class="matrix-wrap" style="width:2000px"><table class="matrix">${Render.matrix(policies, { full: true })}</table></div>`);
       st.style.width = "2000px";
       try {
         pdf.addPage();

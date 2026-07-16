@@ -168,6 +168,14 @@
     const b = e.target.closest("[data-state]"); if (!b) return;
     stateFilter = b.dataset.state; refreshViews();
   });
+  // matrix: expand/collapse long cell lists
+  $("mtable").addEventListener("click", (e) => {
+    const b = e.target.closest(".clip-btn"); if (!b) return;
+    const rest = b.closest(".clipgrp")?.querySelector(".clip-rest"); if (!rest) return;
+    rest.hidden = !rest.hidden;
+    b.textContent = rest.hidden ? `▾ ${b.dataset.more} more` : "▴ show less";
+  });
+
   $("viewCards").addEventListener("click", () => setView("cards"));
   $("viewList").addEventListener("click", () => setView("list"));
   $("viewMatrix").addEventListener("click", () => setView("matrix"));
