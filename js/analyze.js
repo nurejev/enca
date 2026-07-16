@@ -264,9 +264,11 @@ const Analyzer = (() => {
 
   // ---------- results rendering (in-app) ----------
   function pill(n, cls) { return `<span class="pill ${n ? cls : "zero"}">${n}</span>`; }
-  function filterRows(report, filter, query, memberSet) {
+  function filterRows(report, filter, query, memberSet, utype) {
     const idx = [];
     report.forEach((r, i) => {
+      if (utype === "member" && r.guest) return;
+      if (utype === "guest" && !r.guest) return;
       if (memberSet && !memberSet.has(r.id)) return;
       if (filter === "risky" && !r.riskyCount) return;
       if (filter === "nomfa" && r.mfaCovered) return;
@@ -276,8 +278,8 @@ const Analyzer = (() => {
     });
     return idx;
   }
-  function userRows(report, filter, query, memberSet) {
-    const rows = filterRows(report, filter, query, memberSet).map(i => report[i]);
+  function userRows(report, filter, query, memberSet, utype) {
+    const rows = filterRows(report, filter, query, memberSet, utype).map(i => report[i]);
     return rows.map((r) => {
       const idx = report.indexOf(r);
       return `<tr class="urow" data-user="${idx}">
@@ -396,7 +398,7 @@ tr.urow.open td{background:#f1f2f8}
   <div class="card gap" data-f="noenforce"><div class="n">${sum.noEnforce}</div><div class="l">No enforcing policy</div></div>
 </div>
 <div class="tabs"><div class="tab active" data-v="users">Users</div><div class="tab" data-v="matrix">Matrix</div></div>
-<div class="controls"><input id="q" placeholder="Search user or UPN…"> <select id="gsel"><option value="">All groups</option></select></div>
+<div class="controls"><input id="q" placeholder="Search user or UPN…"> <select id="tsel"><option value="">All user types</option><option value="member">Members only</option><option value="guest">Guests only</option></select> <select id="gsel"><option value="">All groups</option></select></div>
 <div id="v-users" class="view">
 <table><thead><tr><th>User</th><th class="num">Applied</th><th class="num">Enforced</th><th class="num">Bypassing</th><th class="num">Risky</th><th>MFA</th></tr></thead><tbody id="tb"></tbody></table>
 </div>
@@ -406,7 +408,7 @@ tr.urow.open td{background:#f1f2f8}
 </div>
 <footer>Generated ${esc(meta.date)} · Conditional Access impact analysis · static report, data embedded — safe to share as a single file</footer>
 <script>
-const R=${data},P=${polData},G=${grpData};let F="all",Q="",V="users",MP=0,GS=null;const MSZ=50;
+const R=${data},P=${polData},G=${grpData};let F="all",Q="",V="users",MP=0,GS=null,T="";const MSZ=50;
 const SYM={ok:"✓",ro:"✓",no:"✗",na:"·"};
 const MAPS=R.map(r=>{const m={},w={};r.applied.forEach(a=>m[a.policy]=a.reportOnly?"ro":"ok");r.bypassing.forEach(b=>{m[b.policy]="no";w[b.policy]=b.reason||"";});return{m,w};});
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
@@ -419,12 +421,14 @@ function detail(r){const ap=r.applied.map(a=>'<li>'+esc(a.policy)+'<div class="m
  const by=r.bypassing.map(b=>'<li>'+esc(b.policy)+' <span class="mini">('+esc(b.reason||'excluded')+')</span> '+(b.risky?'<span class="tag block">risky</span>':b.covered?'<span class="tag grant">covered</span>':'')+'<div class="mini">'+esc(b.controls)+(b.coveredBy.length?' · covered by: '+esc(b.coveredBy.join(", ")):'')+(b.partial.length?' · partial: '+esc(b.partial.map(p=>p.policy+' (missing '+p.shortfall.join(", ")+')').join("; ")):'')+'</div></li>').join("")||'<li class="mini">None</li>';
  return '<tr class="detail"><td colspan="6"><div class="detail-grid"><div class="panel enforced"><div class="panel-h">Applied ('+r.applied.length+')</div><ul class="plist2">'+ap+'</ul></div><div class="panel bypass"><div class="panel-h">Bypassing ('+r.bypassing.length+')</div><ul class="plist2">'+by+'</ul></div></div></td></tr>';}
 function fidx(){return R.map((r,i)=>i).filter(i=>{const r=R[i];
+ if(T==="member"&&r.guest)return false;if(T==="guest"&&!r.guest)return false;
  if(GS&&!GS.has(r.id))return false;
  if(F==="risky"&&!r.riskyCount)return false;if(F==="nomfa"&&r.mfaCovered)return false;if(F==="noenforce"&&r.enforcedCount)return false;
  return !Q||r.user.toLowerCase().includes(Q)||r.upn.toLowerCase().includes(Q);});}
 const gsel=document.getElementById("gsel");
 G.forEach((g,i)=>{const o=document.createElement("option");o.value=i;o.textContent=(g.category?g.category+" · ":"")+g.label+" ("+g.ids.length+")";gsel.appendChild(o);});
 gsel.addEventListener("change",()=>{GS=gsel.value===""?null:new Set(G[+gsel.value].ids);MP=0;draw();});
+document.getElementById("tsel").addEventListener("change",e=>{T=e.target.value;MP=0;draw();});
 function drawMatrix(){const idx=fidx();const pages=Math.max(1,Math.ceil(idx.length/MSZ));if(MP>=pages)MP=pages-1;if(MP<0)MP=0;
  document.getElementById("mh").innerHTML='<th class="ucol">User ('+idx.length+')</th>'+P.map(p=>'<th class="pcol"><div class="ph" title="'+esc(p.name)+' — '+esc(p.controls)+'">'+esc(p.name)+(p.enforced?'':' [RO]')+'</div></th>').join("");
  document.getElementById("mb").innerHTML=idx.slice(MP*MSZ,(MP+1)*MSZ).map(i=>{const r=R[i],mm=MAPS[i];

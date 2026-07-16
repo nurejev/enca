@@ -14,6 +14,7 @@
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
   let anPols = [], anMaps = [], anTab = "users", anPage = 0;
   let anGroups = [], anGroupSel = "";   // persona/scope group filter
+  let anType = "";                       // post-run user-type filter: "" | member | guest
   const AN_PAGE_SIZE = 50;
 
   // ---------- helpers ----------
@@ -309,7 +310,7 @@
       anMaps = Analyzer.buildMatrixMaps(anReport);
       anGroups = scopeGroups || []; anGroupSel = "";
       refreshGroupSelect();
-      anFilter = "all"; anQuery = ""; anPage = 0; $("anSearch").value = "";
+      anFilter = "all"; anQuery = ""; anPage = 0; anType = ""; $("anSearch").value = ""; $("anType").value = "";
       renderAnalysis();
       status(`Done — ${users.length} users, ${lookup.length} policies.`);
     } catch (e) {
@@ -340,9 +341,9 @@
     $("anTabUsers").classList.toggle("active", anTab === "users");
     $("anTabMatrix").classList.toggle("active", anTab === "matrix");
     if (anTab === "users") {
-      $("anBody").innerHTML = Analyzer.userRows(anReport, anFilter, anQuery, groupMemberSet());
+      $("anBody").innerHTML = Analyzer.userRows(anReport, anFilter, anQuery, groupMemberSet(), anType);
     } else {
-      const rows = Analyzer.filterRows(anReport, anFilter, anQuery, groupMemberSet());
+      const rows = Analyzer.filterRows(anReport, anFilter, anQuery, groupMemberSet(), anType);
       const m = Analyzer.matrixTable(anReport, anMaps, anPols, rows, anPage, AN_PAGE_SIZE);
       anPage = m.page;
       $("anMHead").innerHTML = m.head;
@@ -350,7 +351,7 @@
       $("anMPage").textContent = `Page ${m.page + 1} / ${m.pages}`;
     }
     // export button reflects the current filter scope
-    const n = Analyzer.filterRows(anReport, anFilter, anQuery, groupMemberSet()).length;
+    const n = Analyzer.filterRows(anReport, anFilter, anQuery, groupMemberSet(), anType).length;
     $("anExport").textContent = n === anReport.length
       ? "Export HTML report"
       : `Export HTML report (${n} of ${anReport.length} users)`;
@@ -367,6 +368,7 @@
   $("anMPrev").addEventListener("click", () => { anPage--; renderAnalysis(); });
   $("anMNext").addEventListener("click", () => { anPage++; renderAnalysis(); });
   $("anGroup").addEventListener("change", (e) => { anGroupSel = e.target.value; anPage = 0; renderAnalysis(); });
+  $("anType").addEventListener("change", (e) => { anType = e.target.value; anPage = 0; renderAnalysis(); });
   $("anGroupAdd").addEventListener("click", async () => {
     const val = $("anGroupInput").value.trim(); if (!val || !anReport) return;
     $("anGroupAdd").disabled = true;
@@ -409,10 +411,11 @@
   $("anExport").addEventListener("click", () => {
     if (!anReport) return;
     // export exactly what is currently filtered (cards filter + search + group)
-    const rowsIdx = Analyzer.filterRows(anReport, anFilter, anQuery, groupMemberSet());
+    const rowsIdx = Analyzer.filterRows(anReport, anFilter, anQuery, groupMemberSet(), anType);
     if (!rowsIdx.length) { toast("Nothing to export — current filter matches <span>0 users</span>"); return; }
     const subset = rowsIdx.map(i => anReport[i]);
     const filterBits = [];
+    if (anType) filterBits.push(anType === "member" ? "members only" : "guests only");
     if (anGroupSel !== "") filterBits.push("group: " + (anGroups[+anGroupSel]?.label || ""));
     if (anFilter !== "all") filterBits.push({ risky: "risky bypasses only", nomfa: "no MFA from CA", noenforce: "no enforcing policy" }[anFilter]);
     if (anQuery) filterBits.push(`search: "${anQuery}"`);
