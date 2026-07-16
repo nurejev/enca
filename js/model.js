@@ -96,7 +96,7 @@ function buildViewModel(raw, resolve, index) {
   return {
     id: raw.id,
     seq: "CA" + String(index + 1).padStart(3, "0"),
-    name: raw.displayName,
+    name: raw.displayName || "(unnamed policy)",
     state,
     modified: (raw.modifiedDateTime || raw.createdDateTime || "").slice(0, 10) || "—",
     users: { inc: usersInc.length ? usersInc : ["None"], exc: usersExc },
