@@ -154,6 +154,21 @@ tr.detail>td{background:#fafdf9;padding:12px 18px}
 .plist2{list-style:none;margin:0;padding:0}
 .plist2 li{padding:8px 12px;border-bottom:1px solid #f0f5f1;font-size:13px}
 .plist2 li:last-child{border-bottom:0}
+
+/* users × policies impact matrix grid */
+.an-pager{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.mtable{border-collapse:separate;border-spacing:0;font-size:12px;width:max-content;min-width:100%}
+.mtable th,.mtable td{border-bottom:1px solid #f0f5f1;border-right:1px solid #f0f5f1;white-space:nowrap}
+.mtable thead th{position:sticky;top:0;z-index:3;background:var(--soft);vertical-align:bottom}
+.mtable thead th.pcol{padding:8px 6px;text-align:center;max-width:42px}
+.mtable thead th.pcol .ph{writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;max-height:220px;overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:11px;cursor:default}
+.mtable th.ucol,.mtable td.ucol{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;padding:6px 12px;min-width:220px;box-shadow:1px 0 0 var(--border)}
+.mtable thead th.ucol{z-index:4;background:var(--soft)}
+.mtable tbody tr:hover td{background:#fafdf9}
+.mtable td.cellv{text-align:center;padding:5px 6px;font-weight:700;cursor:default}
+.cell{display:inline-block;min-width:16px;text-align:center;font-weight:700}
+.cell.ok{color:var(--on)}.cell.ro{color:var(--report)}.cell.no{color:var(--off)}.cell.na{color:#cdd8d0}
+.mtable td.cellv.ok{background:#eef8f1}.mtable td.cellv.ro{background:#fdf8e6}.mtable td.cellv.no{background:#fdeeec}
 .dot.g{background:var(--on)} .dot.r{background:var(--off)} .dot.y{background:var(--report)}
 
 /* ---------- modal / toast ---------- */

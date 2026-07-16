@@ -125,13 +125,26 @@
         <div class="an-cards" id="anCards"></div>
         <div class="toolbar" style="margin-top:14px">
           <div class="search"><input id="anSearch" placeholder="Search user or UPN…"></div>
+          <div class="seg">
+            <button class="active" id="anTabUsers">Users</button>
+            <button id="anTabMatrix">Matrix</button>
+          </div>
           <button class="btn lemon" id="anExport">Export HTML report</button>
         </div>
-        <div class="list-card">
+        <div class="list-card" id="anUsersWrap">
           <table class="plist an-table">
             <thead><tr><th>User</th><th class="num">Applied</th><th class="num">Enforced</th><th class="num">Bypassing</th><th class="num">Risky</th><th>MFA via CA</th></tr></thead>
             <tbody id="anBody"></tbody>
           </table>
+        </div>
+        <div id="anMatrixWrap" style="display:none">
+          <div class="an-pager">
+            <button class="btn" id="anMPrev">←</button><span id="anMPage" class="mini"></span><button class="btn" id="anMNext">→</button>
+            <span class="mini">✓ applied · <span style="color:var(--report)">✓</span> report-only · <span style="color:var(--off)">✗</span> bypassing (hover for reason) · · not in scope</span>
+          </div>
+          <div class="list-card" style="overflow:auto">
+            <table class="mtable"><thead><tr id="anMHead"></tr></thead><tbody id="anMBody"></tbody></table>
+          </div>
         </div>
       </div>
     </div>

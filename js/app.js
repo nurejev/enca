@@ -11,6 +11,8 @@
   let currentExport = [];
   let isDemo = false;
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
+  let anPols = [], anMaps = [], anTab = "users", anPage = 0;
+  const AN_PAGE_SIZE = 50;
 
   // ---------- helpers ----------
   function show(id) {
@@ -244,7 +246,9 @@
       status(`Evaluating ${users.length} users × ${lookup.length} policies…`);
       await new Promise(r => setTimeout(r, 30)); // let the status paint
       anReport = Analyzer.evaluate(lookup, users, ctx);
-      anFilter = "all"; anQuery = ""; $("anSearch").value = "";
+      anPols = Analyzer.policyMeta(lookup);
+      anMaps = Analyzer.buildMatrixMaps(anReport);
+      anFilter = "all"; anQuery = ""; anPage = 0; $("anSearch").value = "";
       renderAnalysis();
       status(`Done — ${users.length} users, ${lookup.length} policies.`);
     } catch (e) {
@@ -262,7 +266,20 @@
       ["nomfa", s.noMfa, "No MFA from CA", "gap"],
       ["noenforce", s.noEnforce, "No enforcing policy", "gap"],
     ].map(([f, n, l, cls]) => `<div class="an-card ${cls} ${anFilter === f ? "active" : ""}" data-f="${f}"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
-    $("anBody").innerHTML = Analyzer.userRows(anReport, anFilter, anQuery);
+    $("anUsersWrap").style.display = anTab === "users" ? "block" : "none";
+    $("anMatrixWrap").style.display = anTab === "matrix" ? "block" : "none";
+    $("anTabUsers").classList.toggle("active", anTab === "users");
+    $("anTabMatrix").classList.toggle("active", anTab === "matrix");
+    if (anTab === "users") {
+      $("anBody").innerHTML = Analyzer.userRows(anReport, anFilter, anQuery);
+    } else {
+      const rows = Analyzer.filterRows(anReport, anFilter, anQuery);
+      const m = Analyzer.matrixTable(anReport, anMaps, anPols, rows, anPage, AN_PAGE_SIZE);
+      anPage = m.page;
+      $("anMHead").innerHTML = m.head;
+      $("anMBody").innerHTML = m.body;
+      $("anMPage").textContent = `Page ${m.page + 1} / ${m.pages}`;
+    }
     $("anResults").style.display = "block";
   }
 
@@ -270,7 +287,11 @@
     const c = e.target.closest("[data-f]"); if (!c) return;
     anFilter = c.dataset.f; renderAnalysis();
   });
-  $("anSearch").addEventListener("input", (e) => { anQuery = e.target.value.toLowerCase(); renderAnalysis(); });
+  $("anSearch").addEventListener("input", (e) => { anQuery = e.target.value.toLowerCase(); anPage = 0; renderAnalysis(); });
+  $("anTabUsers").addEventListener("click", () => { anTab = "users"; renderAnalysis(); });
+  $("anTabMatrix").addEventListener("click", () => { anTab = "matrix"; renderAnalysis(); });
+  $("anMPrev").addEventListener("click", () => { anPage--; renderAnalysis(); });
+  $("anMNext").addEventListener("click", () => { anPage++; renderAnalysis(); });
   $("anBody").addEventListener("click", (e) => {
     const tr = e.target.closest(".urow"); if (!tr) return;
     const next = tr.nextElementSibling;
@@ -286,7 +307,7 @@
       policies: new Set(anReport.flatMap(r => [...r.applied.map(a => a.policy), ...r.bypassing.map(b => b.policy)])).size,
       scope: `${$("anScope").value} users${$("anReportOnly").checked ? ", incl. report-only" : ""}`,
     };
-    const html = Analyzer.exportHtml(meta, anReport);
+    const html = Analyzer.exportHtml(meta, anReport, anPols);
     const blob = new Blob([html], { type: "text/html" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
