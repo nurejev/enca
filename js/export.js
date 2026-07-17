@@ -176,7 +176,10 @@ const Exporter = (() => {
   }
 
   // ---------- JSON backup (.zip): raw policy definitions, one file per policy ----------
-  async function policiesJson(policies, tenantName) {
+  // opts.groups: raw Graph group objects → written to Groups/<displayName>.json
+  // plus a MigrationTable.json ({TenantId, Objects:[{DisplayName,Id,Type}]}),
+  // matching the established group-export format.
+  async function policiesJson(policies, tenantName, opts = {}) {
     const zip = new JSZip();
     const all = [];
     for (const p of policies) {
@@ -185,6 +188,16 @@ const Exporter = (() => {
       all.push(p.raw);
     }
     zip.file("all-policies.json", JSON.stringify(all, null, 2));
+    if (opts.groups?.length) {
+      for (const g of opts.groups) {
+        zip.file(`Groups/${safe(g.displayName || g.id)}.json`, JSON.stringify(g, null, 2));
+      }
+      const migration = {
+        TenantId: opts.tenantId || "",
+        Objects: opts.groups.map(g => ({ DisplayName: g.displayName || "", Id: g.id, Type: "Group" })),
+      };
+      zip.file("MigrationTable.json", JSON.stringify(migration, null, 2));
+    }
     const blob = await zip.generateAsync({ type: "blob" });
     download(URL.createObjectURL(blob), `ConditionalAccess-JSON-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.zip`);
     return policies.length;

@@ -206,15 +206,51 @@
     $("exportBtn").classList.toggle("primary", mode === "assign");
     $("exportBtn").classList.toggle("lemon", mode !== "assign");
   }
-  async function runBackup() {
+  function runBackup() {
     const ps = exportOrder((selected.size ? [...selected] : visible().map(p => p.id)).map(id => policies.find(p => p.id === id)));
     if (!ps.length) { toast("Nothing to back up"); return; }
-    toast(`Building JSON backup of <span>${ps.length}</span> policies…`);
-    try {
-      await Exporter.policiesJson(ps, tenantName);
-      toast(`JSON backup <span>downloaded</span> — ${ps.length} policies`);
-    } catch (e) { console.error(e); toast(`Backup failed: <span>${esc(e.message || e)}</span>`); }
+    bkPolicies = ps;
+    const gids = backupGroupIds(ps);
+    $("bkDesc").textContent = `${ps.length} ${ps.length === 1 ? "policy" : "policies"} — referencing ${gids.length} unique group(s).`;
+    $("backupModal").classList.add("open");
   }
+  let bkPolicies = [];
+  function backupGroupIds(ps) {
+    const ids = new Set();
+    ps.forEach(p => {
+      const u = p.raw.conditions?.users || {};
+      [...(u.includeGroups || []), ...(u.excludeGroups || [])].forEach(id => ids.add(id));
+    });
+    return [...ids];
+  }
+  $("bkCancel").addEventListener("click", () => $("backupModal").classList.remove("open"));
+  $("bkGo").addEventListener("click", async () => {
+    $("backupModal").classList.remove("open");
+    const ps = bkPolicies;
+    const wantGroups = $("bkGroups").checked;
+    if (!$("bkPolicies").checked && !wantGroups) { toast("Nothing selected to back up"); return; }
+    try {
+      let groups = [];
+      if (wantGroups) {
+        const gids = backupGroupIds(ps);
+        for (let i = 0; i < gids.length; i++) {
+          toast(`Fetching group ${i + 1}/${gids.length}…`);
+          try {
+            groups.push(isDemo
+              ? { id: gids[i], displayName: DEMO_DATA.names[gids[i]] || gids[i], securityEnabled: true, mailEnabled: false, description: "demo group" }
+              : await Graph.gget(`/groups/${gids[i]}`));
+          } catch (e) { console.warn("Group fetch failed (skipped):", gids[i], e.message); }
+        }
+      }
+      const psOut = $("bkPolicies").checked ? ps : [];
+      toast("Building JSON backup…");
+      await Exporter.policiesJson(psOut, tenantName, {
+        groups,
+        tenantId: Graph.account?.tenantId || "",
+      });
+      toast(`JSON backup <span>downloaded</span> — ${psOut.length} policies${groups.length ? `, ${groups.length} groups` : ""}`);
+    } catch (e) { console.error(e); toast(`Backup failed: <span>${esc(e.message || e)}</span>`); }
+  });
   $("homeBtn").addEventListener("click", () => show("screen-home"));
   $("toolPolicies").addEventListener("click", () => { setToolMode("document"); setView("cards"); show("screen-list"); });
   // Document tool: opens the policy overview first — select policies (or none
