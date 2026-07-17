@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=27">
+<link rel="stylesheet" href="css/app.css?v=28">
 </head>
 <body>
 
@@ -102,7 +102,9 @@
         <code>Directory.Read.All</code> to resolve users, groups, roles and applications to readable names (and to expand memberships for the analysis).
         The read-only tools never write to your tenant, and the signed-in user only needs a reader role such as Security Reader or Global Reader.
         The <b>Assign groups</b> tool additionally requests <code>Policy.ReadWrite.ConditionalAccess</code> on demand (incremental consent) and requires a role
-        that can edit Conditional Access, such as Conditional Access Administrator or Security Administrator.</p>
+        that can edit Conditional Access, such as Conditional Access Administrator or Security Administrator.
+        Creating missing persona groups (always as role-assignable security groups) additionally requests
+        <code>Group.ReadWrite.All</code> and <code>RoleManagement.ReadWrite.Directory</code> and requires the Privileged Role Administrator role.</p>
 
       <h4>Security</h4>
       <p>Everything runs in your browser — there is no backend and your policy data is never stored or sent anywhere except Microsoft Graph.
@@ -295,15 +297,16 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=27"></script>
-<script src="js/labels.js?v=27"></script>
-<script src="js/graph.js?v=27"></script>
-<script src="js/model.js?v=27"></script>
-<script src="js/render.js?v=27"></script>
-<script src="js/analyze.js?v=27"></script>
-<script src="js/assign.js?v=27"></script>
-<script src="js/export.js?v=27"></script>
-<script src="js/demo.js?v=27"></script>
-<script src="js/app.js?v=27"></script>
+<script src="js/authConfig.js?v=28"></script>
+<script src="js/labels.js?v=28"></script>
+<script src="js/graph.js?v=28"></script>
+<script src="js/model.js?v=28"></script>
+<script src="js/render.js?v=28"></script>
+<script src="js/analyze.js?v=28"></script>
+<script src="js/groupTemplates.js?v=28"></script>
+<script src="js/assign.js?v=28"></script>
+<script src="js/export.js?v=28"></script>
+<script src="js/demo.js?v=28"></script>
+<script src="js/app.js?v=28"></script>
 </body>
 </html>

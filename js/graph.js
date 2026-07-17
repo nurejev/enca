@@ -84,15 +84,26 @@ const Graph = (() => {
     return out;
   }
 
-  async function gpost(url, body) {
-    const t = await token();
+  async function gpost(url, body, scopes) {
+    const t = await token(scopes);
     const r = await fetch(safeGraphUrl(url), {
       method: "POST",
       headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!r.ok) throw new Error(`Graph request failed (${r.status})`);
-    return r.json();
+    if (!r.ok) {
+      let msg = `Graph request failed (${r.status})`;
+      try { msg += ": " + ((await r.json()).error?.message || ""); } catch {}
+      throw new Error(msg);
+    }
+    return r.status === 204 ? null : r.json();
+  }
+
+  // Scopes needed only to CREATE role-assignable groups (requested on demand;
+  // requires the Privileged Role Administrator role or Global Administrator).
+  const GROUP_CREATE_SCOPES = ["Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"];
+  function gpostGroupCreate(url, body) {
+    return gpost(url, body, [...AUTH_CONFIG.scopes, ...GROUP_CREATE_SCOPES]);
   }
 
   const isGuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || "");
@@ -173,5 +184,5 @@ const Graph = (() => {
     return { policies, org, logo, resolve, account };
   }
 
-  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, get account() { return account; } };
+  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gpostGroupCreate, get account() { return account; } };
 })();

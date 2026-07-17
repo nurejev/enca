@@ -43,6 +43,39 @@ const Assign = (() => {
     return out;
   }
 
+  // ---------- group creation (pure Graph, no PowerShell) ----------
+  // Static groups are ALWAYS created role-assignable (isAssignableToRole:true —
+  // immutable, must be set at creation). Dynamic templates keep their membership
+  // rule instead: Graph does not allow role-assignable + dynamic membership.
+  function buildGroupPayload(t) {
+    const nickname = (String(t.mailNickname || t.displayName || "grp").replace(/[^A-Za-z0-9]/g, "").slice(0, 60)) || "CADSECgroup";
+    const p = {
+      displayName: t.displayName,
+      description: t.description || "Conditional Access target group. Created by Conditional Access Baseline Tools.",
+      mailEnabled: false,
+      securityEnabled: true,
+      mailNickname: nickname,
+    };
+    if (t.dynamic) {
+      p.groupTypes = ["DynamicMembership"];
+      p.membershipRule = t.membershipRule || "";
+      p.membershipRuleProcessingState = "On";
+    } else {
+      p.isAssignableToRole = true;
+    }
+    return p;
+  }
+
+  // Create (or reuse) a group. Returns {id, name, created, dynamic}.
+  async function createGroup(template) {
+    const existing = await findGroup(template.displayName);
+    if (existing) return { ...existing, created: false };
+    const g = await Graph.gpostGroupCreate("/groups", buildGroupPayload(template));
+    return { id: g.id, name: g.displayName, created: true, dynamic: !!template.dynamic };
+  }
+
+  function templates() { return typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []; }
+
   // Same semantics as the PowerShell script's action switch.
   function newUsersBlock(raw, action, groupIds) {
     const u = raw.conditions?.users || {};
@@ -101,5 +134,5 @@ const Assign = (() => {
     return results;
   }
 
-  return { ACTIONS, PREDEFINED, findGroup, resolveGroups, newUsersBlock, apply };
+  return { ACTIONS, PREDEFINED, findGroup, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, templates };
 })();

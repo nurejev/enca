@@ -26,9 +26,11 @@ param(
   # (display-name lookup can match the wrong app if names collide).
   [string]$AppObjectId,
   [string[]]$RedirectUris = @("https://cadoc.limon-it.nl", "http://localhost:8080"),
-  # Policy.ReadWrite.ConditionalAccess is only used by the Assign-groups tool
-  # (requested on demand in the app); it must still be consented here.
-  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "Policy.ReadWrite.ConditionalAccess"),
+  # Policy.ReadWrite.ConditionalAccess is only used by the Assign-groups tool;
+  # Group.ReadWrite.All + RoleManagement.ReadWrite.Directory only when creating
+  # role-assignable persona groups. All are requested on demand in the app but
+  # must be consented here.
+  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "Policy.ReadWrite.ConditionalAccess", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"),
   [string]$AuthConfigPath = (Join-Path $PSScriptRoot "js/authConfig.js"),
   [switch]$SkipAdminConsent
 )

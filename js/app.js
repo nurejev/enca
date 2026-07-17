@@ -300,13 +300,26 @@
           : await Assign.resolveGroups((m) => { const el = b.querySelector("p"); if (el) el.textContent = m; })
         ).map(g => ({ ...g, checked: false }));
       }
+      const tpls = Assign.templates().filter(t => !asGroups.some(g => g.name === t.displayName));
       b.innerHTML = `<h4 class="mini" style="margin-bottom:8px">TARGET GROUPS</h4>` +
-        (asGroups.map((g, i) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asg="${i}" ${g.checked ? "checked" : ""}> ${assignEsc(g.name)}</label>`).join("") || '<p class="mini">No predefined persona groups found in this tenant.</p>') +
+        (asGroups.map((g, i) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asg="${i}" ${g.checked ? "checked" : ""}> ${assignEsc(g.name)}${g.created ? ' <span class="tag grant">created</span>' : ""}</label>`).join("") || '<p class="mini">No predefined persona groups found in this tenant yet — create them from a template below.</p>') +
         `<div style="display:flex;gap:8px;margin-top:12px">
-          <input id="asCustom" class="btn" style="flex:1;cursor:text" placeholder="Add another group by exact name…">
+          <input id="asCustom" class="btn" style="flex:1;cursor:text" placeholder="Add existing group by exact name…">
           <button class="btn" id="asCustomAdd">+ Add</button>
         </div>
-        <p class="mini" style="margin-top:10px">Creating new role-assignable groups is not available here — use the PowerShell script for that.</p>`;
+        <h4 class="mini" style="margin:16px 0 6px">CREATE MISSING GROUP (from baseline templates)</h4>
+        <div style="display:flex;gap:8px">
+          <select id="asTpl" class="btn" style="flex:1;cursor:pointer">${tpls.map((t, i) => `<option value="${i}">${assignEsc(t.displayName)}${t.dynamic ? " (dynamic)" : ""}</option>`).join("")}</select>
+          <button class="btn primary" id="asTplCreate" ${tpls.length ? "" : "disabled"}>Create</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input id="asNewName" class="btn" style="flex:1;cursor:text" placeholder="…or create a custom group by name (e.g. CAD-SEC-U-DG-CUSTOM)">
+          <button class="btn primary" id="asNewCreate">Create</button>
+        </div>
+        <p class="mini" style="margin-top:10px">Groups are created directly via Graph as <b>role-assignable</b> security groups (immutable, set at creation) —
+          membership can then only be changed by Privileged Role Administrators or delegated owners. Dynamic templates keep their membership rule instead
+          (Graph does not allow role-assignable + dynamic). Creation requires the Privileged Role Administrator role and consents
+          <code>Group.ReadWrite.All</code> + <code>RoleManagement.ReadWrite.Directory</code> on demand. Existing groups with the same name are reused, never duplicated.</p>`;
     } else if (asStep === 2) {
       next.textContent = "Apply changes";
       const gsel = asGroups.filter(g => g.checked);
@@ -332,17 +345,48 @@
     const r = e.target.closest('[name="asAct"]'); if (r) { asAction = +r.value; return; }
     const g = e.target.closest("[data-asg]"); if (g) asGroups[+g.dataset.asg].checked = g.checked;
   });
+  async function asAddCreated(g) {
+    if (!asGroups.some(x => x.id === g.id)) asGroups.push({ ...g, checked: true });
+    else asGroups.find(x => x.id === g.id).checked = true;
+    renderAssign();
+  }
   $("asBody").addEventListener("click", async (e) => {
-    if (e.target.id !== "asCustomAdd") return;
-    const name = $("asCustom").value.trim(); if (!name) return;
-    e.target.disabled = true;
-    try {
-      const g = isDemo ? { id: "g-" + name, name } : await Assign.findGroup(name);
-      if (!g) { toast("Group <span>not found</span>"); return; }
-      if (!asGroups.some(x => x.id === g.id)) asGroups.push({ ...g, checked: true });
-      else asGroups.find(x => x.id === g.id).checked = true;
-      renderAssign();
-    } finally { e.target.disabled = false; }
+    if (e.target.id === "asCustomAdd") {
+      const name = $("asCustom").value.trim(); if (!name) return;
+      e.target.disabled = true;
+      try {
+        const g = isDemo ? { id: "g-" + name, name } : await Assign.findGroup(name);
+        if (!g) { toast("Group <span>not found</span> — use Create below to make it"); return; }
+        asAddCreated(g);
+      } finally { e.target.disabled = false; }
+      return;
+    }
+    if (e.target.id === "asTplCreate") {
+      const tpls = Assign.templates().filter(t => !asGroups.some(g => g.name === t.displayName));
+      const t = tpls[+($("asTpl").value || 0)]; if (!t) return;
+      e.target.disabled = true;
+      try {
+        const g = isDemo
+          ? { id: "g-" + t.displayName, name: t.displayName, created: true }
+          : await Assign.createGroup(t);
+        toast(g.created ? `Group <span>${esc(g.name)}</span> created${isDemo ? " (simulated)" : ""}` : `Group <span>${esc(g.name)}</span> already existed — reused`);
+        asAddCreated(g);
+      } catch (err) { console.error(err); toast(`Create failed: <span>${esc(err.message || err)}</span>`); }
+      finally { e.target.disabled = false; }
+      return;
+    }
+    if (e.target.id === "asNewCreate") {
+      const name = $("asNewName").value.trim(); if (!name) return;
+      e.target.disabled = true;
+      try {
+        const g = isDemo
+          ? { id: "g-" + name, name, created: true }
+          : await Assign.createGroup({ displayName: name });
+        toast(g.created ? `Role-assignable group <span>${esc(g.name)}</span> created${isDemo ? " (simulated)" : ""}` : `Group <span>${esc(g.name)}</span> already existed — reused`);
+        asAddCreated(g);
+      } catch (err) { console.error(err); toast(`Create failed: <span>${esc(err.message || err)}</span>`); }
+      finally { e.target.disabled = false; }
+    }
   });
   $("asCancel").addEventListener("click", () => $("assignModal").classList.remove("open"));
   $("asBack").addEventListener("click", () => { asStep--; renderAssign(); });
