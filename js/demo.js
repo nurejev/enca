@@ -55,7 +55,7 @@ const DEMO_DATA = {
     {
       id: "d6", displayName: "Unmanaged devices — limited web session", state: "disabled", modifiedDateTime: "2026-03-19T09:00:00Z",
       conditions: {
-        users: { includeUsers: ["All"] },
+        users: { includeUsers: ["All"], excludeGroups: ["g-hr"] },
         applications: { includeApplications: ["00000003-0000-0ff1-ce00-000000000000"] },
         clientAppTypes: ["browser"],
         signInRiskLevels: ["medium", "high"],
@@ -72,7 +72,7 @@ const DEMO_DATA = {
   ],
   names: {
     "62e90394-69f5-4237-9190-012177145e10": "Global Administrator",
-    "u-break1": "breakglass-01", "u-break2": "breakglass-02", "u-svc": "svc-legacyapp",
+    "u-break1": "breakglass-01", "u-break2": "breakglass-02", "u-svc": "svc-legacyapp", "g-hr": "HR-Department",
     "00000003-0000-0ff1-ce00-000000000000": "Office 365 SharePoint Online",
   },
 
@@ -96,8 +96,16 @@ const DEMO_DATA = {
       description: "Include authentication methods that are phishing-resistant",
       allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor"],
     },
-    "group:00000003-0000-0ff1-ce00-000000000000": {
-      id: "00000003-0000-0ff1-ce00-000000000000", displayName: "Office 365 SharePoint Online", description: "demo",
+    "group:g-hr": {
+      id: "g-hr", displayName: "HR-Department", description: "All HR staff",
+      securityEnabled: true, isAssignableToRole: false,
+      _members: { count: 12, items: [
+        { displayName: "Alex Admin", userPrincipalName: "alex.admin@contoso.com" },
+        { displayName: "Eva Employee", userPrincipalName: "eva@contoso.com" },
+        { displayName: "Milan Medewerker", userPrincipalName: "milan@contoso.com" },
+        { displayName: "breakglass-01", userPrincipalName: "breakglass-01@contoso.com" },
+        { displayName: "Gary Guest", userPrincipalName: "gary_ext#EXT#@contoso.com" },
+      ] },
     },
   },
   scopeGroups: {

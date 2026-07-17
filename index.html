@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=34">
+<link rel="stylesheet" href="css/app.css?v=35">
 </head>
 <body>
 
@@ -44,7 +44,7 @@
         Sign in with Microsoft
       </button>
       <div class="login-note">
-        Multi-tenant · read-only Graph permissions: <code>Policy.Read.All</code> <code>Directory.Read.All</code><br>
+        Multi-tenant · read-only Microsoft Graph permissions<br>
         Runs entirely in your browser — no policy data leaves your session.
       </div>
       <div class="login-note"><a href="?demo=1">View a demo with sample policies →</a></div>
@@ -99,9 +99,8 @@
         <b>Assign groups</b> changes the include/exclude persona groups of selected policies (replace, add, or set to All Users) — the only tool that writes to your tenant, always behind an explicit review step.</p>
 
       <h4>Permissions</h4>
-      <p>The app uses two <b>delegated, read-only</b> Microsoft Graph permissions, consented once per tenant by an administrator:
-        <code>Policy.Read.All</code> to read the Conditional Access policies, named locations, authentication strengths and contexts, and
-        <code>Directory.Read.All</code> to resolve users, groups, roles and applications to readable names (and to expand memberships for the analysis).
+      <p>The app uses <b>delegated, read-only</b> Microsoft Graph permissions for its base tools, consented once per tenant by an administrator —
+        see the permission overview above for the exact scopes and their live status.
         The read-only tools never write to your tenant, and the signed-in user only needs a reader role such as Security Reader or Global Reader.
         The <b>Assign groups</b> tool additionally requests <code>Policy.ReadWrite.ConditionalAccess</code> on demand (incremental consent) and requires a role
         that can edit Conditional Access, such as Conditional Access Administrator or Security Administrator.
@@ -309,16 +308,16 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=34"></script>
-<script src="js/labels.js?v=34"></script>
-<script src="js/graph.js?v=34"></script>
-<script src="js/model.js?v=34"></script>
-<script src="js/render.js?v=34"></script>
-<script src="js/analyze.js?v=34"></script>
-<script src="js/groupTemplates.js?v=34"></script>
-<script src="js/assign.js?v=34"></script>
-<script src="js/export.js?v=34"></script>
-<script src="js/demo.js?v=34"></script>
-<script src="js/app.js?v=34"></script>
+<script src="js/authConfig.js?v=35"></script>
+<script src="js/labels.js?v=35"></script>
+<script src="js/graph.js?v=35"></script>
+<script src="js/model.js?v=35"></script>
+<script src="js/render.js?v=35"></script>
+<script src="js/analyze.js?v=35"></script>
+<script src="js/groupTemplates.js?v=35"></script>
+<script src="js/assign.js?v=35"></script>
+<script src="js/export.js?v=35"></script>
+<script src="js/demo.js?v=35"></script>
+<script src="js/app.js?v=35"></script>
 </body>
 </html>

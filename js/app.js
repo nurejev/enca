@@ -610,7 +610,11 @@
     if (type === "group") rows.push(["Description", esc(o.description || "")], ["Security enabled", String(o.securityEnabled ?? "—")],
       ["Role-assignable", String(o.isAssignableToRole ?? "false")], ["Group types", (o.groupTypes || []).join(", ") || "assigned"],
       ["Membership rule", o.membershipRule ? `<code>${esc(o.membershipRule)}</code>` : "—"],
-      ["On-prem synced", String(o.onPremisesSyncEnabled ?? "—")]);
+      ["On-prem synced", String(o.onPremisesSyncEnabled ?? "—")],
+      [`Members${o._members ? ` (first ${o._members.items.length}${o._members.count != null ? ` of ${o._members.count}` : ""})` : ""}`,
+        o._members
+          ? (o._members.items.map(m => `${esc(m.displayName || m.userPrincipalName || m.id)}${m.userPrincipalName ? ` <span class="mini">${esc(m.userPrincipalName)}</span>` : ""}`).join("<br>") || "no members")
+          : "—"]);
     return depKv(rows) + `<details class="dep-raw"><summary class="mini">Raw JSON</summary><pre>${esc(JSON.stringify(stripFileData(o), null, 2))}</pre></details>`;
   }
   async function openDepView(type, id, label) {
@@ -624,6 +628,13 @@
         obj = isDemo
           ? (DEMO_DATA.depSettings?.[key] || { id, displayName: label, description: "Demo mode — no live settings for this item" })
           : await Graph.gget(DEP_ENDPOINTS[DEP_TYPE_MAP[type]](id), DEP_SCOPES[DEP_TYPE_MAP[type]]);
+        // groups: also fetch the first 5 members (+ total count)
+        if (type === "group" && !isDemo) {
+          try {
+            const m = await Graph.gget(`/groups/${id}/members?$top=5&$count=true&$select=displayName,userPrincipalName`);
+            obj._members = { count: m["@odata.count"], items: m.value || [] };
+          } catch (e) { console.warn("Member fetch failed:", e.message); }
+        }
         depCache.set(key, obj);
       }
       currentDepObj = obj;
