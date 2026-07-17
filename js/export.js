@@ -199,7 +199,11 @@ const Exporter = (() => {
       zip.file("MigrationTable.json", JSON.stringify(migration, null, 2));
     }
     const blob = await zip.generateAsync({ type: "blob" });
-    download(URL.createObjectURL(blob), `ConditionalAccess-JSON-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.zip`);
+    // date + time stamp (yyyy-MM-dd-HHmmss) so re-runs never overwrite a previous backup
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    download(URL.createObjectURL(blob), `ConditionalAccess-JSON-${safe(tenantName || "tenant")}-${stamp}.zip`);
     return policies.length;
   }
 
