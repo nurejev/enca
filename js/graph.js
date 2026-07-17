@@ -65,8 +65,8 @@ const Graph = (() => {
     return full;
   }
 
-  async function gget(url) {
-    const t = await token();
+  async function gget(url, scopes) {
+    const t = await token(scopes);
     const r = await fetch(safeGraphUrl(url), {
       headers: { Authorization: "Bearer " + t, ConsistencyLevel: "eventual" },
     });

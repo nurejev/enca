@@ -30,7 +30,8 @@ param(
   # Group.ReadWrite.All + RoleManagement.ReadWrite.Directory only when creating
   # role-assignable persona groups. All are requested on demand in the app but
   # must be consented here.
-  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "Policy.ReadWrite.ConditionalAccess", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"),
+  # Agreement.Read.All: backing up terms-of-use dependencies (on demand).
+  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "Agreement.Read.All", "Policy.ReadWrite.ConditionalAccess", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"),
   [string]$AuthConfigPath = (Join-Path $PSScriptRoot "js/authConfig.js"),
   [switch]$SkipAdminConsent
 )

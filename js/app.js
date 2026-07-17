@@ -246,6 +246,8 @@
     authContexts: (id) => `/identity/conditionalAccess/authenticationContextClassReferences/${id}`,
     termsOfUse: (id) => `/identityGovernance/termsOfUse/agreements/${id}`,
   };
+  // terms-of-use agreements need Agreement.Read.All — requested on demand
+  const DEP_SCOPES = { termsOfUse: [...AUTH_CONFIG.scopes, "Agreement.Read.All"] };
   $("bkCancel").addEventListener("click", () => $("backupModal").classList.remove("open"));
   $("bkGo").addEventListener("click", async () => {
     $("backupModal").classList.remove("open");
@@ -257,17 +259,21 @@
       if (wantGroups) {
         const ids = backupDependencyIds(ps);
         const total = Object.values(ids).reduce((s, a) => s + a.length, 0);
-        let n = 0;
+        let n = 0; const skipped = [];
         for (const [cat, list] of Object.entries(ids)) {
           for (const id of list) {
             toast(`Fetching dependency ${++n}/${total}…`);
             try {
               deps[cat].push(isDemo
                 ? { id, displayName: DEMO_DATA.names[id] || id, demo: true }
-                : await Graph.gget(DEP_ENDPOINTS[cat](id)));
-            } catch (e) { console.warn(`Dependency fetch failed (skipped): ${cat}/${id}`, e.message); }
+                : await Graph.gget(DEP_ENDPOINTS[cat](id), DEP_SCOPES[cat]));
+            } catch (e) {
+              console.warn(`Dependency fetch failed (skipped): ${cat}/${id}`, e.message);
+              skipped.push(`${cat}: ${id}`);
+            }
           }
         }
+        if (skipped.length) toast(`⚠ <span>${skipped.length}</span> dependencies could not be fetched and were skipped — see browser console`);
       }
       const psOut = $("bkPolicies").checked ? ps : [];
       toast("Building JSON backup…");
