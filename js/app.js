@@ -67,7 +67,7 @@
     $("analyzeView").style.display = v === "analyze" ? "block" : "none";
     // show a hint when the matrix is wider than the screen (horizontal scroll needed)
     if (v === "matrix") {
-      requestAnimationFrame(() => {
+      (window.requestAnimationFrame || setTimeout)(() => {
         const mv = $("matrixView");
         $("matrixHint").style.display = mv.scrollWidth > mv.clientWidth + 4 ? "block" : "none";
       });
