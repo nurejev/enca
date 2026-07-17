@@ -8,9 +8,9 @@
      for silent token renewal; img-src data:/blob: is needed for PNG/PDF export
      and the tenant branding logo. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
-<title>CA Doc — Conditional Access Documenter · Limon-IT</title>
+<title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=22">
+<link rel="stylesheet" href="css/app.css?v=23">
 </head>
 <body>
 
@@ -37,8 +37,8 @@
   <section id="screen-login" class="screen active">
     <div class="login-card">
       <img src="assets/logo-mark-light.svg" width="76" height="76" alt="Limon-IT">
-      <h1>Conditional Access Documenter</h1>
-      <p>Sign in with your Microsoft Entra account to generate clear, complete documentation of your Conditional Access policies — including the newest policy settings.</p>
+      <h1>Conditional Access Baseline Tools</h1>
+      <p>Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
         <svg width="17" height="17" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
         Sign in with Microsoft
@@ -80,6 +80,29 @@
         <div class="tool-ic">🗄</div><h3>Backup (JSON)</h3>
         <p>Select policies (or take all) and download their raw JSON definitions in a zip.</p>
       </div>
+    </div>
+
+    <div class="list-card readme">
+      <h3>📖 About these tools</h3>
+      <p><b>Conditional Access Baseline Tools</b> is a read-only toolset for your Microsoft Entra Conditional Access baseline.
+        <b>Policies</b> shows every policy as cards, a list or a settings matrix, grouped by persona (CA number ranges).
+        <b>Document</b> turns all or selected policies into shareable documentation — Word, PDF, PNG or a PNG bundle.
+        <b>Analyze</b> builds a users × policies impact matrix: which policies apply to whom, who bypasses a policy via exclusions (and why),
+        whether a bypass is covered elsewhere, and who gets no MFA from any policy.
+        <b>Backup</b> downloads the raw JSON definitions of your policies in one zip.</p>
+
+      <h4>Permissions</h4>
+      <p>The app uses two <b>delegated, read-only</b> Microsoft Graph permissions, consented once per tenant by an administrator:
+        <code>Policy.Read.All</code> to read the Conditional Access policies, named locations, authentication strengths and contexts, and
+        <code>Directory.Read.All</code> to resolve users, groups, roles and applications to readable names (and to expand memberships for the analysis).
+        Nothing is ever written to your tenant. The signed-in user needs a reader role such as Security Reader or Global Reader.</p>
+
+      <h4>Security</h4>
+      <p>Everything runs in your browser — there is no backend and your policy data is never stored or sent anywhere except Microsoft Graph.
+        Sign-in uses Microsoft Entra (MSAL, authorization code flow with PKCE, no client secret); tokens live in session storage and are gone when the tab closes.
+        Access tokens are only ever attached to <code>graph.microsoft.com</code> (hostname-validated), a strict Content-Security-Policy is enforced,
+        and all JavaScript libraries are self-hosted — nothing loads from third-party CDNs at runtime.
+        Exports are generated locally on your machine and carry your tenant's branding, not Limon-IT's.</p>
     </div>
   </section>
 
@@ -237,14 +260,14 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=22"></script>
-<script src="js/labels.js?v=22"></script>
-<script src="js/graph.js?v=22"></script>
-<script src="js/model.js?v=22"></script>
-<script src="js/render.js?v=22"></script>
-<script src="js/analyze.js?v=22"></script>
-<script src="js/export.js?v=22"></script>
-<script src="js/demo.js?v=22"></script>
-<script src="js/app.js?v=22"></script>
+<script src="js/authConfig.js?v=23"></script>
+<script src="js/labels.js?v=23"></script>
+<script src="js/graph.js?v=23"></script>
+<script src="js/model.js?v=23"></script>
+<script src="js/render.js?v=23"></script>
+<script src="js/analyze.js?v=23"></script>
+<script src="js/export.js?v=23"></script>
+<script src="js/demo.js?v=23"></script>
+<script src="js/app.js?v=23"></script>
 </body>
 </html>

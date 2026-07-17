@@ -218,6 +218,11 @@ tr.detail>td{background:#fafdf9;padding:12px 18px}
 .tool-ic{font-size:30px;margin-bottom:12px}
 .tool h3{font-size:17px;letter-spacing:-.01em;margin-bottom:8px;color:var(--green)}
 .tool p{font-size:13px;color:var(--muted);line-height:1.5}
+.readme{margin-top:26px;padding:26px;max-width:1180px}
+.readme h3{font-size:16px;margin-bottom:10px;color:var(--green)}
+.readme h4{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin:18px 0 6px}
+.readme p{font-size:13.5px;line-height:1.65;color:var(--ink);max-width:900px}
+.readme code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12px}
 .modal .row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
 .chk{display:flex;gap:8px;align-items:center;margin-top:14px;font-size:13px;color:var(--muted)}
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--green-deep);color:#fff;padding:12px 22px;border-radius:12px;box-shadow:var(--shadow);display:none;z-index:200;font-weight:600}
