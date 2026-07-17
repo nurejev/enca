@@ -175,6 +175,21 @@ const Exporter = (() => {
     download(URL.createObjectURL(blob), `ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.zip`);
   }
 
+  // ---------- JSON backup (.zip): raw policy definitions, one file per policy ----------
+  async function policiesJson(policies, tenantName) {
+    const zip = new JSZip();
+    const all = [];
+    for (const p of policies) {
+      const folder = safe(Render.caGroup(p.name).label);
+      zip.file(`${folder}/${p.seq}-${safe(p.name)}.json`, JSON.stringify(p.raw, null, 2));
+      all.push(p.raw);
+    }
+    zip.file("all-policies.json", JSON.stringify(all, null, 2));
+    const blob = await zip.generateAsync({ type: "blob" });
+    download(URL.createObjectURL(blob), `ConditionalAccess-JSON-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.zip`);
+    return policies.length;
+  }
+
   // ---------- Word document (.docx): one card image per page ----------
   const EMU_PER_PX = 9525; // 96 dpi
   const xesc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
@@ -250,5 +265,5 @@ ${body.join("\n")}
     download(URL.createObjectURL(blob), `ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.docx`);
   }
 
-  return { policyPng, policiesPdf, policiesZip, policiesDocx, buildDocx };
+  return { policyPng, policiesPdf, policiesZip, policiesDocx, policiesJson, buildDocx };
 })();

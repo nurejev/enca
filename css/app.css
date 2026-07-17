@@ -207,7 +207,17 @@ tr.detail>td{background:#fafdf9;padding:12px 18px}
 .exp-opt:hover,.exp-opt.sel{border-color:var(--accent2);background:var(--soft)}
 .exp-ic{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#fff}
 .exp-ic.png{background:var(--accent2)} .exp-ic.pdf{background:var(--green-deep)}
-.exp-ic.docx{background:#2b579a} .exp-ic.zip{background:#8a6d0b}
+.exp-ic.docx{background:#2b579a} .exp-ic.zip{background:#8a6d0b} .exp-ic.json{background:#5f7a67}
+
+/* ---------- tools home ---------- */
+.home-title{font-size:22px;letter-spacing:-.02em;margin:18px 0 22px}
+.tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;max-width:1180px}
+.tool{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;cursor:pointer;transition:.15s;
+  background-image:radial-gradient(300px 160px at 90% -40px,#cdeed4 0%,transparent 60%)}
+.tool:hover{border-color:var(--accent2);transform:translateY(-2px)}
+.tool-ic{font-size:30px;margin-bottom:12px}
+.tool h3{font-size:17px;letter-spacing:-.01em;margin-bottom:8px;color:var(--green)}
+.tool p{font-size:13px;color:var(--muted);line-height:1.5}
 .modal .row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
 .chk{display:flex;gap:8px;align-items:center;margin-top:14px;font-size:13px;color:var(--muted)}
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--green-deep);color:#fff;padding:12px 22px;border-radius:12px;box-shadow:var(--shadow);display:none;z-index:200;font-weight:600}

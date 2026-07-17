@@ -109,17 +109,13 @@
     $("exportModal").classList.add("open");
   }
   function syncFmt() {
-    ["Png", "Pdf", "Docx", "Zip"].forEach(f => $("expOpt" + f).classList.toggle("sel", fmt === f.toLowerCase()));
+    ["Png", "Pdf", "Docx", "Zip", "Json"].forEach(f => $("expOpt" + f).classList.toggle("sel", fmt === f.toLowerCase()));
     $("expMatrixWrap").style.display = fmt === "pdf" ? "flex" : "none"; // appendix only applies to PDF
   }
   async function doExport() {
     $("exportModal").classList.remove("open");
-    const ps = currentExport.map(id => policies.find(p => p.id === id));
     // export in persona order (CA number ranges): Global, Admins, Internals, …
-    ps.sort((a, b) => {
-      const ga = Render.caGroup(a.name), gb = Render.caGroup(b.name);
-      return ga.key - gb.key || (ga.num ?? 1e9) - (gb.num ?? 1e9) || a.name.localeCompare(b.name);
-    });
+    const ps = exportOrder(currentExport.map(id => policies.find(p => p.id === id)));
     try {
       if (fmt === "png") {
         for (const p of ps) {
@@ -133,6 +129,9 @@
       } else if (fmt === "zip") {
         await Exporter.policiesZip(ps, tenantName, tenantLogo, (m) => toast(m));
         toast("PNG bundle <span>done</span>");
+      } else if (fmt === "json") {
+        await Exporter.policiesJson(ps, tenantName);
+        toast("JSON backup <span>done</span>");
       } else {
         await Exporter.policiesPdf(ps, tenantName, $("expMatrix").checked, (m) => toast(m), tenantLogo);
         toast("PDF export <span>done</span>");
@@ -162,7 +161,7 @@
       $("tenantBox").style.display = "flex";
       selected = new Set();
       refreshViews();
-      show("screen-list");
+      show(isRefresh ? "screen-list" : "screen-home");
       toast(isRefresh
         ? `Refreshed from Entra — <span>${policies.length}</span> Conditional Access policies`
         : `Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
@@ -189,9 +188,30 @@
     $("avatar").textContent = "DM";
     $("tenantBox").style.display = "flex";
     refreshViews();
-    show("screen-list");
+    show("screen-home");
     toast(`Demo mode — <span>${policies.length}</span> sample policies loaded`);
   }
+
+  // ---------- tools home ----------
+  function exportOrder(ps) {
+    return [...ps].sort((a, b) => {
+      const ga = Render.caGroup(a.name), gb = Render.caGroup(b.name);
+      return ga.key - gb.key || (ga.num ?? 1e9) - (gb.num ?? 1e9) || a.name.localeCompare(b.name);
+    });
+  }
+  $("homeBtn").addEventListener("click", () => show("screen-home"));
+  $("toolPolicies").addEventListener("click", () => { setView("cards"); show("screen-list"); });
+  $("toolDocument").addEventListener("click", () => { setView("cards"); show("screen-list"); openExport(); });
+  $("toolAnalyze").addEventListener("click", () => { setView("analyze"); show("screen-list"); });
+  $("toolJson").addEventListener("click", async () => {
+    const ps = exportOrder(selected.size ? [...selected].map(id => policies.find(p => p.id === id)) : policies);
+    if (!ps.length) return;
+    toast(`Building JSON backup of <span>${ps.length}</span> policies…`);
+    try {
+      await Exporter.policiesJson(ps, tenantName);
+      toast(`JSON backup <span>downloaded</span> — ${ps.length} policies`);
+    } catch (e) { console.error(e); toast(`Export failed: <span>${esc(e.message || e)}</span>`); }
+  });
 
   // ---------- events ----------
   $("signInBtn").addEventListener("click", async () => {
@@ -439,7 +459,7 @@
 
   // export modal
   $("exportBtn").addEventListener("click", openExport);
-  ["png", "pdf", "docx", "zip"].forEach(f => $("expOpt" + f[0].toUpperCase() + f.slice(1)).addEventListener("click", () => { fmt = f; syncFmt(); }));
+  ["png", "pdf", "docx", "zip", "json"].forEach(f => $("expOpt" + f[0].toUpperCase() + f.slice(1)).addEventListener("click", () => { fmt = f; syncFmt(); }));
   $("expCancel").addEventListener("click", () => $("exportModal").classList.remove("open"));
   $("expGo").addEventListener("click", doExport);
 
