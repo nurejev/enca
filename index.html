@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=36">
+<link rel="stylesheet" href="css/app.css?v=37">
 </head>
 <body>
 
@@ -87,6 +87,10 @@
       <div class="tool" id="toolState">
         <div class="tool-ic">🎚</div><h3>Set state <span class="tag new">BETA</span></h3>
         <p>Switch selected policies between On, Report-only and Off. <span class="tag block">writes to tenant</span></p>
+      </div>
+      <div class="tool" id="toolImport">
+        <div class="tool-ic">📥</div><h3>Import <span class="tag new">BETA</span></h3>
+        <p>Restore a backup (zip or folder): dependencies first, policies imported Off, includes remapped to deploy persona groups. <span class="tag block">writes to tenant</span></p>
       </div>
     </div>
 
@@ -297,6 +301,23 @@
   <div class="modal wide" id="detailBody"></div>
 </div>
 
+<!-- ============ IMPORT (BETA) ============ -->
+<div class="modal-bg" id="importModal">
+  <div class="modal" style="max-width:680px">
+    <h3>Import backup <span class="tag new">BETA</span></h3>
+    <p class="mini" id="imDesc">Select a CA Doc backup zip, or pick the extracted backup folder — both use the same structure.</p>
+    <div id="imPick" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0">
+      <label class="btn primary" style="cursor:pointer">Choose backup .zip<input type="file" id="imZip" accept=".zip" style="display:none"></label>
+      <label class="btn" style="cursor:pointer">Choose backup folder<input type="file" id="imFolder" webkitdirectory multiple style="display:none"></label>
+    </div>
+    <div id="imBody" style="max-height:55vh;overflow:auto"></div>
+    <div class="row">
+      <button class="btn" id="imCancel">Close</button>
+      <button class="btn primary" id="imGo" style="display:none">Import</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ SET STATE (BETA) ============ -->
 <div class="modal-bg" id="stateModal">
   <div class="modal">
@@ -329,16 +350,17 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=36"></script>
-<script src="js/labels.js?v=36"></script>
-<script src="js/graph.js?v=36"></script>
-<script src="js/model.js?v=36"></script>
-<script src="js/render.js?v=36"></script>
-<script src="js/analyze.js?v=36"></script>
-<script src="js/groupTemplates.js?v=36"></script>
-<script src="js/assign.js?v=36"></script>
-<script src="js/export.js?v=36"></script>
-<script src="js/demo.js?v=36"></script>
-<script src="js/app.js?v=36"></script>
+<script src="js/authConfig.js?v=37"></script>
+<script src="js/labels.js?v=37"></script>
+<script src="js/graph.js?v=37"></script>
+<script src="js/model.js?v=37"></script>
+<script src="js/render.js?v=37"></script>
+<script src="js/analyze.js?v=37"></script>
+<script src="js/groupTemplates.js?v=37"></script>
+<script src="js/assign.js?v=37"></script>
+<script src="js/import.js?v=37"></script>
+<script src="js/export.js?v=37"></script>
+<script src="js/demo.js?v=37"></script>
+<script src="js/app.js?v=37"></script>
 </body>
 </html>

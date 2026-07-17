@@ -382,6 +382,77 @@
     } finally { $("stGo").disabled = false; }
   });
 
+  // ---------- import tool (BETA) ----------
+  let imBundle = null, imPlan = null, imFileName = "";
+  $("toolImport").addEventListener("click", () => {
+    imBundle = null; imPlan = null;
+    $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
+    $("imDesc").textContent = "Select a CA Doc backup zip, or pick the extracted backup folder — both use the same structure.";
+    $("importModal").classList.add("open");
+  });
+  $("imCancel").addEventListener("click", () => $("importModal").classList.remove("open"));
+  async function imLoaded(bundle, fileName) {
+    imBundle = bundle; imFileName = fileName;
+    imPlan = Importer.plan(bundle, policies.map(p => p.name));
+    const dep = ["groups", "namedLocations", "authStrengths", "authContexts", "termsOfUse"].map(k => `${bundle[k].length} ${k}`).join(", ");
+    const importable = imPlan.filter(p => !p.exists);
+    $("imDesc").textContent = `${fileName}: ${bundle.policies.length} policies, dependencies: ${dep}.`;
+    $("imBody").innerHTML = `
+      <p class="mini" style="margin:8px 0">Dependencies are imported first (create-if-missing). Policies are imported in state <b>Off</b>,
+      skipped when a policy with the same CA number + version already exists, and their INCLUDE assignment is remapped to the deploy persona group (CAD-SEC-U-DG-*).${isDemo ? " <b>Demo — simulated.</b>" : ""}</p>
+      <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
+      imPlan.map((p, i) => `<li><label class="chk" style="margin:0">
+        <input type="checkbox" data-imp="${i}" ${p.exists ? "disabled" : "checked"}>
+        ${p.exists ? '<span class="tag">skip</span>' : `<span class="tag grant">import</span>`}
+        ${esc(p.name)}
+        <span class="mini">${p.exists ? esc(p.reason) : p.personaGroup ? `→ ${esc(p.personaGroup)}` : esc(p.reason || "")}</span>
+      </label></li>`).join("") + "</ul>";
+    $("imPick").style.display = "none";
+    $("imGo").style.display = importable.length ? "inline-flex" : "none";
+  }
+  $("imZip").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try { await imLoaded(await Importer.readZip(f), f.name); }
+    catch (err) { console.error(err); toast(`Could not read zip: <span>${esc(err.message || err)}</span>`); }
+  });
+  $("imFolder").addEventListener("change", async (e) => {
+    if (!e.target.files.length) return;
+    try { await imLoaded(await Importer.readFolder([...e.target.files]), "selected folder"); }
+    catch (err) { console.error(err); toast(`Could not read folder: <span>${esc(err.message || err)}</span>`); }
+  });
+  $("imGo").addEventListener("click", async () => {
+    const chosen = [...document.querySelectorAll("[data-imp]:checked")].map(cb => imPlan[+cb.dataset.imp]);
+    if (!chosen.length) { toast("Nothing selected to import"); return; }
+    $("imGo").disabled = true;
+    try {
+      let depLog = { created: [], reused: [], warnings: [] }, maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, personaGroupIds: {} }, res = { results: [], warnings: [] };
+      if (isDemo) {
+        chosen.forEach(p => { if (p.personaGroup) maps.personaGroupIds[p.personaGroup] = "g-" + p.personaGroup; });
+        res.results = chosen.map(p => ({ name: p.name, ok: true, persona: p.persona, personaGroup: p.personaGroup }));
+        depLog.created = imBundle.groups.map(g => "Group: " + g.displayName);
+      } else {
+        const dep = await Importer.ensureDependencies(imBundle, (m) => toast(esc(m)));
+        depLog = dep.log; maps = dep.maps;
+        res = await Importer.importPolicies(chosen, maps, (m) => toast(esc(m)));
+      }
+      // markdown change report
+      const md = Importer.buildReport({ tenantName, fileName: imFileName, depLog, planItems: imPlan, results: res.results, warnings: res.warnings });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([md], { type: "text/markdown" }));
+      const d = new Date(), pad = (n) => String(n).padStart(2, "0");
+      a.download = `CA-Import-Report-${(tenantName || "tenant").replace(/[^\w-]+/g, "-")}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.md`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      const failed = res.results.filter(r => !r.ok).length;
+      $("importModal").classList.remove("open");
+      toast(failed ? `Import done with <span>${failed} failure(s)</span> — report downloaded`
+        : `Imported <span>${res.results.length}</span> policies (Off) — report downloaded${isDemo ? " (simulated)" : ""}`);
+      if (!isDemo && res.results.some(r => r.ok)) await loadFromGraph(true);
+    } catch (e) {
+      console.error(e); toast(`Import failed: <span>${esc(e.message || e)}</span>`);
+    } finally { $("imGo").disabled = false; }
+  });
+
   // Assign-groups tool: select policies in the overview, then run the wizard.
   $("toolAssign").addEventListener("click", () => {
     setToolMode("assign"); setView("cards"); show("screen-list");
