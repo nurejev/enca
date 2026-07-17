@@ -32,7 +32,9 @@ param(
   # must be consented here.
   # Agreement.Read.All: backing up terms-of-use dependencies (on demand).
   # Policy.ReadWrite.AuthenticationMethod: creating auth strengths during Import.
-  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "Agreement.Read.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"),
+  # Application.Read.All: Graph requires it to create/update policies that carry
+  # an application condition (Import).
+  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "Agreement.Read.All", "Application.Read.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"),
   [string]$AuthConfigPath = (Join-Path $PSScriptRoot "js/authConfig.js"),
   [switch]$SkipAdminConsent
 )

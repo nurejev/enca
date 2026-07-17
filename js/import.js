@@ -7,8 +7,30 @@
 // assignment is remapped to the deploy/test persona group.
 // ======================================================================
 const Importer = (() => {
-  const WRITE = ["Policy.ReadWrite.ConditionalAccess"];
-  const STRENGTH_WRITE = ["Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod"];
+  // Application.Read.All is required by Graph whenever a policy carries an
+  // application condition — without it the create fails with 403.
+  const WRITE = ["Policy.ReadWrite.ConditionalAccess", "Application.Read.All"];
+  const STRENGTH_WRITE = [...WRITE, "Policy.ReadWrite.AuthenticationMethod"];
+
+  // Template placeholders used by the CA baseline policy files, e.g.
+  //   "{{group:CAB-SEC-U-BreakGlass}}", "{{location:BG_TrustedLocation}}",
+  //   "{{authstrength:Phishing-resistant MFA + TAP}}"
+  const PLACEHOLDER = /^\{\{(group|location|authstrength|authcontext|tou):(.+)\}\}$/;
+  const parsePlaceholder = (v) => {
+    const m = PLACEHOLDER.exec(String(v || "").trim());
+    return m ? { kind: m[1], name: m[2] } : null;
+  };
+  function collectPlaceholders(policies) {
+    const found = [];
+    const walk = (o) => {
+      if (Array.isArray(o)) return o.forEach(walk);
+      if (o && typeof o === "object") return Object.values(o).forEach(walk);
+      const p = parsePlaceholder(o);
+      if (p && !found.some(x => x.kind === p.kind && x.name === p.name)) found.push(p);
+    };
+    policies.forEach(walk);
+    return found;
+  }
 
   const PERSONA_GROUPS = {
     global: "CAD-SEC-U-DG-GLO", admins: "CAD-SEC-U-DG-ADM", internals: "CAD-SEC-U-DG-INT",
@@ -107,8 +129,47 @@ const Importer = (() => {
 
   // ---------- dependencies: create-if-missing, build old-id → new-id maps ----------
   async function ensureDependencies(bundle, onStatus) {
-    const maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {} };
+    const maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, ph: {} };
     const log = { created: [], reused: [], warnings: [] };
+
+    // ---- template placeholders ({{group:…}} / {{location:…}} / {{authstrength:…}}) ----
+    const placeholders = collectPlaceholders(bundle.policies);
+    if (placeholders.length) {
+      onStatus?.(`Resolving ${placeholders.length} template placeholder(s)…`);
+      const key = (p) => `{{${p.kind}:${p.name}}}`;
+      let locs = null, strengths = null, ctxs = null, tous = null;
+      for (const p of placeholders) {
+        try {
+          if (p.kind === "group") {
+            // create-if-missing, always role-assignable (template if we have one)
+            const tpl = Assign.templates().find(t => t.displayName === p.name) || { displayName: p.name };
+            const g = await Assign.createGroup(tpl);
+            maps.ph[key(p)] = g.id;
+            (g.created ? log.created : log.reused).push(`Group (template): ${p.name}`);
+          } else if (p.kind === "location") {
+            locs = locs || await Graph.ggetAll("/identity/conditionalAccess/namedLocations");
+            const f = locs.find(x => x.displayName === p.name);
+            if (f) { maps.ph[key(p)] = f.id; log.reused.push(`Named location: ${p.name}`); }
+            else log.warnings.push(`Named location "${p.name}" not found in this tenant — policies using it are skipped. Create it first, then re-import.`);
+          } else if (p.kind === "authstrength") {
+            strengths = strengths || await Graph.ggetAll("/policies/authenticationStrengthPolicies");
+            const f = strengths.find(x => x.displayName === p.name);
+            if (f) { maps.ph[key(p)] = f.id; log.reused.push(`Auth strength: ${p.name}`); }
+            else log.warnings.push(`Authentication strength "${p.name}" not found in this tenant — policies using it are skipped. Create it first, then re-import.`);
+          } else if (p.kind === "authcontext") {
+            ctxs = ctxs || await Graph.ggetAll("/identity/conditionalAccess/authenticationContextClassReferences");
+            const f = ctxs.find(x => x.displayName === p.name || x.id === p.name);
+            if (f) { maps.ph[key(p)] = f.id; log.reused.push(`Auth context: ${p.name}`); }
+            else log.warnings.push(`Authentication context "${p.name}" not found in this tenant — policies using it are skipped.`);
+          } else if (p.kind === "tou") {
+            tous = tous || await Graph.ggetAll("/identityGovernance/termsOfUse/agreements", [...AUTH_CONFIG.scopes, "Agreement.Read.All"]);
+            const f = tous.find(x => x.displayName === p.name);
+            if (f) { maps.ph[key(p)] = f.id; log.reused.push(`Terms of use: ${p.name}`); }
+            else log.warnings.push(`Terms of use "${p.name}" not found in this tenant — policies using it are skipped.`);
+          }
+        } catch (e) { log.warnings.push(`Placeholder ${key(p)}: ${e.message}`); }
+      }
+    }
 
     // persona groups needed by the policies themselves
     const personaNames = [...new Set(bundle.policies.map(p => personaOf(p.displayName)).filter(Boolean).map(p => PERSONA_GROUPS[p]))];
@@ -210,16 +271,32 @@ const Importer = (() => {
   };
 
   function buildPolicyPayload(raw, maps, personaGroupId, warnings, asIs = false) {
+    const ph = maps.ph || {};
+    // resolve a value that may be a template placeholder, a known old id, or a literal
+    const resolveRef = (v, kindMap) => {
+      const p = parsePlaceholder(v);
+      if (p) {
+        const hit = ph[`{{${p.kind}:${p.name}}}`];
+        if (hit) return hit;
+        throw new Error(`unresolved ${p.kind} "${p.name}" — create it in this tenant first`);
+      }
+      return (kindMap && kindMap[v]) || v;
+    };
     const p = stripOdata(JSON.parse(JSON.stringify(raw)));
     delete p.id; delete p.createdDateTime; delete p.modifiedDateTime; delete p.templateId; delete p.partialEnablementStrategy;
     if (!asIs) p.state = "disabled"; // always import as Off — except E-Admins (as-is)
     const c = p.conditions = p.conditions || {};
     const u = c.users = c.users || {};
 
+    const mapGroups = (arr) => (arr || []).flatMap(id => {
+      try { return [resolveRef(id, maps.group)]; }
+      catch (e) { warnings.push(`${raw.displayName}: ${e.message} — group reference dropped`); return []; }
+    });
+
     if (asIs) {
-      // as-is: keep all assignments; only translate group ids we know from the backup
-      u.includeGroups = (u.includeGroups || []).map(id => maps.group[id] || id);
-      u.excludeGroups = (u.excludeGroups || []).map(id => maps.group[id] || id);
+      // as-is: keep all assignments; resolve placeholders / known ids only
+      u.includeGroups = mapGroups(u.includeGroups);
+      u.excludeGroups = mapGroups(u.excludeGroups);
     } else {
       // include assignment → persona deploy group
       if (personaGroupId) {
@@ -228,43 +305,37 @@ const Importer = (() => {
         u.includeRoles = [];
         delete u.includeGuestsOrExternalUsers;
       } else {
-        u.includeGroups = (u.includeGroups || []).map(id => maps.group[id] || id);
+        u.includeGroups = mapGroups(u.includeGroups);
       }
       // exclude users from the old tenant cannot be mapped — drop non-specials
       const specials = ["All", "None", "GuestsOrExternalUsers"];
-      const droppedUsers = (u.excludeUsers || []).filter(x => !specials.includes(x));
+      const droppedUsers = (u.excludeUsers || []).filter(x => !specials.includes(x) && !parsePlaceholder(x));
       if (droppedUsers.length) { warnings.push(`${raw.displayName}: dropped ${droppedUsers.length} excluded user(s) from the source tenant`); }
       u.excludeUsers = (u.excludeUsers || []).filter(x => specials.includes(x));
-      // exclude groups → remap by id, drop unmapped
-      u.excludeGroups = (u.excludeGroups || []).flatMap(id => {
-        if (maps.group[id]) return [maps.group[id]];
-        warnings.push(`${raw.displayName}: dropped unmapped exclude group ${id}`);
-        return [];
-      });
+      u.excludeGroups = mapGroups(u.excludeGroups);
     }
-    // locations → remap
+    // locations → placeholders / remap
     if (c.locations) {
-      const mapLoc = (id) => (id === "All" || id === "AllTrusted") ? id : (maps.loc[id] || null);
       for (const k of ["includeLocations", "excludeLocations"]) {
         if (!c.locations[k]) continue;
         c.locations[k] = c.locations[k].flatMap(id => {
-          const m = mapLoc(id);
-          if (m) return [m];
-          warnings.push(`${raw.displayName}: dropped unmapped location ${id}`);
-          return [];
+          if (id === "All" || id === "AllTrusted") return [id];
+          try { return [resolveRef(id, maps.loc)]; }
+          catch (e) { throw new Error(`${e.message} (named location)`); } // location is material — fail the policy
         });
       }
     }
     // grant controls: auth strength + terms of use
     if (p.grantControls?.authenticationStrength) {
-      const oldId = p.grantControls.authenticationStrength.id;
-      const mapped = maps.strength[oldId] || oldId; // built-in ids are identical across tenants
-      p.grantControls.authenticationStrength = { id: mapped };
+      // built-in strength ids are identical across tenants; placeholders resolve by name
+      p.grantControls.authenticationStrength = { id: resolveRef(p.grantControls.authenticationStrength.id, maps.strength) };
     }
     if (p.grantControls?.termsOfUse?.length) {
-      const mapped = p.grantControls.termsOfUse.map(id => maps.tou[id]);
-      if (mapped.some(x => !x)) throw new Error("required terms-of-use agreement not available in this tenant");
-      p.grantControls.termsOfUse = mapped;
+      p.grantControls.termsOfUse = p.grantControls.termsOfUse.map(id => resolveRef(id, maps.tou));
+    }
+    if (c.applications?.includeAuthenticationContextClassReferences?.length) {
+      c.applications.includeAuthenticationContextClassReferences =
+        c.applications.includeAuthenticationContextClassReferences.map(id => resolveRef(id, maps.ctx));
     }
     // auth contexts keep their ids (ensured earlier)
     return p;
@@ -324,5 +395,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, personaOf, isEAdmins, parseCaVersion, parseEntries, readZip, readFolder, plan, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, personaOf, isEAdmins, parseCaVersion, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();

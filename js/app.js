@@ -212,7 +212,9 @@
     { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
     { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
-    { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments", tools: "Assign groups", onDemand: true },
+    { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies", tools: "Assign groups, Set state, Import", onDemand: true },
+    { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
+    { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups", tools: "Assign groups", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable", tools: "Assign groups", onDemand: true },
   ];
