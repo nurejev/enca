@@ -202,7 +202,7 @@
   }
   function setToolMode(mode) {
     toolMode = mode;
-    $("exportBtn").textContent = mode === "backup" ? "Backup (JSON)" : mode === "assign" ? "Assign groups" : "Document";
+    $("exportBtn").innerHTML = mode === "backup" ? "Backup (JSON)" : mode === "assign" ? 'Assign groups <span class="tag new">BETA</span>' : "Document";
     $("exportBtn").classList.toggle("primary", mode === "assign");
     $("exportBtn").classList.toggle("lemon", mode !== "assign");
   }
