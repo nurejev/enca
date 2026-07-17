@@ -188,15 +188,23 @@ const Exporter = (() => {
       all.push(p.raw);
     }
     zip.file("all-policies.json", JSON.stringify(all, null, 2));
-    if (opts.groups?.length) {
-      for (const g of opts.groups) {
-        zip.file(`Groups/${safe(g.displayName || g.id)}.json`, JSON.stringify(g, null, 2));
+    // dependencies: each category in its own folder, all listed in MigrationTable.json
+    const DEP_FOLDERS = {
+      groups: ["Groups", "Group"],
+      authStrengths: ["AuthenticationStrengths", "AuthenticationStrength"],
+      namedLocations: ["NamedLocations", "NamedLocation"],
+      authContexts: ["AuthenticationContexts", "AuthenticationContext"],
+      termsOfUse: ["TermsOfUse", "Agreement"],
+    };
+    const migrationObjects = [];
+    for (const [key, [folder, type]] of Object.entries(DEP_FOLDERS)) {
+      for (const obj of (opts[key] || [])) {
+        zip.file(`${folder}/${safe(obj.displayName || obj.id)}.json`, JSON.stringify(obj, null, 2));
+        migrationObjects.push({ DisplayName: obj.displayName || "", Id: obj.id, Type: type });
       }
-      const migration = {
-        TenantId: opts.tenantId || "",
-        Objects: opts.groups.map(g => ({ DisplayName: g.displayName || "", Id: g.id, Type: "Group" })),
-      };
-      zip.file("MigrationTable.json", JSON.stringify(migration, null, 2));
+    }
+    if (migrationObjects.length) {
+      zip.file("MigrationTable.json", JSON.stringify({ TenantId: opts.tenantId || "", Objects: migrationObjects }, null, 2));
     }
     const blob = await zip.generateAsync({ type: "blob" });
     // date + time stamp (yyyy-MM-dd-HHmmss) so re-runs never overwrite a previous backup

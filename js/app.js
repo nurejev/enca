@@ -210,8 +210,10 @@
     const ps = exportOrder((selected.size ? [...selected] : visible().map(p => p.id)).map(id => policies.find(p => p.id === id)));
     if (!ps.length) { toast("Nothing to back up"); return; }
     bkPolicies = ps;
-    const gids = backupGroupIds(ps);
-    $("bkDesc").textContent = `${ps.length} ${ps.length === 1 ? "policy" : "policies"} — referencing ${gids.length} unique group(s).`;
+    const dep = backupDependencyIds(ps);
+    const nDeps = Object.values(dep).reduce((s, a) => s + a.length, 0);
+    $("bkDesc").textContent = `${ps.length} ${ps.length === 1 ? "policy" : "policies"} — referencing ${nDeps} dependencies `
+      + `(${dep.groups.length} groups, ${dep.authStrengths.length} auth strengths, ${dep.namedLocations.length} named locations, ${dep.authContexts.length} auth contexts, ${dep.termsOfUse.length} terms of use).`;
     $("backupModal").classList.add("open");
   }
   let bkPolicies = [];
@@ -223,6 +225,27 @@
     });
     return [...ids];
   }
+  // All dependency ids referenced by the selected policies, per category.
+  function backupDependencyIds(ps) {
+    const d = { groups: new Set(), authStrengths: new Set(), namedLocations: new Set(), authContexts: new Set(), termsOfUse: new Set() };
+    ps.forEach(p => {
+      const c = p.raw.conditions || {}, g = p.raw.grantControls || {};
+      backupGroupIds([p]).forEach(id => d.groups.add(id));
+      if (g.authenticationStrength?.id) d.authStrengths.add(g.authenticationStrength.id);
+      [...(c.locations?.includeLocations || []), ...(c.locations?.excludeLocations || [])]
+        .filter(id => id !== "All" && id !== "AllTrusted").forEach(id => d.namedLocations.add(id));
+      (c.applications?.includeAuthenticationContextClassReferences || []).forEach(id => d.authContexts.add(id));
+      (g.termsOfUse || []).forEach(id => d.termsOfUse.add(id));
+    });
+    return Object.fromEntries(Object.entries(d).map(([k, v]) => [k, [...v]]));
+  }
+  const DEP_ENDPOINTS = {
+    groups: (id) => `/groups/${id}`,
+    authStrengths: (id) => `/policies/authenticationStrengthPolicies/${id}`,
+    namedLocations: (id) => `/identity/conditionalAccess/namedLocations/${id}`,
+    authContexts: (id) => `/identity/conditionalAccess/authenticationContextClassReferences/${id}`,
+    termsOfUse: (id) => `/identityGovernance/termsOfUse/agreements/${id}`,
+  };
   $("bkCancel").addEventListener("click", () => $("backupModal").classList.remove("open"));
   $("bkGo").addEventListener("click", async () => {
     $("backupModal").classList.remove("open");
@@ -230,25 +253,30 @@
     const wantGroups = $("bkGroups").checked;
     if (!$("bkPolicies").checked && !wantGroups) { toast("Nothing selected to back up"); return; }
     try {
-      let groups = [];
+      const deps = { groups: [], authStrengths: [], namedLocations: [], authContexts: [], termsOfUse: [] };
       if (wantGroups) {
-        const gids = backupGroupIds(ps);
-        for (let i = 0; i < gids.length; i++) {
-          toast(`Fetching group ${i + 1}/${gids.length}…`);
-          try {
-            groups.push(isDemo
-              ? { id: gids[i], displayName: DEMO_DATA.names[gids[i]] || gids[i], securityEnabled: true, mailEnabled: false, description: "demo group" }
-              : await Graph.gget(`/groups/${gids[i]}`));
-          } catch (e) { console.warn("Group fetch failed (skipped):", gids[i], e.message); }
+        const ids = backupDependencyIds(ps);
+        const total = Object.values(ids).reduce((s, a) => s + a.length, 0);
+        let n = 0;
+        for (const [cat, list] of Object.entries(ids)) {
+          for (const id of list) {
+            toast(`Fetching dependency ${++n}/${total}…`);
+            try {
+              deps[cat].push(isDemo
+                ? { id, displayName: DEMO_DATA.names[id] || id, demo: true }
+                : await Graph.gget(DEP_ENDPOINTS[cat](id)));
+            } catch (e) { console.warn(`Dependency fetch failed (skipped): ${cat}/${id}`, e.message); }
+          }
         }
       }
       const psOut = $("bkPolicies").checked ? ps : [];
       toast("Building JSON backup…");
+      const nDeps = Object.values(deps).reduce((s, a) => s + a.length, 0);
       await Exporter.policiesJson(psOut, tenantName, {
-        groups,
+        ...deps,
         tenantId: Graph.account?.tenantId || "",
       });
-      toast(`JSON backup <span>downloaded</span> — ${psOut.length} policies${groups.length ? `, ${groups.length} groups` : ""}`);
+      toast(`JSON backup <span>downloaded</span> — ${psOut.length} policies${nDeps ? `, ${nDeps} dependencies` : ""}`);
     } catch (e) { console.error(e); toast(`Backup failed: <span>${esc(e.message || e)}</span>`); }
   });
   $("homeBtn").addEventListener("click", () => show("screen-home"));
