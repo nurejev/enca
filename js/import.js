@@ -16,6 +16,13 @@ const Importer = (() => {
     serviceaccounts: "CAD-SEC-U-DG-SA", devops: "CAD-SEC-U-DG-DevOps", factoryworkers: "CAD-SEC-U-DG-FW",
   };
 
+  // E-Admins (emergency/break-glass) policies are imported AS-IS: no persona
+  // remap, original state kept, assignments unchanged.
+  function isEAdmins(name) {
+    const n = (name || "").toLowerCase();
+    return /\be[-_]?admins?\b/.test(n) || Render.caGroup(name).key === 1100;
+  }
+
   // persona from the policy name (token first, CA-number range as fallback)
   function personaOf(name) {
     const n = (name || "").toLowerCase();
@@ -85,12 +92,15 @@ const Importer = (() => {
     return bundle.policies.map(raw => {
       const { num, ver } = parseCaVersion(raw.displayName);
       const exists = num != null && ver != null && existing.some(e => e.num === num && e.ver === ver);
-      const persona = personaOf(raw.displayName);
+      const asIs = isEAdmins(raw.displayName);
+      const persona = asIs ? null : personaOf(raw.displayName);
       return {
-        raw, name: raw.displayName, num, ver,
+        raw, name: raw.displayName, num, ver, asIs,
         persona, personaGroup: persona ? PERSONA_GROUPS[persona] : null,
         exists,
-        reason: exists ? `already exists (CA${num} v${ver})` : !persona ? "no persona detected — include assignment kept as-is" : null,
+        reason: exists ? `already exists (CA${num} v${ver})`
+          : asIs ? "E-Admins — imported as-is (state & assignments unchanged)"
+          : !persona ? "no persona detected — include assignment kept as-is" : null,
       };
     });
   }
@@ -199,31 +209,39 @@ const Importer = (() => {
     return o;
   };
 
-  function buildPolicyPayload(raw, maps, personaGroupId, warnings) {
+  function buildPolicyPayload(raw, maps, personaGroupId, warnings, asIs = false) {
     const p = stripOdata(JSON.parse(JSON.stringify(raw)));
     delete p.id; delete p.createdDateTime; delete p.modifiedDateTime; delete p.templateId; delete p.partialEnablementStrategy;
-    p.state = "disabled"; // always import as Off
+    if (!asIs) p.state = "disabled"; // always import as Off — except E-Admins (as-is)
     const c = p.conditions = p.conditions || {};
     const u = c.users = c.users || {};
 
-    // include assignment → persona deploy group
-    if (personaGroupId) {
-      u.includeUsers = ["None"];
-      u.includeGroups = [personaGroupId];
-      u.includeRoles = [];
-      delete u.includeGuestsOrExternalUsers;
+    if (asIs) {
+      // as-is: keep all assignments; only translate group ids we know from the backup
+      u.includeGroups = (u.includeGroups || []).map(id => maps.group[id] || id);
+      u.excludeGroups = (u.excludeGroups || []).map(id => maps.group[id] || id);
+    } else {
+      // include assignment → persona deploy group
+      if (personaGroupId) {
+        u.includeUsers = ["None"];
+        u.includeGroups = [personaGroupId];
+        u.includeRoles = [];
+        delete u.includeGuestsOrExternalUsers;
+      } else {
+        u.includeGroups = (u.includeGroups || []).map(id => maps.group[id] || id);
+      }
+      // exclude users from the old tenant cannot be mapped — drop non-specials
+      const specials = ["All", "None", "GuestsOrExternalUsers"];
+      const droppedUsers = (u.excludeUsers || []).filter(x => !specials.includes(x));
+      if (droppedUsers.length) { warnings.push(`${raw.displayName}: dropped ${droppedUsers.length} excluded user(s) from the source tenant`); }
+      u.excludeUsers = (u.excludeUsers || []).filter(x => specials.includes(x));
+      // exclude groups → remap by id, drop unmapped
+      u.excludeGroups = (u.excludeGroups || []).flatMap(id => {
+        if (maps.group[id]) return [maps.group[id]];
+        warnings.push(`${raw.displayName}: dropped unmapped exclude group ${id}`);
+        return [];
+      });
     }
-    // exclude users from the old tenant cannot be mapped — drop non-specials
-    const specials = ["All", "None", "GuestsOrExternalUsers"];
-    const droppedUsers = (u.excludeUsers || []).filter(x => !specials.includes(x));
-    if (droppedUsers.length) { warnings.push(`${raw.displayName}: dropped ${droppedUsers.length} excluded user(s) from the source tenant`); }
-    u.excludeUsers = (u.excludeUsers || []).filter(x => specials.includes(x));
-    // exclude groups → remap by id, drop unmapped
-    u.excludeGroups = (u.excludeGroups || []).flatMap(id => {
-      if (maps.group[id]) return [maps.group[id]];
-      warnings.push(`${raw.displayName}: dropped unmapped exclude group ${id}`);
-      return [];
-    });
     // locations → remap
     if (c.locations) {
       const mapLoc = (id) => (id === "All" || id === "AllTrusted") ? id : (maps.loc[id] || null);
@@ -260,9 +278,9 @@ const Importer = (() => {
       onStatus?.(`Importing ${it.name} (${i + 1}/${items.length})…`);
       try {
         const gid = it.personaGroup ? maps.personaGroupIds?.[it.personaGroup] : null;
-        const payload = buildPolicyPayload(it.raw, maps, gid, warnings);
+        const payload = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs);
         await Graph.gpost("/identity/conditionalAccess/policies", payload, [...AUTH_CONFIG.scopes, ...WRITE]);
-        results.push({ name: it.name, ok: true, persona: it.persona, personaGroup: it.personaGroup });
+        results.push({ name: it.name, ok: true, persona: it.persona, personaGroup: it.personaGroup, asIs: it.asIs });
       } catch (e) {
         console.error("Import failed:", it.name, e);
         results.push({ name: it.name, ok: false, error: e.message || String(e) });
@@ -293,7 +311,9 @@ const Importer = (() => {
       ...(depLog.reused.length ? [`### Reused (already existed)`, ``, ...depLog.reused.map(x => `- ${x}`), ``] : []),
       `## Imported policies`,
       ``,
-      ...(results.filter(r => r.ok).map(r => `- ✅ **${r.name}** — state set to Off; include assignment → ${r.personaGroup ? `\`${r.personaGroup}\` (persona: ${r.persona})` : "kept as in source"}`)),
+      ...(results.filter(r => r.ok).map(r => r.asIs
+        ? `- ✅ **${r.name}** — **imported as-is** (E-Admins: state and assignments unchanged)`
+        : `- ✅ **${r.name}** — state set to Off; include assignment → ${r.personaGroup ? `\`${r.personaGroup}\` (persona: ${r.persona})` : "kept as in source"}`)),
       ``,
       ...(skipped.length ? [`## Skipped (already exist by CA number + version)`, ``, ...skipped.map(p => `- ⏭ ${p.name} — ${p.reason}`), ``] : []),
       ...(results.some(r => !r.ok) ? [`## Failed`, ``, ...results.filter(r => !r.ok).map(r => `- ❌ ${r.name} — ${r.error}`), ``] : []),
@@ -304,5 +324,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, personaOf, parseCaVersion, parseEntries, readZip, readFolder, plan, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, personaOf, isEAdmins, parseCaVersion, parseEntries, readZip, readFolder, plan, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();

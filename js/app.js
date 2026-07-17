@@ -403,7 +403,7 @@
       <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
       imPlan.map((p, i) => `<li><label class="chk" style="margin:0">
         <input type="checkbox" data-imp="${i}" ${p.exists ? "disabled" : "checked"}>
-        ${p.exists ? '<span class="tag">skip</span>' : `<span class="tag grant">import</span>`}
+        ${p.exists ? '<span class="tag">skip</span>' : p.asIs ? '<span class="tag new">as-is</span>' : `<span class="tag grant">import</span>`}
         ${esc(p.name)}
         <span class="mini">${p.exists ? esc(p.reason) : p.personaGroup ? `→ ${esc(p.personaGroup)}` : esc(p.reason || "")}</span>
       </label></li>`).join("") + "</ul>";
