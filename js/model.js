@@ -26,12 +26,46 @@ function buildViewModel(raw, resolve, index) {
   ];
   if (u.excludeGuestsOrExternalUsers) usersExc.push("Guests & external users");
 
-  // ---- workload identities ----
+  // ---- workload identities / agents ----
   const ca = c.clientApplications || {};
-  const spInc = (ca.includeServicePrincipals || []).map(id => name(id, L.servicePrincipals));
-  const spExc = (ca.excludeServicePrincipals || []).map(id => name(id, L.servicePrincipals));
-  if (spInc.length) usersInc.push(...spInc.map(s => s + " (workload identity)"));
-  if (spExc.length) usersExc.push(...spExc.map(s => s + " (workload identity)"));
+  const spLabel = (id) => {
+    if (/agent/i.test(id)) return name(id, L.servicePrincipals) + " (agent)";
+    return name(id, L.servicePrincipals) + " (workload identity)";
+  };
+  const spInc = (ca.includeServicePrincipals || []).map(spLabel);
+  const spExc = (ca.excludeServicePrincipals || []).map(spLabel);
+  if (spInc.length) usersInc.push(...spInc);
+  if (spExc.length) usersExc.push(...spExc);
+  if (ca.servicePrincipalFilter?.rule) {
+    usersInc.push(`Service principal/agent filter (${ca.servicePrincipalFilter.mode}): ${ca.servicePrincipalFilter.rule}`);
+  }
+
+  // catch-all: surface targeting properties this app doesn't know yet (e.g. new
+  // agent-identity settings) instead of silently showing "None"
+  const KNOWN_USERS = ["includeUsers", "excludeUsers", "includeGroups", "excludeGroups", "includeRoles", "excludeRoles", "includeGuestsOrExternalUsers", "excludeGuestsOrExternalUsers"];
+  const KNOWN_CLIENTAPPS = ["includeServicePrincipals", "excludeServicePrincipals", "servicePrincipalFilter"];
+  const extraTargeting = [];
+  const addExtra = (obj, known) => {
+    for (const [k, v] of Object.entries(obj || {})) {
+      if (known.includes(k) || k.includes("@odata") || v == null) continue;
+      if (Array.isArray(v) && !v.length) continue;
+      extraTargeting.push(`${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
+    }
+  };
+  addExtra(u, KNOWN_USERS);
+  addExtra(ca, KNOWN_CLIENTAPPS);
+  usersInc.push(...extraTargeting);
+  // unknown top-level conditions (e.g. agent risk levels) → shown under Conditions
+  const KNOWN_CONDITIONS = ["users", "applications", "clientApplications", "platforms", "locations", "devices", "clientAppTypes", "signInRiskLevels", "userRiskLevels", "servicePrincipalRiskLevels", "insiderRiskLevels", "authenticationFlows", "deviceStates", "times", "signInRiskDetections"];
+  const extraConditions = [];
+  for (const [k, v] of Object.entries(c)) {
+    if (KNOWN_CONDITIONS.includes(k) || k.includes("@odata") || v == null) continue;
+    if (Array.isArray(v) && !v.length) continue;
+    if (typeof v === "string" && (v === "none" || v === "")) continue;
+    extraConditions.push(`${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
+  }
+  // a lone "None" from includeUsers is noise when agents/SPs are targeted
+  if (usersInc.length > 1) { const ni = usersInc.indexOf("None"); if (ni > -1) usersInc.splice(ni, 1); }
 
   // ---- target resources ----
   const a = c.applications || {};
@@ -53,6 +87,7 @@ function buildViewModel(raw, resolve, index) {
   if ((c.userRiskLevels || []).length) risks.push("User risk: " + c.userRiskLevels.map(r => L.risk[r] || r).join(", "));
   if ((c.signInRiskLevels || []).length) risks.push("Sign-in risk: " + c.signInRiskLevels.map(r => L.risk[r] || r).join(", "));
   if ((c.servicePrincipalRiskLevels || []).length) risks.push("Service principal risk: " + c.servicePrincipalRiskLevels.map(r => L.risk[r] || r).join(", "));
+  risks.push(...extraConditions);
 
   const insider = (c.insiderRiskLevels && c.insiderRiskLevels !== "none")
     ? String(c.insiderRiskLevels).split(",").map(r => L.insiderRisk[r.trim()] || r.trim()) : [];
@@ -101,7 +136,7 @@ function buildViewModel(raw, resolve, index) {
   [...(u.includeGroups || []), ...(u.excludeGroups || [])].forEach(id => addDep("group", id, name(id)));
 
   const state = LABELS.state[raw.state] || "off";
-  const usesNew = !!(authFlows.length || insider.length || session.some(x => x.isNew));
+  const usesNew = !!(authFlows.length || insider.length || session.some(x => x.isNew) || extraTargeting.length || extraConditions.length);
 
   return {
     id: raw.id,
