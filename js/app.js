@@ -119,7 +119,7 @@
     $("exportModal").classList.add("open");
   }
   function syncFmt() {
-    ["Png", "Pdf", "Docx", "Zip", "Json"].forEach(f => $("expOpt" + f).classList.toggle("sel", fmt === f.toLowerCase()));
+    ["Png", "Pdf", "Docx", "Zip", "Md", "Json"].forEach(f => $("expOpt" + f).classList.toggle("sel", fmt === f.toLowerCase()));
     $("expMatrixWrap").style.display = fmt === "pdf" ? "flex" : "none"; // appendix only applies to PDF
   }
   async function doExport() {
@@ -139,6 +139,9 @@
       } else if (fmt === "zip") {
         await Exporter.policiesZip(ps, tenantName, tenantLogo, (m) => toast(m));
         toast("PNG bundle <span>done</span>");
+      } else if (fmt === "md") {
+        await Exporter.policiesMd(ps, tenantName);
+        toast("Markdown export <span>done</span>");
       } else if (fmt === "json") {
         await Exporter.policiesJson(ps, tenantName);
         toast("JSON backup <span>done</span>");
@@ -968,7 +971,7 @@
     allCollapsed ? keys.forEach(k => collapsedGroups.delete(k)) : keys.forEach(k => collapsedGroups.add(k));
     refreshViews();
   });
-  ["png", "pdf", "docx", "zip", "json"].forEach(f => $("expOpt" + f[0].toUpperCase() + f.slice(1)).addEventListener("click", () => { fmt = f; syncFmt(); }));
+  ["png", "pdf", "docx", "zip", "md", "json"].forEach(f => $("expOpt" + f[0].toUpperCase() + f.slice(1)).addEventListener("click", () => { fmt = f; syncFmt(); }));
   $("expCancel").addEventListener("click", () => $("exportModal").classList.remove("open"));
   $("expGo").addEventListener("click", doExport);
 

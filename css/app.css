@@ -218,7 +218,7 @@ tr.detail>td{background:#fafdf9;padding:12px 18px}
 .exp-opt:hover,.exp-opt.sel{border-color:var(--accent2);background:var(--soft)}
 .exp-ic{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#fff}
 .exp-ic.png{background:var(--accent2)} .exp-ic.pdf{background:var(--green-deep)}
-.exp-ic.docx{background:#2b579a} .exp-ic.zip{background:#8a6d0b} .exp-ic.json{background:#5f7a67}
+.exp-ic.docx{background:#2b579a} .exp-ic.zip{background:#8a6d0b} .exp-ic.json{background:#5f7a67} .exp-ic.md{background:#333}
 
 /* ---------- tools home ---------- */
 .home-title{font-size:22px;letter-spacing:-.02em;margin:18px 0 22px}

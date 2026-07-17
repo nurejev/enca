@@ -175,6 +175,70 @@ const Exporter = (() => {
     download(URL.createObjectURL(blob), `ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.zip`);
   }
 
+  // ---------- Markdown (.md): one table per policy, same sections as the card ----------
+  // Markdown tables have no merged/nested cells, so each card section becomes a
+  // row; multi-value cells use <br> (rendered by GitHub, Word, Obsidian, …).
+  const mdCell = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\n/g, "<br>");
+  const mdList = (arr, prefix = "") => arr.length ? arr.map(x => prefix + mdCell(x)).join("<br>") : "—";
+
+  function policyTable(p) {
+    const c = p.cond;
+    const users = [...p.users.inc, ...p.users.exc.map(x => "− " + x)];
+    const apps = [...p.apps.inc, ...p.apps.exc.map(x => "− " + x)];
+    if (p.apps.filter) apps.push(`Filter (${p.apps.filter.mode}): \`${p.apps.filter.rule}\``);
+    const net = [...p.net.inc, ...p.net.exc.map(x => "− " + x)];
+    const cond = [];
+    if (c.platforms.length) cond.push("Platforms: " + c.platforms.join(", ") + (c.platformsExc.length ? ` (excl. ${c.platformsExc.join(", ")})` : ""));
+    if (c.clientApps.length) cond.push("Client apps: " + c.clientApps.join(", "));
+    c.risks.forEach(r => cond.push(r));
+    if (c.devFilter) cond.push(`Device filter (${c.devFilter.mode}): \`${c.devFilter.rule}\``);
+    if (c.authFlows.length) cond.push("Auth flows: " + c.authFlows.join(", "));
+    if (c.insider.length) cond.push("Insider risk: " + c.insider.join(", "));
+    const grant = [...p.grant.controls];
+    if (p.grant.op) grant.push(`_Require ${p.grant.op === "OR" ? "one" : "all"} of the selected controls_`);
+
+    return [
+      `### ${p.seq} — ${p.name}`,
+      ``,
+      `| | |`,
+      `|---|---|`,
+      `| **State** | ${LABELS.stateText[p.state]} |`,
+      `| **Modified** | ${p.modified} |`,
+      `| **Users** | ${mdList(users)} |`,
+      `| **Target resources** | ${mdList(apps)} |`,
+      `| **Network** | ${mdList(net)} |`,
+      `| **Conditions** | ${mdList(cond)} |`,
+      `| **${p.grant.mode === "block" ? "Block" : "Grant"}** | ${mdList(grant)} |`,
+      `| **Session** | ${mdList(p.session.map(s => s.t))} |`,
+      `| **Policy ID** | \`${p.id}\` |`,
+      ``,
+    ].join("\n");
+  }
+
+  function policiesMarkdown(policies, tenantName) {
+    const date = new Date().toISOString().slice(0, 10);
+    const out = [`# Conditional Access documentation`, ``, `**Tenant:** ${mdCell(tenantName || "tenant")}  `, `**Date:** ${date}  `, `**Policies:** ${policies.length}`, ``];
+    // summary table of all policies
+    out.push(`## Overview`, ``, `| CA | Policy | State | Users | Target resources | Grant |`, `|---|---|---|---|---|---|`);
+    policies.forEach(p => out.push(`| ${p.seq} | ${mdCell(p.name)} | ${LABELS.stateText[p.state]} | ${mdCell(p.users.inc[0] || "")}${p.users.exc.length ? ` (−${p.users.exc.length})` : ""} | ${mdCell(p.apps.inc.slice(0, 2).join(", "))}${p.apps.inc.length > 2 ? "…" : ""} | ${mdCell(p.grant.controls[0] || "")} |`));
+    out.push(``);
+    // per-persona sections with one table per policy
+    let lastGroup = null;
+    policies.forEach(p => {
+      const g = Render.caGroup(p.name);
+      if (g.label !== lastGroup) { lastGroup = g.label; out.push(`## ${g.label}`, ``); }
+      out.push(policyTable(p));
+    });
+    out.push(`---`, `Generated ${date} — Conditional Access documentation`);
+    return out.join("\n");
+  }
+
+  async function policiesMd(policies, tenantName) {
+    const md = policiesMarkdown(policies, tenantName);
+    const blob = new Blob([md], { type: "text/markdown" });
+    download(URL.createObjectURL(blob), `ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.md`);
+  }
+
   // ---------- JSON backup (.zip): raw policy definitions, one file per policy ----------
   // opts.groups: raw Graph group objects → written to Groups/<displayName>.json
   // plus a MigrationTable.json ({TenantId, Objects:[{DisplayName,Id,Type}]}),
@@ -297,5 +361,5 @@ ${body.join("\n")}
     download(URL.createObjectURL(blob), `ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.docx`);
   }
 
-  return { policyPng, policiesPdf, policiesZip, policiesDocx, policiesJson, buildDocx };
+  return { policyPng, policiesPdf, policiesZip, policiesDocx, policiesJson, policiesMd, policiesMarkdown, buildDocx };
 })();
