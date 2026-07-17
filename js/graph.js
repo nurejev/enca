@@ -184,5 +184,15 @@ const Graph = (() => {
     return { policies, org, logo, resolve, account };
   }
 
-  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gpostGroupCreate, get account() { return account; } };
+  // Scopes actually granted in the current session (from the access token's scp
+  // claim). Silent only — never triggers a prompt; returns [] when unavailable.
+  async function grantedScopes() {
+    try {
+      const r = await msalApp.acquireTokenSilent({ scopes: AUTH_CONFIG.scopes, account });
+      const payload = JSON.parse(atob(r.accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      return (payload.scp || "").split(" ").filter(Boolean);
+    } catch { return []; }
+  }
+
+  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gpostGroupCreate, grantedScopes, get account() { return account; } };
 })();

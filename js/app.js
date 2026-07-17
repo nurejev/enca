@@ -162,6 +162,7 @@
       $("tenantBox").style.display = "flex";
       selected = new Set();
       refreshViews();
+      renderPermissions();
       show(isRefresh ? "screen-list" : "screen-home");
       toast(isRefresh
         ? `Refreshed from Entra — <span>${policies.length}</span> Conditional Access policies`
@@ -189,8 +190,34 @@
     $("avatar").textContent = "DM";
     $("tenantBox").style.display = "flex";
     refreshViews();
+    renderPermissions();
     show("screen-home");
     toast(`Demo mode — <span>${policies.length}</span> sample policies loaded`);
+  }
+
+  // ---------- permissions overview (home) ----------
+  const SCOPE_INFO = [
+    { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
+    { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
+    { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
+    { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments", tools: "Assign groups", onDemand: true },
+    { scope: "Group.ReadWrite.All", use: "Create missing persona groups", tools: "Assign groups", onDemand: true },
+    { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable", tools: "Assign groups", onDemand: true },
+  ];
+  async function renderPermissions() {
+    const el = $("permOverview");
+    const granted = isDemo ? ["Policy.Read.All", "Directory.Read.All"] : await Graph.grantedScopes();
+    el.innerHTML = `<h3>🔑 Permissions in this session</h3>
+      <p class="mini" style="margin-bottom:10px">Granted scopes come from your current sign-in${isDemo ? " (demo — simulated)" : ""}. On-demand scopes are only requested when the matching tool is used.</p>
+      <table class="plist" style="font-size:13px">
+        <thead><tr><th>Permission</th><th>Used for</th><th>Tools</th><th>Status</th></tr></thead>
+        <tbody>${SCOPE_INFO.map(s => {
+          const has = granted.includes(s.scope);
+          return `<tr><td><code>${s.scope}</code></td><td class="mini">${s.use}</td><td class="mini">${s.tools}</td>
+            <td>${has ? '<span class="tag grant">granted</span>' : s.onDemand ? '<span class="tag">on demand</span>' : '<span class="tag block">missing</span>'}</td></tr>`;
+        }).join("")}</tbody>
+      </table>`;
+    el.style.display = "block";
   }
 
   // ---------- tools home ----------
