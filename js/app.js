@@ -207,8 +207,9 @@
   async function renderPermissions() {
     const el = $("permOverview");
     const granted = isDemo ? ["Policy.Read.All", "Directory.Read.All"] : await Graph.grantedScopes();
-    el.innerHTML = `<h3>🔑 Permissions in this session</h3>
-      <p class="mini" style="margin-bottom:10px">Granted scopes come from your current sign-in${isDemo ? " (demo — simulated)" : ""}. On-demand scopes are only requested when the matching tool is used.</p>
+    el.innerHTML = `<h3 style="display:flex;align-items:center;gap:10px">🔑 Permissions in this session
+        <button class="btn" id="permRefresh" style="font-size:12px;padding:5px 12px">⟳ Refresh</button></h3>
+      <p class="mini" style="margin-bottom:10px">Granted scopes come from your current sign-in${isDemo ? " (demo — simulated)" : ""}. On-demand scopes are only requested when the matching tool is used — refresh after consenting to see them turn green.</p>
       <table class="plist" style="font-size:13px">
         <thead><tr><th>Permission</th><th>Used for</th><th>Tools</th><th>Status</th></tr></thead>
         <tbody>${SCOPE_INFO.map(s => {
@@ -219,6 +220,9 @@
       </table>`;
     el.style.display = "block";
   }
+  $("permOverview").addEventListener("click", (e) => {
+    if (e.target.id === "permRefresh") { renderPermissions(); toast("Permission status <span>refreshed</span>"); }
+  });
 
   // ---------- tools home ----------
   function exportOrder(ps) {
@@ -271,7 +275,7 @@
     authStrengths: (id) => `/policies/authenticationStrengthPolicies/${id}`,
     namedLocations: (id) => `/identity/conditionalAccess/namedLocations/${id}`,
     authContexts: (id) => `/identity/conditionalAccess/authenticationContextClassReferences/${id}`,
-    termsOfUse: (id) => `/identityGovernance/termsOfUse/agreements/${id}`,
+    termsOfUse: (id) => `/identityGovernance/termsOfUse/agreements/${id}?$expand=files`, // files carry the actual PDF (fileData.data)
   };
   // terms-of-use agreements need Agreement.Read.All — requested on demand
   const DEP_SCOPES = { termsOfUse: [...AUTH_CONFIG.scopes, "Agreement.Read.All"] };

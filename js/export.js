@@ -201,6 +201,13 @@ const Exporter = (() => {
       for (const obj of (opts[key] || [])) {
         zip.file(`${folder}/${safe(obj.displayName || obj.id)}.json`, JSON.stringify(obj, null, 2));
         migrationObjects.push({ DisplayName: obj.displayName || "", Id: obj.id, Type: type });
+        // terms-of-use agreements: also write the actual PDF document(s)
+        if (key === "termsOfUse") {
+          (obj.files || []).forEach((f, i) => {
+            const b64 = f.fileData?.data;
+            if (b64) zip.file(`${folder}/${safe(obj.displayName || obj.id)}-${safe(f.language || f.fileName || String(i + 1))}.pdf`, b64, { base64: true });
+          });
+        }
       }
     }
     if (migrationObjects.length) {
