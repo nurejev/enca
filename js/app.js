@@ -15,6 +15,7 @@
   let anPols = [], anMaps = [], anTab = "users", anPage = 0;
   let anGroups = [], anGroupSel = "";   // persona/scope group filter
   let anType = "";                       // post-run user-type filter: "" | member | guest
+  let toolMode = "document";             // action of the lemon toolbar button: document | backup
   const AN_PAGE_SIZE = 50;
 
   // ---------- helpers ----------
@@ -199,18 +200,28 @@
       return ga.key - gb.key || (ga.num ?? 1e9) - (gb.num ?? 1e9) || a.name.localeCompare(b.name);
     });
   }
-  $("homeBtn").addEventListener("click", () => show("screen-home"));
-  $("toolPolicies").addEventListener("click", () => { setView("cards"); show("screen-list"); });
-  $("toolDocument").addEventListener("click", () => { setView("cards"); show("screen-list"); openExport(); });
-  $("toolAnalyze").addEventListener("click", () => { setView("analyze"); show("screen-list"); });
-  $("toolJson").addEventListener("click", async () => {
-    const ps = exportOrder(selected.size ? [...selected].map(id => policies.find(p => p.id === id)) : policies);
-    if (!ps.length) return;
+  function setToolMode(mode) {
+    toolMode = mode;
+    $("exportBtn").textContent = mode === "backup" ? "Backup (JSON)" : "Document";
+  }
+  async function runBackup() {
+    const ps = exportOrder((selected.size ? [...selected] : visible().map(p => p.id)).map(id => policies.find(p => p.id === id)));
+    if (!ps.length) { toast("Nothing to back up"); return; }
     toast(`Building JSON backup of <span>${ps.length}</span> policies…`);
     try {
       await Exporter.policiesJson(ps, tenantName);
       toast(`JSON backup <span>downloaded</span> — ${ps.length} policies`);
-    } catch (e) { console.error(e); toast(`Export failed: <span>${esc(e.message || e)}</span>`); }
+    } catch (e) { console.error(e); toast(`Backup failed: <span>${esc(e.message || e)}</span>`); }
+  }
+  $("homeBtn").addEventListener("click", () => show("screen-home"));
+  $("toolPolicies").addEventListener("click", () => { setToolMode("document"); setView("cards"); show("screen-list"); });
+  $("toolDocument").addEventListener("click", () => { setToolMode("document"); setView("cards"); show("screen-list"); openExport(); });
+  $("toolAnalyze").addEventListener("click", () => { setToolMode("document"); setView("analyze"); show("screen-list"); });
+  // Backup tool: opens the policy overview in backup mode — select policies
+  // (or leave unselected for all), then click "Backup (JSON)" in the toolbar.
+  $("toolJson").addEventListener("click", () => {
+    setToolMode("backup"); setView("cards"); show("screen-list");
+    toast("Backup mode — select policies (or none for all), then click <span>Backup (JSON)</span>");
   });
 
   // ---------- events ----------
@@ -457,8 +468,8 @@
     toast("HTML report <span>downloaded</span> — single file, safe to share");
   });
 
-  // export modal
-  $("exportBtn").addEventListener("click", openExport);
+  // export modal (Document mode) / direct JSON zip (Backup mode)
+  $("exportBtn").addEventListener("click", () => toolMode === "backup" ? runBackup() : openExport());
   ["png", "pdf", "docx", "zip", "json"].forEach(f => $("expOpt" + f[0].toUpperCase() + f.slice(1)).addEventListener("click", () => { fmt = f; syncFmt(); }));
   $("expCancel").addEventListener("click", () => $("exportModal").classList.remove("open"));
   $("expGo").addEventListener("click", doExport);
