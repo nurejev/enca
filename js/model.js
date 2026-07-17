@@ -90,6 +90,16 @@ function buildViewModel(raw, resolve, index) {
   if (s.secureSignInSession?.isEnabled) session.push({ t: "Token protection", isNew: true });
   if (s.globalSecureAccessFilteringProfile?.isEnabled) session.push({ t: "Global Secure Access security profile", isNew: true });
 
+  // dependency references (clickable in the detail card to inspect their settings)
+  const deps = [];
+  const addDep = (type, id, label) => { if (id && !deps.some(d => d.type === type && d.id === id)) deps.push({ type, id, label }); };
+  if (g.authenticationStrength) addDep("authStrength", g.authenticationStrength.id, g.authenticationStrength.displayName || name(g.authenticationStrength.id));
+  (g.termsOfUse || []).forEach(id => addDep("termsOfUse", id, name(id)));
+  [...(loc.includeLocations || []), ...(loc.excludeLocations || [])]
+    .filter(id => id !== "All" && id !== "AllTrusted").forEach(id => addDep("namedLocation", id, name(id, L.locations)));
+  (a.includeAuthenticationContextClassReferences || []).forEach(id => addDep("authContext", id, name(id)));
+  [...(u.includeGroups || []), ...(u.excludeGroups || [])].forEach(id => addDep("group", id, name(id)));
+
   const state = LABELS.state[raw.state] || "off";
   const usesNew = !!(authFlows.length || insider.length || session.some(x => x.isNew));
 
@@ -106,6 +116,7 @@ function buildViewModel(raw, resolve, index) {
     grant: { mode: isBlock ? "block" : "grant", controls: grantControls.length ? grantControls : ["No controls (grant)"], op: (g.builtInControls || []).length + (g.authenticationStrength ? 1 : 0) + (g.termsOfUse || []).length > 1 ? g.operator : null },
     session,
     usesNew,
+    deps,
     raw,
   };
 }

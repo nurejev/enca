@@ -64,6 +64,13 @@
     $("listView").style.display = v === "list" ? "block" : "none";
     $("matrixView").style.display = v === "matrix" ? "block" : "none";
     $("analyzeView").style.display = v === "analyze" ? "block" : "none";
+    // show a hint when the matrix is wider than the screen (horizontal scroll needed)
+    if (v === "matrix") {
+      requestAnimationFrame(() => {
+        const mv = $("matrixView");
+        $("matrixHint").style.display = mv.scrollWidth > mv.clientWidth + 4 ? "block" : "none";
+      });
+    } else { $("matrixHint").style.display = "none"; }
     ["viewCards", "viewList", "viewMatrix"].forEach(id => $(id).classList.remove("active"));
     if (v !== "analyze") $(v === "cards" ? "viewCards" : v === "list" ? "viewList" : "viewMatrix").classList.add("active");
     $("analyzeBtn").classList.toggle("active", v === "analyze");
@@ -567,9 +574,83 @@
     refreshViews();
   });
 
-  // detail modal: backdrop closes, Save PNG exports
+  // ---------- dependency settings viewer ----------
+  const DEP_TYPE_MAP = { authStrength: "authStrengths", termsOfUse: "termsOfUse", namedLocation: "namedLocations", authContext: "authContexts", group: "groups" };
+  const DEP_TITLES = { authStrength: "Authentication strength", termsOfUse: "Terms of use", namedLocation: "Named location", authContext: "Authentication context", group: "Group" };
+  const depCache = new Map();
+  let currentDepObj = null;
+  function stripFileData(o) {
+    const c = JSON.parse(JSON.stringify(o));
+    (c.files || []).forEach(f => { if (f.fileData?.data) f.fileData.data = `(base64 PDF, ${f.fileData.data.length} chars)`; });
+    return c;
+  }
+  function depKv(rows) {
+    return `<ul class="dep-kv">${rows.filter(([, v]) => v !== undefined && v !== null && v !== "").map(([k, v]) => `<li><b>${k}</b><span>${v}</span></li>`).join("")}</ul>`;
+  }
+  function depSettingsHtml(type, o) {
+    const rows = [["Name", esc(o.displayName || "")], ["Id", esc(o.id || "")]];
+    if (type === "authStrength") rows.push(["Description", esc(o.description || "")], ["Policy type", esc(o.policyType || "")],
+      ["Allowed combinations", (o.allowedCombinations || []).map(esc).join("<br>") || "—"]);
+    if (type === "termsOfUse") rows.push(
+      ["View before accepting required", String(o.isViewingBeforeAcceptanceRequired ?? "—")],
+      ["Per-device acceptance", String(o.isPerDeviceAcceptanceRequired ?? "—")],
+      ["Re-accept frequency", esc(o.userReacceptRequiredFrequency || "—")],
+      ["Expiration", o.termsExpiration ? esc(JSON.stringify(o.termsExpiration)) : "—"],
+      ["Files", (o.files || []).map((f, i) => `${esc(f.language || f.fileName || "file")} ${f.fileData?.data ? `<button class="btn" data-toupdf="${i}" style="font-size:11px;padding:2px 8px">Download PDF</button>` : ""}`).join("<br>") || "—"]);
+    if (type === "namedLocation") {
+      const t = o["@odata.type"] || "";
+      if (t.includes("ipNamedLocation")) rows.push(["Type", "IP ranges"], ["Trusted", String(o.isTrusted ?? "—")],
+        ["IP ranges", (o.ipRanges || []).map(r => esc(r.cidrAddress || "")).join("<br>") || "—"]);
+      else if (t.includes("countryNamedLocation")) rows.push(["Type", "Countries"],
+        ["Countries", (o.countriesAndRegions || []).map(esc).join(", ") || "—"],
+        ["Include unknown regions", String(o.includeUnknownCountriesAndRegions ?? "—")],
+        ["Lookup method", esc(o.countryLookupMethod || "—")]);
+    }
+    if (type === "authContext") rows.push(["Description", esc(o.description || "")], ["Available", String(o.isAvailable ?? "—")]);
+    if (type === "group") rows.push(["Description", esc(o.description || "")], ["Security enabled", String(o.securityEnabled ?? "—")],
+      ["Role-assignable", String(o.isAssignableToRole ?? "false")], ["Group types", (o.groupTypes || []).join(", ") || "assigned"],
+      ["Membership rule", o.membershipRule ? `<code>${esc(o.membershipRule)}</code>` : "—"],
+      ["On-prem synced", String(o.onPremisesSyncEnabled ?? "—")]);
+    return depKv(rows) + `<details class="dep-raw"><summary class="mini">Raw JSON</summary><pre>${esc(JSON.stringify(stripFileData(o), null, 2))}</pre></details>`;
+  }
+  async function openDepView(type, id, label) {
+    $("depTitle").textContent = `${DEP_TITLES[type] || type} — ${label}`;
+    $("depBody").innerHTML = '<p class="mini">Loading settings…</p>';
+    $("depModal").classList.add("open");
+    try {
+      const key = type + ":" + id;
+      let obj = depCache.get(key);
+      if (!obj) {
+        obj = isDemo
+          ? (DEMO_DATA.depSettings?.[key] || { id, displayName: label, description: "Demo mode — no live settings for this item" })
+          : await Graph.gget(DEP_ENDPOINTS[DEP_TYPE_MAP[type]](id), DEP_SCOPES[DEP_TYPE_MAP[type]]);
+        depCache.set(key, obj);
+      }
+      currentDepObj = obj;
+      $("depBody").innerHTML = depSettingsHtml(type, obj);
+    } catch (e) {
+      console.error(e);
+      $("depBody").innerHTML = `<p class="mini" style="color:var(--off)">Could not load settings: ${esc(e.message || e)}</p>`;
+    }
+  }
+  $("depClose").addEventListener("click", () => $("depModal").classList.remove("open"));
+  $("depModal").addEventListener("click", (e) => {
+    if (e.target.id === "depModal") { $("depModal").classList.remove("open"); return; }
+    const b = e.target.closest("[data-toupdf]"); if (!b) return;
+    const f = currentDepObj?.files?.[+b.dataset.toupdf]; if (!f?.fileData?.data) return;
+    const bytes = Uint8Array.from(atob(f.fileData.data), c => c.charCodeAt(0));
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    a.download = `${(currentDepObj.displayName || "terms-of-use").replace(/[^\w-]+/g, "-")}-${f.language || "file"}.pdf`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  });
+
+  // detail modal: backdrop closes, dependency chips open settings, Save PNG exports
   $("detailModal").addEventListener("click", (e) => {
     if (e.target.id === "detailModal") { $("detailModal").classList.remove("open"); return; }
+    const dl = e.target.closest(".dep-link");
+    if (dl) { openDepView(dl.dataset.dept, dl.dataset.depid, dl.dataset.deplabel); return; }
     const b = e.target.closest("[data-png]"); if (!b) return;
     const p = policies.find(x => x.id === b.dataset.png);
     toast(`Exporting <span>${p.seq}.png</span>…`);

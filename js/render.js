@@ -175,6 +175,9 @@ const Render = (() => {
           ${p.session.length ? p.session.map(s => `<li>${s.isNew ? `<span class="tag new">${esc(s.t)}</span>` : esc(s.t)}</li>`).join("") : '<li class="na">No session controls</li>'}
         </ul></div>
       </div>
+      ${!opts.export && p.deps?.length ? `<div class="dep-bar"><span class="mini">Dependencies (click to inspect):</span>
+        ${p.deps.map(d => `<span class="tag dep-link" data-dept="${d.type}" data-depid="${esc(d.id)}" data-deplabel="${esc(d.label)}">${{ authStrength: "💪", termsOfUse: "📜", namedLocation: "🌐", authContext: "🔐", group: "👥" }[d.type] || "🔗"} ${esc(d.label)}</span>`).join("")}
+      </div>` : ""}
       <div class="pcard-foot">${foot}</div>
     </div>`;
   }

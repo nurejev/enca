@@ -89,6 +89,17 @@ const DEMO_DATA = {
   ],
   roleMembers: { "62e90394-69f5-4237-9190-012177145e10": ["u-admin"] },
   groupMembers: {},
+  // settings shown in the dependency viewer (demo mode)
+  depSettings: {
+    "authStrength:s1": {
+      id: "s1", displayName: "Phishing-resistant MFA", policyType: "builtIn",
+      description: "Include authentication methods that are phishing-resistant",
+      allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor"],
+    },
+    "group:00000003-0000-0ff1-ce00-000000000000": {
+      id: "00000003-0000-0ff1-ce00-000000000000", displayName: "Office 365 SharePoint Online", description: "demo",
+    },
+  },
   scopeGroups: {
     "CAB-SEC-U-BreakGlass": ["u-break1", "u-break2"],
     "CAB-SEC-U-Persona-Admins": ["u-admin"],
