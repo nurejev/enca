@@ -184,6 +184,14 @@ const Graph = (() => {
     return { policies, org, logo, resolve, account };
   }
 
+  // Interactive consent request for additional scopes (popup). Returns the
+  // scp claim of the resulting token.
+  async function requestConsent(scopes) {
+    const r = await msalApp.acquireTokenPopup({ scopes, account });
+    const payload = JSON.parse(atob(r.accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return (payload.scp || "").split(" ").filter(Boolean);
+  }
+
   // Scopes actually granted in the current session (from the access token's scp
   // claim). Silent only — never triggers a prompt; returns [] when unavailable.
   async function grantedScopes() {
@@ -194,5 +202,5 @@ const Graph = (() => {
     } catch { return []; }
   }
 
-  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gpostGroupCreate, grantedScopes, get account() { return account; } };
+  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gpostGroupCreate, grantedScopes, requestConsent, get account() { return account; } };
 })();
