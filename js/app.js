@@ -50,6 +50,7 @@
     });
     setView(viewMode);
     updateSelbar();
+    syncCollapseAllBtn();
   }
   function groupIds(key) {
     return visible().filter(p => String(Render.caGroup(p.name).key) === String(key)).map(p => p.id);
@@ -71,6 +72,7 @@
         $("matrixHint").style.display = mv.scrollWidth > mv.clientWidth + 4 ? "block" : "none";
       });
     } else { $("matrixHint").style.display = "none"; }
+    syncCollapseAllBtn();
     ["viewCards", "viewList", "viewMatrix"].forEach(id => $(id).classList.remove("active"));
     if (v !== "analyze") $(v === "cards" ? "viewCards" : v === "list" ? "viewList" : "viewMatrix").classList.add("active");
     $("analyzeBtn").classList.toggle("active", v === "analyze");
@@ -240,9 +242,13 @@
   }
   function setToolMode(mode) {
     toolMode = mode;
-    $("exportBtn").innerHTML = mode === "backup" ? "Backup (JSON)" : mode === "assign" ? 'Assign groups <span class="tag new">BETA</span>' : "Document";
-    $("exportBtn").classList.toggle("primary", mode === "assign");
-    $("exportBtn").classList.toggle("lemon", mode !== "assign");
+    $("exportBtn").innerHTML = mode === "backup" ? "Backup (JSON)"
+      : mode === "assign" ? 'Assign groups <span class="tag new">BETA</span>'
+      : mode === "state" ? 'Set state <span class="tag new">BETA</span>'
+      : "Document";
+    const write = mode === "assign" || mode === "state";
+    $("exportBtn").classList.toggle("primary", write);
+    $("exportBtn").classList.toggle("lemon", !write);
   }
   function runBackup() {
     const ps = exportOrder((selected.size ? [...selected] : visible().map(p => p.id)).map(id => policies.find(p => p.id === id)));
@@ -338,6 +344,44 @@
     setToolMode("backup"); setView("cards"); show("screen-list");
     toast("Backup mode — select policies (or none for all), then click <span>Backup (JSON)</span>");
   });
+  // Set-state tool (BETA): select policies, choose On / Report-only / Off, apply.
+  $("toolState").addEventListener("click", () => {
+    setToolMode("state"); setView("cards"); show("screen-list");
+    toast("Set-state mode — select policies, then click <span>Set state</span>");
+  });
+  function openStateModal() {
+    if (!selected.size) { toast("Select at least one policy first"); return; }
+    const ps = exportOrder([...selected].map(id => policies.find(p => p.id === id)));
+    $("stDesc").textContent = `${ps.length} ${ps.length === 1 ? "policy" : "policies"} selected — choose the new state. This WRITES to your tenant.${isDemo ? " (demo — simulated)" : ""}`;
+    $("stList").innerHTML = `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
+      ps.map(p => `<li>${Render.stateChip(p.state)} ${esc(p.name)}</li>`).join("") + "</ul>";
+    document.querySelectorAll('[name="stState"]').forEach(r => r.checked = false);
+    $("stateModal").classList.add("open");
+  }
+  $("stCancel").addEventListener("click", () => $("stateModal").classList.remove("open"));
+  $("stGo").addEventListener("click", async () => {
+    const sel = document.querySelector('[name="stState"]:checked');
+    if (!sel) { toast("Choose the new state first"); return; }
+    const state = sel.value;
+    const ps = exportOrder([...selected].map(id => policies.find(p => p.id === id)));
+    $("stGo").disabled = true;
+    try {
+      const results = [];
+      for (let i = 0; i < ps.length; i++) {
+        toast(`Updating ${i + 1}/${ps.length}…`);
+        try {
+          if (!isDemo) await Graph.gpatch(`/identity/conditionalAccess/policies/${ps[i].id}`, { state });
+          results.push({ name: ps[i].name, ok: true });
+        } catch (e) { console.error(e); results.push({ name: ps[i].name, ok: false }); }
+      }
+      $("stateModal").classList.remove("open");
+      const failed = results.filter(r => !r.ok).length;
+      toast(failed ? `State change done with <span>${failed} failure(s)</span> — see console`
+        : `State of <span>${results.length}</span> policies set${isDemo ? " (simulated)" : ""}`);
+      if (!isDemo && results.some(r => r.ok)) await loadFromGraph(true);
+    } finally { $("stGo").disabled = false; }
+  });
+
   // Assign-groups tool: select policies in the overview, then run the wizard.
   $("toolAssign").addEventListener("click", () => {
     setToolMode("assign"); setView("cards"); show("screen-list");
@@ -821,8 +865,26 @@
     toast("HTML report <span>downloaded</span> — single file, safe to share");
   });
 
-  // export modal (Document mode) / direct JSON zip (Backup mode) / wizard (Assign mode)
-  $("exportBtn").addEventListener("click", () => toolMode === "backup" ? runBackup() : toolMode === "assign" ? openAssign() : openExport());
+  // export modal (Document) / JSON zip (Backup) / wizard (Assign) / state modal (Set state)
+  $("exportBtn").addEventListener("click", () =>
+    toolMode === "backup" ? runBackup()
+    : toolMode === "assign" ? openAssign()
+    : toolMode === "state" ? openStateModal()
+    : openExport());
+
+  // expand/collapse all persona sections (cards + list views)
+  function syncCollapseAllBtn() {
+    const keys = [...new Set(visible().map(p => String(Render.caGroup(p.name).key)))];
+    const allCollapsed = keys.length > 0 && keys.every(k => collapsedGroups.has(k));
+    $("collapseAllBtn").textContent = allCollapsed ? "⊞ Expand all" : "⊟ Collapse all";
+    $("collapseAllBtn").style.display = (viewMode === "cards" || viewMode === "list") ? "inline-flex" : "none";
+  }
+  $("collapseAllBtn").addEventListener("click", () => {
+    const keys = [...new Set(visible().map(p => String(Render.caGroup(p.name).key)))];
+    const allCollapsed = keys.length > 0 && keys.every(k => collapsedGroups.has(k));
+    allCollapsed ? keys.forEach(k => collapsedGroups.delete(k)) : keys.forEach(k => collapsedGroups.add(k));
+    refreshViews();
+  });
   ["png", "pdf", "docx", "zip", "json"].forEach(f => $("expOpt" + f[0].toUpperCase() + f.slice(1)).addEventListener("click", () => { fmt = f; syncFmt(); }));
   $("expCancel").addEventListener("click", () => $("exportModal").classList.remove("open"));
   $("expGo").addEventListener("click", doExport);

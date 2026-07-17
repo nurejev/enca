@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=35">
+<link rel="stylesheet" href="css/app.css?v=36">
 </head>
 <body>
 
@@ -84,6 +84,10 @@
         <div class="tool-ic">👥</div><h3>Assign groups <span class="tag new">BETA</span></h3>
         <p>Change the include/exclude persona groups of selected policies — replace, add, or set to All Users. <span class="tag block">writes to tenant</span></p>
       </div>
+      <div class="tool" id="toolState">
+        <div class="tool-ic">🎚</div><h3>Set state <span class="tag new">BETA</span></h3>
+        <p>Switch selected policies between On, Report-only and Off. <span class="tag block">writes to tenant</span></p>
+      </div>
     </div>
 
     <div class="list-card readme" id="permOverview" style="display:none"></div>
@@ -129,6 +133,7 @@
         <button id="viewList">List</button>
         <button id="viewMatrix">Matrix</button>
       </div>
+      <button class="btn" id="collapseAllBtn" title="Expand or collapse all persona sections">⊟ Collapse all</button>
       <button class="btn" id="refreshBtn" disabled title="Fetch the latest policies from Entra">⟳ Refresh</button>
       <button class="btn primary" id="analyzeBtn" disabled>Analyze</button>
       <button class="btn lemon" id="exportBtn" disabled>Document</button>
@@ -292,6 +297,22 @@
   <div class="modal wide" id="detailBody"></div>
 </div>
 
+<!-- ============ SET STATE (BETA) ============ -->
+<div class="modal-bg" id="stateModal">
+  <div class="modal">
+    <h3>Set policy state <span class="tag new">BETA</span></h3>
+    <p class="mini" id="stDesc"></p>
+    <label class="chk" style="margin:6px 0"><input type="radio" name="stState" value="enabled"> <span class="state on">On</span> — enforced</label>
+    <label class="chk" style="margin:6px 0"><input type="radio" name="stState" value="enabledForReportingButNotEnforced"> <span class="state report">Report-only</span> — evaluated, not enforced</label>
+    <label class="chk" style="margin:6px 0"><input type="radio" name="stState" value="disabled"> <span class="state off">Off</span> — disabled</label>
+    <div id="stList" style="max-height:40vh;overflow:auto;margin-top:12px"></div>
+    <div class="row">
+      <button class="btn" id="stCancel">Cancel</button>
+      <button class="btn primary" id="stGo">Apply state</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ DEPENDENCY SETTINGS OVERLAY ============ -->
 <div class="modal-bg" id="depModal" style="z-index:120">
   <div class="modal" style="max-width:620px">
@@ -308,16 +329,16 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=35"></script>
-<script src="js/labels.js?v=35"></script>
-<script src="js/graph.js?v=35"></script>
-<script src="js/model.js?v=35"></script>
-<script src="js/render.js?v=35"></script>
-<script src="js/analyze.js?v=35"></script>
-<script src="js/groupTemplates.js?v=35"></script>
-<script src="js/assign.js?v=35"></script>
-<script src="js/export.js?v=35"></script>
-<script src="js/demo.js?v=35"></script>
-<script src="js/app.js?v=35"></script>
+<script src="js/authConfig.js?v=36"></script>
+<script src="js/labels.js?v=36"></script>
+<script src="js/graph.js?v=36"></script>
+<script src="js/model.js?v=36"></script>
+<script src="js/render.js?v=36"></script>
+<script src="js/analyze.js?v=36"></script>
+<script src="js/groupTemplates.js?v=36"></script>
+<script src="js/assign.js?v=36"></script>
+<script src="js/export.js?v=36"></script>
+<script src="js/demo.js?v=36"></script>
+<script src="js/app.js?v=36"></script>
 </body>
 </html>
