@@ -10,13 +10,13 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=45">
+<link rel="stylesheet" href="css/app.css?v=46">
 </head>
 <body>
 
 <header>
   <div class="hwrap">
-    <div class="logo">
+    <div class="logo" id="logoHome" title="Back to tools">
       <img src="assets/logo-mark-light.svg" width="34" height="34" alt="Limon-IT">
       <b>Limon-<span>IT</span></b>
     </div>
@@ -241,16 +241,22 @@
   <!-- ============ MS LEARN CHECKS ============ -->
   <section id="screen-mslearn" class="screen">
     <div class="list-card readme" id="mlHead" style="margin-top:0"></div>
-    <div class="chip-filter" id="mlChips" style="margin:16px 0 14px"></div>
-    <div id="mlBody"></div>
+    <div style="display:flex;align-items:center;gap:14px;margin:14px 0 0;flex-wrap:wrap">
+      <div class="chip-filter" id="mlChips"></div>
+      <label class="chk" id="mlDisabledWrap" style="margin:0 0 0 auto"><input type="checkbox" id="mlDisabled"> Include Off (disabled) policies <span class="mini" id="mlDisabledNote"></span></label>
+    </div>
+    <div id="mlBody" style="margin-top:14px"></div>
   </section>
 
   <!-- ============ GAP ANALYSIS ============ -->
   <section id="screen-gapcheck" class="screen">
     <div class="list-card readme" id="gcHead" style="margin-top:0"></div>
     <div id="gcMatrix" style="margin-top:16px"></div>
-    <div class="chip-filter" id="gcChips" style="margin:16px 0 14px"></div>
-    <div id="gcBody"></div>
+    <div style="display:flex;align-items:center;gap:14px;margin:14px 0 0;flex-wrap:wrap">
+      <div class="chip-filter" id="gcChips"></div>
+      <label class="chk" id="gcDisabledWrap" style="margin:0 0 0 auto"><input type="checkbox" id="gcDisabled"> Include Off (disabled) policies <span class="mini" id="gcDisabledNote"></span></label>
+    </div>
+    <div id="gcBody" style="margin-top:14px"></div>
   </section>
 </main>
 
@@ -381,19 +387,19 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=45"></script>
-<script src="js/labels.js?v=45"></script>
-<script src="js/graph.js?v=45"></script>
-<script src="js/model.js?v=45"></script>
-<script src="js/render.js?v=45"></script>
-<script src="js/analyze.js?v=45"></script>
-<script src="js/mslearn.js?v=45"></script>
-<script src="js/gapcheck.js?v=45"></script>
-<script src="js/groupTemplates.js?v=45"></script>
-<script src="js/assign.js?v=45"></script>
-<script src="js/import.js?v=45"></script>
-<script src="js/export.js?v=45"></script>
-<script src="js/demo.js?v=45"></script>
-<script src="js/app.js?v=45"></script>
+<script src="js/authConfig.js?v=46"></script>
+<script src="js/labels.js?v=46"></script>
+<script src="js/graph.js?v=46"></script>
+<script src="js/model.js?v=46"></script>
+<script src="js/render.js?v=46"></script>
+<script src="js/analyze.js?v=46"></script>
+<script src="js/mslearn.js?v=46"></script>
+<script src="js/gapcheck.js?v=46"></script>
+<script src="js/groupTemplates.js?v=46"></script>
+<script src="js/assign.js?v=46"></script>
+<script src="js/import.js?v=46"></script>
+<script src="js/export.js?v=46"></script>
+<script src="js/demo.js?v=46"></script>
+<script src="js/app.js?v=46"></script>
 </body>
 </html>

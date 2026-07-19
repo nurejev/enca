@@ -16,6 +16,7 @@ a{color:var(--accent2)}
 header{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
 .hwrap{max-width:1180px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:14px}
 .logo{display:flex;align-items:center;gap:10px}
+.logo{cursor:pointer}
 .logo b{font-size:17px;letter-spacing:-.02em}
 .logo b span{color:var(--accent2)}
 .app-tag{background:var(--soft);color:var(--green);font-weight:600;font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--border)}

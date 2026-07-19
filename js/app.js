@@ -5,6 +5,28 @@
   const $ = (id) => document.getElementById(id);
   let policies = [];          // view models
   let tenantName = "";
+  let tenantDomain = "";
+  // Baseline tenants deploy the persona policies Off first; there the Gap and
+  // MS Learn checks review only the persona baseline policies (always Off),
+  // and skip non-persona policies.
+  const BASELINE_TENANTS = ["cloudfellows.dev"];
+  function isBaselineTenant() {
+    const n = (tenantName || "").toLowerCase(), d = (tenantDomain || "").toLowerCase();
+    return BASELINE_TENANTS.some(t => d === t || d.endsWith("." + t) || n.includes(t.split(".")[0]));
+  }
+  const isPersonaBaseline = (vm) => Render.caGroup(vm.name).num != null; // has a CAxxx number → persona
+  function checkScope(includeDisabledChecked) {
+    if (isBaselineTenant()) {
+      const inScope = policies.filter(isPersonaBaseline);
+      return { raws: inScope.map(p => p.raw), includeDisabled: true, baseline: true, skipped: policies.length - inScope.length };
+    }
+    return { raws: policies.map(p => p.raw), includeDisabled: !!includeDisabledChecked, baseline: false, skipped: 0 };
+  }
+  function scopeNote(scope, nOff) {
+    return scope.baseline
+      ? `— baseline tenant: reviewing ${scope.raws.length} persona baseline polic${scope.raws.length === 1 ? "y" : "ies"} (Off), ${scope.skipped} non-persona skipped`
+      : nOff ? `(${nOff} Off in tenant)` : "(none Off)";
+  }
   let tenantLogo = null;      // tenant branding logo (data URL) for neutral exports
   let selected = new Set();
   let collapsedGroups = new Set();  // collapsed persona sections in cards view
@@ -163,6 +185,7 @@
       const { policies: raw, org, logo, resolve, account } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
+      tenantDomain = (account?.username || "").split("@")[1] || "";
       tenantLogo = logo || null;
       isDemo = false; anReport = null;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
@@ -347,6 +370,8 @@
     } catch (e) { console.error(e); toast(`Backup failed: <span>${esc(e.message || e)}</span>`); }
   });
   $("homeBtn").addEventListener("click", () => show("screen-home"));
+  // logo returns to the tools overview when signed in (does nothing on login)
+  $("logoHome").addEventListener("click", () => { if (policies.length) show("screen-home"); });
   $("toolPolicies").addEventListener("click", () => { setToolMode("document"); setView("cards"); show("screen-list"); });
   // Document tool: opens the policy overview first — select policies (or none
   // for all), then click "Document" in the toolbar to choose the format.
@@ -627,36 +652,47 @@
   });
 
   // ---------- MS Learn documented exclusion checks ----------
-  let mlGroups = null, mlFilter = "all";
+  let mlGroups = null, mlFilter = "all", mlStrengths = new Map();
   const mlExpanded = new Set();
   async function openMsLearn() {
     show("screen-mslearn");
     if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; return; }
     $("mlHead").innerHTML = '<h3>📘 MS Learn: documented exclusion checks</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
+    // baseline tenant → include Off + persona-only; note the scope
+    const baseline = isBaselineTenant();
+    $("mlDisabled").checked = baseline;
+    $("mlDisabled").disabled = baseline;
+    $("mlDisabledNote").textContent = scopeNote(checkScope(baseline), policies.filter(p => p.raw.state === "disabled").length);
     // authentication strengths are needed to detect external authentication
     // methods (EAM) inside strength policies — one read, Policy.Read.All
-    const strengths = new Map();
+    mlStrengths = new Map();
     try {
       if (isDemo) {
-        Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) strengths.set(v.id, v); });
+        Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) mlStrengths.set(v.id, v); });
       } else {
-        (await Graph.ggetAll("/policies/authenticationStrengthPolicies")).forEach(s => strengths.set(s.id, s));
+        (await Graph.ggetAll("/policies/authenticationStrengthPolicies")).forEach(s => mlStrengths.set(s.id, s));
       }
     } catch (e) { console.warn("Auth strength fetch failed (EAM check limited):", e.message); }
-    mlGroups = MSLearn.group(MSLearn.run(policies.map(p => p.raw), strengths));
+    runMsLearn();
+  }
+  function runMsLearn() {
+    const scope = checkScope($("mlDisabled").checked);
+    mlGroups = MSLearn.group(MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled }));
     mlFilter = "all"; mlExpanded.clear();
     renderMsLearn();
   }
+  $("mlDisabled").addEventListener("change", runMsLearn);
   function renderMsLearn() {
     if (!mlGroups) return;
+    const incDis = $("mlDisabled").checked;
     if (!mlGroups.length) {
-      $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount);
+      $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount, incDis);
       $("mlChips").innerHTML = "";
       $("mlBody").innerHTML = MSLearn.renderEmpty();
       return;
     }
-    $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount);
+    $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount, incDis);
     const count = (s) => s === "all" ? mlGroups.length : mlGroups.filter(g => g.check.severity === s).length;
     $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")
@@ -677,41 +713,51 @@
   });
 
   // ---------- gap analysis (best-practice & bypass checks) ----------
-  let gcResult = null, gcFilter = "all";
+  let gcResult = null, gcFilter = "all", gcCtx = null;
   const gcExpanded = new Set();
   async function openGapCheck() {
     show("screen-gapcheck");
     if (!policies.length) { $("gcHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = ""; return; }
     $("gcHead").innerHTML = '<h3>🧀 Gap analysis</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = "";
+    // baseline tenant → include Off + persona-only; note the scope
+    const baseline = isBaselineTenant();
+    $("gcDisabled").checked = baseline;
+    $("gcDisabled").disabled = baseline;
+    $("gcDisabledNote").textContent = scopeNote(checkScope(baseline), policies.filter(p => p.raw.state === "disabled").length);
     const raws = policies.map(p => p.raw);
     // context: auth strengths (phishing-resistant detection), named locations
     // (trusted-network detection), break-glass display name — all Policy.Read.All
-    const ctx = { strengths: new Map(), namedLocations: [], names: {} };
+    gcCtx = { strengths: new Map(), namedLocations: [], names: {} };
     try {
       if (isDemo) {
-        Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) ctx.strengths.set(v.id, v); });
-        ctx.names = DEMO_DATA.names || {};
+        Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) gcCtx.strengths.set(v.id, v); });
+        gcCtx.names = DEMO_DATA.names || {};
       } else {
         const [strengths, locations] = await Promise.all([
           Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(() => []),
           Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(() => []),
         ]);
-        strengths.forEach(s => ctx.strengths.set(s.id, s));
-        ctx.namedLocations = locations;
+        strengths.forEach(s => gcCtx.strengths.set(s.id, s));
+        gcCtx.namedLocations = locations;
         const bg = GapCheck.identifyBreakGlass(raws);
         if (bg) {
           try {
             const j = await Graph.gpost("/directoryObjects/getByIds", { ids: [bg.id], types: ["user", "group"] });
-            (j.value || []).forEach(o => ctx.names[o.id] = o.displayName);
+            (j.value || []).forEach(o => gcCtx.names[o.id] = o.displayName);
           } catch (e) { console.warn("Break-glass name lookup failed:", e.message); }
         }
       }
     } catch (e) { console.warn("Gap analysis context fetch failed:", e.message); }
-    gcResult = GapCheck.run(raws, ctx);
+    runGapCheck();
+  }
+  function runGapCheck() {
+    const scope = checkScope($("gcDisabled").checked);
+    gcResult = GapCheck.run(scope.raws, gcCtx, { includeDisabled: scope.includeDisabled });
     gcFilter = "all"; gcExpanded.clear();
     renderGapCheck();
   }
+  $("gcDisabled").addEventListener("change", runGapCheck);
   function renderGapCheck() {
     if (!gcResult) return;
     $("gcHead").innerHTML = GapCheck.renderSummary(gcResult);

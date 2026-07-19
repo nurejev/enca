@@ -130,7 +130,10 @@ const GapCheck = (() => {
   const appsExc = (p) => A(p).excludeApplications || [];
   const isEnabled = (p) => p.state === "enabled";
   const isReportOnly = (p) => p.state === "enabledForReportingButNotEnforced";
-  const isActive = (p) => isEnabled(p) || isReportOnly(p);
+  // Off policies are evaluated too when INCLUDE_DISABLED is set (baseline tenants
+  // stage the persona policies Off before enforcement).
+  let INCLUDE_DISABLED = false;
+  const isActive = (p) => isEnabled(p) || isReportOnly(p) || (INCLUDE_DISABLED && p.state === "disabled");
   const allUsers = (p) => (U(p).includeUsers || []).includes("All");
   const allApps = (p) => appsInc(p).includes("All");
   const hasMfa = (p) => grants(p).includes("mfa") || G(p).authenticationStrength != null;
@@ -501,7 +504,8 @@ const GapCheck = (() => {
   // ─── Run everything ───────────────────────────────────────────────
   // raws: raw Graph policies. ctx: { strengths: Map<id, authStrengthPolicy>,
   // namedLocations: [], names: {id: displayName} }
-  function run(raws, ctx) {
+  function run(raws, ctx, opts = {}) {
+    INCLUDE_DISABLED = !!opts.includeDisabled;
     ctx = ctx || {};
     ctx.breakGlass = identifyBreakGlass(raws);
     const findings = [];
