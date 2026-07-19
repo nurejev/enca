@@ -741,8 +741,23 @@
       alert("No clientId configured yet in js/authConfig.js — see README.md step 1.\nUse the demo link below to preview the app.");
       return;
     }
-    try { await Graph.signIn(); await loadFromGraph(); }
-    catch (e) { if (e.errorCode !== "user_cancelled") { console.error(e); toast("Sign-in failed"); } }
+    const btn = $("signInBtn"); btn.disabled = true;
+    try {
+      await Graph.signIn();
+      await loadFromGraph();
+    } catch (e) {
+      const code = e.errorCode || e.name || "";
+      if (code === "user_cancelled") return;               // user closed the popup
+      console.error("Sign-in failed:", e);
+      const msg = e.errorMessage || e.message || String(e);
+      if (code === "popup_window_error" || /popup/i.test(msg)) {
+        alert("The sign-in popup was blocked by the browser. Allow popups for this site and try again.");
+      } else if (/redirect_uri|AADSTS50011/i.test(msg)) {
+        alert(`Sign-in failed — redirect URI mismatch.\n\nThe app registration must have this exact SPA redirect URI:\n${window.location.origin + window.location.pathname}\n\nAdd it under App registration → Authentication → Single-page application.`);
+      } else {
+        alert(`Sign-in failed.\n\n${code ? code + "\n\n" : ""}${msg}`);
+      }
+    } finally { btn.disabled = false; }
   });
   $("signOutBtn").addEventListener("click", () => {
     $("tenantBox").style.display = "none";
