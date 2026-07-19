@@ -663,7 +663,7 @@
   });
 
   // ---------- CA Exclusion analyzer ----------
-  let exModel = null, exUsers = [], exTab = "all", exKind = "all", exQuery = "", exPage = 0;
+  let exModel = null, exUsers = [], exTab = "all", exKind = "all", exQuery = "", exPage = 0, exMerge = true;
   const EX_PAGE = 50;
   async function openExclusions() {
     show("screen-exclusions");
@@ -695,7 +695,7 @@
       : "";
     if (exTab === "all") {
       $("exPager").style.display = "none";
-      $("exBody").innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery);
+      $("exBody").innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery, exMerge);
     } else {
       const r = Exclusions.renderUsers(exModel, exUsers, exQuery, exPage, EX_PAGE);
       exPage = r.page;
@@ -712,6 +712,7 @@
     const b = e.target.closest("[data-exk]"); if (!b) return;
     exKind = b.dataset.exk; renderExclusions();
   });
+  $("exMergeChk").addEventListener("change", (e) => { exMerge = e.target.checked; renderExclusions(); });
   $("exSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; renderExclusions(); });
   $("exTabAll").addEventListener("click", () => { exTab = "all"; exPage = 0; $("exTabAll").classList.add("active"); $("exTabUsers").classList.remove("active"); renderExclusions(); });
   $("exTabUsers").addEventListener("click", () => { exTab = "users"; exPage = 0; $("exTabUsers").classList.add("active"); $("exTabAll").classList.remove("active"); renderExclusions(); });

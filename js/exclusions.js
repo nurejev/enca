@@ -198,29 +198,55 @@ const Exclusions = (() => {
     </div>`;
   }
 
+  // Entities of the same kind that are excluded from exactly the same set of
+  // policies say one thing, not seventeen — collapse them into a single row.
+  // (A baseline typically excludes all 17 admin roles from the same policy.)
+  function mergeRows(list) {
+    const groups = new Map();
+    for (const e of list) {
+      const key = e.kind + "|" + [...e.policyIds].sort().join(",");
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(e);
+    }
+    return [...groups.values()].map((items) => ({
+      kind: items[0].kind,
+      policyIds: items[0].policyIds,
+      items,
+      name: items.length === 1 ? items[0].name : `${items.length} ${KIND[items[0].kind].label.toLowerCase()}s`,
+      merged: items.length > 1,
+    })).sort((a, b) => (KIND[a.kind].order - KIND[b.kind].order) || b.policyIds.size - a.policyIds.size
+      || b.items.length - a.items.length || String(a.name).localeCompare(String(b.name)));
+  }
+
+  const rowSub = (e) => (e.kind === "group"
+    ? (e.memberTotal == null ? "members unknown" : `${e.memberTotal} member${e.memberTotal === 1 ? "" : "s"}`)
+    : e.upn || (e.id !== e.name ? e.id : ""));
+
   // matrix: exclusions (rows) × policies (columns)
-  function renderMatrix(model, filterKind, query) {
+  function renderMatrix(model, filterKind, query, merge = true) {
     const pols = model.policies.filter((p) => p.exclusionCount > 0);
     if (!pols.length) return '<p class="mini" style="padding:20px">No policy in scope has any exclusion configured.</p>';
     const q = (query || "").toLowerCase();
-    const rows = model.entities
+    const matched = model.entities
       .filter((e) => filterKind === "all" || e.kind === filterKind)
       .filter((e) => !q || String(e.name).toLowerCase().includes(q) || String(e.id).toLowerCase().includes(q))
       .sort(sortEntities);
-    if (!rows.length) return '<p class="mini" style="padding:20px">No exclusions match the current filter.</p>';
-    const head = `<th class="ucol">Exclusion (${rows.length})</th>` + pols.map((p) =>
+    if (!matched.length) return '<p class="mini" style="padding:20px">No exclusions match the current filter.</p>';
+    const rows = merge ? mergeRows(matched) : matched.map((e) => ({ kind: e.kind, policyIds: e.policyIds, items: [e], name: e.name, merged: false }));
+    const collapsed = matched.length - rows.length;
+    const head = `<th class="ucol">Exclusion (${rows.length}${collapsed ? ` of ${matched.length}` : ""})</th>` + pols.map((p) =>
       `<th class="pcol"><div class="ph" title="${esc(p.name)}">${esc(p.name)}${p.state === "disabled" ? " [Off]" : p.state === "enabledForReportingButNotEnforced" ? " [RO]" : ""}</div></th>`).join("");
-    const body = rows.map((e) => {
-      const sub = e.kind === "group"
-        ? `${e.memberTotal == null ? "members unknown" : `${e.memberTotal} member${e.memberTotal === 1 ? "" : "s"}`}`
-        : e.upn || (e.id !== e.name ? e.id : "");
-      return `<tr><td class="ucol"><span class="uname">${KIND[e.kind].icon} ${esc(e.name)}</span>` +
-        `<div class="uupn">${esc(KIND[e.kind].label)}${sub ? " · " + esc(sub) : ""}</div></td>` +
-        pols.map((p) => e.policyIds.has(p.id)
-          ? `<td class="cellv no" title="${esc(e.name)} is excluded from ${esc(p.name)}"><span class="cell no">✗</span></td>`
+    const body = rows.map((r) => {
+      const label = r.merged
+        ? `<span class="uname">${KIND[r.kind].icon} ${esc(r.name)}</span><div class="uupn" title="${esc(r.items.map((i) => i.name).join(", "))}">${esc(r.items.map((i) => i.name).join(" · "))}</div>`
+        : `<span class="uname">${KIND[r.kind].icon} ${esc(r.items[0].name)}</span><div class="uupn">${esc(KIND[r.kind].label)}${rowSub(r.items[0]) ? " · " + esc(rowSub(r.items[0])) : ""}</div>`;
+      return `<tr><td class="ucol${r.merged ? " merged" : ""}">${label}</td>` +
+        pols.map((p) => r.policyIds.has(p.id)
+          ? `<td class="cellv no" title="${esc(r.name)} excluded from ${esc(p.name)}"><span class="cell no">✗</span></td>`
           : `<td class="cellv"><span class="cell na">·</span></td>`).join("") + "</tr>";
     }).join("");
-    return `<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    const note = collapsed ? `<p class="mini" style="padding:8px 2px 0">${collapsed} exclusion${collapsed === 1 ? "" : "s"} merged into shared rows — entries of the same type excluded from exactly the same policies are shown together.</p>` : "";
+    return `<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${note}`;
   }
 
   // matrix: effectively excluded users (rows) × policies (columns)
@@ -302,11 +328,15 @@ const Exclusions = (() => {
     if (!ents.length) {
       L.push("_No exclusions are configured on any policy in scope._");
     } else {
+      L.push("Entries of the same type excluded from exactly the same policies are merged into one row.");
+      L.push("");
       L.push("| Type | Exclusion | Members | Policies | Excluded from |");
       L.push("| --- | --- | --- | --- | --- |");
-      for (const e of ents) {
-        const names = pols.filter((p) => e.policyIds.has(p.id)).map((p) => mdEsc(p.name));
-        L.push(`| ${KIND[e.kind].label} | ${mdEsc(e.name)} | ${e.kind === "group" ? (e.memberTotal == null ? "?" : e.memberTotal) : "—"} | ${names.length} | ${names.join("<br>") || "—"} |`);
+      for (const r of mergeRows(ents)) {
+        const names = pols.filter((p) => r.policyIds.has(p.id)).map((p) => mdEsc(p.name));
+        const who = r.merged ? `**${r.items.length} ${KIND[r.kind].label.toLowerCase()}s** — ${r.items.map((i) => mdEsc(i.name)).join(", ")}` : mdEsc(r.items[0].name);
+        const members = r.kind === "group" ? r.items.reduce((s, i) => s + (i.memberTotal || 0), 0) || "?" : "—";
+        L.push(`| ${KIND[r.kind].label} | ${who} | ${members} | ${names.length} | ${names.join("<br>") || "—"} |`);
       }
     }
     L.push("");

@@ -209,6 +209,10 @@ tr.detail>td{background:#fafdf9;padding:12px 18px}
 .mtable th.ucol,.mtable td.ucol{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;padding:6px 12px;min-width:220px;box-shadow:1px 0 0 var(--border)}
 .mtable thead th.ucol{z-index:4;background:var(--soft)}
 .mtable tbody tr:hover td{background:#fafdf9}
+/* merged exclusion row: the member names wrap instead of forcing a wide table */
+.mtable td.ucol.merged{white-space:normal;max-width:420px;background:#fbfdfb}
+.mtable td.ucol.merged .uupn{font-family:inherit;line-height:1.45;margin-top:2px;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .mtable td.cellv{text-align:center;padding:5px 6px;font-weight:700;cursor:default}
 .cell{display:inline-block;min-width:16px;text-align:center;font-weight:700}
 .cell.ok{color:var(--on)}.cell.ro{color:var(--report)}.cell.no{color:var(--off)}.cell.na{color:#cdd8d0}

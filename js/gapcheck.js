@@ -417,7 +417,7 @@ const GapCheck = (() => {
   // source of truth as Render.caGroup / the Policies view). Ids are the range
   // base as a string: "0" = Global, "100" = Admins, …
   const PERSONAS = [
-    ["0", "🌐 Global", ["require-mfa", "block-legacy-auth", "block-countries"]],
+    ["0", "🌐 Global", ["require-mfa", "sign-in-risk", "user-risk", "block-legacy-auth", "block-countries"]],
     ["100", "🛡 Admins", ["require-mfa", "phishing-resistant-mfa", "require-compliant-device", "sign-in-risk", "user-risk", "session-sif"]],
     ["200", "👤 Internals", ["require-mfa", "require-compliant-device", "sign-in-risk", "user-risk"]],
     ["300", "🤝 Externals", ["require-mfa"]],
