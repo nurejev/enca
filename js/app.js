@@ -757,6 +757,37 @@
     const b = e.target.closest("[data-exk]"); if (!b) return;
     exKind = b.dataset.exk; renderExclusions();
   });
+  // Crosshair: highlight the hovered row and its column across the whole table.
+  // Delegated once on the document so it survives every re-render, and applied
+  // per column rather than per cell (a 143 x 90 matrix is 12k cells).
+  let hlTable = null, hlCol = -1, hlRow = null;
+  function clearCrosshair() {
+    if (hlRow) hlRow.classList.remove("hl-row");
+    if (hlTable) hlTable.querySelectorAll(".hl-col").forEach((c) => c.classList.remove("hl-col"));
+    hlTable = null; hlCol = -1; hlRow = null;
+  }
+  document.addEventListener("mouseover", (e) => {
+    const cell = e.target.closest("td,th");
+    const table = cell && cell.closest(".mtable");
+    if (!table) { if (hlTable) clearCrosshair(); return; }
+    const row = cell.parentElement, col = cell.cellIndex;
+    if (table === hlTable && col === hlCol && row === hlRow) return;
+    if (hlTable && hlTable !== table) clearCrosshair();
+    if (hlRow !== row) {
+      if (hlRow) hlRow.classList.remove("hl-row");
+      if (row.parentElement.tagName === "TBODY") row.classList.add("hl-row");
+      hlRow = row.parentElement.tagName === "TBODY" ? row : null;
+    }
+    if (col !== hlCol || table !== hlTable) {
+      table.querySelectorAll(".hl-col").forEach((c) => c.classList.remove("hl-col"));
+      table.querySelectorAll(`tr > *:nth-child(${col + 1})`).forEach((c) => c.classList.add("hl-col"));
+    }
+    hlTable = table; hlCol = col;
+  });
+  document.addEventListener("mouseleave", (e) => {
+    if (e.target instanceof Element && e.target.classList?.contains("mwrap-x")) clearCrosshair();
+  }, true);
+
   // Drag-to-resize the sticky first column of any matrix (exclusions, users).
   // Width lives on the .mwrap-x element as --ucol-w and survives re-renders.
   let exColW = 260;

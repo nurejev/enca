@@ -11,6 +11,7 @@
   --crit-bg:#f7dfdb; --crit-fg:#8f2f1f; --high-bg:#fbe6d4; --high-fg:#a04d0b;
   --blue:#1f4e8f; --blue-bg:#dde9f7;
   --na:#cdd8d0; --faint:#b9ccbe; --ghost-bd:#26402f; --on-deep-mute:#c6d6ca;
+  --hl:rgba(63,122,36,.10); --hl2:rgba(63,122,36,.22);
   color-scheme:light;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -370,6 +371,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
   --crit-bg:#42201a; --crit-fg:#f0a091; --high-bg:#3d2a15; --high-fg:#e8b072;
   --blue:#8ab4e8; --blue-bg:#1a2637;
   --na:#4a574f; --faint:#5d6b62; --ghost-bd:#3a4a40; --on-deep-mute:#9db3a4;
+  --hl:rgba(143,217,119,.13); --hl2:rgba(143,217,119,.26);
   color-scheme:dark;
 }
 @media (prefers-color-scheme: dark){
@@ -386,6 +388,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
   --crit-bg:#42201a; --crit-fg:#f0a091; --high-bg:#3d2a15; --high-fg:#e8b072;
   --blue:#8ab4e8; --blue-bg:#1a2637;
   --na:#4a574f; --faint:#5d6b62; --ghost-bd:#3a4a40; --on-deep-mute:#9db3a4;
+  --hl:rgba(143,217,119,.13); --hl2:rgba(143,217,119,.26);
   color-scheme:dark;
   }
 }
@@ -414,3 +417,13 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 /* theme toggle in the header */
 #themeBtn{padding:8px 12px;line-height:1}
 #themeBtn .tico{font-size:15px}
+
+/* ---------- matrix crosshair: highlight the hovered row and column ----------
+   Painted with a background-image tint so the cell's own state colour
+   (excluded / report-only / not-applicable) still shows through. */
+.mtable tbody tr.hl-row > td,
+.mtable .hl-col{background-image:linear-gradient(var(--hl),var(--hl))}
+.mtable tbody tr.hl-row > td.hl-col{background-image:linear-gradient(var(--hl2),var(--hl2))}
+.mtable thead th.hl-col{background-image:linear-gradient(var(--hl2),var(--hl2))}
+.mtable thead th.hl-col .ph{color:var(--accent2)}
+.mtable tbody tr.hl-row > td.ucol .uname{color:var(--accent2)}
