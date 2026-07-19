@@ -295,7 +295,7 @@
     $("exportBtn").innerHTML = mode === "backup" ? "Backup (JSON)"
       : mode === "assign" ? 'Assign groups <span class="tag new">BETA</span>'
       : mode === "state" ? 'Set Policy state <span class="tag new">BETA</span>'
-      : "Document";
+      : "Create documentation";
     const write = mode === "assign" || mode === "state";
     $("exportBtn").classList.toggle("primary", write);
     $("exportBtn").classList.toggle("lemon", !write);
@@ -384,10 +384,10 @@
   $("logoHome").addEventListener("click", () => { if (policies.length) show("screen-home"); });
   $("toolPolicies").addEventListener("click", () => { setToolMode("document"); setView("cards"); show("screen-list"); });
   // Document tool: opens the policy overview first — select policies (or none
-  // for all), then click "Document" in the toolbar to choose the format.
+  // for all), then click "Create documentation" in the toolbar to choose the format.
   $("toolDocument").addEventListener("click", () => {
     setToolMode("document"); setView("cards"); show("screen-list");
-    toast("Document mode — select policies (or none for all), then click <span>Document</span>");
+    toast("Documentation mode — select policies (or none for all), then click <span>Create documentation</span>");
   });
   $("toolAnalyze").addEventListener("click", () => { setToolMode("document"); setView("analyze"); show("screen-list"); });
   $("toolMsLearn").addEventListener("click", openMsLearn);
@@ -863,7 +863,7 @@
   async function openGapCheck() {
     show("screen-gapcheck");
     if (!policies.length) { $("gcHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = ""; return; }
-    $("gcHead").innerHTML = '<h3>🧀 Gap analysis</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
+    $("gcHead").innerHTML = '<h3>🛡 Best-practice &amp; bypass checks</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = "";
     // baseline tenant → include Off + persona-only; note the scope
     const baseline = isBaselineTenant();
@@ -893,7 +893,7 @@
           } catch (e) { console.warn("Break-glass name lookup failed:", e.message); }
         }
       }
-    } catch (e) { console.warn("Gap analysis context fetch failed:", e.message); }
+    } catch (e) { console.warn("Best-practice checks context fetch failed:", e.message); }
     runGapCheck();
   }
   function runGapCheck() {
@@ -911,7 +911,7 @@
       if (isDemo) loadDemo(); else await loadFromGraph(true);
       gcCtx = null;
       await openGapCheck();
-      toast("Gap analysis <span>refreshed</span>");
+      toast("Best-practice &amp; bypass checks <span>refreshed</span>");
     } catch (e) {
       toast(`Refresh failed: <span>${esc(e.message || e)}</span>`);
     } finally {
@@ -920,8 +920,8 @@
   });
   $("gcMd").addEventListener("click", () => {
     if (!gcResult) return;
-    downloadText("CA-Gap-Analysis", "md", "text/markdown", GapCheck.toMd(gcResult, gcMeta || { tenantName }));
-    toast("Gap analysis Markdown <span>downloaded</span>");
+    downloadText("CA-BestPractice-Checks", "md", "text/markdown", GapCheck.toMd(gcResult, gcMeta || { tenantName }));
+    toast("Best-practice checks Markdown <span>downloaded</span>");
   });
   $("gcDisabled").addEventListener("change", runGapCheck);
   function renderGapCheck() {

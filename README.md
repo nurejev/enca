@@ -93,7 +93,7 @@ js/graph.js         MSAL sign-in, policy fetch (Graph beta), GUID→name resolve
 js/model.js         raw policy → view model (incl. new CA settings)
 js/render.js        list / card / matrix rendering
 js/mslearn.js       MS Learn documented exclusion checks (read-only findings)
-js/gapcheck.js      Gap analysis — bypass & best-practice checks + persona matrix
+js/gapcheck.js      Best-practice & bypass checks + persona x control matrix
 js/export.js        PNG (html-to-image) and PDF (jsPDF, cover + cards + matrix)
 js/demo.js          sample policies for ?demo=1
 CNAME               cadoc.limon-it.nl (GitHub Pages custom domain)
@@ -115,8 +115,8 @@ CNAME               cadoc.limon-it.nl (GitHub Pages custom domain)
 
 Two community projects shaped the analysis tools in CA Doc, and both deserve the credit:
 
-- **[Conditional Access Impact Matrix](https://github.com/jasperbaes/Conditional-Access-Impact-Matrix)** — by **Jasper Baes**. The users × policies impact model behind the **Analyze** tool: working out which policies actually apply to a given user, who bypasses a policy through an exclusion, and whether that bypass is covered somewhere else.
-- **[CA Policy Analyzer](https://github.com/Jhope188/ca-policy-analyzer)** — by **jhope188**. The inspiration for the **Gap analysis** and **MS Learn checks** tools: best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.
+- **[Conditional Access Impact Matrix](https://github.com/jasperbaes/Conditional-Access-Impact-Matrix)** — by **Jasper Baes**. The users × policies impact model behind the **Gap analyse** tool: working out which policies actually apply to a given user, who bypasses a policy through an exclusion, and whether that bypass is covered somewhere else.
+- **[CA Policy Analyzer](https://github.com/Jhope188/ca-policy-analyzer)** — by **jhope188**. The inspiration for the **Best-practice & bypass checks** and **MS Learn checks** tools: best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.
 
 Both are independently reimplemented here in browser-side JavaScript against Microsoft Graph — no code was copied.
 
@@ -130,4 +130,4 @@ Inspired by the Conditional Access documenter in [idPowerToys](https://github.co
 
 The **MS Learn checks** tool (`js/mslearn.js`) is an independent vanilla-JS implementation of the documented-exclusion check set from [ca-policy-analyzer](https://github.com/Jhope188/ca-policy-analyzer); the checks themselves encode guidance published on learn.microsoft.com (each finding links to its source page).
 
-The **Gap analysis** tool (`js/gapcheck.js`) is likewise an independent reimplementation of that project's analyzer check set. The underlying data and research: Conditional Access bypasses by Fabian Bader & Dirk-jan Mollema ([cloudbrothers.info](https://cloudbrothers.info/en/conditional-access-bypasses/), [entrascopes.com](https://entrascopes.com)), the FOCI family research by Secureworks, and the Zero Trust persona framework by Claus Jespersen (Microsoft).
+The **Best-practice & bypass checks** tool (`js/gapcheck.js`) is likewise an independent reimplementation of that project's analyzer check set. The underlying data and research: Conditional Access bypasses by Fabian Bader & Dirk-jan Mollema ([cloudbrothers.info](https://cloudbrothers.info/en/conditional-access-bypasses/), [entrascopes.com](https://entrascopes.com)), the FOCI family research by Secureworks, and the Zero Trust persona framework by Claus Jespersen (Microsoft).

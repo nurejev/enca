@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=56">
+<link rel="stylesheet" href="css/app.css?v=57">
 </head>
 <body>
 
@@ -69,16 +69,16 @@
         <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona.</p>
       </div>
       <div class="tool" id="toolDocument">
-        <div class="tool-ic">📄</div><h3>Document <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">📄</div><h3>Create documentation <span class="tag new">BETA</span></h3>
         <p>Select policies (or take all) and generate documentation — Word, PDF, PNG or a PNG bundle.</p>
       </div>
       <div class="tool" id="toolAnalyze">
-        <div class="tool-ic">🔍</div><h3>Analyze <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">🔍</div><h3>Gap analyse <span class="tag new">BETA</span></h3>
         <p>Users × policies impact matrix: who bypasses what and why, risky exclusions, MFA gaps.</p>
       </div>
       <div class="tool" id="toolGapCheck">
-        <div class="tool-ic">🧀</div><h3>Gap analysis <span class="tag new">BETA</span></h3>
-        <p>Best-practice &amp; bypass checks: MFA coverage, FOCI token sharing, break-glass coverage, known bypass apps, persona × control matrix.</p>
+        <div class="tool-ic">🛡</div><h3>Best-practice &amp; bypass checks <span class="tag new">BETA</span></h3>
+        <p>Check the baseline against known CA bypasses and the Swiss-cheese model — MFA coverage, FOCI token sharing, break-glass coverage, known bypass apps, persona × control matrix.</p>
       </div>
       <div class="tool" id="toolExclusions">
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer <span class="tag new">BETA</span></h3>
@@ -112,10 +112,10 @@
       <h3>📖 About these tools</h3>
       <p><b>Conditional Access Baseline Tools</b> is a read-only toolset for your Microsoft Entra Conditional Access baseline.
         <b>Policies</b> shows every policy as cards, a list or a settings matrix, grouped by persona (CA number ranges).
-        <b>Document</b> turns all or selected policies into shareable documentation — Word, PDF, PNG or a PNG bundle.
-        <b>Analyze</b> builds a users × policies impact matrix: which policies apply to whom, who bypasses a policy via exclusions (and why),
+        <b>Create documentation</b> turns all or selected policies into shareable documentation — Word, PDF, PNG or a PNG bundle.
+        <b>Gap analyse</b> builds a users × policies impact matrix: which policies apply to whom, who bypasses a policy via exclusions (and why),
         whether a bypass is covered elsewhere, and who gets no MFA from any policy.
-        <b>Gap analysis</b> checks the baseline against known CA bypasses and the Swiss-cheese defense model — MFA coverage,
+        <b>Best-practice &amp; bypass checks</b> checks the baseline against known CA bypasses and the Swiss-cheese defense model — MFA coverage,
         FOCI token sharing, resource-exclusion scope leaks, break-glass coverage, known bypass apps, and a persona × control coverage matrix.
         <b>MS Learn checks</b> compares your policies against exclusions, limitations and upcoming behavior changes documented on learn.microsoft.com —
         missing break-glass exclusions, token protection limits, Teams Rooms / Surface Hub impact, required app exclusions and control retirements.
@@ -135,9 +135,9 @@
       <p>Two community projects shaped the analysis tools in here, and both deserve the credit:</p>
       <ul>
         <li><b>Conditional Access Impact Matrix</b> — by <b>Jasper Baes</b>. The users × policies impact model behind the
-          <b>Analyze</b> tool: working out which policies actually apply to a given user, who bypasses a policy through an
+          <b>Gap analyse</b> tool: working out which policies actually apply to a given user, who bypasses a policy through an
           exclusion, and whether that bypass is covered somewhere else.</li>
-        <li><b>CA Policy Analyzer</b> — by <b>jhope188</b>. The inspiration for the <b>Gap analysis</b> check set:
+        <li><b>CA Policy Analyzer</b> — by <b>jhope188</b>. The inspiration for the <b>Best-practice &amp; bypass checks</b> set:
           best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.</li>
       </ul>
       <p class="mini">Both tools are independently reimplemented here in browser-side JavaScript against Microsoft Graph — no code was copied.
@@ -168,8 +168,8 @@
       </div>
       <button class="btn" id="collapseAllBtn" title="Expand or collapse all persona sections">⊟ Collapse all</button>
       <button class="btn" id="refreshBtn" disabled title="Fetch the latest policies from Entra">⟳ Refresh</button>
-      <button class="btn primary" id="analyzeBtn" disabled>Analyze</button>
-      <button class="btn lemon" id="exportBtn" disabled>Document</button>
+      <button class="btn primary" id="analyzeBtn" disabled>Gap analyse</button>
+      <button class="btn lemon" id="exportBtn" disabled>Create documentation</button>
     </div>
 
     <div class="selbar" id="selbar">
@@ -199,7 +199,7 @@
     <!-- Impact analysis (users × policies) — computed only when Analyze is clicked -->
     <div id="analyzeView" style="display:none">
       <div class="list-card" id="anIntro" style="padding:26px">
-        <h3 style="margin-bottom:6px">Conditional Access impact analysis</h3>
+        <h3 style="margin-bottom:6px">Gap analyse — Conditional Access impact</h3>
         <p class="mini" style="max-width:640px;line-height:1.5;margin-bottom:16px">
           Builds a users × policies matrix: which policies apply to each user, who bypasses
           a policy via exclusions (and why), whether a bypass is covered by another policy
@@ -453,20 +453,20 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=56"></script>
-<script src="js/labels.js?v=56"></script>
-<script src="js/graph.js?v=56"></script>
-<script src="js/model.js?v=56"></script>
-<script src="js/render.js?v=56"></script>
-<script src="js/analyze.js?v=56"></script>
-<script src="js/mslearn.js?v=56"></script>
-<script src="js/gapcheck.js?v=56"></script>
-<script src="js/exclusions.js?v=56"></script>
-<script src="js/groupTemplates.js?v=56"></script>
-<script src="js/assign.js?v=56"></script>
-<script src="js/import.js?v=56"></script>
-<script src="js/export.js?v=56"></script>
-<script src="js/demo.js?v=56"></script>
-<script src="js/app.js?v=56"></script>
+<script src="js/authConfig.js?v=57"></script>
+<script src="js/labels.js?v=57"></script>
+<script src="js/graph.js?v=57"></script>
+<script src="js/model.js?v=57"></script>
+<script src="js/render.js?v=57"></script>
+<script src="js/analyze.js?v=57"></script>
+<script src="js/mslearn.js?v=57"></script>
+<script src="js/gapcheck.js?v=57"></script>
+<script src="js/exclusions.js?v=57"></script>
+<script src="js/groupTemplates.js?v=57"></script>
+<script src="js/assign.js?v=57"></script>
+<script src="js/import.js?v=57"></script>
+<script src="js/export.js?v=57"></script>
+<script src="js/demo.js?v=57"></script>
+<script src="js/app.js?v=57"></script>
 </body>
 </html>

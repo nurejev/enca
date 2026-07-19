@@ -585,7 +585,7 @@ const GapCheck = (() => {
       .map((s) => `<span class="sev ${s}">${n(s)} ${SEV_LABEL[s]}</span>`).join(" ");
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🧀 Gap analysis: best-practice &amp; bypass checks</h3>
+        <h3>🛡 Best-practice &amp; bypass checks</h3>
         <p style="margin-bottom:0">Your policies checked against known Conditional Access bypasses and the Swiss-cheese layered-defense model:
         MFA coverage, FOCI token sharing, resource-exclusion scope leaks, CA-immune resources, device registration bypass, grant-operator
         weaknesses, legacy auth, known bypass apps, guest authentication strength and break-glass coverage — plus a persona × control matrix.
@@ -665,7 +665,7 @@ const GapCheck = (() => {
     const n = (s) => f.filter((x) => x.severity === s).length;
     const L = [];
 
-    L.push(`# Conditional Access gap analysis — ${mdEsc(meta.tenantName || "tenant")}`);
+    L.push(`# Conditional Access best-practice & bypass checks — ${mdEsc(meta.tenantName || "tenant")}`);
     L.push("");
     L.push(`Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by Conditional Access Baseline Tools (cadoc.limon-it.nl).`);
     L.push("");
