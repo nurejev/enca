@@ -719,6 +719,7 @@
       $("exPager").style.display = exFull ? "none" : "flex";
       $("exPage").textContent = `Page ${r.page + 1} / ${r.pages}`;
     }
+    applyColW();
     (window.requestAnimationFrame || setTimeout)(() => {
       const w = $("exBody").querySelector(".mwrap-x");
       $("exHint").style.display = w && w.scrollWidth > w.clientWidth + 4 ? "block" : "none";
@@ -728,6 +729,34 @@
     const b = e.target.closest("[data-exk]"); if (!b) return;
     exKind = b.dataset.exk; renderExclusions();
   });
+  // Drag-to-resize the sticky first column of any matrix (exclusions, users).
+  // Width lives on the .mwrap-x element as --ucol-w and survives re-renders.
+  let exColW = 260;
+  function applyColW() {
+    document.querySelectorAll("#exBody .mwrap-x, #exFullBody .mwrap-x")
+      .forEach((el) => el.style.setProperty("--ucol-w", exColW + "px"));
+  }
+  document.addEventListener("mousedown", (e) => {
+    const grip = e.target.closest("[data-colgrip]"); if (!grip) return;
+    e.preventDefault();
+    const th = grip.closest("th");
+    const left = th.getBoundingClientRect().left;
+    grip.classList.add("drag");
+    const move = (ev) => { exColW = Math.min(900, Math.max(90, Math.round(ev.clientX - left))); applyColW(); };
+    const up = () => {
+      grip.classList.remove("drag");
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+  });
+  // double-click the grip: shrink to fit / restore
+  document.addEventListener("dblclick", (e) => {
+    if (!e.target.closest("[data-colgrip]")) return;
+    exColW = exColW > 160 ? 150 : 260; applyColW();
+  });
+
   function setExFull(on) {
     exFull = on;
     $("exFull").classList.toggle("show", on);

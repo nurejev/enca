@@ -206,8 +206,15 @@ tr.detail>td{background:#fafdf9;padding:12px 18px}
 .mtable thead th{position:sticky;top:0;z-index:3;background:var(--soft);vertical-align:bottom}
 .mtable thead th.pcol{padding:8px 6px;text-align:center;max-width:42px}
 .mtable thead th.pcol .ph{writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;max-height:220px;overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:11px;cursor:default}
-.mtable th.ucol,.mtable td.ucol{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;padding:6px 12px;min-width:220px;box-shadow:1px 0 0 var(--border)}
-.mtable thead th.ucol{z-index:4;background:var(--soft)}
+/* first column: fixed to --ucol-w (drag the grip in the header to resize) so a
+   single long exclusion name cannot push the policy columns off screen */
+.mtable th.ucol,.mtable td.ucol{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;padding:6px 12px;
+  width:var(--ucol-w,260px);min-width:var(--ucol-w,260px);max-width:var(--ucol-w,260px);overflow:hidden;box-shadow:1px 0 0 var(--border)}
+.mtable thead th.ucol{z-index:4;background:var(--soft);position:sticky;left:0}
+.mtable td.ucol .uname,.mtable td.ucol .uupn{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.colgrip{position:absolute;top:0;right:0;width:9px;height:100%;cursor:col-resize;background:transparent}
+.colgrip:hover,.colgrip.drag{background:linear-gradient(90deg,transparent,var(--accent2))}
+.mtable thead th.ucol{position:sticky;padding-right:14px}
 .mtable tbody tr:hover td{background:#fafdf9}
 /* ---------- near-fullscreen matrix popout ---------- */
 .fs-bg{display:none;position:fixed;inset:0;background:rgba(18,51,31,.45);z-index:200;padding:2vh 1vw}
@@ -238,9 +245,9 @@ tr.detail>td{background:#fafdf9;padding:12px 18px}
 .ex-ent{background:#f6faf7;border:1px solid var(--border);border-radius:999px;padding:3px 11px;font-size:12px;cursor:default}
 .ex-ent i{font-style:normal;color:var(--muted);font-size:11px;margin-left:6px;padding-left:6px;border-left:1px solid var(--border)}
 /* merged exclusion row: the member names wrap instead of forcing a wide table */
-.mtable td.ucol.merged{white-space:normal;max-width:420px;background:#fbfdfb}
-.mtable td.ucol.merged .uupn{font-family:inherit;line-height:1.45;margin-top:2px;
-  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.mtable td.ucol.merged{white-space:normal;background:#fbfdfb}
+.mtable td.ucol.merged .uupn{font-family:inherit;line-height:1.4;margin-top:2px;white-space:normal;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .mtable td.cellv{text-align:center;padding:5px 6px;font-weight:700;cursor:default}
 .cell{display:inline-block;min-width:16px;text-align:center;font-weight:700}
 .cell.ok{color:var(--on)}.cell.ro{color:var(--report)}.cell.no{color:var(--off)}.cell.na{color:#cdd8d0}

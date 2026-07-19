@@ -234,12 +234,12 @@ const Exclusions = (() => {
     if (!matched.length) return '<p class="mini" style="padding:20px">No exclusions match the current filter.</p>';
     const rows = merge ? mergeRows(matched) : matched.map((e) => ({ kind: e.kind, policyIds: e.policyIds, items: [e], name: e.name, merged: false }));
     const collapsed = matched.length - rows.length;
-    const head = `<th class="ucol">Exclusion (${rows.length}${collapsed ? ` of ${matched.length}` : ""})</th>` + pols.map((p) =>
+    const head = `<th class="ucol" style="position:relative">Exclusion (${rows.length}${collapsed ? ` of ${matched.length}` : ""})<span class="colgrip" data-colgrip="1" title="Drag to resize"></span></th>` + pols.map((p) =>
       `<th class="pcol"><div class="ph" title="${esc(p.name)}">${esc(p.name)}${p.state === "disabled" ? " [Off]" : p.state === "enabledForReportingButNotEnforced" ? " [RO]" : ""}</div></th>`).join("");
     const body = rows.map((r) => {
       const label = r.merged
-        ? `<span class="uname">${KIND[r.kind].icon} ${esc(r.name)}</span><div class="uupn" title="${esc(r.items.map((i) => i.name).join(", "))}">${esc(r.items.map((i) => i.name).join(" · "))}</div>`
-        : `<span class="uname">${KIND[r.kind].icon} ${esc(r.items[0].name)}</span><div class="uupn">${esc(KIND[r.kind].label)}${rowSub(r.items[0]) ? " · " + esc(rowSub(r.items[0])) : ""}</div>`;
+        ? `<span class="uname" title="${esc(r.items.map((i) => i.name).join(", "))}">${KIND[r.kind].icon} ${esc(r.name)}</span><div class="uupn" title="${esc(r.items.map((i) => i.name).join(", "))}">${esc(r.items.map((i) => i.name).join(" · "))}</div>`
+        : `<span class="uname" title="${esc(r.items[0].name)}">${KIND[r.kind].icon} ${esc(r.items[0].name)}</span><div class="uupn" title="${esc(r.items[0].id)}">${esc(KIND[r.kind].label)}${rowSub(r.items[0]) ? " · " + esc(rowSub(r.items[0])) : ""}</div>`;
       return `<tr><td class="ucol${r.merged ? " merged" : ""}">${label}</td>` +
         pols.map((p) => r.policyIds.has(p.id)
           ? `<td class="cellv no" title="${esc(r.name)} excluded from ${esc(p.name)}"><span class="cell no">✗</span></td>`
@@ -307,9 +307,9 @@ const Exclusions = (() => {
     const pages = Math.max(1, Math.ceil(list.length / pageSize));
     page = Math.min(Math.max(0, page), pages - 1);
     const slice = list.slice(page * pageSize, (page + 1) * pageSize);
-    const head = `<th class="ucol">Excluded user (${list.length})</th>` + pols.map((p) =>
+    const head = `<th class="ucol" style="position:relative">Excluded user (${list.length})<span class="colgrip" data-colgrip="1" title="Drag to resize"></span></th>` + pols.map((p) =>
       `<th class="pcol"><div class="ph" title="${esc(p.name)}">${esc(p.name)}</div></th>`).join("");
-    const body = slice.map((u) => `<tr><td class="ucol"><span class="uname">${esc(u.name)}</span><div class="uupn">${esc(u.upn)}</div></td>` +
+    const body = slice.map((u) => `<tr><td class="ucol"><span class="uname" title="${esc(u.name)}">${esc(u.name)}</span><div class="uupn" title="${esc(u.upn)}">${esc(u.upn)}</div></td>` +
       pols.map((p) => {
         const r = u.byPolicy.get(p.id);
         if (!r) return `<td class="cellv"><span class="cell na">·</span></td>`;
