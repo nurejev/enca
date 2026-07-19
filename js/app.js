@@ -382,6 +382,7 @@
   $("toolAnalyze").addEventListener("click", () => { setToolMode("document"); setView("analyze"); show("screen-list"); });
   $("toolMsLearn").addEventListener("click", openMsLearn);
   $("toolGapCheck").addEventListener("click", openGapCheck);
+  $("toolExclusions").addEventListener("click", openExclusions);
   // Backup tool: opens the policy overview in backup mode — select policies
   // (or leave unselected for all), then click "Backup (JSON)" in the toolbar.
   $("toolJson").addEventListener("click", () => {
@@ -649,6 +650,73 @@
       $("assignModal").classList.remove("open");
       if (!isDemo && asResults?.some(r => r.ok)) await loadFromGraph(true); // reload changed policies
     }
+  });
+
+  // ---------- CA Exclusion analyzer ----------
+  let exModel = null, exUsers = [], exTab = "all", exKind = "all", exQuery = "", exPage = 0;
+  const EX_PAGE = 50;
+  async function openExclusions() {
+    show("screen-exclusions");
+    if (!policies.length) { $("exHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("exBody").innerHTML = ""; $("exChips").innerHTML = ""; return; }
+    $("exHead").innerHTML = '<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">Collecting exclusions…</p>';
+    $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
+    exTab = "all"; exKind = "all"; exQuery = ""; exPage = 0; $("exSearch").value = "";
+    $("exTabAll").classList.add("active"); $("exTabUsers").classList.remove("active");
+    try {
+      // the whole tenant's policies — exclusions are a tenant-wide question
+      exModel = Exclusions.collect(policies.map(p => p.raw));
+      await Exclusions.resolve(exModel, { demo: isDemo, onStatus: (m) => { $("exHead").innerHTML = `<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">${esc(m)}</p>`; } });
+      exUsers = Exclusions.effectiveUsers(exModel);
+      renderExclusions();
+    } catch (e) {
+      console.error("Exclusion analyzer failed:", e);
+      $("exHead").innerHTML = `<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+    }
+  }
+  function renderExclusions() {
+    if (!exModel) return;
+    $("exHead").innerHTML = Exclusions.renderSummary(Exclusions.summary(exModel, exUsers));
+    const counts = {};
+    exModel.entities.forEach(e => counts[e.kind] = (counts[e.kind] || 0) + 1);
+    $("exChips").innerHTML = exTab === "all"
+      ? [["all", `All (${exModel.entities.length})`], ...Object.entries(counts).sort((a, b) => Exclusions.KIND[a[0]].order - Exclusions.KIND[b[0]].order)
+          .map(([k, n]) => [k, `${Exclusions.KIND[k].icon} ${Exclusions.KIND[k].label} (${n})`])]
+          .map(([k, l]) => `<button class="fchip ${exKind === k ? "active" : ""}" data-exk="${k}">${l}</button>`).join("")
+      : "";
+    if (exTab === "all") {
+      $("exPager").style.display = "none";
+      $("exBody").innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery);
+    } else {
+      const r = Exclusions.renderUsers(exModel, exUsers, exQuery, exPage, EX_PAGE);
+      exPage = r.page;
+      $("exBody").innerHTML = r.html;
+      $("exPager").style.display = "flex";
+      $("exPage").textContent = `Page ${r.page + 1} / ${r.pages}`;
+    }
+    (window.requestAnimationFrame || setTimeout)(() => {
+      const w = $("exBody").querySelector(".mwrap-x");
+      $("exHint").style.display = w && w.scrollWidth > w.clientWidth + 4 ? "block" : "none";
+    });
+  }
+  $("exChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-exk]"); if (!b) return;
+    exKind = b.dataset.exk; renderExclusions();
+  });
+  $("exSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; renderExclusions(); });
+  $("exTabAll").addEventListener("click", () => { exTab = "all"; exPage = 0; $("exTabAll").classList.add("active"); $("exTabUsers").classList.remove("active"); renderExclusions(); });
+  $("exTabUsers").addEventListener("click", () => { exTab = "users"; exPage = 0; $("exTabUsers").classList.add("active"); $("exTabAll").classList.remove("active"); renderExclusions(); });
+  $("exPrev").addEventListener("click", () => { exPage--; renderExclusions(); });
+  $("exNext").addEventListener("click", () => { exPage++; renderExclusions(); });
+  $("exCsv").addEventListener("click", () => {
+    if (!exModel) return;
+    const csv = Exclusions.toCsv(exModel, exUsers);
+    const d = new Date(), pad = (n) => String(n).padStart(2, "0");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = `CA-Exclusions-${(tenantName || "tenant").replace(/[^\w-]+/g, "-")}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast("Exclusion CSV <span>downloaded</span>");
   });
 
   // ---------- MS Learn documented exclusion checks ----------

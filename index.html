@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=48">
+<link rel="stylesheet" href="css/app.css?v=49">
 </head>
 <body>
 
@@ -79,6 +79,10 @@
       <div class="tool" id="toolGapCheck">
         <div class="tool-ic">🧀</div><h3>Gap analysis <span class="tag new">BETA</span></h3>
         <p>Best-practice &amp; bypass checks: MFA coverage, FOCI token sharing, break-glass coverage, known bypass apps, persona × control matrix.</p>
+      </div>
+      <div class="tool" id="toolExclusions">
+        <div class="tool-ic">🚪</div><h3>Exclusion analyzer <span class="tag new">BETA</span></h3>
+        <p>Every exclusion across all policies — users, groups (expanded to members), roles, guest types, apps and locations — in an exclusion × policy matrix.</p>
       </div>
       <div class="tool" id="toolMsLearn">
         <div class="tool-ic">📘</div><h3>MS Learn checks <span class="tag new">BETA</span></h3>
@@ -248,6 +252,29 @@
     <div id="mlBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ EXCLUSION ANALYZER ============ -->
+  <section id="screen-exclusions" class="screen">
+    <div class="list-card readme" id="exHead" style="margin-top:0"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#12331f" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="exSearch" placeholder="Search exclusions or users…">
+      </div>
+      <div class="chip-filter" id="exChips"></div>
+      <div class="seg">
+        <button class="active" id="exTabAll">Exclusions</button>
+        <button id="exTabUsers">Effective users</button>
+      </div>
+      <button class="btn lemon" id="exCsv">Export CSV</button>
+    </div>
+    <div class="scroll-hint" id="exHint" style="display:none">◂ ▸ Scroll horizontally to see all policies</div>
+    <div id="exPager" class="an-pager" style="display:none">
+      <button class="btn" id="exPrev">←</button><span id="exPage" class="mini"></span><button class="btn" id="exNext">→</button>
+      <span class="mini">✗ excluded directly · <span style="color:var(--report)">◐</span> excluded via group membership</span>
+    </div>
+    <div id="exBody"></div>
+  </section>
+
   <!-- ============ GAP ANALYSIS ============ -->
   <section id="screen-gapcheck" class="screen">
     <div class="list-card readme" id="gcHead" style="margin-top:0"></div>
@@ -387,19 +414,20 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=48"></script>
-<script src="js/labels.js?v=48"></script>
-<script src="js/graph.js?v=48"></script>
-<script src="js/model.js?v=48"></script>
-<script src="js/render.js?v=48"></script>
-<script src="js/analyze.js?v=48"></script>
-<script src="js/mslearn.js?v=48"></script>
-<script src="js/gapcheck.js?v=48"></script>
-<script src="js/groupTemplates.js?v=48"></script>
-<script src="js/assign.js?v=48"></script>
-<script src="js/import.js?v=48"></script>
-<script src="js/export.js?v=48"></script>
-<script src="js/demo.js?v=48"></script>
-<script src="js/app.js?v=48"></script>
+<script src="js/authConfig.js?v=49"></script>
+<script src="js/labels.js?v=49"></script>
+<script src="js/graph.js?v=49"></script>
+<script src="js/model.js?v=49"></script>
+<script src="js/render.js?v=49"></script>
+<script src="js/analyze.js?v=49"></script>
+<script src="js/mslearn.js?v=49"></script>
+<script src="js/gapcheck.js?v=49"></script>
+<script src="js/exclusions.js?v=49"></script>
+<script src="js/groupTemplates.js?v=49"></script>
+<script src="js/assign.js?v=49"></script>
+<script src="js/import.js?v=49"></script>
+<script src="js/export.js?v=49"></script>
+<script src="js/demo.js?v=49"></script>
+<script src="js/app.js?v=49"></script>
 </body>
 </html>

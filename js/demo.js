@@ -113,5 +113,6 @@ const DEMO_DATA = {
     "CAB-SEC-U-Persona-Admins": ["u-admin"],
     "CAB-SEC-U-Persona-Internals": ["u-emp1", "u-emp2", "u-old"],
     "CAB-SEC-U-Persona-Guests": ["u-guest1"],
+    "HR-Department": ["u-emp1", "u-emp2"],
   },
 };
