@@ -5,6 +5,14 @@
   const $ = (id) => document.getElementById(id);
   let policies = [];          // view models
   let tenantName = "";
+  let tenantDomain = "";
+  // Baseline tenants deploy the persona policies in the Off state first; there
+  // the MS Learn checks run against disabled policies too.
+  const BASELINE_TENANTS = ["cloudfellows.dev"];
+  function isBaselineTenant() {
+    const n = (tenantName || "").toLowerCase(), d = (tenantDomain || "").toLowerCase();
+    return BASELINE_TENANTS.some(t => d === t || d.endsWith("." + t) || n.includes(t.split(".")[0]));
+  }
   let tenantLogo = null;      // tenant branding logo (data URL) for neutral exports
   let selected = new Set();
   let collapsedGroups = new Set();  // collapsed persona sections in cards view
@@ -163,6 +171,7 @@
       const { policies: raw, org, logo, resolve, account } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
+      tenantDomain = (account?.username || "").split("@")[1] || "";
       tenantLogo = logo || null;
       isDemo = false; anReport = null;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
@@ -626,36 +635,48 @@
   });
 
   // ---------- MS Learn documented exclusion checks ----------
-  let mlGroups = null, mlFilter = "all";
+  let mlGroups = null, mlFilter = "all", mlStrengths = new Map();
   const mlExpanded = new Set();
   async function openMsLearn() {
     show("screen-mslearn");
     if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; return; }
     $("mlHead").innerHTML = '<h3>📘 MS Learn: documented exclusion checks</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
+    // baseline tenant → default to including Off policies; note why
+    const baseline = isBaselineTenant();
+    $("mlDisabled").checked = baseline;
+    const nOff = policies.filter(p => p.raw.state === "disabled").length;
+    $("mlDisabledNote").textContent = baseline
+      ? `— baseline tenant detected, ${nOff} Off polic${nOff === 1 ? "y" : "ies"} included`
+      : nOff ? `(${nOff} in tenant)` : "(none)";
     // authentication strengths are needed to detect external authentication
     // methods (EAM) inside strength policies — one read, Policy.Read.All
-    const strengths = new Map();
+    mlStrengths = new Map();
     try {
       if (isDemo) {
-        Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) strengths.set(v.id, v); });
+        Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) mlStrengths.set(v.id, v); });
       } else {
-        (await Graph.ggetAll("/policies/authenticationStrengthPolicies")).forEach(s => strengths.set(s.id, s));
+        (await Graph.ggetAll("/policies/authenticationStrengthPolicies")).forEach(s => mlStrengths.set(s.id, s));
       }
     } catch (e) { console.warn("Auth strength fetch failed (EAM check limited):", e.message); }
-    mlGroups = MSLearn.group(MSLearn.run(policies.map(p => p.raw), strengths));
+    runMsLearn();
+  }
+  function runMsLearn() {
+    mlGroups = MSLearn.group(MSLearn.run(policies.map(p => p.raw), mlStrengths, { includeDisabled: $("mlDisabled").checked }));
     mlFilter = "all"; mlExpanded.clear();
     renderMsLearn();
   }
+  $("mlDisabled").addEventListener("change", runMsLearn);
   function renderMsLearn() {
     if (!mlGroups) return;
+    const incDis = $("mlDisabled").checked;
     if (!mlGroups.length) {
-      $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount);
+      $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount, incDis);
       $("mlChips").innerHTML = "";
       $("mlBody").innerHTML = MSLearn.renderEmpty();
       return;
     }
-    $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount);
+    $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount, incDis);
     const count = (s) => s === "all" ? mlGroups.length : mlGroups.filter(g => g.check.severity === s).length;
     $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")

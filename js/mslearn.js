@@ -31,7 +31,11 @@ const MSLearn = (() => {
   const grants = (p) => G(p).builtInControls || [];
   const appsInc = (p) => A(p).includeApplications || [];
   const appsExcLower = (p) => (A(p).excludeApplications || []).map((a) => String(a).toLowerCase());
-  const isActive = (p) => p.state === "enabled" || p.state === "enabledForReportingButNotEnforced";
+  // When INCLUDE_DISABLED is set (e.g. a baseline tenant where the persona
+  // policies are staged Off before enforcement) disabled policies are checked
+  // too, as if they were switched on.
+  let INCLUDE_DISABLED = false;
+  const isActive = (p) => p.state === "enabled" || p.state === "enabledForReportingButNotEnforced" || (INCLUDE_DISABLED && p.state === "disabled");
   const allUsers = (p) => (U(p).includeUsers || []).includes("All");
   const allApps = (p) => appsInc(p).includes("All");
   const hasMfa = (p) => grants(p).includes("mfa") || G(p).authenticationStrength != null;
@@ -432,7 +436,9 @@ const MSLearn = (() => {
 
   // ---- run every check against every policy ----
   // rawPolicies: raw Graph policy objects; strengths: Map<id, authStrengthPolicy>
-  function run(rawPolicies, strengths) {
+  // opts.includeDisabled: also evaluate policies in the Off (disabled) state.
+  function run(rawPolicies, strengths, opts = {}) {
+    INCLUDE_DISABLED = !!opts.includeDisabled;
     const findings = [];
     const ctx = { strengths: strengths || new Map() };
     for (const p of rawPolicies) {
@@ -460,17 +466,18 @@ const MSLearn = (() => {
   const sevBadge = (s) => `<span class="sev ${s}">${SEV_LABEL[s] || s}</span>`;
 
   // ---- rendering ----
-  function renderSummary(groups, checksTotal) {
+  function renderSummary(groups, checksTotal, includeDisabled) {
     const nPol = groups.reduce((s, g) => s + g.policies.length, 0);
     const bySev = (s) => groups.filter((g) => g.check.severity === s).length;
     const chips = ["critical", "high", "medium", "info"].filter((s) => bySev(s))
       .map((s) => `<span class="sev ${s}">${bySev(s)} ${SEV_LABEL[s]}</span>`).join(" ");
+    const scope = includeDisabled ? "enabled, report-only and Off (disabled)" : "enabled and report-only";
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
         <h3>📘 MS Learn: documented exclusion checks</h3>
         <p style="margin-bottom:0">Your policies, checked against exclusions, limitations and upcoming behavior changes documented on learn.microsoft.com —
         missing break-glass exclusions, token protection limits, Teams Rooms / Surface Hub impact, required app exclusions and control retirements.
-        ${checksTotal} checks ran against ${groups.length ? "" : "all "}your enabled and report-only policies.</p>
+        ${checksTotal} checks ran against your ${scope} policies.</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${groups.length}<span class="mini" style="font-weight:400"> finding${groups.length === 1 ? "" : "s"}</span></div>
