@@ -490,7 +490,7 @@ const GapCheck = (() => {
           const [, clabel] = CONTROLS.find(([c]) => c === cid);
           F(out, severityForGap(id, cid), "Persona Coverage", `${label.replace(/^\S+\s*/, "")}: missing ${clabel}`, null,
             `No enabled policy in the ${label.replace(/^\S+\s*/, "")} persona implements "${clabel}". Personas are matched on policy naming conventions (Claus Jespersen's Zero Trust framework, CA-number blocks) plus structural signals (All-users, roles, guests).`,
-            "Add this control to an existing policy for this persona or deploy a dedicated one. Community baselines to compare against: Kenneth van Surksum, Joey Verlinden.");
+            "Add this control to an existing policy for this persona or deploy a dedicated one. Community baselines to compare against: Kenneth van Surksum, Joey Verlinden, Limon-IT.");
         }
         return { control: cid, status, policies: (hit.length ? hit : roHit).map((p) => p.displayName) };
       });
