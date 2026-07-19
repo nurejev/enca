@@ -619,5 +619,92 @@ const GapCheck = (() => {
     }).join("");
   }
 
-  return { run, identifyBreakGlass, renderSummary, renderPersonaMatrix, renderFindings };
+  // ─── Markdown export ──────────────────────────────────────────────
+  const mdEsc = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
+
+  function toMd(result, meta = {}) {
+    const f = result.findings.slice().sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
+    const n = (s) => f.filter((x) => x.severity === s).length;
+    const L = [];
+
+    L.push(`# Conditional Access gap analysis — ${mdEsc(meta.tenantName || "tenant")}`);
+    L.push("");
+    L.push(`Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by Conditional Access Baseline Tools (cadoc.limon-it.nl).`);
+    L.push("");
+    L.push("## Summary");
+    L.push("");
+    L.push(`- Policies evaluated: **${meta.policyCount ?? "?"}**` +
+      (meta.includeDisabled ? " (enabled, report-only and Off/disabled)" : " (enabled and report-only)") +
+      (meta.skipped ? ` — ${meta.skipped} non-persona policies skipped` : ""));
+    L.push(`- Findings: **${f.length}**` + (f.length
+      ? ` — ${["critical", "high", "medium", "low", "info"].filter((s) => n(s)).map((s) => `${n(s)} ${SEV_LABEL[s].toLowerCase()}`).join(", ")}`
+      : ""));
+    if (result.breakGlass) {
+      L.push(`- Break-glass candidate detected: \`${mdEsc(result.breakGlass.id)}\` (${result.breakGlass.type}), excluded from ${result.breakGlass.count} all-users policies.`);
+    }
+    L.push("");
+
+    // ---- persona × control matrix ----
+    if (result.personas.length) {
+      L.push("## Persona × control coverage");
+      L.push("");
+      L.push(`| Persona | Policies | Score | ${CONTROLS.map(([, l]) => mdEsc(l)).join(" | ")} |`);
+      L.push(`| --- | :-: | :-: |${CONTROLS.map(() => " :-: |").join("")}`);
+      for (const r of result.personas) {
+        L.push(`| ${mdEsc(r.label)} | ${r.policies} | ${r.score}% | ${r.cells.map((c) => CELL[c.status][0]).join(" | ")} |`);
+      }
+      L.push("");
+      L.push("`✓` enforced · `◐` report-only only · `✗` missing · `·` not expected for this persona");
+      L.push("");
+      // which policy satisfies which control — the tooltip content, made durable
+      const detail = result.personas.filter((r) => r.cells.some((c) => c.policies.length));
+      if (detail.length) {
+        L.push("<details><summary>Which policies provide each control</summary>");
+        L.push("");
+        for (const r of detail) {
+          L.push(`**${mdEsc(r.label)}**`);
+          L.push("");
+          for (const c of r.cells) {
+            if (!c.policies.length) continue;
+            const [, clabel] = CONTROLS.find(([id]) => id === c.control);
+            L.push(`- ${mdEsc(clabel)}${c.status === "partial" ? " *(report-only)*" : ""}: ${c.policies.map(mdEsc).join(", ")}`);
+          }
+          L.push("");
+        }
+        L.push("</details>");
+        L.push("");
+      }
+    }
+
+    // ---- findings ----
+    L.push("## Findings");
+    L.push("");
+    if (!f.length) {
+      L.push("_No findings — every check passed._");
+    } else {
+      L.push("| Severity | Category | Finding | Policy |");
+      L.push("| --- | --- | --- | --- |");
+      for (const x of f) L.push(`| ${SEV_LABEL[x.severity]} | ${mdEsc(x.category)} | ${mdEsc(x.title)} | ${mdEsc(x.policyName)} |`);
+      L.push("");
+      const cats = new Map();
+      for (const x of f) { if (!cats.has(x.category)) cats.set(x.category, []); cats.get(x.category).push(x); }
+      for (const [cat, items] of cats) {
+        L.push(`### ${mdEsc(cat)}`);
+        L.push("");
+        for (const x of items) {
+          L.push(`#### [${SEV_LABEL[x.severity]}] ${mdEsc(x.title)}`);
+          L.push("");
+          L.push(`**Policy:** ${mdEsc(x.policyName)}`);
+          L.push("");
+          L.push(`**Assessment:** ${mdEsc(x.description)}`);
+          L.push("");
+          L.push(`**Recommendation:** ${mdEsc(x.recommendation)}`);
+          L.push("");
+        }
+      }
+    }
+    return L.join("\n");
+  }
+
+  return { run, identifyBreakGlass, renderSummary, renderPersonaMatrix, renderFindings, toMd };
 })();

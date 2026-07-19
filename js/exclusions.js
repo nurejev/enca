@@ -268,5 +268,108 @@ const Exclusions = (() => {
     return lines.join("\n");
   }
 
-  return { collect, resolve, effectiveUsers, summary, renderSummary, renderMatrix, renderUsers, toCsv, KIND };
+  // ---- Markdown export (shareable / pasteable into a chat or ticket) ----
+  // Wide matrices do not survive markdown, so the matrix is transposed into
+  // one row per exclusion with the excluding policies listed inline. A compact
+  // ✗/◐ matrix is added as well when the policy count still fits.
+  const mdEsc = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
+  const stateTag = (s) => (s === "disabled" ? " *(Off)*" : s === "enabledForReportingButNotEnforced" ? " *(report-only)*" : "");
+  const MD_MATRIX_MAX = 12; // columns beyond this become unreadable
+
+  function toMd(model, users, tenantName) {
+    const pols = model.policies.filter((p) => p.exclusionCount > 0);
+    const clean = model.policies.filter((p) => !p.exclusionCount);
+    const s = summary(model, users);
+    const ents = model.entities.slice().sort(sortEntities);
+    const L = [];
+
+    L.push(`# CA Exclusion analysis — ${mdEsc(tenantName || "tenant")}`);
+    L.push("");
+    L.push(`Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by Conditional Access Baseline Tools (cadoc.limon-it.nl).`);
+    L.push("");
+    L.push("## Summary");
+    L.push("");
+    L.push(`- Policies in scope: **${s.policies}** — **${s.policiesWithExclusions}** have one or more exclusions, ${s.policies - s.policiesWithExclusions} have none.`);
+    L.push(`- Distinct exclusions: **${s.entities}**` + (Object.keys(s.counts).length
+      ? ` (${Object.entries(s.counts).sort((a, b) => KIND[a[0]].order - KIND[b[0]].order).map(([k, n]) => `${n} ${KIND[k].label.toLowerCase()}${n === 1 ? "" : "s"}`).join(", ")})`
+      : ""));
+    L.push(`- Users effectively excluded from at least one policy (directly or through a group): **${s.users}**`);
+    L.push("");
+
+    // ---- exclusions ----
+    L.push("## Exclusions by policy");
+    L.push("");
+    if (!ents.length) {
+      L.push("_No exclusions are configured on any policy in scope._");
+    } else {
+      L.push("| Type | Exclusion | Members | Policies | Excluded from |");
+      L.push("| --- | --- | --- | --- | --- |");
+      for (const e of ents) {
+        const names = pols.filter((p) => e.policyIds.has(p.id)).map((p) => mdEsc(p.name));
+        L.push(`| ${KIND[e.kind].label} | ${mdEsc(e.name)} | ${e.kind === "group" ? (e.memberTotal == null ? "?" : e.memberTotal) : "—"} | ${names.length} | ${names.join("<br>") || "—"} |`);
+      }
+    }
+    L.push("");
+
+    // ---- compact matrix when it fits ----
+    if (pols.length && pols.length <= MD_MATRIX_MAX && ents.length) {
+      L.push("### Exclusion × policy matrix");
+      L.push("");
+      L.push(`| Exclusion | ${pols.map((p) => mdEsc(p.name)).join(" | ")} |`);
+      L.push(`| --- |${pols.map(() => " :-: |").join("")}`);
+      for (const e of ents) {
+        L.push(`| ${KIND[e.kind].label}: ${mdEsc(e.name)} | ${pols.map((p) => (e.policyIds.has(p.id) ? "✗" : "·")).join(" | ")} |`);
+      }
+      L.push("");
+      L.push("`✗` = excluded · `·` = in scope");
+      L.push("");
+    }
+
+    // ---- group membership ----
+    const groups = ents.filter((e) => e.kind === "group" && e.members && e.members.length);
+    if (groups.length) {
+      L.push("## Excluded group membership");
+      L.push("");
+      for (const g of groups) {
+        const more = g.memberTotal != null && g.memberTotal > g.members.length ? ` — showing ${g.members.length} of ${g.memberTotal}` : "";
+        L.push(`**${mdEsc(g.name)}** (${g.memberTotal == null ? "?" : g.memberTotal} member${g.memberTotal === 1 ? "" : "s"}${more})`);
+        L.push("");
+        for (const m of g.members) L.push(`- ${mdEsc(m.name)}${m.upn ? ` — \`${mdEsc(m.upn)}\`` : ""}`);
+        L.push("");
+      }
+    }
+
+    // ---- effective users ----
+    L.push("## Effectively excluded users");
+    L.push("");
+    if (!users.length) {
+      L.push("_No individual user could be resolved from the configured exclusions._");
+    } else {
+      L.push("| User | UPN | Policies | Excluded from (how) |");
+      L.push("| --- | --- | --- | --- |");
+      for (const u of users) {
+        const parts = [];
+        for (const p of pols) {
+          const r = u.byPolicy.get(p.id);
+          if (!r) continue;
+          const how = r.some((x) => x.via === "direct")
+            ? "direct"
+            : `via ${[...new Set(r.filter((x) => x.via === "group").map((x) => x.group))].map(mdEsc).join(" / ")}`;
+          parts.push(`${mdEsc(p.name)} (${how})`);
+        }
+        L.push(`| ${mdEsc(u.name)} | ${mdEsc(u.upn)} | ${parts.length} | ${parts.join("<br>") || "—"} |`);
+      }
+    }
+    L.push("");
+
+    if (clean.length) {
+      L.push("## Policies without exclusions");
+      L.push("");
+      for (const p of clean) L.push(`- ${mdEsc(p.name)}${stateTag(p.state)}`);
+      L.push("");
+    }
+    return L.join("\n");
+  }
+
+  return { collect, resolve, effectiveUsers, summary, renderSummary, renderMatrix, renderUsers, toCsv, toMd, KIND };
 })();

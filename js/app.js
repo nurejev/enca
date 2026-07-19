@@ -51,6 +51,16 @@
     const t = $("toast"); t.innerHTML = msg; t.classList.add("show");
     clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 3200);
   }
+  // Download a text blob as "<base>-<tenant>-<yyyy-mm-dd-hhmmss>.<ext>".
+  function downloadText(base, ext, mime, text) {
+    const d = new Date(), pad = (n) => String(n).padStart(2, "0");
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: `${mime};charset=utf-8` }));
+    a.download = `${base}-${(tenantName || "tenant").replace(/[^\w-]+/g, "-")}-${stamp}.${ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
   function visible() {
     return policies.filter(p => (stateFilter === "all" || p.state === stateFilter)
       && (!query || p.name.toLowerCase().includes(query)));
@@ -709,14 +719,13 @@
   $("exNext").addEventListener("click", () => { exPage++; renderExclusions(); });
   $("exCsv").addEventListener("click", () => {
     if (!exModel) return;
-    const csv = Exclusions.toCsv(exModel, exUsers);
-    const d = new Date(), pad = (n) => String(n).padStart(2, "0");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    a.download = `CA-Exclusions-${(tenantName || "tenant").replace(/[^\w-]+/g, "-")}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    downloadText("CA-Exclusions", "csv", "text/csv", Exclusions.toCsv(exModel, exUsers));
     toast("Exclusion CSV <span>downloaded</span>");
+  });
+  $("exMd").addEventListener("click", () => {
+    if (!exModel) return;
+    downloadText("CA-Exclusions", "md", "text/markdown", Exclusions.toMd(exModel, exUsers, tenantName));
+    toast("Exclusion Markdown <span>downloaded</span>");
   });
 
   // ---------- MS Learn documented exclusion checks ----------
@@ -781,7 +790,7 @@
   });
 
   // ---------- gap analysis (best-practice & bypass checks) ----------
-  let gcResult = null, gcFilter = "all", gcCtx = null;
+  let gcResult = null, gcFilter = "all", gcCtx = null, gcMeta = null;
   const gcExpanded = new Set();
   async function openGapCheck() {
     show("screen-gapcheck");
@@ -822,9 +831,15 @@
   function runGapCheck() {
     const scope = checkScope($("gcDisabled").checked);
     gcResult = GapCheck.run(scope.raws, gcCtx, { includeDisabled: scope.includeDisabled });
+    gcMeta = { tenantName, policyCount: scope.raws.length, includeDisabled: scope.includeDisabled, skipped: scope.skipped };
     gcFilter = "all"; gcExpanded.clear();
     renderGapCheck();
   }
+  $("gcMd").addEventListener("click", () => {
+    if (!gcResult) return;
+    downloadText("CA-Gap-Analysis", "md", "text/markdown", GapCheck.toMd(gcResult, gcMeta || { tenantName }));
+    toast("Gap analysis Markdown <span>downloaded</span>");
+  });
   $("gcDisabled").addEventListener("change", runGapCheck);
   function renderGapCheck() {
     if (!gcResult) return;

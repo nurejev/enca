@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=49">
+<link rel="stylesheet" href="css/app.css?v=50">
 </head>
 <body>
 
@@ -265,6 +265,7 @@
         <button class="active" id="exTabAll">Exclusions</button>
         <button id="exTabUsers">Effective users</button>
       </div>
+      <button class="btn" id="exMd">Export MD</button>
       <button class="btn lemon" id="exCsv">Export CSV</button>
     </div>
     <div class="scroll-hint" id="exHint" style="display:none">◂ ▸ Scroll horizontally to see all policies</div>
@@ -281,7 +282,8 @@
     <div id="gcMatrix" style="margin-top:16px"></div>
     <div style="display:flex;align-items:center;gap:14px;margin:14px 0 0;flex-wrap:wrap">
       <div class="chip-filter" id="gcChips"></div>
-      <label class="chk" id="gcDisabledWrap" style="margin:0 0 0 auto"><input type="checkbox" id="gcDisabled"> Include Off (disabled) policies <span class="mini" id="gcDisabledNote"></span></label>
+      <button class="btn" id="gcMd" style="margin-left:auto">Export MD</button>
+      <label class="chk" id="gcDisabledWrap" style="margin:0"><input type="checkbox" id="gcDisabled"> Include Off (disabled) policies <span class="mini" id="gcDisabledNote"></span></label>
     </div>
     <div id="gcBody" style="margin-top:14px"></div>
   </section>
@@ -414,20 +416,20 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=49"></script>
-<script src="js/labels.js?v=49"></script>
-<script src="js/graph.js?v=49"></script>
-<script src="js/model.js?v=49"></script>
-<script src="js/render.js?v=49"></script>
-<script src="js/analyze.js?v=49"></script>
-<script src="js/mslearn.js?v=49"></script>
-<script src="js/gapcheck.js?v=49"></script>
-<script src="js/exclusions.js?v=49"></script>
-<script src="js/groupTemplates.js?v=49"></script>
-<script src="js/assign.js?v=49"></script>
-<script src="js/import.js?v=49"></script>
-<script src="js/export.js?v=49"></script>
-<script src="js/demo.js?v=49"></script>
-<script src="js/app.js?v=49"></script>
+<script src="js/authConfig.js?v=50"></script>
+<script src="js/labels.js?v=50"></script>
+<script src="js/graph.js?v=50"></script>
+<script src="js/model.js?v=50"></script>
+<script src="js/render.js?v=50"></script>
+<script src="js/analyze.js?v=50"></script>
+<script src="js/mslearn.js?v=50"></script>
+<script src="js/gapcheck.js?v=50"></script>
+<script src="js/exclusions.js?v=50"></script>
+<script src="js/groupTemplates.js?v=50"></script>
+<script src="js/assign.js?v=50"></script>
+<script src="js/import.js?v=50"></script>
+<script src="js/export.js?v=50"></script>
+<script src="js/demo.js?v=50"></script>
+<script src="js/app.js?v=50"></script>
 </body>
 </html>
