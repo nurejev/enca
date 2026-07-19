@@ -93,6 +93,7 @@ js/graph.js         MSAL sign-in, policy fetch (Graph beta), GUID→name resolve
 js/model.js         raw policy → view model (incl. new CA settings)
 js/render.js        list / card / matrix rendering
 js/mslearn.js       MS Learn documented exclusion checks (read-only findings)
+js/gapcheck.js      Gap analysis — bypass & best-practice checks + persona matrix
 js/export.js        PNG (html-to-image) and PDF (jsPDF, cover + cards + matrix)
 js/demo.js          sample policies for ?demo=1
 CNAME               cadoc.limon-it.nl (GitHub Pages custom domain)
@@ -117,3 +118,5 @@ MIT — see [LICENSE](LICENSE). The Limon-IT name and logo (`assets/`) are trade
 Inspired by the Conditional Access documenter in [idPowerToys](https://github.com/merill/idPowerToys) by Merill Fernando (MIT). CA Doc is an independent from-scratch implementation.
 
 The **MS Learn checks** tool (`js/mslearn.js`) is an independent vanilla-JS implementation of the documented-exclusion check set from [ca-policy-analyzer](https://github.com/Jhope188/ca-policy-analyzer); the checks themselves encode guidance published on learn.microsoft.com (each finding links to its source page).
+
+The **Gap analysis** tool (`js/gapcheck.js`) is likewise an independent reimplementation of that project's analyzer check set. The underlying data and research: Conditional Access bypasses by Fabian Bader & Dirk-jan Mollema ([cloudbrothers.info](https://cloudbrothers.info/en/conditional-access-bypasses/), [entrascopes.com](https://entrascopes.com)), the FOCI family research by Secureworks, and the Zero Trust persona framework by Claus Jespersen (Microsoft).

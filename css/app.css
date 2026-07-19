@@ -280,3 +280,19 @@ footer{border-top:1px solid var(--border);background:var(--surface)}
 .ml-detail .ml-res{list-style:disc;margin:0 0 0 18px;padding:0}
 .ml-detail .ml-res li{font-size:13px;color:var(--muted);padding:2px 0}
 .ml-doc{display:inline-block;margin-top:14px;font-size:12px;font-weight:600}
+
+/* ---------- gap analysis ---------- */
+.sev.low{background:#e7ede9;color:#4a6152}
+.gc-cat{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--green);margin:22px 0 10px}
+.gc-cat:first-child{margin-top:0}
+table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
+.gc-matrix th,.gc-matrix td{border-top:1px solid var(--border);padding:7px 8px;font-size:12px}
+.gc-matrix thead th{border-top:0}
+.gc-matrix th.gc-ch{vertical-align:bottom;padding:6px 4px;max-width:36px}
+.gc-matrix th.gc-ch span{writing-mode:vertical-rl;transform:rotate(180deg);display:inline-block;max-height:150px;font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap}
+.gc-matrix th.gc-rh{text-align:left;font-weight:600;white-space:nowrap;padding-left:18px}
+.gc-matrix td.gc-cell{text-align:center;font-weight:700;width:36px;cursor:default}
+.gc-matrix td.gc-cell.present{color:var(--on);background:#eef8f1}
+.gc-matrix td.gc-cell.partial{color:var(--report);background:#fdf8e6}
+.gc-matrix td.gc-cell.missing{color:var(--off);background:#fdeeec}
+.gc-matrix td.gc-cell.na{color:#cdd8d0}

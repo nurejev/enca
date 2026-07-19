@@ -5,14 +5,6 @@
   const $ = (id) => document.getElementById(id);
   let policies = [];          // view models
   let tenantName = "";
-  let tenantDomain = "";
-  // Baseline tenants deploy the persona policies in the Off state first; there
-  // the MS Learn checks run against disabled policies too.
-  const BASELINE_TENANTS = ["cloudfellows.dev"];
-  function isBaselineTenant() {
-    const n = (tenantName || "").toLowerCase(), d = (tenantDomain || "").toLowerCase();
-    return BASELINE_TENANTS.some(t => d === t || d.endsWith("." + t) || n.includes(t.split(".")[0]));
-  }
   let tenantLogo = null;      // tenant branding logo (data URL) for neutral exports
   let selected = new Set();
   let collapsedGroups = new Set();  // collapsed persona sections in cards view
@@ -171,7 +163,6 @@
       const { policies: raw, org, logo, resolve, account } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
-      tenantDomain = (account?.username || "").split("@")[1] || "";
       tenantLogo = logo || null;
       isDemo = false; anReport = null;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
@@ -365,6 +356,7 @@
   });
   $("toolAnalyze").addEventListener("click", () => { setToolMode("document"); setView("analyze"); show("screen-list"); });
   $("toolMsLearn").addEventListener("click", openMsLearn);
+  $("toolGapCheck").addEventListener("click", openGapCheck);
   // Backup tool: opens the policy overview in backup mode — select policies
   // (or leave unselected for all), then click "Backup (JSON)" in the toolbar.
   $("toolJson").addEventListener("click", () => {
@@ -635,48 +627,36 @@
   });
 
   // ---------- MS Learn documented exclusion checks ----------
-  let mlGroups = null, mlFilter = "all", mlStrengths = new Map();
+  let mlGroups = null, mlFilter = "all";
   const mlExpanded = new Set();
   async function openMsLearn() {
     show("screen-mslearn");
     if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; return; }
     $("mlHead").innerHTML = '<h3>📘 MS Learn: documented exclusion checks</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
-    // baseline tenant → default to including Off policies; note why
-    const baseline = isBaselineTenant();
-    $("mlDisabled").checked = baseline;
-    const nOff = policies.filter(p => p.raw.state === "disabled").length;
-    $("mlDisabledNote").textContent = baseline
-      ? `— baseline tenant detected, ${nOff} Off polic${nOff === 1 ? "y" : "ies"} included`
-      : nOff ? `(${nOff} in tenant)` : "(none)";
     // authentication strengths are needed to detect external authentication
     // methods (EAM) inside strength policies — one read, Policy.Read.All
-    mlStrengths = new Map();
+    const strengths = new Map();
     try {
       if (isDemo) {
-        Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) mlStrengths.set(v.id, v); });
+        Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) strengths.set(v.id, v); });
       } else {
-        (await Graph.ggetAll("/policies/authenticationStrengthPolicies")).forEach(s => mlStrengths.set(s.id, s));
+        (await Graph.ggetAll("/policies/authenticationStrengthPolicies")).forEach(s => strengths.set(s.id, s));
       }
     } catch (e) { console.warn("Auth strength fetch failed (EAM check limited):", e.message); }
-    runMsLearn();
-  }
-  function runMsLearn() {
-    mlGroups = MSLearn.group(MSLearn.run(policies.map(p => p.raw), mlStrengths, { includeDisabled: $("mlDisabled").checked }));
+    mlGroups = MSLearn.group(MSLearn.run(policies.map(p => p.raw), strengths));
     mlFilter = "all"; mlExpanded.clear();
     renderMsLearn();
   }
-  $("mlDisabled").addEventListener("change", runMsLearn);
   function renderMsLearn() {
     if (!mlGroups) return;
-    const incDis = $("mlDisabled").checked;
     if (!mlGroups.length) {
-      $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount, incDis);
+      $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount);
       $("mlChips").innerHTML = "";
       $("mlBody").innerHTML = MSLearn.renderEmpty();
       return;
     }
-    $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount, incDis);
+    $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount);
     const count = (s) => s === "all" ? mlGroups.length : mlGroups.filter(g => g.check.severity === s).length;
     $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")
@@ -694,6 +674,65 @@
     const id = t.dataset.mltoggle;
     mlExpanded.has(id) ? mlExpanded.delete(id) : mlExpanded.add(id);
     renderMsLearn();
+  });
+
+  // ---------- gap analysis (best-practice & bypass checks) ----------
+  let gcResult = null, gcFilter = "all";
+  const gcExpanded = new Set();
+  async function openGapCheck() {
+    show("screen-gapcheck");
+    if (!policies.length) { $("gcHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = ""; return; }
+    $("gcHead").innerHTML = '<h3>🧀 Gap analysis</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
+    $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = "";
+    const raws = policies.map(p => p.raw);
+    // context: auth strengths (phishing-resistant detection), named locations
+    // (trusted-network detection), break-glass display name — all Policy.Read.All
+    const ctx = { strengths: new Map(), namedLocations: [], names: {} };
+    try {
+      if (isDemo) {
+        Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) ctx.strengths.set(v.id, v); });
+        ctx.names = DEMO_DATA.names || {};
+      } else {
+        const [strengths, locations] = await Promise.all([
+          Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(() => []),
+          Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(() => []),
+        ]);
+        strengths.forEach(s => ctx.strengths.set(s.id, s));
+        ctx.namedLocations = locations;
+        const bg = GapCheck.identifyBreakGlass(raws);
+        if (bg) {
+          try {
+            const j = await Graph.gpost("/directoryObjects/getByIds", { ids: [bg.id], types: ["user", "group"] });
+            (j.value || []).forEach(o => ctx.names[o.id] = o.displayName);
+          } catch (e) { console.warn("Break-glass name lookup failed:", e.message); }
+        }
+      }
+    } catch (e) { console.warn("Gap analysis context fetch failed:", e.message); }
+    gcResult = GapCheck.run(raws, ctx);
+    gcFilter = "all"; gcExpanded.clear();
+    renderGapCheck();
+  }
+  function renderGapCheck() {
+    if (!gcResult) return;
+    $("gcHead").innerHTML = GapCheck.renderSummary(gcResult);
+    $("gcMatrix").innerHTML = GapCheck.renderPersonaMatrix(gcResult.personas);
+    const n = (s) => s === "all" ? gcResult.findings.length : gcResult.findings.filter(f => f.severity === s).length;
+    $("gcChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
+      .filter(([k]) => n(k) > 0 || k === "all")
+      .map(([k, l]) => `<button class="fchip ${gcFilter === k ? "active" : ""}" data-gcf="${k}">${l} (${n(k)})</button>`).join("");
+    $("gcBody").innerHTML = GapCheck.renderFindings(gcResult, gcFilter, gcExpanded);
+  }
+  $("gcChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-gcf]"); if (!b) return;
+    gcFilter = b.dataset.gcf; renderGapCheck();
+  });
+  $("gcBody").addEventListener("click", (e) => {
+    const pl = e.target.closest(".pol-link");
+    if (pl) { showDetail(pl.dataset.polid); return; }
+    const t = e.target.closest("[data-gctoggle]"); if (!t) return;
+    const id = t.dataset.gctoggle;
+    gcExpanded.has(id) ? gcExpanded.delete(id) : gcExpanded.add(id);
+    renderGapCheck();
   });
 
   // ---------- events ----------
