@@ -135,6 +135,13 @@ const GapCheck = (() => {
   let INCLUDE_DISABLED = false;
   const isActive = (p) => isEnabled(p) || isReportOnly(p) || (INCLUDE_DISABLED && p.state === "disabled");
   const allUsers = (p) => (U(p).includeUsers || []).includes("All");
+  // A persona baseline never targets "All Users": the Global persona (CA000–099)
+  // is scoped to the tenant's everyone-group instead. For tenant-wide coverage
+  // checks that scope is equivalent, otherwise every persona baseline reports
+  // "no policy covers all users" even when CA000 does exactly that.
+  const coversEveryone = (p) => allUsers(p)
+    || ((() => { try { return detectPersona(p.displayName) === "0"; } catch { return false; } })()
+        && ((U(p).includeGroups || []).length > 0 || (U(p).includeUsers || []).length > 0 || (U(p).includeRoles || []).length > 0));
   const allApps = (p) => appsInc(p).includes("All");
   const hasMfa = (p) => grants(p).includes("mfa") || G(p).authenticationStrength != null;
   const hasBlock = (p) => grants(p).includes("block");
@@ -201,28 +208,46 @@ const GapCheck = (() => {
   function tenantChecks(raws, ctx, out) {
     const enabled = raws.filter(isEnabled);
     const reportOnly = raws.filter(isReportOnly);
+    // Off policies only count as "deployed but not enforcing" when they are in
+    // scope (baseline/staging tenants) — never as an enforced control.
+    const off = INCLUDE_DISABLED ? raws.filter((p) => p.state === "disabled") : [];
 
-    // 1. MFA coverage (report-only aware)
-    const isMfaForAll = (p) => allUsers(p) && hasMfa(p);
+    // 1. MFA coverage (report-only and Off aware)
+    const isMfaForAll = (p) => coversEveryone(p) && hasMfa(p);
     if (!enabled.some(isMfaForAll)) {
       const ro = reportOnly.find(isMfaForAll);
+      const offMfa = off.filter(isMfaForAll);
       if (ro) {
         F(out, "medium", "MFA Coverage", "MFA for All Users exists but is Report-only", ro,
           `"${ro.displayName}" requires MFA for All Users but runs in report-only mode — sign-ins are logged, not blocked, so users can still authenticate without MFA.`,
           "After 7–14 days of report-only telemetry with no unexpected blocks, switch the policy to On. Confirm break-glass accounts are excluded before flipping the state.");
+      } else if (offMfa.length) {
+        F(out, "medium", "MFA Coverage", "MFA for All Users is deployed but Off", offMfa[0],
+          `${offMfa.length} policy(ies) require MFA for All Users but are in the Off (disabled) state, so no MFA is enforced today: ${offMfa.slice(0, 5).map((p) => p.displayName).join(", ")}${offMfa.length > 5 ? ` and ${offMfa.length - 5} more` : ""}.`,
+          "Expected in a baseline/staging tenant. To enforce, switch to Report-only, review the sign-in impact for 7–14 days, then set to On — after confirming break-glass exclusions.");
       } else {
         F(out, "critical", "MFA Coverage", "No policy requires MFA for All Users", null,
-          "No enabled or report-only policy requires MFA (or an authentication strength) for All Users — some users can authenticate with only a password.",
+          "No enabled or report-only policy requires MFA (or an authentication strength) for All Users, nor for the Global persona (CA000–099) scope — some users can authenticate with only a password.",
           "Create a baseline policy requiring MFA for All Users and All resources. This is the foundation layer of the Swiss cheese model.");
       }
     }
 
     // 2. Legacy authentication blocked?
-    const blocksLegacy = enabled.some((p) => targetsLegacy(p) && hasBlock(p));
-    if (!blocksLegacy) {
-      F(out, "critical", "Legacy Authentication", "No policy blocks legacy authentication", null,
-        "No enabled policy blocks legacy authentication protocols (Exchange ActiveSync / Other clients). Legacy auth cannot perform MFA and is the top vector for password spray and credential stuffing.",
-        "Create a policy that blocks the Exchange ActiveSync and Other client app types for All Users.");
+    const legacyBlock = (p) => targetsLegacy(p) && hasBlock(p);
+    if (!enabled.some(legacyBlock)) {
+      const roLegacy = reportOnly.filter(legacyBlock);
+      const offLegacy = off.filter(legacyBlock);
+      if (roLegacy.length || offLegacy.length) {
+        const which = roLegacy.length ? roLegacy : offLegacy;
+        const state = roLegacy.length ? "Report-only" : "Off (disabled)";
+        F(out, "high", "Legacy Authentication", `Legacy authentication block is deployed but ${roLegacy.length ? "Report-only" : "Off"}`, which[0],
+          `${which.length} policy(ies) block legacy authentication (Exchange ActiveSync / Other clients) but run in ${state} state, so legacy auth is not blocked today: ${which.slice(0, 5).map((p) => p.displayName).join(", ")}${which.length > 5 ? ` and ${which.length - 5} more` : ""}.`,
+          "Legacy auth cannot perform MFA and is the top password-spray vector — this is normally the first policy to switch On. Review report-only telemetry for affected clients, then enable.");
+      } else {
+        F(out, "critical", "Legacy Authentication", "No policy blocks legacy authentication", null,
+          "No enabled policy blocks legacy authentication protocols (Exchange ActiveSync / Other clients). Legacy auth cannot perform MFA and is the top vector for password spray and credential stuffing.",
+          "Create a policy that blocks the Exchange ActiveSync and Other client app types for All Users.");
+      }
     }
 
     // 3. Break-glass coverage
@@ -392,7 +417,7 @@ const GapCheck = (() => {
   // source of truth as Render.caGroup / the Policies view). Ids are the range
   // base as a string: "0" = Global, "100" = Admins, …
   const PERSONAS = [
-    ["0", "🌐 Global", ["block-legacy-auth", "block-countries"]],
+    ["0", "🌐 Global", ["require-mfa", "block-legacy-auth", "block-countries"]],
     ["100", "🛡 Admins", ["require-mfa", "phishing-resistant-mfa", "require-compliant-device", "sign-in-risk", "user-risk", "session-sif"]],
     ["200", "👤 Internals", ["require-mfa", "require-compliant-device", "sign-in-risk", "user-risk"]],
     ["300", "🤝 Externals", ["require-mfa"]],
@@ -503,17 +528,29 @@ const GapCheck = (() => {
         if (!expected.includes(cid)) return { control: cid, status: "na", policies: [] };
         const hit = assigned.filter((p) => isEnabled(p) && det[cid](p));
         const roHit = assigned.filter((p) => isReportOnly(p) && det[cid](p));
-        const status = hit.length ? "present" : roHit.length ? "partial" : "missing";
+        // A baseline that is fully staged but switched Off is NOT the same as a
+        // missing control — it is designed and deployed, just not enforcing.
+        // Only counted when Off policies are in scope (baseline tenants).
+        const offHit = INCLUDE_DISABLED ? assigned.filter((p) => p.state === "disabled" && det[cid](p)) : [];
+        const status = hit.length ? "present" : roHit.length ? "partial" : offHit.length ? "off" : "missing";
+        const persona = label.replace(/^\S+\s*/, "");
+        const [, clabel] = CONTROLS.find(([c]) => c === cid);
         if (status === "missing") {
-          const [, clabel] = CONTROLS.find(([c]) => c === cid);
-          F(out, severityForGap(id, cid), "Persona Coverage", `${label.replace(/^\S+\s*/, "")}: missing ${clabel}`, null,
-            `No enabled policy in the ${label.replace(/^\S+\s*/, "")} persona implements "${clabel}". Personas are matched on policy naming conventions (Claus Jespersen's Zero Trust framework, CA-number blocks) plus structural signals (All-users, roles, guests).`,
+          F(out, severityForGap(id, cid), "Persona Coverage", `${persona}: missing ${clabel}`, null,
+            `No enabled policy in the ${persona} persona implements "${clabel}". Personas are matched on policy naming conventions (Claus Jespersen's Zero Trust framework, CA-number blocks) plus structural signals (All-users, roles, guests).`,
             "Add this control to an existing policy for this persona or deploy a dedicated one. Community baselines to compare against: Kenneth van Surksum, Joey Verlinden, Limon-IT.");
+        } else if (status === "off") {
+          F(out, "low", "Persona Coverage", `${persona}: ${clabel} deployed but Off`, null,
+            `The ${persona} persona has ${offHit.length} policy(ies) implementing "${clabel}", but every one of them is in the Off (disabled) state, so the control is designed and staged yet not enforcing: ${offHit.slice(0, 5).map((p) => p.displayName).join(", ")}${offHit.length > 5 ? ` and ${offHit.length - 5} more` : ""}.`,
+            "This is expected in a baseline/staging tenant. To enforce, switch the policy to Report-only first, review the sign-in impact, then set it to On.");
         }
-        return { control: cid, status, policies: (hit.length ? hit : roHit).map((p) => p.displayName) };
+        const shown = hit.length ? hit : roHit.length ? roHit : offHit;
+        return { control: cid, status, policies: shown.map((p) => p.displayName) };
       });
       const exp = cells.filter((c) => c.status !== "na");
-      const scored = exp.filter((c) => c.status === "present").length + exp.filter((c) => c.status === "partial").length * 0.5;
+      const scored = exp.filter((c) => c.status === "present").length
+        + exp.filter((c) => c.status === "partial").length * 0.5
+        + exp.filter((c) => c.status === "off").length * 0.25;
       rows.push({ id, label, policies: assigned.length, cells, score: exp.length ? Math.round((scored / exp.length) * 100) : 100 });
     }
     return rows;
@@ -564,6 +601,7 @@ const GapCheck = (() => {
   const CELL = {
     present: ["✓", "Present — enforced by an enabled policy"],
     partial: ["◐", "Partial — only a report-only policy matches"],
+    off: ["○", "Deployed but Off — a policy implements this control but is disabled"],
     missing: ["✗", "Missing — no policy implements this control"],
     "na": ["·", "Not expected for this persona"],
   };
@@ -581,7 +619,7 @@ const GapCheck = (() => {
     }).join("");
     return `<div class="list-card" style="margin-bottom:18px;overflow:auto">
       <div style="padding:16px 18px 6px"><h4 style="font-size:13px;color:var(--accent2);text-transform:uppercase;letter-spacing:.05em">Persona × control coverage</h4>
-      <p class="mini" style="margin:4px 0 8px">✓ enforced · ◐ report-only · ✗ missing · &nbsp;·&nbsp; not expected — personas matched on policy naming + structure; hover a cell for the matching policies.</p></div>
+      <p class="mini" style="margin:4px 0 8px">✓ enforced · ◐ report-only · ○ deployed but Off · ✗ missing · &nbsp;·&nbsp; not expected — personas matched on policy naming + structure; hover a cell for the matching policies.</p></div>
       <table class="gc-matrix"><thead><tr><th class="gc-rh"></th>${head}</tr></thead><tbody>${rows}</tbody></table>
     </div>`;
   }
@@ -654,7 +692,9 @@ const GapCheck = (() => {
         L.push(`| ${mdEsc(r.label)} | ${r.policies} | ${r.score}% | ${r.cells.map((c) => CELL[c.status][0]).join(" | ")} |`);
       }
       L.push("");
-      L.push("`✓` enforced · `◐` report-only only · `✗` missing · `·` not expected for this persona");
+      L.push("`✓` enforced · `◐` report-only only · `○` deployed but Off (disabled) · `✗` missing · `·` not expected for this persona");
+      L.push("");
+      L.push("Score weights an enforced control 1, report-only 0.5 and a deployed-but-Off control 0.25 — an Off baseline scores low by design, it is not a design gap.");
       L.push("");
       // which policy satisfies which control — the tooltip content, made durable
       const detail = result.personas.filter((r) => r.cells.some((c) => c.policies.length));
@@ -667,7 +707,8 @@ const GapCheck = (() => {
           for (const c of r.cells) {
             if (!c.policies.length) continue;
             const [, clabel] = CONTROLS.find(([id]) => id === c.control);
-            L.push(`- ${mdEsc(clabel)}${c.status === "partial" ? " *(report-only)*" : ""}: ${c.policies.map(mdEsc).join(", ")}`);
+            const note = c.status === "partial" ? " *(report-only)*" : c.status === "off" ? " *(Off — not enforcing)*" : "";
+            L.push(`- ${mdEsc(clabel)}${note}: ${c.policies.map(mdEsc).join(", ")}`);
           }
           L.push("");
         }

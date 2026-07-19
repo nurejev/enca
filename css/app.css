@@ -301,5 +301,6 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 .gc-matrix td.gc-cell{text-align:center;font-weight:700;width:36px;cursor:default}
 .gc-matrix td.gc-cell.present{color:var(--on);background:#eef8f1}
 .gc-matrix td.gc-cell.partial{color:var(--report);background:#fdf8e6}
+.gc-matrix td.gc-cell.off{color:#5f7a67;background:#eef2ef}
 .gc-matrix td.gc-cell.missing{color:var(--off);background:#fdeeec}
 .gc-matrix td.gc-cell.na{color:#cdd8d0}
