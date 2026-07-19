@@ -1,11 +1,36 @@
-# CA Doc — Conditional Access Documenter
+# CA Doc — Conditional Access Baseline Tools
 
-Web-based successor to the idPowerToys CA documenter, in Limon-IT branding.
-Sign in with an Entra account, view all Conditional Access policies as cards or a settings matrix, and export to PNG (single policy) or a combined branded PDF (multiple policies).
+A browser-based toolset for a Microsoft Entra Conditional Access baseline: **document it, analyse it, check it against best practice, back it up and redeploy it** — from one page, with an interactive Entra sign-in and nothing to install.
 
-Runs 100% in the browser (static site) — no backend, no policy data leaves the user's session. Covers the newest CA settings the old tool misses: authentication flows (device code / auth transfer), insider risk, token protection, Global Secure Access profiles, auth contexts, and workload identities.
+It started as a web successor to the idPowerToys CA documenter and grew into ten tools. Everything runs **100% in the browser** as a static site: no backend, no database, no telemetry, and no policy data ever leaves the user's session. All Microsoft Graph calls go straight from the browser to `graph.microsoft.com` with a delegated token.
 
 **Live:** https://cadoc.limon-it.nl · **Demo without sign-in:** https://cadoc.limon-it.nl/?demo=1
+
+## What's in it
+
+| Tool | What it does | Writes? |
+|---|---|---|
+| 🗂 **Policies** | Every policy as cards, a list, or a settings matrix — grouped by persona from the CA number (CA000–099 Global, CA100–199 Admins, … CA1100–1199 E-Admins). Expand a policy to inspect its dependencies (auth strengths, named locations, groups with their first members, terms of use). | no |
+| 📄 **Create documentation** | Select policies (or take all) and generate shareable documentation: **Word**, **PDF**, **PNG**, or a **PNG bundle**. Exports are neutral — they carry the connected tenant's branding, not Limon-IT's. | no |
+| 🔍 **Gap analyse** | Users × policies impact matrix: which policies apply to whom, who bypasses one through an exclusion (and why), whether that bypass is covered elsewhere, and who gets no MFA at all. Filter by group or user type, then export the filtered set as a standalone HTML report. | no |
+| 🛡 **Best-practice & bypass checks** | The baseline against known CA bypasses and the Swiss-cheese layered-defense model: MFA coverage, FOCI token sharing, resource-exclusion scope leaks, CA-immune resources, device-registration bypass, grant-operator weaknesses, legacy auth, known bypass apps, guest auth strength, break-glass coverage — plus a persona × control coverage matrix. Exports to Markdown. | no |
+| 🚪 **Exclusion analyzer** | Every exclusion in every policy — users, groups (expanded to their members), directory roles, guest/external types, applications, named locations, device platforms — grouped by exclusion set, with an exclusion × policy matrix and an effective-user × policy matrix. Exports to CSV and Markdown. | no |
+| 📘 **MS Learn checks** | Policies against exclusions, limitations and upcoming behaviour changes documented on learn.microsoft.com: missing break-glass exclusions, token-protection limits, Teams Rooms / Surface Hub impact, required app exclusions, control retirements. Each finding links to its source page. | no |
+| 🗄 **Backup (JSON)** | Raw Graph JSON of the selected policies in one timestamped zip — including their **dependencies** (auth strengths, named locations, terms of use with the actual PDF, and the groups they assign). | no |
+| 👥 **Assign groups** | Replace, add to, or reset the include/exclude persona groups of selected policies. Missing persona groups are created as role-assignable security groups via Graph. | **yes** |
+| 🎚 **Set Policy state** | Switch selected policies between On, Report-only and Off. | **yes** |
+| 📥 **Import** | Restore a backup (zip or folder): dependencies first, policies always imported **Off**, matched on CA number + version so existing policies are updated rather than duplicated, and include-assignments remapped onto the target tenant's persona groups. Produces a Markdown change report. | **yes** |
+
+The three writing tools are always behind an explicit review step and request their write scopes on demand (incremental consent) — signing in never grants them.
+
+## Design notes
+
+- **Graph beta endpoint**, so the newest policy properties are covered — the ones the old documenter misses: authentication flows (device code / auth transfer), insider risk, agent ID risk, token protection / secure sign-in session, Global Secure Access filtering profiles, authentication contexts and workload identities.
+- **Persona-aware throughout.** Policies, the coverage matrix and the checks all group by the same CA-number ranges, so a baseline built on the persona convention reads as one picture instead of a flat list.
+- **Baseline tenants.** In a staging tenant where the baseline sits Off, the checks treat a deployed-but-disabled policy as *"deployed but Off"* (`○`) rather than a missing control, and skip non-persona policies.
+- **No PowerShell.** Everything that used to be a script — the impact matrix, group assignment, group creation, state changes, import — is a Graph call from the browser.
+- **Light and dark.** Follows the device by default; the header button cycles Auto → Light → Dark. Exports are always captured in light theme.
+- **No build step.** Vanilla JS, self-hosted libraries, GitHub Pages serves the repo as-is.
 
 ---
 
@@ -84,41 +109,76 @@ After consent, anyone in that tenant with permission to read CA policies (e.g. S
 
 ## Project structure
 
+Every JS file is an IIFE assigned to one global — no modules, no bundler, no build step. Load order is the order of the `<script>` tags in `index.html`.
+
 ```
-index.html          app shell (login, list, cards, matrix, export modal)
-css/app.css         Limon-IT theme
-js/authConfig.js    clientId + scopes  ← the only file you must edit
-js/labels.js        friendly names for Graph enums / well-known IDs
-js/graph.js         MSAL sign-in, policy fetch (Graph beta), GUID→name resolver
-js/model.js         raw policy → view model (incl. new CA settings)
-js/render.js        list / card / matrix rendering
-js/mslearn.js       MS Learn documented exclusion checks (read-only findings)
-js/gapcheck.js      Best-practice & bypass checks + persona x control matrix
-js/export.js        PNG (html-to-image) and PDF (jsPDF, cover + cards + matrix)
-js/demo.js          sample policies for ?demo=1
-CNAME               cadoc.limon-it.nl (GitHub Pages custom domain)
+index.html            app shell: login, tools home, every tool screen, modals
+css/app.css           Limon-IT theme + light/dark palettes
+js/authConfig.js      clientId + scopes  ← the only file you must edit
+js/labels.js          friendly names for Graph enums / well-known IDs
+js/graph.js           MSAL sign-in, policy fetch (Graph beta), GUID→name resolver
+js/model.js           raw policy → view model (incl. the newest CA settings)
+js/render.js          card / list / settings-matrix rendering + persona grouping
+js/analyze.js         users x policies impact engine  (Gap analyse)
+js/gapcheck.js        best-practice & bypass checks + persona x control matrix
+js/exclusions.js      exclusion collection, group expansion, matrices, CSV/MD
+js/mslearn.js         MS Learn documented exclusion & limitation checks
+js/assign.js          persona group assignment (writes)
+js/groupTemplates.js  persona group definitions used when creating groups
+js/import.js          backup import: dependencies first, persona remapping (writes)
+js/export.js          Word / PDF / PNG / PNG-bundle export + JSON backup zip
+js/app.js             wiring: screens, toolbars, theme, permissions, tool state
+js/demo.js            sample policies for ?demo=1
+vendor/               msal-browser, html-to-image, jsPDF, JSZip (self-hosted)
+CNAME                 cadoc.limon-it.nl (GitHub Pages custom domain)
 ```
+
+## Permissions
+
+Base scopes, consented once per tenant, both **read-only delegated**:
+
+| Scope | Why |
+|---|---|
+| `Policy.Read.All` | Read CA policies, named locations, authentication strengths and contexts |
+| `Directory.Read.All` | Resolve user / group / role / service-principal GUIDs to display names and expand group memberships — without it every export shows raw IDs |
+
+Requested **on demand** (incremental consent) only when a tool needs them:
+
+| Scope | Tool |
+|---|---|
+| `Agreement.Read.All` | Backup — terms-of-use agreements and their PDFs |
+| `Policy.ReadWrite.ConditionalAccess` | Assign groups, Set Policy state, Import |
+| `Application.Read.All` | Import — required by Graph to create policies with app conditions |
+| `Policy.ReadWrite.AuthenticationMethod` | Import — create authentication strengths |
+| `Group.ReadWrite.All` | Assign groups — create missing persona groups |
+| `RoleManagement.ReadWrite.Directory` | Assign groups — create those groups as role-assignable |
+
+The signed-in user needs a reader role (Security Reader / Global Reader) for the read-only tools, and a role that can edit Conditional Access for the three writing tools. The permission overview on the tools home page shows the live status of each scope in the current session.
 
 ## Security
 
-- All JavaScript libraries are self-hosted in `vendor/` (no CDN at runtime); a meta Content-Security-Policy restricts scripts to same-origin and network calls to graph.microsoft.com / login.microsoftonline.com. GitHub Pages cannot send CSP headers, and `frame-ancestors` cannot be enforced from a meta tag.
-- Access tokens are only ever attached to `graph.microsoft.com` (hostname validated).
-- Permission justification: `Policy.Read.All` reads the CA policies; `Directory.Read.All` is required to resolve user/group/role/service-principal GUIDs to display names — without it the documentation would show raw IDs. Both are read-only delegated permissions; nothing is written to the tenant.
+- **No backend.** A static site on GitHub Pages. Policy data is never stored, proxied or logged — it exists only in the browser tab.
+- **Sign-in** uses MSAL with the authorization code flow and PKCE, no client secret. Tokens live in `sessionStorage` and are gone when the tab closes.
+- **Tokens are only ever attached to `graph.microsoft.com`** — the hostname is validated before every request.
+- **A meta Content-Security-Policy** restricts scripts to same-origin and network calls to `graph.microsoft.com` / `login.microsoftonline.com`. (GitHub Pages cannot send CSP headers, and `frame-ancestors` is not enforceable from a meta tag.)
+- **All JavaScript libraries are self-hosted** in `vendor/` — nothing loads from a third-party CDN at runtime.
+- **Exports are generated locally** and carry the connected tenant's branding, not Limon-IT's.
 
 ## Notes
 
-- Uses the Graph **beta** endpoint so the newest policy properties (insiderRiskLevels, authenticationFlows, secureSignInSession/token protection, globalSecureAccessFilteringProfile) are included.
+- Uses the Graph **beta** endpoint so the newest policy properties (insiderRiskLevels, agentIdRiskLevels, authenticationFlows, secureSignInSession / token protection, globalSecureAccessFilteringProfile) are included.
+- Unknown or newly added policy properties are surfaced rather than silently dropped, so a new CA feature shows up in the documentation before the tool explicitly supports it.
 - GUIDs that can't be resolved (e.g. deleted objects) are shown as raw IDs rather than hidden.
-- Everything is CDN + vanilla JS — no build step, GitHub Pages serves the repo as-is.
 
 ## Credits & thanks
 
-Two community projects shaped the analysis tools in CA Doc, and both deserve the credit:
+Three community projects shaped CA Doc, and all three deserve the credit:
 
+- **[idPowerToys](https://github.com/merill/idPowerToys)** — by **Merill Fernando**. The Conditional Access documenter that started all of this: the idea that a CA baseline should be readable as a document rather than clicked through in the portal. CA Doc is the web successor to that documenter, extended to the newest CA settings.
 - **[Conditional Access Impact Matrix](https://github.com/jasperbaes/Conditional-Access-Impact-Matrix)** — by **Jasper Baes**. The users × policies impact model behind the **Gap analyse** tool: working out which policies actually apply to a given user, who bypasses a policy through an exclusion, and whether that bypass is covered somewhere else.
 - **[CA Policy Analyzer](https://github.com/Jhope188/ca-policy-analyzer)** — by **jhope188**. The inspiration for the **Best-practice & bypass checks** and **MS Learn checks** tools: best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.
 
-Both are independently reimplemented here in browser-side JavaScript against Microsoft Graph — no code was copied.
+All are independently reimplemented here in browser-side JavaScript against Microsoft Graph — no code was copied.
 
 Thanks also to the Conditional Access community whose baselines CA Doc is designed to compare against: **Kenneth van Surksum**, **Joey Verlinden**, and **Claus Jespersen** for the Zero Trust persona framework.
 
