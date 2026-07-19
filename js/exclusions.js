@@ -224,7 +224,7 @@ const Exclusions = (() => {
 
   // matrix: exclusions (rows) × policies (columns)
   function renderMatrix(model, filterKind, query, merge = true) {
-    const pols = model.policies.filter((p) => p.exclusionCount > 0);
+    const pols = model.policies.filter((p) => p.exclusionCount > 0).slice().sort((a, b) => a.name.localeCompare(b.name));
     if (!pols.length) return '<p class="mini" style="padding:20px">No policy in scope has any exclusion configured.</p>';
     const q = (query || "").toLowerCase();
     const matched = model.entities
@@ -249,9 +249,54 @@ const Exclusions = (() => {
     return `<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${note}`;
   }
 
+  // Grouped view — the readable default. One card per distinct exclusion set:
+  // the policies are named in the card header, so nothing has to be read off a
+  // 90-column grid. The matrix stays available for cross-referencing.
+  function renderGroups(model, filterKind, query) {
+    const q = (query || "").toLowerCase();
+    const matched = model.entities
+      .filter((e) => filterKind === "all" || e.kind === filterKind)
+      .filter((e) => !q || String(e.name).toLowerCase().includes(q) || String(e.id).toLowerCase().includes(q));
+    if (!matched.length) return '<p class="mini" style="padding:20px">No exclusions match the current filter.</p>';
+
+    // one card per identical policy set, regardless of entity kind
+    const sets = new Map();
+    for (const e of matched) {
+      const key = [...e.policyIds].sort().join(",");
+      if (!sets.has(key)) sets.set(key, { policyIds: e.policyIds, entities: [] });
+      sets.get(key).entities.push(e);
+    }
+    const byId = new Map(model.policies.map((p) => [p.id, p]));
+    const cards = [...sets.values()]
+      .sort((a, b) => b.policyIds.size - a.policyIds.size || b.entities.length - a.entities.length)
+      .map((s) => {
+        const pols = [...s.policyIds].map((id) => byId.get(id)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+        const polList = pols.map((p) => `<span class="ex-pol${p.state === "disabled" ? " off" : p.state === "enabledForReportingButNotEnforced" ? " ro" : ""}">${esc(p.name)}${p.state === "disabled" ? " · Off" : p.state === "enabledForReportingButNotEnforced" ? " · report-only" : ""}</span>`).join("");
+        // entities grouped by kind inside the card
+        const byKind = new Map();
+        for (const e of s.entities) { if (!byKind.has(e.kind)) byKind.set(e.kind, []); byKind.get(e.kind).push(e); }
+        const kinds = [...byKind.entries()].sort((a, b) => KIND[a[0]].order - KIND[b[0]].order).map(([k, items]) => {
+          items.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+          const chips = items.map((e) => {
+            const sub = rowSub(e);
+            return `<span class="ex-ent" title="${esc(e.id)}${sub ? " · " + esc(sub) : ""}">${esc(e.name)}${e.kind === "group" && e.memberTotal != null ? `<i>${e.memberTotal}</i>` : ""}</span>`;
+          }).join("");
+          return `<div class="ex-kind"><div class="ex-kind-h">${KIND[k].icon} ${esc(KIND[k].label)}${items.length === 1 ? "" : "s"} <b>${items.length}</b></div><div class="ex-chips">${chips}</div></div>`;
+        }).join("");
+        return `<div class="list-card ex-card">
+          <div class="ex-card-h">
+            <div class="ex-card-t">Excluded from <b>${pols.length}</b> polic${pols.length === 1 ? "y" : "ies"}</div>
+            <div class="ex-pols">${polList}</div>
+          </div>
+          <div class="ex-card-b">${kinds}</div>
+        </div>`;
+      }).join("");
+    return `<p class="mini" style="margin:0 0 10px">${matched.length} exclusion${matched.length === 1 ? "" : "s"} across ${sets.size} distinct exclusion set${sets.size === 1 ? "" : "s"} — everything in a card is excluded from exactly the same policies.</p>${cards}`;
+  }
+
   // matrix: effectively excluded users (rows) × policies (columns)
   function renderUsers(model, users, query, page, pageSize) {
-    const pols = model.policies.filter((p) => p.exclusionCount > 0);
+    const pols = model.policies.filter((p) => p.exclusionCount > 0).slice().sort((a, b) => a.name.localeCompare(b.name));
     const q = (query || "").toLowerCase();
     const list = users.filter((u) => !q || u.name.toLowerCase().includes(q) || (u.upn || "").toLowerCase().includes(q));
     if (!list.length) return { html: '<p class="mini" style="padding:20px">No excluded users match the current filter.</p>', pages: 1, page: 0 };
@@ -274,7 +319,7 @@ const Exclusions = (() => {
 
   // ---- CSV export (exclusion × policy) ----
   function toCsv(model, users) {
-    const pols = model.policies.filter((p) => p.exclusionCount > 0);
+    const pols = model.policies.filter((p) => p.exclusionCount > 0).slice().sort((a, b) => a.name.localeCompare(b.name));
     const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = [];
     lines.push([q("Type"), q("Exclusion"), q("Id"), q("Members"), ...pols.map((p) => q(p.name))].join(","));
@@ -303,7 +348,7 @@ const Exclusions = (() => {
   const MD_MATRIX_MAX = 12; // columns beyond this become unreadable
 
   function toMd(model, users, tenantName) {
-    const pols = model.policies.filter((p) => p.exclusionCount > 0);
+    const pols = model.policies.filter((p) => p.exclusionCount > 0).slice().sort((a, b) => a.name.localeCompare(b.name));
     const clean = model.policies.filter((p) => !p.exclusionCount);
     const s = summary(model, users);
     const ents = model.entities.slice().sort(sortEntities);
@@ -401,5 +446,5 @@ const Exclusions = (() => {
     return L.join("\n");
   }
 
-  return { collect, resolve, effectiveUsers, summary, renderSummary, renderMatrix, renderUsers, toCsv, toMd, KIND };
+  return { collect, resolve, effectiveUsers, summary, renderSummary, renderGroups, renderMatrix, renderUsers, toCsv, toMd, KIND };
 })();

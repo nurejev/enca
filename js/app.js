@@ -688,12 +688,16 @@
     $("exHead").innerHTML = Exclusions.renderSummary(Exclusions.summary(exModel, exUsers));
     const counts = {};
     exModel.entities.forEach(e => counts[e.kind] = (counts[e.kind] || 0) + 1);
-    $("exChips").innerHTML = exTab === "all"
+    $("exChips").innerHTML = exTab !== "users"
       ? [["all", `All (${exModel.entities.length})`], ...Object.entries(counts).sort((a, b) => Exclusions.KIND[a[0]].order - Exclusions.KIND[b[0]].order)
           .map(([k, n]) => [k, `${Exclusions.KIND[k].icon} ${Exclusions.KIND[k].label} (${n})`])]
           .map(([k, l]) => `<button class="fchip ${exKind === k ? "active" : ""}" data-exk="${k}">${l}</button>`).join("")
       : "";
+    $("exMergeWrap").style.display = exTab === "matrix" ? "" : "none";
     if (exTab === "all") {
+      $("exPager").style.display = "none";
+      $("exBody").innerHTML = Exclusions.renderGroups(exModel, exKind, exQuery);
+    } else if (exTab === "matrix") {
       $("exPager").style.display = "none";
       $("exBody").innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery, exMerge);
     } else {
@@ -714,8 +718,14 @@
   });
   $("exMergeChk").addEventListener("change", (e) => { exMerge = e.target.checked; renderExclusions(); });
   $("exSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; renderExclusions(); });
-  $("exTabAll").addEventListener("click", () => { exTab = "all"; exPage = 0; $("exTabAll").classList.add("active"); $("exTabUsers").classList.remove("active"); renderExclusions(); });
-  $("exTabUsers").addEventListener("click", () => { exTab = "users"; exPage = 0; $("exTabUsers").classList.add("active"); $("exTabAll").classList.remove("active"); renderExclusions(); });
+  const EX_TABS = { all: "exTabAll", matrix: "exTabMatrix", users: "exTabUsers" };
+  for (const [tab, id] of Object.entries(EX_TABS)) {
+    $(id).addEventListener("click", () => {
+      exTab = tab; exPage = 0;
+      Object.values(EX_TABS).forEach((x) => $(x).classList.toggle("active", x === id));
+      renderExclusions();
+    });
+  }
   $("exPrev").addEventListener("click", () => { exPage--; renderExclusions(); });
   $("exNext").addEventListener("click", () => { exPage++; renderExclusions(); });
   $("exCsv").addEventListener("click", () => {

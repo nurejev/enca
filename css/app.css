@@ -209,6 +209,22 @@ tr.detail>td{background:#fafdf9;padding:12px 18px}
 .mtable th.ucol,.mtable td.ucol{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;padding:6px 12px;min-width:220px;box-shadow:1px 0 0 var(--border)}
 .mtable thead th.ucol{z-index:4;background:var(--soft)}
 .mtable tbody tr:hover td{background:#fafdf9}
+/* ---------- exclusion analyzer: grouped view ---------- */
+.ex-card{margin-bottom:14px}
+.ex-card-h{background:var(--soft);padding:12px 16px;border-bottom:1px solid var(--border)}
+.ex-card-t{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin-bottom:7px}
+.ex-card-t b{color:var(--green);font-size:13px}
+.ex-pols{display:flex;flex-wrap:wrap;gap:6px}
+.ex-pol{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;color:var(--green)}
+.ex-pol.off{color:var(--muted);border-style:dashed}
+.ex-pol.ro{color:var(--report);border-color:#f0e0a8}
+.ex-card-b{padding:12px 16px}
+.ex-kind + .ex-kind{margin-top:12px;padding-top:12px;border-top:1px solid #f0f5f1}
+.ex-kind-h{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:7px}
+.ex-kind-h b{color:var(--ink)}
+.ex-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ex-ent{background:#f6faf7;border:1px solid var(--border);border-radius:999px;padding:3px 11px;font-size:12px;cursor:default}
+.ex-ent i{font-style:normal;color:var(--muted);font-size:11px;margin-left:6px;padding-left:6px;border-left:1px solid var(--border)}
 /* merged exclusion row: the member names wrap instead of forcing a wide table */
 .mtable td.ucol.merged{white-space:normal;max-width:420px;background:#fbfdfb}
 .mtable td.ucol.merged .uupn{font-family:inherit;line-height:1.45;margin-top:2px;
