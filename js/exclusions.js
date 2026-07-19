@@ -283,12 +283,16 @@ const Exclusions = (() => {
           }).join("");
           return `<div class="ex-kind"><div class="ex-kind-h">${KIND[k].icon} ${esc(KIND[k].label)}${items.length === 1 ? "" : "s"} <b>${items.length}</b></div><div class="ex-chips">${chips}</div></div>`;
         }).join("");
+        // what is excluded comes first; the policies doing the excluding follow
         return `<div class="list-card ex-card">
+          <div class="ex-card-b">
+            <div class="ex-card-t">${s.entities.length} exclusion${s.entities.length === 1 ? "" : "s"}</div>
+            ${kinds}
+          </div>
           <div class="ex-card-h">
             <div class="ex-card-t">Excluded from <b>${pols.length}</b> polic${pols.length === 1 ? "y" : "ies"}</div>
             <div class="ex-pols">${polList}</div>
           </div>
-          <div class="ex-card-b">${kinds}</div>
         </div>`;
       }).join("");
     return `<p class="mini" style="margin:0 0 10px">${matched.length} exclusion${matched.length === 1 ? "" : "s"} across ${sets.size} distinct exclusion set${sets.size === 1 ? "" : "s"} — everything in a card is excluded from exactly the same policies.</p>${cards}`;

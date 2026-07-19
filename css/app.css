@@ -209,9 +209,21 @@ tr.detail>td{background:#fafdf9;padding:12px 18px}
 .mtable th.ucol,.mtable td.ucol{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;padding:6px 12px;min-width:220px;box-shadow:1px 0 0 var(--border)}
 .mtable thead th.ucol{z-index:4;background:var(--soft)}
 .mtable tbody tr:hover td{background:#fafdf9}
+/* ---------- near-fullscreen matrix popout ---------- */
+.fs-bg{display:none;position:fixed;inset:0;background:rgba(18,51,31,.45);z-index:200;padding:2vh 1vw}
+.fs-bg.show{display:block}
+.fs-panel{background:var(--surface);border-radius:14px;box-shadow:0 24px 60px rgba(18,51,31,.35);
+  width:98vw;max-width:98vw;height:96vh;margin:0 auto;display:flex;flex-direction:column;overflow:hidden}
+.fs-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;
+  border-bottom:1px solid var(--border);background:var(--soft);flex:none}
+.fs-head b{font-size:15px;letter-spacing:-.01em}
+.fs-body{flex:1;overflow:auto;padding:0 4px 4px}
+.fs-body .mwrap-x{max-height:none;overflow:visible}
+.fs-body .mtable thead th{top:0}
+
 /* ---------- exclusion analyzer: grouped view ---------- */
 .ex-card{margin-bottom:14px}
-.ex-card-h{background:var(--soft);padding:12px 16px;border-bottom:1px solid var(--border)}
+.ex-card-h{background:var(--soft);padding:12px 16px;border-top:1px solid var(--border)}
 .ex-card-t{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin-bottom:7px}
 .ex-card-t b{color:var(--green);font-size:13px}
 .ex-pols{display:flex;flex-wrap:wrap;gap:6px}

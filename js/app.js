@@ -663,14 +663,14 @@
   });
 
   // ---------- CA Exclusion analyzer ----------
-  let exModel = null, exUsers = [], exTab = "all", exKind = "all", exQuery = "", exPage = 0, exMerge = true;
+  let exModel = null, exUsers = [], exTab = "all", exKind = "all", exQuery = "", exPage = 0, exMerge = true, exFull = false;
   const EX_PAGE = 50;
   async function openExclusions() {
     show("screen-exclusions");
     if (!policies.length) { $("exHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("exBody").innerHTML = ""; $("exChips").innerHTML = ""; return; }
     $("exHead").innerHTML = '<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">Collecting exclusions…</p>';
     $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
-    exTab = "all"; exKind = "all"; exQuery = ""; exPage = 0; $("exSearch").value = "";
+    exTab = "all"; exKind = "all"; exQuery = ""; exPage = 0; exFull = false; $("exFull").classList.remove("show"); $("exSearch").value = "";
     $("exTabAll").classList.add("active"); $("exTabUsers").classList.remove("active");
     try {
       // the whole tenant's policies — exclusions are a tenant-wide question
@@ -694,17 +694,29 @@
           .map(([k, l]) => `<button class="fchip ${exKind === k ? "active" : ""}" data-exk="${k}">${l}</button>`).join("")
       : "";
     $("exMergeWrap").style.display = exTab === "matrix" ? "" : "none";
+    $("exExpand").style.display = exTab === "all" ? "none" : "";
+    // the matrices are far wider than the page column — when expanded they are
+    // rendered into the near-fullscreen overlay instead of the page body.
+    const target = exFull && exTab !== "all" ? "exFullBody" : "exBody";
+    if (exFull && exTab !== "all") {
+      $("exBody").innerHTML = '<p class="mini" style="padding:20px">Matrix is open full screen.</p>';
+      $("exFullChips").innerHTML = $("exChips").innerHTML;
+      $("exFullSearch").value = exQuery;
+      $("exFullMergeWrap").style.display = exTab === "matrix" ? "" : "none";
+      $("exFullTitle").textContent = exTab === "matrix" ? "Exclusion × policy matrix" : "Effectively excluded users × policy";
+      $("exFullLegend").innerHTML = exTab === "matrix" ? "✗ excluded" : "✗ excluded directly · ◐ via group membership";
+    }
     if (exTab === "all") {
       $("exPager").style.display = "none";
       $("exBody").innerHTML = Exclusions.renderGroups(exModel, exKind, exQuery);
     } else if (exTab === "matrix") {
       $("exPager").style.display = "none";
-      $("exBody").innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery, exMerge);
+      $(target).innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery, exMerge);
     } else {
-      const r = Exclusions.renderUsers(exModel, exUsers, exQuery, exPage, EX_PAGE);
+      const r = Exclusions.renderUsers(exModel, exUsers, exQuery, exPage, exFull ? EX_PAGE * 4 : EX_PAGE);
       exPage = r.page;
-      $("exBody").innerHTML = r.html;
-      $("exPager").style.display = "flex";
+      $(target).innerHTML = r.html;
+      $("exPager").style.display = exFull ? "none" : "flex";
       $("exPage").textContent = `Page ${r.page + 1} / ${r.pages}`;
     }
     (window.requestAnimationFrame || setTimeout)(() => {
@@ -716,7 +728,23 @@
     const b = e.target.closest("[data-exk]"); if (!b) return;
     exKind = b.dataset.exk; renderExclusions();
   });
-  $("exMergeChk").addEventListener("change", (e) => { exMerge = e.target.checked; renderExclusions(); });
+  function setExFull(on) {
+    exFull = on;
+    $("exFull").classList.toggle("show", on);
+    document.body.style.overflow = on ? "hidden" : "";
+    renderExclusions();
+  }
+  $("exExpand").addEventListener("click", () => setExFull(true));
+  $("exFullClose").addEventListener("click", () => setExFull(false));
+  $("exFull").addEventListener("click", (e) => { if (e.target.id === "exFull") setExFull(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && exFull) setExFull(false); });
+  $("exFullChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-exk]"); if (!b) return;
+    exKind = b.dataset.exk; renderExclusions();
+  });
+  $("exFullSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; $("exSearch").value = exQuery; renderExclusions(); });
+  $("exFullMergeChk").addEventListener("change", (e) => { exMerge = e.target.checked; $("exMergeChk").checked = exMerge; renderExclusions(); });
+  $("exMergeChk").addEventListener("change", (e) => { exMerge = e.target.checked; $("exFullMergeChk").checked = exMerge; renderExclusions(); });
   $("exSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; renderExclusions(); });
   const EX_TABS = { all: "exTabAll", matrix: "exTabMatrix", users: "exTabUsers" };
   for (const [tab, id] of Object.entries(EX_TABS)) {

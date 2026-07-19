@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=53">
+<link rel="stylesheet" href="css/app.css?v=54">
 </head>
 <body>
 
@@ -267,6 +267,7 @@
         <button id="exTabUsers">Effective users</button>
       </div>
       <label class="chk" id="exMergeWrap" style="margin:0;display:none"><input type="checkbox" id="exMergeChk" checked> Merge identical</label>
+      <button class="btn" id="exExpand" style="display:none">⤢ Full screen</button>
       <button class="btn" id="exMd">Export MD</button>
       <button class="btn lemon" id="exCsv">Export CSV</button>
     </div>
@@ -277,6 +278,26 @@
     </div>
     <div id="exBody"></div>
   </section>
+
+  <!-- Matrix popout: the exclusion/user matrices are far wider than the page
+       column, so they open in a near-fullscreen overlay. -->
+  <div class="fs-bg" id="exFull">
+    <div class="fs-panel">
+      <div class="fs-head">
+        <b id="exFullTitle">Exclusion x policy matrix</b>
+        <div class="search" style="max-width:280px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#12331f" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+          <input id="exFullSearch" placeholder="Search…">
+        </div>
+        <div class="chip-filter" id="exFullChips"></div>
+        <label class="chk" id="exFullMergeWrap" style="margin:0"><input type="checkbox" id="exFullMergeChk" checked> Merge identical</label>
+        <div class="spacer"></div>
+        <span class="mini" id="exFullLegend"></span>
+        <button class="btn" id="exFullClose">Close ✕</button>
+      </div>
+      <div class="fs-body" id="exFullBody"></div>
+    </div>
+  </div>
 
   <!-- ============ GAP ANALYSIS ============ -->
   <section id="screen-gapcheck" class="screen">
@@ -418,20 +439,20 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=53"></script>
-<script src="js/labels.js?v=53"></script>
-<script src="js/graph.js?v=53"></script>
-<script src="js/model.js?v=53"></script>
-<script src="js/render.js?v=53"></script>
-<script src="js/analyze.js?v=53"></script>
-<script src="js/mslearn.js?v=53"></script>
-<script src="js/gapcheck.js?v=53"></script>
-<script src="js/exclusions.js?v=53"></script>
-<script src="js/groupTemplates.js?v=53"></script>
-<script src="js/assign.js?v=53"></script>
-<script src="js/import.js?v=53"></script>
-<script src="js/export.js?v=53"></script>
-<script src="js/demo.js?v=53"></script>
-<script src="js/app.js?v=53"></script>
+<script src="js/authConfig.js?v=54"></script>
+<script src="js/labels.js?v=54"></script>
+<script src="js/graph.js?v=54"></script>
+<script src="js/model.js?v=54"></script>
+<script src="js/render.js?v=54"></script>
+<script src="js/analyze.js?v=54"></script>
+<script src="js/mslearn.js?v=54"></script>
+<script src="js/gapcheck.js?v=54"></script>
+<script src="js/exclusions.js?v=54"></script>
+<script src="js/groupTemplates.js?v=54"></script>
+<script src="js/assign.js?v=54"></script>
+<script src="js/import.js?v=54"></script>
+<script src="js/export.js?v=54"></script>
+<script src="js/demo.js?v=54"></script>
+<script src="js/app.js?v=54"></script>
 </body>
 </html>
