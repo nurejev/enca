@@ -245,7 +245,7 @@
     { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
     { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
-    { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies", tools: "Assign groups, Set state, Import", onDemand: true },
+    { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies", tools: "Assign groups, Set Policy state, Import", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups", tools: "Assign groups", onDemand: true },
@@ -294,7 +294,7 @@
     toolMode = mode;
     $("exportBtn").innerHTML = mode === "backup" ? "Backup (JSON)"
       : mode === "assign" ? 'Assign groups <span class="tag new">BETA</span>'
-      : mode === "state" ? 'Set state <span class="tag new">BETA</span>'
+      : mode === "state" ? 'Set Policy state <span class="tag new">BETA</span>'
       : "Document";
     const write = mode === "assign" || mode === "state";
     $("exportBtn").classList.toggle("primary", write);
@@ -402,7 +402,7 @@
   // Set-state tool (BETA): select policies, choose On / Report-only / Off, apply.
   $("toolState").addEventListener("click", () => {
     setToolMode("state"); setView("cards"); show("screen-list");
-    toast("Set-state mode — select policies, then click <span>Set state</span>");
+    toast("Set-state mode — select policies, then click <span>Set Policy state</span>");
   });
   function openStateModal() {
     if (!selected.size) { toast("Select at least one policy first"); return; }
@@ -903,6 +903,21 @@
     gcFilter = "all"; gcExpanded.clear();
     renderGapCheck();
   }
+  // Refresh: pull the policies again from Entra, then re-run every gap check.
+  $("gcRefresh").addEventListener("click", async () => {
+    const btn = $("gcRefresh");
+    btn.disabled = true; btn.textContent = "⟳ Refreshing…";
+    try {
+      if (isDemo) loadDemo(); else await loadFromGraph(true);
+      gcCtx = null;
+      await openGapCheck();
+      toast("Gap analysis <span>refreshed</span>");
+    } catch (e) {
+      toast(`Refresh failed: <span>${esc(e.message || e)}</span>`);
+    } finally {
+      btn.disabled = false; btn.textContent = "⟳ Refresh";
+    }
+  });
   $("gcMd").addEventListener("click", () => {
     if (!gcResult) return;
     downloadText("CA-Gap-Analysis", "md", "text/markdown", GapCheck.toMd(gcResult, gcMeta || { tenantName }));
@@ -1276,7 +1291,7 @@
     toast("HTML report <span>downloaded</span> — single file, safe to share");
   });
 
-  // export modal (Document) / JSON zip (Backup) / wizard (Assign) / state modal (Set state)
+  // export modal (Document) / JSON zip (Backup) / wizard (Assign) / state modal (Set Policy state)
   $("exportBtn").addEventListener("click", () =>
     toolMode === "backup" ? runBackup()
     : toolMode === "assign" ? openAssign()

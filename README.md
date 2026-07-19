@@ -111,6 +111,17 @@ CNAME               cadoc.limon-it.nl (GitHub Pages custom domain)
 - GUIDs that can't be resolved (e.g. deleted objects) are shown as raw IDs rather than hidden.
 - Everything is CDN + vanilla JS — no build step, GitHub Pages serves the repo as-is.
 
+## Credits & thanks
+
+Two community projects shaped the analysis tools in CA Doc, and both deserve the credit:
+
+- **[Conditional Access Impact Matrix](https://github.com/jasperbaes/Conditional-Access-Impact-Matrix)** — by **Jasper Baes**. The users × policies impact model behind the **Analyze** tool: working out which policies actually apply to a given user, who bypasses a policy through an exclusion, and whether that bypass is covered somewhere else.
+- **[CA Policy Analyzer](https://github.com/Jhope188/ca-policy-analyzer)** — by **jhope188**. The inspiration for the **Gap analysis** and **MS Learn checks** tools: best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.
+
+Both are independently reimplemented here in browser-side JavaScript against Microsoft Graph — no code was copied.
+
+Thanks also to the Conditional Access community whose baselines CA Doc is designed to compare against: **Kenneth van Surksum**, **Joey Verlinden**, and **Claus Jespersen** for the Zero Trust persona framework.
+
 ## License & attribution
 
 MIT — see [LICENSE](LICENSE). The Limon-IT name and logo (`assets/`) are trademarks of Limon-IT and are excluded from the license; forks must use their own branding.

@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=55">
+<link rel="stylesheet" href="css/app.css?v=56">
 </head>
 <body>
 
@@ -97,7 +97,7 @@
         <p>Change the include/exclude persona groups of selected policies — replace, add, or set to All Users. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolState">
-        <div class="tool-ic">🎚</div><h3>Set state <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">🎚</div><h3>Set Policy state <span class="tag new">BETA</span></h3>
         <p>Switch selected policies between On, Report-only and Off. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolImport">
@@ -130,6 +130,19 @@
         that can edit Conditional Access, such as Conditional Access Administrator or Security Administrator.
         Creating missing persona groups (always as role-assignable security groups) additionally requests
         <code>Group.ReadWrite.All</code> and <code>RoleManagement.ReadWrite.Directory</code> and requires the Privileged Role Administrator role.</p>
+
+      <h4>Credits &amp; thanks</h4>
+      <p>Two community projects shaped the analysis tools in here, and both deserve the credit:</p>
+      <ul>
+        <li><b>Conditional Access Impact Matrix</b> — by <b>Jasper Baes</b>. The users × policies impact model behind the
+          <b>Analyze</b> tool: working out which policies actually apply to a given user, who bypasses a policy through an
+          exclusion, and whether that bypass is covered somewhere else.</li>
+        <li><b>CA Policy Analyzer</b> — by <b>jhope188</b>. The inspiration for the <b>Gap analysis</b> check set:
+          best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.</li>
+      </ul>
+      <p class="mini">Both tools are independently reimplemented here in browser-side JavaScript against Microsoft Graph — no code was copied.
+        Thanks also to the Conditional Access community whose baselines this tool is designed to compare against:
+        Kenneth van Surksum, Joey Verlinden and Claus Jespersen (Zero Trust persona framework).</p>
 
       <h4>Security</h4>
       <p>Everything runs in your browser — there is no backend and your policy data is never stored or sent anywhere except Microsoft Graph.
@@ -305,7 +318,8 @@
     <div id="gcMatrix" style="margin-top:16px"></div>
     <div style="display:flex;align-items:center;gap:14px;margin:14px 0 0;flex-wrap:wrap">
       <div class="chip-filter" id="gcChips"></div>
-      <button class="btn" id="gcMd" style="margin-left:auto">Export MD</button>
+      <button class="btn" id="gcRefresh" style="margin-left:auto" title="Re-fetch policies from Entra and re-run every check">⟳ Refresh</button>
+      <button class="btn" id="gcMd">Export MD</button>
       <label class="chk" id="gcDisabledWrap" style="margin:0"><input type="checkbox" id="gcDisabled"> Include Off (disabled) policies <span class="mini" id="gcDisabledNote"></span></label>
     </div>
     <div id="gcBody" style="margin-top:14px"></div>
@@ -439,20 +453,20 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=55"></script>
-<script src="js/labels.js?v=55"></script>
-<script src="js/graph.js?v=55"></script>
-<script src="js/model.js?v=55"></script>
-<script src="js/render.js?v=55"></script>
-<script src="js/analyze.js?v=55"></script>
-<script src="js/mslearn.js?v=55"></script>
-<script src="js/gapcheck.js?v=55"></script>
-<script src="js/exclusions.js?v=55"></script>
-<script src="js/groupTemplates.js?v=55"></script>
-<script src="js/assign.js?v=55"></script>
-<script src="js/import.js?v=55"></script>
-<script src="js/export.js?v=55"></script>
-<script src="js/demo.js?v=55"></script>
-<script src="js/app.js?v=55"></script>
+<script src="js/authConfig.js?v=56"></script>
+<script src="js/labels.js?v=56"></script>
+<script src="js/graph.js?v=56"></script>
+<script src="js/model.js?v=56"></script>
+<script src="js/render.js?v=56"></script>
+<script src="js/analyze.js?v=56"></script>
+<script src="js/mslearn.js?v=56"></script>
+<script src="js/gapcheck.js?v=56"></script>
+<script src="js/exclusions.js?v=56"></script>
+<script src="js/groupTemplates.js?v=56"></script>
+<script src="js/assign.js?v=56"></script>
+<script src="js/import.js?v=56"></script>
+<script src="js/export.js?v=56"></script>
+<script src="js/demo.js?v=56"></script>
+<script src="js/app.js?v=56"></script>
 </body>
 </html>
