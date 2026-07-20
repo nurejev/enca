@@ -936,9 +936,15 @@
   $("fsModal").addEventListener("click", (e) => { if (e.target.id === "fsModal") Fs.close(); });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
-    // close the top-most layer first: a policy card opened from the panel
-    const openModal = document.querySelector(".modal-bg.open");
-    if (openModal) { openModal.classList.remove("open"); return; }
+    // close the top-most layer first: the dependency inspector sits above the
+    // policy card, which sits above the full-screen panel
+    const open = [...document.querySelectorAll(".modal-bg.open")];
+    if (open.length) {
+      const top = open.reduce((a, b) =>
+        (+getComputedStyle(b).zIndex || 0) >= (+getComputedStyle(a).zIndex || 0) ? b : a);
+      top.classList.remove("open");
+      return;
+    }
     if (Fs.isOpen()) Fs.close();
   });
 

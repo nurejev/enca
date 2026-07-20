@@ -278,6 +278,8 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .dot.g{background:var(--on)} .dot.r{background:var(--off)} .dot.y{background:var(--report)}
 
 /* ---------- modal / toast ---------- */
+/* stacking order: full-screen matrix panel 200 < modals 300 < dependency
+   inspector 320 (opened FROM a modal) < toast 400 */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(18,51,31,.55);z-index:300;align-items:center;justify-content:center;padding:24px}
 .modal-bg.open{display:flex}
 .modal{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);max-width:520px;width:100%;padding:30px}
@@ -305,6 +307,7 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .readme code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12px}
 .modal .row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
 .chk{display:flex;gap:8px;align-items:center;margin-top:14px;font-size:13px;color:var(--muted)}
+#depModal{z-index:320}
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--green-deep);color:#fff;padding:12px 22px;border-radius:12px;box-shadow:var(--shadow);display:none;z-index:400;font-weight:600}
 .toast.show{display:block}
 .toast span{color:var(--lemon)}
