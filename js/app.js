@@ -358,21 +358,38 @@
     // The what-if flow is opt-in (a button under the card) so the detail stays
     // compact until you actually want to trace what the policy does.
     $("detailBody").innerHTML = Render.card(p, tenantName)
-      + `<div class="wf-toggle"><button class="btn" id="wfShow" data-wf="${p.id}">⑃ What-if flow — what happens when this triggers</button></div>
+      + `<div class="pcard-actions">
+           <button class="btn" data-wf="${p.id}">⑃ What-if flow</button>
+           <span class="pa-sep"></span>
+           <button class="btn" data-pact="document">📄 Documentation</button>
+           <button class="btn" data-pact="backup">🗄 Backup</button>
+           <button class="btn" data-pact="assign">👥 Assign groups</button>
+           <button class="btn" data-pact="state">🎚 Policy state</button>
+         </div>
          <div class="wf-panel" id="wfPanel" style="display:none"></div>`;
+    detailPolicyId = p.id;
     $("detailModal").classList.add("open");
   }
+  let detailPolicyId = null;
   // reveal / hide the per-policy flow on demand
   $("detailBody").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-wf]"); if (!b) return;
-    const panel = $("wfPanel"); const p = policies.find(x => x.id === b.dataset.wf); if (!p || !panel) return;
-    if (panel.style.display === "none") {
-      panel.innerHTML = WhatIf.policyFlow(p);
-      panel.style.display = "block";
-      b.textContent = "⑃ Hide what-if flow";
-    } else {
-      panel.style.display = "none";
-      b.textContent = "⑃ What-if flow — what happens when this triggers";
+    const b = e.target.closest("[data-wf]");
+    if (b) {
+      const panel = $("wfPanel"); const p = policies.find(x => x.id === b.dataset.wf); if (!p || !panel) return;
+      if (panel.style.display === "none") { panel.innerHTML = WhatIf.policyFlow(p); panel.style.display = "block"; b.textContent = "⑃ Hide what-if flow"; }
+      else { panel.style.display = "none"; b.textContent = "⑃ What-if flow"; }
+      return;
+    }
+    // Per-policy action: act on just this policy. Set the selection to it, close
+    // the detail, and run the same tool the selection bar would.
+    const act = e.target.closest("[data-pact]");
+    if (act && detailPolicyId) {
+      const mode = act.dataset.pact;
+      selected = new Set([detailPolicyId]);
+      refreshViews();
+      $("detailModal").classList.remove("open");
+      setToolMode(mode);
+      runToolMode(mode);
     }
   });
 

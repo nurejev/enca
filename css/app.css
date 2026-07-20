@@ -180,6 +180,9 @@ table.plist tr:hover td{background:var(--hover)}
 /* the trigger + panel on the policy card */
 .wf-toggle{margin:2px 0 0}
 .wf-panel{border-top:1px solid var(--border);margin-top:10px;padding-top:12px}
+/* per-policy quick actions under the detail card */
+.pcard-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+.pcard-actions .pa-sep{width:1px;align-self:stretch;background:var(--border);margin:2px 2px}
 
 /* simulator */
 .wf-sim{font-size:13px}
