@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=67">
+<link rel="stylesheet" href="css/app.css?v=68">
 </head>
 <body>
 
@@ -176,11 +176,13 @@
         <button id="viewMatrix">Matrix</button>
       </div>
       <label class="chk selall" id="selAllWrap" title="Select or clear every policy matching the current filter"><input type="checkbox" id="selAllTop"> <span id="selAllLabel">Select all</span></label>
-      <button class="btn" id="collapseAllBtn" title="Expand or collapse all persona sections">⊟ Collapse all</button>
-      <button class="btn" id="plFull" style="display:none" title="Open the settings matrix full screen">⤢ Full screen</button>
-      <button class="btn" id="refreshBtn" disabled title="Fetch the latest policies from Entra">⟳ Refresh</button>
-      <button class="btn primary" id="analyzeBtn" disabled>Gap analyse</button>
-      <button class="btn lemon" id="exportBtn" disabled>Create documentation</button>
+      <div class="tb-actions">
+        <button class="btn" id="collapseAllBtn" title="Expand or collapse all persona sections">⊟ Collapse all</button>
+        <button class="btn" id="plFull" style="display:none" title="Open the settings matrix full screen">⤢ Full screen</button>
+        <button class="btn" id="refreshBtn" disabled title="Fetch the latest policies from Entra">⟳ Refresh</button>
+        <button class="btn primary" id="analyzeBtn" disabled>Gap analyse</button>
+        <button class="btn lemon" id="exportBtn" disabled>Create documentation</button>
+      </div>
     </div>
 
     <div class="selbar" id="selbar">
@@ -245,8 +247,10 @@
             <button class="active" id="anTabUsers">Users</button>
             <button id="anTabMatrix">Matrix</button>
           </div>
-          <button class="btn" id="anFull" style="display:none" title="Open the matrix full screen">⤢ Full screen</button>
-          <button class="btn lemon" id="anExport">Export HTML report</button>
+          <div class="tb-actions">
+            <button class="btn" id="anFull" style="display:none" title="Open the matrix full screen">⤢ Full screen</button>
+            <button class="btn lemon" id="anExport">Export HTML report</button>
+          </div>
         </div>
         <div class="list-card" id="anUsersWrap">
           <table class="plist an-table">
@@ -270,15 +274,17 @@
   <!-- ============ MS LEARN CHECKS ============ -->
   <section id="screen-mslearn" class="screen">
     <div class="list-card readme" id="mlHead" style="margin-top:0"></div>
-    <div style="display:flex;align-items:center;gap:14px;margin:14px 0 0;flex-wrap:wrap">
+    <div class="toolbar" style="margin-top:14px">
       <div class="seg">
         <button class="active" id="mlTabFindings">Findings</button>
         <button id="mlTabFixes">Suggested fixes</button>
       </div>
       <div class="chip-filter" id="mlChips"></div>
-      <button class="btn lemon" id="mlFixZip" style="display:none">⤓ Download all (zip)</button>
-      <button class="btn" id="mlApply" style="display:none">⚡ Apply in tenant <span class="tag block">writes</span></button>
-      <label class="chk" id="mlDisabledWrap" style="margin:0 0 0 auto"><input type="checkbox" id="mlDisabled"> Include Off (disabled) policies <span class="mini" id="mlDisabledNote"></span></label>
+      <label class="chk" id="mlDisabledWrap" style="margin:0"><input type="checkbox" id="mlDisabled"> Include Off (disabled) policies <span class="mini" id="mlDisabledNote"></span></label>
+      <div class="tb-actions">
+        <button class="btn" id="mlApply" style="display:none">⚡ Apply in tenant <span class="tag block">writes</span></button>
+        <button class="btn lemon" id="mlFixZip" style="display:none">⤓ Download all (zip)</button>
+      </div>
     </div>
     <div id="mlBody" style="margin-top:14px"></div>
   </section>
@@ -298,9 +304,11 @@
         <button id="exTabUsers">Effective users</button>
       </div>
       <label class="chk" id="exMergeWrap" style="margin:0;display:none"><input type="checkbox" id="exMergeChk" checked> Merge identical</label>
-      <button class="btn" id="exExpand" style="display:none" title="Open the matrix full screen">⤢ Full screen</button>
-      <button class="btn" id="exMd">Export MD</button>
-      <button class="btn lemon" id="exCsv">Export CSV</button>
+      <div class="tb-actions">
+        <button class="btn" id="exExpand" style="display:none" title="Open the matrix full screen">⤢ Full screen</button>
+        <button class="btn" id="exMd">Export MD</button>
+        <button class="btn lemon" id="exCsv">Export CSV</button>
+      </div>
     </div>
     <div class="scroll-hint" id="exHint" style="display:none">◂ ▸ Scroll horizontally to see all policies</div>
     <div id="exPager" class="an-pager" style="display:none">
@@ -338,8 +346,10 @@
         <button class="active" id="blViewCards">Cards</button>
         <button id="blViewTable">Table</button>
       </div>
-      <button class="btn" id="blMd">Export MD</button>
-      <button class="btn lemon" id="blImport">📥 Import baseline →</button>
+      <div class="tb-actions">
+        <button class="btn" id="blMd">Export MD</button>
+        <button class="btn lemon" id="blImport">📥 Import baseline →</button>
+      </div>
     </div>
     <div id="blBody"></div>
   </section>
@@ -348,12 +358,14 @@
   <section id="screen-gapcheck" class="screen">
     <div class="list-card readme" id="gcHead" style="margin-top:0"></div>
     <div id="gcMatrix" style="margin-top:16px"></div>
-    <div style="display:flex;align-items:center;gap:14px;margin:14px 0 0;flex-wrap:wrap">
+    <div class="toolbar" style="margin-top:14px">
       <div class="chip-filter" id="gcChips"></div>
-      <button class="btn" id="gcFull" style="margin-left:auto" title="Open the persona × control matrix full screen">⤢ Full screen</button>
-      <button class="btn" id="gcRefresh" title="Re-fetch policies from Entra and re-run every check">⟳ Refresh</button>
-      <button class="btn" id="gcMd">Export MD</button>
       <label class="chk" id="gcDisabledWrap" style="margin:0"><input type="checkbox" id="gcDisabled"> Include Off (disabled) policies <span class="mini" id="gcDisabledNote"></span></label>
+      <div class="tb-actions">
+        <button class="btn" id="gcFull" title="Open the persona × control matrix full screen">⤢ Full screen</button>
+        <button class="btn" id="gcRefresh" title="Re-fetch policies from Entra and re-run every check">⟳ Refresh</button>
+        <button class="btn" id="gcMd">Export MD</button>
+      </div>
     </div>
     <div id="gcBody" style="margin-top:14px"></div>
   </section>
@@ -502,22 +514,22 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=67"></script>
-<script src="js/labels.js?v=67"></script>
-<script src="js/graph.js?v=67"></script>
-<script src="js/model.js?v=67"></script>
-<script src="js/render.js?v=67"></script>
-<script src="js/analyze.js?v=67"></script>
-<script src="js/mslearn.js?v=67"></script>
-<script src="js/gapcheck.js?v=67"></script>
-<script src="js/exclusions.js?v=67"></script>
-<script src="js/baselineData.js?v=67"></script>
-<script src="js/baseline.js?v=67"></script>
-<script src="js/groupTemplates.js?v=67"></script>
-<script src="js/assign.js?v=67"></script>
-<script src="js/import.js?v=67"></script>
-<script src="js/export.js?v=67"></script>
-<script src="js/demo.js?v=67"></script>
-<script src="js/app.js?v=67"></script>
+<script src="js/authConfig.js?v=68"></script>
+<script src="js/labels.js?v=68"></script>
+<script src="js/graph.js?v=68"></script>
+<script src="js/model.js?v=68"></script>
+<script src="js/render.js?v=68"></script>
+<script src="js/analyze.js?v=68"></script>
+<script src="js/mslearn.js?v=68"></script>
+<script src="js/gapcheck.js?v=68"></script>
+<script src="js/exclusions.js?v=68"></script>
+<script src="js/baselineData.js?v=68"></script>
+<script src="js/baseline.js?v=68"></script>
+<script src="js/groupTemplates.js?v=68"></script>
+<script src="js/assign.js?v=68"></script>
+<script src="js/import.js?v=68"></script>
+<script src="js/export.js?v=68"></script>
+<script src="js/demo.js?v=68"></script>
+<script src="js/app.js?v=68"></script>
 </body>
 </html>
