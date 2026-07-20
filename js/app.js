@@ -1167,36 +1167,98 @@
     const out = $("mlApplyResult"); out.style.display = ""; out.innerHTML = "";
     const log = (cls, msg) => { out.insertAdjacentHTML("beforeend", `<div class="ml-apply-row ${cls}">${msg}</div>`); out.scrollTop = out.scrollHeight; };
     let created = 0, deleted = 0, failed = 0;
+    const results = [];
     for (const f of mlFixes.fixes) {
+      const rec = { fix: f, created: false, deleted: false, error: null, deleteError: null };
+      results.push(rec);
       btn.textContent = `Applying ${created + failed + 1}/${mlFixes.fixes.length}…`;
       try {
         const body = JSON.parse(f.json);
         const res = await Graph.gpost("/identity/conditionalAccess/policies", body, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
-        created++;
+        created++; rec.created = true; rec.createdId = res && res.id;
         log("ok", `✓ Created <b>${esc(f.newName)}</b> (Off)`);
         if (del) {
           try {
             await Graph.gdelete(`/identity/conditionalAccess/policies/${f.policyId}`, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
-            deleted++;
+            deleted++; rec.deleted = true;
             log("ok", `✓ Deleted <b>${esc(f.originalName)}</b>`);
           } catch (e) {
-            failed++;
+            failed++; rec.deleteError = e.message || String(e);
             log("bad", `✗ Created the replacement but could NOT delete <b>${esc(f.originalName)}</b>: ${esc(e.message || e)} — both policies now exist, remove the old one manually.`);
           }
         }
         if (res && res.id) f.createdId = res.id;
       } catch (e) {
-        failed++;
+        failed++; rec.error = e.message || String(e);
         log("bad", `✗ Failed to create <b>${esc(f.newName)}</b>: ${esc(e.message || e)} — <b>${esc(f.originalName)}</b> was left untouched.`);
       }
     }
     btn.textContent = "Done";
     log("", `<b>${created}</b> created · <b>${deleted}</b> deleted · <b>${failed}</b> failed. Reloading policies…`);
-    toast(`${created} polic${created === 1 ? "y" : "ies"} created${deleted ? `, ${deleted} removed` : ""} <span>in ${esc(tenantName)}</span>`);
+    downloadText("CA-MSLearn-Applied", "md", "text/markdown", applyReport(results, { created, deleted, failed, del }));
+    toast(`${created} polic${created === 1 ? "y" : "ies"} created${deleted ? `, ${deleted} removed` : ""} <span>· change report downloaded</span>`);
     try { await loadFromGraph(true); } catch { /* surfaced by loadFromGraph */ }
     show("screen-mslearn");
     await openMsLearn();
   });
+
+  // Markdown record of what the apply actually did — one row per policy, the
+  // adjustments that were written, and every failure with its Graph message.
+  function applyReport(results, sum) {
+    const e = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
+    const L = [];
+    L.push(`# MS Learn fixes applied — ${e(tenantName || "tenant")}`);
+    L.push("");
+    L.push(`Applied ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by Conditional Access Baseline Tools (cadoc.limon-it.nl).`);
+    L.push("");
+    L.push(`- Created: **${sum.created}** (all in the **Off / disabled** state)`);
+    L.push(`- Deleted: **${sum.deleted}**${sum.del ? "" : " — the originals were kept on purpose"}`);
+    L.push(`- Failed: **${sum.failed}**`);
+    L.push("");
+    L.push("| Result | New policy | Replaced | Adjustments |");
+    L.push("| --- | --- | --- | --- |");
+    for (const r of results) {
+      const result = r.error ? "❌ create failed"
+        : r.deleteError ? "⚠ created, delete failed"
+        : r.deleted ? "✅ created + original deleted"
+        : "✅ created (original kept)";
+      L.push(`| ${result} | ${e(r.fix.newName)} | ${e(r.fix.originalName)} | ${r.fix.changes.length} |`);
+    }
+    L.push("");
+
+    const done = results.filter((r) => r.created);
+    if (done.length) {
+      L.push("## What changed, policy by policy");
+      L.push("");
+      for (const r of done) {
+        L.push(`### ${e(r.fix.newName)}`);
+        L.push("");
+        L.push(`Built from **${e(r.fix.originalName)}** (was ${e(r.fix.originalState)}), created **Off**.`);
+        L.push(r.deleted ? "The original policy was deleted." : r.deleteError
+          ? `⚠ The original could NOT be deleted: ${e(r.deleteError)} — both policies exist, remove the old one manually.`
+          : "The original policy was kept.");
+        L.push("");
+        r.fix.changes.forEach((c) => L.push(`- ${e(c)}`));
+        L.push("");
+        L.push(`Based on: ${e(r.fix.checks.map((c) => c.title).join("; "))}`);
+        L.push("");
+      }
+    }
+
+    const bad = results.filter((r) => r.error);
+    if (bad.length) {
+      L.push("## Failures");
+      L.push("");
+      for (const r of bad) {
+        L.push(`- **${e(r.fix.newName)}** — ${e(r.error)}. \`${e(r.fix.originalName)}\` was left untouched.`);
+      }
+      L.push("");
+    }
+    L.push("---");
+    L.push("");
+    L.push("Every created policy is disabled. Review it, switch it to report-only, check the sign-in impact, then enable.");
+    return L.join("\n");
+  }
 
   // all generated policies in one zip, alongside a README describing them
   $("mlFixZip").addEventListener("click", async () => {

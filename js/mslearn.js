@@ -662,13 +662,58 @@ const MSLearn = (() => {
     return `${m[1]}${m[2]}${parts.join(".")}`;
   }
 
-  // Fields Graph rejects (or that must not travel) on a create.
+  // ---- turning a policy read from Graph into something Graph will accept ----
+  // A GET on the beta endpoint returns far more than a POST will take:
+  //   * read-only fields (id, createdDateTime, modifiedDateTime, templateId…)
+  //   * OData annotations — both links (@odata.context / editLink /
+  //     associationLink / navigationLink) and the sibling type hints Graph adds
+  //     next to collections ("includeUsers@odata.type": "#Collection(String)")
+  //   * grantControls.authenticationStrength expanded to the whole strength
+  //     object, where a create only accepts a reference
+  // Posting any of those back is a 400 "malformed or incorrect".
+
   const STRIP = ["id", "createdDateTime", "modifiedDateTime", "templateId", "deletedDateTime", "partialEnablementStrategy"];
 
+  // Keep a genuine type discriminator ("@odata.type": "#microsoft.graph.…"),
+  // which derived types such as conditionalAccessEnumeratedExternalTenants
+  // need; drop every other annotation and every action key ("#microsoft…").
+  function stripOdata(o) {
+    if (Array.isArray(o)) return o.map(stripOdata);
+    if (o && typeof o === "object") {
+      const out = {};
+      for (const [k, v] of Object.entries(o)) {
+        if (k.startsWith("#")) continue;                       // action/function bindings
+        if (k.includes("@odata")) {
+          const keep = k === "@odata.type" && typeof v === "string" && v.startsWith("#microsoft.graph.");
+          if (!keep) continue;
+        }
+        out[k] = stripOdata(v);
+      }
+      return out;
+    }
+    return o;
+  }
+
   function draftFrom(raw) {
-    const d = JSON.parse(JSON.stringify(raw));
+    const d = stripOdata(JSON.parse(JSON.stringify(raw)));
     STRIP.forEach((k) => delete d[k]);
+    // a create takes a reference to the authentication strength, not the policy
+    const as = d.grantControls?.authenticationStrength;
+    if (as) d.grantControls.authenticationStrength = { id: as.id };
     d.conditions = d.conditions || {};
+    return d;
+  }
+
+  // Graph rejects an empty controls object — a fix that removes the last
+  // session control has to leave null behind, not {}.
+  function tidy(d) {
+    const empty = (o) => !o || Object.keys(o).filter((k) => o[k] !== null && o[k] !== undefined).length === 0;
+    if (empty(d.sessionControls)) d.sessionControls = null;
+    const g = d.grantControls;
+    if (g && !(g.builtInControls || []).length && !g.authenticationStrength
+        && !(g.termsOfUse || []).length && !(g.customAuthenticationFactors || []).length) {
+      d.grantControls = null;
+    }
     return d;
   }
 
@@ -702,6 +747,7 @@ const MSLearn = (() => {
     const fixes = [];
     for (const e of byPolicy.values()) {
       if (!e.changes.length) continue;
+      tidy(e.draft);
       e.draft.displayName = bumpVersion(e.originalName);
       e.draft.state = "disabled";             // never auto-enable a generated policy
       e.newName = e.draft.displayName;

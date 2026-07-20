@@ -270,7 +270,13 @@ const Importer = (() => {
     if (Array.isArray(o)) return o.map(stripOdata);
     if (o && typeof o === "object") {
       const r = {};
-      for (const [k, v] of Object.entries(o)) if (!k.includes("@odata")) r[k] = stripOdata(v);
+      for (const [k, v] of Object.entries(o)) {
+        if (k.startsWith("#")) continue;
+        // keep a genuine type discriminator (derived types need it), drop the
+        // links and the sibling "xxx@odata.type": "#Collection(String)" hints
+        if (k.includes("@odata") && !(k === "@odata.type" && typeof v === "string" && v.startsWith("#microsoft.graph."))) continue;
+        r[k] = stripOdata(v);
+      }
       return r;
     }
     return o;
