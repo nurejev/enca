@@ -835,12 +835,15 @@
     $("imGo").disabled = true;
     try {
       let depLog = { created: [], reused: [], warnings: [] }, maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, personaGroupIds: {} }, res = { results: [], warnings: [] };
+      // Only build the dependencies the CHOSEN policies need — importing one
+      // persona should not create every group in a whole-tenant backup.
+      const scoped = Importer.scopeBundle(imBundle, chosen.map(p => p.raw));
       if (isDemo) {
         chosen.forEach(p => { if (p.personaGroup) maps.personaGroupIds[p.personaGroup] = "g-" + p.personaGroup; });
         res.results = chosen.map(p => ({ name: p.name, ok: true, persona: p.persona, personaGroup: p.personaGroup }));
-        depLog.created = imBundle.groups.map(g => "Group: " + g.displayName);
+        depLog.created = scoped.groups.map(g => "Group: " + g.displayName);
       } else {
-        const dep = await Importer.ensureDependencies(imBundle, (m) => toast(esc(m)));
+        const dep = await Importer.ensureDependencies(scoped, (m) => toast(esc(m)));
         depLog = dep.log; maps = dep.maps;
         res = await Importer.importPolicies(chosen, maps, (m) => toast(esc(m)));
       }

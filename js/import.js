@@ -128,6 +128,28 @@ const Importer = (() => {
   }
 
   // ---------- dependencies: create-if-missing, build old-id → new-id maps ----------
+  // Narrow a bundle to only the dependencies the chosen policies actually
+  // reference, so importing one persona does not create all 97 groups. Matching
+  // is by id presence in the raw policy JSON — a dependency object is kept if
+  // any chosen policy mentions its id anywhere (include/exclude group, location,
+  // auth strength/context, terms of use, or a {{…}} placeholder by name).
+  function scopeBundle(bundle, chosenRaws) {
+    const blobs = chosenRaws.map(r => JSON.stringify(r));
+    const used = (id) => id != null && blobs.some(b => b.includes(id));
+    const keep = (arr) => (arr || []).filter(x => used(x.id));
+    // placeholders reference by name, e.g. {{group:CAB-SEC-U-Persona-Admins}}
+    const usedName = (name) => name && blobs.some(b => b.includes(name));
+    return {
+      ...bundle,
+      policies: chosenRaws,
+      groups: (bundle.groups || []).filter(g => used(g.id) || usedName(g.displayName)),
+      namedLocations: keep(bundle.namedLocations),
+      authStrengths: keep(bundle.authStrengths),
+      authContexts: keep(bundle.authContexts),
+      termsOfUse: keep(bundle.termsOfUse),
+    };
+  }
+
   async function ensureDependencies(bundle, onStatus) {
     const maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, ph: {} };
     const log = { created: [], reused: [], warnings: [] };
@@ -407,5 +429,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, personaOf, isEAdmins, parseCaVersion, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, personaOf, isEAdmins, parseCaVersion, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();
