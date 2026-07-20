@@ -32,9 +32,11 @@ const Render = (() => {
   // List view grouped by persona (CA number range), with a collapsible header row
   // and a group-level select checkbox.
   function listRows(policies, selected, stateFilter, query, collapsed) {
+    // Match name + persona label, so "guest" finds Guest admins (named G_Admin).
+    const hay = (p) => `${p.name} ${caGroup(p.name).label || ""}`.toLowerCase();
     const vis = policies
       .filter(p => stateFilter === "all" || p.state === stateFilter)
-      .filter(p => !query || p.name.toLowerCase().includes(query));
+      .filter(p => !query || hay(p).includes(query));
     const groups = new Map();
     vis.forEach(p => {
       const g = caGroup(p.name);

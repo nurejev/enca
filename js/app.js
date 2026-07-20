@@ -245,9 +245,18 @@
     catch { toast("Could not copy — use Download instead"); }
   });
 
+  // Search matches the policy name AND its persona label, so "guest" finds the
+  // Guest admins group even though those policies are named "G_Admin", and
+  // "service account" finds CA600s named "MSA". Without this, searching by the
+  // persona you see on screen silently misses policies named by convention.
+  function policyHaystack(p) {
+    let label = "";
+    try { label = Render.caGroup(p.name).label || ""; } catch { /* unnumbered */ }
+    return `${p.name} ${label}`.toLowerCase();
+  }
   function visible() {
     return policies.filter(p => (stateFilter === "all" || p.state === stateFilter)
-      && (!query || p.name.toLowerCase().includes(query)));
+      && (!query || policyHaystack(p).includes(query)));
   }
 
   // ---------- views ----------
