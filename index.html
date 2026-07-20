@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=94">
+<link rel="stylesheet" href="css/app.css?v=95">
 </head>
 <body>
 
@@ -102,9 +102,9 @@
         <div class="tool-ic">🗄</div><h3>Backup (JSON)</h3>
         <p>Select policies (or take all) and download their raw JSON definitions in a zip.</p>
       </div>
-      <div class="tool" id="toolAssign">
-        <div class="tool-ic">👥</div><h3>Assign groups</h3>
-        <p>Change include/exclude groups — replace, add, or set to All Users. Scope to the selected policies or to every policy in the tenant. <span class="tag block">writes to tenant</span></p>
+      <div class="tool" id="toolCaGroups">
+        <div class="tool-ic">👥</div><h3>Conditional Access groups <span class="tag new">BETA</span></h3>
+        <p>Check the baseline groups against this tenant, create the missing ones, analyze their members in a matrix, and assign them to policies. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolState">
         <div class="tool-ic">🎚</div><h3>Set Policy state</h3>
@@ -131,13 +131,14 @@
         <b>MS Learn checks</b> compares your policies against exclusions, limitations and upcoming behavior changes documented on learn.microsoft.com —
         missing break-glass exclusions, token protection limits, Teams Rooms / Surface Hub impact, required app exclusions and control retirements — and can build the corrected policy for you (new version, state Off, downloadable; never written to your tenant).
         <b>Backup</b> downloads the raw JSON definitions of your policies in one zip.
-        <b>Assign groups</b> changes the include/exclude persona groups of selected policies (replace, add, or set to All Users) — the only tool that writes to your tenant, always behind an explicit review step.</p>
+        <b>Conditional Access groups</b> is the one place the groups live: it checks the tenant against the expected baseline set, creates the missing ones,
+        reads their members into a members × groups matrix, and assigns them to policies (replace, add, or set to All Users) — always behind an explicit review step.</p>
 
       <h4>Permissions</h4>
       <p>The app uses <b>delegated, read-only</b> Microsoft Graph permissions for its base tools, consented once per tenant by an administrator —
         see the permission overview above for the exact scopes and their live status.
         The read-only tools never write to your tenant, and the signed-in user only needs a reader role such as Security Reader or Global Reader.
-        The <b>Assign groups</b> tool additionally requests <code>Policy.ReadWrite.ConditionalAccess</code> on demand (incremental consent) and requires a role
+        The <b>Conditional Access groups</b> tool additionally requests <code>Policy.ReadWrite.ConditionalAccess</code> on demand (incremental consent) and requires a role
         that can edit Conditional Access, such as Conditional Access Administrator or Security Administrator.
         Creating missing groups (assigned groups always role-assignable; dynamic groups keep their membership rule) additionally requests
         <code>Group.ReadWrite.All</code> and <code>RoleManagement.ReadWrite.Directory</code> and requires the Privileged Role Administrator role.</p>
@@ -353,6 +354,30 @@
   </div>
 
   <!-- ============ BASELINE POLICIES ============ -->
+  <!-- ============ CONDITIONAL ACCESS GROUPS ============ -->
+  <section id="screen-cagroups" class="screen">
+    <div class="list-card readme" id="cgHead" style="margin-top:0"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="cgSearch" placeholder="Search group name, object ID or member…">
+      </div>
+      <div class="seg" id="cgTabs">
+        <button class="active" data-cgtab="check">① Check</button>
+        <button data-cgtab="create">② Create</button>
+        <button data-cgtab="members">③ Members</button>
+        <button data-cgtab="assign">④ Assign</button>
+      </div>
+      <div class="chip-filter" id="cgChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="cgFull" style="display:none" title="Open the members matrix full screen">⤢ Full screen</button>
+        <button class="btn" id="cgRefresh" title="Re-scan the tenant">⟳ Refresh</button>
+        <button class="btn" id="cgMd">Export MD</button>
+      </div>
+    </div>
+    <div id="cgBody"></div>
+  </section>
+
   <section id="screen-baseline" class="screen">
     <div class="list-card readme" id="blHead" style="margin-top:0"></div>
     <div class="toolbar" style="margin-top:14px">
@@ -575,24 +600,25 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=94"></script>
-<script src="js/authConfig.js?v=94"></script>
-<script src="js/labels.js?v=94"></script>
-<script src="js/graph.js?v=94"></script>
-<script src="js/model.js?v=94"></script>
-<script src="js/render.js?v=94"></script>
-<script src="js/analyze.js?v=94"></script>
-<script src="js/mslearn.js?v=94"></script>
-<script src="js/gapcheck.js?v=94"></script>
-<script src="js/exclusions.js?v=94"></script>
-<script src="js/baselineData.js?v=94"></script>
-<script src="js/baselineJoeyData.js?v=94"></script>
-<script src="js/baseline.js?v=94"></script>
-<script src="js/groupTemplates.js?v=94"></script>
-<script src="js/assign.js?v=94"></script>
-<script src="js/import.js?v=94"></script>
-<script src="js/export.js?v=94"></script>
-<script src="js/demo.js?v=94"></script>
-<script src="js/app.js?v=94"></script>
+<script src="js/version.js?v=95"></script>
+<script src="js/authConfig.js?v=95"></script>
+<script src="js/labels.js?v=95"></script>
+<script src="js/graph.js?v=95"></script>
+<script src="js/model.js?v=95"></script>
+<script src="js/render.js?v=95"></script>
+<script src="js/analyze.js?v=95"></script>
+<script src="js/mslearn.js?v=95"></script>
+<script src="js/gapcheck.js?v=95"></script>
+<script src="js/exclusions.js?v=95"></script>
+<script src="js/baselineData.js?v=95"></script>
+<script src="js/baselineJoeyData.js?v=95"></script>
+<script src="js/baseline.js?v=95"></script>
+<script src="js/groupTemplates.js?v=95"></script>
+<script src="js/assign.js?v=95"></script>
+<script src="js/cagroups.js?v=95"></script>
+<script src="js/import.js?v=95"></script>
+<script src="js/export.js?v=95"></script>
+<script src="js/demo.js?v=95"></script>
+<script src="js/app.js?v=95"></script>
 </body>
 </html>

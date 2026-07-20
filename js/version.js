@@ -8,7 +8,7 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 94,
+  build: 95,
   date: "2026-07-20",
   get label() { return `v${this.version}.${this.build}`; },
   get full() { return `${this.label} · ${this.date}`; },
@@ -27,7 +27,7 @@ const TOOL_VERSIONS = {
   toolBaselineJoey: { v: "1.1", note: "Joey Verlinden catalog 2026.6.1, verified against commit 38469a4" },
   toolMsLearn:      { v: "1.9", note: "17 documented checks, 14 buildable fixes, apply-in-tenant with service-principal creation and change report" },
   toolJson:         { v: "1.2", note: "policy zip including dependencies and terms-of-use PDFs" },
-  toolAssign:       { v: "1.3", note: "persona group assignment, role-assignable group creation, any-group search, tenant-wide scope" },
+  toolCaGroups:     { v: "1.0", note: "baseline group check, creation, members × groups matrix, and policy assignment in one tool" },
   toolState:        { v: "1.0", note: "On / report-only / Off switching" },
   toolImport:       { v: "1.4", note: "dependencies first, persona remapping, placeholder resolution, change report, on-screen report, claims-challenge step-up" },
 };

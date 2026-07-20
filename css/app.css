@@ -111,6 +111,20 @@ table.plist tr:hover td{background:var(--hover)}
 .sel-actions .btn.danger:hover{background:var(--off);border-color:var(--off);color:#fff}
 .sel-sep{width:1px;align-self:stretch;background:var(--ghost-bd);margin:0 2px}
 
+/* ---------- Conditional Access groups ---------- */
+.cg-table td{vertical-align:top}
+.cg-table .cg-ic{text-align:center;font-weight:700}
+.cg-ic.ok{color:var(--on)} .cg-ic.bad{color:var(--off)} .cg-ic.warn{color:var(--report)} .cg-ic.info{color:var(--na)}
+.cg-row{cursor:pointer}
+.cg-row:hover{background:var(--ok-bg2)}
+.cg-err{color:var(--off);font-weight:600}
+.cg-matrix td.cellv{text-align:center;color:var(--on);font-size:15px}
+.cg-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-top:14px}
+.cg-panel h4{font-size:13px;margin-bottom:8px}
+.cg-progress{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin:10px 0}
+.cg-progress > div{height:100%;background:var(--green);transition:width .2s}
+.cg-pick{max-height:44vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-top:8px}
+
 /* rendered Markdown report inside the viewer overlay */
 .md-view{max-height:62vh;overflow:auto;padding-right:6px;font-size:13px;line-height:1.6}
 .md-view h1{font-size:18px;margin:0 0 10px}

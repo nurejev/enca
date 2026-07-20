@@ -386,12 +386,12 @@
     { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
     { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
-    { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies", tools: "Assign groups, Set Policy state, Import, MS Learn apply", onDemand: true },
+    { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies", tools: "CA groups (assign), Set Policy state, Import, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
     { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
-    { scope: "Group.ReadWrite.All", use: "Create missing persona groups", tools: "Assign groups", onDemand: true },
-    { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable", tools: "Assign groups", onDemand: true },
+    { scope: "Group.ReadWrite.All", use: "Create missing persona groups", tools: "CA groups (create)", onDemand: true },
+    { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable", tools: "CA groups (create)", onDemand: true },
   ];
   async function renderPermissions() {
     const el = $("permOverview");
@@ -722,11 +722,288 @@
     } finally { $("imGo").disabled = false; }
   });
 
-  // Assign-groups tool: select policies in the overview, then run the wizard.
-  $("toolAssign").addEventListener("click", () => {
-    setToolMode("assign"); setView("cards"); show("screen-list");
-    toast("Assign mode — select the policies to change, then click <span>Assign groups</span>");
+  // ---------- Conditional Access groups ----------
+  // One tool for the group side of the baseline: check what exists, create what
+  // does not, read who is in them, and assign them to policies. The assign step
+  // is the former standalone tool, unchanged — it just lives here now, next to
+  // the groups it assigns.
+  let cgRes = null, cgTab = "check", cgFilter = "all", cgQuery = "", cgBusy = false, cgStop = false;
+
+  $("toolCaGroups").addEventListener("click", () => openCaGroups());
+
+  async function openCaGroups(keepTab) {
+    show("screen-cagroups");
+    if (!keepTab) { cgTab = "check"; cgFilter = "all"; cgQuery = ""; $("cgSearch").value = ""; }
+    if (!cgRes) {
+      $("cgHead").innerHTML = '<p class="mini">Scanning groups…</p>';
+      $("cgChips").innerHTML = ""; $("cgBody").innerHTML = "";
+      try {
+        cgRes = isDemo ? demoGroupScan() : await CaGroups.scan(policies, {
+          onStatus: (m) => { const el = $("cgHead").querySelector("p"); if (el) el.textContent = m; },
+        });
+      } catch (e) {
+        console.error(e);
+        $("cgHead").innerHTML = `<p class="mini" style="color:var(--off)">Group scan failed: ${esc(e.message || e)}</p>`;
+        return;
+      }
+    }
+    renderCaGroups();
+  }
+
+  // Demo mode has no directory, so synthesise a scan that still exercises every
+  // status — otherwise the demo silently shows an empty tool.
+  function demoGroupScan() {
+    const names = (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []).slice(0, 24);
+    const rows = names.map((t, i) => ({
+      name: t.displayName, status: i % 5 === 0 ? "missing" : "present",
+      sources: ["template"], template: t, id: i % 5 === 0 ? null : "g-demo-" + i,
+      description: t.description || "", roleAssignable: !t.membershipRule,
+      dynamic: !!t.membershipRule, membershipRule: t.membershipRule || "",
+      refs: { include: [], exclude: [] }, refCount: i % 3,
+      members: null, memberTotal: null, memberError: null, drift: null,
+    }));
+    const counts = rows.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
+    const expectedTotal = rows.length;
+    return { rows, counts, expectedTotal, present: counts.present || 0,
+      coverage: Math.round(((counts.present || 0) / expectedTotal) * 100), scanned: new Date() };
+  }
+
+  function renderCaGroups() {
+    if (!cgRes) return;
+    $("cgHead").innerHTML = CaGroups.renderSummary(cgRes, tenantName);
+    [...document.querySelectorAll("#cgTabs button")].forEach(b =>
+      b.classList.toggle("active", b.dataset.cgtab === cgTab));
+    $("cgChips").innerHTML = cgTab === "check" ? CaGroups.chips(cgRes, cgFilter) : "";
+    $("cgChips").style.display = cgTab === "check" ? "flex" : "none";
+    $("cgFull").style.display = cgTab === "members" ? "inline-flex" : "none";
+    $("cgSearch").placeholder = cgTab === "members"
+      ? "Search member name or UPN…" : "Search group name or object ID…";
+    $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" ? "none" : "";
+
+    if (cgTab === "check") {
+      $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery);
+    } else if (cgTab === "create") {
+      renderCgCreate();
+    } else if (cgTab === "members") {
+      renderCgMembers();
+    } else {
+      renderCgAssign();
+    }
+  }
+
+  // ---- ② create ----
+  function renderCgCreate() {
+    const can = CaGroups.creatable(cgRes);
+    const cannot = CaGroups.missingNoTemplate(cgRes);
+    if (!can.length && !cannot.length) {
+      $("cgBody").innerHTML = '<div class="cg-panel"><h4>Nothing to create</h4><p class="mini">Every expected group already exists in this tenant.</p></div>';
+      return;
+    }
+    $("cgBody").innerHTML = `<div class="cg-panel">
+      <h4>CREATE MISSING GROUPS (${can.length})</h4>
+      <p class="mini">Assigned groups are created <b>role-assignable</b> (<code>isAssignableToRole: true</code> — immutable, so it is set at creation).
+        Templates with a membership rule are created <b>dynamic</b> with the rule intact and are not role-assignable, because Entra forbids the combination.
+        A group that already exists under the same name is reused, never duplicated.
+        Requires the Privileged Role Administrator role; consents <code>Group.ReadWrite.All</code> + <code>RoleManagement.ReadWrite.Directory</code> on demand.</p>
+      <div class="cg-pick">${can.map((r, i) =>
+        `<label class="chk" style="margin:5px 0"><input type="checkbox" data-cgcreate="${i}" checked> ${esc(r.name)}
+          <span class="mini muted">${r.template.membershipRule ? "dynamic" : "role-assignable"}</span></label>`).join("")}</div>
+      <div class="cg-progress" id="cgCreateBar" style="display:none"><div style="width:0%"></div></div>
+      <div id="cgCreateLog" class="mini" style="margin-top:8px"></div>
+      <div class="row" style="justify-content:flex-start;margin-top:12px">
+        <button class="btn" id="cgCreateNone">Clear all</button>
+        <button class="btn" id="cgCreateAll">Select all</button>
+        <button class="btn primary" id="cgCreateGo">Create selected${isDemo ? " (simulated)" : ""}</button>
+      </div>
+      ${cannot.length ? `<p class="mini" style="margin-top:14px;color:var(--report)">⚠ ${cannot.length} expected group${cannot.length === 1 ? " has" : "s have"} no template
+        (named by a baseline catalog but not in the bundled group export), so the membership model and mail nickname are unknown.
+        Create ${cannot.length === 1 ? "it" : "them"} in the Assign step or in Entra: ${cannot.map(r => `<b>${esc(r.name)}</b>`).join(", ")}.</p>` : ""}
+    </div>`;
+  }
+
+  $("cgBody").addEventListener("click", async (e) => {
+    if (e.target.id === "cgCreateAll" || e.target.id === "cgCreateNone") {
+      const on = e.target.id === "cgCreateAll";
+      document.querySelectorAll("[data-cgcreate]").forEach(cb => { cb.checked = on; });
+      return;
+    }
+    if (e.target.id === "cgCreateGo") {
+      const can = CaGroups.creatable(cgRes);
+      const picked = [...document.querySelectorAll("[data-cgcreate]:checked")].map(cb => can[+cb.dataset.cgcreate]).filter(Boolean);
+      if (!picked.length) { toast("Nothing selected to create"); return; }
+      e.target.disabled = true;
+      const bar = $("cgCreateBar"), log = $("cgCreateLog");
+      bar.style.display = "block";
+      const lines = [];
+      let ok = 0, failed = 0;
+      for (let i = 0; i < picked.length; i++) {
+        const r = picked[i];
+        bar.firstElementChild.style.width = `${Math.round(((i + 1) / picked.length) * 100)}%`;
+        try {
+          const g = isDemo
+            ? { id: "g-" + r.name, name: r.name, created: true }
+            : await Assign.createGroup(r.template);
+          ok++;
+          lines.push(`<div>${g.created ? "✓ created" : "• already existed, reused"} <b>${esc(r.name)}</b></div>`);
+        } catch (err) {
+          failed++;
+          lines.push(`<div style="color:var(--off)">✗ <b>${esc(r.name)}</b> — ${esc(err.message || err)}</div>`);
+        }
+        log.innerHTML = lines.join("");
+      }
+      e.target.disabled = false;
+      toast(failed ? `${ok} created, <span>${failed} failed</span>` : `<span>${ok}</span> group${ok === 1 ? "" : "s"} created${isDemo ? " (simulated)" : ""}`);
+      // Re-scan so Check reflects reality rather than what we hoped happened.
+      cgRes = null;
+      await openCaGroups(true);
+      cgTab = "check"; renderCaGroups();
+      return;
+    }
+    if (e.target.id === "cgMemberGo") { startMemberScan(); return; }
+    if (e.target.id === "cgMemberStop") { cgStop = true; return; }
+    // a row in the check table opens that group's detail
+    const row = e.target.closest("[data-cgrow]");
+    if (row) showGroupRow(row.dataset.cgrow);
   });
+
+  // ---- ③ members ----
+  function renderCgMembers() {
+    const scanned = cgRes.rows.filter(r => r.members);
+    if (!scanned.length && !cgBusy) {
+      const n = cgRes.rows.filter(r => r.id).length;
+      $("cgBody").innerHTML = `<div class="cg-panel">
+        <h4>MEMBER SCAN</h4>
+        <p class="mini">Reading members costs one Graph call per group — ${n} group${n === 1 ? "" : "s"} here, so it runs on demand rather than on every visit.
+          Membership is read <b>transitively</b>, so a user nested through another group still shows up. Groups larger than ${CaGroups.MEMBER_CAP} members are counted in full but listed to the cap.</p>
+        <div class="row" style="justify-content:flex-start;margin-top:12px">
+          <button class="btn primary" id="cgMemberGo">Read members of ${n} group${n === 1 ? "" : "s"}</button>
+        </div>
+      </div>`;
+      return;
+    }
+    if (cgBusy) {
+      $("cgBody").innerHTML = `<div class="cg-panel">
+        <h4>READING MEMBERS…</h4>
+        <div class="cg-progress"><div id="cgMemBar" style="width:0%"></div></div>
+        <p class="mini" id="cgMemStatus">Starting…</p>
+        <div class="row" style="justify-content:flex-start;margin-top:12px"><button class="btn" id="cgMemberStop">Stop</button></div>
+      </div>`;
+      return;
+    }
+    const m = CaGroups.matrix(cgRes.rows);
+    const empties = m.empty.length
+      ? `<p class="mini" style="margin:10px 0;color:var(--report)">⚠ ${m.empty.length} group${m.empty.length === 1 ? " is" : "s are"} empty:
+         ${m.empty.map(c => `<b>${esc(c.name)}</b>`).join(", ")} — a policy scoped to an empty include group applies to nobody;
+         an empty exclude group excludes nobody.</p>` : "";
+    const errs = cgRes.rows.filter(r => r.memberError);
+    $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">
+        ${m.users.length} distinct member${m.users.length === 1 ? "" : "s"} across ${m.cols.length} group${m.cols.length === 1 ? "" : "s"}.
+        <button class="btn sm" id="cgMemberGo" style="margin-left:8px">⟳ Re-read members</button>
+      </div>${empties}
+      ${errs.length ? `<p class="mini" style="color:var(--off)">${errs.length} group${errs.length === 1 ? "" : "s"} could not be read: ${errs.map(r => esc(r.name)).join(", ")}</p>` : ""}
+      ${CaGroups.renderMatrix(m, cgQuery)}`;
+  }
+
+  async function startMemberScan() {
+    cgBusy = true; cgStop = false; renderCaGroups();
+    try {
+      if (isDemo) {
+        cgRes.rows.filter(r => r.id).forEach((r, i) => {
+          r.memberTotal = i % 4; r.members = Array.from({ length: i % 4 }, (_, k) =>
+            ({ id: `u${k}-${i}`, name: `Demo user ${k + 1}`, upn: `demo${k + 1}@contoso.com`, disabled: false }));
+        });
+      } else {
+        await CaGroups.loadMembers(cgRes.rows, {
+          shouldStop: () => cgStop,
+          onStatus: (msg, i, n) => {
+            const s = $("cgMemStatus"), b = $("cgMemBar");
+            if (s) s.textContent = msg;
+            if (b) b.style.width = `${Math.round((i / n) * 100)}%`;
+          },
+        });
+      }
+      if (cgStop) toast("Member scan <span>stopped</span> — showing what was read so far");
+    } catch (e) {
+      console.error(e); toast(`Member scan failed: <span>${esc(e.message || e)}</span>`);
+    } finally {
+      cgBusy = false; renderCaGroups();
+    }
+  }
+
+  // ---- ④ assign ----
+  function renderCgAssign() {
+    const n = selected.size;
+    $("cgBody").innerHTML = `<div class="cg-panel">
+      <h4>ASSIGN GROUPS TO POLICIES</h4>
+      <p class="mini">Set or add the include/exclude groups of your policies. Scope it to the policies you ticked in
+        <b>List Policies</b>, or to every policy in the tenant — the latter is how a break-glass or service-account
+        exclusion gets onto everything without missing one. <b>ADD to EXCLUDE</b> is the only additive action; the
+        others replace what is there.</p>
+      <p class="mini" style="margin-top:8px">${n
+        ? `<b>${n}</b> polic${n === 1 ? "y is" : "ies are"} currently selected.`
+        : "Nothing is selected right now, so the wizard will open scoped to <b>all policies</b> — you can change that in step 1."}</p>
+      <div class="row" style="justify-content:flex-start;margin-top:12px">
+        <button class="btn primary" id="cgAssignGo">Open the assign wizard →</button>
+        <button class="btn" id="cgAssignPick">Pick policies first</button>
+      </div>
+    </div>`;
+  }
+  $("cgBody").addEventListener("click", (e) => {
+    if (e.target.id === "cgAssignGo") { openAssign(selected.size ? "selection" : "all"); return; }
+    if (e.target.id === "cgAssignPick") {
+      setToolMode("assign"); setView("cards"); show("screen-list");
+      toast("Tick the policies, then use <span>Assign groups</span> on the selection bar");
+    }
+  });
+
+  // Detail of one group row — the policies that use it and its members.
+  function showGroupRow(name) {
+    const r = cgRes.rows.find(x => x.name === name); if (!r) return;
+    const list = (arr, how) => arr.length
+      ? `<h5 class="mini" style="margin:10px 0 4px">${how} (${arr.length})</h5><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${arr.map(p => `<li>${esc(p.name)}</li>`).join("")}</ul>` : "";
+    $("depTitle").textContent = r.name;
+    $("depBody").innerHTML = `
+      <p class="mini">${r.id ? `Object ID <code>${esc(r.id)}</code>` : "Not present in this tenant"}
+        · ${r.status === "missing" ? "missing" : r.dynamic ? "dynamic" : r.roleAssignable ? "role-assignable" : "assigned"}
+        · expected by ${r.sources.join(", ")}</p>
+      ${r.description ? `<p class="mini">${esc(r.description)}</p>` : ""}
+      ${r.membershipRule ? `<p class="mini">Membership rule: <code>${esc(r.membershipRule)}</code></p>` : ""}
+      ${r.drift ? `<p class="mini" style="color:var(--report)">⚠ ${esc(r.drift)}</p>` : ""}
+      ${list(r.refs.include, "Included in")}
+      ${list(r.refs.exclude, "Excluded from")}
+      ${!r.refCount ? '<p class="mini muted" style="margin-top:10px">No policy references this group.</p>' : ""}
+      ${r.members ? `<h5 class="mini" style="margin:10px 0 4px">Members (${r.memberTotal})</h5>
+        <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${r.members.map(m => `<li>${esc(m.name)} <span class="mini muted">${esc(m.upn || "")}</span>${m.disabled ? ' <span class="tag block">disabled</span>' : ""}</li>`).join("") || '<li class="mini">No members</li>'}</ul>` : ""}`;
+    $("depModal").classList.add("open");
+  }
+
+  $("cgTabs").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cgtab]"); if (!b) return;
+    cgTab = b.dataset.cgtab; cgQuery = ""; $("cgSearch").value = "";
+    renderCaGroups();
+  });
+  $("cgChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cgf]"); if (!b) return;
+    cgFilter = b.dataset.cgf; renderCaGroups();
+  });
+  $("cgSearch").addEventListener("input", (e) => { cgQuery = e.target.value.trim().toLowerCase(); renderCaGroups(); });
+  $("cgRefresh").addEventListener("click", async () => {
+    const btn = $("cgRefresh");
+    btn.disabled = true; btn.textContent = "⟳ Refreshing…";
+    try {
+      if (isDemo) loadDemo(); else await loadFromGraph(true);
+      cgRes = null;
+      await openCaGroups(true);
+      toast("Groups <span>re-scanned</span>");
+    } catch (e) { toast(`Refresh failed: <span>${esc(e.message || e)}</span>`); }
+    finally { btn.disabled = false; btn.textContent = "⟳ Refresh"; }
+  });
+  $("cgMd").addEventListener("click", () => {
+    if (!cgRes) return;
+    showReport("👥 Conditional Access groups", "CA-Groups",
+      CaGroups.toMd(cgRes, tenantName, cgRes.rows.some(r => r.members)));
+  });
+  $("cgFull").addEventListener("click", () => Fs.open("Members × groups", { body: $("cgBody") }));
 
   // ---------- assign-groups wizard ----------
   let asStep = 0, asAction = null, asGroups = [], asPolicies = [], asResults = null;
