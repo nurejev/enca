@@ -46,10 +46,23 @@ const MSLearn = (() => {
   //   * systemLabels is multi-valued: Entra only accepts -contains /
   //     -notContains on it. Using -ne is invalid grammar and Graph rejects
   //     the whole policy with a bare 400.
+  // Device filter matching the registration types token protection cannot
+  // support. Entra is strict here and gives nothing back but a bare 400:
+  //   * mode "exclude" means the rule identifies the devices to EXCLUDE, so
+  //     the conditions must be positive and joined with -or.
+  //   * systemLabels is multi-valued: only -contains / -notContains are legal.
+  //   * profileType is an enum — "RegisteredDevice", "SecureVM", "Printer",
+  //     "Shared", "IoT". Anything else (Autopilot self-deploying is NOT a
+  //     profileType) is rejected outright.
+  // Because the accepted systemLabels values are not contractual, the apply
+  // step falls back through simpler rules if Entra refuses this one.
   const TOKEN_PROT_DEVICE_RULE = 'device.systemLabels -contains "CloudPC" '
     + '-or device.systemLabels -contains "AzureVirtualDesktop" '
-    + '-or device.profileType -eq "AutopilotSelfDeploying" '
     + '-or device.profileType -eq "SecureVM"';
+  // progressively safer fallbacks, tried in order when a create is rejected
+  const TOKEN_PROT_DEVICE_FALLBACKS = [
+    'device.profileType -eq "SecureVM"',
+  ];
 
   // Add a group exclusion from ctx, or decline (null) when the tenant has no
   // group matching the convention — an invented exclusion is worse than none.
@@ -246,7 +259,7 @@ const MSLearn = (() => {
       requirement: "Unsupported registration types must be excluded via device filters: Surface Hub, Teams Rooms, Entra-joined AVD hosts and Cloud PCs, Autopilot self-deploying, bulk-enrolled devices and Azure VMs.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#known-limitations",
-      remediation: 'Add a device filter in EXCLUDE mode whose rule matches the unsupported types: device.systemLabels -contains "CloudPC" -or device.systemLabels -contains "AzureVirtualDesktop" -or device.profileType -eq "AutopilotSelfDeploying" -or device.profileType -eq "SecureVM". Note systemLabels is multi-valued, so it takes -contains, not -eq/-ne.',
+      remediation: 'Add a device filter in EXCLUDE mode whose rule matches the unsupported types, e.g. device.systemLabels -contains "CloudPC" -or device.systemLabels -contains "AzureVirtualDesktop" -or device.profileType -eq "SecureVM". Two gotchas: systemLabels is multi-valued so it takes -contains (not -eq/-ne), and profileType is an enum limited to RegisteredDevice / SecureVM / Printer / Shared / IoT — Autopilot self-deploying is not a profileType, exclude those devices another way.',
       fix: (d) => {
         const dev = d.conditions.devices || (d.conditions.devices = {});
         dev.deviceFilter = { mode: "exclude", rule: TOKEN_PROT_DEVICE_RULE };
@@ -887,6 +900,28 @@ const MSLearn = (() => {
     return res;
   }
 
+  // Entra will reject a policy without saying which property offended. Rather
+  // than fail the whole fix, offer progressively simpler payloads: the full
+  // one first, then the same policy with a reduced device filter, then with no
+  // device filter at all. The caller reports which variant actually landed.
+  function createVariants(f) {
+    const out = [{ json: f.json, note: null }];
+    let d;
+    try { d = JSON.parse(f.json); } catch { return out; }
+    if (d.conditions?.devices?.deviceFilter) {
+      for (const rule of TOKEN_PROT_DEVICE_FALLBACKS) {
+        const v = JSON.parse(f.json);
+        v.conditions.devices.deviceFilter = { mode: "exclude", rule };
+        out.push({ json: JSON.stringify(v, null, 2), note: `Device filter reduced to \`${rule}\` — Entra rejected the fuller rule` });
+      }
+      const bare = JSON.parse(f.json);
+      delete bare.conditions.devices;
+      out.push({ json: JSON.stringify(bare, null, 2),
+        note: "Device filter omitted — Entra rejected every variant. Add the unsupported-device exclusions by hand; see the remediation on the finding." });
+    }
+    return out;
+  }
+
   function renderFixes(res) {
     if (!res.fixes.length) {
       return `<div class="list-card" style="padding:40px;text-align:center">
@@ -937,5 +972,5 @@ const MSLearn = (() => {
       Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${missing}${cards}${note}`;
   }
 
-  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();

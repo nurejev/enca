@@ -1227,8 +1227,23 @@
       results.push(rec);
       btn.textContent = `Applying ${created + failed + 1}/${mlFixes.fixes.length}…`;
       try {
-        const body = JSON.parse(f.json);
-        const res = await Graph.gpost("/identity/conditionalAccess/policies", body, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
+        // Entra rejects some payloads without saying why; try the full policy
+        // first, then progressively simpler variants, so one awkward property
+        // does not cost the whole fix.
+        const variants = MSLearn.createVariants(f);
+        let res = null, lastErr = null;
+        for (let vi = 0; vi < variants.length; vi++) {
+          try {
+            res = await Graph.gpost("/identity/conditionalAccess/policies", JSON.parse(variants[vi].json), [...AUTH_CONFIG.scopes, ...ML_WRITE]);
+            if (vi > 0) {
+              rec.variantNote = variants[vi].note;
+              f.changes.push(variants[vi].note);
+              log("ok", `↻ ${esc(variants[vi].note)}`);
+            }
+            break;
+          } catch (err) { lastErr = err; res = null; }
+        }
+        if (!res) throw lastErr;
         created++; rec.created = true; rec.createdId = res && res.id;
         log("ok", `✓ Created <b>${esc(f.newName)}</b> (Off)`);
         if (del) {
@@ -1321,9 +1336,28 @@
       L.push("## Failures");
       L.push("");
       for (const r of bad) {
-        L.push(`- **${e(r.fix.newName)}** — ${e(r.error)}. \`${e(r.fix.originalName)}\` was left untouched.`);
+        L.push(`### ${e(r.fix.newName)}`);
+        L.push("");
+        L.push(`${e(r.error)}`);
+        L.push("");
+        L.push(`\`${e(r.fix.originalName)}\` was left untouched.`);
+        L.push("");
+        if (r.fix.changes.length) {
+          L.push("The adjustments it was trying to write:");
+          L.push("");
+          r.fix.changes.forEach((c) => L.push(`- ${e(c)}`));
+          L.push("");
+        }
+        // the payload is what a support case or a manual retry actually needs
+        L.push("<details><summary>Policy JSON that was rejected</summary>");
+        L.push("");
+        L.push("```json");
+        L.push(r.fix.json);
+        L.push("```");
+        L.push("");
+        L.push("</details>");
+        L.push("");
       }
-      L.push("");
     }
     L.push("---");
     L.push("");
