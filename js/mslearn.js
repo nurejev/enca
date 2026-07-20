@@ -730,7 +730,13 @@ const MSLearn = (() => {
       if (!raw) continue;
       let entry = byPolicy.get(f.policyId);
       if (!entry) {
-        entry = { policyId: f.policyId, originalName: raw.displayName || "(unnamed policy)", originalState: raw.state, draft: draftFrom(raw), changes: [], checks: [] };
+        entry = {
+          policyId: f.policyId, originalName: raw.displayName || "(unnamed policy)", originalState: raw.state,
+          // what the live policy targets: by definition those apps resolve in
+          // this tenant, so it is the safe fallback if a narrowing fix cannot apply
+          originalApps: (raw.conditions?.applications?.includeApplications || []).slice(),
+          draft: draftFrom(raw), changes: [], checks: [],
+        };
         byPolicy.set(f.policyId, entry);
       }
       let ch = null;
@@ -756,6 +762,64 @@ const MSLearn = (() => {
     }
     fixes.sort((a, b) => a.newName.localeCompare(b.newName));
     return { fixes, skipped };
+  }
+
+  // ---- app references must exist in the tenant --------------------------
+  // Several fixes add or narrow application references (the Defender mobile
+  // apps, the six token-protection apps, Azure VM Sign-In). Entra rejects a
+  // policy that names a service principal the tenant does not have — with a
+  // generic 400 that names nothing — so drop unknown ones before writing, and
+  // say so rather than letting the create fail.
+  const APP_LABEL = {
+    [EXCHANGE_ONLINE]: "Office 365 Exchange Online",
+    [SHAREPOINT_ONLINE]: "Office 365 SharePoint Online",
+    [TEAMS_SERVICE]: "Microsoft Teams Services",
+    [AZURE_VIRTUAL_DESKTOP]: "Azure Virtual Desktop",
+    [WINDOWS_365]: "Windows 365",
+    [WINDOWS_CLOUD_LOGIN]: "Windows Cloud Login",
+    [DEFENDER_ATP_XPLAT]: "MicrosoftDefenderATP XPlat",
+    [DEFENDER_TVM]: "Defender for Mobile TVM",
+  };
+
+  // every appId our fixes could introduce, so the caller can look them up once
+  function referencedAppIds(res) {
+    const ids = new Set();
+    for (const f of res.fixes) {
+      const a = f.draft.conditions?.applications || {};
+      [...(a.includeApplications || []), ...(a.excludeApplications || [])]
+        .forEach((x) => { if (/^[0-9a-f-]{36}$/i.test(x)) ids.add(String(x).toLowerCase()); });
+    }
+    return [...ids];
+  }
+
+  // existing: Set of lowercase appIds that DO resolve in the tenant
+  function pruneUnknownApps(res, existing) {
+    if (!existing) return res;
+    const known = (id) => existing.has(String(id).toLowerCase());
+    for (const f of res.fixes) {
+      const a = f.draft.conditions?.applications;
+      if (!a) continue;
+      const drop = (list, where) => {
+        if (!Array.isArray(list)) return list;
+        const gone = list.filter((x) => /^[0-9a-f-]{36}$/i.test(x) && !known(x));
+        if (!gone.length) return list;
+        const kept = list.filter((x) => !gone.includes(x));
+        f.changes.push(`Skipped ${gone.length} ${where} app reference${gone.length === 1 ? "" : "s"} — no service principal in this tenant: `
+          + gone.map((id) => `${APP_LABEL[id] || "app"} (${id})`).join(", "));
+        return kept;
+      };
+      a.excludeApplications = drop(a.excludeApplications, "excluded");
+      a.includeApplications = drop(a.includeApplications, "targeted");
+      // never leave a policy targeting nothing — fall back to what the live
+      // policy targeted, which is known to resolve in this tenant
+      if (!(a.includeApplications || []).length && (f.originalApps || []).length) {
+        a.includeApplications = f.originalApps.slice();
+        f.changes.push(`Kept the original target resources (${f.originalApps.join(", ")}): narrowing them would have left `
+          + "the policy targeting nothing, because none of the supported apps has a service principal in this tenant");
+      }
+      f.json = JSON.stringify(f.draft, null, 2);
+    }
+    return res;
   }
 
   function renderFixes(res) {
@@ -800,5 +864,5 @@ const MSLearn = (() => {
       Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${cards}${note}`;
   }
 
-  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, referencedAppIds, pruneUnknownApps, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();

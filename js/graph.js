@@ -50,12 +50,41 @@ const Graph = (() => {
       headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!r.ok) {
-      let msg = `Graph request failed (${r.status})`;
-      try { msg += ": " + ((await r.json()).error?.message || ""); } catch {}
-      throw new Error(msg);
-    }
+    if (!r.ok) throw await graphError(r);
     return r.status === 204 ? null : r.json();
+  }
+
+  // Graph's top-level 400 text is generic; the useful part is usually in
+  // error.code, error.details[] or innerError. Surface all of it, otherwise a
+  // failed write is undiagnosable.
+  async function graphError(r) {
+    let msg = `Graph request failed (${r.status})`;
+    try {
+      const e = (await r.json()).error || {};
+      const bits = [e.message, e.code && `code: ${e.code}`,
+        (e.details || []).map((d) => d.message || d.code).filter(Boolean).join("; "),
+        e.innerError && (e.innerError.code || e.innerError["request-id"]) &&
+          `inner: ${(e.innerError.code || "")} ${(e.innerError["request-id"] || "")}`.trim(),
+      ].filter(Boolean);
+      if (bits.length) msg += ": " + bits.join(" · ");
+    } catch { /* no JSON body */ }
+    return new Error(msg);
+  }
+
+  // Which of these appIds actually have a service principal in this tenant?
+  // A CA policy cannot reference an app that does not exist — Graph rejects the
+  // whole create with a generic 400, naming nothing.
+  async function existingAppIds(ids) {
+    const out = new Set();
+    const list = [...new Set((ids || []).map((i) => String(i).toLowerCase()).filter(isGuid))];
+    for (const part of chunk(list, 15)) {
+      try {
+        const flt = part.map((i) => `'${i}'`).join(",");
+        const sps = await ggetAll(`/servicePrincipals?$filter=appId in (${flt})&$select=appId`);
+        sps.forEach((sp) => out.add(String(sp.appId).toLowerCase()));
+      } catch (e) { console.warn("Service principal lookup failed:", e.message); }
+    }
+    return out;
   }
 
   // never attach the access token to anything but Microsoft Graph
@@ -91,11 +120,7 @@ const Graph = (() => {
       headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!r.ok) {
-      let msg = `Graph request failed (${r.status})`;
-      try { msg += ": " + ((await r.json()).error?.message || ""); } catch {}
-      throw new Error(msg);
-    }
+    if (!r.ok) throw await graphError(r);
     return r.status === 204 ? null : r.json();
   }
 
@@ -103,11 +128,7 @@ const Graph = (() => {
   async function gdelete(url, scopes) {
     const t = await token(scopes);
     const r = await fetch(safeGraphUrl(url), { method: "DELETE", headers: { Authorization: "Bearer " + t } });
-    if (!r.ok && r.status !== 404) {
-      let msg = `Graph request failed (${r.status})`;
-      try { msg += ": " + ((await r.json()).error?.message || ""); } catch {}
-      throw new Error(msg);
-    }
+    if (!r.ok && r.status !== 404) throw await graphError(r);
     return true;
   }
 
@@ -214,5 +235,5 @@ const Graph = (() => {
     } catch { return []; }
   }
 
-  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, grantedScopes, requestConsent, get account() { return account; } };
+  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, existingAppIds, grantedScopes, requestConsent, get account() { return account; } };
 })();

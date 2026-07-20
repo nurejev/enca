@@ -1061,6 +1061,15 @@
     ctx.sharedDevices = await findGroupByConvention(MSLearn.CONVENTION.sharedDevices);
 
     mlFixes = MSLearn.buildFixes(findings, scope.raws, ctx);
+    // A policy cannot reference a service principal the tenant does not have.
+    // Resolve every app our fixes touch and drop the ones that do not exist —
+    // otherwise Graph rejects the create with an unhelpful 400.
+    if (!isDemo) {
+      try {
+        const ids = MSLearn.referencedAppIds(mlFixes);
+        if (ids.length) MSLearn.pruneUnknownApps(mlFixes, await Graph.existingAppIds(ids));
+      } catch (e) { console.warn("App reference check failed:", e.message); }
+    }
     renderMsLearn();
   }
   $("mlDisabled").addEventListener("change", () => { runMsLearn(); });
