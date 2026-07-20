@@ -516,3 +516,8 @@ table.matrix tbody tr.hl-row > td.hl-col,
 .ml-op.create{background:var(--ok-bg);color:var(--on)}
 .ml-op.delete{background:var(--bad-bg);color:var(--off)}
 .ml-op.delete.skip{background:var(--soft);color:var(--muted);text-decoration:line-through}
+
+/* build stamp on the sign-in card */
+.build-stamp{margin-top:22px;padding-top:14px;border-top:1px solid var(--border);
+  font-size:11px;letter-spacing:.04em;color:var(--muted);font-family:ui-monospace,Consolas,monospace}
+footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospace,Consolas,monospace}

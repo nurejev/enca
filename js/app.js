@@ -47,6 +47,17 @@
     window.scrollTo(0, 0);
   }
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  // ---------- build stamp ----------
+  // Shown before sign-in so a stale deploy (or a cached tab) is obvious.
+  (function showBuild() {
+    if (typeof APP_BUILD === "undefined") return;
+    const stamp = $("buildStamp"), foot = $("buildStampFoot");
+    if (stamp) stamp.textContent = `${APP_BUILD.label} · ${APP_BUILD.date}`;
+    if (foot) foot.textContent = APP_BUILD.label;
+    // handy when someone reports a bug from a version you cannot see
+    console.info(`CA Doc ${APP_BUILD.full}`);
+  })();
+
   // ---------- theme: Auto (device) → Light → Dark ----------
   // Auto leaves data-theme off so the CSS prefers-color-scheme block decides;
   // the logo swaps to the dark-background variant through a CSS content: rule.
