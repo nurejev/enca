@@ -132,6 +132,16 @@ const Graph = (() => {
     return true;
   }
 
+  // Instantiating a Microsoft first-party app in the tenant. A CA policy can
+  // only reference an app that has a service principal here; for Microsoft's
+  // own apps the fix is to create one from the well-known appId — no consent
+  // is granted by doing so, it just materialises the object.
+  const APP_WRITE_SCOPES = ["Application.ReadWrite.All"];
+  async function createServicePrincipal(appId) {
+    const sp = await gpost("/servicePrincipals", { appId }, [...AUTH_CONFIG.scopes, ...APP_WRITE_SCOPES]);
+    return { id: sp.id, appId: sp.appId, displayName: sp.displayName };
+  }
+
   // Scopes needed only to CREATE role-assignable groups (requested on demand;
   // requires the Privileged Role Administrator role or Global Administrator).
   const GROUP_CREATE_SCOPES = ["Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"];
@@ -235,5 +245,5 @@ const Graph = (() => {
     } catch { return []; }
   }
 
-  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, existingAppIds, grantedScopes, requestConsent, get account() { return account; } };
+  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, existingAppIds, createServicePrincipal, grantedScopes, requestConsent, get account() { return account; } };
 })();

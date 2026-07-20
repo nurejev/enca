@@ -289,6 +289,7 @@
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
     { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies", tools: "Assign groups, Set Policy state, Import, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
+    { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups", tools: "Assign groups", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable", tools: "Assign groups", onDemand: true },
@@ -1067,7 +1068,7 @@
     if (!isDemo) {
       try {
         const ids = MSLearn.referencedAppIds(mlFixes);
-        if (ids.length) MSLearn.pruneUnknownApps(mlFixes, await Graph.existingAppIds(ids));
+        if (ids.length) MSLearn.markUnknownApps(mlFixes, await Graph.existingAppIds(ids));
       } catch (e) { console.warn("App reference check failed:", e.message); }
     }
     renderMsLearn();
@@ -1152,7 +1153,11 @@
     $("mlApplyTenant").textContent = tenantName || "this tenant";
     $("mlApplyDesc").innerHTML = `${n} new polic${n === 1 ? "y" : "ies"} will be created <b>Off (disabled)</b>, `
       + "each replacing the policy it was built from. Nothing is switched on — review and enable them yourself afterwards.";
-    $("mlApplyList").innerHTML = mlFixes.fixes.map((f) => `<div class="ml-apply-row">
+    const miss = mlFixes.missingApps || [];
+    $("mlApplyList").innerHTML = (miss.length ? `<div class="ml-apply-row">
+        <div><span class="ml-op create">CREATE</span> ${miss.length} Microsoft service principal${miss.length === 1 ? "" : "s"} — required before the policies can reference them</div>
+        <div class="mini">${miss.map((m) => `${esc(m.label)} (${esc(m.appId)})`).join(" · ")}</div>
+      </div>` : "") + mlFixes.fixes.map((f) => `<div class="ml-apply-row">
         <div><span class="ml-op create">CREATE</span> ${esc(f.newName)} <span class="mini">· Off</span></div>
         <div><span class="ml-op delete">DELETE</span> ${esc(f.originalName)} <span class="mini">· currently ${esc(f.originalState)}</span></div>
         <div class="mini">${f.changes.length} adjustment${f.changes.length === 1 ? "" : "s"}: ${esc(f.changes.join("; "))}</div>
@@ -1177,6 +1182,23 @@
     const log = (cls, msg) => { out.insertAdjacentHTML("beforeend", `<div class="ml-apply-row ${cls}">${msg}</div>`); out.scrollTop = out.scrollHeight; };
     let created = 0, deleted = 0, failed = 0;
     const results = [];
+    // Step 0: instantiate the Microsoft apps the fixes reference. A policy that
+    // names an app with no service principal is rejected outright, so this has
+    // to happen before any policy is written.
+    const spCreated = [], spFailed = [];
+    for (const m of (mlFixes.missingApps || [])) {
+      btn.textContent = "Creating service principals…";
+      try {
+        const sp = await Graph.createServicePrincipal(m.appId);
+        spCreated.push({ ...m, name: sp.displayName || m.label });
+        log("ok", `✓ Created service principal <b>${esc(sp.displayName || m.label)}</b> (${esc(m.appId)})`);
+      } catch (e) {
+        spFailed.push({ ...m, error: e.message || String(e) });
+        log("bad", `✗ Could not create the service principal for <b>${esc(m.label)}</b> (${esc(m.appId)}): ${esc(e.message || e)} — that app reference will be dropped.`);
+      }
+    }
+    // whatever could not be created must come out of the drafts
+    if (spFailed.length) MSLearn.dropApps(mlFixes, spFailed.map((x) => x.appId));
     for (const f of mlFixes.fixes) {
       const rec = { fix: f, created: false, deleted: false, error: null, deleteError: null };
       results.push(rec);
@@ -1204,7 +1226,7 @@
     }
     btn.textContent = "Done";
     log("", `<b>${created}</b> created · <b>${deleted}</b> deleted · <b>${failed}</b> failed. Reloading policies…`);
-    downloadText("CA-MSLearn-Applied", "md", "text/markdown", applyReport(results, { created, deleted, failed, del }));
+    downloadText("CA-MSLearn-Applied", "md", "text/markdown", applyReport(results, { created, deleted, failed, del, spCreated, spFailed }));
     toast(`${created} polic${created === 1 ? "y" : "ies"} created${deleted ? `, ${deleted} removed` : ""} <span>· change report downloaded</span>`);
     try { await loadFromGraph(true); } catch { /* surfaced by loadFromGraph */ }
     show("screen-mslearn");
@@ -1223,7 +1245,24 @@
     L.push(`- Created: **${sum.created}** (all in the **Off / disabled** state)`);
     L.push(`- Deleted: **${sum.deleted}**${sum.del ? "" : " — the originals were kept on purpose"}`);
     L.push(`- Failed: **${sum.failed}**`);
+    if ((sum.spCreated || []).length) L.push(`- Service principals created: **${sum.spCreated.length}**`);
+    if ((sum.spFailed || []).length) L.push(`- Service principals that could NOT be created: **${sum.spFailed.length}**`);
     L.push("");
+    if ((sum.spCreated || []).length) {
+      L.push("## Service principals created");
+      L.push("");
+      L.push("These Microsoft first-party apps had no service principal in the tenant, so the policies could not reference them.");
+      L.push("Creating one only materialises the object — no permissions are consented.");
+      L.push("");
+      sum.spCreated.forEach((m) => L.push(`- ${e(m.name || m.label)} — \`${e(m.appId)}\``));
+      L.push("");
+    }
+    if ((sum.spFailed || []).length) {
+      L.push("## Service principals that could not be created");
+      L.push("");
+      sum.spFailed.forEach((m) => L.push(`- ${e(m.label)} (\`${e(m.appId)}\`) — ${e(m.error)}. The reference was dropped from the policies that wanted it.`));
+      L.push("");
+    }
     L.push("| Result | New policy | Replaced | Adjustments |");
     L.push("| --- | --- | --- | --- |");
     for (const r of results) {

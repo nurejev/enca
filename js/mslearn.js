@@ -792,6 +792,62 @@ const MSLearn = (() => {
     return [...ids];
   }
 
+  // Record which referenced apps have no service principal yet. They are NOT
+  // removed: for Microsoft first-party apps the right answer is to create the
+  // service principal from the well-known appId and keep the reference, which
+  // the apply step does. Downloading the JSON instead? Then the note tells you
+  // which service principals to create first.
+  function markUnknownApps(res, existing) {
+    res.missingApps = [];
+    if (!existing) return res;
+    const seen = new Set();
+    for (const f of res.fixes) {
+      const a = f.draft.conditions?.applications || {};
+      const refs = [...(a.includeApplications || []), ...(a.excludeApplications || [])]
+        .filter((x) => /^[0-9a-f-]{36}$/i.test(x) && !existing.has(String(x).toLowerCase()));
+      f.missing = [...new Set(refs.map((x) => String(x).toLowerCase()))];
+      f.missing.forEach((id) => {
+        if (seen.has(id)) return;
+        seen.add(id);
+        res.missingApps.push({ appId: id, label: APP_LABEL[id] || "application" });
+      });
+      if (f.missing.length) {
+        f.changes.push(`Needs ${f.missing.length} Microsoft service principal${f.missing.length === 1 ? "" : "s"} that this tenant does not have yet: `
+          + f.missing.map((id) => `${APP_LABEL[id] || "app"} (${id})`).join(", ")
+          + " — these are created from their well-known app IDs when the fix is applied.");
+      }
+    }
+    return res;
+  }
+
+  // Fallback when a service principal could not be created after all: take the
+  // reference out so the policy itself can still be written.
+  function dropApps(res, appIds) {
+    const gone = new Set([...(appIds || [])].map((x) => String(x).toLowerCase()));
+    if (!gone.size) return res;
+    for (const f of res.fixes) {
+      const a = f.draft.conditions?.applications;
+      if (!a) continue;
+      const filter = (list) => (list || []).filter((x) => !gone.has(String(x).toLowerCase()));
+      const incBefore = (a.includeApplications || []).slice();
+      const removed = [...(a.includeApplications || []), ...(a.excludeApplications || [])]
+        .filter((x) => gone.has(String(x).toLowerCase()));
+      if (!removed.length) continue;
+      a.excludeApplications = filter(a.excludeApplications);
+      a.includeApplications = filter(a.includeApplications);
+      if (!a.includeApplications.length && (f.originalApps || []).length) {
+        a.includeApplications = f.originalApps.slice();
+        f.changes.push(`Kept the original target resources (${f.originalApps.join(", ")}) — the supported apps could not be created`);
+      } else if (!a.includeApplications.length) {
+        a.includeApplications = incBefore;
+      }
+      f.changes.push(`Dropped ${removed.length} app reference${removed.length === 1 ? "" : "s"} whose service principal could not be created: `
+        + [...new Set(removed)].map((id) => `${APP_LABEL[id] || "app"} (${id})`).join(", "));
+      f.json = JSON.stringify(f.draft, null, 2);
+    }
+    return res;
+  }
+
   // existing: Set of lowercase appIds that DO resolve in the tenant
   function pruneUnknownApps(res, existing) {
     if (!existing) return res;
@@ -847,6 +903,14 @@ const MSLearn = (() => {
         <ul class="plist2">${f.checks.map((c) => `<li>${esc(c.title)} <a class="ml-doc" href="${esc(c.docUrl)}" target="_blank" rel="noopener noreferrer">↗ MS Learn</a></li>`).join("")}</ul>
       </div>
     </div>`).join("");
+    const missing = (res.missingApps || []).length ? `<div class="list-card fx-card"><div class="fx-body">
+        <h5 class="ml-blue">${res.missingApps.length} Microsoft service principal${res.missingApps.length === 1 ? "" : "s"} will be created first</h5>
+        <p class="mini">A Conditional Access policy can only reference an application that exists in the tenant. These are Microsoft
+        first-party apps that have never been instantiated here; applying the fixes creates them from their well-known app IDs
+        (no permissions are consented by doing so), then references them.</p>
+        <ul class="ml-res">${res.missingApps.map((m) => `<li>${esc(m.label)} — <code>${esc(m.appId)}</code></li>`).join("")}</ul>
+        <p class="mini">Downloading the JSON instead? Create these service principals first, or the import will be rejected.</p>
+      </div></div>` : "";
     const note = res.skipped.length
       ? (() => {
         const needs = [...new Set(res.skipped.map((x) => x.needs).filter(Boolean))];
@@ -861,8 +925,8 @@ const MSLearn = (() => {
       })()
       : "";
     return `<p class="mini" style="margin:0 0 12px">${res.fixes.length} new polic${res.fixes.length === 1 ? "y" : "ies"} prepared from ${res.fixes.length === 1 ? "1 affected policy" : `${res.fixes.length} affected policies`}.
-      Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${cards}${note}`;
+      Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${missing}${cards}${note}`;
   }
 
-  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, referencedAppIds, pruneUnknownApps, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();
