@@ -617,7 +617,7 @@ const GapCheck = (() => {
       }).join("");
       return `<tr><th class="gc-rh">${r.label}<span class="mini" style="font-weight:400"> · ${r.policies} ${r.policies === 1 ? "policy" : "policies"} · ${r.score}%</span></th>${cells}</tr>`;
     }).join("");
-    return `<div class="list-card" style="margin-bottom:18px;overflow:auto">
+    return `<div class="list-card gc-wrap" style="margin-bottom:18px">
       <div style="padding:16px 18px 6px"><h4 style="font-size:13px;color:var(--accent2);text-transform:uppercase;letter-spacing:.05em">Persona × control coverage</h4>
       <p class="mini" style="margin:4px 0 8px">✓ enforced · ◐ report-only · ○ deployed but Off · ✗ missing · &nbsp;·&nbsp; not expected — personas matched on policy naming + structure; hover a cell for the matching policies.</p></div>
       <table class="gc-matrix"><thead><tr><th class="gc-rh"></th>${head}</tr></thead><tbody>${rows}</tbody></table>

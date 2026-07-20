@@ -156,15 +156,13 @@ tr.grouprow:hover td{background:var(--line)}
 .pcard-foot .mini{flex:1}
 
 /* ---------- matrix ---------- */
-.matrix-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:auto;scrollbar-width:thin;scrollbar-color:var(--accent2) var(--soft)}
-.matrix-wrap::-webkit-scrollbar{height:12px;width:12px}
-.matrix-wrap::-webkit-scrollbar-thumb{background:var(--accent2);border-radius:6px}
-.matrix-wrap::-webkit-scrollbar-track{background:var(--soft);border-radius:6px}
 /* exclusion analyzer: matrix wrapper with a visible horizontal scrollbar */
-.mwrap-x{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:auto;scrollbar-width:thin;scrollbar-color:var(--accent2) var(--soft)}
-.mwrap-x::-webkit-scrollbar{height:12px;width:12px}
-.mwrap-x::-webkit-scrollbar-thumb{background:var(--accent2);border-radius:6px}
-.mwrap-x::-webkit-scrollbar-track{background:var(--soft);border-radius:6px}
+/* every matrix view uses the same scroll container: card surface, visible
+   horizontal scrollbar, sticky header + first column */
+.mwrap-x,.matrix-wrap,.gc-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:auto;scrollbar-width:thin;scrollbar-color:var(--accent2) var(--soft)}
+.mwrap-x::-webkit-scrollbar,.matrix-wrap::-webkit-scrollbar,.gc-wrap::-webkit-scrollbar{height:12px;width:12px}
+.mwrap-x::-webkit-scrollbar-thumb,.matrix-wrap::-webkit-scrollbar-thumb,.gc-wrap::-webkit-scrollbar-thumb{background:var(--accent2);border-radius:6px}
+.mwrap-x::-webkit-scrollbar-track,.matrix-wrap::-webkit-scrollbar-track,.gc-wrap::-webkit-scrollbar-track{background:var(--soft);border-radius:6px}
 
 .scroll-hint{background:var(--soft);border:1px solid var(--border);border-radius:10px;color:var(--green);font-weight:600;font-size:12px;padding:8px 14px;margin-bottom:10px;text-align:center}
 table.matrix{border-collapse:collapse;min-width:900px;width:100%}
@@ -233,9 +231,13 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .fs-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;
   border-bottom:1px solid var(--border);background:var(--soft);flex:none}
 .fs-head b{font-size:15px;letter-spacing:-.01em}
-.fs-body{flex:1;overflow:auto;padding:0 4px 4px}
-.fs-body .mwrap-x{max-height:none;overflow:visible}
-.fs-body .mtable thead th{top:0}
+.fs-body{flex:1;overflow:auto;padding:8px}
+.fs-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1}
+/* inside the panel the wrapper is just content — the panel body does the scrolling */
+.fs-body .mwrap-x,.fs-body .matrix-wrap,.fs-body .gc-wrap{max-height:none;overflow:visible;border:0;box-shadow:none;background:none;border-radius:0}
+.fs-body .toolbar{position:static;margin:0;padding:0;box-shadow:none;background:none}
+.fs-body .mtable thead th,.fs-body table.matrix thead th{top:0}
+.fs-body > div{margin-top:0 !important}
 
 /* ---------- exclusion analyzer: grouped view ---------- */
 .ex-card{margin-bottom:14px}
@@ -421,9 +423,12 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 /* ---------- matrix crosshair: highlight the hovered row and column ----------
    Painted with a background-image tint so the cell's own state colour
    (excluded / report-only / not-applicable) still shows through. */
-.mtable tbody tr.hl-row > td,
-.mtable .hl-col{background-image:linear-gradient(var(--hl),var(--hl))}
-.mtable tbody tr.hl-row > td.hl-col{background-image:linear-gradient(var(--hl2),var(--hl2))}
-.mtable thead th.hl-col{background-image:linear-gradient(var(--hl2),var(--hl2))}
-.mtable thead th.hl-col .ph{color:var(--accent2)}
-.mtable tbody tr.hl-row > td.ucol .uname{color:var(--accent2)}
+.mtable tbody tr.hl-row > td,.mtable tbody tr.hl-row > th,.mtable .hl-col,
+table.matrix tbody tr.hl-row > td,table.matrix tbody tr.hl-row > th,table.matrix .hl-col,
+.gc-matrix tbody tr.hl-row > td,.gc-matrix tbody tr.hl-row > th,.gc-matrix .hl-col{background-image:linear-gradient(var(--hl),var(--hl))}
+.mtable tbody tr.hl-row > td.hl-col,
+table.matrix tbody tr.hl-row > td.hl-col,
+.gc-matrix tbody tr.hl-row > td.hl-col{background-image:linear-gradient(var(--hl2),var(--hl2))}
+.mtable thead th.hl-col,table.matrix thead th.hl-col,.gc-matrix thead th.hl-col{background-image:linear-gradient(var(--hl2),var(--hl2))}
+.mtable thead th.hl-col .ph,.gc-matrix thead th.hl-col span{color:var(--accent2)}
+.mtable tbody tr.hl-row > td.ucol .uname,.gc-matrix tbody tr.hl-row > th.gc-rh{color:var(--accent2)}

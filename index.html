@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=60">
+<link rel="stylesheet" href="css/app.css?v=61">
 </head>
 <body>
 
@@ -171,6 +171,7 @@
         <button id="viewMatrix">Matrix</button>
       </div>
       <button class="btn" id="collapseAllBtn" title="Expand or collapse all persona sections">⊟ Collapse all</button>
+      <button class="btn" id="plFull" style="display:none" title="Open the settings matrix full screen">⤢ Full screen</button>
       <button class="btn" id="refreshBtn" disabled title="Fetch the latest policies from Entra">⟳ Refresh</button>
       <button class="btn primary" id="analyzeBtn" disabled>Gap analyse</button>
       <button class="btn lemon" id="exportBtn" disabled>Create documentation</button>
@@ -238,6 +239,7 @@
             <button class="active" id="anTabUsers">Users</button>
             <button id="anTabMatrix">Matrix</button>
           </div>
+          <button class="btn" id="anFull" style="display:none" title="Open the matrix full screen">⤢ Full screen</button>
           <button class="btn lemon" id="anExport">Export HTML report</button>
         </div>
         <div class="list-card" id="anUsersWrap">
@@ -251,7 +253,7 @@
             <button class="btn" id="anMPrev">←</button><span id="anMPage" class="mini"></span><button class="btn" id="anMNext">→</button>
             <span class="mini">✓ applied · <span style="color:var(--report)">✓</span> report-only · <span style="color:var(--off)">✗</span> bypassing (hover for reason) · · not in scope</span>
           </div>
-          <div class="list-card" style="overflow:auto">
+          <div class="list-card mwrap-x" id="anMScroll">
             <table class="mtable"><thead><tr id="anMHead"></tr></thead><tbody id="anMBody"></tbody></table>
           </div>
         </div>
@@ -272,7 +274,7 @@
   <!-- ============ EXCLUSION ANALYZER ============ -->
   <section id="screen-exclusions" class="screen">
     <div class="list-card readme" id="exHead" style="margin-top:0"></div>
-    <div class="toolbar" style="margin-top:14px">
+    <div class="toolbar" id="exToolbar" style="margin-top:14px">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="exSearch" placeholder="Search exclusions or users…">
@@ -284,7 +286,7 @@
         <button id="exTabUsers">Effective users</button>
       </div>
       <label class="chk" id="exMergeWrap" style="margin:0;display:none"><input type="checkbox" id="exMergeChk" checked> Merge identical</label>
-      <button class="btn" id="exExpand" style="display:none">⤢ Full screen</button>
+      <button class="btn" id="exExpand" style="display:none" title="Open the matrix full screen">⤢ Full screen</button>
       <button class="btn" id="exMd">Export MD</button>
       <button class="btn lemon" id="exCsv">Export CSV</button>
     </div>
@@ -296,23 +298,18 @@
     <div id="exBody"></div>
   </section>
 
-  <!-- Matrix popout: the exclusion/user matrices are far wider than the page
-       column, so they open in a near-fullscreen overlay. -->
-  <div class="fs-bg" id="exFull">
+  <!-- Generic matrix popout. Every matrix view uses this: the view's own
+       toolbar and body are MOVED into the panel (not cloned), so all existing
+       filters, search boxes and buttons keep working untouched. -->
+  <div class="fs-bg" id="fsModal">
     <div class="fs-panel">
       <div class="fs-head">
-        <b id="exFullTitle">Exclusion x policy matrix</b>
-        <div class="search" style="max-width:280px">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
-          <input id="exFullSearch" placeholder="Search…">
-        </div>
-        <div class="chip-filter" id="exFullChips"></div>
-        <label class="chk" id="exFullMergeWrap" style="margin:0"><input type="checkbox" id="exFullMergeChk" checked> Merge identical</label>
+        <b id="fsTitle">Matrix</b>
+        <div class="fs-controls" id="fsControls"></div>
         <div class="spacer"></div>
-        <span class="mini" id="exFullLegend"></span>
-        <button class="btn" id="exFullClose">Close ✕</button>
+        <button class="btn" id="fsClose">Close ✕</button>
       </div>
-      <div class="fs-body" id="exFullBody"></div>
+      <div class="fs-body" id="fsBody"></div>
     </div>
   </div>
 
@@ -322,7 +319,8 @@
     <div id="gcMatrix" style="margin-top:16px"></div>
     <div style="display:flex;align-items:center;gap:14px;margin:14px 0 0;flex-wrap:wrap">
       <div class="chip-filter" id="gcChips"></div>
-      <button class="btn" id="gcRefresh" style="margin-left:auto" title="Re-fetch policies from Entra and re-run every check">⟳ Refresh</button>
+      <button class="btn" id="gcFull" style="margin-left:auto" title="Open the persona × control matrix full screen">⤢ Full screen</button>
+      <button class="btn" id="gcRefresh" title="Re-fetch policies from Entra and re-run every check">⟳ Refresh</button>
       <button class="btn" id="gcMd">Export MD</button>
       <label class="chk" id="gcDisabledWrap" style="margin:0"><input type="checkbox" id="gcDisabled"> Include Off (disabled) policies <span class="mini" id="gcDisabledNote"></span></label>
     </div>
@@ -457,20 +455,20 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=60"></script>
-<script src="js/labels.js?v=60"></script>
-<script src="js/graph.js?v=60"></script>
-<script src="js/model.js?v=60"></script>
-<script src="js/render.js?v=60"></script>
-<script src="js/analyze.js?v=60"></script>
-<script src="js/mslearn.js?v=60"></script>
-<script src="js/gapcheck.js?v=60"></script>
-<script src="js/exclusions.js?v=60"></script>
-<script src="js/groupTemplates.js?v=60"></script>
-<script src="js/assign.js?v=60"></script>
-<script src="js/import.js?v=60"></script>
-<script src="js/export.js?v=60"></script>
-<script src="js/demo.js?v=60"></script>
-<script src="js/app.js?v=60"></script>
+<script src="js/authConfig.js?v=61"></script>
+<script src="js/labels.js?v=61"></script>
+<script src="js/graph.js?v=61"></script>
+<script src="js/model.js?v=61"></script>
+<script src="js/render.js?v=61"></script>
+<script src="js/analyze.js?v=61"></script>
+<script src="js/mslearn.js?v=61"></script>
+<script src="js/gapcheck.js?v=61"></script>
+<script src="js/exclusions.js?v=61"></script>
+<script src="js/groupTemplates.js?v=61"></script>
+<script src="js/assign.js?v=61"></script>
+<script src="js/import.js?v=61"></script>
+<script src="js/export.js?v=61"></script>
+<script src="js/demo.js?v=61"></script>
+<script src="js/app.js?v=61"></script>
 </body>
 </html>

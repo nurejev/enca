@@ -125,6 +125,7 @@
     $("listView").style.display = v === "list" ? "block" : "none";
     $("matrixView").style.display = v === "matrix" ? "block" : "none";
     $("analyzeView").style.display = v === "analyze" ? "block" : "none";
+    $("plFull").style.display = v === "matrix" ? "" : "none";
     // show a hint when the matrix is wider than the screen (horizontal scroll needed)
     if (v === "matrix") {
       (window.requestAnimationFrame || setTimeout)(() => {
@@ -691,14 +692,14 @@
   });
 
   // ---------- CA Exclusion analyzer ----------
-  let exModel = null, exUsers = [], exTab = "all", exKind = "all", exQuery = "", exPage = 0, exMerge = true, exFull = false;
+  let exModel = null, exUsers = [], exTab = "all", exKind = "all", exQuery = "", exPage = 0, exMerge = true;
   const EX_PAGE = 50;
   async function openExclusions() {
     show("screen-exclusions");
     if (!policies.length) { $("exHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("exBody").innerHTML = ""; $("exChips").innerHTML = ""; return; }
     $("exHead").innerHTML = '<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">Collecting exclusions…</p>';
     $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
-    exTab = "all"; exKind = "all"; exQuery = ""; exPage = 0; exFull = false; $("exFull").classList.remove("show"); $("exSearch").value = "";
+    exTab = "all"; exKind = "all"; exQuery = ""; exPage = 0; Fs.close(); $("exSearch").value = "";
     $("exTabAll").classList.add("active"); $("exTabUsers").classList.remove("active");
     try {
       // the whole tenant's policies — exclusions are a tenant-wide question
@@ -723,28 +724,19 @@
       : "";
     $("exMergeWrap").style.display = exTab === "matrix" ? "" : "none";
     $("exExpand").style.display = exTab === "all" ? "none" : "";
-    // the matrices are far wider than the page column — when expanded they are
-    // rendered into the near-fullscreen overlay instead of the page body.
-    const target = exFull && exTab !== "all" ? "exFullBody" : "exBody";
-    if (exFull && exTab !== "all") {
-      $("exBody").innerHTML = '<p class="mini" style="padding:20px">Matrix is open full screen.</p>';
-      $("exFullChips").innerHTML = $("exChips").innerHTML;
-      $("exFullSearch").value = exQuery;
-      $("exFullMergeWrap").style.display = exTab === "matrix" ? "" : "none";
-      $("exFullTitle").textContent = exTab === "matrix" ? "Exclusion × policy matrix" : "Effectively excluded users × policy";
-      $("exFullLegend").innerHTML = exTab === "matrix" ? "✗ excluded" : "✗ excluded directly · ◐ via group membership";
-    }
+    const full = Fs.isOpen();
     if (exTab === "all") {
       $("exPager").style.display = "none";
       $("exBody").innerHTML = Exclusions.renderGroups(exModel, exKind, exQuery);
     } else if (exTab === "matrix") {
       $("exPager").style.display = "none";
-      $(target).innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery, exMerge);
+      $("exBody").innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery, exMerge);
     } else {
-      const r = Exclusions.renderUsers(exModel, exUsers, exQuery, exPage, exFull ? EX_PAGE * 4 : EX_PAGE);
+      // more vertical room full screen, so page in bigger chunks
+      const r = Exclusions.renderUsers(exModel, exUsers, exQuery, exPage, full ? EX_PAGE * 4 : EX_PAGE);
       exPage = r.page;
-      $(target).innerHTML = r.html;
-      $("exPager").style.display = exFull ? "none" : "flex";
+      $("exBody").innerHTML = r.html;
+      $("exPager").style.display = "flex";
       $("exPage").textContent = `Page ${r.page + 1} / ${r.pages}`;
     }
     applyColW();
@@ -768,7 +760,7 @@
   }
   document.addEventListener("mouseover", (e) => {
     const cell = e.target.closest("td,th");
-    const table = cell && cell.closest(".mtable");
+    const table = cell && cell.closest(".mtable, table.matrix, .gc-matrix");
     if (!table) { if (hlTable) clearCrosshair(); return; }
     const row = cell.parentElement, col = cell.cellIndex;
     if (table === hlTable && col === hlCol && row === hlRow) return;
@@ -792,7 +784,7 @@
   // Width lives on the .mwrap-x element as --ucol-w and survives re-renders.
   let exColW = 260;
   function applyColW() {
-    document.querySelectorAll("#exBody .mwrap-x, #exFullBody .mwrap-x")
+    document.querySelectorAll(".mwrap-x")
       .forEach((el) => el.style.setProperty("--ucol-w", exColW + "px"));
   }
   document.addEventListener("mousedown", (e) => {
@@ -816,23 +808,58 @@
     exColW = exColW > 160 ? 150 : 260; applyColW();
   });
 
-  function setExFull(on) {
-    exFull = on;
-    $("exFull").classList.toggle("show", on);
-    document.body.style.overflow = on ? "hidden" : "";
-    renderExclusions();
-  }
-  $("exExpand").addEventListener("click", () => setExFull(true));
-  $("exFullClose").addEventListener("click", () => setExFull(false));
-  $("exFull").addEventListener("click", (e) => { if (e.target.id === "exFull") setExFull(false); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && exFull) setExFull(false); });
-  $("exFullChips").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-exk]"); if (!b) return;
-    exKind = b.dataset.exk; renderExclusions();
+  // ---------- generic matrix full screen ----------
+  // The view's own toolbar and body are MOVED into the panel and put back on
+  // close, so every filter/search/button keeps working with no duplicate state.
+  const Fs = (() => {
+    let open = false, slots = [];
+    function park(el, host) {
+      if (!el) return;
+      const mark = document.createComment("fs");
+      el.parentNode.insertBefore(mark, el);
+      slots.push({ el, mark, sticky: el.style.position });
+      el.style.position = "static";  // sticky toolbars must not stick inside the panel
+      host.appendChild(el);
+    }
+    return {
+      isOpen: () => open,
+      open(title, { controls, body, onChange } = {}) {
+        if (open) this.close();
+        $("fsTitle").textContent = title;
+        park(controls, $("fsControls"));
+        park(body, $("fsBody"));
+        $("fsModal").classList.add("show");
+        document.body.style.overflow = "hidden";
+        open = true; Fs._onChange = onChange;
+        onChange?.(true);
+      },
+      close() {
+        if (!open) return;
+        slots.reverse().forEach(({ el, mark, sticky }) => {
+          el.style.position = sticky || "";
+          mark.parentNode.insertBefore(el, mark);
+          mark.remove();
+        });
+        slots = [];
+        $("fsModal").classList.remove("show");
+        document.body.style.overflow = "";
+        open = false;
+        const cb = Fs._onChange; Fs._onChange = null; cb?.(false);
+      },
+    };
+  })();
+  $("fsClose").addEventListener("click", () => Fs.close());
+  $("fsModal").addEventListener("click", (e) => { if (e.target.id === "fsModal") Fs.close(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && Fs.isOpen()) Fs.close(); });
+
+  $("exExpand").addEventListener("click", () => {
+    Fs.open(exTab === "matrix" ? "Exclusion × policy matrix" : "Effectively excluded users × policy",
+      { controls: $("exToolbar"), body: $("exBody"), onChange: () => renderExclusions() });
   });
-  $("exFullSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; $("exSearch").value = exQuery; renderExclusions(); });
-  $("exFullMergeChk").addEventListener("change", (e) => { exMerge = e.target.checked; $("exMergeChk").checked = exMerge; renderExclusions(); });
-  $("exMergeChk").addEventListener("change", (e) => { exMerge = e.target.checked; $("exFullMergeChk").checked = exMerge; renderExclusions(); });
+  $("plFull").addEventListener("click", () => Fs.open("Policy settings matrix", { body: $("matrixView") }));
+  $("anFull").addEventListener("click", () => Fs.open("Users × policies impact matrix", { body: $("anMatrixWrap") }));
+  $("gcFull").addEventListener("click", () => Fs.open("Persona × control coverage", { body: $("gcMatrix") }));
+  $("exMergeChk").addEventListener("change", (e) => { exMerge = e.target.checked; renderExclusions(); });
   $("exSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; renderExclusions(); });
   const EX_TABS = { all: "exTabAll", matrix: "exTabMatrix", users: "exTabUsers" };
   for (const [tab, id] of Object.entries(EX_TABS)) {
@@ -987,6 +1014,7 @@
     if (!gcResult) return;
     $("gcHead").innerHTML = GapCheck.renderSummary(gcResult);
     $("gcMatrix").innerHTML = GapCheck.renderPersonaMatrix(gcResult.personas);
+    $("gcFull").style.display = gcResult.personas.length ? "" : "none";
     const n = (s) => s === "all" ? gcResult.findings.length : gcResult.findings.filter(f => f.severity === s).length;
     $("gcChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
       .filter(([k]) => n(k) > 0 || k === "all")
@@ -1252,6 +1280,7 @@
     ].map(([f, n, l, cls]) => `<div class="an-card ${cls} ${anFilter === f ? "active" : ""}" data-f="${f}"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
     $("anUsersWrap").style.display = anTab === "users" ? "block" : "none";
     $("anMatrixWrap").style.display = anTab === "matrix" ? "block" : "none";
+    $("anFull").style.display = anTab === "matrix" ? "" : "none";
     $("anTabUsers").classList.toggle("active", anTab === "users");
     $("anTabMatrix").classList.toggle("active", anTab === "matrix");
     if (anTab === "users") {
