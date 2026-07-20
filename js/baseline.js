@@ -41,8 +41,11 @@ const Baseline = (() => {
     return 0;
   }
 
+  // Render.caGroup matches CA followed by 3-4 digits, so the number has to be
+  // zero-padded first — CA1 would otherwise fall through as "unnumbered".
+  const caLabel = (num) => `CA${String(num).padStart(3, "0")}`;
   const personaOf = (num) => {
-    try { return Render.caGroup(`CA${num}`).label; } catch { return "Other"; }
+    try { return Render.caGroup(caLabel(num)).label; } catch { return "Other"; }
   };
 
   // ---- compare tenant policies against the catalog ----
