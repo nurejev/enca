@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=66">
+<link rel="stylesheet" href="css/app.css?v=67">
 </head>
 <body>
 
@@ -277,6 +277,7 @@
       </div>
       <div class="chip-filter" id="mlChips"></div>
       <button class="btn lemon" id="mlFixZip" style="display:none">⤓ Download all (zip)</button>
+      <button class="btn" id="mlApply" style="display:none">⚡ Apply in tenant <span class="tag block">writes</span></button>
       <label class="chk" id="mlDisabledWrap" style="margin:0 0 0 auto"><input type="checkbox" id="mlDisabled"> Include Off (disabled) policies <span class="mini" id="mlDisabledNote"></span></label>
     </div>
     <div id="mlBody" style="margin-top:14px"></div>
@@ -365,6 +366,22 @@
     <a href="https://limon-it.nl">limon-it.nl</a>
   </div>
 </footer>
+
+<!-- ============ MS LEARN: APPLY FIXES (writes to the tenant) ============ -->
+<div class="modal-bg" id="mlApplyModal">
+  <div class="modal">
+    <h3>⚡ Apply suggested fixes in <span id="mlApplyTenant"></span></h3>
+    <p class="mini" id="mlApplyDesc"></p>
+    <div class="ml-apply-list" id="mlApplyList"></div>
+    <label class="chk"><input type="checkbox" id="mlApplyDelete" checked> Delete the original policy after its replacement is created</label>
+    <label class="chk"><input type="checkbox" id="mlApplyOk"> I understand this writes to the tenant and cannot be undone</label>
+    <div id="mlApplyResult" class="ml-apply-list" style="display:none"></div>
+    <div class="modal-foot">
+      <button class="btn" id="mlApplyCancel">Close</button>
+      <button class="btn primary" id="mlApplyGo" disabled>Apply</button>
+    </div>
+  </div>
+</div>
 
 <!-- ============ EXPORT MODAL ============ -->
 <div class="modal-bg" id="exportModal">
@@ -485,22 +502,22 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=66"></script>
-<script src="js/labels.js?v=66"></script>
-<script src="js/graph.js?v=66"></script>
-<script src="js/model.js?v=66"></script>
-<script src="js/render.js?v=66"></script>
-<script src="js/analyze.js?v=66"></script>
-<script src="js/mslearn.js?v=66"></script>
-<script src="js/gapcheck.js?v=66"></script>
-<script src="js/exclusions.js?v=66"></script>
-<script src="js/baselineData.js?v=66"></script>
-<script src="js/baseline.js?v=66"></script>
-<script src="js/groupTemplates.js?v=66"></script>
-<script src="js/assign.js?v=66"></script>
-<script src="js/import.js?v=66"></script>
-<script src="js/export.js?v=66"></script>
-<script src="js/demo.js?v=66"></script>
-<script src="js/app.js?v=66"></script>
+<script src="js/authConfig.js?v=67"></script>
+<script src="js/labels.js?v=67"></script>
+<script src="js/graph.js?v=67"></script>
+<script src="js/model.js?v=67"></script>
+<script src="js/render.js?v=67"></script>
+<script src="js/analyze.js?v=67"></script>
+<script src="js/mslearn.js?v=67"></script>
+<script src="js/gapcheck.js?v=67"></script>
+<script src="js/exclusions.js?v=67"></script>
+<script src="js/baselineData.js?v=67"></script>
+<script src="js/baseline.js?v=67"></script>
+<script src="js/groupTemplates.js?v=67"></script>
+<script src="js/assign.js?v=67"></script>
+<script src="js/import.js?v=67"></script>
+<script src="js/export.js?v=67"></script>
+<script src="js/demo.js?v=67"></script>
+<script src="js/app.js?v=67"></script>
 </body>
 </html>

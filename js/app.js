@@ -287,7 +287,7 @@
     { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
     { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
-    { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies", tools: "Assign groups, Set Policy state, Import", onDemand: true },
+    { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies", tools: "Assign groups, Set Policy state, Import, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups", tools: "Assign groups", onDemand: true },
@@ -1012,10 +1012,13 @@
     if (mlTab === "fixes") {
       $("mlChips").innerHTML = "";
       $("mlFixZip").style.display = nFix ? "" : "none";
+      // writing back is offered only in a recognised baseline tenant
+      $("mlApply").style.display = nFix && isBaselineTenant() && !isDemo ? "" : "none";
       $("mlBody").innerHTML = MSLearn.renderFixes(mlFixes || { fixes: [], skipped: [] });
       return;
     }
     $("mlFixZip").style.display = "none";
+    $("mlApply").style.display = "none";
     if (!mlGroups.length) {
       $("mlChips").innerHTML = "";
       $("mlBody").innerHTML = MSLearn.renderEmpty();
@@ -1040,6 +1043,72 @@
     toast(`<span>${esc(f.newName)}</span> downloaded`);
   });
   const safeFile = (n) => String(n).replace(/[^\w.\- ]+/g, "").trim().replace(/\s+/g, "-").slice(0, 80) || "policy";
+
+  // ---------- apply the suggested fixes in the tenant (baseline tenants) ----------
+  // Create-then-delete, per policy: the replacement must exist before the
+  // original goes, so a failure never leaves the control missing entirely.
+  // Everything lands Off, and the confirmation lists every create and delete.
+  const ML_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  function openApplyModal() {
+    if (!mlFixes || !mlFixes.fixes.length) return;
+    const n = mlFixes.fixes.length;
+    $("mlApplyTenant").textContent = tenantName || "this tenant";
+    $("mlApplyDesc").innerHTML = `${n} new polic${n === 1 ? "y" : "ies"} will be created <b>Off (disabled)</b>, `
+      + "each replacing the policy it was built from. Nothing is switched on — review and enable them yourself afterwards.";
+    $("mlApplyList").innerHTML = mlFixes.fixes.map((f) => `<div class="ml-apply-row">
+        <div><span class="ml-op create">CREATE</span> ${esc(f.newName)} <span class="mini">· Off</span></div>
+        <div><span class="ml-op delete">DELETE</span> ${esc(f.originalName)} <span class="mini">· currently ${esc(f.originalState)}</span></div>
+        <div class="mini">${f.changes.length} adjustment${f.changes.length === 1 ? "" : "s"}: ${esc(f.changes.join("; "))}</div>
+      </div>`).join("");
+    $("mlApplyResult").style.display = "none"; $("mlApplyResult").innerHTML = "";
+    $("mlApplyOk").checked = false; $("mlApplyDelete").checked = true;
+    $("mlApplyGo").disabled = true; $("mlApplyGo").textContent = "Apply";
+    $("mlApplyModal").classList.add("open");
+  }
+  $("mlApply").addEventListener("click", openApplyModal);
+  $("mlApplyCancel").addEventListener("click", () => $("mlApplyModal").classList.remove("open"));
+  $("mlApplyOk").addEventListener("change", (e) => { $("mlApplyGo").disabled = !e.target.checked; });
+  $("mlApplyDelete").addEventListener("change", () => {
+    const del = $("mlApplyDelete").checked;
+    $("mlApplyModal").querySelectorAll(".ml-op.delete").forEach((el) => el.classList.toggle("skip", !del));
+  });
+  $("mlApplyGo").addEventListener("click", async () => {
+    if (!mlFixes || !$("mlApplyOk").checked) return;
+    const del = $("mlApplyDelete").checked;
+    const btn = $("mlApplyGo"); btn.disabled = true;
+    const out = $("mlApplyResult"); out.style.display = ""; out.innerHTML = "";
+    const log = (cls, msg) => { out.insertAdjacentHTML("beforeend", `<div class="ml-apply-row ${cls}">${msg}</div>`); out.scrollTop = out.scrollHeight; };
+    let created = 0, deleted = 0, failed = 0;
+    for (const f of mlFixes.fixes) {
+      btn.textContent = `Applying ${created + failed + 1}/${mlFixes.fixes.length}…`;
+      try {
+        const body = JSON.parse(f.json);
+        const res = await Graph.gpost("/identity/conditionalAccess/policies", body, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
+        created++;
+        log("ok", `✓ Created <b>${esc(f.newName)}</b> (Off)`);
+        if (del) {
+          try {
+            await Graph.gdelete(`/identity/conditionalAccess/policies/${f.policyId}`, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
+            deleted++;
+            log("ok", `✓ Deleted <b>${esc(f.originalName)}</b>`);
+          } catch (e) {
+            failed++;
+            log("bad", `✗ Created the replacement but could NOT delete <b>${esc(f.originalName)}</b>: ${esc(e.message || e)} — both policies now exist, remove the old one manually.`);
+          }
+        }
+        if (res && res.id) f.createdId = res.id;
+      } catch (e) {
+        failed++;
+        log("bad", `✗ Failed to create <b>${esc(f.newName)}</b>: ${esc(e.message || e)} — <b>${esc(f.originalName)}</b> was left untouched.`);
+      }
+    }
+    btn.textContent = "Done";
+    log("", `<b>${created}</b> created · <b>${deleted}</b> deleted · <b>${failed}</b> failed. Reloading policies…`);
+    toast(`${created} polic${created === 1 ? "y" : "ies"} created${deleted ? `, ${deleted} removed` : ""} <span>in ${esc(tenantName)}</span>`);
+    try { await loadFromGraph(true); } catch { /* surfaced by loadFromGraph */ }
+    show("screen-mslearn");
+    await openMsLearn();
+  });
 
   // all generated policies in one zip, alongside a README describing them
   $("mlFixZip").addEventListener("click", async () => {

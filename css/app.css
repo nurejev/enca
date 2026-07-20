@@ -488,3 +488,16 @@ table.matrix tbody tr.hl-row > td.hl-col,
 .bc-list li{padding:1px 0;overflow-wrap:anywhere}
 .bc-list.excl li{color:var(--off)}
 .bc-list.excl li::before{content:"− ";opacity:.7}
+
+/* ---------- MS Learn: apply-in-tenant confirmation ---------- */
+.ml-apply-list{max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:12px;
+  padding:10px 12px;margin:12px 0;background:var(--soft2);font-size:12.5px}
+.ml-apply-row{padding:7px 0;border-bottom:1px solid var(--line)}
+.ml-apply-row:last-child{border-bottom:0}
+.ml-apply-row.ok{color:var(--on)}
+.ml-apply-row.bad{color:var(--off)}
+.ml-op{display:inline-block;min-width:62px;text-align:center;font-size:10px;font-weight:700;
+  letter-spacing:.05em;padding:2px 7px;border-radius:6px;margin-right:6px}
+.ml-op.create{background:var(--ok-bg);color:var(--on)}
+.ml-op.delete{background:var(--bad-bg);color:var(--off)}
+.ml-op.delete.skip{background:var(--soft);color:var(--muted);text-decoration:line-through}

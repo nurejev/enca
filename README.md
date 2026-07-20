@@ -16,13 +16,13 @@ It started as a web successor to the idPowerToys CA documenter and grew into ele
 | 🛡 **Best-practice & bypass checks** | The baseline against known CA bypasses and the Swiss-cheese layered-defense model: MFA coverage, FOCI token sharing, resource-exclusion scope leaks, CA-immune resources, device-registration bypass, grant-operator weaknesses, legacy auth, known bypass apps, guest auth strength, break-glass coverage — plus a persona × control coverage matrix. Exports to Markdown. | no |
 | 🚪 **Exclusion analyzer** | Every exclusion in every policy — users, groups (expanded to their members), directory roles, guest/external types, applications, named locations, device platforms — grouped by exclusion set, with an exclusion × policy matrix and an effective-user × policy matrix. Exports to CSV and Markdown. | no |
 | 🧬 **Baseline Policies** | Matches the tenant against the bundled Limon-IT baseline catalog (**R26.6 / v3.x**, 99 policies) on the CA number — the stable identity in the naming convention — and compares versions segment by segment. Every policy lands in one bucket: up to date, outdated (with the upgrade path, e.g. `v1.0 → v1.0.1`), newer than baseline, missing, or not in the baseline. Exports a Markdown gap report and hands off to Import. | no |
-| 📘 **MS Learn checks** | Policies against exclusions, limitations and upcoming behaviour changes documented on learn.microsoft.com: missing break-glass exclusions, token-protection limits, Teams Rooms / Surface Hub impact, required app exclusions, control retirements. Each finding links to its source page. Mechanically fixable findings carry a **Fix** button that builds a *new* policy from the affected one with the documented adjustment applied — version bumped, state Off — collected in a **Suggested fixes** tab and downloadable as JSON or one zip. Nothing is written to the tenant. | no |
+| 📘 **MS Learn checks** | Policies against exclusions, limitations and upcoming behaviour changes documented on learn.microsoft.com: missing break-glass exclusions, token-protection limits, Teams Rooms / Surface Hub impact, required app exclusions, control retirements. Each finding links to its source page. Mechanically fixable findings carry a **Fix** button that builds a *new* policy from the affected one with the documented adjustment applied — version bumped, state Off — collected in a **Suggested fixes** tab and downloadable as JSON or one zip. Nothing is written to the tenant — except in a recognised **baseline tenant**, where an **Apply in tenant** action can create the replacements (Off) and delete the originals, behind an explicit confirmation. | no* |
 | 🗄 **Backup (JSON)** | Raw Graph JSON of the selected policies in one timestamped zip — including their **dependencies** (auth strengths, named locations, terms of use with the actual PDF, and the groups they assign). | no |
 | 👥 **Assign groups** | Replace, add to, or reset the include/exclude persona groups of selected policies. Missing persona groups are created as role-assignable security groups via Graph. | **yes** |
 | 🎚 **Set Policy state** | Switch selected policies between On, Report-only and Off. | **yes** |
 | 📥 **Import** | Restore a backup (zip or folder): dependencies first, policies always imported **Off**, matched on CA number + version so existing policies are updated rather than duplicated, and include-assignments remapped onto the target tenant's persona groups. Produces a Markdown change report. | **yes** |
 
-The three writing tools are always behind an explicit review step and request their write scopes on demand (incremental consent) — signing in never grants them.
+The writing actions are always behind an explicit review step and request their write scopes on demand (incremental consent) — signing in never grants them.
 
 ## Design notes
 
@@ -150,7 +150,7 @@ Requested **on demand** (incremental consent) only when a tool needs them:
 | Scope | Tool |
 |---|---|
 | `Agreement.Read.All` | Backup — terms-of-use agreements and their PDFs |
-| `Policy.ReadWrite.ConditionalAccess` | Assign groups, Set Policy state, Import |
+| `Policy.ReadWrite.ConditionalAccess` | Assign groups, Set Policy state, Import, MS Learn *Apply in tenant* |
 | `Application.Read.All` | Import — required by Graph to create policies with app conditions |
 | `Policy.ReadWrite.AuthenticationMethod` | Import — create authentication strengths |
 | `Group.ReadWrite.All` | Assign groups — create missing persona groups |

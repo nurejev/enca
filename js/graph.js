@@ -99,6 +99,18 @@ const Graph = (() => {
     return r.status === 204 ? null : r.json();
   }
 
+  // DELETE — only ever used by an explicitly confirmed write action.
+  async function gdelete(url, scopes) {
+    const t = await token(scopes);
+    const r = await fetch(safeGraphUrl(url), { method: "DELETE", headers: { Authorization: "Bearer " + t } });
+    if (!r.ok && r.status !== 404) {
+      let msg = `Graph request failed (${r.status})`;
+      try { msg += ": " + ((await r.json()).error?.message || ""); } catch {}
+      throw new Error(msg);
+    }
+    return true;
+  }
+
   // Scopes needed only to CREATE role-assignable groups (requested on demand;
   // requires the Privileged Role Administrator role or Global Administrator).
   const GROUP_CREATE_SCOPES = ["Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"];
@@ -202,5 +214,5 @@ const Graph = (() => {
     } catch { return []; }
   }
 
-  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gpostGroupCreate, grantedScopes, requestConsent, get account() { return account; } };
+  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, grantedScopes, requestConsent, get account() { return account; } };
 })();
