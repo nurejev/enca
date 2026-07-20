@@ -211,6 +211,7 @@ Four community projects shaped CA Doc, and all four deserve the credit:
 - **[Conditional Access Impact Matrix](https://github.com/jasperbaes/Conditional-Access-Impact-Matrix)** — by **Jasper Baes**. The users × policies impact model behind the **Gap analyse** tool: working out which policies actually apply to a given user, who bypasses a policy through an exclusion, and whether that bypass is covered somewhere else.
 - **[Conditional Access Baseline](https://github.com/j0eyv/ConditionalAccessBaseline)** — by **Joey Verlinden**. A deliberately minimised community baseline built on the Microsoft Conditional Access framework, bundled here as a second catalog so a tenant can be measured against it exactly like the Limon-IT one. The policy set, personas and naming convention are his; CA Doc only reads and compares.
 - **[CA Policy Analyzer](https://github.com/Jhope188/ca-policy-analyzer)** — by **jhope188**. The inspiration for the **Best-practice & bypass checks** and **MS Learn checks** tools: best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.
+- **[Microsoft Entra Conditional Access blog series](https://www.chanceofsecurity.com/post/microsoft-entra-conditional-access)** — by **Sebastian F. Markdanner** (Chance of Security). A deep, practical walk-through of designing a persona-based Conditional Access framework; several of his policy designs also informed the Limon-IT baseline bundled here.
 
 All are independently reimplemented here in browser-side JavaScript against Microsoft Graph — no code was copied.
 

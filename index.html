@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=112">
+<link rel="stylesheet" href="css/app.css?v=113">
 </head>
 <body>
 
@@ -144,7 +144,7 @@
         <code>Group.ReadWrite.All</code> and <code>RoleManagement.ReadWrite.Directory</code> and requires the Privileged Role Administrator role.</p>
 
       <h4>Credits &amp; thanks</h4>
-      <p>Four community projects shaped these tools, and all four deserve the credit:</p>
+      <p>These community projects shaped the tools, and all deserve the credit:</p>
       <ul>
         <li><b>idPowerToys</b> — by <b>Merill Fernando</b>. The Conditional Access documenter that started all of this:
           the idea that a CA baseline should be readable as a document rather than clicked through in the portal.
@@ -157,10 +157,12 @@
           against it the same way. The policy set and naming convention are his; these tools only read and compare.</li>
         <li><b>CA Policy Analyzer</b> — by <b>jhope188</b>. The inspiration for the <b>Best-practice &amp; bypass checks</b> set:
           best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.</li>
+        <li><b><a href="https://www.chanceofsecurity.com/post/microsoft-entra-conditional-access" target="_blank" rel="noopener noreferrer">Microsoft Entra Conditional Access blog series</a></b> — by <b>Sebastian F. Markdanner</b> (Chance of Security).
+          A deep, practical walk-through of designing a persona-based Conditional Access framework; several of his policy designs also informed the Limon-IT baseline bundled here.</li>
       </ul>
       <p class="mini">All are independently reimplemented here in browser-side JavaScript against Microsoft Graph — no code was copied.
         Thanks also to the Conditional Access community whose baselines this tool is designed to compare against:
-        Kenneth van Surksum, Joey Verlinden and Claus Jespersen (Zero Trust persona framework).</p>
+        Kenneth van Surksum, Joey Verlinden, Sebastian F. Markdanner and Claus Jespersen (Zero Trust persona framework).</p>
 
       <h4>Security</h4>
       <p>Everything runs in your browser — there is no backend and your policy data is never stored or sent anywhere except Microsoft Graph.
@@ -655,26 +657,26 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=112"></script>
-<script src="js/authConfig.js?v=112"></script>
-<script src="js/labels.js?v=112"></script>
-<script src="js/graph.js?v=112"></script>
-<script src="js/model.js?v=112"></script>
-<script src="js/render.js?v=112"></script>
-<script src="js/analyze.js?v=112"></script>
-<script src="js/whatif.js?v=112"></script>
-<script src="js/mslearn.js?v=112"></script>
-<script src="js/gapcheck.js?v=112"></script>
-<script src="js/exclusions.js?v=112"></script>
-<script src="js/baselineData.js?v=112"></script>
-<script src="js/baselineJoeyData.js?v=112"></script>
-<script src="js/baseline.js?v=112"></script>
-<script src="js/groupTemplates.js?v=112"></script>
-<script src="js/assign.js?v=112"></script>
-<script src="js/cagroups.js?v=112"></script>
-<script src="js/import.js?v=112"></script>
-<script src="js/export.js?v=112"></script>
-<script src="js/demo.js?v=112"></script>
-<script src="js/app.js?v=112"></script>
+<script src="js/version.js?v=113"></script>
+<script src="js/authConfig.js?v=113"></script>
+<script src="js/labels.js?v=113"></script>
+<script src="js/graph.js?v=113"></script>
+<script src="js/model.js?v=113"></script>
+<script src="js/render.js?v=113"></script>
+<script src="js/analyze.js?v=113"></script>
+<script src="js/whatif.js?v=113"></script>
+<script src="js/mslearn.js?v=113"></script>
+<script src="js/gapcheck.js?v=113"></script>
+<script src="js/exclusions.js?v=113"></script>
+<script src="js/baselineData.js?v=113"></script>
+<script src="js/baselineJoeyData.js?v=113"></script>
+<script src="js/baseline.js?v=113"></script>
+<script src="js/groupTemplates.js?v=113"></script>
+<script src="js/assign.js?v=113"></script>
+<script src="js/cagroups.js?v=113"></script>
+<script src="js/import.js?v=113"></script>
+<script src="js/export.js?v=113"></script>
+<script src="js/demo.js?v=113"></script>
+<script src="js/app.js?v=113"></script>
 </body>
 </html>
