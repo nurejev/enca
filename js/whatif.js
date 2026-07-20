@@ -217,26 +217,37 @@ const WhatIf = (() => {
     app: "Cloud app", platform: "Device platform", clientApp: "Client app",
     location: "Location", signInRisk: "Sign-in risk", userRisk: "User risk",
   };
+  // A policy "applies" definitely, or only "maybe" — matched because a
+  // condition the scenario didn't specify was assumed. Surfacing that keeps the
+  // apply count honest instead of implying certainty.
+  const isMaybe = (r) => (r.notes || []).some((n) => /not specified|loosely|manually/i.test(n));
+
   function renderSim(res) {
     const o = res.outcome;
     const banner = o.decision === "block"
-      ? `<div class="wf-outcome block">⛔ Access would be <b>blocked</b> by: ${o.blockers.map(esc).join(", ")}</div>`
+      ? `<div class="wf-outcome block">⛔ Access would be <b>blocked</b><div class="wf-blockers">${o.blockers.map((b) => `<span class="wf-blk pol-link" data-pol="${esc(b)}">${esc(b)}</span>`).join("")}</div></div>`
       : o.decision === "grant"
-        ? `<div class="wf-outcome grant">✅ Access granted, but the user must satisfy: ${o.grant.map(esc).join(", ")}</div>`
+        ? `<div class="wf-outcome grant">✅ Access <b>granted</b> — the user must satisfy:<div class="wf-blockers">${o.grant.map((g) => `<span class="wf-blk">${esc(g)}</span>`).join("")}</div></div>`
         : o.decision === "allow"
-          ? `<div class="wf-outcome allow">✅ Access granted with no extra controls${o.session.length ? " (session controls apply)" : ""}</div>`
+          ? `<div class="wf-outcome allow">✅ Access <b>granted</b> with no extra controls${o.session.length ? " (session controls apply)" : ""}</div>`
           : `<div class="wf-outcome none">— No enabled policy applies to this sign-in</div>`;
     const scBits = Object.entries(SC_LABEL)
       .filter(([k]) => res.scenario[k] && res.scenario[k] !== "any")
-      .map(([k, l]) => `<span class="wf-chip">${esc(l)}: ${esc(res.scenario[k])}</span>`).join("") || '<span class="wf-chip muted">defaults</span>';
+      .map(([k, l]) => `<span class="wf-chip">${esc(l)}: ${esc(res.scenario[k])}</span>`).join("") || '<span class="wf-chip muted">no conditions set — defaults</span>';
 
-    const policyRow = (r, applied) => `<div class="wf-pol ${applied ? "on" : "off"}">
-      <div class="wf-pol-h"><span class="wf-dot ${applied ? (r.reportOnly ? "ro" : "on") : "off"}"></span>
-        <b class="pol-link" data-pol="${esc(r.name)}">${esc(r.name)}</b>
-        ${r.reportOnly ? '<span class="wf-chip ro">report-only</span>' : ""}
-        ${r.state === "off" ? '<span class="wf-chip muted">Off</span>' : ""}</div>
-      <div class="wf-pol-why">${esc((r.reasons || []).join("; "))}${(r.notes || []).length ? ` · <span class="wf-mut">${esc(r.notes.join("; "))}</span>` : ""}</div>
-    </div>`;
+    const policyRow = (r, applied) => {
+      const maybe = applied && isMaybe(r);
+      const dot = !applied ? "off" : r.reportOnly ? "ro" : maybe ? "maybe" : "on";
+      return `<div class="wf-pol ${applied ? "on" : "off"}">
+        <div class="wf-pol-h"><span class="wf-dot ${dot}"></span>
+          <b class="pol-link" data-pol="${esc(r.name)}">${esc(r.name)}</b>
+          ${r.reportOnly ? '<span class="wf-chip ro">report-only</span>' : ""}
+          ${maybe ? '<span class="wf-chip maybe">depends on conditions</span>' : ""}
+          ${r.state === "off" ? '<span class="wf-chip muted">Off</span>' : ""}</div>
+        <div class="wf-pol-why">${esc((r.reasons || []).join("; "))}${(r.notes || []).length ? `<br><span class="wf-mut">${esc(r.notes.join("; "))}</span>` : ""}</div>
+      </div>`;
+    };
+    const nMaybe = res.applied.filter(isMaybe).length;
 
     return `<div class="wf-sim">
       <div class="wf-sub"><b>${esc(res.subject.name)}</b> <span class="wf-mut">${esc(res.subject.upn)}</span>
@@ -244,12 +255,15 @@ const WhatIf = (() => {
         <span class="wf-mut">· ${res.subject.groupIds.size} groups · ${res.subject.roleIds.size} roles</span></div>
       <div class="wf-scrow">${scBits}</div>
       ${banner}
-      ${o.session.length ? `<div class="wf-mut" style="margin:6px 0">Session controls: ${o.session.map(esc).join(", ")}</div>` : ""}
-      ${o.reportOnlyCount ? `<div class="wf-mut" style="margin:6px 0">${o.reportOnlyCount} more polic${o.reportOnlyCount === 1 ? "y" : "ies"} would apply in <b>report-only</b> (not enforced).</div>` : ""}
+      <div class="wf-notes">
+        ${o.session.length ? `<div><span class="wf-nk">Session</span> ${o.session.map(esc).join(", ")}</div>` : ""}
+        ${o.reportOnlyCount ? `<div><span class="wf-nk">Report-only</span> ${o.reportOnlyCount} more polic${o.reportOnlyCount === 1 ? "y" : "ies"} would apply but not enforce.</div>` : ""}
+        ${nMaybe ? `<div><span class="wf-nk">Conditional</span> ${nMaybe} of the applying policies depend on a condition you did not set (marked <span class="wf-chip maybe">depends on conditions</span>) — set the app / platform / risk above to resolve them.</div>` : ""}
+      </div>
       <div class="wf-cols">
-        <div><h4 class="wf-colh">✅ Policies that apply (${res.applied.length})</h4>
+        <div><h4 class="wf-colh">✅ Applies (${res.applied.length})</h4>
           ${res.applied.length ? res.applied.map((r) => policyRow(r, true)).join("") : '<p class="wf-mut">None.</p>'}</div>
-        <div><h4 class="wf-colh">✗ Policies that do not apply (${res.notApplied.length})</h4>
+        <div><h4 class="wf-colh">✗ Does not apply (${res.notApplied.length})</h4>
           ${res.notApplied.map((r) => policyRow(r, false)).join("")}</div>
       </div>
     </div>`;
