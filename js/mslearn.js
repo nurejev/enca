@@ -278,16 +278,21 @@ const MSLearn = (() => {
           };
         }
         const rule = String(filter.rule || "").toLowerCase();
+        // Only the types a device filter can actually express are checked here.
+        // Autopilot self-deploying, Surface Hub and Teams Rooms are NOT valid
+        // profileType / systemLabels values, so they cannot be excluded via the
+        // filter — requiring them would make this finding impossible to clear
+        // even after a correct fix. Their impact is covered by the dedicated
+        // Surface Hub / Teams Rooms findings instead.
         const known = [
           { pat: "cloudpc", label: "Cloud PCs" },
           { pat: "azurevirtualdesktop", label: "Azure Virtual Desktop" },
-          { pat: "autopilot", label: "Autopilot self-deploying" },
-          { pat: "securevm", label: "Azure VMs" },
+          { pat: "securevm", label: "Azure VMs (SecureVM)" },
         ];
         const missing = known.filter((k) => !rule.includes(k.pat));
         if (missing.length && filter.mode === "exclude") {
           return {
-            detail: `The device filter may not cover every unsupported device type — potentially missing exclusions for: ${missing.map((m) => m.label).join(", ")}.`,
+            detail: `The device filter may not cover every device type a filter can exclude — potentially missing: ${missing.map((m) => m.label).join(", ")}. (Surface Hub, Teams Rooms and Autopilot self-deploying cannot be excluded by a device filter and are flagged separately.)`,
             impactedResources: missing.map((m) => m.label),
           };
         }
