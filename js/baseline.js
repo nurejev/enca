@@ -14,6 +14,8 @@
 //   ahead     present, but the tenant runs a newer version than the catalog
 //   unversioned present, but one side carries no version to compare
 //   missing   in the baseline, not in the tenant
+//   conflict  the CA number matches but the name contradicts it — a number
+//             clash between two baselines, not a deployed policy
 //   extra     numbered policy in the tenant that the baseline does not define
 // ======================================================================
 const Baseline = (() => {
@@ -36,6 +38,62 @@ const Baseline = (() => {
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 
+  // ---- corroboration ----------------------------------------------------
+  // The CA number alone is only a reliable identity WITHIN one baseline. Across
+  // baselines the numbering diverges (Joey's CA501 is an agent policy; the
+  // Limon-IT CA501 is a guest-admin policy), so a number match must be backed
+  // by the name: the persona segment must not contradict, and the descriptive
+  // tokens must overlap. Otherwise the row is a number clash, not a match.
+  const PERSONA_KEYS = [
+    // most specific first — "g_admin" must win over "admin"
+    ["eadmin", /\b(e[-_ ]?admins?|emergency[_ ]?access|breakglass|break[-_ ]glass)\b/i],
+    ["guestadmin", /\b(g[-_ ]?admins?|guest ?admins?|guestadmins)\b/i],
+    ["guest", /\b(guests?|guestusers?|externals?)\b/i],
+    ["agent", /\b(agents?|agentid|workloadids?|workload ?identit(y|ies))\b/i],
+    ["serviceaccount", /\b(serviceaccounts?|svc|msa|sa)\b/i],
+    ["devops", /\b(devops)\b/i],
+    ["admin", /\b(admins?)\b/i],
+    ["internal", /\b(internals?|employees?)\b/i],
+    ["global", /\b(global)\b/i],
+  ];
+  function personaKey(name) {
+    const n = String(name || "").replace(/[-_]/g, " ");
+    for (const [key, re] of PERSONA_KEYS) if (re.test(n)) return key;
+    return null;
+  }
+
+  // words that appear in nearly every policy name and so carry no signal
+  const STOP = new Set(["ca", "v", "new", "up", "the", "and", "or", "for", "to", "of", "a",
+    "anyapp", "anyapps", "allapps", "anyplatform", "allplatforms", "policy", "access"]);
+  function tokens(name) {
+    return new Set(String(name || "").toLowerCase()
+      .replace(/\bca\d{3,4}\b/g, " ")           // the number is compared separately
+      .replace(/\bv?\d+(\.\d+)*\b/g, " ")       // versions
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length > 2 && !STOP.has(t)));
+  }
+  // overlap relative to the smaller set — a long tenant name should not be
+  // penalised for carrying extra descriptive words
+  function similarity(a, b) {
+    const A = tokens(a), B = tokens(b);
+    if (!A.size || !B.size) return 0;
+    let hit = 0;
+    for (const t of A) if (B.has(t)) hit++;
+    return hit / Math.min(A.size, B.size);
+  }
+
+  const MIN_SIMILARITY = 0.25;
+
+  // Does the tenant policy plausibly correspond to this baseline policy?
+  // Returns null when it does, or a reason string when it clearly does not.
+  function mismatchReason(baselineName, tenantName) {
+    const bp = personaKey(baselineName), tp = personaKey(tenantName);
+    if (bp && tp && bp !== tp) return `different persona — the baseline policy is ${bp}, this one is ${tp}`;
+    const sim = similarity(baselineName, tenantName);
+    if (sim < MIN_SIMILARITY) return `the names have almost nothing in common (${Math.round(sim * 100)}% overlap)`;
+    return null;
+  }
+
   const STATUS = {
     ok: { icon: "✓", label: "Up to date", cls: "ok", order: 3 },
     outdated: { icon: "⬆", label: "Outdated", cls: "warn", order: 1 },
@@ -43,6 +101,7 @@ const Baseline = (() => {
     present: { icon: "✓", label: "Present", cls: "ok", order: 2 },
     unversioned: { icon: "?", label: "Version unknown", cls: "info", order: 5 },
     missing: { icon: "✗", label: "Missing", cls: "bad", order: 0 },
+    conflict: { icon: "⚠", label: "Number clash", cls: "warn", order: 0.5 },
     extra: { icon: "＋", label: "Not in baseline", cls: "info", order: 6 },
   };
 
@@ -93,6 +152,9 @@ const Baseline = (() => {
       const scored = hits.map((p) => {
         const tv = version(p.name);
         let status;
+        // a number match that the name contradicts is a clash, not a match
+        const why = mismatchReason(b.name, p.name);
+        if (why) return { p, tv, status: "conflict", why };
         if (tv && b.version) {
           const c = cmpVersion(tv, b.version);
           status = c === 0 ? "ok" : c < 0 ? "outdated" : "ahead";
@@ -106,9 +168,11 @@ const Baseline = (() => {
         return { p, tv, status };
       }).sort((a, b2) => STATUS[b2.status].order - STATUS[a.status].order);
       const best = scored[0];
+      // every candidate contradicted the baseline → the policy is really absent
       rows.push({
         num: b.num, baseline: b, tenant: best.p, tenantVersion: best.tv,
-        status: best.status, duplicates: hits.length > 1 ? hits.length : 0,
+        status: best.status, why: best.why || null,
+        duplicates: hits.length > 1 ? hits.length : 0,
       });
       byNum.delete(b.num);
     }
@@ -120,7 +184,7 @@ const Baseline = (() => {
 
     const counts = {};
     rows.forEach((r) => { counts[r.status] = (counts[r.status] || 0) + 1; });
-    const covered = rows.filter((r) => r.baseline && r.tenant).length;
+    const covered = rows.filter((r) => r.baseline && r.tenant && r.status !== "conflict").length;
     return {
       rows, counts,
       catalog: cat,
@@ -128,14 +192,14 @@ const Baseline = (() => {
       covered,
       coverage: cat.policies.length ? Math.round((covered / cat.policies.length) * 100) : 0,
       // what an import would actually bring in
-      toImport: rows.filter((r) => r.status === "missing" || r.status === "outdated"),
+      toImport: rows.filter((r) => ["missing", "outdated", "conflict"].includes(r.status)),
     };
   }
 
   // ---- rendering ----
   function renderSummary(res) {
     const chip = (k) => res.counts[k] ? `<span class="bl-chip ${STATUS[k].cls}">${STATUS[k].icon} ${res.counts[k]} ${esc(STATUS[k].label.toLowerCase())}</span>` : "";
-    const order = ["missing", "outdated", "ok", "present", "ahead", "unversioned", "extra"];
+    const order = ["missing", "conflict", "outdated", "ok", "present", "ahead", "unversioned", "extra"];
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
         <h3>${esc(res.catalog.icon || "🧬")} ${esc(res.catalog.label)} baseline — ${esc(res.catalog.release)}${res.catalog.line ? ` (${esc(res.catalog.line)})` : ""}</h3>
@@ -157,7 +221,7 @@ const Baseline = (() => {
   function chips(res, active) {
     const all = res.rows.length;
     const items = [["all", `All (${all})`]].concat(
-      ["missing", "outdated", "ok", "present", "ahead", "unversioned", "extra"]
+      ["missing", "conflict", "outdated", "ok", "present", "ahead", "unversioned", "extra"]
         .filter((k) => res.counts[k])
         .map((k) => [k, `${STATUS[k].icon} ${STATUS[k].label} (${res.counts[k]})`]));
     return items.map(([k, l]) => `<button class="fchip ${active === k ? "active" : ""}" data-blf="${k}">${esc(l)}</button>`).join("");
@@ -182,7 +246,7 @@ const Baseline = (() => {
       const tag = r.baseline?.tag ? `<span class="tag new">${esc(r.baseline.tag)}</span>` : "";
       const tenant = r.tenant
         ? `<span class="pname" data-blpol="${esc(r.tenant.id)}">${esc(r.tenant.name)}</span>
-           <div class="mini">state: ${esc(r.tenant.state === "report" ? "report-only" : r.tenant.state)}${r.duplicates ? ` · ⚠ ${r.duplicates} policies share CA${r.num}` : ""}</div>`
+           <div class="mini">state: ${esc(r.tenant.state === "report" ? "report-only" : r.tenant.state)}${r.duplicates ? ` · ⚠ ${r.duplicates} policies share CA${r.num}` : ""}${r.why ? ` · <b>${esc(r.why)}</b>` : ""}</div>`
         : '<span class="mini">not present in this tenant</span>';
       const ver = r.status === "outdated"
         ? `<span class="bl-ver warn">${esc(r.tenantVersion)} → ${esc(r.baseline.version)}</span>`
@@ -219,7 +283,9 @@ const Baseline = (() => {
 
     const status = `<div class="bc-status ${s.cls}">
         <b>${s.icon} ${esc(s.label)}</b>
-        <span class="mini">${r.tenant
+        <span class="mini">${r.status === "conflict"
+          ? `CA${String(r.num).padStart(3, "0")} in this tenant is <b>${esc(r.tenant.name)}</b> — ${esc(r.why)}. Treat the baseline policy as not deployed.`
+          : r.tenant
           ? `in tenant: ${esc(r.tenant.name)}${r.status === "outdated" ? ` — v${esc(r.tenantVersion)} vs baseline v${esc(b.version)}` : ""}`
           : "not present in this tenant"}</span>
       </div>`;
@@ -279,7 +345,7 @@ const Baseline = (() => {
     if (res.catalog.url) L.push(`Baseline source: ${res.catalog.url}`);
     L.push("");
     L.push(`- Baseline coverage: **${res.coverage}%** — ${res.covered} of ${res.baselineTotal} baseline policies present in the tenant.`);
-    ["missing", "outdated", "ok", "present", "ahead", "unversioned", "extra"].forEach((k) => {
+    ["missing", "conflict", "outdated", "ok", "present", "ahead", "unversioned", "extra"].forEach((k) => {
       if (res.counts[k]) L.push(`- ${STATUS[k].label}: **${res.counts[k]}**`);
     });
     L.push(`- Import would add or update **${res.toImport.length}** policies.`);
@@ -288,17 +354,20 @@ const Baseline = (() => {
     L.push("| --- | --- | --- | --- | --- |");
     for (const r of res.rows) {
       const v = r.status === "outdated" ? `${r.tenantVersion} → ${r.baseline.version}` : (r.tenantVersion || r.baseline?.version || "—");
-      L.push(`| ${STATUS[r.status].label} | CA${String(r.num).padStart(3, "0")} | ${mdEsc(r.baseline?.name || "—")} | ${mdEsc(r.tenant?.name || "—")} | ${mdEsc(v)} |`);
+      L.push(`| ${STATUS[r.status].label} | CA${String(r.num).padStart(3, "0")} | ${mdEsc(r.baseline?.name || "—")} | ${mdEsc(r.tenant?.name || "—")}${r.why ? ` — ${mdEsc(r.why)}` : ""} | ${mdEsc(v)} |`);
     }
     L.push("");
     if (res.toImport.length) {
       L.push("## Would be imported or updated");
       L.push("");
-      for (const r of res.toImport) L.push(`- **CA${String(r.num).padStart(3, "0")}** ${mdEsc(r.baseline.name)}${r.status === "outdated" ? ` — currently v${mdEsc(r.tenantVersion)}` : " — not present"}`);
+      for (const r of res.toImport) L.push(`- **CA${String(r.num).padStart(3, "0")}** ${mdEsc(r.baseline.name)}${
+        r.status === "outdated" ? ` — currently v${mdEsc(r.tenantVersion)}`
+        : r.status === "conflict" ? ` — CA${String(r.num).padStart(3, "0")} is taken by "${mdEsc(r.tenant.name)}" (${mdEsc(r.why)})`
+        : " — not present"}`);
       L.push("");
     }
     return L.join("\n");
   }
 
-  return { catalogs, catalog, compare, renderSummary, chips, renderTable, renderCards, toMd, STATUS, caNum, version, cmpVersion };
+  return { catalogs, catalog, compare, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, renderCards, toMd, STATUS, caNum, version, cmpVersion };
 })();
