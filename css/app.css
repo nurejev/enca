@@ -455,3 +455,11 @@ table.matrix tbody tr.hl-row > td.hl-col,
 .bl-table td.bl-st{text-align:center}
 .bl-ver{font-weight:600;font-size:12px;white-space:nowrap}
 .bl-ver.warn{color:var(--warn-fg)}
+
+/* ---------- MS Learn: suggested fixes ---------- */
+.fx-card{margin-bottom:14px}
+.fx-head{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--soft);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.fx-new{font-weight:700;font-size:14px;color:var(--green);overflow-wrap:anywhere}
+.fx-body{padding:14px 18px}
+.fx-body h5{font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px}
+.fx-body h5 + ul{margin-bottom:12px}

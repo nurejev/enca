@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=64">
+<link rel="stylesheet" href="css/app.css?v=65">
 </head>
 <body>
 
@@ -124,7 +124,7 @@
         FOCI token sharing, resource-exclusion scope leaks, break-glass coverage, known bypass apps, and a persona × control coverage matrix.
         <b>Baseline Policies</b> matches this tenant against the Limon-IT R26.6 (v3.x) baseline on the CA number and compares versions, so you see at a glance which baseline policies are present, outdated or missing — with a Markdown gap report and a hand-off to Import.
         <b>MS Learn checks</b> compares your policies against exclusions, limitations and upcoming behavior changes documented on learn.microsoft.com —
-        missing break-glass exclusions, token protection limits, Teams Rooms / Surface Hub impact, required app exclusions and control retirements.
+        missing break-glass exclusions, token protection limits, Teams Rooms / Surface Hub impact, required app exclusions and control retirements — and can build the corrected policy for you (new version, state Off, downloadable; never written to your tenant).
         <b>Backup</b> downloads the raw JSON definitions of your policies in one zip.
         <b>Assign groups</b> changes the include/exclude persona groups of selected policies (replace, add, or set to All Users) — the only tool that writes to your tenant, always behind an explicit review step.</p>
 
@@ -271,7 +271,12 @@
   <section id="screen-mslearn" class="screen">
     <div class="list-card readme" id="mlHead" style="margin-top:0"></div>
     <div style="display:flex;align-items:center;gap:14px;margin:14px 0 0;flex-wrap:wrap">
+      <div class="seg">
+        <button class="active" id="mlTabFindings">Findings</button>
+        <button id="mlTabFixes">Suggested fixes</button>
+      </div>
       <div class="chip-filter" id="mlChips"></div>
+      <button class="btn lemon" id="mlFixZip" style="display:none">⤓ Download all (zip)</button>
       <label class="chk" id="mlDisabledWrap" style="margin:0 0 0 auto"><input type="checkbox" id="mlDisabled"> Include Off (disabled) policies <span class="mini" id="mlDisabledNote"></span></label>
     </div>
     <div id="mlBody" style="margin-top:14px"></div>
@@ -476,22 +481,22 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=64"></script>
-<script src="js/labels.js?v=64"></script>
-<script src="js/graph.js?v=64"></script>
-<script src="js/model.js?v=64"></script>
-<script src="js/render.js?v=64"></script>
-<script src="js/analyze.js?v=64"></script>
-<script src="js/mslearn.js?v=64"></script>
-<script src="js/gapcheck.js?v=64"></script>
-<script src="js/exclusions.js?v=64"></script>
-<script src="js/baselineData.js?v=64"></script>
-<script src="js/baseline.js?v=64"></script>
-<script src="js/groupTemplates.js?v=64"></script>
-<script src="js/assign.js?v=64"></script>
-<script src="js/import.js?v=64"></script>
-<script src="js/export.js?v=64"></script>
-<script src="js/demo.js?v=64"></script>
-<script src="js/app.js?v=64"></script>
+<script src="js/authConfig.js?v=65"></script>
+<script src="js/labels.js?v=65"></script>
+<script src="js/graph.js?v=65"></script>
+<script src="js/model.js?v=65"></script>
+<script src="js/render.js?v=65"></script>
+<script src="js/analyze.js?v=65"></script>
+<script src="js/mslearn.js?v=65"></script>
+<script src="js/gapcheck.js?v=65"></script>
+<script src="js/exclusions.js?v=65"></script>
+<script src="js/baselineData.js?v=65"></script>
+<script src="js/baseline.js?v=65"></script>
+<script src="js/groupTemplates.js?v=65"></script>
+<script src="js/assign.js?v=65"></script>
+<script src="js/import.js?v=65"></script>
+<script src="js/export.js?v=65"></script>
+<script src="js/demo.js?v=65"></script>
+<script src="js/app.js?v=65"></script>
 </body>
 </html>

@@ -22,6 +22,9 @@ const MSLearn = (() => {
   const DEFENDER_TVM = "e724aa31-0f56-4018-b8be-f8cb82ca1196";
   const DIRSYNC_ROLE = "d29b2b05-8046-44ba-8758-1e26182fcf32";
   const TOKEN_PROT_APPS = [EXCHANGE_ONLINE, SHAREPOINT_ONLINE, TEAMS_SERVICE, AZURE_VIRTUAL_DESKTOP, WINDOWS_365, WINDOWS_CLOUD_LOGIN];
+  // Device filter excluding every registration type token protection cannot support.
+  const TOKEN_PROT_DEVICE_RULE = 'device.systemLabels -ne "CloudPC" -and device.systemLabels -ne "AzureVirtualDesktop" '
+    + '-and device.profileType -ne "AutopilotSelfDeploying" -and device.profileType -ne "SecureVM"';
 
   // ---- helpers on the raw Graph policy shape (fields may be missing) ----
   const U = (p) => p.conditions?.users || {};
@@ -62,6 +65,17 @@ const MSLearn = (() => {
       severity: "critical",
       docUrl: "https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access",
       remediation: "Exclude at least 2 emergency access (break-glass) accounts from this policy. Keep them cloud-only, with strong credentials, and alert on every sign-in.",
+      // needs a break-glass identity: supplied by the caller (ctx.breakGlass)
+      fix: (d, ctx) => {
+        const bg = ctx && ctx.breakGlass;
+        if (!bg) return null;
+        const u = d.conditions.users || (d.conditions.users = {});
+        const key = bg.type === "group" ? "excludeGroups" : "excludeUsers";
+        const list = u[key] || (u[key] = []);
+        if (list.includes(bg.id)) return [];
+        list.push(bg.id);
+        return [`Excluded the detected break-glass ${bg.type} ${bg.name || bg.id}`];
+      },
       detect: (p) => {
         if (!isActive(p) || !allUsers(p)) return null;
         if (!hasMfa(p) && !hasBlock(p) && !hasCompliance(p)) return null;
@@ -80,6 +94,18 @@ const MSLearn = (() => {
       severity: "critical",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/migrate-approved-client-app",
       remediation: "Replace 'Require approved client app' with 'Require application protection policy'. For a transition period use both controls with the OR operator; new policies should use app protection only.",
+      fix: (d) => {
+        const g = d.grantControls || (d.grantControls = {});
+        const b = g.builtInControls || [];
+        const ch = [];
+        if (!b.includes("compliantApplication")) { b.push("compliantApplication"); ch.push('Added grant control "Require app protection policy"'); }
+        if (b.includes("approvedApplication")) {
+          g.builtInControls = b.filter((x) => x !== "approvedApplication");
+          ch.push('Removed the retired grant control "Require approved client app"');
+        } else { g.builtInControls = b; }
+        if (g.builtInControls.length > 1 && g.operator !== "OR") { g.operator = "OR"; ch.push("Grant operator set to OR"); }
+        return ch;
+      },
       detect: (p) => {
         if (!isActive(p) || !grants(p).includes("approvedApplication")) return null;
         const hasAppProt = grants(p).includes("compliantApplication");
@@ -106,6 +132,11 @@ const MSLearn = (() => {
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#deployment",
       remediation: "Target only: Office 365 Exchange Online, Office 365 SharePoint Online, Microsoft Teams Services (plus AVD / Windows 365 if deployed). Do not use the Office 365 application group or All resources.",
+      fix: (d) => {
+        const a = d.conditions.applications || (d.conditions.applications = {});
+        a.includeApplications = TOKEN_PROT_APPS.slice();
+        return ["Target resources narrowed to the six token-protection supported apps (Exchange Online, SharePoint Online, Teams Services, AVD, Windows 365, Windows Cloud Login)"];
+      },
       detect: (p) => {
         if (!isActive(p) || !hasTokenProtection(p)) return null;
         const inc = appsInc(p);
@@ -139,6 +170,17 @@ const MSLearn = (() => {
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#deployment",
       remediation: "Set Device platforms → Include → Windows only, and Client apps → Mobile apps and desktop clients only (leave Browser unchecked).",
+      fix: (d) => {
+        const ch = [];
+        const plat = d.conditions.platforms || (d.conditions.platforms = { includePlatforms: [], excludePlatforms: [] });
+        if (!(plat.includePlatforms || []).includes("windows")) { plat.includePlatforms = ["windows"]; ch.push("Device platforms set to Windows only"); }
+        const cat = d.conditions.clientAppTypes || [];
+        if (!cat.length || cat.includes("browser") || cat.includes("all")) {
+          d.conditions.clientAppTypes = ["mobileAppsAndDesktopClients"];
+          ch.push("Client apps set to mobile apps and desktop clients only (Browser removed)");
+        }
+        return ch;
+      },
       detect: (p) => {
         if (!isActive(p) || !hasTokenProtection(p)) return null;
         const issues = [];
@@ -163,6 +205,11 @@ const MSLearn = (() => {
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#known-limitations",
       remediation: 'Add a device filter excluding the unsupported types, e.g. systemLabels -eq "CloudPC", systemLabels -eq "AzureVirtualDesktop", profileType -eq "SecureVM" (each combined with trustType -eq "AzureAD").',
+      fix: (d) => {
+        const dev = d.conditions.devices || (d.conditions.devices = {});
+        dev.deviceFilter = { mode: "exclude", rule: TOKEN_PROT_DEVICE_RULE };
+        return ["Device filter set to exclude the unsupported device types (Cloud PC, Azure Virtual Desktop, Autopilot self-deploying, Azure VM / SecureVM)"];
+      },
       detect: (p) => {
         if (!isActive(p) || !hasTokenProtection(p)) return null;
         const filter = p.conditions?.devices?.deviceFilter;
@@ -199,6 +246,10 @@ const MSLearn = (() => {
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-continuous-access-evaluation",
       remediation: "Remove the CAE-disable setting unless strict evaluation demonstrably breaks a workload; CAE is on by default and should stay active.",
+      fix: (d) => {
+        if (d.sessionControls) delete d.sessionControls.continuousAccessEvaluation;
+        return ["Removed the CAE-disable session control — continuous access evaluation returns to its default (on)"];
+      },
       detect: (p) => {
         if (!isActive(p)) return null;
         if (S(p).continuousAccessEvaluation?.mode !== "disabled") return null;
@@ -216,6 +267,10 @@ const MSLearn = (() => {
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/resilience-defaults",
       remediation: "Keep resilience defaults enabled unless your organization requires strict real-time policy evaluation (e.g. regulated industries).",
+      fix: (d) => {
+        if (d.sessionControls) d.sessionControls.disableResilienceDefaults = false;
+        return ["Resilience defaults re-enabled (disableResilienceDefaults: false)"];
+      },
       detect: (p) => {
         if (!isActive(p) || !S(p).disableResilienceDefaults) return null;
         return {
@@ -329,6 +384,15 @@ const MSLearn = (() => {
       severity: "medium",
       docUrl: "https://learn.microsoft.com/defender-endpoint/mobile-resources-defender-endpoint#microsoft-defender-mobile-app-exclusion-from-conditional-access-ca-policies",
       remediation: `Exclude MicrosoftDefenderATP XPlat (${DEFENDER_ATP_XPLAT}) and Microsoft Defender for Mobile TVM (${DEFENDER_TVM}) from this policy — create their service principals first if they do not exist.`,
+      fix: (d) => {
+        const a = d.conditions.applications || (d.conditions.applications = {});
+        const exc = a.excludeApplications || (a.excludeApplications = []);
+        const ch = [];
+        for (const [id, label] of [[DEFENDER_ATP_XPLAT, "MicrosoftDefenderATP XPlat"], [DEFENDER_TVM, "Defender for Mobile TVM"]]) {
+          if (!exc.some((x) => String(x).toLowerCase() === id)) { exc.push(id); ch.push(`Excluded ${label} (${id})`); }
+        }
+        return ch;
+      },
       detect: (p) => {
         if (!isActive(p) || !allUsers(p) || !allApps(p) || !hasBlock(p)) return null;
         const exc = appsExcLower(p);
@@ -347,6 +411,13 @@ const MSLearn = (() => {
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/identity/devices/howto-vm-sign-in-azure-ad-windows#mfa-sign-in-method-required",
       remediation: `If Windows Hello for Business is not deployed, exclude the Azure Windows VM Sign-In app (${WINDOWS_CLOUD_LOGIN}) from MFA / compliance policies — or ensure all RDP clients support WHfB or FIDO2.`,
+      fix: (d) => {
+        const a = d.conditions.applications || (d.conditions.applications = {});
+        const exc = a.excludeApplications || (a.excludeApplications = []);
+        if (exc.some((x) => String(x).toLowerCase() === WINDOWS_CLOUD_LOGIN)) return [];
+        exc.push(WINDOWS_CLOUD_LOGIN);
+        return [`Excluded Azure Windows VM Sign-In (${WINDOWS_CLOUD_LOGIN})`];
+      },
       detect: (p) => {
         if (!isActive(p) || !allUsers(p) || !allApps(p)) return null;
         if (!hasMfa(p) && !hasCompliance(p)) return null;
@@ -384,6 +455,11 @@ const MSLearn = (() => {
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history",
       remediation: "Check your Entra Connect version; if v2.5.76.0 or later, migrate the sync engine to application-based authentication and remove the Directory Synchronization Accounts exclusion from MFA policies.",
+      fix: (d) => {
+        const u = d.conditions.users || (d.conditions.users = {});
+        u.excludeRoles = (u.excludeRoles || []).filter((r) => r !== DIRSYNC_ROLE);
+        return ["Removed the Directory Synchronization Accounts role exclusion — only apply this after confirming Entra Connect is v2.5.76.0 or later with application-based authentication"];
+      },
       detect: (p) => {
         if (!isActive(p) || !allUsers(p) || !hasMfa(p)) return null;
         if (!(U(p).excludeRoles || []).includes(DIRSYNC_ROLE)) return null;
@@ -517,11 +593,112 @@ const MSLearn = (() => {
           ${resources.length ? `<h5 class="ml-red">Impacted resources</h5><ul class="ml-res">${resources.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
           <h5 class="ml-blue">MS Learn requirement</h5><p>${esc(c.requirement)}</p>
           <h5 class="ml-green">Remediation</h5><p>${esc(c.remediation)}</p>
+          ${typeof c.fix === "function" ? `<p style="margin-top:10px"><button class="btn lemon" data-mlfix="${esc(c.id)}">🧰 Fix — build the adjusted policy</button>
+            <span class="mini" style="margin-left:8px">creates a new policy (version bumped, state Off) to download — your tenant is not changed</span></p>` : ""}
           <a class="ml-doc" href="${esc(c.docUrl)}" target="_blank" rel="noopener noreferrer">↗ View the Microsoft Learn documentation</a>
         </div>` : ""}
       </div>`;
     }).join("");
   }
 
-  return { run, group, renderSummary, renderGroups, renderEmpty, checksCount: CHECKS.length };
+
+  // ======================================================================
+  // Suggested fixes — build a NEW policy from an affected one with the
+  // documented adjustment applied. Nothing is written to the tenant: the
+  // result is a downloadable Graph JSON body, always with state "disabled"
+  // and the version in the name bumped, so it can be reviewed, imported
+  // and switched on deliberately.
+  // ======================================================================
+
+  // Bump the trailing version in a policy name: v1.0 -> v1.0.1, v1.0.1 -> v1.0.2.
+  // A name without a version gets one, so the fix never overwrites the original.
+  function bumpVersion(name) {
+    const m = /^(.*?)(v\s?)(\d+(?:\.\d+)*)(\s*)$/i.exec(String(name || "").trim());
+    if (!m) return `${String(name || "policy").trim()}-v1.1`;
+    const parts = m[3].split(".").map(Number);
+    if (parts.length < 3) parts.push(0);
+    parts[parts.length - 1] += 1;
+    return `${m[1]}${m[2]}${parts.join(".")}`;
+  }
+
+  // Fields Graph rejects (or that must not travel) on a create.
+  const STRIP = ["id", "createdDateTime", "modifiedDateTime", "templateId", "deletedDateTime", "partialEnablementStrategy"];
+
+  function draftFrom(raw) {
+    const d = JSON.parse(JSON.stringify(raw));
+    STRIP.forEach((k) => delete d[k]);
+    d.conditions = d.conditions || {};
+    return d;
+  }
+
+  // findings: the flat list from run(); raws: the raw policies keyed by id.
+  // ctx may carry { breakGlass: {id, type, name} } for the break-glass fix.
+  function buildFixes(findings, raws, ctx = {}) {
+    const byPolicy = new Map();   // policyId -> { raw, draft, changes[], checks[] }
+    const rawById = new Map(raws.map((p) => [p.id, p]));
+    const skipped = [];
+
+    for (const f of findings) {
+      if (typeof f.check.fix !== "function") continue;
+      const raw = rawById.get(f.policyId);
+      if (!raw) continue;
+      let entry = byPolicy.get(f.policyId);
+      if (!entry) {
+        entry = { policyId: f.policyId, originalName: raw.displayName || "(unnamed policy)", originalState: raw.state, draft: draftFrom(raw), changes: [], checks: [] };
+        byPolicy.set(f.policyId, entry);
+      }
+      let ch = null;
+      try { ch = f.check.fix(entry.draft, ctx); } catch (e) { console.warn(`MS Learn fix ${f.check.id} failed:`, e); }
+      if (ch === null) { skipped.push({ policyName: entry.originalName, check: f.check }); continue; }
+      if (!ch.length) continue;               // already satisfied by an earlier fix
+      entry.changes.push(...ch);
+      entry.checks.push(f.check);
+    }
+
+    const fixes = [];
+    for (const e of byPolicy.values()) {
+      if (!e.changes.length) continue;
+      e.draft.displayName = bumpVersion(e.originalName);
+      e.draft.state = "disabled";             // never auto-enable a generated policy
+      e.newName = e.draft.displayName;
+      e.json = JSON.stringify(e.draft, null, 2);
+      fixes.push(e);
+    }
+    fixes.sort((a, b) => a.newName.localeCompare(b.newName));
+    return { fixes, skipped };
+  }
+
+  function renderFixes(res) {
+    if (!res.fixes.length) {
+      return `<div class="list-card" style="padding:40px;text-align:center">
+        <div style="font-size:34px;margin-bottom:10px">🧰</div>
+        <h3 style="margin-bottom:6px">No automatic fixes available</h3>
+        <p class="mini" style="max-width:460px;margin:0 auto">None of the current findings can be turned into a policy change mechanically —
+        they need a decision (which app to target, which accounts to exclude) rather than an edit. Follow the remediation text on each finding instead.</p>
+      </div>`;
+    }
+    const cards = res.fixes.map((f, i) => `<div class="list-card fx-card">
+      <div class="fx-head">
+        <div>
+          <div class="fx-new">${esc(f.newName)}</div>
+          <div class="mini">from <span class="pol-link" data-polid="${esc(f.policyId)}">${esc(f.originalName)}</span> · created as <b>Off</b></div>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn" data-fxjson="${i}">⤓ Download JSON</button>
+      </div>
+      <div class="fx-body">
+        <h5 class="ml-green">Applied adjustments (${f.changes.length})</h5>
+        <ul class="ml-res">${f.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>
+        <h5 class="ml-blue">Based on</h5>
+        <ul class="plist2">${f.checks.map((c) => `<li>${esc(c.title)} <a class="ml-doc" href="${esc(c.docUrl)}" target="_blank" rel="noopener noreferrer">↗ MS Learn</a></li>`).join("")}</ul>
+      </div>
+    </div>`).join("");
+    const note = res.skipped.length
+      ? `<p class="mini" style="margin:12px 0 0">${res.skipped.length} finding${res.skipped.length === 1 ? "" : "s"} could not be fixed automatically (no break-glass identity detected, or the change needs a decision).</p>`
+      : "";
+    return `<p class="mini" style="margin:0 0 12px">${res.fixes.length} new polic${res.fixes.length === 1 ? "y" : "ies"} prepared from ${res.fixes.length === 1 ? "1 affected policy" : `${res.fixes.length} affected policies`}.
+      Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${cards}${note}`;
+  }
+
+  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, checksCount: CHECKS.length };
 })();

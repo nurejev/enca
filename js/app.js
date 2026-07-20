@@ -952,13 +952,14 @@
   });
 
   // ---------- MS Learn documented exclusion checks ----------
-  let mlGroups = null, mlFilter = "all", mlStrengths = new Map();
+  let mlGroups = null, mlFilter = "all", mlStrengths = new Map(), mlFixes = null, mlTab = "findings";
   const mlExpanded = new Set();
   async function openMsLearn() {
     show("screen-mslearn");
     if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; return; }
     $("mlHead").innerHTML = '<h3>📘 MS Learn: documented exclusion checks</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
+    mlTab = "findings"; mlFixes = null;
     // baseline tenant → include Off + persona-only; note the scope
     const baseline = isBaselineTenant();
     $("mlDisabled").checked = baseline;
@@ -978,7 +979,17 @@
   }
   function runMsLearn() {
     const scope = checkScope($("mlDisabled").checked);
-    mlGroups = MSLearn.group(MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled }));
+    const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled });
+    mlGroups = MSLearn.group(findings);
+    // build the suggested policies straight away — pure JSON work, no writes.
+    // The break-glass identity (detected from exclusion patterns) lets the
+    // break-glass fix add the right exclusion instead of guessing.
+    let bg = null;
+    try {
+      const c = GapCheck.identifyBreakGlass(scope.raws);
+      if (c) bg = { id: c.id, type: c.type, name: policies.find(p => p.id === c.id)?.name || null };
+    } catch { /* GapCheck optional */ }
+    mlFixes = MSLearn.buildFixes(findings, scope.raws, { breakGlass: bg });
     mlFilter = "all"; mlExpanded.clear();
     renderMsLearn();
   }
@@ -986,19 +997,76 @@
   function renderMsLearn() {
     if (!mlGroups) return;
     const incDis = $("mlDisabled").checked;
+    const nFix = mlFixes ? mlFixes.fixes.length : 0;
+    $("mlTabFixes").textContent = nFix ? `Suggested fixes (${nFix})` : "Suggested fixes";
+    $("mlTabFindings").classList.toggle("active", mlTab === "findings");
+    $("mlTabFixes").classList.toggle("active", mlTab === "fixes");
+    $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount, incDis);
+
+    if (mlTab === "fixes") {
+      $("mlChips").innerHTML = "";
+      $("mlFixZip").style.display = nFix ? "" : "none";
+      $("mlBody").innerHTML = MSLearn.renderFixes(mlFixes || { fixes: [], skipped: [] });
+      return;
+    }
+    $("mlFixZip").style.display = "none";
     if (!mlGroups.length) {
-      $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount, incDis);
       $("mlChips").innerHTML = "";
       $("mlBody").innerHTML = MSLearn.renderEmpty();
       return;
     }
-    $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount, incDis);
     const count = (s) => s === "all" ? mlGroups.length : mlGroups.filter(g => g.check.severity === s).length;
     $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${mlFilter === k ? "active" : ""}" data-mlf="${k}">${l} (${count(k)})</button>`).join("");
     $("mlBody").innerHTML = MSLearn.renderGroups(mlGroups, mlFilter, mlExpanded);
   }
+  $("mlTabFindings").addEventListener("click", () => { mlTab = "findings"; renderMsLearn(); });
+  $("mlTabFixes").addEventListener("click", () => { mlTab = "fixes"; renderMsLearn(); });
+
+  // a finding card's Fix button jumps to the generated policy
+  $("mlBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-mlfix]")) { mlTab = "fixes"; renderMsLearn(); return; }
+    const dl = e.target.closest("[data-fxjson]");
+    if (!dl || !mlFixes) return;
+    const f = mlFixes.fixes[+dl.dataset.fxjson]; if (!f) return;
+    downloadText(safeFile(f.newName), "json", "application/json", f.json);
+    toast(`<span>${esc(f.newName)}</span> downloaded`);
+  });
+  const safeFile = (n) => String(n).replace(/[^\w.\- ]+/g, "").trim().replace(/\s+/g, "-").slice(0, 80) || "policy";
+
+  // all generated policies in one zip, alongside a README describing them
+  $("mlFixZip").addEventListener("click", async () => {
+    if (!mlFixes || !mlFixes.fixes.length) return;
+    const btn = $("mlFixZip"); btn.disabled = true;
+    try {
+      const zip = new JSZip();
+      const folder = zip.folder("SuggestedPolicies");
+      const lines = ["# MS Learn suggested policies", "",
+        `Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC from ${tenantName || "the connected tenant"}.`, "",
+        "Every file is a NEW Conditional Access policy built from an existing one with the",
+        "documented Microsoft Learn adjustment applied. The version in the name is bumped and",
+        "the state is **disabled** — nothing was changed in the tenant. Review, then bring them",
+        "in through the Import tool and enable deliberately.", ""];
+      for (const f of mlFixes.fixes) {
+        folder.file(`${safeFile(f.newName)}.json`, f.json);
+        lines.push(`## ${f.newName}`, "", `From: ${f.originalName} (state: ${f.originalState})`, "");
+        f.changes.forEach((c) => lines.push(`- ${c}`));
+        lines.push("", `Based on: ${f.checks.map((c) => c.title).join("; ")}`, "");
+      }
+      zip.file("README.md", lines.join("\n"));
+      const blob = await zip.generateAsync({ type: "blob" });
+      const d = new Date(), pad = (n) => String(n).padStart(2, "0");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `CA-SuggestedFixes-${(tenantName || "tenant").replace(/[^\w-]+/g, "-")}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      toast(`${mlFixes.fixes.length} suggested polic${mlFixes.fixes.length === 1 ? "y" : "ies"} <span>downloaded</span>`);
+    } catch (err) {
+      toast(`Zip failed: <span>${esc(err.message || err)}</span>`);
+    } finally { btn.disabled = false; }
+  });
   $("mlChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-mlf]"); if (!b) return;
     mlFilter = b.dataset.mlf; renderMsLearn();
