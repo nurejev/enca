@@ -112,6 +112,67 @@
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
+  // ---------- Markdown report viewer ----------
+  // A deliberately small renderer for the subset the reports actually emit:
+  // headings, tables, lists, bold, inline code, rules. Everything is escaped
+  // first and inline markup applied to the escaped text, so a policy name
+  // containing "<" can never become markup.
+  function mdToHtml(md) {
+    const inline = (s) => esc(s)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+      .replace(/(^|[\s(])_([^_]+)_(?=[\s.,)]|$)/g, "$1<i>$2</i>")
+      .replace(/❌/g, '<span class="md-bad">❌</span>')
+      .replace(/✅|✓/g, (m) => `<span class="md-ok">${m}</span>`);
+    const lines = String(md || "").split("\n");
+    const out = [];
+    let list = null, table = null;
+    const closeList = () => { if (list) { out.push("</ul>"); list = null; } };
+    const closeTable = () => { if (table) { out.push("</tbody></table>"); table = null; } };
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i];
+      const row = /^\s*\|(.+)\|\s*$/.exec(ln);
+      if (row) {
+        const cells = row[1].split("|").map((c) => c.trim());
+        // the |---|---| separator only tells us the header ended
+        if (cells.every((c) => /^:?-{2,}:?$/.test(c))) continue;
+        if (!table) { out.push(`<table><thead><tr>${cells.map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>`); table = true; continue; }
+        out.push(`<tr>${cells.map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`);
+        continue;
+      }
+      closeTable();
+      const h = /^(#{1,4})\s+(.*)$/.exec(ln);
+      if (h) { closeList(); out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); continue; }
+      if (/^\s*(-{3,}|\*{3,})\s*$/.test(ln)) { closeList(); out.push("<hr>"); continue; }
+      const li = /^\s*[-*]\s+(.*)$/.exec(ln);
+      if (li) { if (!list) { out.push("<ul>"); list = true; } out.push(`<li>${inline(li[1])}</li>`); continue; }
+      closeList();
+      if (ln.trim()) out.push(`<p>${inline(ln)}</p>`);
+    }
+    closeList(); closeTable();
+    return out.join("\n");
+  }
+
+  // Show a report on screen AND keep it downloadable. `base`/`ext` feed
+  // downloadText, so the file name matches what the tool would have written.
+  let rptCurrent = null;
+  function showReport(title, base, md, ext) {
+    rptCurrent = { base, md, ext: ext || "md" };
+    $("rptTitle").textContent = title;
+    $("rptBody").innerHTML = mdToHtml(md);
+    $("rptBody").scrollTop = 0;
+    $("reportModal").classList.add("open");
+  }
+  $("rptClose").addEventListener("click", () => $("reportModal").classList.remove("open"));
+  $("rptDownload").addEventListener("click", () => {
+    if (rptCurrent) downloadText(rptCurrent.base, rptCurrent.ext, "text/markdown", rptCurrent.md);
+  });
+  $("rptCopy").addEventListener("click", async () => {
+    if (!rptCurrent) return;
+    try { await navigator.clipboard.writeText(rptCurrent.md); toast("Markdown <span>copied</span>"); }
+    catch { toast("Could not copy — use Download instead"); }
+  });
+
   function visible() {
     return policies.filter(p => (stateFilter === "all" || p.state === stateFilter)
       && (!query || p.name.toLowerCase().includes(query)));
@@ -645,18 +706,14 @@
         depLog = dep.log; maps = dep.maps;
         res = await Importer.importPolicies(chosen, maps, (m) => toast(esc(m)));
       }
-      // markdown change report
+      // Change report — shown on screen and downloadable. A failed import is
+      // the case you most need to read, so it should not require opening a file.
       const md = Importer.buildReport({ tenantName, fileName: imFileName, depLog, planItems: imPlan, results: res.results, warnings: res.warnings });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([md], { type: "text/markdown" }));
-      const d = new Date(), pad = (n) => String(n).padStart(2, "0");
-      a.download = `CA-Import-Report-${(tenantName || "tenant").replace(/[^\w-]+/g, "-")}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.md`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       const failed = res.results.filter(r => !r.ok).length;
       $("importModal").classList.remove("open");
-      toast(failed ? `Import done with <span>${failed} failure(s)</span> — report downloaded`
-        : `Imported <span>${res.results.length}</span> policies (Off) — report downloaded${isDemo ? " (simulated)" : ""}`);
+      showReport("📥 Import report", "CA-Import-Report", md);
+      toast(failed ? `Import done with <span>${failed} failure(s)</span>`
+        : `Imported <span>${res.results.length}</span> policies (Off)${isDemo ? " (simulated)" : ""}`);
       if (!isDemo && res.results.some(r => r.ok)) await loadFromGraph(true);
     } catch (e) {
       console.error(e); toast(`Import failed: <span>${esc(e.message || e)}</span>`);
@@ -824,7 +881,9 @@
   // beyond the policies already loaded, so it is instant and re-runs on filter.
   let blResult = null, blFilter = "all", blQuery = "", blView = "cards", blCat = "limonit";
   const blCollapsed = new Set();
-  function openBaseline(catId) {
+  // keepView: a refresh re-compares in place and must not throw away the filter,
+  // search or collapsed sections the person was looking at.
+  function openBaseline(catId, keepView) {
     show("screen-baseline");
     if (catId) blCat = catId;
     if (!policies.length) {
@@ -833,7 +892,9 @@
       return;
     }
     blResult = Baseline.compare(policies, blCat);
-    blFilter = "all"; blQuery = ""; blView = "cards"; blCollapsed.clear(); $("blSearch").value = "";
+    if (!keepView) {
+      blFilter = "all"; blQuery = ""; blView = "cards"; blCollapsed.clear(); $("blSearch").value = "";
+    }
     renderBaseline();
   }
   function renderBaseline() {
@@ -886,8 +947,22 @@
   });
   $("blMd").addEventListener("click", () => {
     if (!blResult) return;
-    downloadText("CA-Baseline-Gap", "md", "text/markdown", Baseline.toMd(blResult, tenantName));
-    toast("Baseline gap report <span>downloaded</span>");
+    showReport("🧬 Baseline gap report", "CA-Baseline-Gap", Baseline.toMd(blResult, tenantName));
+  });
+  // Refresh: re-read the tenant, then re-compare against the selected catalog.
+  // Needed after an import — otherwise the gap still shows what you just fixed.
+  $("blRefresh").addEventListener("click", async () => {
+    const btn = $("blRefresh");
+    btn.disabled = true; btn.textContent = "⟳ Refreshing…";
+    try {
+      if (isDemo) loadDemo(); else await loadFromGraph(true);
+      openBaseline(blCat, true);
+      toast("Baseline comparison <span>refreshed</span>");
+    } catch (e) {
+      toast(`Refresh failed: <span>${esc(e.message || e)}</span>`);
+    } finally {
+      btn.disabled = false; btn.textContent = "⟳ Refresh";
+    }
   });
   // hand off to the Import tool with the gap in hand
   $("blImport").addEventListener("click", () => {
@@ -1102,7 +1177,7 @@
   });
   $("exMd").addEventListener("click", () => {
     if (!exModel) return;
-    downloadText("CA-Exclusions", "md", "text/markdown", Exclusions.toMd(exModel, exUsers, tenantName));
+    showReport("🚪 Exclusion report", "CA-Exclusions", Exclusions.toMd(exModel, exUsers, tenantName));
     toast("Exclusion Markdown <span>downloaded</span>");
   });
 
@@ -1351,11 +1426,12 @@
     }
     btn.textContent = "Done";
     log("", `<b>${created}</b> created · <b>${deleted}</b> deleted · <b>${failed}</b> failed. Reloading policies…`);
-    downloadText("CA-MSLearn-Applied", "md", "text/markdown", applyReport(results, { created, deleted, failed, del, spCreated, spFailed }));
-    toast(`${created} polic${created === 1 ? "y" : "ies"} created${deleted ? `, ${deleted} removed` : ""} <span>· change report downloaded</span>`);
+    const mlMd = applyReport(results, { created, deleted, failed, del, spCreated, spFailed });
+    toast(`${created} polic${created === 1 ? "y" : "ies"} created${deleted ? `, ${deleted} removed` : ""}`);
     try { await loadFromGraph(true); } catch { /* surfaced by loadFromGraph */ }
     show("screen-mslearn");
     await openMsLearn();
+    showReport("📘 MS Learn fixes applied", "CA-MSLearn-Applied", mlMd);
   });
 
   // Markdown record of what the apply actually did — one row per policy, the
@@ -1560,7 +1636,7 @@
   });
   $("gcMd").addEventListener("click", () => {
     if (!gcResult) return;
-    downloadText("CA-BestPractice-Checks", "md", "text/markdown", GapCheck.toMd(gcResult, gcMeta || { tenantName }));
+    showReport("🛡 Best-practice & bypass checks", "CA-BestPractice-Checks", GapCheck.toMd(gcResult, gcMeta || { tenantName }));
     toast("Best-practice checks Markdown <span>downloaded</span>");
   });
   $("gcDisabled").addEventListener("change", runGapCheck);

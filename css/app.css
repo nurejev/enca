@@ -111,6 +111,22 @@ table.plist tr:hover td{background:var(--hover)}
 .sel-actions .btn.danger:hover{background:var(--off);border-color:var(--off);color:#fff}
 .sel-sep{width:1px;align-self:stretch;background:var(--ghost-bd);margin:0 2px}
 
+/* rendered Markdown report inside the viewer overlay */
+.md-view{max-height:62vh;overflow:auto;padding-right:6px;font-size:13px;line-height:1.6}
+.md-view h1{font-size:18px;margin:0 0 10px}
+.md-view h2{font-size:15px;margin:18px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border);color:var(--green)}
+.md-view h3{font-size:13.5px;margin:14px 0 6px}
+.md-view p{margin:6px 0}
+.md-view ul{margin:6px 0 6px 18px}
+.md-view li{margin:3px 0}
+.md-view code{background:var(--bad-bg2);border:1px solid var(--border);border-radius:5px;padding:1px 5px;font-size:12px}
+.md-view table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12.5px}
+.md-view th,.md-view td{border:1px solid var(--border);padding:6px 9px;text-align:left;vertical-align:top}
+.md-view th{background:var(--ok-bg2);font-weight:600}
+.md-view hr{border:0;border-top:1px solid var(--border);margin:14px 0}
+.md-view .md-bad{color:var(--off);font-weight:600}
+.md-view .md-ok{color:var(--on);font-weight:600}
+
 /* delete confirmation */
 .btn.danger{background:var(--off);border-color:var(--off);color:#fff}
 .btn.danger:hover{background:#8f3a2d;border-color:#8f3a2d}

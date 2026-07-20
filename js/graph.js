@@ -10,6 +10,13 @@ const Graph = (() => {
         clientId: AUTH_CONFIG.clientId,
         authority: AUTH_CONFIG.authority,
         redirectUri: window.location.origin + window.location.pathname,
+        // "cp1" tells Entra this client can handle a claims challenge. Without
+        // it Graph refuses protected actions outright — writing a Conditional
+        // Access policy in a tenant that protects CA administration comes back
+        // as 403 "Operation requires conditional access and client does not
+        // support it" with no way to satisfy it. With cp1 declared, Graph
+        // instead returns 401 + a claims challenge we can step up against.
+        clientCapabilities: ["cp1"],
       },
       cache: { cacheLocation: "sessionStorage" },
     });
@@ -39,17 +46,49 @@ const Graph = (() => {
     }
   }
 
+  // ---- claims challenges (Conditional Access on the CA API itself) ----------
+  // A tenant can protect Conditional Access administration with an auth context
+  // ("protected actions"). Graph then rejects the write and names the auth
+  // context it wants in a WWW-Authenticate header. The fix is not more
+  // permission — it is a fresh token carrying the requested claims, which means
+  // sending the user through an interactive step-up.
+  function claimsChallenge(r) {
+    // CORS: Graph lists WWW-Authenticate in Access-Control-Expose-Headers, so
+    // this is readable from the browser. If it ever is not, we fall through to
+    // the plain error rather than guessing.
+    const h = (r.headers && r.headers.get("WWW-Authenticate")) || "";
+    if (!/insufficient_claims/i.test(h)) return null;
+    const m = /claims="([^"]+)"/i.exec(h);
+    if (!m) return null;
+    try { return atob(m[1]); } catch { return null; }
+  }
+
+  // Every Graph call goes through here so the step-up is handled once, in one
+  // place, instead of per verb. Exactly one retry: if the token minted against
+  // the challenge is still refused, retrying again would just loop the popup.
+  async function graphFetch(url, opts, scopes) {
+    const full = safeGraphUrl(url);
+    const send = (t) => fetch(full, { ...opts, headers: { ...(opts.headers || {}), Authorization: "Bearer " + t } });
+    let r = await send(await token(scopes));
+    const claims = claimsChallenge(r);
+    if (claims) {
+      const res = await msalApp.acquireTokenPopup({ scopes: scopes || AUTH_CONFIG.scopes, account, claims });
+      r = await send(res.accessToken);
+    }
+    return r;
+  }
+
   // Write scope — requested on demand (incremental consent) only for the
   // Assign-groups tool; every other tool stays read-only.
   const WRITE_SCOPES = ["Policy.ReadWrite.ConditionalAccess"];
 
   async function gpatch(url, body) {
-    const t = await token([...AUTH_CONFIG.scopes, ...WRITE_SCOPES]);
-    const r = await fetch(safeGraphUrl(url), {
+    const scopes = [...AUTH_CONFIG.scopes, ...WRITE_SCOPES];
+    const r = await graphFetch(url, {
       method: "PATCH",
-      headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    });
+    }, scopes);
     if (!r.ok) throw await graphError(r);
     return r.status === 204 ? null : r.json();
   }
@@ -67,6 +106,16 @@ const Graph = (() => {
           `inner: ${(e.innerError.code || "")} ${(e.innerError["request-id"] || "")}`.trim(),
       ].filter(Boolean);
       if (bits.length) msg += ": " + bits.join(" · ");
+      // Protected actions: if we get here the step-up did not happen, either
+      // because the tenant sent no readable challenge or because the token
+      // minted against it still did not satisfy the auth context. Neither is
+      // fixed by granting more permission, so say what actually helps.
+      if (/does not support it|insufficient_claims/i.test(e.message || "")) {
+        msg += " — Conditional Access administration is a protected action in this tenant. "
+          + "Sign in again so the step-up prompt can run, make sure your session satisfies the "
+          + "auth context (e.g. phishing-resistant MFA), or temporarily remove the policy "
+          + "requirement on the Conditional Access create/update/delete actions.";
+      }
     } catch { /* no JSON body */ }
     return new Error(msg);
   }
@@ -95,10 +144,7 @@ const Graph = (() => {
   }
 
   async function gget(url, scopes) {
-    const t = await token(scopes);
-    const r = await fetch(safeGraphUrl(url), {
-      headers: { Authorization: "Bearer " + t, ConsistencyLevel: "eventual" },
-    });
+    const r = await graphFetch(url, { headers: { ConsistencyLevel: "eventual" } }, scopes);
     if (!r.ok) throw new Error(`Graph request failed (${r.status})`);
     return r.json();
   }
@@ -114,20 +160,18 @@ const Graph = (() => {
   }
 
   async function gpost(url, body, scopes) {
-    const t = await token(scopes);
-    const r = await fetch(safeGraphUrl(url), {
+    const r = await graphFetch(url, {
       method: "POST",
-      headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    });
+    }, scopes);
     if (!r.ok) throw await graphError(r);
     return r.status === 204 ? null : r.json();
   }
 
   // DELETE — only ever used by an explicitly confirmed write action.
   async function gdelete(url, scopes) {
-    const t = await token(scopes);
-    const r = await fetch(safeGraphUrl(url), { method: "DELETE", headers: { Authorization: "Bearer " + t } });
+    const r = await graphFetch(url, { method: "DELETE" }, scopes);
     if (!r.ok && r.status !== 404) throw await graphError(r);
     return true;
   }

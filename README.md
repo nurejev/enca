@@ -170,6 +170,17 @@ The signed-in user needs a reader role (Security Reader / Global Reader) for the
 - **All JavaScript libraries are self-hosted** in `vendor/` — nothing loads from a third-party CDN at runtime.
 - **Exports are generated locally** and carry the connected tenant's branding, not Limon-IT's.
 
+## Protected actions and step-up authentication
+
+If a tenant protects Conditional Access administration with an authentication context ([protected actions](https://learn.microsoft.com/entra/identity/role-based-access-control/protected-actions-overview)), a write is refused until the caller presents a token carrying the required claims. More permission does not fix this — the token itself has to be re-minted.
+
+The app declares the **`cp1` client capability**, which is what tells Entra it can handle a claims challenge. Graph then answers a protected write with `401` plus a `WWW-Authenticate` claims challenge instead of a flat `403`, and the app steps up interactively (a sign-in popup) and retries the request once.
+
+If a write still fails with *"Operation requires conditional access and client does not support it"*:
+
+- your session may not satisfy the auth context (for example it requires phishing-resistant MFA) — sign out and back in with a method that does;
+- some operations cannot be step-up'd at all. Creating a **terms of use** page or a **custom control** registers an object with Conditional Access, so it is itself subject to the CA create/update/delete protected action. Microsoft's documented workaround is to temporarily remove the policy requirement from those actions.
+
 ## Notes
 
 - Uses the Graph **beta** endpoint so the newest policy properties (insiderRiskLevels, agentIdRiskLevels, authenticationFlows, secureSignInSession / token protection, globalSecureAccessFilteringProfile) are included.
