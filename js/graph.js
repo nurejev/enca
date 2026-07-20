@@ -39,9 +39,11 @@ const Graph = (() => {
     scopes = scopes || AUTH_CONFIG.scopes;
     try {
       const r = await msalApp.acquireTokenSilent({ scopes, account });
+      noteScopes(r.accessToken);
       return r.accessToken;
     } catch {
       const r = await msalApp.acquireTokenPopup({ scopes, account });
+      noteScopes(r.accessToken);
       return r.accessToken;
     }
   }
@@ -271,12 +273,50 @@ const Graph = (() => {
     return { policies, org, logo, resolve, account };
   }
 
+  // ---- consent / popup handling -------------------------------------------
+  // Browsers only allow window.open while a user gesture is still "active".
+  // Safari and Edge close that window as soon as the call stack awaits
+  // anything; Chrome is laxer. A consent popup raised in the middle of an
+  // import therefore gets blocked, which is why consent is pulled forward to
+  // the click that starts the run — see hasScopes/ensureScopes below.
+  const granted = new Set();
+  const scopeName = (s) => String(s).replace(/^https:\/\/graph\.microsoft\.com\//i, "").toLowerCase();
+  function noteScopes(accessToken) {
+    try {
+      const p = JSON.parse(atob(accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      (p.scp || "").split(" ").filter(Boolean).forEach((s) => granted.add(scopeName(s)));
+    } catch { /* opaque token — leave the cache alone */ }
+  }
+  // Synchronous: safe to call as the first statement of a click handler.
+  const hasScopes = (scopes) => (scopes || []).every((s) => granted.has(scopeName(s)));
+
+  function isPopupBlocked(e) {
+    const c = (e && (e.errorCode || e.name)) || "";
+    return /popup_window_error|empty_window_error|popup_blocked/i.test(c)
+      || /popup.*(blocked|window)/i.test((e && e.message) || "");
+  }
+
   // Interactive consent request for additional scopes (popup). Returns the
-  // scp claim of the resulting token.
+  // scp claim of the resulting token. Call this from inside a click handler.
   async function requestConsent(scopes) {
     const r = await msalApp.acquireTokenPopup({ scopes, account });
-    const payload = JSON.parse(atob(r.accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return (payload.scp || "").split(" ").filter(Boolean);
+    noteScopes(r.accessToken);
+    return (r.accessToken && [...granted]) || [];
+  }
+
+  // Make sure `scopes` are consented BEFORE a long write run starts. Returns
+  // true if nothing was needed. Any popup happens here, at the top of the
+  // gesture, rather than several awaits deep where it would be blocked.
+  async function ensureScopes(scopes) {
+    if (hasScopes(scopes)) return true;
+    try {
+      const r = await msalApp.acquireTokenSilent({ scopes, account });
+      noteScopes(r.accessToken);
+      if (hasScopes(scopes)) return true;
+    } catch { /* falls through to interactive */ }
+    const r = await msalApp.acquireTokenPopup({ scopes, account });
+    noteScopes(r.accessToken);
+    return true;
   }
 
   // Scopes actually granted in the current session (from the access token's scp
@@ -284,10 +324,11 @@ const Graph = (() => {
   async function grantedScopes() {
     try {
       const r = await msalApp.acquireTokenSilent({ scopes: AUTH_CONFIG.scopes, account });
+      noteScopes(r.accessToken);
       const payload = JSON.parse(atob(r.accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
       return (payload.scp || "").split(" ").filter(Boolean);
     } catch { return []; }
   }
 
-  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, existingAppIds, createServicePrincipal, grantedScopes, requestConsent, get account() { return account; } };
+  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, existingAppIds, createServicePrincipal, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, get account() { return account; } };
 })();

@@ -545,6 +545,27 @@
   </div>
 </div>
 
+<!-- ============ POPUP BLOCKED ============
+     Safari and Edge only allow a popup while a user gesture is still active,
+     so a sign-in raised mid-run gets blocked. This gives the user a fresh
+     gesture to grant from, instead of a dead end. -->
+<div class="modal-bg" id="popupModal">
+  <div class="modal" style="max-width:560px">
+    <h3>🪟 Your browser blocked the sign-in window</h3>
+    <p class="mini" id="popupWhy"></p>
+    <div class="danger-note" style="background:var(--warn-bg);border-color:var(--warn-bd);color:var(--report)">
+      Microsoft Entra needs an interactive window to grant these permissions. Edge and Safari only allow one
+      to open while you are actively clicking, so one raised in the middle of a run is blocked.
+    </div>
+    <p class="mini">Click <b>Continue</b> below — that counts as a fresh click, so the window is allowed.
+      If it is still blocked, allow popups for this site in the address bar and try again.</p>
+    <div class="row">
+      <button class="btn" id="popupCancel">Cancel</button>
+      <button class="btn primary" id="popupGo">Continue</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ REPORT VIEWER ============
      Every Markdown report the tools produce can also be read here, so a run's
      outcome is visible immediately instead of only inside a downloaded file. -->

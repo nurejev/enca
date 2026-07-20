@@ -112,6 +112,47 @@
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
+  // ---------- consent, up front ----------
+  // A write run may need scopes the session has not consented yet. Asking for
+  // them mid-run means the popup is raised several awaits after the click, and
+  // Edge/Safari have already withdrawn the gesture by then — the window is
+  // blocked and the run dies half-way. So every write handler calls this FIRST,
+  // while the click is still fresh; after this returns true, the rest of the
+  // run is pure Graph calls with a token already in hand.
+  let pendingScopes = null;
+  function preConsent(scopes) {
+    if (isDemo || Graph.hasScopes(scopes)) return Promise.resolve(true);
+    return Graph.ensureScopes(scopes).then(() => true).catch((e) => {
+      if (Graph.isPopupBlocked(e)) { askPopup(scopes, e); return false; }
+      if (/user_cancelled|cancell?ed/i.test(e.errorCode || e.message || "")) {
+        toast("Permission request <span>cancelled</span> — nothing was changed");
+        return false;
+      }
+      toast(`Could not get permission: <span>${esc(e.message || e)}</span>`);
+      return false;
+    });
+  }
+  function askPopup(scopes, err) {
+    pendingScopes = scopes;
+    $("popupWhy").textContent = `Needed: ${scopes.join(", ")}.`;
+    console.warn("Popup blocked:", err);
+    $("popupModal").classList.add("open");
+  }
+  $("popupCancel").addEventListener("click", () => { pendingScopes = null; $("popupModal").classList.remove("open"); });
+  $("popupGo").addEventListener("click", async () => {
+    if (!pendingScopes) return;
+    const btn = $("popupGo"); btn.disabled = true;
+    try {
+      await Graph.ensureScopes(pendingScopes);
+      $("popupModal").classList.remove("open");
+      toast("Permissions <span>granted</span> — run the action again");
+    } catch (e) {
+      toast(Graph.isPopupBlocked(e)
+        ? "Still blocked — allow popups for this site in the address bar"
+        : `Failed: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; }
+  });
+
   // ---------- Markdown report viewer ----------
   // A deliberately small renderer for the subset the reports actually emit:
   // headings, tables, lists, bold, inline code, rules. Everything is escaped
@@ -564,6 +605,7 @@
     const sel = document.querySelector('[name="stState"]:checked');
     if (!sel) { toast("Choose the new state first"); return; }
     const state = sel.value;
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) return;
     const ps = exportOrder([...selected].map(id => policies.find(p => p.id === id)));
     $("stGo").disabled = true;
     try {
@@ -623,6 +665,7 @@
   $("delGo").addEventListener("click", async () => {
     const ps = delSelection();
     if (!ps.length) { $("delModal").classList.remove("open"); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) return;
     // Backup first — if this throws we stop, because the download is the only
     // thing standing between a mistaken click and an unrecoverable policy.
     if ($("delBackup").checked) {
@@ -696,6 +739,10 @@
   $("imGo").addEventListener("click", async () => {
     const chosen = [...document.querySelectorAll("[data-imp]:checked")].map(cb => imPlan[+cb.dataset.imp]);
     if (!chosen.length) { toast("Nothing selected to import"); return; }
+    // Consent first, while the click is still fresh — an import creates
+    // dependencies (groups, locations) as well as policies, so ask for both.
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess",
+      "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
     $("imGo").disabled = true;
     try {
       let depLog = { created: [], reused: [], warnings: [] }, maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, personaGroupIds: {} }, res = { results: [], warnings: [] };
@@ -831,6 +878,7 @@
       const can = CaGroups.creatable(cgRes);
       const picked = [...document.querySelectorAll("[data-cgcreate]:checked")].map(cb => can[+cb.dataset.cgcreate]).filter(Boolean);
       if (!picked.length) { toast("Nothing selected to create"); return; }
+      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
       e.target.disabled = true;
       const bar = $("cgCreateBar"), log = $("cgCreateLog");
       bar.style.display = "block";
