@@ -371,6 +371,8 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 /* the popup-blocked prompt appears while another modal is already open, so it
    has to sit above every one of them (but below the toast) */
 #popupModal{z-index:340}
+/* the assign confirm sits above the assign wizard modal */
+#asConfirm{z-index:330}
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--green-deep);color:#fff;padding:12px 22px;border-radius:12px;box-shadow:var(--shadow);display:none;z-index:400;font-weight:600}
 .toast.show{display:block}
 .toast span{color:var(--lemon)}

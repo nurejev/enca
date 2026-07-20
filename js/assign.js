@@ -13,7 +13,14 @@ const Assign = (() => {
     "ADD to INCLUDE groups (keep existing, add selected)",
     "ADD to EXCLUDE groups (keep existing, add selected)",
     "Set INCLUDE to All Users (clear include groups)",
+    "REMOVE from INCLUDE groups (keep the rest)",
+    "REMOVE from EXCLUDE groups (keep the rest)",
   ];
+  // Which actions read a group selection (everything except "All Users").
+  const NEEDS_GROUPS = (a) => a !== 4;
+  // Which actions only ever remove — safe to run tenant-wide without the ALL
+  // guard, like ADD-to-exclude, because they never rewrite what stays.
+  const REMOVE_ACTIONS = new Set([5, 6]);
 
   const PREDEFINED = [
     // deploy / test
@@ -139,6 +146,16 @@ const Assign = (() => {
       case 4: // include All Users, clear include groups
         includeUsers = ["All"]; includeGroups = [];
         break;
+      case 5: { // remove selected from include groups
+        const drop = new Set(groupIds);
+        includeGroups = cur.includeGroups.filter((g) => !drop.has(g));
+        break;
+      }
+      case 6: { // remove selected from exclude groups
+        const drop = new Set(groupIds);
+        excludeGroups = cur.excludeGroups.filter((g) => !drop.has(g));
+        break;
+      }
     }
     return {
       users: {
@@ -151,6 +168,18 @@ const Assign = (() => {
   }
 
   // Apply to each policy: GET a fresh copy, compute the new users block, PATCH.
+  // Would this new users block actually change the group assignment? Removal
+  // (and add) is a no-op on a policy that never referenced the group; skipping
+  // the PATCH there means a tenant-wide remove only writes the policies that
+  // really had it, and the result list can say "unchanged" for the rest.
+  function groupsChanged(raw, users) {
+    const u = raw.conditions?.users || {};
+    const same = (a, b) => { const A = new Set(a || []), B = new Set(b || []); return A.size === B.size && [...A].every((x) => B.has(x)); };
+    return !same(u.includeGroups, users.includeGroups)
+      || !same(u.excludeGroups, users.excludeGroups)
+      || !same(u.includeUsers, users.includeUsers);
+  }
+
   async function apply(policyIds, action, groupIds, onStatus) {
     const results = [];
     for (let i = 0; i < policyIds.length; i++) {
@@ -160,8 +189,9 @@ const Assign = (() => {
         name = fresh.displayName || name;
         onStatus?.(`Updating ${name} (${i + 1}/${policyIds.length})…`);
         const { users } = newUsersBlock(fresh, action, groupIds);
+        if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false }); continue; }
         await Graph.gpatch(`/identity/conditionalAccess/policies/${policyIds[i]}`, { conditions: { users } });
-        results.push({ name, ok: true });
+        results.push({ name, ok: true, changed: true });
       } catch (e) {
         console.error(`Assign: ${name} failed`, e);
         results.push({ name, ok: false, error: e.message || String(e) });
@@ -170,5 +200,5 @@ const Assign = (() => {
     return results;
   }
 
-  return { ACTIONS, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, templates };
+  return { ACTIONS, NEEDS_GROUPS, REMOVE_ACTIONS, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, templates };
 })();

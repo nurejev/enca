@@ -1267,34 +1267,34 @@
           (Graph does not allow role-assignable + dynamic). Creation requires the Privileged Role Administrator role and consents
           <code>Group.ReadWrite.All</code> + <code>RoleManagement.ReadWrite.Directory</code> on demand. Existing groups with the same name are reused, never duplicated.</p>`;
     } else if (asStep === 2) {
-      next.textContent = "Apply changes";
+      next.textContent = "Review →";
       const gsel = asGroups.filter(g => g.checked);
       const notes = asAction === 2 && asPolicies.some(p => (p.raw.conditions?.users?.includeUsers || []).includes("All"))
         ? '<p class="mini" style="color:var(--report)">⚠ Policies currently targeting "All users" will switch to the selected groups.</p>' : "";
-      // ADD-to-exclude (3) is additive and safe to run tenant-wide. The other
-      // actions REPLACE assignment, so applying them to every policy at once
-      // would rewrite the whole baseline's targeting in one click — that gets a
-      // typed confirmation rather than a warning nobody reads.
-      const wide = asScope === "all" && asAction !== 3;
+      // Replace (0,1) and All-Users (4) rewrite existing assignment, so tenant-
+      // wide they get a typed confirmation. Additive (2,3) and REMOVE (5,6) only
+      // touch the named groups, so they are safe to run across everything.
+      const rewrites = asAction === 0 || asAction === 1 || asAction === 4;
+      const wide = asScope === "all" && rewrites;
       const wideWarn = wide ? `<div class="danger-note"><b>This rewrites the assignment of all ${asPolicies.length} policies.</b>
-          "${assignEsc(Assign.ACTIONS[asAction])}" replaces what is there now — it does not merge. Only <i>ADD to EXCLUDE groups</i>
-          is purely additive. Type <b>ALL</b> below if that is really what you want.</div>
+          "${assignEsc(Assign.ACTIONS[asAction])}" replaces what is there now — it does not merge. Type <b>ALL</b> if that is really what you want.</div>
         <input id="asWideOk" class="txt" placeholder="ALL" autocomplete="off" spellcheck="false" style="margin-bottom:6px">` : "";
-      b.innerHTML = `<h4 class="mini">REVIEW — this WRITES to your tenant</h4>
+      b.innerHTML = `<h4 class="mini">STEP 3 — choose target groups</h4>
         ${wideWarn}
         <p style="margin:8px 0"><b>Action:</b> ${assignEsc(Assign.ACTIONS[asAction])}</p>
         <p style="margin:8px 0"><b>Policies (${asPolicies.length}):</b></p>
         <ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px">${asPolicies.map(p => `<li>${assignEsc(p.name)}</li>`).join("")}</ul>
         ${asAction === 4 ? '<p><b>Target:</b> All users (include groups will be cleared)</p>'
           : `<p style="margin:8px 0"><b>Groups (${gsel.length}):</b></p><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${gsel.map(g => `<li>${assignEsc(g.name)} <span class="mini">${assignEsc(g.id)}</span></li>`).join("")}</ul>`}
-        ${notes}
-        ${isDemo ? '<p class="mini" style="color:var(--report)">Demo mode — changes will be simulated, nothing is written.</p>' : ""}`;
+        ${notes}`;
     } else {
       // results
       next.textContent = "Close";
       back.style.display = "none";
       b.innerHTML = `<h4 class="mini">RESULT</h4><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
-        asResults.map(r => `<li>${r.ok ? '<span class="tag grant">ok</span>' : '<span class="tag block">failed</span>'} ${assignEsc(r.name)}${r.error ? `<div class="mini">${assignEsc(r.error)}</div>` : ""}</li>`).join("") + "</ul>";
+        asResults.map(r => `<li>${r.ok
+          ? (r.changed === false ? '<span class="tag">unchanged</span>' : '<span class="tag grant">updated</span>')
+          : '<span class="tag block">failed</span>'} ${assignEsc(r.name)}${r.error ? `<div class="mini">${assignEsc(r.error)}</div>` : ""}</li>`).join("") + "</ul>";
     }
   }
   $("asBody").addEventListener("change", (e) => {
@@ -1375,26 +1375,64 @@
         toast("Type <span>ALL</span> to confirm a tenant-wide assignment change");
         wideBox.focus(); return;
       }
-      if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) return;
-      const gids = asGroups.filter(g => g.checked).map(g => g.id);
-      $("asNext").disabled = true;
-      try {
-        if (isDemo) {
-          asResults = asPolicies.map(p => ({ name: p.name, ok: true }));
-          toast("Demo — changes <span>simulated</span>");
-        } else {
-          asResults = await Assign.apply(asPolicies.map(p => p.id), asAction, gids, (m) => toast(m));
-        }
-        asStep = 3; renderAssign();
-        const failed = asResults.filter(r => !r.ok).length;
-        toast(failed ? `Done with <span>${failed} failure(s)</span>` : `All <span>${asResults.length}</span> policies updated`);
-      } catch (e) {
-        console.error(e); toast(`Assign failed: <span>${esc(e.message || e)}</span>`);
-      } finally { $("asNext").disabled = false; }
+      if (asAction !== 4 && !asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
+      openAssignConfirm();
     } else {
       $("assignModal").classList.remove("open");
       if (!isDemo && asResults?.some(r => r.ok)) await loadFromGraph(true); // reload changed policies
     }
+  });
+
+  // Final plain-language confirm before the write, layered over the wizard.
+  const AS_VERB = {
+    0: "Replace the include groups of", 1: "Replace the exclude groups of",
+    2: "Add to the include groups of", 3: "Add to the exclude groups of",
+    4: "Set to All Users (clear include groups)",
+    5: "Remove from the include groups of", 6: "Remove from the exclude groups of",
+  };
+  function openAssignConfirm() {
+    const gsel = asGroups.filter(g => g.checked);
+    const scope = asScope === "all" ? `all **${asPolicies.length}** policies in this tenant` : `**${asPolicies.length}** selected polic${asPolicies.length === 1 ? "y" : "ies"}`;
+    const verb = AS_VERB[asAction] || Assign.ACTIONS[asAction];
+    const lines = [];
+    lines.push(`**${verb}** ${scope}.`);
+    lines.push("");
+    if (asAction === 4) {
+      lines.push("The include assignment becomes **All users** and any include groups are cleared.");
+    } else {
+      lines.push(`Group${gsel.length === 1 ? "" : "s"}:`);
+      gsel.forEach(g => lines.push(`- ${g.name}`));
+    }
+    if (Assign.REMOVE_ACTIONS.has(asAction)) {
+      lines.push("");
+      lines.push("_Policies that do not reference the group are left untouched — only the ones that actually have it are rewritten._");
+    }
+    lines.push("");
+    lines.push(isDemo ? "_Demo mode — this is simulated, nothing is written._" : "This **writes to your tenant**.");
+    $("asConfirmBody").innerHTML = mdToHtml(lines.join("\n"));
+    $("asConfirm").classList.add("open");
+  }
+  $("asConfirmBack").addEventListener("click", () => $("asConfirm").classList.remove("open"));
+  $("asConfirmGo").addEventListener("click", async () => {
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) return;
+    const gids = asGroups.filter(g => g.checked).map(g => g.id);
+    const btn = $("asConfirmGo"); btn.disabled = true;
+    try {
+      if (isDemo) {
+        asResults = asPolicies.map(p => ({ name: p.name, ok: true, changed: true }));
+        toast("Demo — changes <span>simulated</span>");
+      } else {
+        asResults = await Assign.apply(asPolicies.map(p => p.id), asAction, gids, (m) => toast(m));
+      }
+      $("asConfirm").classList.remove("open");
+      asStep = 3; renderAssign();
+      const failed = asResults.filter(r => !r.ok).length;
+      const changed = asResults.filter(r => r.ok && r.changed !== false).length;
+      toast(failed ? `Done with <span>${failed} failure(s)</span>`
+        : `<span>${changed}</span> polic${changed === 1 ? "y" : "ies"} updated${changed < asResults.length ? `, ${asResults.length - changed} unchanged` : ""}`);
+    } catch (e) {
+      console.error(e); toast(`Assign failed: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; }
   });
 
   // ---------- Baseline Policies ----------
