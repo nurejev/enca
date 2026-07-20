@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=89">
+<link rel="stylesheet" href="css/app.css?v=90">
 </head>
 <body>
 
@@ -188,22 +188,23 @@
         <button class="btn" id="collapseAllBtn" title="Expand or collapse all persona sections">⊟ Collapse all</button>
         <button class="btn" id="plFull" style="display:none" title="Open the settings matrix full screen">⤢ Full screen</button>
         <button class="btn" id="refreshBtn" disabled title="Fetch the latest policies from Entra">⟳ Refresh</button>
-        <button class="btn primary" id="analyzeBtn" disabled>Gap analyse</button>
-        <button class="btn lemon" id="exportBtn" disabled>Create documentation</button>
       </div>
     </div>
 
+    <!-- The single action row for this screen. Visible whenever policies are
+         loaded, not only when something is selected: Documentation, Backup and
+         Gap analyse fall back to every visible policy when the selection is
+         empty, while the two tenant-writing actions require an explicit pick. -->
     <div class="selbar" id="selbar">
-      <span><b id="selCount">0</b> policies selected</span>
+      <span id="selLead"><b id="selCount">0</b> policies selected</span>
       <span class="mini selhint" id="selHint"></span>
       <div class="spacer"></div>
-      <!-- Act on the selection without going back to the tools home. The
-           button matching the tool you entered from is highlighted. -->
       <div class="sel-actions">
-        <button class="btn sm" id="selActDoc" title="Create documentation from the selected policies">📄 Documentation</button>
-        <button class="btn sm" id="selActBackup" title="Download the selected policies as JSON">🗄 Backup</button>
-        <button class="btn sm" id="selActAssign" title="Change the persona groups of the selected policies — writes to your tenant">👥 Assign groups</button>
-        <button class="btn sm" id="selActState" title="Switch the selected policies On / report-only / Off — writes to your tenant">🎚 Policy state</button>
+        <button class="btn sm" id="selActDoc" title="Create documentation">📄 Documentation</button>
+        <button class="btn sm" id="selActBackup" title="Download raw JSON definitions">🗄 Backup</button>
+        <button class="btn sm" id="selActAnalyze" title="Users × policies impact matrix">🔍 Gap analyse</button>
+        <button class="btn sm" id="selActAssign" title="Change the persona groups — writes to your tenant">👥 Assign groups</button>
+        <button class="btn sm" id="selActState" title="Switch On / report-only / Off — writes to your tenant">🎚 Policy state</button>
       </div>
       <button class="btn ghost" id="clearSelBtn">Clear</button>
     </div>
@@ -532,24 +533,24 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=89"></script>
-<script src="js/authConfig.js?v=89"></script>
-<script src="js/labels.js?v=89"></script>
-<script src="js/graph.js?v=89"></script>
-<script src="js/model.js?v=89"></script>
-<script src="js/render.js?v=89"></script>
-<script src="js/analyze.js?v=89"></script>
-<script src="js/mslearn.js?v=89"></script>
-<script src="js/gapcheck.js?v=89"></script>
-<script src="js/exclusions.js?v=89"></script>
-<script src="js/baselineData.js?v=89"></script>
-<script src="js/baselineJoeyData.js?v=89"></script>
-<script src="js/baseline.js?v=89"></script>
-<script src="js/groupTemplates.js?v=89"></script>
-<script src="js/assign.js?v=89"></script>
-<script src="js/import.js?v=89"></script>
-<script src="js/export.js?v=89"></script>
-<script src="js/demo.js?v=89"></script>
-<script src="js/app.js?v=89"></script>
+<script src="js/version.js?v=90"></script>
+<script src="js/authConfig.js?v=90"></script>
+<script src="js/labels.js?v=90"></script>
+<script src="js/graph.js?v=90"></script>
+<script src="js/model.js?v=90"></script>
+<script src="js/render.js?v=90"></script>
+<script src="js/analyze.js?v=90"></script>
+<script src="js/mslearn.js?v=90"></script>
+<script src="js/gapcheck.js?v=90"></script>
+<script src="js/exclusions.js?v=90"></script>
+<script src="js/baselineData.js?v=90"></script>
+<script src="js/baselineJoeyData.js?v=90"></script>
+<script src="js/baseline.js?v=90"></script>
+<script src="js/groupTemplates.js?v=90"></script>
+<script src="js/assign.js?v=90"></script>
+<script src="js/import.js?v=90"></script>
+<script src="js/export.js?v=90"></script>
+<script src="js/demo.js?v=90"></script>
+<script src="js/app.js?v=90"></script>
 </body>
 </html>

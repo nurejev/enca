@@ -159,12 +159,16 @@
     syncCollapseAllBtn();
     ["viewCards", "viewList", "viewMatrix"].forEach(id => $(id).classList.remove("active"));
     if (v !== "analyze") $(v === "cards" ? "viewCards" : v === "list" ? "viewList" : "viewMatrix").classList.add("active");
-    $("analyzeBtn").classList.toggle("active", v === "analyze");
+    // Only one action can be the current one: entering the analyze view takes
+    // the highlight off whichever tool mode brought you here.
+    $("selActAnalyze").classList.toggle("on", v === "analyze");
+    if (v === "analyze") SEL_ACTIONS.forEach(([id]) => $(id).classList.remove("on"));
   }
   function updateSelbar() {
     const n = selected.size;
-    $("selCount").textContent = n;
-    $("selbar").classList.toggle("visible", n > 0);
+    // The bar is the screen's action row, so it stays up as long as there are
+    // policies to act on — an empty selection means "all visible", not "nothing".
+    $("selbar").classList.toggle("visible", policies.length > 0);
     // "Select all" reflects the visible (filtered) set: checked when all of it
     // is selected, indeterminate while only part of it is.
     const vis = visible(), picked = vis.filter(p => selected.has(p.id)).length;
@@ -178,12 +182,20 @@
     $("selAllLabel").textContent = picked && picked === vis.length
       ? `All ${vis.length} selected`
       : picked ? `Select all (${picked}/${vis.length})` : `Select all (${vis.length})`;
-    $("exportBtn").disabled = policies.length === 0;
-    $("analyzeBtn").disabled = policies.length === 0;
     $("refreshBtn").disabled = policies.length === 0;
-    $("selHint").textContent = n <= 1
-      ? "One policy exports as PNG, multiple as a combined PDF"
-      : "Multiple selected — will export as a combined PDF";
+
+    // Writing to the tenant always needs an explicit selection — "everything
+    // visible" is far too blunt a default for changing groups or policy state.
+    $("selActAssign").disabled = n === 0;
+    $("selActState").disabled = n === 0;
+    $("selLead").innerHTML = n
+      ? `<b id="selCount">${n}</b> ${n === 1 ? "policy" : "policies"} selected`
+      : `<b id="selCount">${vis.length}</b> ${vis.length === 1 ? "policy" : "policies"} in view`;
+    $("selHint").textContent = !n
+      ? "Nothing selected — Documentation, Backup and Gap analyse use everything in view"
+      : n === 1
+        ? "One policy exports as PNG, multiple as a combined PDF"
+        : "Multiple selected — will export as a combined PDF";
   }
   // #10: warn when directory lookups partially failed and raw GUIDs remain
   function warnUnresolved() {
@@ -361,16 +373,11 @@
     ["selActDoc", "document"], ["selActBackup", "backup"],
     ["selActAssign", "assign"], ["selActState", "state"],
   ];
+  // Highlights the selection-bar action matching the tool you entered from, so
+  // the screen still says which tool you are in now that the toolbar button
+  // (which used to carry that label) is gone.
   function setToolMode(mode) {
     toolMode = mode;
-    $("exportBtn").innerHTML = mode === "backup" ? "Backup (JSON)"
-      : mode === "assign" ? "Assign groups"
-      : mode === "state" ? "Set Policy state"
-      : "Create documentation";
-    const write = mode === "assign" || mode === "state";
-    $("exportBtn").classList.toggle("primary", write);
-    $("exportBtn").classList.toggle("lemon", !write);
-    // highlight the matching selection-bar action
     SEL_ACTIONS.forEach(([id, m]) => { const b = $(id); if (b) b.classList.toggle("on", m === mode); });
   }
   function runBackup() {
@@ -1708,7 +1715,7 @@
   });
 
   // ---------- impact analysis (on demand only) ----------
-  $("analyzeBtn").addEventListener("click", () => setView("analyze"));
+  $("selActAnalyze").addEventListener("click", () => setView("analyze"));
 
   $("anRun").addEventListener("click", async () => {
     const scope = $("anScope").value;
@@ -1862,11 +1869,8 @@
       : mode === "state" ? openStateModal()
       : openExport();
   }
-  $("exportBtn").addEventListener("click", () => runToolMode(toolMode));
-
-  // The same four actions, offered on the selection bar so you can act on a
-  // selection without going back to the tools home and re-picking policies.
-  // Clicking one also switches the toolbar button, so the two never disagree.
+  // The selection bar is the only place these are offered — the toolbar used to
+  // duplicate Documentation and Gap analyse, which said the same thing twice.
   SEL_ACTIONS.forEach(([id, mode]) => $(id).addEventListener("click", () => {
     setToolMode(mode);
     runToolMode(mode);
