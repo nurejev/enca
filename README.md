@@ -10,7 +10,7 @@ It started as a web successor to the idPowerToys CA documenter and grew into twe
 
 | Tool | What it does | Writes? |
 |---|---|---|
-| 🗂 **Policies** | Every policy as cards, a list, or a settings matrix — grouped by persona from the CA number (CA000–099 Global, CA100–199 Admins, … CA1100–1199 E-Admins). Expand a policy to inspect its dependencies (auth strengths, named locations, groups with their first members, terms of use). | no |
+| 🗂 **List Policies** | Every policy as cards, a list, or a settings matrix — grouped by persona from the CA number (CA000–099 Global, CA100–199 Admins, … CA1100–1199 E-Admins). Expand a policy to inspect its dependencies (auth strengths, named locations, groups with their first members, terms of use). | no |
 | 📄 **Create documentation** | Select policies (or take all) and generate shareable documentation: **Word**, **PDF**, **PNG**, or a **PNG bundle**. Exports are neutral — they carry the connected tenant's branding, not Limon-IT's. | no |
 | 🔍 **Gap analyse** | Users × policies impact matrix: which policies apply to whom, who bypasses one through an exclusion (and why), whether that bypass is covered elsewhere, and who gets no MFA at all. Filter by group or user type, then export the filtered set as a standalone HTML report. | no |
 | 🛡 **Best-practice & bypass checks** | The baseline against known CA bypasses and the Swiss-cheese layered-defense model: MFA coverage, FOCI token sharing, resource-exclusion scope leaks, CA-immune resources, device-registration bypass, grant-operator weaknesses, legacy auth, known bypass apps, guest auth strength, break-glass coverage — plus a persona × control coverage matrix. Exports to Markdown. | no |
