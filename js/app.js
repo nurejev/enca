@@ -768,8 +768,8 @@
       skipped when a policy with the same CA number + version already exists, and their INCLUDE assignment is remapped to the deploy persona group (CAD-SEC-U-DG-*).${isDemo ? " <b>Demo — simulated.</b>" : ""}</p>
       <p class="mini" style="margin:6px 0 4px"><b>Import only:</b> pick a persona to select just its policies, or use All / None.</p>
       <div class="persona-row" style="margin-bottom:10px">
-        <button class="btn sm" data-imPersona="__all">All (${importable.length})</button>
-        <button class="btn sm" data-imPersona="__none">None</button>
+        <button class="btn sm" data-im-persona="__all">All (${importable.length})</button>
+        <button class="btn sm" data-im-persona="__none">None</button>
         ${chips}
       </div>
       <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
@@ -801,8 +801,14 @@
     btn.textContent = n ? `Import ${n}` : "Import";
   }
   $("imBody").addEventListener("click", (e) => {
-    const chip = e.target.closest("[data-imPersona]");
-    if (chip) { imSelectPersona(chip.dataset.imPersona); return; }
+    const chip = e.target.closest("[data-im-persona]");
+    if (chip) {
+      imSelectPersona(chip.dataset.imPersona);
+      // highlight the persona just applied (not All/None)
+      document.querySelectorAll("#imBody [data-im-persona]").forEach(b => b.classList.remove("on"));
+      if (!chip.dataset.imPersona.startsWith("__")) chip.classList.add("on");
+      return;
+    }
   });
   $("imBody").addEventListener("change", (e) => { if (e.target.matches("[data-imp]")) updateImGo(); });
   $("imZip").addEventListener("change", async (e) => {
