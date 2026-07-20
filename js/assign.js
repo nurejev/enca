@@ -73,8 +73,17 @@ const Assign = (() => {
   // DYNAMIC groups are left exactly as designed: they keep their membership
   // rule and are NOT role-assignable, because Entra does not allow the two
   // together. A dynamic group's whole point is its rule, so the rule wins.
+  // Build the Graph payload. Two axes, decoupled: assigned-vs-dynamic, and
+  // role-assignable-or-not. The one combination Entra rejects is dynamic +
+  // role-assignable, so that is the only thing forced here. For a baseline
+  // template with no explicit roleAssignable, keep the historical default:
+  // assigned groups are role-assignable, dynamic ones are not.
   function buildGroupPayload(t) {
     const nickname = (String(t.mailNickname || t.displayName || "grp").replace(/[^A-Za-z0-9]/g, "").slice(0, 60)) || "CADSECgroup";
+    const dynamic = !!t.dynamic;
+    // explicit wins; otherwise assigned⇒role-assignable, dynamic⇒not
+    const wantRole = t.roleAssignable != null ? !!t.roleAssignable : !dynamic;
+    const roleAssignable = wantRole && !dynamic;   // Entra forbids the combination
     const p = {
       displayName: t.displayName,
       description: t.description || "Conditional Access target group. Created by Conditional Access Baseline Tools.",
@@ -82,13 +91,12 @@ const Assign = (() => {
       securityEnabled: true,
       mailNickname: nickname,
     };
-    if (t.dynamic) {
+    if (dynamic) {
       p.groupTypes = ["DynamicMembership"];
       p.membershipRule = t.membershipRule || "";
       p.membershipRuleProcessingState = "On";
-    } else {
-      p.isAssignableToRole = true;
     }
+    if (roleAssignable) p.isAssignableToRole = true;
     return p;
   }
 
@@ -96,8 +104,10 @@ const Assign = (() => {
   async function createGroup(template) {
     const existing = await findGroup(template.displayName);
     if (existing) return { ...existing, created: false };
-    const g = await Graph.gpostGroupCreate("/groups", buildGroupPayload(template));
-    return { id: g.id, name: g.displayName, created: true, dynamic: !!template.dynamic, roleAssignable: !template.dynamic };
+    const payload = buildGroupPayload(template);
+    const g = await Graph.gpostGroupCreate("/groups", payload);
+    return { id: g.id, name: g.displayName, created: true,
+      dynamic: !!template.dynamic, roleAssignable: !!payload.isAssignableToRole };
   }
 
   function templates() { return typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []; }

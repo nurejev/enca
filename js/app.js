@@ -870,33 +870,62 @@
   }
 
   // ---- ② create ----
+  // Two ways to create, both here and both separate from Assign: batch-create
+  // the missing baseline groups, or hand-build one group with full control over
+  // role-assignable and static/dynamic.
   function renderCgCreate() {
     const can = CaGroups.creatable(cgRes);
     const cannot = CaGroups.missingNoTemplate(cgRes);
-    if (!can.length && !cannot.length) {
-      $("cgBody").innerHTML = '<div class="cg-panel"><h4>Nothing to create</h4><p class="mini">Every expected group already exists in this tenant.</p></div>';
-      return;
-    }
-    $("cgBody").innerHTML = `<div class="cg-panel">
-      <h4>CREATE MISSING GROUPS (${can.length})</h4>
-      <p class="mini">Assigned groups are created <b>role-assignable</b> (<code>isAssignableToRole: true</code> — immutable, so it is set at creation).
-        Templates with a membership rule are created <b>dynamic</b> with the rule intact and are not role-assignable, because Entra forbids the combination.
-        A group that already exists under the same name is reused, never duplicated.
-        Requires the Privileged Role Administrator role; consents <code>Group.ReadWrite.All</code> + <code>RoleManagement.ReadWrite.Directory</code> on demand.</p>
+    const batch = (can.length || cannot.length) ? `<div class="cg-panel">
+      <h4>CREATE MISSING BASELINE GROUPS (${can.length})</h4>
+      <p class="mini">From the bundled templates. Assigned templates are created <b>role-assignable</b>; templates with a membership rule are created <b>dynamic</b>.
+        A group that already exists under the same name is reused, never duplicated.</p>
       <div class="cg-pick">${can.map((r, i) =>
         `<label class="chk" style="margin:5px 0"><input type="checkbox" data-cgcreate="${i}" checked> ${esc(r.name)}
-          <span class="mini muted">${r.template.membershipRule ? "dynamic" : "role-assignable"}</span></label>`).join("")}</div>
+          <span class="mini muted">${r.template.membershipRule ? "dynamic" : "role-assignable"}</span></label>`).join("")
+        || '<p class="mini muted">No creatable missing groups.</p>'}</div>
       <div class="cg-progress" id="cgCreateBar" style="display:none"><div style="width:0%"></div></div>
       <div id="cgCreateLog" class="mini" style="margin-top:8px"></div>
-      <div class="row" style="justify-content:flex-start;margin-top:12px">
+      ${can.length ? `<div class="row" style="justify-content:flex-start;margin-top:12px">
         <button class="btn" id="cgCreateNone">Clear all</button>
         <button class="btn" id="cgCreateAll">Select all</button>
         <button class="btn primary" id="cgCreateGo">Create selected${isDemo ? " (simulated)" : ""}</button>
-      </div>
+      </div>` : ""}
       ${cannot.length ? `<p class="mini" style="margin-top:14px;color:var(--report)">⚠ ${cannot.length} expected group${cannot.length === 1 ? " has" : "s have"} no template
-        (named by a baseline catalog but not in the bundled group export), so the membership model and mail nickname are unknown.
-        Create ${cannot.length === 1 ? "it" : "them"} in the Assign step or in Entra: ${cannot.map(r => `<b>${esc(r.name)}</b>`).join(", ")}.</p>` : ""}
+        (named by a baseline catalog but not in the bundled export). Build ${cannot.length === 1 ? "it" : "them"} by hand below: ${cannot.map(r => `<b>${esc(r.name)}</b>`).join(", ")}.</p>` : ""}
+    </div>` : "";
+
+    // The manual builder is always present, even when nothing is missing —
+    // it is the general-purpose "make me a CA group" path.
+    const manual = `<div class="cg-panel">
+      <h4>BUILD A GROUP MANUALLY</h4>
+      <label class="mini" for="cgmName" style="display:block;margin-bottom:4px">Display name</label>
+      <input id="cgmName" class="txt" placeholder="e.g. CAB-SEC-U-Persona-Contractors" autocomplete="off" style="letter-spacing:normal;font-weight:400">
+      <label class="mini" for="cgmDesc" style="display:block;margin:10px 0 4px">Description <span class="muted">(optional)</span></label>
+      <input id="cgmDesc" class="txt" placeholder="What this group is for" autocomplete="off" style="letter-spacing:normal;font-weight:400">
+
+      <h5 class="mini" style="margin:16px 0 6px">MEMBERSHIP</h5>
+      <label class="chk" style="margin:5px 0"><input type="radio" name="cgmType" value="assigned" checked> <b>Assigned</b> — you add members manually</label>
+      <label class="chk" style="margin:5px 0"><input type="radio" name="cgmType" value="dynamic"> <b>Dynamic</b> — members set by a rule</label>
+      <div id="cgmRuleWrap" style="display:none;margin-top:8px">
+        <label class="mini" for="cgmRule" style="display:block;margin-bottom:4px">Membership rule</label>
+        <input id="cgmRule" class="txt" placeholder='(user.department -eq "IT")' autocomplete="off" spellcheck="false" style="letter-spacing:normal;font-weight:400">
+        <p class="mini muted" style="margin-top:4px">Entra dynamic-membership syntax. The group is created with the rule processing <b>On</b>.</p>
+      </div>
+
+      <h5 class="mini" style="margin:16px 0 6px">ROLE-ASSIGNABLE</h5>
+      <label class="chk" id="cgmRoleWrap" style="margin:5px 0"><input type="checkbox" id="cgmRole"> Make this group <b>role-assignable</b> <span class="mini muted">(<code>isAssignableToRole</code> — lets it hold directory roles; immutable after creation)</span></label>
+      <p class="mini" id="cgmRoleNote" style="display:none;color:var(--report)">Dynamic groups cannot be role-assignable — Entra forbids the combination, so this is off for a dynamic group.</p>
+
+      <div id="cgmLog" class="mini" style="margin-top:10px"></div>
+      <div class="row" style="justify-content:flex-start;margin-top:12px">
+        <button class="btn primary" id="cgmCreate">Create group${isDemo ? " (simulated)" : ""}</button>
+      </div>
+      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled. Requires the Privileged Role Administrator role for role-assignable groups;
+        consents <code>Group.ReadWrite.All</code> + <code>RoleManagement.ReadWrite.Directory</code> on demand. An existing group with the same name is reused.</p>
     </div>`;
+
+    $("cgBody").innerHTML = batch + manual;
   }
 
   $("cgBody").addEventListener("click", async (e) => {
@@ -938,6 +967,7 @@
       cgTab = "check"; renderCaGroups();
       return;
     }
+    if (e.target.id === "cgmCreate") { await cgManualCreate(e.target); return; }
     if (e.target.id === "cgMemberGo") { startMemberScan(); return; }
     if (e.target.id === "cgMemberStop") { cgStop = true; return; }
     // Scan one group. The full scan is a call per group, so reading a single
@@ -952,6 +982,50 @@
     const row = e.target.closest("[data-cgrow]");
     if (row) showGroupRow(row.dataset.cgrow);
   });
+
+  // Dynamic and role-assignable are mutually exclusive in Entra. Reflect that
+  // live: choosing Dynamic reveals the rule box and forces role-assignable off.
+  $("cgBody").addEventListener("change", (e) => {
+    if (e.target.name === "cgmType") {
+      const dyn = e.target.value === "dynamic";
+      const w = $("cgmRuleWrap"); if (w) w.style.display = dyn ? "block" : "none";
+      const role = $("cgmRole"), note = $("cgmRoleNote");
+      if (role) { role.disabled = dyn; if (dyn) role.checked = false; }
+      if (note) note.style.display = dyn ? "block" : "none";
+    }
+  });
+
+  async function cgManualCreate(btn) {
+    const name = $("cgmName").value.trim();
+    if (!name) { toast("Give the group a display name"); $("cgmName").focus(); return; }
+    const dynamic = document.querySelector('[name="cgmType"]:checked')?.value === "dynamic";
+    const rule = dynamic ? $("cgmRule").value.trim() : "";
+    if (dynamic && !rule) { toast("A dynamic group needs a membership rule"); $("cgmRule").focus(); return; }
+    const roleAssignable = !dynamic && $("cgmRole").checked;
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+    btn.disabled = true;
+    const log = $("cgmLog");
+    try {
+      const spec = { displayName: name, description: $("cgmDesc").value.trim(), dynamic, membershipRule: rule, roleAssignable };
+      const g = isDemo
+        ? { id: "g-" + name, name, created: true, dynamic, roleAssignable }
+        : await Assign.createGroup(spec);
+      const kind = g.dynamic ? "dynamic" : g.roleAssignable ? "role-assignable" : "assigned";
+      log.innerHTML = g.created
+        ? `<span style="color:var(--on)">✓ created <b>${esc(g.name)}</b> — ${kind}</span>`
+        : `<span style="color:var(--report)">• <b>${esc(g.name)}</b> already existed — reused</span>`;
+      toast(g.created ? `<span>${esc(g.name)}</span> created (${kind})${isDemo ? " (simulated)" : ""}` : `<span>${esc(g.name)}</span> already existed — reused`);
+      // fold the new group into the scan so Check shows it without a refresh
+      cgRes = null;
+      await openCaGroups(true);
+      cgTab = "create"; renderCaGroups();
+    } catch (err) {
+      console.error(err);
+      if ($("cgmLog")) $("cgmLog").innerHTML = `<span style="color:var(--off)">✗ ${esc(err.message || err)}</span>`;
+      toast(`Create failed: <span>${esc(err.message || err)}</span>`);
+      btn.disabled = false;
+    }
+  }
 
   // ---- ③ members ----
   function renderCgMembers() {
