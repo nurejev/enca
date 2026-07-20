@@ -427,6 +427,7 @@
       $("tenantUser").textContent = account?.username || "";
       $("avatar").textContent = (account?.name || account?.username || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
       $("tenantBox").style.display = "flex";
+    $("homeBtn").style.display = "inline-flex";
       selected = new Set();
       refreshViews();
       renderPermissions();
@@ -456,6 +457,7 @@
     $("tenantUser").textContent = "demo@contoso.onmicrosoft.com";
     $("avatar").textContent = "DM";
     $("tenantBox").style.display = "flex";
+    $("homeBtn").style.display = "inline-flex";
     refreshViews();
     renderPermissions();
     show("screen-home");
@@ -2416,6 +2418,7 @@
   });
   $("signOutBtn").addEventListener("click", () => {
     $("tenantBox").style.display = "none";
+    $("homeBtn").style.display = "none";
     policies = []; selected.clear();
     Graph.signOut?.();
     show("screen-login");
