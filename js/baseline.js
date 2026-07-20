@@ -28,7 +28,11 @@ const Baseline = (() => {
     const out = [];
     if (typeof BASELINE !== "undefined") {
       out.push({ id: "limonit", label: "Limon-IT", icon: "🧬",
+        // `revised` marks a re-cut of the same release (documented fixes folded
+        // back in) — worth showing, because a tenant on the older patch versions
+        // is not out of release, only out of revision.
         release: BASELINE.release, line: BASELINE.line, author: "Limon-IT",
+        released: BASELINE.revised || null,
         url: null, policies: BASELINE.policies });
     }
     if (typeof BASELINE_JOEY !== "undefined") out.push(BASELINE_JOEY);
@@ -202,7 +206,7 @@ const Baseline = (() => {
     const order = ["missing", "conflict", "outdated", "ok", "present", "ahead", "unversioned", "extra"];
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>${esc(res.catalog.icon || "🧬")} ${esc(res.catalog.label)} baseline — ${esc(res.catalog.release)}${res.catalog.line ? ` (${esc(res.catalog.line)})` : ""}</h3>
+        <h3>${esc(res.catalog.icon || "🧬")} ${esc(res.catalog.label)} baseline — ${esc(res.catalog.release)}${res.catalog.line ? ` (${esc(res.catalog.line)})` : ""}${!res.catalog.url && res.catalog.released ? ` <span class="mini muted">rev ${esc(res.catalog.released)}</span>` : ""}</h3>
         <p style="margin-bottom:10px">Your tenant matched against the ${esc(res.catalog.author || res.catalog.label)} Conditional Access baseline, policy by policy on the CA number.
           ${res.catalog.url ? `Source: <a href="${esc(res.catalog.url)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.url)}</a>${res.catalog.released ? ` · released ${esc(res.catalog.released)}` : ""}. ` : ""}
           ${res.catalog.importerUrl ? `Deploy it with the author's importer at <a href="${esc(res.catalog.importerUrl)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.importerUrl)}</a>. ` : ""}
