@@ -140,7 +140,8 @@ const Baseline = (() => {
       <div style="flex:1;min-width:280px">
         <h3>${esc(res.catalog.icon || "🧬")} ${esc(res.catalog.label)} baseline — ${esc(res.catalog.release)}${res.catalog.line ? ` (${esc(res.catalog.line)})` : ""}</h3>
         <p style="margin-bottom:10px">Your tenant matched against the ${esc(res.catalog.author || res.catalog.label)} Conditional Access baseline, policy by policy on the CA number.
-          ${res.catalog.url ? `Source: <a href="${esc(res.catalog.url)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.url)}</a>. ` : ""}
+          ${res.catalog.url ? `Source: <a href="${esc(res.catalog.url)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.url)}</a>${res.catalog.released ? ` · released ${esc(res.catalog.released)}` : ""}. ` : ""}
+          ${res.catalog.importerUrl ? `Deploy it with the author's importer at <a href="${esc(res.catalog.importerUrl)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.importerUrl)}</a>. ` : ""}
           Version differences are compared per segment, so an older deployment shows as <b>outdated</b> rather than present.</p>
         <div style="display:flex;gap:6px;flex-wrap:wrap">${order.map(chip).join("")}</div>
       </div>
@@ -148,6 +149,7 @@ const Baseline = (() => {
         <div style="font-size:26px;font-weight:700">${res.coverage}%<span class="mini" style="font-weight:400"> coverage</span></div>
         <div class="mini">${res.covered} of ${res.baselineTotal} baseline policies present</div>
         <div class="mini">${res.toImport.length} would be imported or updated</div>
+        ${res.catalog.note ? `<div class="mini" style="max-width:280px;margin-top:6px">${esc(res.catalog.note)}</div>` : ""}
       </div>
     </div>`;
   }
@@ -227,7 +229,7 @@ const Baseline = (() => {
         <div class="bc-ic">${ICON(b)}</div>
         <div style="flex:1;min-width:0">
           <h3>${esc(b.name)}</h3>
-          <div class="mini">CA${String(b.num).padStart(3, "0")} · ${esc(personaOf(b.num, b))}${b.version ? ` · v${esc(b.version)}` : ""}${b.configured === false ? " · <b>README only</b>" : ""}</div>
+          <div class="mini">CA${String(b.num).padStart(3, "0")} · ${esc(personaOf(b.num, b))}${b.version ? ` · v${esc(b.version)}` : ""}</div>
         </div>
         ${b.tag ? `<span class="tag new">${esc(b.tag)}</span>` : ""}
       </div>
