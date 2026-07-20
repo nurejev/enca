@@ -33,6 +33,29 @@ const Assign = (() => {
     return found.length ? { id: found[0].id, name: found[0].displayName } : null;
   }
 
+  // Free-text group lookup, so any group can be picked as an exclusion target —
+  // not only the persona groups the baseline knows about. Accepts an object ID
+  // (exact) or a name prefix; exact-name matches are hoisted to the top so
+  // typing a full name still behaves like findGroup did.
+  const isGuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || "");
+  async function searchGroups(q, limit) {
+    const term = String(q || "").trim();
+    if (!term) return [];
+    if (isGuid(term)) {
+      try {
+        const g = await Graph.gget(`/groups/${term}?$select=id,displayName`);
+        return [{ id: g.id, name: g.displayName }];
+      } catch { return []; }
+    }
+    const esc = term.replace(/'/g, "''");
+    const flt = encodeURIComponent(`startswith(displayName,'${esc}')`);
+    const found = await Graph.ggetAll(`/groups?$filter=${flt}&$select=id,displayName&$top=${limit || 25}`);
+    const out = found.map((g) => ({ id: g.id, name: g.displayName }));
+    out.sort((a, b) => (a.name.toLowerCase() === term.toLowerCase() ? -1 : 0)
+      - (b.name.toLowerCase() === term.toLowerCase() ? -1 : 0) || a.name.localeCompare(b.name));
+    return out.slice(0, limit || 25);
+  }
+
   // Resolve the predefined groups that exist in this tenant.
   async function resolveGroups(onStatus) {
     const out = [];
@@ -137,5 +160,5 @@ const Assign = (() => {
     return results;
   }
 
-  return { ACTIONS, PREDEFINED, findGroup, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, templates };
+  return { ACTIONS, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, templates };
 })();

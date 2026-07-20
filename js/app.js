@@ -247,7 +247,9 @@
 
     // Writing to the tenant always needs an explicit selection — "everything
     // visible" is far too blunt a default for changing groups or policy state.
-    $("selActAssign").disabled = n === 0;
+    // Assign groups stays available with an empty selection: its first step can
+    // scope to the whole tenant, which is the point of a blanket exclusion.
+    $("selActAssign").disabled = policies.length === 0;
     $("selActState").disabled = n === 0;
     $("selActDelete").disabled = n === 0;
     $("selLead").innerHTML = n
@@ -728,22 +730,36 @@
 
   // ---------- assign-groups wizard ----------
   let asStep = 0, asAction = null, asGroups = [], asPolicies = [], asResults = null;
-  function openAssign() {
-    if (!selected.size) { toast("Select at least one policy first"); return; }
-    asPolicies = exportOrder([...selected].map(id => policies.find(p => p.id === id)));
-    asStep = 0; asAction = null; asGroups = []; asResults = null;
+  // "selection" = the policies ticked in the list; "all" = every policy loaded
+  // from the tenant. Tenant-wide is what you want for a break-glass or
+  // service-account exclusion that must never miss a policy.
+  let asScope = "selection", asFound = [];
+  const asScopePolicies = () => exportOrder(asScope === "all"
+    ? policies.slice()
+    : [...selected].map(id => policies.find(p => p.id === id)).filter(Boolean));
+  function openAssign(scope) {
+    asScope = scope || (selected.size ? "selection" : "all");
+    if (!policies.length) { toast("No policies loaded"); return; }
+    if (asScope === "all" && !selected.size) toast("Nothing selected — scoped to <span>all policies</span>, change it in step 1");
+    asPolicies = asScopePolicies();
+    asStep = 0; asAction = null; asGroups = []; asResults = null; asFound = [];
     renderAssign();
     $("assignModal").classList.add("open");
   }
   function assignEsc(s) { return esc(s); }
   async function renderAssign() {
     const b = $("asBody"), next = $("asNext"), back = $("asBack");
-    $("asSub").textContent = `${asPolicies.length} ${asPolicies.length === 1 ? "policy" : "policies"} selected · step ${Math.min(asStep + 1, 3)} of 3`;
+    $("asSub").textContent = `${asPolicies.length} ${asPolicies.length === 1 ? "policy" : "policies"}`
+      + ` ${asScope === "all" ? "(every policy in this tenant)" : "selected"} · step ${Math.min(asStep + 1, 3)} of 3`;
     back.style.display = asStep > 0 && asStep < 3 ? "inline-flex" : "none";
     next.style.display = "inline-flex";
     if (asStep === 0) {
       next.textContent = "Next";
-      b.innerHTML = `<h4 class="mini" style="margin-bottom:8px">ACTION</h4>` + Assign.ACTIONS.map((a, i) =>
+      const nSel = selected.size, nAll = policies.length;
+      b.innerHTML = `<h4 class="mini" style="margin-bottom:8px">APPLY TO</h4>
+        <label class="chk" style="margin:6px 0"><input type="radio" name="asScope" value="selection" ${asScope === "selection" ? "checked" : ""} ${nSel ? "" : "disabled"}> Selected policies (${nSel})</label>
+        <label class="chk" style="margin:6px 0"><input type="radio" name="asScope" value="all" ${asScope === "all" ? "checked" : ""}> <b>All policies in this tenant (${nAll})</b> <span class="mini muted">— for an exclusion that must cover everything</span></label>
+        <h4 class="mini" style="margin:16px 0 8px">ACTION</h4>` + Assign.ACTIONS.map((a, i) =>
         `<label class="chk" style="margin:6px 0"><input type="radio" name="asAct" value="${i}" ${asAction === i ? "checked" : ""}> ${assignEsc(a)}</label>`).join("");
     } else if (asStep === 1) {
       next.textContent = "Next";
@@ -757,10 +773,14 @@
       const tpls = Assign.templates().filter(t => !asGroups.some(g => g.name === t.displayName));
       b.innerHTML = `<h4 class="mini" style="margin-bottom:8px">TARGET GROUPS</h4>` +
         (asGroups.map((g, i) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asg="${i}" ${g.checked ? "checked" : ""}> ${assignEsc(g.name)}${g.created ? ' <span class="tag grant">created</span>' : ""}</label>`).join("") || '<p class="mini">No predefined persona groups found in this tenant yet — create them from a template below.</p>') +
-        `<div style="display:flex;gap:8px;margin-top:12px">
-          <input id="asCustom" class="btn" style="flex:1;cursor:text" placeholder="Add existing group by exact name…">
-          <button class="btn" id="asCustomAdd">+ Add</button>
+        `<h4 class="mini" style="margin:16px 0 6px">ANY OTHER GROUP</h4>
+        <div style="display:flex;gap:8px">
+          <input id="asCustom" class="btn" style="flex:1;cursor:text" placeholder="Search any group by name or paste an object ID…">
+          <button class="btn" id="asCustomAdd">Search</button>
         </div>
+        <div id="asFound">${asFound.length
+          ? asFound.map((g, i) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asfound="${i}"> ${assignEsc(g.name)} <span class="mini muted">${assignEsc(g.id)}</span></label>`).join("")
+          : ""}</div>
         <h4 class="mini" style="margin:16px 0 6px">CREATE MISSING GROUP (from baseline templates)</h4>
         <div style="display:flex;gap:8px">
           <select id="asTpl" class="btn" style="flex:1;cursor:pointer">${tpls.map((t, i) => `<option value="${i}">${assignEsc(t.displayName)}${t.dynamic ? " (dynamic)" : ""}</option>`).join("")}</select>
@@ -779,7 +799,17 @@
       const gsel = asGroups.filter(g => g.checked);
       const notes = asAction === 2 && asPolicies.some(p => (p.raw.conditions?.users?.includeUsers || []).includes("All"))
         ? '<p class="mini" style="color:var(--report)">⚠ Policies currently targeting "All users" will switch to the selected groups.</p>' : "";
+      // ADD-to-exclude (3) is additive and safe to run tenant-wide. The other
+      // actions REPLACE assignment, so applying them to every policy at once
+      // would rewrite the whole baseline's targeting in one click — that gets a
+      // typed confirmation rather than a warning nobody reads.
+      const wide = asScope === "all" && asAction !== 3;
+      const wideWarn = wide ? `<div class="danger-note"><b>This rewrites the assignment of all ${asPolicies.length} policies.</b>
+          "${assignEsc(Assign.ACTIONS[asAction])}" replaces what is there now — it does not merge. Only <i>ADD to EXCLUDE groups</i>
+          is purely additive. Type <b>ALL</b> below if that is really what you want.</div>
+        <input id="asWideOk" class="txt" placeholder="ALL" autocomplete="off" spellcheck="false" style="margin-bottom:6px">` : "";
       b.innerHTML = `<h4 class="mini">REVIEW — this WRITES to your tenant</h4>
+        ${wideWarn}
         <p style="margin:8px 0"><b>Action:</b> ${assignEsc(Assign.ACTIONS[asAction])}</p>
         <p style="margin:8px 0"><b>Policies (${asPolicies.length}):</b></p>
         <ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px">${asPolicies.map(p => `<li>${assignEsc(p.name)}</li>`).join("")}</ul>
@@ -796,8 +826,13 @@
     }
   }
   $("asBody").addEventListener("change", (e) => {
+    const sc = e.target.closest('[name="asScope"]');
+    if (sc) { asScope = sc.value; asPolicies = asScopePolicies(); renderAssign(); return; }
     const r = e.target.closest('[name="asAct"]'); if (r) { asAction = +r.value; return; }
-    const g = e.target.closest("[data-asg]"); if (g) asGroups[+g.dataset.asg].checked = g.checked;
+    const g = e.target.closest("[data-asg]"); if (g) { asGroups[+g.dataset.asg].checked = g.checked; return; }
+    // a search hit promotes into the target list, so review shows it like any other
+    const f = e.target.closest("[data-asfound]");
+    if (f && f.checked) { asAddCreated(asFound[+f.dataset.asfound]); }
   });
   async function asAddCreated(g) {
     if (!asGroups.some(x => x.id === g.id)) asGroups.push({ ...g, checked: true });
@@ -806,13 +841,19 @@
   }
   $("asBody").addEventListener("click", async (e) => {
     if (e.target.id === "asCustomAdd") {
-      const name = $("asCustom").value.trim(); if (!name) return;
-      e.target.disabled = true;
+      const q = $("asCustom").value.trim(); if (!q) return;
+      e.target.disabled = true; e.target.textContent = "Searching…";
       try {
-        const g = isDemo ? { id: "g-" + name, name } : await Assign.findGroup(name);
-        if (!g) { toast("Group <span>not found</span> — use Create below to make it"); return; }
-        asAddCreated(g);
-      } finally { e.target.disabled = false; }
+        asFound = isDemo
+          ? Object.keys(DEMO_DATA.scopeGroups || {}).filter(n => n.toLowerCase().startsWith(q.toLowerCase())).map(n => ({ id: "g-" + n, name: n }))
+          : await Assign.searchGroups(q);
+        // already-listed groups would be a confusing duplicate row
+        asFound = asFound.filter(g => !asGroups.some(x => x.id === g.id));
+        if (!asFound.length) toast("No group matches — check the name, or create one below");
+        renderAssign();
+        const box = $("asCustom"); if (box) box.value = q;
+      } catch (err) { console.error(err); toast(`Search failed: <span>${esc(err.message || err)}</span>`); }
+      finally { e.target.disabled = false; e.target.textContent = "Search"; }
       return;
     }
     if (e.target.id === "asTplCreate") {
@@ -855,6 +896,11 @@
       if (!asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
       asStep = 2; renderAssign();
     } else if (asStep === 2) {
+      const wideBox = $("asWideOk");
+      if (wideBox && wideBox.value.trim().toUpperCase() !== "ALL") {
+        toast("Type <span>ALL</span> to confirm a tenant-wide assignment change");
+        wideBox.focus(); return;
+      }
       const gids = asGroups.filter(g => g.checked).map(g => g.id);
       $("asNext").disabled = true;
       try {
