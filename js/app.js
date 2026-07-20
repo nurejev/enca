@@ -435,6 +435,7 @@
   $("toolMsLearn").addEventListener("click", openMsLearn);
   $("toolGapCheck").addEventListener("click", openGapCheck);
   $("toolExclusions").addEventListener("click", openExclusions);
+  $("toolBaseline").addEventListener("click", openBaseline);
   // Backup tool: opens the policy overview in backup mode — select policies
   // (or leave unselected for all), then click "Backup (JSON)" in the toolbar.
   $("toolJson").addEventListener("click", () => {
@@ -701,6 +702,55 @@
     } else {
       $("assignModal").classList.remove("open");
       if (!isDemo && asResults?.some(r => r.ok)) await loadFromGraph(true); // reload changed policies
+    }
+  });
+
+  // ---------- Baseline Policies ----------
+  // Pure client-side comparison against the bundled catalog — no Graph calls
+  // beyond the policies already loaded, so it is instant and re-runs on filter.
+  let blResult = null, blFilter = "all", blQuery = "";
+  function openBaseline() {
+    show("screen-baseline");
+    if (!policies.length) {
+      $("blHead").innerHTML = '<p class="mini">No policies loaded.</p>';
+      $("blChips").innerHTML = ""; $("blBody").innerHTML = "";
+      return;
+    }
+    blResult = Baseline.compare(policies);
+    blFilter = "all"; blQuery = ""; $("blSearch").value = "";
+    renderBaseline();
+  }
+  function renderBaseline() {
+    if (!blResult) return;
+    $("blHead").innerHTML = Baseline.renderSummary(blResult);
+    $("blChips").innerHTML = Baseline.chips(blResult, blFilter);
+    $("blBody").innerHTML = Baseline.renderTable(blResult, blFilter, blQuery);
+    const n = blResult.toImport.length;
+    $("blImport").textContent = n ? `📥 Import baseline (${n}) →` : "📥 Import baseline →";
+  }
+  $("blChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-blf]"); if (!b) return;
+    blFilter = b.dataset.blf; renderBaseline();
+  });
+  $("blSearch").addEventListener("input", (e) => { blQuery = e.target.value; renderBaseline(); });
+  // clicking a tenant policy name opens its card, same as everywhere else
+  $("blBody").addEventListener("click", (e) => {
+    const el = e.target.closest("[data-blpol]"); if (!el) return;
+    showDetail(el.dataset.blpol);
+  });
+  $("blMd").addEventListener("click", () => {
+    if (!blResult) return;
+    downloadText("CA-Baseline-Gap", "md", "text/markdown", Baseline.toMd(blResult, tenantName));
+    toast("Baseline gap report <span>downloaded</span>");
+  });
+  // hand off to the Import tool with the gap in hand
+  $("blImport").addEventListener("click", () => {
+    const n = blResult ? blResult.toImport.length : 0;
+    $("toolImport").click();
+    if (n) {
+      $("imDesc").textContent = `Baseline ${BASELINE.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant. `
+        + "Select the baseline backup zip (or its extracted folder) — dependencies are imported first, policies always land Off, "
+        + "and includes are remapped onto this tenant's persona groups.";
     }
   });
 

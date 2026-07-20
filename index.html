@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=62">
+<link rel="stylesheet" href="css/app.css?v=63">
 </head>
 <body>
 
@@ -85,6 +85,10 @@
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer <span class="tag new">BETA</span></h3>
         <p>Every exclusion across all policies — users, groups (expanded to members), roles, guest types, apps and locations — in an exclusion × policy matrix.</p>
       </div>
+      <div class="tool" id="toolBaseline">
+        <div class="tool-ic">🧬</div><h3>Baseline Policies <span class="tag new">BETA</span></h3>
+        <p>Match this tenant against the Limon-IT R26.6 (v3.x) baseline: which baseline policies are present, outdated or missing — then import the gap.</p>
+      </div>
       <div class="tool" id="toolMsLearn">
         <div class="tool-ic">📘</div><h3>MS Learn checks <span class="tag new">BETA</span></h3>
         <p>Check policies against documented Microsoft Learn exclusions &amp; limitations — break-glass, token protection, Teams Rooms, retirements.</p>
@@ -118,6 +122,7 @@
         whether a bypass is covered elsewhere, and who gets no MFA from any policy.
         <b>Best-practice &amp; bypass checks</b> checks the baseline against known CA bypasses and the Swiss-cheese defense model — MFA coverage,
         FOCI token sharing, resource-exclusion scope leaks, break-glass coverage, known bypass apps, and a persona × control coverage matrix.
+        <b>Baseline Policies</b> matches this tenant against the Limon-IT R26.6 (v3.x) baseline on the CA number and compares versions, so you see at a glance which baseline policies are present, outdated or missing — with a Markdown gap report and a hand-off to Import.
         <b>MS Learn checks</b> compares your policies against exclusions, limitations and upcoming behavior changes documented on learn.microsoft.com —
         missing break-glass exclusions, token protection limits, Teams Rooms / Surface Hub impact, required app exclusions and control retirements.
         <b>Backup</b> downloads the raw JSON definitions of your policies in one zip.
@@ -314,6 +319,21 @@
     </div>
   </div>
 
+  <!-- ============ BASELINE POLICIES ============ -->
+  <section id="screen-baseline" class="screen">
+    <div class="list-card readme" id="blHead" style="margin-top:0"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="blSearch" placeholder="Search CA number or policy name…">
+      </div>
+      <div class="chip-filter" id="blChips"></div>
+      <button class="btn" id="blMd">Export MD</button>
+      <button class="btn lemon" id="blImport">📥 Import baseline →</button>
+    </div>
+    <div id="blBody"></div>
+  </section>
+
   <!-- ============ GAP ANALYSIS ============ -->
   <section id="screen-gapcheck" class="screen">
     <div class="list-card readme" id="gcHead" style="margin-top:0"></div>
@@ -456,20 +476,22 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=62"></script>
-<script src="js/labels.js?v=62"></script>
-<script src="js/graph.js?v=62"></script>
-<script src="js/model.js?v=62"></script>
-<script src="js/render.js?v=62"></script>
-<script src="js/analyze.js?v=62"></script>
-<script src="js/mslearn.js?v=62"></script>
-<script src="js/gapcheck.js?v=62"></script>
-<script src="js/exclusions.js?v=62"></script>
-<script src="js/groupTemplates.js?v=62"></script>
-<script src="js/assign.js?v=62"></script>
-<script src="js/import.js?v=62"></script>
-<script src="js/export.js?v=62"></script>
-<script src="js/demo.js?v=62"></script>
-<script src="js/app.js?v=62"></script>
+<script src="js/authConfig.js?v=63"></script>
+<script src="js/labels.js?v=63"></script>
+<script src="js/graph.js?v=63"></script>
+<script src="js/model.js?v=63"></script>
+<script src="js/render.js?v=63"></script>
+<script src="js/analyze.js?v=63"></script>
+<script src="js/mslearn.js?v=63"></script>
+<script src="js/gapcheck.js?v=63"></script>
+<script src="js/exclusions.js?v=63"></script>
+<script src="js/baselineData.js?v=63"></script>
+<script src="js/baseline.js?v=63"></script>
+<script src="js/groupTemplates.js?v=63"></script>
+<script src="js/assign.js?v=63"></script>
+<script src="js/import.js?v=63"></script>
+<script src="js/export.js?v=63"></script>
+<script src="js/demo.js?v=63"></script>
+<script src="js/app.js?v=63"></script>
 </body>
 </html>
