@@ -821,8 +821,9 @@
       imPlan.map((p, i) => `<li data-imrow="${i}" data-imkey="${esc(imPersonaKey(p))}"><label class="chk" style="margin:0">
         <input type="checkbox" data-imp="${i}" ${p.exists ? "disabled" : "checked"}>
         ${p.exists ? '<span class="tag">skip</span>' : p.asIs ? '<span class="tag new">as-is</span>' : `<span class="tag grant">import</span>`}
+        ${p.needsTou ? '<span class="tag block" title="Grants a Terms of use — create the ToU in the portal first, then re-import; it imports now without that control">📜 needs ToU</span>' : ""}
         ${esc(p.name)}
-        <span class="mini">${p.exists ? esc(p.reason) : p.personaGroup ? `→ ${esc(p.personaGroup)}` : esc(p.reason || "")}</span>
+        <span class="mini">${p.exists ? esc(p.reason) : p.personaGroup ? `→ ${esc(p.personaGroup)}` : esc(p.reason || "")}${p.needsTou && !p.exists ? ' · <span style="color:var(--off)">imports without the Terms of use until you create it</span>' : ""}</span>
       </label></li>`).join("") + "</ul>";
     $("imPick").style.display = "none";
     $("imGo").style.display = importable.length ? "inline-flex" : "none";
