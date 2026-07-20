@@ -2,7 +2,7 @@
 
 A browser-based toolset for a Microsoft Entra Conditional Access baseline: **document it, analyse it, check it against best practice, back it up and redeploy it** — from one page, with an interactive Entra sign-in and nothing to install.
 
-It started as a web successor to the idPowerToys CA documenter and grew into eleven tools. Everything runs **100% in the browser** as a static site: no backend, no database, no telemetry, and no policy data ever leaves the user's session. All Microsoft Graph calls go straight from the browser to `graph.microsoft.com` with a delegated token.
+It started as a web successor to the idPowerToys CA documenter and grew into twelve tools. Everything runs **100% in the browser** as a static site: no backend, no database, no telemetry, and no policy data ever leaves the user's session. All Microsoft Graph calls go straight from the browser to `graph.microsoft.com` with a delegated token.
 
 **Live:** https://cadoc.limon-it.nl · **Demo without sign-in:** https://cadoc.limon-it.nl/?demo=1
 
@@ -15,7 +15,7 @@ It started as a web successor to the idPowerToys CA documenter and grew into ele
 | 🔍 **Gap analyse** | Users × policies impact matrix: which policies apply to whom, who bypasses one through an exclusion (and why), whether that bypass is covered elsewhere, and who gets no MFA at all. Filter by group or user type, then export the filtered set as a standalone HTML report. | no |
 | 🛡 **Best-practice & bypass checks** | The baseline against known CA bypasses and the Swiss-cheese layered-defense model: MFA coverage, FOCI token sharing, resource-exclusion scope leaks, CA-immune resources, device-registration bypass, grant-operator weaknesses, legacy auth, known bypass apps, guest auth strength, break-glass coverage — plus a persona × control coverage matrix. Exports to Markdown. | no |
 | 🚪 **Exclusion analyzer** | Every exclusion in every policy — users, groups (expanded to their members), directory roles, guest/external types, applications, named locations, device platforms — grouped by exclusion set, with an exclusion × policy matrix and an effective-user × policy matrix. Exports to CSV and Markdown. | no |
-| 🧬 **Baseline Policies** | Matches the tenant against the bundled Limon-IT baseline catalog (**R26.6 / v3.x**, 99 policies) on the CA number — the stable identity in the naming convention — and compares versions segment by segment. Every policy lands in one bucket: up to date, outdated (with the upgrade path, e.g. `v1.0 → v1.0.1`), newer than baseline, missing, or not in the baseline. Exports a Markdown gap report and hands off to Import. | no |
+| 🧬 **Baseline Policies** (two catalogs) | Matches the tenant against the bundled Limon-IT baseline catalog (**R26.6 / v3.x**, 99 policies) on the CA number — the stable identity in the naming convention — and compares versions segment by segment. Every policy lands in one bucket: up to date, outdated (with the upgrade path, e.g. `v1.0 → v1.0.1`), newer than baseline, missing, or not in the baseline. A second catalog holds the community **Conditional Access Baseline by Joey Verlinden** (2026.2.1) with his own personas, switchable from the toolbar. Exports a Markdown gap report and hands off to Import. | no |
 | 📘 **MS Learn checks** | Policies against exclusions, limitations and upcoming behaviour changes documented on learn.microsoft.com: missing break-glass exclusions, token-protection limits, Teams Rooms / Surface Hub impact, required app exclusions, control retirements. Each finding links to its source page. Mechanically fixable findings carry a **Fix** button that builds a *new* policy from the affected one with the documented adjustment applied — version bumped, state Off — collected in a **Suggested fixes** tab and downloadable as JSON or one zip. Nothing is written to the tenant — except in a recognised **baseline tenant**, where an **Apply in tenant** action can create the replacements (Off) and delete the originals, behind an explicit confirmation. | no* |
 | 🗄 **Backup (JSON)** | Raw Graph JSON of the selected policies in one timestamped zip — including their **dependencies** (auth strengths, named locations, terms of use with the actual PDF, and the groups they assign). | no |
 | 👥 **Assign groups** | Replace, add to, or reset the include/exclude persona groups of selected policies. Missing groups are created via Graph: **assigned groups are always role-assignable** (`isAssignableToRole: true` — immutable, so it is set at creation), while **dynamic groups are created dynamic with their membership rule intact** and are not role-assignable, since Entra forbids the combination and the rule is the point of those groups. | **yes** |
@@ -124,6 +124,7 @@ js/analyze.js         users x policies impact engine  (Gap analyse)
 js/gapcheck.js        best-practice & bypass checks + persona x control matrix
 js/exclusions.js      exclusion collection, group expansion, matrices, CSV/MD
 js/baselineData.js    the Limon-IT baseline catalog (R26.6 / v3.x)
+js/baselineJoeyData.js the Joey Verlinden baseline catalog (2026.2.1)
 js/baseline.js        tenant vs baseline matching, versioning and gap report
 js/mslearn.js         MS Learn documented exclusion & limitation checks
 js/assign.js          persona group assignment (writes)
@@ -175,10 +176,11 @@ The signed-in user needs a reader role (Security Reader / Global Reader) for the
 
 ## Credits & thanks
 
-Three community projects shaped CA Doc, and all three deserve the credit:
+Four community projects shaped CA Doc, and all four deserve the credit:
 
 - **[idPowerToys](https://github.com/merill/idPowerToys)** — by **Merill Fernando**. The Conditional Access documenter that started all of this: the idea that a CA baseline should be readable as a document rather than clicked through in the portal. CA Doc is the web successor to that documenter, extended to the newest CA settings.
 - **[Conditional Access Impact Matrix](https://github.com/jasperbaes/Conditional-Access-Impact-Matrix)** — by **Jasper Baes**. The users × policies impact model behind the **Gap analyse** tool: working out which policies actually apply to a given user, who bypasses a policy through an exclusion, and whether that bypass is covered somewhere else.
+- **[Conditional Access Baseline](https://github.com/j0eyv/ConditionalAccessBaseline)** — by **Joey Verlinden**. A deliberately minimised community baseline built on the Microsoft Conditional Access framework, bundled here as a second catalog so a tenant can be measured against it exactly like the Limon-IT one. The policy set, personas and naming convention are his; CA Doc only reads and compares.
 - **[CA Policy Analyzer](https://github.com/Jhope188/ca-policy-analyzer)** — by **jhope188**. The inspiration for the **Best-practice & bypass checks** and **MS Learn checks** tools: best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.
 
 All are independently reimplemented here in browser-side JavaScript against Microsoft Graph — no code was copied.

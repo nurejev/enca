@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=72">
+<link rel="stylesheet" href="css/app.css?v=73">
 </head>
 <body>
 
@@ -89,6 +89,10 @@
         <div class="tool-ic">🧬</div><h3>Baseline Policies <span class="tag new">BETA</span></h3>
         <p>Match this tenant against the Limon-IT R26.6 (v3.x) baseline: which baseline policies are present, outdated or missing — then import the gap.</p>
       </div>
+      <div class="tool" id="toolBaselineJoey">
+        <div class="tool-ic">🧩</div><h3>Baseline (Joey Verlinden) <span class="tag new">BETA</span></h3>
+        <p>Match this tenant against the community Conditional Access Baseline by Joey Verlinden (2026.2.1) — same view, different catalog.</p>
+      </div>
       <div class="tool" id="toolMsLearn">
         <div class="tool-ic">📘</div><h3>MS Learn checks <span class="tag new">BETA</span></h3>
         <p>Check policies against documented Microsoft Learn exclusions &amp; limitations — break-glass, token protection, Teams Rooms, retirements.</p>
@@ -138,7 +142,7 @@
         <code>Group.ReadWrite.All</code> and <code>RoleManagement.ReadWrite.Directory</code> and requires the Privileged Role Administrator role.</p>
 
       <h4>Credits &amp; thanks</h4>
-      <p>Three community projects shaped these tools, and all three deserve the credit:</p>
+      <p>Four community projects shaped these tools, and all four deserve the credit:</p>
       <ul>
         <li><b>idPowerToys</b> — by <b>Merill Fernando</b>. The Conditional Access documenter that started all of this:
           the idea that a CA baseline should be readable as a document rather than clicked through in the portal.
@@ -146,6 +150,9 @@
         <li><b>Conditional Access Impact Matrix</b> — by <b>Jasper Baes</b>. The users × policies impact model behind the
           <b>Gap analyse</b> tool: working out which policies actually apply to a given user, who bypasses a policy through an
           exclusion, and whether that bypass is covered somewhere else.</li>
+        <li><b>Conditional Access Baseline</b> — by <b>Joey Verlinden</b>. A minimised community baseline on top of the Microsoft
+          Conditional Access framework, included here as a second catalog in <b>Baseline Policies</b> so a tenant can be measured
+          against it the same way. The policy set and naming convention are his; these tools only read and compare.</li>
         <li><b>CA Policy Analyzer</b> — by <b>jhope188</b>. The inspiration for the <b>Best-practice &amp; bypass checks</b> set:
           best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.</li>
       </ul>
@@ -341,6 +348,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="blSearch" placeholder="Search CA number or policy name…">
       </div>
+      <div class="seg" id="blCatalog"></div>
       <div class="chip-filter" id="blChips"></div>
       <div class="seg">
         <button class="active" id="blViewCards">Cards</button>
@@ -514,22 +522,23 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/authConfig.js?v=72"></script>
-<script src="js/labels.js?v=72"></script>
-<script src="js/graph.js?v=72"></script>
-<script src="js/model.js?v=72"></script>
-<script src="js/render.js?v=72"></script>
-<script src="js/analyze.js?v=72"></script>
-<script src="js/mslearn.js?v=72"></script>
-<script src="js/gapcheck.js?v=72"></script>
-<script src="js/exclusions.js?v=72"></script>
-<script src="js/baselineData.js?v=72"></script>
-<script src="js/baseline.js?v=72"></script>
-<script src="js/groupTemplates.js?v=72"></script>
-<script src="js/assign.js?v=72"></script>
-<script src="js/import.js?v=72"></script>
-<script src="js/export.js?v=72"></script>
-<script src="js/demo.js?v=72"></script>
-<script src="js/app.js?v=72"></script>
+<script src="js/authConfig.js?v=73"></script>
+<script src="js/labels.js?v=73"></script>
+<script src="js/graph.js?v=73"></script>
+<script src="js/model.js?v=73"></script>
+<script src="js/render.js?v=73"></script>
+<script src="js/analyze.js?v=73"></script>
+<script src="js/mslearn.js?v=73"></script>
+<script src="js/gapcheck.js?v=73"></script>
+<script src="js/exclusions.js?v=73"></script>
+<script src="js/baselineData.js?v=73"></script>
+<script src="js/baselineJoeyData.js?v=73"></script>
+<script src="js/baseline.js?v=73"></script>
+<script src="js/groupTemplates.js?v=73"></script>
+<script src="js/assign.js?v=73"></script>
+<script src="js/import.js?v=73"></script>
+<script src="js/export.js?v=73"></script>
+<script src="js/demo.js?v=73"></script>
+<script src="js/app.js?v=73"></script>
 </body>
 </html>

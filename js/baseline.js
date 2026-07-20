@@ -17,12 +17,30 @@
 //   extra     numbered policy in the tenant that the baseline does not define
 // ======================================================================
 const Baseline = (() => {
+  // Catalogs the tool can compare against. BASELINE is the Limon-IT one
+  // (bundled from its documentation); BASELINE_JOEY is the community baseline
+  // by Joey Verlinden. Both are bundled rather than fetched at runtime — the
+  // app's CSP only allows Graph, and a baseline should not change under you
+  // mid-session.
+  function catalogs() {
+    const out = [];
+    if (typeof BASELINE !== "undefined") {
+      out.push({ id: "limonit", label: "Limon-IT", icon: "🧬",
+        release: BASELINE.release, line: BASELINE.line, author: "Limon-IT",
+        url: null, policies: BASELINE.policies });
+    }
+    if (typeof BASELINE_JOEY !== "undefined") out.push(BASELINE_JOEY);
+    return out;
+  }
+  const catalog = (id) => catalogs().find((c) => c.id === id) || catalogs()[0];
+
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 
   const STATUS = {
     ok: { icon: "✓", label: "Up to date", cls: "ok", order: 3 },
     outdated: { icon: "⬆", label: "Outdated", cls: "warn", order: 1 },
     ahead: { icon: "⬇", label: "Newer than baseline", cls: "info", order: 4 },
+    present: { icon: "✓", label: "Present", cls: "ok", order: 2 },
     unversioned: { icon: "?", label: "Version unknown", cls: "info", order: 5 },
     missing: { icon: "✗", label: "Missing", cls: "bad", order: 0 },
     extra: { icon: "＋", label: "Not in baseline", cls: "info", order: 6 },
@@ -44,13 +62,17 @@ const Baseline = (() => {
   // Render.caGroup matches CA followed by 3-4 digits, so the number has to be
   // zero-padded first — CA1 would otherwise fall through as "unnumbered".
   const caLabel = (num) => `CA${String(num).padStart(3, "0")}`;
-  const personaOf = (num) => {
+  // A catalog policy may carry its own persona label (Joey's ranges differ from
+  // the Limon-IT ones — his CA300 block is service accounts, not externals).
+  const personaOf = (num, pol) => {
+    if (pol && pol.persona) return pol.persona;
     try { return Render.caGroup(caLabel(num)).label; } catch { return "Other"; }
   };
 
   // ---- compare tenant policies against the catalog ----
   // vms: the app's view models ({ id, name, state, raw }).
-  function compare(vms) {
+  function compare(vms, catId) {
+    const cat = catalog(catId);
     const byNum = new Map();
     for (const p of vms) {
       const n = caNum(p.name);
@@ -61,7 +83,7 @@ const Baseline = (() => {
     }
 
     const rows = [];
-    for (const b of BASELINE.policies) {
+    for (const b of cat.policies) {
       const hits = byNum.get(b.num) || [];
       if (!hits.length) {
         rows.push({ num: b.num, baseline: b, tenant: null, status: "missing" });
@@ -70,10 +92,16 @@ const Baseline = (() => {
       // when a number appears twice, judge on the best (newest) match
       const scored = hits.map((p) => {
         const tv = version(p.name);
-        let status = "unversioned";
+        let status;
         if (tv && b.version) {
           const c = cmpVersion(tv, b.version);
           status = c === 0 ? "ok" : c < 0 ? "outdated" : "ahead";
+        } else if (!b.version) {
+          // this baseline does not version its policy names — being there is
+          // the whole test, so do not report it as "version unknown"
+          status = "present";
+        } else {
+          status = "unversioned";
         }
         return { p, tv, status };
       }).sort((a, b2) => STATUS[b2.status].order - STATUS[a.status].order);
@@ -95,9 +123,10 @@ const Baseline = (() => {
     const covered = rows.filter((r) => r.baseline && r.tenant).length;
     return {
       rows, counts,
-      baselineTotal: BASELINE.policies.length,
+      catalog: cat,
+      baselineTotal: cat.policies.length,
       covered,
-      coverage: BASELINE.policies.length ? Math.round((covered / BASELINE.policies.length) * 100) : 0,
+      coverage: cat.policies.length ? Math.round((covered / cat.policies.length) * 100) : 0,
       // what an import would actually bring in
       toImport: rows.filter((r) => r.status === "missing" || r.status === "outdated"),
     };
@@ -106,11 +135,12 @@ const Baseline = (() => {
   // ---- rendering ----
   function renderSummary(res) {
     const chip = (k) => res.counts[k] ? `<span class="bl-chip ${STATUS[k].cls}">${STATUS[k].icon} ${res.counts[k]} ${esc(STATUS[k].label.toLowerCase())}</span>` : "";
-    const order = ["missing", "outdated", "ok", "ahead", "unversioned", "extra"];
+    const order = ["missing", "outdated", "ok", "present", "ahead", "unversioned", "extra"];
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🧬 Baseline Policies — ${esc(BASELINE.release)} (${esc(BASELINE.line)})</h3>
-        <p style="margin-bottom:10px">Your tenant matched against the Limon-IT Conditional Access baseline, policy by policy on the CA number.
+        <h3>${esc(res.catalog.icon || "🧬")} ${esc(res.catalog.label)} baseline — ${esc(res.catalog.release)}${res.catalog.line ? ` (${esc(res.catalog.line)})` : ""}</h3>
+        <p style="margin-bottom:10px">Your tenant matched against the ${esc(res.catalog.author || res.catalog.label)} Conditional Access baseline, policy by policy on the CA number.
+          ${res.catalog.url ? `Source: <a href="${esc(res.catalog.url)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.url)}</a>. ` : ""}
           Version differences are compared per segment, so an older deployment shows as <b>outdated</b> rather than present.</p>
         <div style="display:flex;gap:6px;flex-wrap:wrap">${order.map(chip).join("")}</div>
       </div>
@@ -125,7 +155,7 @@ const Baseline = (() => {
   function chips(res, active) {
     const all = res.rows.length;
     const items = [["all", `All (${all})`]].concat(
-      ["missing", "outdated", "ok", "ahead", "unversioned", "extra"]
+      ["missing", "outdated", "ok", "present", "ahead", "unversioned", "extra"]
         .filter((k) => res.counts[k])
         .map((k) => [k, `${STATUS[k].icon} ${STATUS[k].label} (${res.counts[k]})`]));
     return items.map(([k, l]) => `<button class="fchip ${active === k ? "active" : ""}" data-blf="${k}">${esc(l)}</button>`).join("");
@@ -140,7 +170,7 @@ const Baseline = (() => {
 
     let body = "", lastGroup = null;
     for (const r of rows) {
-      const g = personaOf(r.num);
+      const g = personaOf(r.num, r.baseline);
       if (g !== lastGroup) {
         body += `<tr class="grouprow"><td colspan="5"><b>${esc(g)}</b></td></tr>`;
         lastGroup = g;
@@ -197,19 +227,22 @@ const Baseline = (() => {
         <div class="bc-ic">${ICON(b)}</div>
         <div style="flex:1;min-width:0">
           <h3>${esc(b.name)}</h3>
-          <div class="mini">CA${String(b.num).padStart(3, "0")} · ${esc(personaOf(b.num))}${b.version ? ` · v${esc(b.version)}` : ""}</div>
+          <div class="mini">CA${String(b.num).padStart(3, "0")} · ${esc(personaOf(b.num, b))}${b.version ? ` · v${esc(b.version)}` : ""}${b.configured === false ? " · <b>README only</b>" : ""}</div>
         </div>
         ${b.tag ? `<span class="tag new">${esc(b.tag)}</span>` : ""}
       </div>
       ${status}
       <div class="bc-body">
-        ${sect("Users — include", items(b.include))}
-        ${sect("Users — exclude", items(b.exclude, "excl"))}
+        ${b.description ? `<div class="bc-sect"><p class="mini" style="line-height:1.5">${esc(b.description)}</p></div>` : ""}
+        ${sect("Users — include", items(b.include || []))}
+        ${sect("Users — exclude", items(b.exclude || [], "excl"))}
         ${sect("Target resources", esc(b.resources || "—"))}
+        ${sect("Device platforms", b.platform ? esc(b.platform) : "")}
         ${sect("Network", esc(b.network || "Any network or location"))}
-        ${sect("Conditions", items(b.conditions))}
+        ${sect("Conditions", Array.isArray(b.conditions) ? items(b.conditions) : esc(b.conditions || ""))}
         ${sect(b.block ? "Block" : "Grant", `<b>${esc(b.grant || "—")}</b>`)}
         ${sect("Session", esc(b.session))}
+        ${b.docUrl ? `<a class="ml-doc" href="${esc(b.docUrl)}" target="_blank" rel="noopener noreferrer">↗ Documentation</a>` : ""}
       </div>
     </div>`;
   }
@@ -223,7 +256,7 @@ const Baseline = (() => {
 
     let html = "", lastGroup = null;
     for (const r of rows) {
-      const g = personaOf(r.num);
+      const g = personaOf(r.num, r.baseline);
       if (g !== lastGroup) {
         html += `<div class="cardgroup" style="cursor:default"><h3>${esc(g)}</h3></div>`;
         lastGroup = g;
@@ -237,12 +270,13 @@ const Baseline = (() => {
   const mdEsc = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
   function toMd(res, tenantName) {
     const L = [];
-    L.push(`# Baseline comparison — ${mdEsc(tenantName || "tenant")} vs ${BASELINE.release} (${BASELINE.line})`);
+    L.push(`# Baseline comparison — ${mdEsc(tenantName || "tenant")} vs the ${mdEsc(res.catalog.label)} baseline ${mdEsc(res.catalog.release)}`);
     L.push("");
     L.push(`Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by Conditional Access Baseline Tools (cadoc.limon-it.nl).`);
+    if (res.catalog.url) L.push(`Baseline source: ${res.catalog.url}`);
     L.push("");
     L.push(`- Baseline coverage: **${res.coverage}%** — ${res.covered} of ${res.baselineTotal} baseline policies present in the tenant.`);
-    ["missing", "outdated", "ok", "ahead", "unversioned", "extra"].forEach((k) => {
+    ["missing", "outdated", "ok", "present", "ahead", "unversioned", "extra"].forEach((k) => {
       if (res.counts[k]) L.push(`- ${STATUS[k].label}: **${res.counts[k]}**`);
     });
     L.push(`- Import would add or update **${res.toImport.length}** policies.`);
@@ -263,5 +297,5 @@ const Baseline = (() => {
     return L.join("\n");
   }
 
-  return { compare, renderSummary, chips, renderTable, renderCards, toMd, STATUS, caNum, version, cmpVersion };
+  return { catalogs, catalog, compare, renderSummary, chips, renderTable, renderCards, toMd, STATUS, caNum, version, cmpVersion };
 })();

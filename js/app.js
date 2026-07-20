@@ -435,7 +435,8 @@
   $("toolMsLearn").addEventListener("click", openMsLearn);
   $("toolGapCheck").addEventListener("click", openGapCheck);
   $("toolExclusions").addEventListener("click", openExclusions);
-  $("toolBaseline").addEventListener("click", openBaseline);
+  $("toolBaseline").addEventListener("click", () => openBaseline("limonit"));
+  $("toolBaselineJoey").addEventListener("click", () => openBaseline("joey"));
   // Backup tool: opens the policy overview in backup mode — select policies
   // (or leave unselected for all), then click "Backup (JSON)" in the toolbar.
   $("toolJson").addEventListener("click", () => {
@@ -710,21 +711,24 @@
   // ---------- Baseline Policies ----------
   // Pure client-side comparison against the bundled catalog — no Graph calls
   // beyond the policies already loaded, so it is instant and re-runs on filter.
-  let blResult = null, blFilter = "all", blQuery = "", blView = "cards";
-  function openBaseline() {
+  let blResult = null, blFilter = "all", blQuery = "", blView = "cards", blCat = "limonit";
+  function openBaseline(catId) {
     show("screen-baseline");
+    if (catId) blCat = catId;
     if (!policies.length) {
       $("blHead").innerHTML = '<p class="mini">No policies loaded.</p>';
       $("blChips").innerHTML = ""; $("blBody").innerHTML = "";
       return;
     }
-    blResult = Baseline.compare(policies);
+    blResult = Baseline.compare(policies, blCat);
     blFilter = "all"; blQuery = ""; blView = "cards"; $("blSearch").value = "";
     renderBaseline();
   }
   function renderBaseline() {
     if (!blResult) return;
     $("blHead").innerHTML = Baseline.renderSummary(blResult);
+    $("blCatalog").innerHTML = Baseline.catalogs()
+      .map((c) => `<button class="${c.id === blCat ? "active" : ""}" data-blcat="${esc(c.id)}">${c.icon || "🧬"} ${esc(c.label)}</button>`).join("");
     $("blChips").innerHTML = Baseline.chips(blResult, blFilter);
     $("blViewCards").classList.toggle("active", blView === "cards");
     $("blViewTable").classList.toggle("active", blView === "table");
@@ -734,6 +738,12 @@
     const n = blResult.toImport.length;
     $("blImport").textContent = n ? `📥 Import baseline (${n}) →` : "📥 Import baseline →";
   }
+  $("blCatalog").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-blcat]"); if (!b || b.dataset.blcat === blCat) return;
+    blCat = b.dataset.blcat;
+    blResult = Baseline.compare(policies, blCat);
+    blFilter = "all"; renderBaseline();
+  });
   $("blChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-blf]"); if (!b) return;
     blFilter = b.dataset.blf; renderBaseline();
@@ -754,6 +764,9 @@
   // hand off to the Import tool with the gap in hand
   $("blImport").addEventListener("click", () => {
     const n = blResult ? blResult.toImport.length : 0;
+    if (blResult && blResult.catalog.url) {
+      toast(`This baseline is published at <span>${esc(blResult.catalog.url)}</span> — download it there, then import`);
+    }
     $("toolImport").click();
     if (n) {
       $("imDesc").textContent = `Baseline ${BASELINE.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant. `
