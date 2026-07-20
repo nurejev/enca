@@ -2645,11 +2645,19 @@
       $("anBody").innerHTML = Analyzer.userRows(anReport, anFilter, anQuery, groupMemberSet(), anType);
     } else {
       const rows = Analyzer.filterRows(anReport, anFilter, anQuery, groupMemberSet(), anType);
-      const m = Analyzer.matrixTable(anReport, anMaps, anPols, rows, anPage, AN_PAGE_SIZE);
+      // Only show policy columns that are actually in scope of the visible users
+      // — a policy no shown user is targeted by (all "·" not-in-scope) is just
+      // empty noise, especially when a group or user filter is applied.
+      const scoped = anPols.filter(p => rows.some(i => anMaps[i] && anMaps[i].m[p.name]));
+      const cols = scoped.length ? scoped : anPols;
+      const m = Analyzer.matrixTable(anReport, anMaps, cols, rows, anPage, AN_PAGE_SIZE);
       anPage = m.page;
       $("anMHead").innerHTML = m.head;
       $("anMBody").innerHTML = m.body;
       $("anMPage").textContent = `Page ${m.page + 1} / ${m.pages}`;
+      $("anMScope").textContent = cols.length < anPols.length
+        ? `Showing ${cols.length} of ${anPols.length} policies — only those in scope of the ${anGroupSel !== "" ? "selected group" : "shown users"}.`
+        : "";
     }
     // export button reflects the current filter scope
     const n = Analyzer.filterRows(anReport, anFilter, anQuery, groupMemberSet(), anType).length;
