@@ -4,7 +4,10 @@
 // Release 2026.6.1 (12-06-2026). Based on the Microsoft Conditional Access
 // framework by Claus Jespersen, deliberately minimised.
 //
-// Built from the repository README at that release. Joey's personas are
+// Verified against the repository at commit 38469a4 (Config/), which is the
+// authoritative file listing for this release: all 36 policies ship a JSON in
+// Config/ConditionalAccess, and two names differ from the README prose —
+// CA006 and CA503 follow the file names here. Joey's personas are
 // Global / Admins / Internals / ServiceAccounts / Guests / Agents, which do
 // NOT map onto the Limon-IT CA-number ranges (his CA300 block is service
 // accounts, not externals), so each policy carries its own persona label.
@@ -23,6 +26,10 @@ const BASELINE_JOEY = {
   url: "https://github.com/j0eyv/ConditionalAccessBaseline",
   breakGlassGroup: "CA-BreakGlassAccounts - Exclude",
   importerUrl: "https://conditionalaccess.joeyverlinden.com/",
+  commit: "38469a4faf26bbe013344c57c00fbfc922086950",
+  configPath: "Config/ConditionalAccess",
+  namedLocations: ["ALLOWED COUNTRIES", "ALLOWED COUNTRIES - SERVICE ACCOUNTS", "All Compliant Network locations"],
+  groups: ["CA-BreakGlassAccounts - Exclude", "CA-ServiceAccounts", "APP_Microsoft365_E5", "one <policy name> - Exclude group per policy"],
   note: "Conditional Access for agents requires Entra ID P1/P2 and a Microsoft Agent 365 license per user.",
   policies: [
     { num: 0, persona: "🌐 Global", name: "CA000-Global-IdentityProtection-AnyApp-AnyPlatform-MFA",
@@ -43,9 +50,9 @@ const BASELINE_JOEY = {
     { num: 5, persona: "🌐 Global", name: "CA005-Global-DataProtection-Office365-iOSenAndroid-ClientApps-Unmanaged-AppEnforcedRestrictions",
       grant: "Session: app enforced restrictions", resources: "Office 365", platform: "iOS and Android (unmanaged)",
       description: "Requires app enforced restrictions on unmanaged devices. Renamed and re-scoped in 2026.6.1; 2026.2.1 had moved it off the retiring 'Require approved client app' control." },
-    { num: 6, persona: "🌐 Global", name: "CA006-Global-DataProtection-Office365-iOSenAndroid-RequireAppProtection",
-      grant: "Require app protection policy", resources: "Office 365", platform: "iOS and Android",
-      description: "Requires app protection policies for Office 365 on iOS and Android. Admin roles are excluded so the M365 apps keep working — assumes admin roles live on admin accounts only. Overlaps with CA005 and may be removed." },
+    { num: 6, persona: "🌐 Global", name: "CA006-Global-DataProtection-Office365-AnyPlatform-Browser-Unmanaged-AppEnforceRestrictions",
+      grant: "Session: app enforced restrictions", resources: "Office 365", platform: "Any platform (browser, unmanaged)",
+      description: "Applies app enforced restrictions to browser sessions on unmanaged devices. The repository README still describes the older iOS/Android app-protection form of this policy; the shipped file is this one." },
 
     { num: 100, persona: "🛡 Admins", name: "CA100-Admins-IdentityProtection-AdminPortals-AnyPlatform-MFA",
       grant: "Require MFA", resources: "Microsoft Admin Portals", platform: "Any platform",
@@ -116,10 +123,10 @@ const BASELINE_JOEY = {
     { num: 402, persona: "🙋 Guests", name: "CA402-GuestUsers-IdentityProtection-AllApps-AnyPlatform-SigninFrequency",
       grant: "Session: sign-in frequency 12 hours", resources: "All cloud apps", platform: "Any platform",
       description: "Sign-in frequency of 12 hours for guests, on any device." },
-    { num: 403, persona: "🙋 Guests", name: "CA403-Guests-IdentityProtection-AllApps-AnyPlatform-PersistentBrowser",
+    { num: 403, persona: "🙋 Guests", name: "CA403-GuestUsers-IdentityProtection-AllApps-AnyPlatform-PersistentBrowser",
       grant: "Session: never persistent browser", resources: "All cloud apps", platform: "Any platform",
       description: "Prevents persistent browser sessions for guests." },
-    { num: 404, persona: "🙋 Guests", name: "CA404-Guests-AttackSurfaceReduction-SelectedApps-AnyPlatform-BLOCK",
+    { num: 404, persona: "🙋 Guests", name: "CA404-GuestUsers-AttackSurfaceReduction-SelectedApps-AnyPlatform-BLOCK",
       grant: "Block access", resources: "Selected apps", platform: "Any platform",
       description: "Blocks guests from specific apps. Shipped with an example app — review the included and excluded apps before use." },
 
@@ -131,7 +138,7 @@ const BASELINE_JOEY = {
       grant: "Block access", resources: "All agent resources", platform: "Any platform",
       learn: "https://learn.microsoft.com/entra/identity/conditional-access/policy-autonomous-agents#create-conditional-access-policy-using-the-enhanced-object-picker",
       description: "New in 2026.6.1. Blocks every agent identity by default — only agents explicitly excluded (approved) may be used." },
-    { num: 503, persona: "🤖 Agents", name: "CA503-Agents-BaseProtection-AllAgentUsers-AllResources-RequireCompliantDevice",
+    { num: 503, persona: "🤖 Agents", name: "CA503-Agents-BaseProtection-AllAgentUsers-RequireCompliantDevice",
       grant: "Require device to be marked compliant", resources: "All resources", platform: "Any platform",
       learn: "https://learn.microsoft.com/entra/identity/conditional-access/policy-autonomous-agents#require-a-compliant-device-for-agents-user-accounts",
       description: "New in 2026.6.1. Computer-based autonomous agents work inside a desktop session like a human user, so the device must meet compliance." },
@@ -151,4 +158,6 @@ BASELINE_JOEY.policies.forEach((p) => {
   p.exclude = [`${p.name} - Exclude (group)`, `${BASELINE_JOEY.breakGlassGroup} (group)`];
   p.include = [p.persona.replace(/^\S+\s*/, "")];
   p.docUrl = p.learn || `${BASELINE_JOEY.url}#${p.name.toLowerCase().replace(/[^a-z0-9]+/g, "")}`;
+  // the exact policy JSON at the pinned commit
+  p.fileUrl = `${BASELINE_JOEY.url}/blob/${BASELINE_JOEY.commit}/${BASELINE_JOEY.configPath}/${encodeURIComponent(p.name)}.json`;
 });

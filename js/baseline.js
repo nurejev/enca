@@ -245,6 +245,7 @@ const Baseline = (() => {
         ${sect(b.block ? "Block" : "Grant", `<b>${esc(b.grant || "—")}</b>`)}
         ${sect("Session", esc(b.session))}
         ${b.docUrl ? `<a class="ml-doc" href="${esc(b.docUrl)}" target="_blank" rel="noopener noreferrer">↗ Documentation</a>` : ""}
+        ${b.fileUrl ? `<a class="ml-doc" href="${esc(b.fileUrl)}" target="_blank" rel="noopener noreferrer">↗ Policy JSON in the repository</a>` : ""}
       </div>
     </div>`;
   }
