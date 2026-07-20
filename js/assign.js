@@ -200,6 +200,8 @@ const Assign = (() => {
       || !same(u.includeUsers, users.includeUsers);
   }
 
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
   async function apply(policyIds, action, groupIds, onStatus) {
     const results = [];
     for (let i = 0; i < policyIds.length; i++) {
@@ -212,6 +214,10 @@ const Assign = (() => {
         if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false }); continue; }
         await Graph.gpatch(`/identity/conditionalAccess/policies/${policyIds[i]}`, { conditions: { users } });
         results.push({ name, ok: true, changed: true });
+        // Gentle pacing between writes only. A tenant-wide run is 100+ PATCHes;
+        // spacing them slightly keeps us under Graph's burst limit so the
+        // Retry-After back-off in graphFetch rarely has to fire at all.
+        await pause(80);
       } catch (e) {
         console.error(`Assign: ${name} failed`, e);
         results.push({ name, ok: false, error: e.message || String(e) });

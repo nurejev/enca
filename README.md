@@ -179,6 +179,12 @@ Browsers only allow `window.open` while a user gesture is still "active". Chrome
 
 Pulling consent to the front of the handler means the popup opens while the click is still fresh, and the rest of the run is pure Graph calls against a token already in hand. If a popup is blocked anyway, the app says so and offers a **Continue** button — clicking it is a new gesture, so that window is allowed.
 
+## Throttling (HTTP 429)
+
+A tenant-wide write — assigning a group across 100+ policies — is 100+ `PATCH`es, and Microsoft Graph rate-limits bursts. When it does, it returns **429 Too Many Requests** with a `Retry-After` header saying how many seconds to wait.
+
+Every Graph call routes through one place that **honours `Retry-After` and retries** (up to five times; exponential back-off when the header is absent), so a run rides out the throttle instead of failing the remaining policies. Writes are also paced slightly so the limit is rarely hit in the first place. During a back-off the UI shows how long it is waiting rather than looking frozen. The same handling covers transient `503`/`504` gateway responses.
+
 ## Protected actions and step-up authentication
 
 If a tenant protects Conditional Access administration with an authentication context ([protected actions](https://learn.microsoft.com/entra/identity/role-based-access-control/protected-actions-overview)), a write is refused until the caller presents a token carrying the required claims. More permission does not fix this — the token itself has to be re-minted.

@@ -65,20 +65,46 @@ const Graph = (() => {
     try { return atob(m[1]); } catch { return null; }
   }
 
-  // Every Graph call goes through here so the step-up is handled once, in one
-  // place, instead of per verb. Exactly one retry: if the token minted against
-  // the challenge is still refused, retrying again would just loop the popup.
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
+  // Every Graph call goes through here, so two cross-cutting concerns live in
+  // one place: the claims-challenge step-up, and 429 throttling.
+  //
+  // Graph rate-limits a burst of writes (a tenant-wide assign is 100+ PATCHes)
+  // and answers 429 with a Retry-After header saying how many seconds to wait.
+  // Honour it and retry rather than failing the policy — otherwise a big run
+  // dies the moment the tenant's quota is hit, as it did here. Retry-After is
+  // authoritative; when absent we back off exponentially. 503/504 (transient
+  // gateway) get the same treatment.
+  const MAX_RETRIES = 5;
   async function graphFetch(url, opts, scopes) {
     const full = safeGraphUrl(url);
     const send = (t) => fetch(full, { ...opts, headers: { ...(opts.headers || {}), Authorization: "Bearer " + t } });
     let r = await send(await token(scopes));
+
+    // claims challenge — one step-up, as before
     const claims = claimsChallenge(r);
     if (claims) {
       const res = await msalApp.acquireTokenPopup({ scopes: scopes || AUTH_CONFIG.scopes, account, claims });
       r = await send(res.accessToken);
     }
+
+    // throttling — wait out Retry-After and retry
+    for (let attempt = 0; (r.status === 429 || r.status === 503 || r.status === 504) && attempt < MAX_RETRIES; attempt++) {
+      const ra = parseInt(r.headers.get("Retry-After"), 10);
+      const waitMs = Number.isFinite(ra) ? ra * 1000 : Math.min(2 ** attempt * 1000, 20000);
+      onThrottle(waitMs, attempt + 1);
+      await sleep(waitMs + 250);   // small cushion over the stated window
+      r = await send(await token(scopes));
+    }
     return r;
   }
+
+  // The UI can subscribe to throttle waits to keep the user informed instead of
+  // looking frozen during a long back-off.
+  let throttleCb = null;
+  const onThrottle = (ms, attempt) => { try { throttleCb && throttleCb(ms, attempt); } catch { /* ignore */ } };
+  const setThrottleHandler = (fn) => { throttleCb = fn; };
 
   // Write scope — requested on demand (incremental consent) only for the
   // Assign-groups tool; every other tool stays read-only.
@@ -330,5 +356,5 @@ const Graph = (() => {
     } catch { return []; }
   }
 
-  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, existingAppIds, createServicePrincipal, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, get account() { return account; } };
+  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, existingAppIds, createServicePrincipal, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, get account() { return account; } };
 })();

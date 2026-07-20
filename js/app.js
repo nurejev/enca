@@ -2698,6 +2698,8 @@
   $("expGo").addEventListener("click", doExport);
 
   // ---------- boot ----------
+  // Keep the user informed during a throttle back-off instead of looking hung.
+  Graph.setThrottleHandler((ms) => toast(`Microsoft Graph is throttling — waiting <span>${Math.ceil(ms / 1000)}s</span> then continuing…`));
   Graph.init().then(() => {
     if (new URLSearchParams(location.search).get("demo")) loadDemo();
   }).catch(e => console.error("MSAL init failed", e));
