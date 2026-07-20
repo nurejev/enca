@@ -738,17 +738,42 @@
     $("importModal").classList.add("open");
   });
   $("imCancel").addEventListener("click", () => $("importModal").classList.remove("open"));
+  // Label a plan item's persona for the filter — an E-Admins policy is imported
+  // as-is (no persona group), so it gets its own bucket.
+  const IM_PERSONA_LABEL = {
+    global: "🌐 Global", admins: "🛡 Admins", internals: "👤 Internals", externals: "🤝 Externals",
+    guestusers: "👥 Guest users", g_admins: "🔑 Guest admins", serviceaccounts: "⚙ Service accounts",
+    devops: "🧰 DevOps", factoryworkers: "🏭 Factory workers",
+  };
+  const imPersonaKey = (p) => p.asIs ? "eadmins" : (p.persona || "other");
+  const imPersonaLabel = (k) => k === "eadmins" ? "🚨 E-Admins" : (IM_PERSONA_LABEL[k] || "Other");
+
   async function imLoaded(bundle, fileName) {
     imBundle = bundle; imFileName = fileName;
     imPlan = Importer.plan(bundle, policies.map(p => p.name));
     const dep = ["groups", "namedLocations", "authStrengths", "authContexts", "termsOfUse"].map(k => `${bundle[k].length} ${k}`).join(", ");
     const importable = imPlan.filter(p => !p.exists);
     $("imDesc").textContent = `${fileName}: ${bundle.policies.length} policies, dependencies: ${dep}.`;
+
+    // Persona filter: how many importable policies each persona has, so you can
+    // bring in just one persona's set from a whole-tenant backup.
+    const counts = new Map();
+    importable.forEach(p => { const k = imPersonaKey(p); counts.set(k, (counts.get(k) || 0) + 1); });
+    const order = ["global", "admins", "internals", "externals", "guestusers", "g_admins", "serviceaccounts", "devops", "factoryworkers", "eadmins", "other"];
+    const chips = [...counts.keys()].sort((a, b) => order.indexOf(a) - order.indexOf(b))
+      .map(k => `<button class="btn sm persona-chip" data-im-persona="${esc(k)}">${esc(imPersonaLabel(k))} (${counts.get(k)})</button>`).join("");
+
     $("imBody").innerHTML = `
       <p class="mini" style="margin:8px 0">Dependencies are imported first (create-if-missing). Policies are imported in state <b>Off</b>,
       skipped when a policy with the same CA number + version already exists, and their INCLUDE assignment is remapped to the deploy persona group (CAD-SEC-U-DG-*).${isDemo ? " <b>Demo — simulated.</b>" : ""}</p>
+      <p class="mini" style="margin:6px 0 4px"><b>Import only:</b> pick a persona to select just its policies, or use All / None.</p>
+      <div class="persona-row" style="margin-bottom:10px">
+        <button class="btn sm" data-imPersona="__all">All (${importable.length})</button>
+        <button class="btn sm" data-imPersona="__none">None</button>
+        ${chips}
+      </div>
       <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
-      imPlan.map((p, i) => `<li><label class="chk" style="margin:0">
+      imPlan.map((p, i) => `<li data-imrow="${i}" data-imkey="${esc(imPersonaKey(p))}"><label class="chk" style="margin:0">
         <input type="checkbox" data-imp="${i}" ${p.exists ? "disabled" : "checked"}>
         ${p.exists ? '<span class="tag">skip</span>' : p.asIs ? '<span class="tag new">as-is</span>' : `<span class="tag grant">import</span>`}
         ${esc(p.name)}
@@ -756,7 +781,30 @@
       </label></li>`).join("") + "</ul>";
     $("imPick").style.display = "none";
     $("imGo").style.display = importable.length ? "inline-flex" : "none";
+    updateImGo();
   }
+
+  // Tick exactly the importable policies of one persona (or all / none). An
+  // "already exists" row is disabled and never touched.
+  function imSelectPersona(key) {
+    imPlan.forEach((p, i) => {
+      const cb = document.querySelector(`[data-imp="${i}"]`);
+      if (!cb || cb.disabled) return;
+      cb.checked = key === "__all" ? true : key === "__none" ? false : imPersonaKey(p) === key;
+    });
+    updateImGo();
+  }
+  function updateImGo() {
+    const n = document.querySelectorAll("[data-imp]:checked").length;
+    const btn = $("imGo");
+    btn.disabled = n === 0;
+    btn.textContent = n ? `Import ${n}` : "Import";
+  }
+  $("imBody").addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-imPersona]");
+    if (chip) { imSelectPersona(chip.dataset.imPersona); return; }
+  });
+  $("imBody").addEventListener("change", (e) => { if (e.target.matches("[data-imp]")) updateImGo(); });
   $("imZip").addEventListener("change", async (e) => {
     const f = e.target.files[0]; if (!f) return;
     try { await imLoaded(await Importer.readZip(f), f.name); }
