@@ -356,6 +356,11 @@
       return ga.key - gb.key || (ga.num ?? 1e9) - (gb.num ?? 1e9) || a.name.localeCompare(b.name);
     });
   }
+  // selection-bar action buttons ↔ tool mode
+  const SEL_ACTIONS = [
+    ["selActDoc", "document"], ["selActBackup", "backup"],
+    ["selActAssign", "assign"], ["selActState", "state"],
+  ];
   function setToolMode(mode) {
     toolMode = mode;
     $("exportBtn").innerHTML = mode === "backup" ? "Backup (JSON)"
@@ -365,6 +370,8 @@
     const write = mode === "assign" || mode === "state";
     $("exportBtn").classList.toggle("primary", write);
     $("exportBtn").classList.toggle("lemon", !write);
+    // highlight the matching selection-bar action
+    SEL_ACTIONS.forEach(([id, m]) => { const b = $(id); if (b) b.classList.toggle("on", m === mode); });
   }
   function runBackup() {
     const ps = exportOrder((selected.size ? [...selected] : visible().map(p => p.id)).map(id => policies.find(p => p.id === id)));
@@ -1849,11 +1856,21 @@
   });
 
   // export modal (Document) / JSON zip (Backup) / wizard (Assign) / state modal (Set Policy state)
-  $("exportBtn").addEventListener("click", () =>
-    toolMode === "backup" ? runBackup()
-    : toolMode === "assign" ? openAssign()
-    : toolMode === "state" ? openStateModal()
-    : openExport());
+  function runToolMode(mode) {
+    return mode === "backup" ? runBackup()
+      : mode === "assign" ? openAssign()
+      : mode === "state" ? openStateModal()
+      : openExport();
+  }
+  $("exportBtn").addEventListener("click", () => runToolMode(toolMode));
+
+  // The same four actions, offered on the selection bar so you can act on a
+  // selection without going back to the tools home and re-picking policies.
+  // Clicking one also switches the toolbar button, so the two never disagree.
+  SEL_ACTIONS.forEach(([id, mode]) => $(id).addEventListener("click", () => {
+    setToolMode(mode);
+    runToolMode(mode);
+  }));
 
   // expand/collapse all persona sections (cards + list views)
   function syncCollapseAllBtn() {

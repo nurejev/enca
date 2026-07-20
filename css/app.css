@@ -98,6 +98,13 @@ table.plist tr:hover td{background:var(--hover)}
 .selbar.visible{display:flex}
 .selbar b{color:var(--lemon)}
 .selhint{color:var(--on-deep-mute)}
+/* actions on the current selection, inside the (dark) selection bar. Ghost by
+   default so the highlighted one — the tool you entered from — stands out. */
+.sel-actions{display:flex;flex-wrap:wrap;gap:8px}
+.sel-actions .btn{padding:6px 12px;font-size:12px;background:none;color:#fff;border-color:var(--ghost-bd)}
+.sel-actions .btn:hover{background:rgba(255,255,255,.10);border-color:#fff}
+.sel-actions .btn.on{background:var(--lemon);border-color:var(--lemon-deep);color:var(--green-deep)}
+.sel-actions .btn.on:hover{background:var(--lemon)}
 input[type=checkbox]{width:16px;height:16px;accent-color:var(--green)}
 .excl-note{color:var(--off)}
 
