@@ -712,6 +712,7 @@
   // Pure client-side comparison against the bundled catalog — no Graph calls
   // beyond the policies already loaded, so it is instant and re-runs on filter.
   let blResult = null, blFilter = "all", blQuery = "", blView = "cards", blCat = "limonit";
+  const blCollapsed = new Set();
   function openBaseline(catId) {
     show("screen-baseline");
     if (catId) blCat = catId;
@@ -721,7 +722,7 @@
       return;
     }
     blResult = Baseline.compare(policies, blCat);
-    blFilter = "all"; blQuery = ""; blView = "cards"; $("blSearch").value = "";
+    blFilter = "all"; blQuery = ""; blView = "cards"; blCollapsed.clear(); $("blSearch").value = "";
     renderBaseline();
   }
   function renderBaseline() {
@@ -733,8 +734,11 @@
     $("blViewCards").classList.toggle("active", blView === "cards");
     $("blViewTable").classList.toggle("active", blView === "table");
     $("blBody").innerHTML = blView === "cards"
-      ? Baseline.renderCards(blResult, blFilter, blQuery)
-      : Baseline.renderTable(blResult, blFilter, blQuery);
+      ? Baseline.renderCards(blResult, blFilter, blQuery, blCollapsed)
+      : Baseline.renderTable(blResult, blFilter, blQuery, blCollapsed);
+    const shown = Baseline.personas(blResult, blFilter, blQuery);
+    const allCollapsed = shown.length > 0 && shown.every((g) => blCollapsed.has(g));
+    $("blCollapseAll").textContent = allCollapsed ? "⊞ Expand all" : "⊟ Collapse all";
     const n = blResult.toImport.length;
     $("blImport").textContent = n ? `📥 Import baseline (${n}) →` : "📥 Import baseline →";
   }
@@ -742,13 +746,26 @@
     const b = e.target.closest("[data-blcat]"); if (!b || b.dataset.blcat === blCat) return;
     blCat = b.dataset.blcat;
     blResult = Baseline.compare(policies, blCat);
-    blFilter = "all"; renderBaseline();
+    blFilter = "all"; blCollapsed.clear(); renderBaseline();
   });
   $("blChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-blf]"); if (!b) return;
     blFilter = b.dataset.blf; renderBaseline();
   });
   $("blSearch").addEventListener("input", (e) => { blQuery = e.target.value; renderBaseline(); });
+  // click a persona header to fold that section away
+  $("blBody").addEventListener("click", (e) => {
+    const h = e.target.closest("[data-blgroup]"); if (!h) return;
+    const g = h.dataset.blgroup;
+    if (blCollapsed.has(g)) blCollapsed.delete(g); else blCollapsed.add(g);
+    renderBaseline();
+  });
+  $("blCollapseAll").addEventListener("click", () => {
+    const shown = Baseline.personas(blResult, blFilter, blQuery);
+    const allCollapsed = shown.length > 0 && shown.every((g) => blCollapsed.has(g));
+    if (allCollapsed) blCollapsed.clear(); else shown.forEach((g) => blCollapsed.add(g));
+    renderBaseline();
+  });
   $("blViewCards").addEventListener("click", () => { blView = "cards"; renderBaseline(); });
   $("blViewTable").addEventListener("click", () => { blView = "table"; renderBaseline(); });
   // clicking a tenant policy name opens its card, same as everywhere else

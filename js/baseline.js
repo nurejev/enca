@@ -227,20 +227,32 @@ const Baseline = (() => {
     return items.map(([k, l]) => `<button class="fchip ${active === k ? "active" : ""}" data-blf="${k}">${esc(l)}</button>`).join("");
   }
 
-  function renderTable(res, filter, query) {
+  function renderTable(res, filter, query, collapsed) {
     const q = (query || "").toLowerCase();
+    const isCollapsed = (g) => collapsed && collapsed.has(g);
     let rows = res.rows;
     if (filter && filter !== "all") rows = rows.filter((r) => r.status === filter);
     if (q) rows = rows.filter((r) => `${r.num} ${r.baseline?.name || ""} ${r.tenant?.name || ""}`.toLowerCase().includes(q));
     if (!rows.length) return '<p class="mini" style="padding:20px">No baseline policies match the current filter.</p>';
 
+    // how many rows each persona holds, so a collapsed header can still say
+    const perGroup = new Map();
+    rows.forEach((r) => {
+      const g = personaOf(r.num, r.baseline);
+      perGroup.set(g, (perGroup.get(g) || 0) + 1);
+    });
+
     let body = "", lastGroup = null;
     for (const r of rows) {
       const g = personaOf(r.num, r.baseline);
       if (g !== lastGroup) {
-        body += `<tr class="grouprow"><td colspan="5"><b>${esc(g)}</b></td></tr>`;
+        const n = perGroup.get(g), col = isCollapsed(g);
+        body += `<tr class="grouprow${col ? " collapsed" : ""}" data-blgroup="${esc(g)}"><td colspan="5">
+          <span class="caret">▶</span> <b>${esc(g)}</b>
+          <span class="mini">${n} ${n === 1 ? "policy" : "policies"}${col ? " · click to expand" : ""}</span></td></tr>`;
         lastGroup = g;
       }
+      if (isCollapsed(g)) continue;
       const s = STATUS[r.status];
       const bName = r.baseline ? r.baseline.name : "—";
       const tag = r.baseline?.tag ? `<span class="tag new">${esc(r.baseline.tag)}</span>` : "";
@@ -316,23 +328,49 @@ const Baseline = (() => {
     </div>`;
   }
 
-  function renderCards(res, filter, query) {
+  function renderCards(res, filter, query, collapsed) {
     const q = (query || "").toLowerCase();
+    const isCollapsed = (g) => collapsed && collapsed.has(g);
     let rows = res.rows.filter((r) => r.baseline);   // the catalog is the subject here
     if (filter && filter !== "all") rows = rows.filter((r) => r.status === filter);
     if (q) rows = rows.filter((r) => `${r.num} ${r.baseline.name} ${r.tenant?.name || ""}`.toLowerCase().includes(q));
     if (!rows.length) return '<p class="mini" style="padding:20px">No baseline policies match the current filter.</p>';
 
+    // per-persona counts, including how many are missing — that is the number
+    // worth seeing on a collapsed header
+    const stats = new Map();
+    rows.forEach((r) => {
+      const g = personaOf(r.num, r.baseline);
+      const st = stats.get(g) || { n: 0, gap: 0 };
+      st.n++;
+      if (r.status === "missing" || r.status === "conflict" || r.status === "outdated") st.gap++;
+      stats.set(g, st);
+    });
+
     let html = "", lastGroup = null;
     for (const r of rows) {
       const g = personaOf(r.num, r.baseline);
       if (g !== lastGroup) {
-        html += `<div class="cardgroup" style="cursor:default"><h3>${esc(g)}</h3></div>`;
+        const st = stats.get(g), col = isCollapsed(g);
+        html += `<div class="cardgroup${col ? " collapsed" : ""}" data-blgroup="${esc(g)}">
+          <span class="caret">▶</span><h3>${esc(g)}</h3>
+          <span class="mini">${st.n} ${st.n === 1 ? "policy" : "policies"}${st.gap ? ` · ${st.gap} to address` : " · all present"}${col ? " · click to expand" : ""}</span>
+        </div>`;
         lastGroup = g;
       }
+      if (isCollapsed(g)) continue;
       html += policyCard(r);
     }
     return `<div class="bc-grid">${html}</div>`;
+  }
+
+  // every persona currently on screen, for collapse-all / expand-all
+  function personas(res, filter, query) {
+    const q = (query || "").toLowerCase();
+    let rows = res.rows.filter((r) => r.baseline);
+    if (filter && filter !== "all") rows = rows.filter((r) => r.status === filter);
+    if (q) rows = rows.filter((r) => `${r.num} ${r.baseline.name} ${r.tenant?.name || ""}`.toLowerCase().includes(q));
+    return [...new Set(rows.map((r) => personaOf(r.num, r.baseline)))];
   }
 
   // ---- Markdown export ----
@@ -369,5 +407,5 @@ const Baseline = (() => {
     return L.join("\n");
   }
 
-  return { catalogs, catalog, compare, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, renderCards, toMd, STATUS, caNum, version, cmpVersion };
+  return { catalogs, catalog, compare, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, renderCards, toMd, STATUS, caNum, version, cmpVersion };
 })();
