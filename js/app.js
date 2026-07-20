@@ -913,7 +913,13 @@
   })();
   $("fsClose").addEventListener("click", () => Fs.close());
   $("fsModal").addEventListener("click", (e) => { if (e.target.id === "fsModal") Fs.close(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && Fs.isOpen()) Fs.close(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    // close the top-most layer first: a policy card opened from the panel
+    const openModal = document.querySelector(".modal-bg.open");
+    if (openModal) { openModal.classList.remove("open"); return; }
+    if (Fs.isOpen()) Fs.close();
+  });
 
   $("exExpand").addEventListener("click", () => {
     Fs.open(exTab === "matrix" ? "Exclusion × policy matrix" : "Effectively excluded users × policy",
