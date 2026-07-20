@@ -167,6 +167,69 @@ const Baseline = (() => {
       <tbody>${body}</tbody></table></div>`;
   }
 
+
+  // ---- card view: render a baseline policy from the catalog alone ----
+  // Same shape as the tenant policy cards, so a baseline policy reads the
+  // same way as a deployed one — plus a status ribbon showing how this
+  // tenant compares.
+  const ICON = (p) => p.block ? "🚫" : /SESSION/i.test(p.name) ? "🕒" : "🔐";
+
+  function policyCard(r) {
+    const b = r.baseline;
+    const s = STATUS[r.status];
+    const sect = (label, body, cls) => body
+      ? `<div class="bc-sect"><label>${esc(label)}</label><div class="${cls || ""}">${body}</div></div>` : "";
+    const items = (arr, cls) => arr.length
+      ? `<ul class="bc-list${cls ? " " + cls : ""}">${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+
+    const status = `<div class="bc-status ${s.cls}">
+        <b>${s.icon} ${esc(s.label)}</b>
+        <span class="mini">${r.tenant
+          ? `in tenant: ${esc(r.tenant.name)}${r.status === "outdated" ? ` — v${esc(r.tenantVersion)} vs baseline v${esc(b.version)}` : ""}`
+          : "not present in this tenant"}</span>
+      </div>`;
+
+    return `<div class="list-card bc-card ${s.cls}">
+      <div class="bc-head">
+        <div class="bc-ic">${ICON(b)}</div>
+        <div style="flex:1;min-width:0">
+          <h3>${esc(b.name)}</h3>
+          <div class="mini">CA${String(b.num).padStart(3, "0")} · ${esc(personaOf(b.num))}${b.version ? ` · v${esc(b.version)}` : ""}</div>
+        </div>
+        ${b.tag ? `<span class="tag new">${esc(b.tag)}</span>` : ""}
+      </div>
+      ${status}
+      <div class="bc-body">
+        ${sect("Users — include", items(b.include))}
+        ${sect("Users — exclude", items(b.exclude, "excl"))}
+        ${sect("Target resources", esc(b.resources || "—"))}
+        ${sect("Network", esc(b.network || "Any network or location"))}
+        ${sect("Conditions", items(b.conditions))}
+        ${sect(b.block ? "Block" : "Grant", `<b>${esc(b.grant || "—")}</b>`)}
+        ${sect("Session", esc(b.session))}
+      </div>
+    </div>`;
+  }
+
+  function renderCards(res, filter, query) {
+    const q = (query || "").toLowerCase();
+    let rows = res.rows.filter((r) => r.baseline);   // the catalog is the subject here
+    if (filter && filter !== "all") rows = rows.filter((r) => r.status === filter);
+    if (q) rows = rows.filter((r) => `${r.num} ${r.baseline.name} ${r.tenant?.name || ""}`.toLowerCase().includes(q));
+    if (!rows.length) return '<p class="mini" style="padding:20px">No baseline policies match the current filter.</p>';
+
+    let html = "", lastGroup = null;
+    for (const r of rows) {
+      const g = personaOf(r.num);
+      if (g !== lastGroup) {
+        html += `<div class="cardgroup" style="cursor:default"><h3>${esc(g)}</h3></div>`;
+        lastGroup = g;
+      }
+      html += policyCard(r);
+    }
+    return `<div class="bc-grid">${html}</div>`;
+  }
+
   // ---- Markdown export ----
   const mdEsc = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
   function toMd(res, tenantName) {
@@ -197,5 +260,5 @@ const Baseline = (() => {
     return L.join("\n");
   }
 
-  return { compare, renderSummary, chips, renderTable, toMd, STATUS, caNum, version, cmpVersion };
+  return { compare, renderSummary, chips, renderTable, renderCards, toMd, STATUS, caNum, version, cmpVersion };
 })();

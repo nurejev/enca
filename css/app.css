@@ -463,3 +463,28 @@ table.matrix tbody tr.hl-row > td.hl-col,
 .fx-body{padding:14px 18px}
 .fx-body h5{font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px}
 .fx-body h5 + ul{margin-bottom:12px}
+
+/* ---------- baseline policy cards ---------- */
+.bc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;align-items:start}
+.bc-grid .cardgroup{grid-column:1/-1}
+.bc-card{display:flex;flex-direction:column;border-left:4px solid var(--border)}
+.bc-card.ok{border-left-color:var(--on)}
+.bc-card.warn{border-left-color:var(--report)}
+.bc-card.bad{border-left-color:var(--off)}
+.bc-card.info{border-left-color:var(--muted)}
+.bc-head{display:flex;gap:12px;align-items:flex-start;padding:14px 16px 10px}
+.bc-head h3{font-size:13.5px;line-height:1.35;letter-spacing:-.01em;overflow-wrap:anywhere}
+.bc-ic{width:36px;height:36px;border-radius:9px;background:var(--soft);display:flex;align-items:center;justify-content:center;flex:none;font-size:17px}
+.bc-status{display:flex;flex-direction:column;gap:2px;padding:8px 16px;font-size:12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.bc-status.ok{background:var(--ok-bg2);color:var(--on)}
+.bc-status.warn{background:var(--warn-bg2);color:var(--warn-fg)}
+.bc-status.bad{background:var(--bad-bg2);color:var(--off)}
+.bc-status.info{background:var(--soft2);color:var(--muted)}
+.bc-status .mini{color:inherit;opacity:.8}
+.bc-body{padding:12px 16px 14px;display:flex;flex-direction:column;gap:10px}
+.bc-sect label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px}
+.bc-sect{font-size:12.5px}
+.bc-list{list-style:none;margin:0;padding:0}
+.bc-list li{padding:1px 0;overflow-wrap:anywhere}
+.bc-list.excl li{color:var(--off)}
+.bc-list.excl li::before{content:"− ";opacity:.7}
