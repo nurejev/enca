@@ -359,8 +359,8 @@
   function setToolMode(mode) {
     toolMode = mode;
     $("exportBtn").innerHTML = mode === "backup" ? "Backup (JSON)"
-      : mode === "assign" ? 'Assign groups <span class="tag new">BETA</span>'
-      : mode === "state" ? 'Set Policy state <span class="tag new">BETA</span>'
+      : mode === "assign" ? "Assign groups"
+      : mode === "state" ? "Set Policy state"
       : "Create documentation";
     const write = mode === "assign" || mode === "state";
     $("exportBtn").classList.toggle("primary", write);

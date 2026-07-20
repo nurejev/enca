@@ -8,7 +8,7 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 84,
+  build: 85,
   date: "2026-07-20",
   get label() { return `v${this.version}.${this.build}`; },
   get full() { return `${this.label} · ${this.date}`; },
@@ -25,7 +25,7 @@ const TOOL_VERSIONS = {
   toolExclusions:   { v: "1.3", note: "grouped exclusion sets, effective users, merged matrix rows, CSV and Markdown" },
   toolBaseline:     { v: "1.3", note: "Limon-IT catalog, card and table views, number-clash detection, collapsible personas" },
   toolBaselineJoey: { v: "1.1", note: "Joey Verlinden catalog 2026.6.1, verified against commit 38469a4" },
-  toolMsLearn:      { v: "1.6", note: "17 documented checks, 14 buildable fixes, apply-in-tenant with change report" },
+  toolMsLearn:      { v: "1.7", note: "17 documented checks, 14 buildable fixes, apply-in-tenant with service-principal creation and change report" },
   toolJson:         { v: "1.2", note: "policy zip including dependencies and terms-of-use PDFs" },
   toolAssign:       { v: "1.2", note: "persona group assignment, role-assignable group creation" },
   toolState:        { v: "1.0", note: "On / report-only / Off switching" },

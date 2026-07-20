@@ -39,8 +39,17 @@ const MSLearn = (() => {
 
   const TOKEN_PROT_APPS = [EXCHANGE_ONLINE, SHAREPOINT_ONLINE, TEAMS_SERVICE, AZURE_VIRTUAL_DESKTOP, WINDOWS_365, WINDOWS_CLOUD_LOGIN];
   // Device filter excluding every registration type token protection cannot support.
-  const TOKEN_PROT_DEVICE_RULE = 'device.systemLabels -ne "CloudPC" -and device.systemLabels -ne "AzureVirtualDesktop" '
-    + '-and device.profileType -ne "AutopilotSelfDeploying" -and device.profileType -ne "SecureVM"';
+  // Device filter matching the registration types token protection cannot
+  // support. Two things matter here and both are easy to get wrong:
+  //   * mode "exclude" means the rule identifies the devices to EXCLUDE, so
+  //     the conditions must be positive and joined with -or.
+  //   * systemLabels is multi-valued: Entra only accepts -contains /
+  //     -notContains on it. Using -ne is invalid grammar and Graph rejects
+  //     the whole policy with a bare 400.
+  const TOKEN_PROT_DEVICE_RULE = 'device.systemLabels -contains "CloudPC" '
+    + '-or device.systemLabels -contains "AzureVirtualDesktop" '
+    + '-or device.profileType -eq "AutopilotSelfDeploying" '
+    + '-or device.profileType -eq "SecureVM"';
 
   // Add a group exclusion from ctx, or decline (null) when the tenant has no
   // group matching the convention — an invented exclusion is worse than none.
@@ -237,11 +246,11 @@ const MSLearn = (() => {
       requirement: "Unsupported registration types must be excluded via device filters: Surface Hub, Teams Rooms, Entra-joined AVD hosts and Cloud PCs, Autopilot self-deploying, bulk-enrolled devices and Azure VMs.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#known-limitations",
-      remediation: 'Add a device filter excluding the unsupported types, e.g. systemLabels -eq "CloudPC", systemLabels -eq "AzureVirtualDesktop", profileType -eq "SecureVM" (each combined with trustType -eq "AzureAD").',
+      remediation: 'Add a device filter in EXCLUDE mode whose rule matches the unsupported types: device.systemLabels -contains "CloudPC" -or device.systemLabels -contains "AzureVirtualDesktop" -or device.profileType -eq "AutopilotSelfDeploying" -or device.profileType -eq "SecureVM". Note systemLabels is multi-valued, so it takes -contains, not -eq/-ne.',
       fix: (d) => {
         const dev = d.conditions.devices || (d.conditions.devices = {});
         dev.deviceFilter = { mode: "exclude", rule: TOKEN_PROT_DEVICE_RULE };
-        return ["Device filter set to exclude the unsupported device types (Cloud PC, Azure Virtual Desktop, Autopilot self-deploying, Azure VM / SecureVM)"];
+        return ['Device filter set to exclude the unsupported device types — mode "exclude" matching Cloud PC, Azure Virtual Desktop, Autopilot self-deploying and Azure VM (SecureVM)'];
       },
       detect: (p) => {
         if (!isActive(p) || !hasTokenProtection(p)) return null;
