@@ -1351,14 +1351,18 @@
       back.style.display = "none";
       const nFail = asResults.filter(r => !r.ok).length;
       const nUp = asResults.filter(r => r.ok && r.changed !== false).length;
+      const nSet = asResults.length - nUp - nFail;
+      // "unchanged" here means the group was already where you asked it to be —
+      // for an add/remove that IS the intended end state, so it reads green
+      // ("already set") not neutral. Only a real failure is red.
       b.innerHTML = `<h4 class="mini">RESULT</h4>
-        <p class="mini">${nUp} updated · ${asResults.length - nUp - nFail} unchanged · ${nFail} failed</p>
+        <p class="mini">${nUp} updated · ${nSet} already set · ${nFail} failed</p>
         <div class="row" style="justify-content:flex-start;margin:8px 0 12px">
           <button class="btn" id="asReport">📄 View change report</button>
         </div>
         <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
         asResults.map(r => `<li>${r.ok
-          ? (r.changed === false ? '<span class="tag">unchanged</span>' : '<span class="tag grant">updated</span>')
+          ? (r.changed === false ? '<span class="tag grant">already set</span>' : '<span class="tag grant">updated</span>')
           : '<span class="tag block">failed</span>'} ${assignEsc(r.name)}${r.error ? `<div class="mini">${assignEsc(r.error)}</div>` : ""}</li>`).join("") + "</ul>";
     }
   }
@@ -1516,7 +1520,7 @@
       const failed = asResults.filter(r => !r.ok).length;
       const changed = asResults.filter(r => r.ok && r.changed !== false).length;
       toast(failed ? `Done with <span>${failed} failure(s)</span>`
-        : `<span>${changed}</span> polic${changed === 1 ? "y" : "ies"} updated${changed < asResults.length ? `, ${asResults.length - changed} unchanged` : ""}`);
+        : `<span>${changed}</span> polic${changed === 1 ? "y" : "ies"} updated${changed < asResults.length ? `, ${asResults.length - changed} already set` : ""}`);
       // A tenant-wide run (the blanket-exclusion case) or any run with failures
       // surfaces its change report automatically — that is exactly when you want
       // a record of what moved and what did not.
@@ -1546,7 +1550,7 @@
     if (run.action !== 4) {
       L.push(`- **Group(s):** ${run.groups.map(g => `${md(g.name)}${g.id ? ` (\`${md(g.id)}\`)` : ""}`).join(", ") || "—"}`);
     }
-    L.push(`- **Result:** ${up.length} updated · ${unch.length} unchanged · ${fail.length} failed`);
+    L.push(`- **Result:** ${up.length} updated · ${unch.length} already set · ${fail.length} failed`);
     if (isDemo) L.push(`- _Demo mode — simulated, nothing was written._`);
     L.push("");
     if (fail.length) {
@@ -1560,7 +1564,7 @@
     L.push("| Result | Policy |");
     L.push("|---|---|");
     for (const x of r) {
-      const tag = !x.ok ? "❌ failed" : x.changed === false ? "— unchanged" : "✅ updated";
+      const tag = !x.ok ? "❌ failed" : x.changed === false ? "✅ already set" : "✅ updated";
       L.push(`| ${tag} | ${md(x.name)} |`);
     }
     L.push("");
