@@ -105,6 +105,19 @@ table.plist tr:hover td{background:var(--hover)}
 .sel-actions .btn:hover{background:rgba(255,255,255,.10);border-color:#fff}
 .sel-actions .btn.on{background:var(--lemon);border-color:var(--lemon-deep);color:var(--green-deep)}
 .sel-actions .btn.on:hover{background:var(--lemon)}
+/* destructive action — visually separated from the rest so it is never the
+   button you hit by muscle memory */
+.sel-actions .btn.danger{border-color:var(--bad-bd);color:#ffb4a6}
+.sel-actions .btn.danger:hover{background:var(--off);border-color:var(--off);color:#fff}
+.sel-sep{width:1px;align-self:stretch;background:var(--ghost-bd);margin:0 2px}
+
+/* delete confirmation */
+.btn.danger{background:var(--off);border-color:var(--off);color:#fff}
+.btn.danger:hover{background:#8f3a2d;border-color:#8f3a2d}
+.danger-note{background:var(--bad-bg2);border:1px solid var(--bad-bd);color:var(--off);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13px;line-height:1.5}
+.danger-note b{color:var(--off)}
+input.txt{width:100%;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;letter-spacing:.06em}
+input.txt:focus{outline:none;border-color:var(--off)}
 input[type=checkbox]{width:16px;height:16px;accent-color:var(--green)}
 .excl-note{color:var(--off)}
 

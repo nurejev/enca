@@ -188,6 +188,7 @@
     // visible" is far too blunt a default for changing groups or policy state.
     $("selActAssign").disabled = n === 0;
     $("selActState").disabled = n === 0;
+    $("selActDelete").disabled = n === 0;
     $("selLead").innerHTML = n
       ? `<b id="selCount">${n}</b> ${n === 1 ? "policy" : "policies"} selected`
       : `<b id="selCount">${vis.length}</b> ${vis.length === 1 ? "policy" : "policies"} in view`;
@@ -517,6 +518,78 @@
         : `State of <span>${results.length}</span> policies set${isDemo ? " (simulated)" : ""}`);
       if (!isDemo && results.some(r => r.ok)) await loadFromGraph(true);
     } finally { $("stGo").disabled = false; }
+  });
+
+  // ---------- delete policies ----------
+  // Entra has no recycle bin for Conditional Access, so a delete is final. The
+  // guards are deliberately heavier than for any other action here: the raw
+  // JSON is offered as a download first (that backup IS the only undo), the
+  // word DELETE must be typed, and enforced policies need a second tick because
+  // removing one silently drops a control that is live right now.
+  function delSelection() {
+    return exportOrder([...selected].map(id => policies.find(p => p.id === id))).filter(Boolean);
+  }
+  function openDeleteModal() {
+    if (!selected.size) { toast("Select at least one policy first"); return; }
+    const ps = delSelection();
+    const live = ps.filter(p => p.state === "enabled");
+    $("delDesc").textContent = `${ps.length} ${ps.length === 1 ? "policy" : "policies"} selected `
+      + `in ${tenantName || "this tenant"}.${isDemo ? " (demo — simulated, nothing is really deleted)" : ""}`;
+    $("delOnWarn").style.display = live.length ? "block" : "none";
+    $("delOnWarn").innerHTML = live.length
+      ? `<label class="chk" style="margin:6px 0"><input type="checkbox" id="delAckOn"> `
+        + `I understand <b>${live.length}</b> of these ${live.length === 1 ? "is" : "are"} currently <span class="state on">On</span> `
+        + `— deleting ${live.length === 1 ? "it" : "them"} removes enforcement immediately</label>`
+      : "";
+    $("delList").innerHTML = `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">`
+      + ps.map(p => `<li>${Render.stateChip(p.state)} ${esc(p.name)}</li>`).join("") + "</ul>";
+    $("delConfirm").value = "";
+    $("delBackup").checked = true;
+    syncDelGo();
+    $("delModal").classList.add("open");
+  }
+  // The Delete button only wakes up once every guard is satisfied.
+  function syncDelGo() {
+    const ack = $("delAckOn");
+    $("delGo").disabled = $("delConfirm").value.trim().toUpperCase() !== "DELETE" || (ack ? !ack.checked : false);
+  }
+  $("delConfirm").addEventListener("input", syncDelGo);
+  $("delOnWarn").addEventListener("change", syncDelGo);
+  $("delCancel").addEventListener("click", () => $("delModal").classList.remove("open"));
+
+  $("delGo").addEventListener("click", async () => {
+    const ps = delSelection();
+    if (!ps.length) { $("delModal").classList.remove("open"); return; }
+    // Backup first — if this throws we stop, because the download is the only
+    // thing standing between a mistaken click and an unrecoverable policy.
+    if ($("delBackup").checked) {
+      try {
+        downloadText("CA-Deleted-Policies", "json", "application/json",
+          JSON.stringify({ tenant: tenantName, exported: new Date().toISOString(), policies: ps.map(p => p.raw) }, null, 2));
+      } catch (e) {
+        console.error(e);
+        toast("Backup download <span>failed</span> — nothing was deleted");
+        return;
+      }
+    }
+    $("delGo").disabled = true;
+    try {
+      const results = [];
+      for (let i = 0; i < ps.length; i++) {
+        toast(`Deleting ${i + 1}/${ps.length}…`);
+        try {
+          if (!isDemo) await Graph.gdelete(`/identity/conditionalAccess/policies/${ps[i].id}`, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
+          results.push({ name: ps[i].name, ok: true });
+        } catch (e) { console.error(e); results.push({ name: ps[i].name, ok: false, err: e.message }); }
+      }
+      $("delModal").classList.remove("open");
+      const failed = results.filter(r => !r.ok);
+      toast(failed.length
+        ? `Deleted <span>${results.length - failed.length}</span>, <span>${failed.length} failed</span> — see console`
+        : `<span>${results.length}</span> ${results.length === 1 ? "policy" : "policies"} deleted${isDemo ? " (simulated)" : ""}`);
+      selected.clear();
+      if (!isDemo && results.some(r => r.ok)) await loadFromGraph(true); else refreshViews();
+    } finally { $("delGo").disabled = false; }
   });
 
   // ---------- import tool (BETA) ----------
@@ -1875,6 +1948,9 @@
     setToolMode(mode);
     runToolMode(mode);
   }));
+  // Delete is not a tool mode — it has no "browse then act" phase, so it never
+  // takes the highlight and always opens its own confirmation.
+  $("selActDelete").addEventListener("click", openDeleteModal);
 
   // expand/collapse all persona sections (cards + list views)
   function syncCollapseAllBtn() {
