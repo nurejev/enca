@@ -21,10 +21,42 @@ const MSLearn = (() => {
   const DEFENDER_ATP_XPLAT = "a0e84e36-b067-4d5c-ab4a-3db38e598ae2";
   const DEFENDER_TVM = "e724aa31-0f56-4018-b8be-f8cb82ca1196";
   const DIRSYNC_ROLE = "d29b2b05-8046-44ba-8758-1e26182fcf32";
+  // ---- baseline naming conventions ----
+  // The Limon-IT baseline names its exclusion groups predictably, so a fix can
+  // resolve the right group instead of guessing. Looked up by the caller and
+  // handed in through ctx; when a group does not exist, the fix declines.
+  // The first entry is canonical: it is what gets created when the tenant has
+  // none of them. The rest are accepted aliases.
+  const CONVENTION = {
+    breakGlass: ["CAB-SEC-U-BreakGlass"],
+    sharedDevices: ["CAB-SEC-U-SharedDevices", "CAB-SEC-U-Persona-SharedDevices",
+                    "CAB-SEC-U-TeamsDevices", "CAB-SEC-U-Persona-Microsoft365ServiceAccounts"],
+  };
+  const GROUP_PURPOSE = {
+    sharedDevices: "Teams Rooms, Teams panels, Teams phones and Surface Hub resource accounts — excluded from controls these devices cannot satisfy",
+    breakGlass: "Emergency access (break-glass) accounts — excluded from every Conditional Access policy",
+  };
+
   const TOKEN_PROT_APPS = [EXCHANGE_ONLINE, SHAREPOINT_ONLINE, TEAMS_SERVICE, AZURE_VIRTUAL_DESKTOP, WINDOWS_365, WINDOWS_CLOUD_LOGIN];
   // Device filter excluding every registration type token protection cannot support.
   const TOKEN_PROT_DEVICE_RULE = 'device.systemLabels -ne "CloudPC" -and device.systemLabels -ne "AzureVirtualDesktop" '
     + '-and device.profileType -ne "AutopilotSelfDeploying" -and device.profileType -ne "SecureVM"';
+
+  // Add a group exclusion from ctx, or decline (null) when the tenant has no
+  // group matching the convention — an invented exclusion is worse than none.
+  function excludeGroupFix(ctxKey, what) {
+    const fn = (d, ctx) => {
+      const g = ctx && ctx[ctxKey];
+      if (!g) return null;
+      const u = d.conditions.users || (d.conditions.users = {});
+      const list = u.excludeGroups || (u.excludeGroups = []);
+      if (list.includes(g.id)) return [];
+      list.push(g.id);
+      return [`Excluded ${g.name} — the ${what} group`];
+    };
+    fn.needsGroup = ctxKey;   // which convention group this fix depends on
+    return fn;
+  }
 
   // ---- helpers on the raw Graph policy shape (fields may be missing) ----
   const U = (p) => p.conditions?.users || {};
@@ -65,7 +97,8 @@ const MSLearn = (() => {
       severity: "critical",
       docUrl: "https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access",
       remediation: "Exclude at least 2 emergency access (break-glass) accounts from this policy. Keep them cloud-only, with strong credentials, and alert on every sign-in.",
-      // needs a break-glass identity: supplied by the caller (ctx.breakGlass)
+      // prefers the conventional break-glass group (CAB-SEC-U-BreakGlass),
+      // falling back to whatever the exclusion patterns pointed at
       fix: (d, ctx) => {
         const bg = ctx && ctx.breakGlass;
         if (!bg) return null;
@@ -289,6 +322,8 @@ const MSLearn = (() => {
       severity: "medium",
       docUrl: "https://learn.microsoft.com/surface-hub/conditional-access-for-surface-hub",
       remediation: "Exclude Surface Hub device accounts (or a group containing them) from this policy — select the user object, not the device object.",
+      needsGroup: "sharedDevices",
+      fix: excludeGroupFix("sharedDevices", "shared-device / resource account"),
       detect: (p) => {
         if (!isActive(p) || !allUsers(p) || !allApps(p)) return null;
         const bad = grants(p).filter((c) => ["mfa", "compliantDevice", "domainJoinedDevice", "approvedApplication", "compliantApplication", "passwordChange"].includes(c));
@@ -308,6 +343,8 @@ const MSLearn = (() => {
       severity: "medium",
       docUrl: "https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies",
       remediation: "Exclude Teams Rooms resource accounts (or a shared-device group) from MFA-enforcing policies; use device compliance as the control for these devices instead.",
+      needsGroup: "sharedDevices",
+      fix: excludeGroupFix("sharedDevices", "shared-device / resource account"),
       detect: (p) => {
         if (!isActive(p) || !allUsers(p) || !allApps(p)) return null;
         if (!hasMfa(p)) return null;
@@ -325,6 +362,8 @@ const MSLearn = (() => {
       severity: "medium",
       docUrl: "https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies",
       remediation: "Exclude Teams device resource accounts from the device-code-flow block policy, or add a device filter excluding Teams Android devices.",
+      needsGroup: "sharedDevices",
+      fix: excludeGroupFix("sharedDevices", "shared-device / resource account"),
       detect: (p) => {
         if (!isActive(p) || !hasBlock(p)) return null;
         const tm = p.conditions?.authenticationFlows?.transferMethods;
@@ -343,6 +382,8 @@ const MSLearn = (() => {
       severity: "medium",
       docUrl: "https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies",
       remediation: "Exclude Teams Rooms / shared-device resource accounts from sign-in frequency policies, or scope the frequency requirement to admin roles instead of all users.",
+      needsGroup: "sharedDevices",
+      fix: excludeGroupFix("sharedDevices", "shared-device / resource account"),
       detect: (p) => {
         if (!isActive(p) || !allUsers(p) || !allApps(p)) return null;
         const sif = S(p).signInFrequency;
@@ -649,7 +690,10 @@ const MSLearn = (() => {
       }
       let ch = null;
       try { ch = f.check.fix(entry.draft, ctx); } catch (e) { console.warn(`MS Learn fix ${f.check.id} failed:`, e); }
-      if (ch === null) { skipped.push({ policyName: entry.originalName, check: f.check }); continue; }
+      if (ch === null) {
+        skipped.push({ policyName: entry.originalName, check: f.check, needs: f.check.needsGroup || null });
+        continue;
+      }
       if (!ch.length) continue;               // already satisfied by an earlier fix
       entry.changes.push(...ch);
       entry.checks.push(f.check);
@@ -694,11 +738,21 @@ const MSLearn = (() => {
       </div>
     </div>`).join("");
     const note = res.skipped.length
-      ? `<p class="mini" style="margin:12px 0 0">${res.skipped.length} finding${res.skipped.length === 1 ? "" : "s"} could not be fixed automatically (no break-glass identity detected, or the change needs a decision).</p>`
+      ? (() => {
+        const needs = [...new Set(res.skipped.map((x) => x.needs).filter(Boolean))];
+        const titles = [...new Set(res.skipped.map((x) => x.check.title))].join("; ");
+        const create = needs.map((k) => `<button class="btn" data-mkgroup="${esc(k)}">➕ Create ${esc(CONVENTION[k][0])} <span class="tag block">writes</span></button>`).join(" ");
+        return `<div class="list-card fx-card"><div class="fx-body">
+          <h5 class="ml-blue">${res.skipped.length} finding${res.skipped.length === 1 ? "" : "s"} need a group that does not exist yet</h5>
+          <p class="mini">${esc(titles)}</p>
+          ${needs.map((k) => `<p class="mini" style="margin-top:8px">These fixes exclude <b>${esc(CONVENTION[k][0])}</b> — ${esc(GROUP_PURPOSE[k] || "")}. The tenant has no group by that name (or an accepted alias: ${esc(CONVENTION[k].slice(1).join(", ") || "none")}), so the exclusion cannot be guessed.</p>`).join("")}
+          ${create ? `<p style="margin-top:10px">${create} <span class="mini">creates an empty role-assignable security group, then re-runs the fixes — add the resource accounts to it yourself</span></p>` : ""}
+        </div></div>`;
+      })()
       : "";
     return `<p class="mini" style="margin:0 0 12px">${res.fixes.length} new polic${res.fixes.length === 1 ? "y" : "ies"} prepared from ${res.fixes.length === 1 ? "1 affected policy" : `${res.fixes.length} affected policies`}.
       Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${cards}${note}`;
   }
 
-  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, checksCount: CHECKS.length };
+  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();

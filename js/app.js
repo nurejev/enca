@@ -981,25 +981,51 @@
         (await Graph.ggetAll("/policies/authenticationStrengthPolicies")).forEach(s => mlStrengths.set(s.id, s));
       }
     } catch (e) { console.warn("Auth strength fetch failed (EAM check limited):", e.message); }
-    runMsLearn();
+    await runMsLearn();
   }
-  function runMsLearn() {
+  // Resolve a group by the baseline naming convention — the first name that
+  // actually exists in the tenant wins. Returns null when none exist, which
+  // makes the dependent fixes decline rather than invent an exclusion.
+  async function findGroupByConvention(names) {
+    for (const name of names) {
+      try {
+        if (isDemo) {
+          if (DEMO_DATA.scopeGroups && DEMO_DATA.scopeGroups[name]) return { id: name, name };
+          continue;
+        }
+        const j = await Graph.gget(`/groups?$filter=displayName eq '${encodeURIComponent(name).replace(/'/g, "''")}'&$select=id,displayName&$top=1`);
+        const g = (j.value || [])[0];
+        if (g) return { id: g.id, name: g.displayName };
+      } catch (e) { console.warn(`Group lookup failed for ${name}:`, e.message); }
+    }
+    return null;
+  }
+
+  async function runMsLearn() {
     const scope = checkScope($("mlDisabled").checked);
     const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled });
     mlGroups = MSLearn.group(findings);
-    // build the suggested policies straight away — pure JSON work, no writes.
-    // The break-glass identity (detected from exclusion patterns) lets the
-    // break-glass fix add the right exclusion instead of guessing.
-    let bg = null;
-    try {
-      const c = GapCheck.identifyBreakGlass(scope.raws);
-      if (c) bg = { id: c.id, type: c.type, name: policies.find(p => p.id === c.id)?.name || null };
-    } catch { /* GapCheck optional */ }
-    mlFixes = MSLearn.buildFixes(findings, scope.raws, { breakGlass: bg });
     mlFilter = "all"; mlExpanded.clear();
+    renderMsLearn();                       // show the findings before the lookups
+
+    // Fixes that add an exclusion need a real group. The baseline names them
+    // predictably (break-glass is always CAB-SEC-U-BreakGlass), so resolve by
+    // convention; only if that fails fall back to the detected break-glass.
+    const ctx = {};
+    ctx.breakGlass = await findGroupByConvention(MSLearn.CONVENTION.breakGlass);
+    if (ctx.breakGlass) ctx.breakGlass.type = "group";
+    else {
+      try {
+        const c = GapCheck.identifyBreakGlass(scope.raws);
+        if (c) ctx.breakGlass = { id: c.id, type: c.type, name: policies.find(p => p.id === c.id)?.name || `ID ${c.id.slice(0, 8)}…` };
+      } catch { /* GapCheck optional */ }
+    }
+    ctx.sharedDevices = await findGroupByConvention(MSLearn.CONVENTION.sharedDevices);
+
+    mlFixes = MSLearn.buildFixes(findings, scope.raws, ctx);
     renderMsLearn();
   }
-  $("mlDisabled").addEventListener("change", runMsLearn);
+  $("mlDisabled").addEventListener("change", () => { runMsLearn(); });
   function renderMsLearn() {
     if (!mlGroups) return;
     const incDis = $("mlDisabled").checked;
@@ -1032,6 +1058,30 @@
   }
   $("mlTabFindings").addEventListener("click", () => { mlTab = "findings"; renderMsLearn(); });
   $("mlTabFixes").addEventListener("click", () => { mlTab = "fixes"; renderMsLearn(); });
+
+  // Create a missing convention group (e.g. CAB-SEC-U-SharedDevices) so the
+  // dependent fixes stop declining. Role-assignable security group, empty —
+  // the resource accounts are added by the operator afterwards.
+  $("mlBody").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-mkgroup]"); if (!b) return;
+    const key = b.dataset.mkgroup;
+    const name = MSLearn.CONVENTION[key][0];
+    if (isDemo) { toast("Demo mode — <span>no group created</span>"); return; }
+    b.disabled = true; b.textContent = `Creating ${name}…`;
+    try {
+      const g = await Graph.gpostGroupCreate("/groups", {
+        displayName: name,
+        mailNickname: name.replace(/[^\w-]+/g, ""),
+        description: MSLearn.GROUP_PURPOSE[key] || "Created by Conditional Access Baseline Tools",
+        securityEnabled: true, mailEnabled: false, isAssignableToRole: true,
+      });
+      toast(`Group <span>${esc(g.displayName || name)}</span> created — add the resource accounts, then re-run the fixes`);
+      await runMsLearn();
+    } catch (err) {
+      b.disabled = false; b.innerHTML = `➕ Create ${esc(name)} <span class="tag block">writes</span>`;
+      toast(`Could not create ${esc(name)}: <span>${esc(err.message || err)}</span>`);
+    }
+  });
 
   // a finding card's Fix button jumps to the generated policy
   $("mlBody").addEventListener("click", (e) => {
