@@ -263,7 +263,10 @@ const MSLearn = (() => {
       fix: (d) => {
         const dev = d.conditions.devices || (d.conditions.devices = {});
         dev.deviceFilter = { mode: "exclude", rule: TOKEN_PROT_DEVICE_RULE };
-        return ['Device filter set to exclude the unsupported device types — mode "exclude" matching Cloud PC, Azure Virtual Desktop, Autopilot self-deploying and Azure VM (SecureVM)'];
+        // Note only names what the rule can actually express. Autopilot
+        // self-deploying is NOT a profileType value, so it cannot be matched
+        // here — the check's remediation text says how to handle those.
+        return ['Device filter set to exclude the unsupported device types — mode "exclude" matching Cloud PC, Azure Virtual Desktop and Azure VM (SecureVM). Autopilot self-deploying devices are not expressible in a device filter — exclude them another way.'];
       },
       detect: (p) => {
         if (!isActive(p) || !hasTokenProtection(p)) return null;
