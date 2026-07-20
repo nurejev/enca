@@ -131,14 +131,11 @@ const Importer = (() => {
   async function ensureDependencies(bundle, onStatus) {
     const maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, ph: {} };
     const log = { created: [], reused: [], warnings: [] };
-    // Groups are always created role-assignable; a dynamic source group loses
-    // its membership rule as a result (Graph forbids the combination), so say so.
+    // Assigned groups are created role-assignable; dynamic groups keep their
+    // membership rule (Entra forbids role-assignable + dynamic). Say which.
     const noteGroup = (g, label) => {
-      (g.created ? log.created : log.reused).push(`${label}${g.created ? " (role-assignable)" : ""}`);
-      if (g.ruleDropped) {
-        log.warnings.push(`"${g.name}" was created as an ASSIGNED role-assignable group — Entra does not allow role-assignable groups to use dynamic membership. `
-          + `Add the members manually${g.membershipRule ? `, or recreate it as a dynamic group without the role-assignable flag. Original rule: ${g.membershipRule}` : "."}`);
-      }
+      const kind = !g.created ? "" : g.dynamic ? " (dynamic, membership rule preserved)" : " (assigned, role-assignable)";
+      (g.created ? log.created : log.reused).push(`${label}${kind}`);
     };
 
     // ---- template placeholders ({{group:…}} / {{location:…}} / {{authstrength:…}}) ----

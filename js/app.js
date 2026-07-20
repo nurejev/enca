@@ -654,8 +654,9 @@
         const g = isDemo
           ? { id: "g-" + t.displayName, name: t.displayName, created: true }
           : await Assign.createGroup(t);
-        toast(g.created ? `Role-assignable group <span>${esc(g.name)}</span> created${isDemo ? " (simulated)" : ""}` : `Group <span>${esc(g.name)}</span> already existed — reused`);
-        if (g.ruleDropped) toast(`<span>${esc(g.name)}</span> is assigned, not dynamic — role-assignable groups cannot use a membership rule. Add members manually.`);
+        toast(g.created
+          ? `${g.dynamic ? "Dynamic" : "Role-assignable"} group <span>${esc(g.name)}</span> created${isDemo ? " (simulated)" : ""}`
+          : `Group <span>${esc(g.name)}</span> already existed — reused`);
         asAddCreated(g);
       } catch (err) { console.error(err); toast(`Create failed: <span>${esc(err.message || err)}</span>`); }
       finally { e.target.disabled = false; }

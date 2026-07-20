@@ -44,39 +44,37 @@ const Assign = (() => {
   }
 
   // ---------- group creation (pure Graph, no PowerShell) ----------
-  // EVERY group this tool creates is role-assignable (isAssignableToRole:true).
-  // That flag is immutable — it can only be set at creation — so getting it
-  // right here is the only chance.
+  // ASSIGNED groups are always created role-assignable (isAssignableToRole:true
+  // — immutable, so it must be set at creation).
   //
-  // Graph does not allow role-assignable AND dynamic membership on the same
-  // group. Role-assignable wins: a dynamic template is created as an assigned
-  // (static) role-assignable group and its membership rule is reported back so
-  // the caller can surface it, rather than silently creating a group that can
-  // never hold a role assignment.
+  // DYNAMIC groups are left exactly as designed: they keep their membership
+  // rule and are NOT role-assignable, because Entra does not allow the two
+  // together. A dynamic group's whole point is its rule, so the rule wins.
   function buildGroupPayload(t) {
     const nickname = (String(t.mailNickname || t.displayName || "grp").replace(/[^A-Za-z0-9]/g, "").slice(0, 60)) || "CADSECgroup";
-    return {
+    const p = {
       displayName: t.displayName,
       description: t.description || "Conditional Access target group. Created by Conditional Access Baseline Tools.",
       mailEnabled: false,
       securityEnabled: true,
       mailNickname: nickname,
-      isAssignableToRole: true,
     };
+    if (t.dynamic) {
+      p.groupTypes = ["DynamicMembership"];
+      p.membershipRule = t.membershipRule || "";
+      p.membershipRuleProcessingState = "On";
+    } else {
+      p.isAssignableToRole = true;
+    }
+    return p;
   }
 
-  // Create (or reuse) a group. Returns
-  // {id, name, created, roleAssignable, ruleDropped?, membershipRule?}
+  // Create (or reuse) a group. Returns {id, name, created, dynamic, roleAssignable}.
   async function createGroup(template) {
     const existing = await findGroup(template.displayName);
     if (existing) return { ...existing, created: false };
     const g = await Graph.gpostGroupCreate("/groups", buildGroupPayload(template));
-    const out = { id: g.id, name: g.displayName, created: true, roleAssignable: true };
-    if (template.dynamic) {
-      out.ruleDropped = true;
-      out.membershipRule = template.membershipRule || "";
-    }
-    return out;
+    return { id: g.id, name: g.displayName, created: true, dynamic: !!template.dynamic, roleAssignable: !template.dynamic };
   }
 
   function templates() { return typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []; }
