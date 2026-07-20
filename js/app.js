@@ -787,10 +787,14 @@
   // Tick exactly the importable policies of one persona (or all / none). An
   // "already exists" row is disabled and never touched.
   function imSelectPersona(key) {
+    const single = key !== "__all" && key !== "__none";
     imPlan.forEach((p, i) => {
       const cb = document.querySelector(`[data-imp="${i}"]`);
-      if (!cb || cb.disabled) return;
-      cb.checked = key === "__all" ? true : key === "__none" ? false : imPersonaKey(p) === key;
+      if (cb && !cb.disabled) cb.checked = key === "__all" ? true : key === "__none" ? false : imPersonaKey(p) === key;
+      // Picking one persona narrows the list to just its policies; All / None
+      // show everything again.
+      const row = document.querySelector(`[data-imrow="${i}"]`);
+      if (row) row.style.display = (!single || imPersonaKey(p) === key) ? "" : "none";
     });
     updateImGo();
   }
