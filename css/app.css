@@ -33,6 +33,17 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .tool-crumb{display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#fff;font-weight:600;font-size:13px;padding:5px 13px;border-radius:999px;white-space:nowrap}
 :root[data-theme="dark"] .tool-crumb{color:#0b120e}
 @media(max-width:720px){.tool-crumb{display:none!important}}
+
+/* tool tab bar — sticky under the header, horizontally scrollable */
+.toolnav{position:sticky;top:57px;z-index:45;display:flex;gap:4px;align-items:center;
+  background:var(--surface);border-bottom:1px solid var(--border);padding:6px 24px;overflow-x:auto;scrollbar-width:thin}
+.toolnav::-webkit-scrollbar{height:6px}
+.toolnav-btn{flex:none;border:1px solid transparent;background:none;color:var(--muted);font-weight:600;font-size:12.5px;
+  padding:6px 12px;border-radius:8px;white-space:nowrap;cursor:pointer;transition:.12s}
+.toolnav-btn:hover{background:var(--soft);color:var(--ink)}
+.toolnav-btn.active{background:var(--green);color:#fff;border-color:var(--green)}
+:root[data-theme="dark"] .toolnav-btn.active{color:#0b120e}
+.toolnav-btn.home{font-size:15px;padding:6px 11px}
 .spacer{flex:1}
 .tenant{display:none;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
 .avatar{width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px}

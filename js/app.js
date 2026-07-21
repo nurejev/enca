@@ -481,6 +481,7 @@
       $("avatar").textContent = (account?.name || account?.username || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
       $("tenantBox").style.display = "flex";
     $("homeBtn").style.display = "inline-flex";
+    $("toolNav").style.display = "flex";
       selected = new Set();
       refreshViews();
       renderPermissions();
@@ -511,6 +512,7 @@
     $("avatar").textContent = "DM";
     $("tenantBox").style.display = "flex";
     $("homeBtn").style.display = "inline-flex";
+    $("toolNav").style.display = "flex";
     refreshViews();
     renderPermissions();
     show("screen-home");
@@ -659,11 +661,43 @@
       toast(`JSON backup <span>downloaded</span> — ${psOut.length} policies${nDeps ? `, ${nDeps} dependencies` : ""}`);
     } catch (e) { console.error(e); toast(`Backup failed: <span>${esc(e.message || e)}</span>`); }
   });
+  // ---------- tool tab bar ----------
+  // The tools, in home-grid order. Each carries the exact crumb string its tile
+  // handler sets, so the active tab can be matched from crumb() regardless of
+  // whether the tool was opened from the grid or a tab.
+  const TOOL_TABS = [
+    ["toolPolicies", "🗂 List Policies"],
+    ["toolDocument", "📄 Create documentation"],
+    ["toolAnalyze", "🔍 Gap analyse"],
+    ["toolGapCheck", "🛡 Best-practice & bypass checks"],
+    ["toolExclusions", "🚪 Exclusion analyzer"],
+    ["toolBaseline", "🧬 Baseline Policies"],
+    ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
+    ["toolMsLearn", "📘 MS Learn checks"],
+    ["toolJson", "🗄 Backup (JSON)"],
+    ["toolCaGroups", "👥 Conditional Access groups"],
+    ["toolState", "🎚 Set Policy state"],
+    ["toolImport", "📥 Import"],
+  ];
+  function buildToolNav() {
+    $("toolNav").innerHTML =
+      `<button class="toolnav-btn home" data-navhome title="All tools">⌂</button>` +
+      TOOL_TABS.map(([id, label]) => `<button class="toolnav-btn" data-nav="${id}" data-crumb="${esc(label)}">${esc(label)}</button>`).join("");
+  }
+  $("toolNav").addEventListener("click", (e) => {
+    if (e.target.closest("[data-navhome]")) { crumb(""); show("screen-home"); return; }
+    const b = e.target.closest("[data-nav]");
+    if (b) $(b.dataset.nav).click();   // reuse the tile's own handler (crumb, screen, setup)
+  });
+
   // Header breadcrumb: which tool you're in. Set on entry, cleared at home.
+  // Also drives the active state of the tab bar.
   function crumb(name) {
     const el = $("toolCrumb");
     el.textContent = name || "";
     el.style.display = name ? "inline-flex" : "none";
+    document.querySelectorAll("#toolNav [data-crumb]").forEach((b) =>
+      b.classList.toggle("active", !!name && b.dataset.crumb === name));
   }
   $("homeBtn").addEventListener("click", () => { crumb(""); show("screen-home"); });
   // logo returns to the tools overview when signed in (does nothing on login)
@@ -802,12 +836,14 @@
   // ---------- import tool (BETA) ----------
   let imBundle = null, imPlan = null, imFileName = "";
   $("toolImport").addEventListener("click", () => {
+    crumb("📥 Import");
     imBundle = null; imPlan = null;
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = "Select a CA Doc backup zip, or pick the extracted backup folder — both use the same structure.";
     $("importModal").classList.add("open");
   });
-  $("imCancel").addEventListener("click", () => $("importModal").classList.remove("open"));
+  // Import is a modal over the current screen — drop the crumb when it closes.
+  $("imCancel").addEventListener("click", () => { $("importModal").classList.remove("open"); crumb(""); });
   // Label a plan item's persona for the filter — an E-Admins policy is imported
   // as-is (no persona group), so it gets its own bucket.
   const IM_PERSONA_LABEL = {
@@ -2485,6 +2521,7 @@
   $("signOutBtn").addEventListener("click", () => {
     $("tenantBox").style.display = "none";
     $("homeBtn").style.display = "none";
+    $("toolNav").style.display = "none";
     policies = []; selected.clear();
     Graph.signOut?.();
     show("screen-login");
@@ -2855,6 +2892,7 @@
 
   // ---------- boot ----------
   // Keep the user informed during a throttle back-off instead of looking hung.
+  buildToolNav();
   Graph.setThrottleHandler((ms) => toast(`Microsoft Graph is throttling — waiting <span>${Math.ceil(ms / 1000)}s</span> then continuing…`));
   Graph.init().then(() => {
     if (new URLSearchParams(location.search).get("demo")) loadDemo();
