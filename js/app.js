@@ -250,7 +250,8 @@
     }
     $("helpModal").classList.add("open");
   }
-  $("helpBtn").addEventListener("click", openHelp);
+  // Help is reached from the tab bar (data-navhelp), which — like the tabs
+  // themselves — only appears once a tool is open.
   $("helpClose").addEventListener("click", () => $("helpModal").classList.remove("open"));
   $("helpModal").addEventListener("click", (e) => { if (e.target.id === "helpModal") $("helpModal").classList.remove("open"); });
   // ToC links scroll within the modal without leaving a #hash on the page
