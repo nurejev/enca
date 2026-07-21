@@ -22,7 +22,7 @@ const TOOL_VERSIONS = {
   toolDocument:     { v: "1.4", note: "Word, PDF, PNG and PNG-bundle export with tenant branding" },
   toolAnalyze:      { v: "1.6", note: "users × policies impact matrix, group filters, standalone HTML report, scoped matrix columns" },
   toolGapCheck:     { v: "1.6", note: "bypass checks, persona × control matrix, deployed-but-Off state, Markdown export" },
-  toolExclusions:   { v: "1.4", note: "grouped exclusion sets, effective users, merged matrix rows, CSV and Markdown" },
+  toolExclusions:   { v: "1.4", note: "exclusion × policy matrix (default, unmerged) and effective-user view, CSV and Markdown" },
   toolBaseline:     { v: "1.6", note: "Limon-IT catalog, card and table views, number-clash detection, collapsible personas, catalog revision 2026-07-20, refresh, on-screen gap report" },
   toolBaselineJoey: { v: "1.1", note: "Joey Verlinden catalog 2026.6.1, verified against commit 38469a4" },
   toolMsLearn:      { v: "2.0", note: "17 documented checks, 14 buildable fixes, apply-in-tenant with service-principal creation and change report" },
