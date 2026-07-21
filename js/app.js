@@ -1962,13 +1962,14 @@
 
   // ---------- CA Exclusion analyzer ----------
   let exModel = null, exUsers = [], exTab = "matrix", exKind = "all", exQuery = "", exPage = 0;
+  let exFocusRow = null, exFocusCol = null;  // pinned exclusion/user row and/or policy column
   const EX_PAGE = 50;
   async function openExclusions() {
     show("screen-exclusions");
     if (!policies.length) { $("exHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("exBody").innerHTML = ""; $("exChips").innerHTML = ""; return; }
     $("exHead").innerHTML = '<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">Collecting exclusions…</p>';
     $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
-    exTab = "matrix"; exKind = "all"; exQuery = ""; exPage = 0; Fs.close(); $("exSearch").value = "";
+    exTab = "matrix"; exKind = "all"; exQuery = ""; exPage = 0; exFocusRow = null; exFocusCol = null; Fs.close(); $("exSearch").value = "";
     $("exTabMatrix").classList.add("active"); $("exTabUsers").classList.remove("active");
     try {
       // the whole tenant's policies — exclusions are a tenant-wide question
@@ -1993,13 +1994,14 @@
       : "";
     $("exExpand").style.display = "";
     const full = Fs.isOpen();
+    const focus = { row: exFocusRow, col: exFocusCol };
     if (exTab === "matrix") {
       $("exPager").style.display = "none";
       // merge disabled — show every exclusion row so nothing is hidden
-      $("exBody").innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery, false);
+      $("exBody").innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery, false, focus);
     } else {
       // more vertical room full screen, so page in bigger chunks
-      const r = Exclusions.renderUsers(exModel, exUsers, exQuery, exPage, full ? EX_PAGE * 4 : EX_PAGE);
+      const r = Exclusions.renderUsers(exModel, exUsers, exQuery, exPage, full ? EX_PAGE * 4 : EX_PAGE, focus);
       exPage = r.page;
       $("exBody").innerHTML = r.html;
       $("exPager").style.display = "flex";
@@ -2013,7 +2015,19 @@
   }
   $("exChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-exk]"); if (!b) return;
-    exKind = b.dataset.exk; renderExclusions();
+    // a pinned row may not exist under the new kind filter — drop it
+    exKind = b.dataset.exk; exFocusRow = null; renderExclusions();
+  });
+  // Click-to-filter: a row pins the exclusion/user (hides its out-of-scope
+  // policy columns); a policy header pins the policy (hides out-of-scope rows).
+  // Clicking the same target again, or the Clear button, releases the pin.
+  $("exBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-exclearfocus]")) { exFocusRow = null; exFocusCol = null; exPage = 0; renderExclusions(); return; }
+    if (e.target.closest("[data-colgrip]")) return;  // don't pin while resizing the first column
+    const col = e.target.closest("[data-expol]");
+    if (col) { exFocusCol = exFocusCol === col.dataset.expol ? null : col.dataset.expol; exPage = 0; renderExclusions(); return; }
+    const row = e.target.closest("[data-exrow]");
+    if (row) { exFocusRow = exFocusRow === row.dataset.exrow ? null : row.dataset.exrow; exPage = 0; renderExclusions(); }
   });
   // Crosshair: highlight the hovered row and its column across the whole table.
   // Delegated once on the document so it survives every re-render, and applied
@@ -2141,7 +2155,9 @@
   const EX_TABS = { matrix: "exTabMatrix", users: "exTabUsers" };
   for (const [tab, id] of Object.entries(EX_TABS)) {
     $(id).addEventListener("click", () => {
-      exTab = tab; exPage = 0;
+      // matrix rows are keyed by entity, users rows by user id — a pin from one
+      // tab is meaningless in the other, so release it on switch
+      exTab = tab; exPage = 0; exFocusRow = null; exFocusCol = null;
       Object.values(EX_TABS).forEach((x) => $(x).classList.toggle("active", x === id));
       renderExclusions();
     });

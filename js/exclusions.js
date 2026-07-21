@@ -222,31 +222,58 @@ const Exclusions = (() => {
     ? (e.memberTotal == null ? "members unknown" : `${e.memberTotal} member${e.memberTotal === 1 ? "" : "s"}`)
     : e.upn || (e.id !== e.name ? e.id : ""));
 
+  // Focus banner — shown above a matrix when a row and/or column is pinned, so
+  // it is clear the grid is filtered and there is a one-click way back.
+  function focusBanner(rowLabel, colLabel) {
+    if (!rowLabel && !colLabel) return "";
+    const bits = [];
+    if (rowLabel) bits.push(`<b>${esc(rowLabel)}</b>`);
+    if (colLabel) bits.push(`policy <b>${esc(colLabel)}</b>`);
+    return `<div class="ex-focus">🔎 Filtered to ${bits.join(" × ")} — only in-scope ${rowLabel && !colLabel ? "policies" : colLabel && !rowLabel ? "exclusions" : "cells"} shown.<button class="fchip" data-exclearfocus="1">✕ Clear filter</button></div>`;
+  }
+
   // matrix: exclusions (rows) × policies (columns)
-  function renderMatrix(model, filterKind, query, merge = true) {
-    const pols = model.policies.filter((p) => p.exclusionCount > 0).slice().sort((a, b) => a.name.localeCompare(b.name));
-    if (!pols.length) return '<p class="mini" style="padding:20px">No policy in scope has any exclusion configured.</p>';
+  // focus = { row: entityKey|null, col: policyId|null } — clicking a row hides
+  // every policy that entity is *in scope* for (all the "·" columns); clicking a
+  // policy header hides every exclusion not in scope for it (all the "·" rows).
+  function renderMatrix(model, filterKind, query, merge = true, focus = {}) {
+    if (!model.policies.some((p) => p.exclusionCount > 0)) return '<p class="mini" style="padding:20px">No policy in scope has any exclusion configured.</p>';
     const q = (query || "").toLowerCase();
-    const matched = model.entities
+    let matched = model.entities
       .filter((e) => filterKind === "all" || e.kind === filterKind)
       .filter((e) => !q || String(e.name).toLowerCase().includes(q) || String(e.id).toLowerCase().includes(q))
       .sort(sortEntities);
-    if (!matched.length) return '<p class="mini" style="padding:20px">No exclusions match the current filter.</p>';
+
+    // resolve the requested focus against what is actually visible now
+    const focusEnt = focus.row ? model.entities.find((e) => e.key === focus.row) : null;
+    let pols = model.policies.filter((p) => p.exclusionCount > 0).slice().sort((a, b) => a.name.localeCompare(b.name));
+    const focusPol = focus.col ? pols.find((p) => p.id === focus.col) : null;
+
+    if (focusEnt) pols = pols.filter((p) => focusEnt.policyIds.has(p.id));           // hide the entity's out-of-scope columns
+    if (focusPol) matched = matched.filter((e) => e.policyIds.has(focusPol.id));      // hide out-of-scope rows for the pinned policy
+
+    const banner = focusBanner(focusEnt ? focusEnt.name : null, focusPol ? focusPol.name : null);
+    if (!matched.length) return `${banner}<p class="mini" style="padding:20px">No exclusions match the current filter.</p>`;
+    if (!pols.length) return `${banner}<p class="mini" style="padding:20px">The pinned exclusion is not in scope for any policy.</p>`;
+
     const rows = merge ? mergeRows(matched) : matched.map((e) => ({ kind: e.kind, policyIds: e.policyIds, items: [e], name: e.name, merged: false }));
     const collapsed = matched.length - rows.length;
     const head = `<th class="ucol" style="position:relative">Exclusion (${rows.length}${collapsed ? ` of ${matched.length}` : ""})<span class="colgrip" data-colgrip="1" title="Drag to resize"></span></th>` + pols.map((p) =>
-      `<th class="pcol"><div class="ph" title="${esc(p.name)}">${esc(p.name)}${p.state === "disabled" ? " [Off]" : p.state === "enabledForReportingButNotEnforced" ? " [RO]" : ""}</div></th>`).join("");
+      `<th class="pcol clickable${focusPol && focusPol.id === p.id ? " focused" : ""}" data-expol="${esc(p.id)}"><div class="ph" title="Click to show only exclusions in scope for: ${esc(p.name)}">${esc(p.name)}${p.state === "disabled" ? " [Off]" : p.state === "enabledForReportingButNotEnforced" ? " [RO]" : ""}</div></th>`).join("");
     const body = rows.map((r) => {
+      const rowKey = r.items.length === 1 ? r.items[0].key : "";
+      const clickable = rowKey ? " clickable" : "";
+      const focused = rowKey && focus.row === rowKey ? " focused" : "";
       const label = r.merged
         ? `<span class="uname" title="${esc(r.items.map((i) => i.name).join(", "))}">${KIND[r.kind].icon} ${esc(r.name)}</span><div class="uupn" title="${esc(r.items.map((i) => i.name).join(", "))}">${esc(r.items.map((i) => i.name).join(" · "))}</div>`
-        : `<span class="uname" title="${esc(r.items[0].name)}">${KIND[r.kind].icon} ${esc(r.items[0].name)}</span><div class="uupn" title="${esc(r.items[0].id)}">${esc(KIND[r.kind].label)}${rowSub(r.items[0]) ? " · " + esc(rowSub(r.items[0])) : ""}</div>`;
-      return `<tr><td class="ucol${r.merged ? " merged" : ""}">${label}</td>` +
+        : `<span class="uname" title="Click to show only the policies excluding: ${esc(r.items[0].name)}">${KIND[r.kind].icon} ${esc(r.items[0].name)}</span><div class="uupn" title="${esc(r.items[0].id)}">${esc(KIND[r.kind].label)}${rowSub(r.items[0]) ? " · " + esc(rowSub(r.items[0])) : ""}</div>`;
+      return `<tr><td class="ucol${r.merged ? " merged" : ""}${clickable}${focused}"${rowKey ? ` data-exrow="${esc(rowKey)}"` : ""}>${label}</td>` +
         pols.map((p) => r.policyIds.has(p.id)
           ? `<td class="cellv no" title="${esc(r.name)} excluded from ${esc(p.name)}"><span class="cell no">✗</span></td>`
           : `<td class="cellv"><span class="cell na">·</span></td>`).join("") + "</tr>";
     }).join("");
     const note = collapsed ? `<p class="mini" style="padding:8px 2px 0">${collapsed} exclusion${collapsed === 1 ? "" : "s"} merged into shared rows — entries of the same type excluded from exactly the same policies are shown together.</p>` : "";
-    return `<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${note}`;
+    return `${banner}<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${note}`;
   }
 
   // Grouped view — the readable default. One card per distinct exclusion set:
@@ -299,17 +326,27 @@ const Exclusions = (() => {
   }
 
   // matrix: effectively excluded users (rows) × policies (columns)
-  function renderUsers(model, users, query, page, pageSize) {
-    const pols = model.policies.filter((p) => p.exclusionCount > 0).slice().sort((a, b) => a.name.localeCompare(b.name));
+  // focus = { row: userId|null, col: policyId|null } — same click-to-filter
+  // behaviour as the exclusion matrix, so "not in scope" (·) cells drop away.
+  function renderUsers(model, users, query, page, pageSize, focus = {}) {
+    let pols = model.policies.filter((p) => p.exclusionCount > 0).slice().sort((a, b) => a.name.localeCompare(b.name));
     const q = (query || "").toLowerCase();
-    const list = users.filter((u) => !q || u.name.toLowerCase().includes(q) || (u.upn || "").toLowerCase().includes(q));
-    if (!list.length) return { html: '<p class="mini" style="padding:20px">No excluded users match the current filter.</p>', pages: 1, page: 0 };
+    let list = users.filter((u) => !q || u.name.toLowerCase().includes(q) || (u.upn || "").toLowerCase().includes(q));
+
+    const focusUser = focus.row ? users.find((u) => u.id === focus.row) : null;
+    const focusPol = focus.col ? pols.find((p) => p.id === focus.col) : null;
+    if (focusUser) pols = pols.filter((p) => focusUser.byPolicy.has(p.id));            // hide the user's out-of-scope columns
+    if (focusPol) list = list.filter((u) => u.byPolicy.has(focusPol.id));              // hide users not excluded from the pinned policy
+
+    const banner = focusBanner(focusUser ? focusUser.name : null, focusPol ? focusPol.name : null);
+    if (!list.length) return { html: `${banner}<p class="mini" style="padding:20px">No excluded users match the current filter.</p>`, pages: 1, page: 0 };
+    if (!pols.length) return { html: `${banner}<p class="mini" style="padding:20px">The pinned user is not excluded from any policy.</p>`, pages: 1, page: 0 };
     const pages = Math.max(1, Math.ceil(list.length / pageSize));
     page = Math.min(Math.max(0, page), pages - 1);
     const slice = list.slice(page * pageSize, (page + 1) * pageSize);
     const head = `<th class="ucol" style="position:relative">Excluded user (${list.length})<span class="colgrip" data-colgrip="1" title="Drag to resize"></span></th>` + pols.map((p) =>
-      `<th class="pcol"><div class="ph" title="${esc(p.name)}">${esc(p.name)}</div></th>`).join("");
-    const body = slice.map((u) => `<tr><td class="ucol"><span class="uname" title="${esc(u.name)}">${esc(u.name)}</span><div class="uupn" title="${esc(u.upn)}">${esc(u.upn)}</div></td>` +
+      `<th class="pcol clickable${focusPol && focusPol.id === p.id ? " focused" : ""}" data-expol="${esc(p.id)}"><div class="ph" title="Click to show only users excluded from: ${esc(p.name)}">${esc(p.name)}</div></th>`).join("");
+    const body = slice.map((u) => `<tr><td class="ucol clickable${focus.row === u.id ? " focused" : ""}" data-exrow="${esc(u.id)}"><span class="uname" title="Click to show only the policies excluding: ${esc(u.name)}">${esc(u.name)}</span><div class="uupn" title="${esc(u.upn)}">${esc(u.upn)}</div></td>` +
       pols.map((p) => {
         const r = u.byPolicy.get(p.id);
         if (!r) return `<td class="cellv"><span class="cell na">·</span></td>`;
@@ -318,7 +355,7 @@ const Exclusions = (() => {
         const tip = direct ? "excluded directly" : `excluded via ${groups.join(", ")}`;
         return `<td class="cellv no" title="${esc(u.name)}: ${esc(tip)}"><span class="cell ${direct ? "no" : "ro"}">${direct ? "✗" : "◐"}</span></td>`;
       }).join("") + "</tr>").join("");
-    return { html: `<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`, pages, page };
+    return { html: `${banner}<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`, pages, page };
   }
 
   // ---- CSV export (exclusion × policy) ----
