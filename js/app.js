@@ -54,6 +54,10 @@
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     $(id).classList.add("active");
     window.scrollTo(0, 0);
+    // the tool crumb only makes sense inside a tool — clear it at home/login
+    if (id === "screen-home" || id === "screen-login" || id === "screen-loading") {
+      const c = $("toolCrumb"); if (c) { c.textContent = ""; c.style.display = "none"; }
+    }
     if (navSuppress || !HISTORY_SCREENS.has(id)) return;
     // Replace rather than push when the screen has not changed, so clicking the
     // same tool twice does not need two Backs to leave it.
@@ -655,31 +659,37 @@
       toast(`JSON backup <span>downloaded</span> — ${psOut.length} policies${nDeps ? `, ${nDeps} dependencies` : ""}`);
     } catch (e) { console.error(e); toast(`Backup failed: <span>${esc(e.message || e)}</span>`); }
   });
-  $("homeBtn").addEventListener("click", () => show("screen-home"));
+  // Header breadcrumb: which tool you're in. Set on entry, cleared at home.
+  function crumb(name) {
+    const el = $("toolCrumb");
+    el.textContent = name || "";
+    el.style.display = name ? "inline-flex" : "none";
+  }
+  $("homeBtn").addEventListener("click", () => { crumb(""); show("screen-home"); });
   // logo returns to the tools overview when signed in (does nothing on login)
-  $("logoHome").addEventListener("click", () => { if (policies.length) show("screen-home"); });
-  $("toolPolicies").addEventListener("click", () => { setToolMode("document"); setView("cards"); show("screen-list"); });
+  $("logoHome").addEventListener("click", () => { if (policies.length) { crumb(""); show("screen-home"); } });
+  $("toolPolicies").addEventListener("click", () => { crumb("🗂 List Policies"); setToolMode("document"); setView("cards"); show("screen-list"); });
   // Document tool: opens the policy overview first — select policies (or none
   // for all), then click "Create documentation" in the toolbar to choose the format.
   $("toolDocument").addEventListener("click", () => {
-    setToolMode("document"); setView("cards"); show("screen-list");
+    crumb("📄 Create documentation"); setToolMode("document"); setView("cards"); show("screen-list");
     toast("Documentation mode — select policies (or none for all), then click <span>Create documentation</span>");
   });
-  $("toolAnalyze").addEventListener("click", () => { setToolMode("document"); setView("analyze"); show("screen-list"); });
-  $("toolMsLearn").addEventListener("click", openMsLearn);
-  $("toolGapCheck").addEventListener("click", openGapCheck);
-  $("toolExclusions").addEventListener("click", openExclusions);
-  $("toolBaseline").addEventListener("click", () => openBaseline("limonit"));
-  $("toolBaselineJoey").addEventListener("click", () => openBaseline("joey"));
+  $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); });
+  $("toolMsLearn").addEventListener("click", () => { crumb("📘 MS Learn checks"); openMsLearn(); });
+  $("toolGapCheck").addEventListener("click", () => { crumb("🛡 Best-practice & bypass checks"); openGapCheck(); });
+  $("toolExclusions").addEventListener("click", () => { crumb("🚪 Exclusion analyzer"); openExclusions(); });
+  $("toolBaseline").addEventListener("click", () => { crumb("🧬 Baseline Policies"); openBaseline("limonit"); });
+  $("toolBaselineJoey").addEventListener("click", () => { crumb("🧩 Baseline (Joey Verlinden)"); openBaseline("joey"); });
   // Backup tool: opens the policy overview in backup mode — select policies
   // (or leave unselected for all), then click "Backup (JSON)" in the toolbar.
   $("toolJson").addEventListener("click", () => {
-    setToolMode("backup"); setView("cards"); show("screen-list");
+    crumb("🗄 Backup (JSON)"); setToolMode("backup"); setView("cards"); show("screen-list");
     toast("Backup mode — select policies (or none for all), then click <span>Backup (JSON)</span>");
   });
   // Set-state tool (BETA): select policies, choose On / Report-only / Off, apply.
   $("toolState").addEventListener("click", () => {
-    setToolMode("state"); setView("cards"); show("screen-list");
+    crumb("🎚 Set Policy state"); setToolMode("state"); setView("cards"); show("screen-list");
     toast("Set-state mode — select policies, then click <span>Set Policy state</span>");
   });
   function openStateModal() {
@@ -929,7 +939,7 @@
   // the groups it assigns.
   let cgRes = null, cgTab = "check", cgFilter = "all", cgQuery = "", cgBusy = false, cgStop = false;
 
-  $("toolCaGroups").addEventListener("click", () => openCaGroups());
+  $("toolCaGroups").addEventListener("click", () => { crumb("👥 Conditional Access groups"); openCaGroups(); });
 
   async function openCaGroups(keepTab) {
     show("screen-cagroups");
