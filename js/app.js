@@ -1764,15 +1764,15 @@
   });
 
   // ---------- CA Exclusion analyzer ----------
-  let exModel = null, exUsers = [], exTab = "all", exKind = "all", exQuery = "", exPage = 0, exMerge = true;
+  let exModel = null, exUsers = [], exTab = "matrix", exKind = "all", exQuery = "", exPage = 0;
   const EX_PAGE = 50;
   async function openExclusions() {
     show("screen-exclusions");
     if (!policies.length) { $("exHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("exBody").innerHTML = ""; $("exChips").innerHTML = ""; return; }
     $("exHead").innerHTML = '<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">Collecting exclusions…</p>';
     $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
-    exTab = "all"; exKind = "all"; exQuery = ""; exPage = 0; Fs.close(); $("exSearch").value = "";
-    $("exTabAll").classList.add("active"); $("exTabUsers").classList.remove("active");
+    exTab = "matrix"; exKind = "all"; exQuery = ""; exPage = 0; Fs.close(); $("exSearch").value = "";
+    $("exTabMatrix").classList.add("active"); $("exTabUsers").classList.remove("active");
     try {
       // the whole tenant's policies — exclusions are a tenant-wide question
       exModel = Exclusions.collect(policies.map(p => p.raw));
@@ -1794,15 +1794,12 @@
           .map(([k, n]) => [k, `${Exclusions.KIND[k].icon} ${Exclusions.KIND[k].label} (${n})`])]
           .map(([k, l]) => `<button class="fchip ${exKind === k ? "active" : ""}" data-exk="${k}">${l}</button>`).join("")
       : "";
-    $("exMergeWrap").style.display = exTab === "matrix" ? "" : "none";
-    $("exExpand").style.display = exTab === "all" ? "none" : "";
+    $("exExpand").style.display = "";
     const full = Fs.isOpen();
-    if (exTab === "all") {
+    if (exTab === "matrix") {
       $("exPager").style.display = "none";
-      $("exBody").innerHTML = Exclusions.renderGroups(exModel, exKind, exQuery);
-    } else if (exTab === "matrix") {
-      $("exPager").style.display = "none";
-      $("exBody").innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery, exMerge);
+      // merge disabled — show every exclusion row so nothing is hidden
+      $("exBody").innerHTML = Exclusions.renderMatrix(exModel, exKind, exQuery, false);
     } else {
       // more vertical room full screen, so page in bigger chunks
       const r = Exclusions.renderUsers(exModel, exUsers, exQuery, exPage, full ? EX_PAGE * 4 : EX_PAGE);
@@ -1943,9 +1940,8 @@
   $("plFull").addEventListener("click", () => Fs.open("Policy settings matrix", { body: $("matrixView") }));
   $("anFull").addEventListener("click", () => Fs.open("Users × policies impact matrix", { body: $("anMatrixWrap") }));
   $("gcFull").addEventListener("click", () => Fs.open("Persona × control coverage", { body: $("gcMatrix") }));
-  $("exMergeChk").addEventListener("change", (e) => { exMerge = e.target.checked; renderExclusions(); });
   $("exSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; renderExclusions(); });
-  const EX_TABS = { all: "exTabAll", matrix: "exTabMatrix", users: "exTabUsers" };
+  const EX_TABS = { matrix: "exTabMatrix", users: "exTabUsers" };
   for (const [tab, id] of Object.entries(EX_TABS)) {
     $(id).addEventListener("click", () => {
       exTab = tab; exPage = 0;
