@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=139">
+<link rel="stylesheet" href="css/app.css?v=140">
 </head>
 <body>
 
@@ -70,6 +70,10 @@
   <section id="screen-home" class="screen">
     <h2 class="home-title">What do you want to do?</h2>
     <div class="tools">
+      <div class="tool tool-help" id="toolHelp">
+        <div class="tool-ic">❓</div><h3>Help</h3>
+        <p>How every tool works and what to expect from each option — opens in its own tab, jump back to any tool anytime.</p>
+      </div>
       <div class="tool" id="toolPolicies">
         <div class="tool-ic">🗂</div><h3>List Policies</h3>
         <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona.</p>
@@ -423,6 +427,148 @@
     </div>
     <div id="gcBody" style="margin-top:14px"></div>
   </section>
+
+  <!-- ============ HELP — opens as a tool, in its own tab ============ -->
+  <section id="screen-help" class="screen">
+    <div class="help-page">
+      <h2 class="home-title" style="margin:0 0 8px">❓ How to use CA Doc</h2>
+      <p class="mini muted" style="margin:0 0 10px">A read-only toolset for your Microsoft Entra Conditional Access baseline. Sign in gives read-only Graph access; the four tools that can change your tenant are marked <span class="tag block">writes to tenant</span> and ask for extra permission only when you run them. Every write lands safely — imported policies come in <b>Off</b>, deletes need a typed confirmation.</p>
+
+    <div class="help-toc" id="helpToc"></div>
+
+    <section class="help-sec">
+      <h4>🗂 List Policies</h4>
+      <p>Browse every Conditional Access policy, grouped by persona (the CA-number range in the name: Global 000–099, Admins 100–199, Internals 200–299, and so on).</p>
+      <ul>
+        <li><b>Cards / List / Settings matrix</b> — Cards show each policy in full; List is a compact one-line-per-policy view; the Settings matrix is a policies × settings grid for spotting differences at a glance. The matrix has a <b>full-screen</b> button.</li>
+        <li><b>Search</b> — filter by CA number, policy name or persona.</li>
+        <li><b>Select policies</b> (checkboxes) — a green action bar appears: send the selection straight to <b>Documentation</b>, <b>Backup</b>, <b>Assign groups</b>, <b>Set state</b> or <b>Delete</b>.</li>
+        <li><b>Per-card quick actions</b> — Documentation, Backup, Assign groups and Policy state, scoped to that one policy.</li>
+        <li><b>Apply flow</b> (per persona) — a visual of what actually applies to a persona, including Global policies in scope and honouring exclusions (an excluded persona group drops the policy from the flow).</li>
+      </ul>
+      <p class="help-x">Read-only. Nothing changes until you open a write tool from the action bar.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>📄 Create documentation</h4>
+      <p>Turn all or selected policies into shareable documentation with Limon-IT branding.</p>
+      <ul>
+        <li><b>Word (.docx)</b> — an editable document, one section per policy.</li>
+        <li><b>PDF</b> — the same, print-ready.</li>
+        <li><b>PNG</b> — a single image of the selection.</li>
+        <li><b>PNG bundle</b> — a zip with one image per policy.</li>
+      </ul>
+      <p class="help-x">Produces a download. Nothing is written to the tenant.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🔍 Gap analyse <span class="tag new">BETA</span></h4>
+      <p>A users × policies impact matrix: who is in scope for what, who bypasses a policy and why.</p>
+      <ul>
+        <li><b>Group filters</b> — narrow the matrix columns to the policies that target chosen groups.</li>
+        <li><b>Apply flow</b> — the same per-persona flow as in List Policies.</li>
+        <li><b>Export</b> — a standalone HTML report you can open outside the tool.</li>
+      </ul>
+      <p class="help-x">Read-only.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🛡 Best-practice &amp; bypass checks <span class="tag new">BETA</span></h4>
+      <p>Checks the baseline against known Conditional Access bypasses and the Swiss-cheese model.</p>
+      <ul>
+        <li>MFA coverage, FOCI token-sharing, break-glass coverage, known bypass apps, and a <b>persona × control</b> coverage matrix.</li>
+        <li>Each finding has a severity and an explanation; a deployed-but-Off policy is flagged as not yet enforcing.</li>
+        <li><b>Export MD</b> — the findings as Markdown for a ticket or review.</li>
+      </ul>
+      <p class="help-x">Read-only.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🚪 Exclusion analyzer <span class="tag new">BETA</span></h4>
+      <p>Every exclusion across all policies in one place.</p>
+      <ul>
+        <li><b>Matrix</b> (default) — exclusions × policies; <b>Effective users</b> — the same but expanded to the individual users a group exclusion covers.</li>
+        <li><b>Type chips</b> — All, User, Group, Directory role, Guest/external, Application, Named location, Device platform.</li>
+        <li><b>Click to filter</b> — click a user/group row to show only the policies excluding it, or a policy column to show only the exclusions in scope for it. The out-of-scope “·” cells drop away; a banner shows the filter with a one-click clear.</li>
+        <li><b>Export</b> — CSV or Markdown; full-screen for wide grids.</li>
+      </ul>
+      <p class="help-x">Read-only.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🧬 Baseline Policies — Limon-IT R26.6 <span class="tag new">BETA</span></h4>
+      <p>Matches this tenant against the Limon-IT baseline catalog and shows the gap.</p>
+      <ul>
+        <li><b>Status filters</b> — <b>Missing</b> (not in tenant), <b>Outdated</b> (older version present), <b>Up to date</b>, <b>Not in baseline</b> (in tenant but not the catalog).</li>
+        <li><b>Table / Cards</b> — the large Limon-IT catalog opens as a Table by default; switch to Cards for full detail. Search and collapsible persona sections.</li>
+        <li><b>Catalog switch</b> — Limon-IT R26.6 or the community Joey Verlinden catalog.</li>
+        <li><b>Export MD</b> — a gap report; <b>Refresh</b> re-compares in place; <b>Import baseline</b> hands the missing/outdated set to the Import tool.</li>
+      </ul>
+      <p class="help-x">Read-only comparison. Only Import (below) writes.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🧩 Baseline (Joey Verlinden) <span class="tag new">BETA</span></h4>
+      <p>The same comparison view against the community Conditional Access Baseline by Joey Verlinden — a different catalog, opens as Cards.</p>
+      <p class="help-x">Read-only.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>📘 MS Learn checks <span class="tag new">BETA</span></h4>
+      <p>Checks policies against documented Microsoft Learn exclusions and limitations — break-glass, token protection, Teams Rooms, retired features.</p>
+      <ul>
+        <li><b>Findings</b> tab lists what conflicts with the docs; <b>Refresh</b> re-runs after you fix something.</li>
+        <li><b>Buildable fixes</b> — where a documented fix exists, apply it in the tenant (creating a service principal or group if the fix needs one). <span class="tag block">writes to tenant</span></li>
+      </ul>
+      <p class="help-x">Checks are read-only; applying a fix writes, and produces a change report.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🗄 Backup (JSON)</h4>
+      <p>Select policies (or take all) and download their raw JSON in a zip — dependencies (groups, named locations, auth strengths/contexts) and any Terms-of-use PDFs are included, so the backup is importable.</p>
+      <p class="help-x">Read-only download.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>👥 Conditional Access groups <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
+      <p>The group side of the baseline, in one tool.</p>
+      <ul>
+        <li><b>Check</b> — baseline groups vs this tenant: present, missing, or drifted. <b>Create</b> a single missing group per row (the TeamsSharedDevices group is created as a <b>dynamic</b> group with the Teams-Rooms membership rule). If a group should be role-assignable but isn’t (immutable after creation), <b>↻ Recreate role-assignable</b> renames the old one, creates a new one, re-points the referencing policies and writes a readme of where it was assigned.</li>
+        <li><b>Members</b> — a members × groups matrix.</li>
+        <li><b>Assign</b> — add a group to policies’ include or exclude lists (ADD is additive — it never removes what’s there). A final confirmation and a change report before anything is written.</li>
+      </ul>
+      <p class="help-x">Writes only on Create / Recreate / Assign, each behind a confirmation.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🎚 Set Policy state <span class="tag block">writes to tenant</span></h4>
+      <p>Switch selected policies between <b>On</b> (enabled), <b>Report-only</b> (logged, not enforced) and <b>Off</b> (disabled).</p>
+      <p class="help-x">Writes the new state to the tenant after you confirm.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>📥 Import <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
+      <p>Restore a backup (zip or extracted folder). Dependencies are created first (create-if-missing), then the policies — always in state <b>Off</b> unless a replacement inherits an existing state.</p>
+      <ul>
+        <li><b>Assignment mode — 🚀 Deployment groups</b>: new policies are scoped to this tenant’s deploy persona groups (<code>CAD-SEC-U-DG-*</code>). Staged and safe — nothing already in the tenant is touched.</li>
+        <li><b>Assignment mode — ♻️ Match &amp; replace</b>: for a policy whose CA number already exists at a different version, the new version keeps the <b>current policy’s assignment and state</b>, merges in any <b>new exclusion groups</b> the update adds (created if missing), and the old version is switched <b>Off</b> — a seamless swap.</li>
+        <li><b>Import only</b> — pick a persona to bring in just its policies, or use All / None. A policy with the same CA number <i>and</i> version is skipped.</li>
+        <li><b>📜 needs ToU</b> — a policy granting a Terms of use imports without that control (Terms of use has no create API); the report gives a checklist to create it in the portal, then re-import.</li>
+      </ul>
+      <p class="help-x">Writes; a change report is shown on screen and downloadable.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>General</h4>
+      <ul>
+        <li><b>Tabs</b> — tools open in browser-style tabs; the <b>+</b> opens another, the <b>⌂</b> returns to the tool grid.</li>
+        <li><b>Permissions</b> — sign-in is read-only; a write tool requests its extra scope only when you run it, with an up-front consent step so pop-ups aren’t blocked.</li>
+        <li><b>Demo</b> — append <code>?demo=1</code> to explore with sample policies; writes are simulated.</li>
+        <li><b>Build</b> — the number on the sign-in screen matches the asset version; hard-refresh if it lags what you expect.</li>
+      </ul>
+    </section>
+    </div>
+  </section>
 </main>
 
 <footer>
@@ -632,153 +778,6 @@
   </div>
 </div>
 
-<!-- ============ HELP ============ -->
-<div class="modal-bg" id="helpModal">
-  <div class="modal help-view">
-    <div class="help-head">
-      <h3>❓ How to use CA Doc</h3>
-      <button class="btn" id="helpClose">Close</button>
-    </div>
-    <div class="help-body">
-    <p class="mini muted" style="margin:0 0 10px">A read-only toolset for your Microsoft Entra Conditional Access baseline. Sign in gives read-only Graph access; the four tools that can change your tenant are marked <span class="tag block">writes to tenant</span> and ask for extra permission only when you run them. Every write lands safely — imported policies come in <b>Off</b>, deletes need a typed confirmation.</p>
-
-    <div class="help-toc" id="helpToc"></div>
-
-    <section class="help-sec">
-      <h4>🗂 List Policies</h4>
-      <p>Browse every Conditional Access policy, grouped by persona (the CA-number range in the name: Global 000–099, Admins 100–199, Internals 200–299, and so on).</p>
-      <ul>
-        <li><b>Cards / List / Settings matrix</b> — Cards show each policy in full; List is a compact one-line-per-policy view; the Settings matrix is a policies × settings grid for spotting differences at a glance. The matrix has a <b>full-screen</b> button.</li>
-        <li><b>Search</b> — filter by CA number, policy name or persona.</li>
-        <li><b>Select policies</b> (checkboxes) — a green action bar appears: send the selection straight to <b>Documentation</b>, <b>Backup</b>, <b>Assign groups</b>, <b>Set state</b> or <b>Delete</b>.</li>
-        <li><b>Per-card quick actions</b> — Documentation, Backup, Assign groups and Policy state, scoped to that one policy.</li>
-        <li><b>Apply flow</b> (per persona) — a visual of what actually applies to a persona, including Global policies in scope and honouring exclusions (an excluded persona group drops the policy from the flow).</li>
-      </ul>
-      <p class="help-x">Read-only. Nothing changes until you open a write tool from the action bar.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>📄 Create documentation</h4>
-      <p>Turn all or selected policies into shareable documentation with Limon-IT branding.</p>
-      <ul>
-        <li><b>Word (.docx)</b> — an editable document, one section per policy.</li>
-        <li><b>PDF</b> — the same, print-ready.</li>
-        <li><b>PNG</b> — a single image of the selection.</li>
-        <li><b>PNG bundle</b> — a zip with one image per policy.</li>
-      </ul>
-      <p class="help-x">Produces a download. Nothing is written to the tenant.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>🔍 Gap analyse <span class="tag new">BETA</span></h4>
-      <p>A users × policies impact matrix: who is in scope for what, who bypasses a policy and why.</p>
-      <ul>
-        <li><b>Group filters</b> — narrow the matrix columns to the policies that target chosen groups.</li>
-        <li><b>Apply flow</b> — the same per-persona flow as in List Policies.</li>
-        <li><b>Export</b> — a standalone HTML report you can open outside the tool.</li>
-      </ul>
-      <p class="help-x">Read-only.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>🛡 Best-practice &amp; bypass checks <span class="tag new">BETA</span></h4>
-      <p>Checks the baseline against known Conditional Access bypasses and the Swiss-cheese model.</p>
-      <ul>
-        <li>MFA coverage, FOCI token-sharing, break-glass coverage, known bypass apps, and a <b>persona × control</b> coverage matrix.</li>
-        <li>Each finding has a severity and an explanation; a deployed-but-Off policy is flagged as not yet enforcing.</li>
-        <li><b>Export MD</b> — the findings as Markdown for a ticket or review.</li>
-      </ul>
-      <p class="help-x">Read-only.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>🚪 Exclusion analyzer <span class="tag new">BETA</span></h4>
-      <p>Every exclusion across all policies in one place.</p>
-      <ul>
-        <li><b>Matrix</b> (default) — exclusions × policies; <b>Effective users</b> — the same but expanded to the individual users a group exclusion covers.</li>
-        <li><b>Type chips</b> — All, User, Group, Directory role, Guest/external, Application, Named location, Device platform.</li>
-        <li><b>Click to filter</b> — click a user/group row to show only the policies excluding it, or a policy column to show only the exclusions in scope for it. The out-of-scope “·” cells drop away; a banner shows the filter with a one-click clear.</li>
-        <li><b>Export</b> — CSV or Markdown; full-screen for wide grids.</li>
-      </ul>
-      <p class="help-x">Read-only.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>🧬 Baseline Policies — Limon-IT R26.6 <span class="tag new">BETA</span></h4>
-      <p>Matches this tenant against the Limon-IT baseline catalog and shows the gap.</p>
-      <ul>
-        <li><b>Status filters</b> — <b>Missing</b> (not in tenant), <b>Outdated</b> (older version present), <b>Up to date</b>, <b>Not in baseline</b> (in tenant but not the catalog).</li>
-        <li><b>Table / Cards</b> — the large Limon-IT catalog opens as a Table by default; switch to Cards for full detail. Search and collapsible persona sections.</li>
-        <li><b>Catalog switch</b> — Limon-IT R26.6 or the community Joey Verlinden catalog.</li>
-        <li><b>Export MD</b> — a gap report; <b>Refresh</b> re-compares in place; <b>Import baseline</b> hands the missing/outdated set to the Import tool.</li>
-      </ul>
-      <p class="help-x">Read-only comparison. Only Import (below) writes.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>🧩 Baseline (Joey Verlinden) <span class="tag new">BETA</span></h4>
-      <p>The same comparison view against the community Conditional Access Baseline by Joey Verlinden — a different catalog, opens as Cards.</p>
-      <p class="help-x">Read-only.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>📘 MS Learn checks <span class="tag new">BETA</span></h4>
-      <p>Checks policies against documented Microsoft Learn exclusions and limitations — break-glass, token protection, Teams Rooms, retired features.</p>
-      <ul>
-        <li><b>Findings</b> tab lists what conflicts with the docs; <b>Refresh</b> re-runs after you fix something.</li>
-        <li><b>Buildable fixes</b> — where a documented fix exists, apply it in the tenant (creating a service principal or group if the fix needs one). <span class="tag block">writes to tenant</span></li>
-      </ul>
-      <p class="help-x">Checks are read-only; applying a fix writes, and produces a change report.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>🗄 Backup (JSON)</h4>
-      <p>Select policies (or take all) and download their raw JSON in a zip — dependencies (groups, named locations, auth strengths/contexts) and any Terms-of-use PDFs are included, so the backup is importable.</p>
-      <p class="help-x">Read-only download.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>👥 Conditional Access groups <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
-      <p>The group side of the baseline, in one tool.</p>
-      <ul>
-        <li><b>Check</b> — baseline groups vs this tenant: present, missing, or drifted. <b>Create</b> a single missing group per row (the TeamsSharedDevices group is created as a <b>dynamic</b> group with the Teams-Rooms membership rule). If a group should be role-assignable but isn’t (immutable after creation), <b>↻ Recreate role-assignable</b> renames the old one, creates a new one, re-points the referencing policies and writes a readme of where it was assigned.</li>
-        <li><b>Members</b> — a members × groups matrix.</li>
-        <li><b>Assign</b> — add a group to policies’ include or exclude lists (ADD is additive — it never removes what’s there). A final confirmation and a change report before anything is written.</li>
-      </ul>
-      <p class="help-x">Writes only on Create / Recreate / Assign, each behind a confirmation.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>🎚 Set Policy state <span class="tag block">writes to tenant</span></h4>
-      <p>Switch selected policies between <b>On</b> (enabled), <b>Report-only</b> (logged, not enforced) and <b>Off</b> (disabled).</p>
-      <p class="help-x">Writes the new state to the tenant after you confirm.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>📥 Import <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
-      <p>Restore a backup (zip or extracted folder). Dependencies are created first (create-if-missing), then the policies — always in state <b>Off</b> unless a replacement inherits an existing state.</p>
-      <ul>
-        <li><b>Assignment mode — 🚀 Deployment groups</b>: new policies are scoped to this tenant’s deploy persona groups (<code>CAD-SEC-U-DG-*</code>). Staged and safe — nothing already in the tenant is touched.</li>
-        <li><b>Assignment mode — ♻️ Match &amp; replace</b>: for a policy whose CA number already exists at a different version, the new version keeps the <b>current policy’s assignment and state</b>, merges in any <b>new exclusion groups</b> the update adds (created if missing), and the old version is switched <b>Off</b> — a seamless swap.</li>
-        <li><b>Import only</b> — pick a persona to bring in just its policies, or use All / None. A policy with the same CA number <i>and</i> version is skipped.</li>
-        <li><b>📜 needs ToU</b> — a policy granting a Terms of use imports without that control (Terms of use has no create API); the report gives a checklist to create it in the portal, then re-import.</li>
-      </ul>
-      <p class="help-x">Writes; a change report is shown on screen and downloadable.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>General</h4>
-      <ul>
-        <li><b>Tabs</b> — tools open in browser-style tabs; the <b>+</b> opens another, the <b>⌂</b> returns to the tool grid.</li>
-        <li><b>Permissions</b> — sign-in is read-only; a write tool requests its extra scope only when you run it, with an up-front consent step so pop-ups aren’t blocked.</li>
-        <li><b>Demo</b> — append <code>?demo=1</code> to explore with sample policies; writes are simulated.</li>
-        <li><b>Build</b> — the number on the sign-in screen matches the asset version; hard-refresh if it lags what you expect.</li>
-      </ul>
-    </section>
-    </div>
-  </div>
-</div>
-
 <!-- ============ DELETE POLICIES ============
      Deleting a CA policy is irreversible — Entra keeps no recycle bin for them.
      Hence: an explicit typed confirmation, a JSON backup offered by default,
@@ -819,26 +818,26 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=139"></script>
-<script src="js/authConfig.js?v=139"></script>
-<script src="js/labels.js?v=139"></script>
-<script src="js/graph.js?v=139"></script>
-<script src="js/model.js?v=139"></script>
-<script src="js/render.js?v=139"></script>
-<script src="js/analyze.js?v=139"></script>
-<script src="js/whatif.js?v=139"></script>
-<script src="js/mslearn.js?v=139"></script>
-<script src="js/gapcheck.js?v=139"></script>
-<script src="js/exclusions.js?v=139"></script>
-<script src="js/baselineData.js?v=139"></script>
-<script src="js/baselineJoeyData.js?v=139"></script>
-<script src="js/baseline.js?v=139"></script>
-<script src="js/groupTemplates.js?v=139"></script>
-<script src="js/assign.js?v=139"></script>
-<script src="js/cagroups.js?v=139"></script>
-<script src="js/import.js?v=139"></script>
-<script src="js/export.js?v=139"></script>
-<script src="js/demo.js?v=139"></script>
-<script src="js/app.js?v=139"></script>
+<script src="js/version.js?v=140"></script>
+<script src="js/authConfig.js?v=140"></script>
+<script src="js/labels.js?v=140"></script>
+<script src="js/graph.js?v=140"></script>
+<script src="js/model.js?v=140"></script>
+<script src="js/render.js?v=140"></script>
+<script src="js/analyze.js?v=140"></script>
+<script src="js/whatif.js?v=140"></script>
+<script src="js/mslearn.js?v=140"></script>
+<script src="js/gapcheck.js?v=140"></script>
+<script src="js/exclusions.js?v=140"></script>
+<script src="js/baselineData.js?v=140"></script>
+<script src="js/baselineJoeyData.js?v=140"></script>
+<script src="js/baseline.js?v=140"></script>
+<script src="js/groupTemplates.js?v=140"></script>
+<script src="js/assign.js?v=140"></script>
+<script src="js/cagroups.js?v=140"></script>
+<script src="js/import.js?v=140"></script>
+<script src="js/export.js?v=140"></script>
+<script src="js/demo.js?v=140"></script>
+<script src="js/app.js?v=140"></script>
 </body>
 </html>

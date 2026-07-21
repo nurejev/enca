@@ -47,7 +47,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions"]);
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   function show(id) {
@@ -237,24 +237,22 @@
   }
   $("rptClose").addEventListener("click", () => $("reportModal").classList.remove("open"));
 
-  // ---------- Help ----------
-  // Built once from the section headings so the table of contents can never
+  // ---------- Help (a full tool: own screen + tab) ----------
+  // Table of contents is built once from the section headings so it can never
   // drift from the sections themselves.
   let helpTocBuilt = false;
   function openHelp() {
     if (!helpTocBuilt) {
-      const secs = [...document.querySelectorAll("#helpModal .help-sec > h4")];
+      const secs = [...document.querySelectorAll("#screen-help .help-sec > h4")];
       secs.forEach((h, i) => { h.id = h.id || `help-sec-${i}`; });
       $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}">${h.textContent.replace(/\s+(BETA|writes to tenant)\b/gi, "").trim()}</a>`).join("");
       helpTocBuilt = true;
     }
-    $("helpModal").classList.add("open");
+    crumb("❓ Help");
+    show("screen-help");
   }
-  // Help is reached from the tab bar (data-navhelp), which — like the tabs
-  // themselves — only appears once a tool is open.
-  $("helpClose").addEventListener("click", () => $("helpModal").classList.remove("open"));
-  $("helpModal").addEventListener("click", (e) => { if (e.target.id === "helpModal") $("helpModal").classList.remove("open"); });
-  // ToC links scroll within the modal without leaving a #hash on the page
+  $("toolHelp").addEventListener("click", openHelp);
+  // ToC links scroll to the section without leaving a #hash in the address bar
   $("helpToc").addEventListener("click", (e) => {
     const a = e.target.closest("a"); if (!a) return;
     e.preventDefault();
@@ -697,6 +695,7 @@
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
+    ["toolHelp", "❓ Help"],
   ];
   // Browser-style tabs: a tab exists only for a tool you have opened. Home shows
   // no tabs; opening a tool (from the grid or the + menu) adds one; the + opens

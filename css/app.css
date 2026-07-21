@@ -471,17 +471,15 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 /* help modal */
 /* fixed header + independently scrolling body, so the modal itself never
    scrolls (avoids the padding-gap / see-through problem) */
-.help-view{max-width:1000px;width:100%;max-height:86vh;padding:0;display:flex;flex-direction:column;overflow:hidden}
-.help-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none;padding:20px 28px;border-bottom:1px solid var(--border)}
-.help-head h3{margin:0}
-.help-body{overflow:auto;padding:16px 28px 24px}
-.help-head h3{margin:0}
+/* Help is a normal tool screen now — main provides width and padding;
+   help-page just keeps the prose column readable */
+.help-page{max-width:920px}
 .help-toc{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
 .help-toc a{font-size:12px;text-decoration:none;color:var(--ink);border:1px solid var(--border);border-radius:999px;padding:3px 10px;background:var(--soft)}
 .help-toc a:hover{border-color:var(--green);color:var(--green)}
 .help-sec{border-top:1px solid var(--line);padding:14px 0 2px}
 .help-sec:first-of-type{border-top:0}
-.help-sec h4{margin:0 0 6px;font-size:15px;scroll-margin-top:56px}
+.help-sec h4{margin:0 0 6px;font-size:15px;scroll-margin-top:120px}
 .help-sec p{margin:0 0 8px}
 .help-sec ul{margin:0 0 8px;padding-left:20px}
 .help-sec li{margin:4px 0}
