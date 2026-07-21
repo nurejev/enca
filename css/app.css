@@ -47,7 +47,12 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .toolnav-tab .toolnav-x:hover{color:var(--off)}
 .toolnav-tab.active{background:var(--green);border-color:var(--green)}
 .toolnav-tab.active .toolnav-btn,.toolnav-tab.active .toolnav-x{color:#fff}
+/* keep the active (green) tab readable on hover — the generic .toolnav-btn:hover
+   paints a light background, which left white text unreadable on green */
+.toolnav-tab.active .toolnav-btn:hover{background:rgba(255,255,255,.15);color:#fff}
+.toolnav-tab.active .toolnav-x:hover{background:rgba(255,255,255,.15);color:#fff}
 :root[data-theme="dark"] .toolnav-tab.active .toolnav-btn,:root[data-theme="dark"] .toolnav-tab.active .toolnav-x{color:#0b120e}
+:root[data-theme="dark"] .toolnav-tab.active .toolnav-btn:hover,:root[data-theme="dark"] .toolnav-tab.active .toolnav-x:hover{background:rgba(0,0,0,.12);color:#0b120e}
 /* + menu popover */
 .toolnav-menu{position:fixed;z-index:410;background:var(--surface);border:1px solid var(--border);border-radius:12px;
   box-shadow:var(--shadow);padding:6px;max-height:60vh;overflow:auto;width:264px}
