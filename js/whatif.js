@@ -79,10 +79,32 @@ const WhatIf = (() => {
   // the Global policies (CA000–099), which target everyone and so apply to every
   // persona. Built from the view models (no Graph calls) using the CA-number
   // range as the persona identity — the same convention the rest of the app uses.
+  // The group(s) that represent a persona, matched against a policy's exclusions
+  // so a Global policy that excludes this persona is not counted as applying.
+  // Normalised (letters/digits only) so "GuestUsers" matches "Guest users".
+  const EXCL_NEEDLES = {
+    100: ["personaadmins"], 200: ["personainternals"], 300: ["personaexternals"],
+    400: ["personaguestusers"], 500: ["personaguestadmins"],
+    600: ["personamicrosoft365serviceaccounts"], 700: ["personaazureserviceaccounts"],
+    800: ["personacorpserviceaccounts"], 900: ["personaworkloadidentities", "agent"],
+    1000: ["personadevops"], 1100: ["breakglass", "emergencyaccess"],
+  };
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Does this policy exclude the given persona (by its group in the exclude list)?
+  function excludesPersona(vm, key) {
+    const needles = EXCL_NEEDLES[key]; if (!needles) return false;
+    const exc = (vm.users && vm.users.exc) || [];
+    return exc.some((e) => { const n = norm(e); return needles.some((x) => n.includes(x)); });
+  }
+
   function personaFlow(key, vms, label) {
     const groupKey = (vm) => { try { return Render.caGroup(vm.name).key; } catch { return 99999; } };
     const persona = vms.filter((v) => groupKey(v) === key);
-    const global = key === 0 ? [] : vms.filter((v) => groupKey(v) === 0);
+    // Global policies apply to everyone EXCEPT the personas they exclude, so a
+    // Global policy excluding this persona's group does not apply to it.
+    const allGlobal = key === 0 ? [] : vms.filter((v) => groupKey(v) === 0);
+    const global = allGlobal.filter((v) => !excludesPersona(v, key));
+    const globalExcluded = allGlobal.filter((v) => excludesPersona(v, key));
 
     const stateRank = (s) => (s === "on" ? 0 : s === "report" ? 1 : 2);
     const sortByCa = (a, b) => (Render.caGroup(a.name).num ?? 1e9) - (Render.caGroup(b.name).num ?? 1e9);
@@ -132,7 +154,10 @@ const WhatIf = (() => {
         ${off ? `<div><span class="wf-nk">Staged Off</span> ${off} polic${off === 1 ? "y" : "ies"} deployed but disabled — not applying yet.</div>` : ""}
       </div>
       <div class="wf-cols">
-        <div>${section(`🌐 Global — applies to everyone`, global, key === 0 ? "" : "These target all users, so they also apply to this persona.")}</div>
+        <div>${section(`🌐 Global — applies to this persona`, global, key === 0 ? "" : "Target all users and do not exclude this persona.")}
+          ${globalExcluded.length ? `<h4 class="wf-colh" style="margin-top:12px">🚫 Global — excluded for this persona (${globalExcluded.length})</h4>
+            <p class="wf-mut" style="margin:0 0 6px">These target everyone but exclude this persona's group, so they do <b>not</b> apply.</p>
+            ${globalExcluded.slice().sort(sortByCa).map((v) => `<div class="wf-pol off"><div class="wf-pol-h"><span class="wf-dot off"></span><b class="pol-link" data-pol="${esc(v.name)}">${esc(v.name)}</b> <span class="wf-chip ex">excluded</span></div></div>`).join("")}` : ""}</div>
         <div>${section(`This persona`, persona)}</div>
       </div>
     </div>`;
