@@ -15,8 +15,10 @@ const GROUP_TEMPLATES = [
   },
   {
     "displayName": "CAB-SEC-U-TeamsSharedDevices",
-    "description": "Teams shared / meeting-room devices excluded from Global session-lifetime and risk policies they cannot satisfy (R26.6).",
-    "mailNickname": "CABSECUTeamsSharedDevices"
+    "description": "Teams shared / meeting-room resource accounts excluded from Global session-lifetime and risk policies they cannot satisfy (R26.6). Dynamic membership: resource accounts assigned a Teams Rooms Basic, Pro or Premium SKU.",
+    "mailNickname": "CABSECUTeamsSharedDevices",
+    "dynamic": true,
+    "membershipRule": "(user.assignedPlans -any (assignedPlan.servicePlanId -eq \"8081ca9c-188c-4b49-a8e5-c23b5e9463a8\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"ec17f317-f4bc-451e-b2da-0167e5c260f9\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"92c6b761-01de-457a-9dd9-793a975238f7\" -and assignedPlan.capabilityStatus -eq \"Enabled\"))"
   },
   {
     "displayName": "CAB-SEC-U-CA001-Exclusion",
