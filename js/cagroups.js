@@ -309,16 +309,22 @@ const CaGroups = (() => {
           ? (r.template ? (r.template.membershipRule ? "dynamic (template)" : "role-assignable (template)") : "unknown — no template")
           : r.dynamic ? "dynamic"
           : r.roleAssignable ? "role-assignable" : "assigned";
-        // The member column doubles as the per-group scan trigger, so you can
-        // read one group without paying for all of them.
+        // The member column doubles as the per-group scan trigger, and a
+        // per-row Create for a missing group that has a template — so a single
+        // missing group can be fixed without going to the Create tab.
         const mem = r.memberError ? '<span class="cg-err" title="scan failed">error</span>'
           : r.members ? `<b>${r.memberTotal}</b>${r.memberTotal > MEMBER_CAP ? ` <span class="mini">(first ${MEMBER_CAP})</span>` : ""}`
           : r.id ? `<button class="btn sm cg-scan" data-cgscan="${esc(r.name)}">Scan</button>`
+          : r.status === "missing" && r.template ? `<button class="btn sm primary" data-cgcreateone="${esc(r.name)}">Create</button>`
           : '<span class="mini muted">—</span>';
+        // A present group that should be role-assignable but is not — isAssignableToRole
+        // is immutable, so offer to recreate it (rename old, make a new one, move policies).
+        const roleDrift = r.drift && /role-assignable/i.test(r.drift);
         return `<tr class="cg-row" data-cgrow="${esc(r.name)}">
           <td class="cg-ic ${st.cls}">${st.icon}</td>
           <td><b>${esc(r.name)}</b>${r.id ? `<div class="mini muted">${esc(r.id)}</div>` : ""}
             ${r.drift ? `<div class="mini" style="color:var(--report)">⚠ ${esc(r.drift)}</div>` : ""}
+            ${roleDrift ? `<button class="btn sm" data-cgrecreate="${esc(r.name)}" style="margin-top:4px">↻ Recreate role-assignable</button>` : ""}
             ${r.status === "dangling" ? '<div class="mini" style="color:var(--off)">Referenced by a policy but not found in the directory</div>' : ""}</td>
           <td class="mini">${esc(type)}</td>
           <td class="mini">${r.refCount ? `${r.refCount} <span class="muted">(${r.refs.include.length} inc / ${r.refs.exclude.length} exc)</span>` : '<span class="muted">unused</span>'}</td>

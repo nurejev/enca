@@ -110,8 +110,10 @@ const Graph = (() => {
   // Assign-groups tool; every other tool stays read-only.
   const WRITE_SCOPES = ["Policy.ReadWrite.ConditionalAccess"];
 
-  async function gpatch(url, body) {
-    const scopes = [...AUTH_CONFIG.scopes, ...WRITE_SCOPES];
+  // scopes optional — defaults to the CA write scope; pass Group.ReadWrite.All
+  // etc. when patching a different resource (e.g. renaming a group).
+  async function gpatch(url, body, scopes) {
+    scopes = scopes || [...AUTH_CONFIG.scopes, ...WRITE_SCOPES];
     const r = await graphFetch(url, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

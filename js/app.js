@@ -1189,9 +1189,127 @@
       await scanOneGroup(one.dataset.cgscan, one);
       return;
     }
+    // Create one missing group from its template, in place.
+    const co = e.target.closest("[data-cgcreateone]");
+    if (co) { e.stopPropagation(); await cgCreateOne(co.dataset.cgcreateone, co); return; }
+    // Recreate a present-but-not-role-assignable group correctly.
+    const rc = e.target.closest("[data-cgrecreate]");
+    if (rc) { e.stopPropagation(); openRecreate(rc.dataset.cgrecreate); return; }
     // a row in the check table opens that group's detail
     const row = e.target.closest("[data-cgrow]");
     if (row) showGroupRow(row.dataset.cgrow);
+  });
+
+  // Create a single missing baseline group from its template, then re-scan.
+  async function cgCreateOne(name, btn) {
+    const r = cgRes && cgRes.rows.find((x) => x.name === name && x.status === "missing" && x.template);
+    if (!r) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+    if (btn) { btn.disabled = true; btn.textContent = "…"; }
+    try {
+      const g = isDemo ? { id: "g-" + name, name, created: true } : await Assign.createGroup(r.template);
+      toast(g.created ? `Created <span>${esc(name)}</span>` : `<span>${esc(name)}</span> already existed — reused`);
+      cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
+    } catch (err) { console.error(err); toast(`Create failed: <span>${esc(err.message || err)}</span>`); if (btn) { btn.disabled = false; btn.textContent = "Create"; } }
+  }
+
+  // ---- recreate a not-role-assignable group correctly ----
+  // isAssignableToRole is immutable, so the group has to be replaced: rename the
+  // old one aside, create a new role-assignable group with the original name,
+  // then swap every referencing policy from the old group id to the new one.
+  let recreateRow = null;
+  function openRecreate(name) {
+    const r = cgRes && cgRes.rows.find((x) => x.name === name);
+    if (!r || !r.id) return;
+    recreateRow = r;
+    const legacy = `${r.name} (legacy ${new Date().toISOString().slice(0, 10)})`;
+    const inc = r.refs.include, exc = r.refs.exclude;
+    const md = [];
+    md.push(`**${r.name}** is not role-assignable, and \`isAssignableToRole\` cannot be changed on an existing group. This will:`);
+    md.push("");
+    md.push(`1. Rename the current group to **${legacy}** (kept, not deleted — members and history preserved).`);
+    md.push(`2. Create a new **role-assignable** security group named **${r.name}**.`);
+    md.push(`3. Move the **${r.refCount}** referencing polic${r.refCount === 1 ? "y" : "ies"} from the old group to the new one:`);
+    md.push("");
+    if (inc.length) { md.push("_Included in:_"); inc.forEach((p) => md.push(`- ${p.name}`)); md.push(""); }
+    if (exc.length) { md.push("_Excluded from:_"); exc.forEach((p) => md.push(`- ${p.name}`)); md.push(""); }
+    if (!r.refCount) md.push("_No policy references this group, so only the group is recreated._");
+    md.push("");
+    md.push(isDemo ? "_Demo mode — simulated, nothing is written._" : "The new group has **no members** — add them (or set a membership rule) afterwards. This **writes to your tenant**.");
+    $("recreateBody").innerHTML = mdToHtml(md.join("\n"));
+    $("recreateOk").value = ""; $("recreateGo").disabled = true;
+    $("recreateModal").classList.add("open");
+  }
+  $("recreateOk").addEventListener("input", (e) => { $("recreateGo").disabled = e.target.value.trim().toUpperCase() !== "RECREATE"; });
+  $("recreateCancel").addEventListener("click", () => $("recreateModal").classList.remove("open"));
+  $("recreateGo").addEventListener("click", async () => {
+    const r = recreateRow; if (!r) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Policy.ReadWrite.ConditionalAccess"])) return;
+    const btn = $("recreateGo"); btn.disabled = true;
+    const legacy = `${r.name} (legacy ${new Date().toISOString().slice(0, 10)})`;
+    const log = { renamed: false, newId: null, moved: [], failed: [] };
+    try {
+      if (isDemo) {
+        log.renamed = true; log.newId = "g-new-" + r.name;
+        log.moved = [...r.refs.include.map((p) => ({ name: p.name, how: "include" })), ...r.refs.exclude.map((p) => ({ name: p.name, how: "exclude" }))];
+      } else {
+        toast("Renaming the old group…");
+        await Graph.gpatch(`/groups/${r.id}`, { displayName: legacy }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+        log.renamed = true;
+        toast("Creating the new role-assignable group…");
+        const g = await Assign.createGroup({ displayName: r.name, description: r.description, roleAssignable: true });
+        log.newId = g.id;
+        // swap old id -> new id in every referencing policy
+        const refs = [...r.refs.include.map((p) => ({ ...p, how: "include" })), ...r.refs.exclude.map((p) => ({ ...p, how: "exclude" }))];
+        for (let i = 0; i < refs.length; i++) {
+          const p = refs[i];
+          toast(`Moving policy ${i + 1}/${refs.length}…`);
+          try {
+            const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${p.id}`);
+            const u = fresh.conditions?.users || {};
+            const key = p.how === "include" ? "includeGroups" : "excludeGroups";
+            const list = (u[key] || []).map((x) => (x === r.id ? g.id : x));
+            await Graph.gpatch(`/identity/conditionalAccess/policies/${p.id}`, { conditions: { users: { ...u, [key]: [...new Set(list)] } } });
+            log.moved.push({ name: p.name, how: p.how });
+          } catch (e) { console.error(e); log.failed.push({ name: p.name, error: e.message || String(e) }); }
+        }
+      }
+      $("recreateModal").classList.remove("open");
+      // change report
+      const md = [];
+      md.push(`# Group recreated role-assignable — ${tenantName || "tenant"}`);
+      md.push("");
+      md.push(`- **Group:** ${r.name}`);
+      md.push(`- **Old group renamed to:** ${legacy} (id \`${r.id}\`)`);
+      md.push(`- **New role-assignable group id:** \`${log.newId}\``);
+      md.push(`- **Policies moved:** ${log.moved.length}${log.failed.length ? ` · **failed:** ${log.failed.length}` : ""}`);
+      if (isDemo) md.push(`- _Demo mode — simulated._`);
+      md.push("");
+      if (log.moved.length) {
+        md.push("## Policies moved to the new group");
+        md.push("");
+        md.push("| Policy | Slot |");
+        md.push("|---|---|");
+        log.moved.forEach((m) => md.push(`| ${m.name} | ${m.how} |`));
+        md.push("");
+      }
+      if (log.failed.length) {
+        md.push("## Failed — move these manually");
+        md.push("");
+        log.failed.forEach((f) => md.push(`- ❌ **${f.name}** — ${f.error}`));
+        md.push("");
+      }
+      md.push("The old group is renamed, not deleted — copy its members to the new group, then remove the old group when you are satisfied.");
+      md.push("");
+      md.push("---");
+      md.push("Generated by Conditional Access Baseline Tools — Conditional Access groups");
+      showReport("↻ Group recreate report", "CA-Group-Recreate", md.join("\n"));
+      toast(log.failed.length ? `Recreated with <span>${log.failed.length} failure(s)</span>` : `<span>${r.name}</span> recreated role-assignable`);
+      cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
+    } catch (e) {
+      console.error(e); toast(`Recreate failed: <span>${esc(e.message || e)}</span>`);
+      btn.disabled = false;
+    }
   });
 
   // Dynamic and role-assignable are mutually exclusive in Entra. Reflect that
