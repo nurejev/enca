@@ -236,6 +236,30 @@
     $("reportModal").classList.add("open");
   }
   $("rptClose").addEventListener("click", () => $("reportModal").classList.remove("open"));
+
+  // ---------- Help ----------
+  // Built once from the section headings so the table of contents can never
+  // drift from the sections themselves.
+  let helpTocBuilt = false;
+  function openHelp() {
+    if (!helpTocBuilt) {
+      const secs = [...document.querySelectorAll("#helpModal .help-sec > h4")];
+      secs.forEach((h, i) => { h.id = h.id || `help-sec-${i}`; });
+      $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}">${h.textContent.replace(/\s+(BETA|writes to tenant)\b/gi, "").trim()}</a>`).join("");
+      helpTocBuilt = true;
+    }
+    $("helpModal").classList.add("open");
+  }
+  $("helpBtn").addEventListener("click", openHelp);
+  $("helpClose").addEventListener("click", () => $("helpModal").classList.remove("open"));
+  $("helpModal").addEventListener("click", (e) => { if (e.target.id === "helpModal") $("helpModal").classList.remove("open"); });
+  // ToC links scroll within the modal without leaving a #hash on the page
+  $("helpToc").addEventListener("click", (e) => {
+    const a = e.target.closest("a"); if (!a) return;
+    e.preventDefault();
+    const t = document.getElementById(a.getAttribute("href").slice(1));
+    if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
   $("rptDownload").addEventListener("click", () => {
     if (rptCurrent) downloadText(rptCurrent.base, rptCurrent.ext, "text/markdown", rptCurrent.md);
   });
@@ -688,9 +712,10 @@
         <button class="toolnav-x" data-close="${id}" title="Close tab">×</button>
       </span>`).join("");
     const add = `<button class="toolnav-btn add" data-navadd title="Open a tool in a new tab">＋</button>`;
+    const help = `<button class="toolnav-btn help" data-navhelp title="How each tool works">❓ Help</button>`;
     // Centred inner strip aligned to the card width; tabs grow out from the
     // middle to left and right as more open ("opening a curtain").
-    $("toolNav").innerHTML = `<div class="toolnav-inner">${home}${tabs}${add}</div>`;
+    $("toolNav").innerHTML = `<div class="toolnav-inner">${home}${tabs}${add}${help}</div>`;
     // the bar only appears once a tool is open (empty at the tools home)
     $("toolNav").style.display = openTabs.length ? "block" : "none";
   }
@@ -727,6 +752,7 @@
   function closeAddMenu() { const m = $("toolAddMenu"); if (m) m.remove(); }
 
   $("toolNav").addEventListener("click", (e) => {
+    if (e.target.closest("[data-navhelp]")) { openHelp(); return; }
     if (e.target.closest("[data-navhome]")) { crumb(""); show("screen-home"); return; }
     if (e.target.closest("[data-navadd]")) { openAddMenu(e.target.closest("[data-navadd]")); return; }
     const x = e.target.closest("[data-close]"); if (x) { e.stopPropagation(); closeTab(x.dataset.close); return; }
