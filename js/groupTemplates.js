@@ -14,6 +14,11 @@ const GROUP_TEMPLATES = [
     "mailNickname": "CABSECUBreakGlass"
   },
   {
+    "displayName": "CAB-SEC-U-TeamsSharedDevices",
+    "description": "Teams shared / meeting-room devices excluded from Global session-lifetime and risk policies they cannot satisfy (R26.6).",
+    "mailNickname": "CABSECUTeamsSharedDevices"
+  },
+  {
     "displayName": "CAB-SEC-U-CA001-Exclusion",
     "description": "Description of CAB-SEC-U-CA001-Exclusion",
     "mailNickname": "CABSECUCA001Exclusion"
