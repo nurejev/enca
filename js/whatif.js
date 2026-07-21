@@ -74,6 +74,70 @@ const WhatIf = (() => {
     </div>`;
   }
 
+  // ---- persona apply flow ------------------------------------------------
+  // What a sign-in for one persona experiences: the persona's own policies PLUS
+  // the Global policies (CA000–099), which target everyone and so apply to every
+  // persona. Built from the view models (no Graph calls) using the CA-number
+  // range as the persona identity — the same convention the rest of the app uses.
+  function personaFlow(key, vms, label) {
+    const groupKey = (vm) => { try { return Render.caGroup(vm.name).key; } catch { return 99999; } };
+    const persona = vms.filter((v) => groupKey(v) === key);
+    const global = key === 0 ? [] : vms.filter((v) => groupKey(v) === 0);
+
+    const stateRank = (s) => (s === "on" ? 0 : s === "report" ? 1 : 2);
+    const sortByCa = (a, b) => (Render.caGroup(a.name).num ?? 1e9) - (Render.caGroup(b.name).num ?? 1e9);
+
+    // combined effect from the ENFORCING (On) policies across both sets
+    const enforcing = [...global, ...persona].filter((v) => v.state === "on");
+    const grant = new Set(); let block = false; const blockers = []; const session = new Set();
+    for (const v of enforcing) {
+      if (v.grant.mode === "block") { block = true; blockers.push(v.name); }
+      else (v.grant.controls || []).forEach((c) => { if (!/^no controls/i.test(c)) grant.add(c); });
+      (v.session || []).forEach((s) => session.add(s.t));
+    }
+    const reportOnly = [...global, ...persona].filter((v) => v.state === "report").length;
+    const off = [...global, ...persona].filter((v) => v.state === "off").length;
+
+    const polRow = (v) => {
+      const st = v.state === "on" ? "on" : v.state === "report" ? "ro" : "off";
+      const ctl = v.grant.mode === "block" ? "⛔ Block"
+        : (v.grant.controls || []).filter((c) => !/^no controls/i.test(c)).join(", ")
+          || (v.session.length ? v.session.map((s) => s.t).join(", ") : "no controls");
+      return `<div class="wf-pol ${v.state === "off" ? "off" : "on"}">
+        <div class="wf-pol-h"><span class="wf-dot ${st}"></span>
+          <b class="pol-link" data-pol="${esc(v.name)}">${esc(v.name)}</b>
+          ${v.state === "report" ? '<span class="wf-chip ro">report-only</span>' : v.state === "off" ? '<span class="wf-chip muted">Off</span>' : ""}</div>
+        <div class="wf-pol-why">${esc(ctl)}</div>
+      </div>`;
+    };
+    const section = (title, arr, note) => `<h4 class="wf-colh">${title} (${arr.length})</h4>
+      ${note ? `<p class="wf-mut" style="margin:0 0 6px">${note}</p>` : ""}
+      ${arr.length ? arr.slice().sort((a, b) => stateRank(a.state) - stateRank(b.state) || sortByCa(a, b)).map(polRow).join("") : '<p class="wf-mut">None.</p>'}`;
+
+    const outcome = block
+      ? `<div class="wf-outcome block">⛔ A ${esc(label)} sign-in can be <b>blocked</b><div class="wf-blockers">${blockers.map((b) => `<span class="wf-blk pol-link" data-pol="${esc(b)}">${esc(b)}</span>`).join("")}</div></div>`
+      : grant.size
+        ? `<div class="wf-outcome grant">✅ A ${esc(label)} sign-in is <b>granted</b> after satisfying:<div class="wf-blockers">${[...grant].map((g) => `<span class="wf-blk">${esc(g)}</span>`).join("")}</div></div>`
+        : enforcing.length
+          ? `<div class="wf-outcome allow">✅ Granted with no extra controls${session.size ? " (session controls apply)" : ""}</div>`
+          : `<div class="wf-outcome none">— No enforcing (On) policy applies to ${esc(label)} yet${off ? ` — ${off} are staged Off` : ""}</div>`;
+
+    return `<div class="wf-sim">
+      <div class="wf-sub">Effect of Conditional Access on a <b>${esc(label)}</b> sign-in
+        <span class="wf-mut">· ${persona.length} persona ${persona.length === 1 ? "policy" : "policies"}${global.length ? ` + ${global.length} Global` : ""}</span></div>
+      ${outcome}
+      <div class="wf-notes">
+        ${session.size ? `<div><span class="wf-nk">Session</span> ${[...session].map(esc).join(", ")}</div>` : ""}
+        ${reportOnly ? `<div><span class="wf-nk">Report-only</span> ${reportOnly} polic${reportOnly === 1 ? "y" : "ies"} evaluated but not enforced.</div>` : ""}
+        ${off ? `<div><span class="wf-nk">Staged Off</span> ${off} polic${off === 1 ? "y" : "ies"} deployed but disabled — not applying yet.</div>` : ""}
+      </div>
+      <div class="wf-cols">
+        <div>${section(`🌐 Global — applies to everyone`, global, key === 0 ? "" : "These target all users, so they also apply to this persona.")}</div>
+        <div>${section(`This persona`, persona)}</div>
+      </div>
+    </div>`;
+  }
+
   // ---- 2. scenario simulator --------------------------------------------
   const isGuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || "");
 
@@ -269,5 +333,5 @@ const WhatIf = (() => {
     </div>`;
   }
 
-  return { policyFlow, resolveSubject, evalPolicy, simulate, renderSim };
+  return { policyFlow, personaFlow, resolveSubject, evalPolicy, simulate, renderSim };
 })();

@@ -48,7 +48,8 @@ const Render = (() => {
       const allSel = g.items.every(x => selected.has(x.p.id));
       let html = `<tr class="grouprow${isCollapsed ? " collapsed" : ""}" data-gkey="${key}">
         <td><input type="checkbox" data-gsel="${key}" ${allSel ? "checked" : ""} title="Select whole group"></td>
-        <td colspan="6"><span class="caret">▶</span> <b>${esc(g.label)}</b> <span class="mini">${g.items.length} ${g.items.length === 1 ? "policy" : "policies"}${isCollapsed ? " · click to expand" : ""}</span></td>
+        <td colspan="6"><span class="caret">▶</span> <b>${esc(g.label)}</b> <span class="mini">${g.items.length} ${g.items.length === 1 ? "policy" : "policies"}${isCollapsed ? " · click to expand" : ""}</span>
+          <button class="btn sm flow-btn" data-flowkey="${key}" title="Visual flow of what applies to this persona (incl. Global)">⑃ Apply flow</button></td>
       </tr>`;
       if (!isCollapsed) html += g.items
         .sort((a, b) => (a.num ?? 1e9) - (b.num ?? 1e9) || a.p.name.localeCompare(b.p.name))
@@ -100,6 +101,7 @@ const Render = (() => {
         <input type="checkbox" data-gsel="${key}" ${allSel ? "checked" : ""} title="Select whole group">
         <span class="caret">▶</span><h3>${esc(g.label)}</h3>
         <span class="mini">${g.items.length} ${g.items.length === 1 ? "policy" : "policies"}${isCollapsed ? " · click to expand" : ""}</span>
+        <button class="btn sm flow-btn" data-flowkey="${key}" title="Visual flow of what applies to this persona (incl. Global)">⑃ Apply flow</button>
       </div>` +
       (isCollapsed ? "" : g.items
         .sort((a, b) => (a.num ?? 1e9) - (b.num ?? 1e9) || a.p.name.localeCompare(b.p.name))

@@ -371,6 +371,21 @@
     $("detailModal").classList.add("open");
   }
   let detailPolicyId = null;
+
+  // Persona apply flow — a popout of what CA does to a sign-in for this persona,
+  // including the Global policies that apply to everyone.
+  function openPersonaFlow(key) {
+    const label = (Render.caGroup(`CA${String(key).padStart(3, "0")}`).label || "").replace(/\s*\(.*\)$/, "") || "this persona";
+    $("flowTitle").textContent = `⑃ Apply flow — ${label}`;
+    $("flowBody").innerHTML = WhatIf.personaFlow(key, policies, label);
+    $("flowModal").classList.add("open");
+  }
+  $("flowClose").addEventListener("click", () => $("flowModal").classList.remove("open"));
+  $("flowBody").addEventListener("click", (e) => {
+    const pl = e.target.closest(".pol-link");
+    if (pl) { $("flowModal").classList.remove("open"); openPolicyByName(pl.dataset.pol); }
+  });
+
   // reveal / hide the per-policy flow on demand
   $("detailBody").addEventListener("click", (e) => {
     const b = e.target.closest("[data-wf]");
@@ -2489,6 +2504,8 @@
 
   // list view: name opens detail, checkbox selects, group header collapses/selects group
   document.querySelector("#ptable tbody").addEventListener("click", (e) => {
+    const fb = e.target.closest("[data-flowkey]");
+    if (fb) { e.stopPropagation(); openPersonaFlow(+fb.dataset.flowkey); return; }
     const gr = e.target.closest(".grouprow");
     if (gr) {
       if (e.target.matches("[data-gsel]")) return; // handled by change event
@@ -2517,6 +2534,8 @@
 
   // cards view: checkbox selects, click elsewhere opens detail modal
   $("cardsView").addEventListener("click", (e) => {
+    const fb = e.target.closest("[data-flowkey]");
+    if (fb) { e.stopPropagation(); openPersonaFlow(+fb.dataset.flowkey); return; }
     const gh = e.target.closest(".cardgroup"); // persona header: collapse/expand or group-select
     if (gh) {
       if (e.target.matches("[data-gsel]")) return; // handled by change event
@@ -2752,36 +2771,6 @@
     if (p) showDetail(p.id);
   }
 
-  // ---------- What-If simulator ----------
-  $("wfRun").addEventListener("click", async () => {
-    const q = $("wfUser").value.trim();
-    if (!q) { toast("Enter a user (UPN or object ID)"); $("wfUser").focus(); return; }
-    if (!policies.length) { toast("No policies loaded"); return; }
-    const btn = $("wfRun"); btn.disabled = true; btn.textContent = "Simulating…";
-    $("wfResult").innerHTML = '<p class="mini">Resolving the user and their group / role membership…</p>';
-    try {
-      const subject = isDemo ? demoSubject(q) : await WhatIf.resolveSubject(q);
-      if (!subject) { $("wfResult").innerHTML = `<p class="mini" style="color:var(--off)">No user found for "${esc(q)}".</p>`; return; }
-      const scenario = {
-        app: $("wfApp").value, platform: $("wfPlatform").value, clientApp: $("wfClient").value,
-        signInRisk: $("wfSirisk").value, userRisk: $("wfUrisk").value, location: "",
-      };
-      const res = WhatIf.simulate(policies.map(p => p.raw), subject, scenario);
-      $("wfResult").innerHTML = WhatIf.renderSim(res);
-    } catch (e) {
-      console.error(e); $("wfResult").innerHTML = `<p class="mini" style="color:var(--off)">Simulation failed: ${esc(e.message || e)}</p>`;
-    } finally { btn.disabled = false; btn.textContent = "Simulate"; }
-  });
-  // demo mode: fabricate a subject from the sample scope groups so the tool works offline
-  function demoSubject(q) {
-    const groups = new Set(Object.values(DEMO_DATA.scopeGroups || {}).flat().slice(0, 3));
-    return { id: "demo-" + q, upn: q, name: q, isGuest: /guest/i.test(q), groupIds: groups, roleIds: new Set() };
-  }
-  // policy names in the simulation open the policy card
-  $("wfResult").addEventListener("click", (e) => {
-    const pl = e.target.closest(".pol-link");
-    if (pl) openPolicyByName(pl.dataset.pol);
-  });
   $("anBody").addEventListener("click", (e) => {
     const pl = e.target.closest(".pol-link");
     if (pl) { openPolicyByName(pl.dataset.pol); return; }
