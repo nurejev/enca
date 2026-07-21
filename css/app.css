@@ -474,9 +474,13 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 /* Help is a normal tool screen now — main provides width and padding;
    help-page just keeps the prose column readable */
 .help-page{max-width:920px}
-.help-toc{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
-.help-toc a{font-size:12px;text-decoration:none;color:var(--ink);border:1px solid var(--border);border-radius:999px;padding:3px 10px;background:var(--soft)}
+/* sticky, scroll-spying table of contents — jump to any section, and the chip
+   for the section you're reading stays highlighted */
+.help-toc{display:flex;flex-wrap:wrap;gap:6px;margin:0 -8px 14px;padding:10px 8px;
+  position:sticky;top:106px;z-index:38;background:var(--bg);border-bottom:1px solid var(--border)}
+.help-toc a{font-size:12px;text-decoration:none;color:var(--ink);border:1px solid var(--border);border-radius:999px;padding:3px 10px;background:var(--soft);white-space:nowrap;transition:background .12s,color .12s,border-color .12s}
 .help-toc a:hover{border-color:var(--green);color:var(--green)}
+.help-toc a.active{background:var(--green);border-color:var(--green);color:#fff}
 .help-sec{border-top:1px solid var(--line);padding:14px 0 2px}
 .help-sec:first-of-type{border-top:0}
 .help-sec h4{margin:0 0 6px;font-size:15px;scroll-margin-top:120px}
