@@ -358,6 +358,9 @@ const Importer = (() => {
     const p = stripOdata(JSON.parse(JSON.stringify(raw)));
     delete p.id; delete p.createdDateTime; delete p.modifiedDateTime; delete p.templateId; delete p.partialEnablementStrategy;
     if (!asIs) p.state = "disabled"; // always import as Off — except E-Admins (as-is)
+    // Match & replace is a seamless swap: the new version takes over in the SAME
+    // state as the policy it supersedes (which importPolicies then switches Off).
+    if (matchFrom && matchFrom.state) p.state = matchFrom.state;
     const c = p.conditions = p.conditions || {};
     const u = c.users = c.users || {};
 
@@ -444,6 +447,7 @@ const Importer = (() => {
         const matchFrom = replace && it.upgrade && it.existing ? it.existing.raw : null;
         const payload = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom);
         await Graph.gpost("/identity/conditionalAccess/policies", payload, [...AUTH_CONFIG.scopes, ...WRITE]);
+        const newState = payload.state;
         let disabledOld = false;
         const oldName = it.existing?.name || null;
         if (matchFrom && it.existing?.id) {
@@ -456,7 +460,7 @@ const Importer = (() => {
             warnings.push(`${it.name}: the new version was created, but disabling the current policy "${oldName}" failed — disable it manually: ${e.message}`);
           }
         }
-        results.push({ name: it.name, ok: true, persona: it.persona, personaGroup: matchFrom ? null : it.personaGroup, asIs: it.asIs, matched: !!matchFrom, disabledOld, oldName: matchFrom ? oldName : null });
+        results.push({ name: it.name, ok: true, persona: it.persona, personaGroup: matchFrom ? null : it.personaGroup, asIs: it.asIs, matched: !!matchFrom, disabledOld, oldName: matchFrom ? oldName : null, state: newState });
       } catch (e) {
         console.error("Import failed:", it.name, e);
         results.push({ name: it.name, ok: false, error: e.message || String(e) });
@@ -472,6 +476,7 @@ const Importer = (() => {
     const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     const skipped = planItems.filter(p => p.exists);
     const replaced = results.filter(r => r.ok && r.matched);
+    const stateLabel = (s) => s === "enabled" ? "On" : s === "enabledForReportingButNotEnforced" ? "Report-only" : "Off";
     const lines = [
       `# Conditional Access import report`,
       ``,
@@ -479,7 +484,7 @@ const Importer = (() => {
       `- **Date:** ${stamp}`,
       `- **Source:** ${fileName}`,
       `- **Assignment mode:** ${mode === "replace" ? "Match & replace — existing policies keep their current assignment; the superseded version is switched Off" : "Deployment groups — includes remapped to the deploy persona group (CAD-SEC-U-DG-*)"}`,
-      `- **Policies imported:** ${results.filter(r => r.ok).length} (all in state **Off/disabled**)`,
+      `- **Policies imported:** ${results.filter(r => r.ok).length}${replaced.length ? " (new policies land Off; **replacements take over in the state of the policy they supersede**)" : " (all in state **Off/disabled**)"}`,
       ...(replaced.length ? [`- **Policies replaced (old version disabled):** ${replaced.filter(r => r.disabledOld).length} of ${replaced.length}`] : []),
       `- **Policies skipped (already exist):** ${skipped.length}`,
       `- **Failures:** ${results.filter(r => !r.ok).length}`,
@@ -493,7 +498,7 @@ const Importer = (() => {
       ...(results.filter(r => r.ok).map(r => r.asIs
         ? `- ✅ **${r.name}** — **imported as-is** (E-Admins: state and assignments unchanged)`
         : r.matched
-        ? `- ♻️ **${r.name}** — state Off; **assignment copied from the current policy**${r.disabledOld ? `; previous version **${r.oldName}** switched Off` : `; ⚠ could not disable previous version${r.oldName ? ` **${r.oldName}**` : ""}`}`
+        ? `- ♻️ **${r.name}** — state **${stateLabel(r.state)}** (taken from the policy it replaces); **assignment copied from the current policy**${r.disabledOld ? `; previous version **${r.oldName}** switched Off` : `; ⚠ could not disable previous version${r.oldName ? ` **${r.oldName}**` : ""}`}`
         : `- ✅ **${r.name}** — state set to Off; include assignment → ${r.personaGroup ? `\`${r.personaGroup}\` (persona: ${r.persona})` : "kept as in source"}`)),
       ``,
       ...(skipped.length ? [`## Skipped (already exist by CA number + version)`, ``, ...skipped.map(p => `- ⏭ ${p.name} — ${p.reason}`), ``] : []),

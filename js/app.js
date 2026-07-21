@@ -926,7 +926,7 @@
     const rowHint = (p) => {
       if (p.exists) return esc(p.reason);
       if (p.upgrade) return replace
-        ? `♻️ replaces the current v${esc(p.existing.ver)} — assignment kept, old policy switched Off`
+        ? `♻️ replaces the current v${esc(p.existing.ver)} — assignment + state kept, old policy switched Off`
         : `→ ${esc(p.personaGroup || "")} · <span style="color:var(--muted)">current v${esc(p.existing.ver)} stays as-is</span>`;
       if (p.personaGroup) return `→ ${esc(p.personaGroup)}`;
       return esc(p.reason || "");
@@ -1021,7 +1021,7 @@
         chosen.forEach(p => { if (p.personaGroup && !matchedNames.includes(p.name)) maps.personaGroupIds[p.personaGroup] = "g-" + p.personaGroup; });
         res.results = chosen.map(p => {
           const matched = imMode === "replace" && p.upgrade;
-          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched ? null : p.personaGroup, matched, disabledOld: matched, oldName: matched ? p.existing?.name : null };
+          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched ? null : p.personaGroup, matched, disabledOld: matched, oldName: matched ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : "disabled" };
         });
         depLog.created = scoped.groups.map(g => "Group: " + g.displayName);
       } else {
