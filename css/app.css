@@ -29,16 +29,12 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .logo b{font-size:17px;letter-spacing:-.02em}
 .logo b span{color:var(--accent2)}
 .app-tag{background:var(--soft);color:var(--green);font-weight:600;font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--border)}
-/* current-tool breadcrumb in the header */
-.tool-crumb{display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#fff;font-weight:600;font-size:13px;padding:5px 13px;border-radius:999px;white-space:nowrap}
-:root[data-theme="dark"] .tool-crumb{color:#0b120e}
-@media(max-width:720px){.tool-crumb{display:none!important}}
-
-/* tool tab bar — sticky under the header, horizontally scrollable */
-.toolnav{position:sticky;top:57px;z-index:45;display:flex;gap:4px;align-items:center;
-  background:var(--surface);border-bottom:1px solid var(--border);padding:6px 24px;overflow-x:auto;scrollbar-width:thin}
-.toolnav:empty{display:none}
-.toolnav::-webkit-scrollbar{height:6px}
+/* tool tab bar — sticky under the header. The inner strip is centred and
+   aligned to the card width, so tabs open outward from the middle. */
+.toolnav{position:sticky;top:57px;z-index:45;background:var(--surface);border-bottom:1px solid var(--border);padding:6px 0}
+.toolnav-inner{max-width:1180px;margin:0 auto;padding:0 24px;display:flex;gap:4px;align-items:center;
+  justify-content:center;overflow-x:auto;scrollbar-width:thin}
+.toolnav-inner::-webkit-scrollbar{height:6px}
 .toolnav-btn{flex:none;border:1px solid transparent;background:none;color:var(--muted);font-weight:600;font-size:12.5px;
   padding:6px 12px;border-radius:8px;white-space:nowrap;cursor:pointer;transition:.12s}
 .toolnav-btn:hover{background:var(--soft);color:var(--ink)}

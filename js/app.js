@@ -54,10 +54,6 @@
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     $(id).classList.add("active");
     window.scrollTo(0, 0);
-    // the tool crumb only makes sense inside a tool — clear it at home/login
-    if (id === "screen-home" || id === "screen-login" || id === "screen-loading") {
-      const c = $("toolCrumb"); if (c) { c.textContent = ""; c.style.display = "none"; }
-    }
     if (navSuppress || !HISTORY_SCREENS.has(id)) return;
     // Replace rather than push when the screen has not changed, so clicking the
     // same tool twice does not need two Backs to leave it.
@@ -692,9 +688,11 @@
         <button class="toolnav-x" data-close="${id}" title="Close tab">×</button>
       </span>`).join("");
     const add = `<button class="toolnav-btn add" data-navadd title="Open a tool in a new tab">＋</button>`;
-    $("toolNav").innerHTML = home + tabs + add;
+    // Centred inner strip aligned to the card width; tabs grow out from the
+    // middle to left and right as more open ("opening a curtain").
+    $("toolNav").innerHTML = `<div class="toolnav-inner">${home}${tabs}${add}</div>`;
     // the bar only appears once a tool is open (empty at the tools home)
-    $("toolNav").style.display = openTabs.length ? "flex" : "none";
+    $("toolNav").style.display = openTabs.length ? "block" : "none";
   }
   function buildToolNav() { openTabs = []; activeTab = null; renderTabs(); }
 
@@ -739,9 +737,6 @@
   // Header breadcrumb + tab state: crumb(name) is called by every tool on entry,
   // so it both labels the header chip and registers/activates the tab.
   function crumb(name) {
-    const el = $("toolCrumb");
-    el.textContent = name || "";
-    el.style.display = name ? "inline-flex" : "none";
     const id = name ? idForCrumb(name) : null;
     if (id) { if (!openTabs.includes(id)) openTabs.push(id); activeTab = id; }
     else { activeTab = null; }
