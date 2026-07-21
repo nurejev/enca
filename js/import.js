@@ -375,6 +375,10 @@ const Importer = (() => {
       // (include/exclude users, groups, roles, guests) verbatim from the policy
       // already deployed — those ids are valid in this tenant. The old policy is
       // disabled afterwards by importPolicies.
+      // The newer baseline version may ADD exclusion groups the current policy
+      // doesn't have (e.g. a new break-glass / TeamsSharedDevices exclusion) —
+      // those must not be lost, so they are merged onto the kept assignment.
+      const newExcludeGroups = Array.isArray(u.excludeGroups) ? u.excludeGroups.slice() : [];
       const eu = (matchFrom.conditions && matchFrom.conditions.users) || {};
       u.includeUsers = Array.isArray(eu.includeUsers) ? [...eu.includeUsers] : ["None"];
       u.includeGroups = Array.isArray(eu.includeGroups) ? [...eu.includeGroups] : [];
@@ -384,6 +388,16 @@ const Importer = (() => {
       u.excludeRoles = Array.isArray(eu.excludeRoles) ? [...eu.excludeRoles] : [];
       if (eu.includeGuestsOrExternalUsers) u.includeGuestsOrExternalUsers = eu.includeGuestsOrExternalUsers; else delete u.includeGuestsOrExternalUsers;
       if (eu.excludeGuestsOrExternalUsers) u.excludeGuestsOrExternalUsers = eu.excludeGuestsOrExternalUsers; else delete u.excludeGuestsOrExternalUsers;
+      // merge in the newer version's exclusion groups (placeholders resolve to
+      // create-if-missing groups; ids remap through the backup's Groups folder)
+      let added = 0;
+      for (const ref of newExcludeGroups) {
+        let id;
+        try { id = resolveRef(ref, maps.group); }
+        catch (e) { warnings.push(`${raw.displayName}: new exclusion "${parsePlaceholder(ref)?.name || ref}" could not be added — ${e.message}`); continue; }
+        if (id && !u.excludeGroups.includes(id)) { u.excludeGroups.push(id); added++; }
+      }
+      if (added) warnings.push(`${raw.displayName}: kept the current assignment and merged ${added} new exclusion group(s) introduced by this baseline version.`);
     } else if (asIs) {
       // as-is: keep all assignments; resolve placeholders / known ids only
       u.includeGroups = mapGroups(u.includeGroups);
@@ -498,7 +512,7 @@ const Importer = (() => {
       ...(results.filter(r => r.ok).map(r => r.asIs
         ? `- ✅ **${r.name}** — **imported as-is** (E-Admins: state and assignments unchanged)`
         : r.matched
-        ? `- ♻️ **${r.name}** — state **${stateLabel(r.state)}** (taken from the policy it replaces); **assignment copied from the current policy**${r.disabledOld ? `; previous version **${r.oldName}** switched Off` : `; ⚠ could not disable previous version${r.oldName ? ` **${r.oldName}**` : ""}`}`
+        ? `- ♻️ **${r.name}** — state **${stateLabel(r.state)}** (taken from the policy it replaces); **assignment copied from the current policy** (new exclusion groups from this version merged in)${r.disabledOld ? `; previous version **${r.oldName}** switched Off` : `; ⚠ could not disable previous version${r.oldName ? ` **${r.oldName}**` : ""}`}`
         : `- ✅ **${r.name}** — state set to Off; include assignment → ${r.personaGroup ? `\`${r.personaGroup}\` (persona: ${r.persona})` : "kept as in source"}`)),
       ``,
       ...(skipped.length ? [`## Skipped (already exist by CA number + version)`, ``, ...skipped.map(p => `- ⏭ ${p.name} — ${p.reason}`), ``] : []),
