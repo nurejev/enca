@@ -37,13 +37,28 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 /* tool tab bar — sticky under the header, horizontally scrollable */
 .toolnav{position:sticky;top:57px;z-index:45;display:flex;gap:4px;align-items:center;
   background:var(--surface);border-bottom:1px solid var(--border);padding:6px 24px;overflow-x:auto;scrollbar-width:thin}
+.toolnav:empty{display:none}
 .toolnav::-webkit-scrollbar{height:6px}
 .toolnav-btn{flex:none;border:1px solid transparent;background:none;color:var(--muted);font-weight:600;font-size:12.5px;
   padding:6px 12px;border-radius:8px;white-space:nowrap;cursor:pointer;transition:.12s}
 .toolnav-btn:hover{background:var(--soft);color:var(--ink)}
-.toolnav-btn.active{background:var(--green);color:#fff;border-color:var(--green)}
-:root[data-theme="dark"] .toolnav-btn.active{color:#0b120e}
 .toolnav-btn.home{font-size:15px;padding:6px 11px}
+.toolnav-btn.add{font-size:15px;padding:5px 11px;color:var(--green)}
+/* an open tab = label + close, sharing a pill */
+.toolnav-tab{flex:none;display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--soft)}
+.toolnav-tab .toolnav-btn{border:0;padding:6px 6px 6px 12px}
+.toolnav-tab .toolnav-x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:4px 9px 4px 4px;border-radius:0 8px 8px 0}
+.toolnav-tab .toolnav-x:hover{color:var(--off)}
+.toolnav-tab.active{background:var(--green);border-color:var(--green)}
+.toolnav-tab.active .toolnav-btn,.toolnav-tab.active .toolnav-x{color:#fff}
+:root[data-theme="dark"] .toolnav-tab.active .toolnav-btn,:root[data-theme="dark"] .toolnav-tab.active .toolnav-x{color:#0b120e}
+/* + menu popover */
+.toolnav-menu{position:fixed;z-index:410;background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:var(--shadow);padding:6px;max-height:60vh;overflow:auto;width:264px}
+.toolnav-menu button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);
+  font-size:13px;padding:8px 10px;border-radius:8px;cursor:pointer}
+.toolnav-menu button:hover{background:var(--soft)}
+.toolnav-menu button.open{color:var(--muted)}
 .spacer{flex:1}
 .tenant{display:none;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
 .avatar{width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px}

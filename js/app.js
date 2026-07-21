@@ -481,7 +481,6 @@
       $("avatar").textContent = (account?.name || account?.username || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
       $("tenantBox").style.display = "flex";
     $("homeBtn").style.display = "inline-flex";
-    $("toolNav").style.display = "flex";
       selected = new Set();
       refreshViews();
       renderPermissions();
@@ -512,7 +511,6 @@
     $("avatar").textContent = "DM";
     $("tenantBox").style.display = "flex";
     $("homeBtn").style.display = "inline-flex";
-    $("toolNav").style.display = "flex";
     refreshViews();
     renderPermissions();
     show("screen-home");
@@ -679,25 +677,75 @@
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
-  function buildToolNav() {
-    $("toolNav").innerHTML =
-      `<button class="toolnav-btn home" data-navhome title="All tools">⌂</button>` +
-      TOOL_TABS.map(([id, label]) => `<button class="toolnav-btn" data-nav="${id}" data-crumb="${esc(label)}">${esc(label)}</button>`).join("");
+  // Browser-style tabs: a tab exists only for a tool you have opened. Home shows
+  // no tabs; opening a tool (from the grid or the + menu) adds one; the + opens
+  // another. openTabs is the ordered set of open tool ids.
+  let openTabs = [], activeTab = null;
+  const labelFor = (id) => (TOOL_TABS.find((x) => x[0] === id) || [, id])[1];
+  const idForCrumb = (name) => (TOOL_TABS.find((x) => x[1] === name) || [])[0] || null;
+
+  function renderTabs() {
+    const home = `<button class="toolnav-btn home ${activeTab ? "" : "active"}" data-navhome title="All tools">⌂</button>`;
+    const tabs = openTabs.map((id) =>
+      `<span class="toolnav-tab ${id === activeTab ? "active" : ""}">
+        <button class="toolnav-btn" data-nav="${id}">${esc(labelFor(id))}</button>
+        <button class="toolnav-x" data-close="${id}" title="Close tab">×</button>
+      </span>`).join("");
+    const add = `<button class="toolnav-btn add" data-navadd title="Open a tool in a new tab">＋</button>`;
+    $("toolNav").innerHTML = home + tabs + add;
+    // the bar only appears once a tool is open (empty at the tools home)
+    $("toolNav").style.display = openTabs.length ? "flex" : "none";
   }
+  function buildToolNav() { openTabs = []; activeTab = null; renderTabs(); }
+
+  function closeTab(id) {
+    const i = openTabs.indexOf(id);
+    if (i < 0) return;
+    openTabs.splice(i, 1);
+    if (activeTab === id) {
+      const next = openTabs[i] || openTabs[i - 1] || null;   // neighbour, else last
+      if (next) { $(next).click(); }                          // switch to it
+      else { crumb(""); show("screen-home"); }
+    } else { renderTabs(); }
+  }
+
+  // The + menu: pick any tool to open in a new tab.
+  function openAddMenu(anchor) {
+    closeAddMenu();
+    const menu = document.createElement("div");
+    menu.className = "toolnav-menu"; menu.id = "toolAddMenu";
+    menu.innerHTML = TOOL_TABS.map(([id, label]) =>
+      `<button data-nav="${id}" class="${openTabs.includes(id) ? "open" : ""}">${esc(label)}${openTabs.includes(id) ? " <span class='mini'>· open</span>" : ""}</button>`).join("");
+    document.body.appendChild(menu);
+    const r = anchor.getBoundingClientRect();
+    menu.style.top = `${r.bottom + 4}px`;
+    menu.style.left = `${Math.min(r.left, window.innerWidth - 280)}px`;
+    menu.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-nav]"); if (!b) return;
+      closeAddMenu(); $(b.dataset.nav).click();
+    });
+    setTimeout(() => document.addEventListener("click", closeAddMenu, { once: true }), 0);
+  }
+  function closeAddMenu() { const m = $("toolAddMenu"); if (m) m.remove(); }
+
   $("toolNav").addEventListener("click", (e) => {
     if (e.target.closest("[data-navhome]")) { crumb(""); show("screen-home"); return; }
+    if (e.target.closest("[data-navadd]")) { openAddMenu(e.target.closest("[data-navadd]")); return; }
+    const x = e.target.closest("[data-close]"); if (x) { e.stopPropagation(); closeTab(x.dataset.close); return; }
     const b = e.target.closest("[data-nav]");
     if (b) $(b.dataset.nav).click();   // reuse the tile's own handler (crumb, screen, setup)
   });
 
-  // Header breadcrumb: which tool you're in. Set on entry, cleared at home.
-  // Also drives the active state of the tab bar.
+  // Header breadcrumb + tab state: crumb(name) is called by every tool on entry,
+  // so it both labels the header chip and registers/activates the tab.
   function crumb(name) {
     const el = $("toolCrumb");
     el.textContent = name || "";
     el.style.display = name ? "inline-flex" : "none";
-    document.querySelectorAll("#toolNav [data-crumb]").forEach((b) =>
-      b.classList.toggle("active", !!name && b.dataset.crumb === name));
+    const id = name ? idForCrumb(name) : null;
+    if (id) { if (!openTabs.includes(id)) openTabs.push(id); activeTab = id; }
+    else { activeTab = null; }
+    renderTabs();
   }
   $("homeBtn").addEventListener("click", () => { crumb(""); show("screen-home"); });
   // logo returns to the tools overview when signed in (does nothing on login)
