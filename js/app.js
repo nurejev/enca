@@ -2846,13 +2846,17 @@
 
   // ---------- Change audit (directory audit log) ----------
   const AU_READ = ["AuditLog.Read.All"];
-  let auRes = null, auFilter = "all", auQuery = "", auDays = 30, auWatch = null;
+  let auRes = null, auFilter = "all", auQuery = "", auDays = 7, auWatch = null, auBusy = false;
   const auOpen = new Set();
+  const auBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted">Reading the audit log… this keeps running if you switch tabs.</p></div>';
 
   function openAudit() {
     crumb("🕓 Change audit");
     show("screen-audit");
-    $("auRescan").style.display = auRes ? "" : "none";
+    $("auRescan").style.display = auRes && !auBusy ? "" : "none";
+    // A read in flight has to survive navigating away and back, otherwise the
+    // Run prompt reappears and it looks like the read was cancelled.
+    if (auBusy) { $("auBody").innerHTML = auBusyPanel(); return; }
     if (auRes) { renderAudit(); return; }
     $("auHead").innerHTML = `<h3>🕓 Change audit <span class="tag new">BETA</span></h3>
       <p style="margin-bottom:4px">Who changed which Conditional Access resource, when, and exactly what changed — policies, named locations, authentication strengths and contexts, and terms of use.</p>
@@ -2865,8 +2869,11 @@
   $("auDays").addEventListener("change", (e) => { auDays = +e.target.value; if (auRes) runAudit(); });
 
   async function runAudit() {
+    if (auBusy) return;                       // already reading — don't start a second pass
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...AU_READ])) return;
-    $("auBody").innerHTML = '<p class="mini" style="padding:20px">Reading the audit log…</p>';
+    auBusy = true;
+    $("auRescan").style.display = "none";
+    $("auBody").innerHTML = auBusyPanel();
     try {
       // The groups every policy includes/excludes — membership changes on these
       // widen or narrow a policy without the policy itself being touched. The
@@ -2883,14 +2890,17 @@
       auRes = Audit.build([...pol, ...mem], { watch });
       auWatch = watch;
       auOpen.clear();
+      auBusy = false;
       $("auRescan").style.display = "";
       renderAudit();
       if (!auRes.total) toast("No Conditional Access changes in this window");
     } catch (e) {
       console.error("Change audit failed:", e);
+      auBusy = false;
       $("auBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read the audit log: ${esc(e.message || e)}<br>
-        <span class="muted">This needs AuditLog.Read.All and a reader role such as Reports Reader, Security Reader or Security Administrator.</span></p>`;
-    }
+        <span class="muted">This needs AuditLog.Read.All and a reader role such as Reports Reader, Security Reader or Security Administrator.</span></p>
+        <div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-aurun>Try again</button></div>`;
+    } finally { auBusy = false; }
   }
   $("auBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-aurun]")) { runAudit(); return; }
