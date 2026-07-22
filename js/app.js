@@ -2084,6 +2084,14 @@
     }
   }
   $("exRescan").addEventListener("click", runExclusionScan);
+  // The filter banner sticks directly under the (sticky) toolbar. The toolbar
+  // wraps to more rows on narrow screens, so measure it rather than guess.
+  function syncExFocusTop() {
+    const tb = $("exToolbar"); if (!tb) return;
+    const top = Fs.isOpen() ? 0 : 106 + Math.round(tb.getBoundingClientRect().height);
+    document.documentElement.style.setProperty("--ex-focus-top", top + "px");
+  }
+  window.addEventListener("resize", syncExFocusTop);
   function renderExclusions() {
     if (!exModel) return;
     $("exHead").innerHTML = Exclusions.renderSummary(Exclusions.summary(exModel, exUsers));
@@ -2113,6 +2121,7 @@
     (window.requestAnimationFrame || setTimeout)(() => {
       const w = $("exBody").querySelector(".mwrap-x");
       $("exHint").style.display = w && w.scrollWidth > w.clientWidth + 4 ? "block" : "none";
+      syncExFocusTop();
     });
   }
   $("exChips").addEventListener("click", (e) => {
