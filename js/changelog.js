@@ -19,6 +19,18 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 184, date: "2026-07-22", title: "From a failure to the policy in one click",
+    items: [
+      { kind: "improved", tool: "Sign-in failures", text: "Policy names are now links that open the policy's card — the same card as in List Policies, with the What-if flow and per-policy actions — from the Per policy table, the pinned label, and the failed-policy lines of an expanded sign-in. Log → policy card → What-If: the whole trace of a failed sign-in without leaving the tool." },
+    ],
+  },
+  {
+    build: 183, date: "2026-07-22", title: "Which policy was I reading again?",
+    items: [
+      { kind: "fixed", tool: "Sign-in failures", text: "Expanding a policy with dozens of sign-ins scrolled the policy's own row — and with it the name — off screen. The expanded list now carries a pinned label with the policy name, sign-in count and unmet controls that stays just below the toolbar while you scroll through it, with an ✕ to collapse the policy from wherever you are." },
+    ],
+  },
+  {
     build: 182, date: "2026-07-22", title: "Help finds its headings again",
     items: [
       { kind: "fixed", tool: "Help", text: "Clicking a section chip in the Help table of contents could scroll the section's heading underneath the ToC itself. The ToC is sticky and wraps to more rows as tools are added — with the Sign-in failures chip it crossed onto a third row at common window widths, and the fixed scroll offset no longer covered it. The jump (and the scroll-spy highlight) now measure the ToC's actual height instead of assuming it." },

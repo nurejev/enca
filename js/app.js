@@ -3410,6 +3410,11 @@
 
   $("siBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-sirun]")) { runSignins(); return; }
+    // The policy name opens its card, same as everywhere else. It sits inside
+    // the collapsible row / sticky label, so it has to be checked before the
+    // toggle handlers or the click just expands and collapses.
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const rp = e.target.closest("[data-sireplay]");
     if (rp) { const row = siRes && siRes.rows.find((x) => x.id === rp.dataset.sireplay); if (row) siReplay(row); return; }
     const s = e.target.closest("[data-sisum]");
@@ -3427,8 +3432,21 @@
   const siWhere = (r) => [r.city, r.country].filter(Boolean).join(", ");
   const siDevice = (r) => r.compliant ? "compliant" : /hybrid/i.test(r.trustType) ? "hybrid joined" : r.os ? "unmanaged" : "";
 
+  // An expanded policy can hold 40 sign-ins — scrolling through them pushes the
+  // policy's own table row off screen and you lose track of what you're reading.
+  // A sticky label inside the detail keeps the policy name pinned just below the
+  // toolbar. The toolbar wraps to more rows on narrow screens, so its real
+  // height is measured (same approach as the List screen's action bar).
+  function syncSiDetheadTop() {
+    const tb = $("siToolbar");
+    if (!tb) return;
+    document.documentElement.style.setProperty("--si-dethead-top", (106 + Math.round(tb.getBoundingClientRect().height)) + "px");
+  }
+  window.addEventListener("resize", syncSiDetheadTop);
+
   function renderSignins() {
     const r = siRes; if (!r) return;
+    (window.requestAnimationFrame || setTimeout)(syncSiDetheadTop);
     $("siHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
         <h3>🚦 Sign-in failures <span class="tag new">BETA</span></h3>
@@ -3460,11 +3478,12 @@
       const pols = r.policies
         .map((p) => ({ ...p, rows: p.rows.filter(match) }))
         .filter((p) => p.rows.length && (siFilter === "all" || p.key === siFilter));
-      $("siBody").innerHTML = `<div class="list-card"><table class="plist au-sum">
+      $("siBody").innerHTML = `<div class="list-card si-stickyhost"><table class="plist au-sum">
         <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
         <tbody>${pols.map((p) => {
           const open = siOpen.has("p:" + p.key);
           const detail = open ? `<tr class="au-sumdet"><td colspan="6">
+            <div class="si-dethead">🚦 <b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b><span class="mini muted">${p.rows.length} sign-in${p.rows.length === 1 ? "" : "s"}${siMode === "reportonly" ? " · report-only" : ""}${p.controls.length ? ` · ${esc(p.controls.join(", "))}` : ""}</span><button class="fchip" data-sisum="${esc(p.key)}" title="Collapse this policy">✕</button></div>
             <ul class="wi-list">${p.rows.slice(0, 40).map((x) => `<li>
               <div class="wi-pn">${esc(x.user)}${x.upn && x.upn !== x.user ? ` <span class="mini muted">(${esc(x.upn)})</span>` : ""} → <b>${esc(x.app)}</b>
                 <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪 Replay</button></div>
@@ -3473,7 +3492,7 @@
             ${p.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${p.rows.length} — switch to Sign-ins and search to see the rest.</p>` : ""}
           </td></tr>` : "";
           return `<tr class="au-sumrow" data-sisum="${esc(p.key)}">
-            <td><b>${esc(p.name)}</b>${siMode === "reportonly" ? '<div class="mini muted">report-only</div>' : ""}</td>
+            <td><b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b>${siMode === "reportonly" ? '<div class="mini muted">report-only</div>' : ""}</td>
             <td><span class="au-n rem">${p.count}</span></td>
             <td>${p.userCount} distinct</td>
             <td class="mini">${esc(p.users.slice(0, 2).map(([n, c]) => `${n} (${c})`).join(", "))}${p.users.length > 2 ? ` +${p.users.length - 2}` : ""}</td>
@@ -3493,7 +3512,7 @@
       + shown.map((x) => {
       const open = siOpen.has(x.id);
       const detail = open ? `<div class="au-diff">
-          ${x.policies.map((p) => `<div><span class="au-op remove">failed</span> <span class="au-path">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
+          ${x.policies.map((p) => `<div><span class="au-op remove">failed</span> <span class="au-path pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
           ${x.failureReason ? `<div><span class="au-op change">reason</span> <span class="au-path">${esc(x.failureReason)}${x.errorCode ? ` (${esc(String(x.errorCode))})` : ""}</span></div>` : ""}
           ${x.browser ? `<div><span class="au-op set">client</span> <span class="au-path">${esc([x.browser, x.os].filter(Boolean).join(" on "))}</span></div>` : ""}
           ${x.signInRisk && x.signInRisk !== "none" && x.signInRisk !== "hidden" ? `<div><span class="au-op change">risk</span> <span class="au-path">${esc(x.signInRisk)}</span></div>` : ""}

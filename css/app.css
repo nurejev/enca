@@ -535,6 +535,19 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .au-sumrow{cursor:pointer}
 .au-sumrow:hover td{background:var(--hover)}
 .au-sumdet td{background:var(--soft);padding:12px 14px}
+/* pinned policy label inside an expanded Sign-in failures row — keeps the
+   policy name in view while scrolling its (long) list of sign-ins */
+.si-dethead{position:sticky;top:var(--si-dethead-top,168px);z-index:37;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:var(--soft);margin:-12px -14px 8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.si-dethead .fchip{margin-left:auto}
+/* .list-card clips its corners with overflow:hidden, which also disables
+   position:sticky for everything inside. This host keeps the rounded look by
+   putting the radius on the corner cells instead. */
+.si-stickyhost{overflow:visible}
+.si-stickyhost table.plist thead th:first-child{border-top-left-radius:var(--radius)}
+.si-stickyhost table.plist thead th:last-child{border-top-right-radius:var(--radius)}
+.si-stickyhost table.plist tbody tr:last-child td:first-child{border-bottom-left-radius:var(--radius)}
+.si-stickyhost table.plist tbody tr:last-child td:last-child{border-bottom-right-radius:var(--radius)}
 .au-n{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;margin-right:5px;white-space:nowrap}
 .au-n.add{background:var(--ok-bg2);color:var(--on)}
 .au-n.rem{background:var(--bad-bg2);color:var(--off)}
