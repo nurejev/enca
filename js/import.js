@@ -573,13 +573,37 @@ const Importer = (() => {
         });
       }
     }
-    // grant controls: auth strength + terms of use
+    // grant controls: auth strength + terms of use.
+    // A source id that is neither a placeholder nor in the dependency map
+    // passes through as a literal — valid for built-ins, a guaranteed 400 for
+    // tenant-local objects like a terms of use. In match & replace there is a
+    // better answer than failing: the policy being replaced already carries
+    // ids that work in THIS tenant, so an unmappable source id falls back to
+    // the existing policy's counterpart.
+    const unmapped = (v, kindMap) => !parsePlaceholder(v) && !((kindMap || {})[v]);
     if (p.grantControls?.authenticationStrength) {
       // built-in strength ids are identical across tenants; placeholders resolve by name
-      p.grantControls.authenticationStrength = { id: resolveRef(p.grantControls.authenticationStrength.id, maps.strength) };
+      const sid = p.grantControls.authenticationStrength.id;
+      const exStrength = matchFrom?.grantControls?.authenticationStrength?.id || null;
+      // built-in strengths sit in a fixed well-known id range — those pass
+      // through untouched; only a custom strength the map can't place falls
+      // back to the replaced policy's strength.
+      const builtIn = /^00000000-0000-0000-0000-0000000000/i.test(String(sid));
+      if (matchFrom && exStrength && !builtIn && unmapped(sid, maps.strength)) {
+        p.grantControls.authenticationStrength = { id: exStrength };
+        warnings.push(`${raw.displayName}: the source authentication-strength id could not be mapped to this tenant — kept the strength of the policy it replaces.`);
+      } else {
+        p.grantControls.authenticationStrength = { id: resolveRef(sid, maps.strength) };
+      }
     }
     if (p.grantControls?.termsOfUse?.length) {
-      p.grantControls.termsOfUse = p.grantControls.termsOfUse.map(id => resolveRef(id, maps.tou));
+      const exTou = matchFrom?.grantControls?.termsOfUse || [];
+      if (matchFrom && exTou.length && p.grantControls.termsOfUse.every((id) => unmapped(id, maps.tou))) {
+        p.grantControls.termsOfUse = [...exTou];
+        warnings.push(`${raw.displayName}: the source terms-of-use id could not be mapped to this tenant — kept the terms of use of the policy it replaces.`);
+      } else {
+        p.grantControls.termsOfUse = p.grantControls.termsOfUse.map(id => resolveRef(id, maps.tou));
+      }
     }
     if (c.applications?.includeAuthenticationContextClassReferences?.length) {
       c.applications.includeAuthenticationContextClassReferences =
@@ -652,6 +676,12 @@ const Importer = (() => {
           if ((it.raw.conditions?.insiderRiskLevels || []).length) bits.push("it uses insider risk, which needs the licence and the feature enabled");
           if ((it.raw.grantControls?.termsOfUse || []).length) bits.push("it grants a terms of use, which must already exist here");
           if (bits.length) hint = ` — likely because ${bits.join("; ")}`;
+        }
+        // An "update" is create-new-version + switch-old-Off. When the create
+        // fails, say so — otherwise a failed upgrade reads as if the existing
+        // policy broke, when it is in fact untouched and still enforcing.
+        if (replace && it.upgrade && it.existing) {
+          hint += ` · an update creates the new version first and only then switches the old one Off — creating the new version is what failed; the current policy "${it.existing.name || it.name}" is untouched and still active`;
         }
         results.push({ name: it.name, ok: false, error: (e.message || String(e)) + hint });
       }

@@ -8,7 +8,7 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 186,
+  build: 187,
   date: "2026-07-22",
   get label() { return `v${this.version}.${this.build}`; },
   get full() { return `${this.label} · ${this.date}`; },
@@ -34,5 +34,5 @@ const TOOL_VERSIONS = {
   toolCaGroups:     { v: "1.9", note: "⑤ Import members: bulk-add pilot users from a CSV (UPN + optional multi-persona column) with persona→group auto-mapping, membership pre-check, review-before-apply and a Markdown change report;baseline group check, creation, members × groups matrix, and policy assignment in one tool, per-group member scan, manual group builder, remove-group action, final confirm, assignment change report, pick-by-persona, TeamsSharedDevices template, per-row create, recreate-role-assignable, convert-to-dynamic (in place or rename + recreate + reassign)" },
   toolLocations:    { v: "1.3", note: "named locations inventory with policy usage; create/edit/delete IP-range and country locations, CIDR + ISO-code validation, trusted-flag impact warning, typed confirm when a referenced location is deleted, card grid + table view, per-location report with full policy usage, per-location and inventory Markdown, JSON config snapshot + compare" },
   toolState:        { v: "1.0", note: "On / report-only / Off switching" },
-  toolImport:       { v: "2.2", note: "dependencies first, persona remapping, placeholder resolution, change report, on-screen report, claims-challenge step-up, up-front consent, import by persona, dependency scoping to selection, terms-of-use checklist, assignment mode (deployment groups or match & replace: keep the current policy's assignment and switch its superseded version Off), Workload ID licence check (workload-identity policies held back when the tenant lacks the SKU), retry without app references the tenant cannot resolve" },
+  toolImport:       { v: "2.3", note: "match & replace: an unmappable terms-of-use / custom auth-strength id falls back to the ids of the policy being replaced (they are tenant-valid by definition) instead of failing the upgrade with a bare 400; failed updates now say explicitly that the current policy is untouched;dependencies first, persona remapping, placeholder resolution, change report, on-screen report, claims-challenge step-up, up-front consent, import by persona, dependency scoping to selection, terms-of-use checklist, assignment mode (deployment groups or match & replace: keep the current policy's assignment and switch its superseded version Off), Workload ID licence check (workload-identity policies held back when the tenant lacks the SKU), retry without app references the tenant cannot resolve" },
 };
