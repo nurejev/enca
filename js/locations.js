@@ -220,7 +220,7 @@ const Locations = (() => {
     };
   }
   function fromExport(obj) {
-    if (!obj || typeof obj !== "object") throw new Error("That file isn't an ENCA named-locations export.");
+    if (!obj || typeof obj !== "object") throw new Error(`That file isn't a ${BRANDING.name} named-locations export.`);
     if (obj.schema !== EXPORT_SCHEMA) throw new Error(`Unexpected format "${obj.schema || "unknown"}" — expected ${EXPORT_SCHEMA}.`);
     if (!Array.isArray(obj.locations)) throw new Error("The export has no locations.");
     return obj;

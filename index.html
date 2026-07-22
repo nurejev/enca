@@ -9,23 +9,23 @@
      and the tenant branding logo. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=179">
+<link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=180">
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img src="assets/logo-mark-light.svg" width="34" height="34" alt="Limon-IT">
-      <b>Limon-<span>IT</span></b>
+      <img id="brandLogo" src="assets/logo-mark-light.svg" width="34" height="34" alt="Limon-IT">
+      <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
-    <span class="app-tag">ENCA</span>
+    <span class="app-tag" id="brandTag">ENCA</span>
     <button class="btn home-btn" id="homeBtn" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M3 10.6 12 3.2l9 7.4"/><path d="M5.2 9.4V20.4h13.6V9.4"/><path d="M9.6 20.4v-6.2h4.8v6.2"/>
       </svg>Tools</button>
-    <span class="mini muted">enca.limon-it.nl</span>
+    <span class="mini muted" id="brandHost">enca.limon-it.nl</span>
     <div class="spacer"></div>
     <button class="btn" id="themeBtn" title="Theme: Auto (follows your device)"><span class="tico">🌗</span></button>
     <div class="tenant" id="tenantBox">
@@ -44,9 +44,9 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img src="assets/logo-mark-light.svg" width="76" height="76" alt="Limon-IT">
-      <h1>ENCA — Conditional Access Baseline Tools</h1>
-      <p>Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg" width="76" height="76" alt="Limon-IT">
+      <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
+      <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
         <svg width="17" height="17" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
         Sign in with Microsoft
@@ -219,7 +219,7 @@
         Sign-in uses Microsoft Entra (MSAL, authorization code flow with PKCE, no client secret); tokens live in session storage and are gone when the tab closes.
         Access tokens are only ever attached to <code>graph.microsoft.com</code> (hostname-validated), a strict Content-Security-Policy is enforced,
         and all JavaScript libraries are self-hosted — nothing loads from third-party CDNs at runtime.
-        Exports are generated locally on your machine and carry your tenant's branding, not Limon-IT's.</p>
+        Exports are generated locally on your machine and carry your tenant's branding, not this tool's.</p>
     </div>
   </section>
 
@@ -663,7 +663,7 @@
 
     <section class="help-sec">
       <h4>📄 Create documentation</h4>
-      <p>Turn all or selected policies into shareable documentation with Limon-IT branding.</p>
+      <p>Turn all or selected policies into shareable documentation carrying your tenant's branding.</p>
       <ul>
         <li><b>Word (.docx)</b> — an editable document, one section per policy.</li>
         <li><b>PDF</b> — the same, print-ready.</li>
@@ -838,6 +838,7 @@
         <li><b>Permissions</b> — sign-in is read-only; a write tool requests its extra scope only when you run it, with an up-front consent step so pop-ups aren’t blocked.</li>
         <li><b>Demo</b> — append <code>?demo=1</code> to explore with sample policies; writes are simulated.</li>
         <li><b>Build</b> — the number on the sign-in screen matches the asset version; hard-refresh if it lags what you expect.</li>
+        <li><b>Forking</b> — everything identity-shaped (name, organisation, logos, colours, host) lives in a single file, <code>js/branding.js</code>; nothing else hard-codes it. See “Rebranding a fork” in the README.</li>
       </ul>
     </section>
     </div>
@@ -846,9 +847,9 @@
 
 <footer>
   <div class="fwrap">
-    <span>© 2026 Limon-IT · ENCA <span id="buildStampFoot"></span></span>
+    <span><span id="brandFoot">© 2026 Limon-IT · ENCA</span> <span id="buildStampFoot"></span></span>
     <div class="spacer"></div>
-    <a href="https://limon-it.nl">limon-it.nl</a>
+    <a id="brandOrgLink" href="https://limon-it.nl">limon-it.nl</a>
   </div>
 </footer>
 
@@ -1213,31 +1214,32 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=179"></script>
-<script src="js/authConfig.js?v=179"></script>
-<script src="js/labels.js?v=179"></script>
-<script src="js/graph.js?v=179"></script>
-<script src="js/model.js?v=179"></script>
-<script src="js/render.js?v=179"></script>
-<script src="js/analyze.js?v=179"></script>
-<script src="js/whatif.js?v=179"></script>
-<script src="js/mslearn.js?v=179"></script>
-<script src="js/gapcheck.js?v=179"></script>
-<script src="js/exclusions.js?v=179"></script>
-<script src="js/validator.js?v=179"></script>
-<script src="js/whatifeval.js?v=179"></script>
-<script src="js/locations.js?v=179"></script>
-<script src="js/audit.js?v=179"></script>
-<script src="js/changelog.js?v=179"></script>
-<script src="js/baselineData.js?v=179"></script>
-<script src="js/baselineJoeyData.js?v=179"></script>
-<script src="js/baseline.js?v=179"></script>
-<script src="js/groupTemplates.js?v=179"></script>
-<script src="js/assign.js?v=179"></script>
-<script src="js/cagroups.js?v=179"></script>
-<script src="js/import.js?v=179"></script>
-<script src="js/export.js?v=179"></script>
-<script src="js/demo.js?v=179"></script>
-<script src="js/app.js?v=179"></script>
+<script src="js/branding.js?v=180"></script>
+<script src="js/version.js?v=180"></script>
+<script src="js/authConfig.js?v=180"></script>
+<script src="js/labels.js?v=180"></script>
+<script src="js/graph.js?v=180"></script>
+<script src="js/model.js?v=180"></script>
+<script src="js/render.js?v=180"></script>
+<script src="js/analyze.js?v=180"></script>
+<script src="js/whatif.js?v=180"></script>
+<script src="js/mslearn.js?v=180"></script>
+<script src="js/gapcheck.js?v=180"></script>
+<script src="js/exclusions.js?v=180"></script>
+<script src="js/validator.js?v=180"></script>
+<script src="js/whatifeval.js?v=180"></script>
+<script src="js/locations.js?v=180"></script>
+<script src="js/audit.js?v=180"></script>
+<script src="js/changelog.js?v=180"></script>
+<script src="js/baselineData.js?v=180"></script>
+<script src="js/baselineJoeyData.js?v=180"></script>
+<script src="js/baseline.js?v=180"></script>
+<script src="js/groupTemplates.js?v=180"></script>
+<script src="js/assign.js?v=180"></script>
+<script src="js/cagroups.js?v=180"></script>
+<script src="js/import.js?v=180"></script>
+<script src="js/export.js?v=180"></script>
+<script src="js/demo.js?v=180"></script>
+<script src="js/app.js?v=180"></script>
 </body>
 </html>

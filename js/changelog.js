@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 180, date: "2026-07-22", title: "One file to rebrand a fork",
+    items: [
+      { kind: "new", tool: "All tools", text: "js/branding.js holds everything identity-shaped — product name, organisation, logos, favicon, host, footer and optional colour overrides — and nothing else hard-codes them any more. Fork the repo, edit that one object, drop your own mark in assets/, and the header, sign-in screen, page title, footer and the credit line at the bottom of every Markdown export follow. index.html still carries this repo's values as plain markup, so the page reads correctly before scripts run. Exports stay neutral by design: they carry the customer's tenant branding, never the tool's." },
+    ],
+  },
+  {
     build: 179, date: "2026-07-22", title: "Make dynamic: a create that was not a create",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "⟳ Make dynamic could report success while doing damage. Group creation reuses a group of the same name if it finds one, and the directory is eventually consistent — so straight after the rename the lookup still returned the OLD group and handed back its id. The add and remove steps then ran against the same id, which stripped the group from every policy it was assigned to instead of replacing it. Creation is now forced (no name reuse) and, as a second guard, the run aborts and rolls the rename back if the new group ever comes back with the id of the old one — before any policy is touched. The change report now prints both ids. If you ran this on build 178 and the two ids in the report are identical, the group's policy assignments were removed: re-add it with Assign → ADD to EXCLUDE." },

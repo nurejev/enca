@@ -298,7 +298,7 @@ const Audit = (() => {
     };
   }
   function fromExport(obj) {
-    if (!obj || typeof obj !== "object") throw new Error("That file isn't an ENCA audit export.");
+    if (!obj || typeof obj !== "object") throw new Error(`That file isn't a ${BRANDING.name} audit export.`);
     if (obj.schema !== EXPORT_SCHEMA && !EXPORT_SCHEMA_LEGACY.includes(obj.schema)) throw new Error(`Unexpected format "${obj.schema || "unknown"}" — expected ${EXPORT_SCHEMA}.`);
     if (!Array.isArray(obj.rows)) throw new Error("The export has no rows.");
     return obj;
