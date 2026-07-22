@@ -245,7 +245,7 @@
     if (helpTocBuilt) return;
     const secs = [...document.querySelectorAll("#screen-help .help-sec > h4")];
     secs.forEach((h, i) => { h.id = h.id || `help-sec-${i}`; });
-    $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}">${h.textContent.replace(/\s+(BETA|writes to tenant)\b/gi, "").trim()}</a>`).join("");
+    $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}">${h.textContent.replace(/\s+(BETA|NEW|writes to tenant)\b/gi, "").trim()}</a>`).join("");
     // Scroll-spy: highlight the chip for the section currently in view, and keep
     // that chip scrolled into view within the sticky ToC so it stays reachable.
     const links = new Map([...$("helpToc").querySelectorAll("a")].map((a) => [a.getAttribute("href").slice(1), a]));
