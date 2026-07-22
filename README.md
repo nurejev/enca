@@ -155,14 +155,16 @@ Requested **on demand** (incremental consent) only when a tool needs them:
 | Scope | Tool |
 |---|---|
 | `Agreement.Read.All` | Backup — terms-of-use agreements and their PDFs |
-| `Policy.ReadWrite.ConditionalAccess` | Assign groups, Set Policy state, Import, MS Learn *Apply in tenant* |
+| `Policy.ReadWrite.ConditionalAccess` | Assign groups, Set Policy state, Import, Named locations (create / edit / delete), MS Learn *Apply in tenant* |
 | `Application.Read.All` | Import — required by Graph to create policies with app conditions |
 | `Application.ReadWrite.All` | MS Learn *Apply in tenant* — create service principals for Microsoft apps a fixed policy must reference |
 | `Policy.ReadWrite.AuthenticationMethod` | Import — create authentication strengths |
 | `Group.ReadWrite.All` | Assign groups — create missing persona groups |
 | `RoleManagement.ReadWrite.Directory` | Assign groups — create those groups as role-assignable |
 
-The signed-in user needs a reader role (Security Reader / Global Reader) for the read-only tools, and a role that can edit Conditional Access for the three writing tools. The permission overview on the tools home page shows the live status of each scope in the current session.
+The signed-in user needs a reader role (Security Reader / Global Reader) for the read-only tools, and a role that can edit Conditional Access — **Conditional Access Administrator** or **Security Administrator** — for the writing tools. The permission overview on the tools home page shows the live status of each scope in the current session.
+
+No extra app-registration permission is needed for Named locations: Graph asks for `Policy.Read.All` **and** `Policy.ReadWrite.ConditionalAccess`, both of which are already in the list above.
 
 ## Security
 

@@ -565,7 +565,7 @@
     { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
     { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
-    { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies", tools: "CA groups (assign), Set Policy state, Import, MS Learn apply", onDemand: true },
+    { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies, manage named locations", tools: "CA groups (assign), Set Policy state, Import, Named locations, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
     { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
