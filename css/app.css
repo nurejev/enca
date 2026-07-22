@@ -45,6 +45,9 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .toolnav-btn.home:hover{background:var(--soft);border-color:var(--green);color:var(--green)}
 .toolnav-btn.home.active{background:var(--green);border-color:var(--green);color:#fff}
 :root[data-theme="dark"] .toolnav-btn.home.active{color:#0b120e}
+/* header "Tools" button — same house, sized to sit next to the label */
+.btn.home-btn{display:inline-flex;align-items:center;gap:7px}
+.btn.home-btn svg{width:16px;height:16px;flex:none}
 .toolnav-btn.add{font-size:15px;padding:5px 11px;color:var(--green)}
 /* an open tab = label + close, sharing a pill */
 .toolnav-tab{flex:none;display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--soft)}

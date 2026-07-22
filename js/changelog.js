@@ -19,9 +19,9 @@
 // ======================================================================
 const CHANGELOG = [
   {
-    build: 167, date: "2026-07-21", title: "A clearer home button",
+    build: 168, date: "2026-07-21", title: "A clearer home button",
     items: [
-      { kind: "improved", tool: "All tools", text: "The home button in the tab bar is a proper house icon in a button, bigger and easier to hit, and it highlights when you are on the tools page." },
+      { kind: "improved", tool: "All tools", text: "Both home controls — the icon in the tab bar and the Tools button in the header — now use a drawn house icon instead of a glyph, bigger and easier to hit, and the tab-bar one highlights when you are on the tools page." },
     ],
   },
   {
