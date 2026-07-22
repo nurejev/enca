@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=164">
+<link rel="stylesheet" href="css/app.css?v=165">
 </head>
 <body>
 
@@ -610,7 +610,10 @@
       </div>
       <div class="tb-actions">
         <button class="btn" id="auRescan" style="display:none" title="Re-read the audit log">⟳ Rescan</button>
+        <button class="btn" id="auCompare" title="Load a snapshot exported earlier and see what has changed since">⤒ Compare…</button>
+        <input type="file" id="auFile" accept="application/json,.json" style="display:none">
         <button class="btn" id="auMd">Export MD</button>
+        <button class="btn lemon" id="auJson" title="Save this read as JSON so you can compare against it later">⤓ Export JSON</button>
       </div>
     </div>
     <div id="auBody" style="margin-top:14px"></div>
@@ -1149,31 +1152,31 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=164"></script>
-<script src="js/authConfig.js?v=164"></script>
-<script src="js/labels.js?v=164"></script>
-<script src="js/graph.js?v=164"></script>
-<script src="js/model.js?v=164"></script>
-<script src="js/render.js?v=164"></script>
-<script src="js/analyze.js?v=164"></script>
-<script src="js/whatif.js?v=164"></script>
-<script src="js/mslearn.js?v=164"></script>
-<script src="js/gapcheck.js?v=164"></script>
-<script src="js/exclusions.js?v=164"></script>
-<script src="js/validator.js?v=164"></script>
-<script src="js/whatifeval.js?v=164"></script>
-<script src="js/locations.js?v=164"></script>
-<script src="js/audit.js?v=164"></script>
-<script src="js/changelog.js?v=164"></script>
-<script src="js/baselineData.js?v=164"></script>
-<script src="js/baselineJoeyData.js?v=164"></script>
-<script src="js/baseline.js?v=164"></script>
-<script src="js/groupTemplates.js?v=164"></script>
-<script src="js/assign.js?v=164"></script>
-<script src="js/cagroups.js?v=164"></script>
-<script src="js/import.js?v=164"></script>
-<script src="js/export.js?v=164"></script>
-<script src="js/demo.js?v=164"></script>
-<script src="js/app.js?v=164"></script>
+<script src="js/version.js?v=165"></script>
+<script src="js/authConfig.js?v=165"></script>
+<script src="js/labels.js?v=165"></script>
+<script src="js/graph.js?v=165"></script>
+<script src="js/model.js?v=165"></script>
+<script src="js/render.js?v=165"></script>
+<script src="js/analyze.js?v=165"></script>
+<script src="js/whatif.js?v=165"></script>
+<script src="js/mslearn.js?v=165"></script>
+<script src="js/gapcheck.js?v=165"></script>
+<script src="js/exclusions.js?v=165"></script>
+<script src="js/validator.js?v=165"></script>
+<script src="js/whatifeval.js?v=165"></script>
+<script src="js/locations.js?v=165"></script>
+<script src="js/audit.js?v=165"></script>
+<script src="js/changelog.js?v=165"></script>
+<script src="js/baselineData.js?v=165"></script>
+<script src="js/baselineJoeyData.js?v=165"></script>
+<script src="js/baseline.js?v=165"></script>
+<script src="js/groupTemplates.js?v=165"></script>
+<script src="js/assign.js?v=165"></script>
+<script src="js/cagroups.js?v=165"></script>
+<script src="js/import.js?v=165"></script>
+<script src="js/export.js?v=165"></script>
+<script src="js/demo.js?v=165"></script>
+<script src="js/app.js?v=165"></script>
 </body>
 </html>

@@ -2847,6 +2847,7 @@
   // ---------- Change audit (directory audit log) ----------
   const AU_READ = ["AuditLog.Read.All"];
   let auRes = null, auFilter = "all", auQuery = "", auDays = 7, auWatch = null, auBusy = false, auView = "summary";
+  let auSnap = null;   // { meta, cmp } once a previous export is loaded for comparison
   const auOpen = new Set();
   const auBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted">Reading the audit log… this keeps running if you switch tabs.</p></div>';
 
@@ -2913,6 +2914,41 @@
     const b = e.target.closest("[data-auview]"); if (!b) return;
     auView = b.dataset.auview; auOpen.clear(); renderAudit();
   });
+
+  // ---- snapshots: export now, compare later ----
+  // Nothing is stored server-side and Entra only keeps ~30 days, so an export
+  // is the only way to hold history. A later read can be diffed against it.
+  $("auJson").addEventListener("click", () => {
+    if (!auRes) { toast("Read the audit log first"); return; }
+    const payload = Audit.toExport(auRes, {
+      tenant: tenantName, days: auDays,
+      build: (typeof APP_BUILD !== "undefined" ? APP_BUILD.label : ""),
+    });
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadText(`CA-ChangeAudit-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}-${stamp}`,
+      "json", "application/json", JSON.stringify(payload, null, 2));
+    toast(`Snapshot of <span>${auRes.total}</span> changes downloaded — compare against it later`);
+  });
+  $("auCompare").addEventListener("click", () => $("auFile").click());
+  $("auFile").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";                       // let the same file be picked again
+    if (!f) return;
+    if (!auRes) { toast("Read the audit log first, then compare"); return; }
+    try {
+      const snap = Audit.fromExport(JSON.parse(await f.text()));
+      auSnap = { meta: snap, cmp: Audit.compare(auRes.rows, snap.rows) };
+      auFilter = "all"; auOpen.clear();
+      renderAudit();
+      const c = auSnap.cmp;
+      toast(`Compared with ${esc(String(snap.generated).slice(0, 10))} — <span>${c.newSince.length}</span> new since then`);
+    } catch (err) {
+      console.error("Audit compare failed:", err);
+      toast(`Could not load that snapshot: <span>${esc(err.message || err)}</span>`);
+    }
+  });
+  function auClearSnapshot() { auSnap = null; renderAudit(); }
+  $("auHead").addEventListener("click", (e) => { if (e.target.closest("[data-auclearsnap]")) auClearSnapshot(); });
   $("auChips").addEventListener("click", (e) => { const b = e.target.closest("[data-auf]"); if (!b) return; auFilter = b.dataset.auf; renderAudit(); });
   $("auSearch").addEventListener("input", (e) => { auQuery = e.target.value; renderAudit(); });
 
@@ -2923,6 +2959,22 @@
     return `${Math.round(d / 24)} d ago`;
   };
   const auVal = (v) => Array.isArray(v) ? v.join(", ") : (v && typeof v === "object" ? JSON.stringify(v) : String(v ?? ""));
+  // Records the snapshot has that Entra no longer returns — they fell out of
+  // retention, so the snapshot is now the only copy.
+  function auAgedHtml() {
+    if (!auSnap || !auSnap.cmp.aged.length) return "";
+    const a = auSnap.cmp.aged;
+    return `<div class="list-card au-card" style="margin-top:12px">
+      <div class="au-h" data-auid="aged"><span class="au-act delete">aged out</span>
+        <b>${a.length} change${a.length === 1 ? "" : "s"} in the snapshot are no longer in the audit log</b>
+        <span class="au-when">retention</span></div>
+      <div class="au-sub">Entra has dropped these past its retention window — your export is the only record now. Keep exporting to build history.</div>
+      ${auOpen.has("aged") ? `<ul class="wi-list dim" style="margin-top:8px">${a.slice(0, 60).map((x) => `<li>
+          <div class="wi-pn">${esc(x.action)} · ${esc(x.target)}</div>
+          <div class="wi-why">${esc(new Date(x.when).toLocaleString())} · by ${esc(x.actor && x.actor.name || "?")}</div></li>`).join("")}</ul>
+        ${a.length > 60 ? `<p class="mini muted">+${a.length - 60} more in the export file.</p>` : ""}` : ""}
+    </div>`;
+  }
 
   function renderAudit() {
     const r = auRes; if (!r) return;
@@ -2937,14 +2989,19 @@
         <div style="font-size:26px;font-weight:700">${r.total}<span class="mini" style="font-weight:400"> changes</span></div>
         <div class="mini">${Object.entries(r.byAction).map(([k, n]) => `${n} ${k}`).join(" · ") || "—"}</div>
         ${r.failures ? `<div class="mini" style="color:var(--off)">${r.failures} failed</div>` : ""}
-      </div></div>`;
+      </div></div>
+      ${auSnap ? `<div class="va-targetbar">📌 Compared with the snapshot from <b>${esc(String(auSnap.meta.generated).slice(0, 16).replace("T", " "))}</b>
+        (${auSnap.meta.count} changes${auSnap.meta.windowDays ? `, ${auSnap.meta.windowDays}-day window` : ""}) —
+        <b>${auSnap.cmp.newSince.length} new</b> since then, ${auSnap.cmp.common} already seen${auSnap.cmp.aged.length ? `, ${auSnap.cmp.aged.length} aged out of the log` : ""}.
+        <button class="fchip" data-auclearsnap="1">✕ Clear</button></div>` : ""}`;
 
     const chips = [["all", `All (${r.total})`],
+      ...(auSnap ? [["new", `✨ New since snapshot (${auSnap.cmp.newSince.length})`]] : []),
       ...Object.entries(r.byKind).map(([k, n]) => [k, `${K[k] ? K[k].icon : ""} ${K[k] ? K[k].label : k} (${n})`])];
     $("auChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${auFilter === k ? "active" : ""}" data-auf="${esc(k)}">${esc(l)}</button>`).join("");
 
     const q = auQuery.toLowerCase();
-    const rows = r.rows.filter((x) => (auFilter === "all" || x.kind === auFilter)
+    const rows = r.rows.filter((x) => (auFilter === "all" || (auFilter === "new" ? auSnap && auSnap.cmp.newIds.has(x.id) : x.kind === auFilter))
       && (!q || `${x.target} ${x.actor.name} ${x.activity} ${x.changes.map((c) => c.path).join(" ")}`.toLowerCase().includes(q)));
     if (!rows.length) { $("auBody").innerHTML = '<p class="mini" style="padding:20px">No change matches the current filter.</p>'; return; }
 
@@ -2974,7 +3031,8 @@
             <td class="mini">${esc(auAgo(s.last))}</td>
           </tr>${detail}`;
         }).join("")}</tbody></table></div>
-        <p class="mini muted" style="margin-top:8px">${sum.length} resource${sum.length === 1 ? "" : "s"} touched across ${rows.length} change${rows.length === 1 ? "" : "s"} — click a row for the individual events.</p>`;
+        <p class="mini muted" style="margin-top:8px">${sum.length} resource${sum.length === 1 ? "" : "s"} touched across ${rows.length} change${rows.length === 1 ? "" : "s"} — click a row for the individual events.</p>
+        ${auAgedHtml()}`;
       return;
     }
 
@@ -2993,8 +3051,10 @@
             : `<span class="au-to">${esc(auVal(c.value ?? c.to))}</span>`}
         </div>`).join("")}${x.changes.length > 60 ? `<div class="mini muted">+${x.changes.length - 60} more</div>` : ""}</div>`
         : '<div class="au-diff mini muted">No field-level detail recorded for this entry.</div>';
-      return `<div class="list-card au-card">
+      const isNew = auSnap && auSnap.cmp.newIds.has(x.id);
+      return `<div class="list-card au-card${isNew ? " au-new" : ""}">
         <div class="au-h" data-auid="${esc(x.id)}">
+          ${isNew ? '<span class="au-act add" title="Not in the loaded snapshot">new</span>' : ""}
           <span class="au-act ${x.action}">${x.action}</span>
           <span>${K[x.kind] ? K[x.kind].icon : ""}</span>
           <b>${esc(x.target)}</b>
@@ -3003,12 +3063,12 @@
           <span class="au-when">${esc(auAgo(x.when))}</span>
         </div>
         <div class="au-sub">${esc(x.activity)} · by <b>${esc(x.actor.name)}</b>${x.actor.upn ? ` (${esc(x.actor.upn)})` : ""}${x.actor.ip ? ` from ${esc(x.actor.ip)}` : ""} · ${esc(new Date(x.when).toLocaleString())}</div>
-        ${x.kind === "membership" ? `<div class="au-sub au-why">${x.action === "add" ? "⚠ " : ""}<b>${esc(x.member)}</b> ${x.action === "add" ? "gained" : "lost"} whatever this group grants —
+        ${x.kind === "membership" ? `<div class="au-sub au-why">${x.action === "add" ? "⚠ " : ""}<b>${esc(x.member || "")}</b> ${x.action === "add" ? "gained" : "lost"} whatever this group grants —
           ${x.usedAs === "exclude" ? "it is an <b>exclusion</b> group" : x.usedAs === "include" ? "it is an <b>include</b> group" : "it is used as <b>include and exclude</b>"}
           on ${x.usedBy.length} polic${x.usedBy.length === 1 ? "y" : "ies"}: ${esc(x.usedBy.slice(0, 4).join(", "))}${x.usedBy.length > 4 ? ` +${x.usedBy.length - 4} more` : ""}</div>` : ""}
         ${open ? diff : ""}
       </div>`;
-    }).join("");
+    }).join("") + auAgedHtml();
   }
 
   $("auMd").addEventListener("click", () => {

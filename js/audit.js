@@ -274,6 +274,43 @@ const Audit = (() => {
     })).sort((a, b) => b.total - a.total || String(b.last).localeCompare(String(a.last)));
   }
 
+  // ---- snapshots ---------------------------------------------------------
+  // The audit log only keeps ~30 days, and nothing here is stored server-side,
+  // so the way to build real history is to export a snapshot now and compare a
+  // later run against it. Records carry a stable id, which is what we match on.
+  const EXPORT_SCHEMA = "cadoc-audit/1";
+
+  function toExport(res, meta = {}) {
+    return {
+      schema: EXPORT_SCHEMA,
+      generated: new Date().toISOString(),
+      tenant: meta.tenant || "",
+      windowDays: meta.days || null,
+      build: meta.build || "",
+      from: res.from || null,
+      to: res.to || null,
+      count: res.rows.length,
+      rows: res.rows,
+    };
+  }
+  function fromExport(obj) {
+    if (!obj || typeof obj !== "object") throw new Error("That file isn't a CA Doc audit export.");
+    if (obj.schema !== EXPORT_SCHEMA) throw new Error(`Unexpected format "${obj.schema || "unknown"}" — expected ${EXPORT_SCHEMA}.`);
+    if (!Array.isArray(obj.rows)) throw new Error("The export has no rows.");
+    return obj;
+  }
+  // What is in the current read that the snapshot didn't have, and what has
+  // since aged out of the log (present in the snapshot, gone from Entra).
+  function compare(currentRows, snapRows) {
+    const cur = new Map((currentRows || []).map((r) => [r.id, r]));
+    const snap = new Map((snapRows || []).map((r) => [r.id, r]));
+    const newSince = (currentRows || []).filter((r) => !snap.has(r.id));
+    const aged = (snapRows || []).filter((r) => !cur.has(r.id))
+      .sort((a, b) => String(b.when).localeCompare(String(a.when)));
+    return { newSince, aged, common: (currentRows || []).length - newSince.length,
+      newIds: new Set(newSince.map((r) => r.id)) };
+  }
+
   // Graph filter for the fetch: date window, optionally narrowed to policy
   // changes (the category every CA resource change lands in).
   function query(days, category) {
@@ -286,6 +323,7 @@ const Audit = (() => {
   const queryPolicy = (days) => query(days, "Policy");
   const queryMembership = (days) => query(days, "GroupManagement");
 
-  return { KIND, build, summarize, parse, parseMembership, watchedGroups, isMembershipActivity,
+  return { KIND, EXPORT_SCHEMA, build, summarize, toExport, fromExport, compare,
+    parse, parseMembership, watchedGroups, isMembershipActivity,
     diff, decode, query, queryPolicy, queryMembership, kindOf, actionOf, actorOf };
 })();
