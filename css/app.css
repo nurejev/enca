@@ -38,7 +38,13 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .toolnav-btn{flex:none;border:1px solid transparent;background:none;color:var(--muted);font-weight:600;font-size:12.5px;
   padding:6px 12px;border-radius:8px;white-space:nowrap;cursor:pointer;transition:.12s}
 .toolnav-btn:hover{background:var(--soft);color:var(--ink)}
-.toolnav-btn.home{font-size:15px;padding:6px 11px}
+/* home reads as a real button, not a stray glyph */
+.toolnav-btn.home{padding:6px 11px;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--muted)}
+.toolnav-btn.home svg{width:19px;height:19px;display:block}
+.toolnav-btn.home:hover{background:var(--soft);border-color:var(--green);color:var(--green)}
+.toolnav-btn.home.active{background:var(--green);border-color:var(--green);color:#fff}
+:root[data-theme="dark"] .toolnav-btn.home.active{color:#0b120e}
 .toolnav-btn.add{font-size:15px;padding:5px 11px;color:var(--green)}
 /* an open tab = label + close, sharing a pill */
 .toolnav-tab{flex:none;display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--soft)}

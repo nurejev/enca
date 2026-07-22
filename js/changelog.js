@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 167, date: "2026-07-21", title: "A clearer home button",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The home button in the tab bar is a proper house icon in a button, bigger and easier to hit, and it highlights when you are on the tools page." },
+    ],
+  },
+  {
     build: 166, date: "2026-07-21", title: "The selection bar sits where it should",
     items: [
       { kind: "fixed", tool: "List Policies", text: "The green selection bar overlapped the toolbar whenever the toolbar wrapped to a second row — searching, or a narrower window, was enough to trigger it. Its position is now measured from the toolbar's real height, and it wraps rather than clipping its own buttons." },

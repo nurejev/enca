@@ -807,7 +807,10 @@
   const idForCrumb = (name) => (TOOL_TABS.find((x) => x[1] === name) || [])[0] || null;
 
   function renderTabs() {
-    const home = `<button class="toolnav-btn home ${activeTab ? "" : "active"}" data-navhome title="All tools">⌂</button>`;
+    const home = `<button class="toolnav-btn home ${activeTab ? "" : "active"}" data-navhome title="All tools" aria-label="All tools">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 10.6 12 3.2l9 7.4"/><path d="M5.2 9.4V20.4h13.6V9.4"/><path d="M9.6 20.4v-6.2h4.8v6.2"/>
+      </svg></button>`;
     const tabs = openTabs.map((id) =>
       `<span class="toolnav-tab ${id === activeTab ? "active" : ""}">
         <button class="toolnav-btn" data-nav="${id}">${esc(labelFor(id))}</button>
