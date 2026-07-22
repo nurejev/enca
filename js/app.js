@@ -371,6 +371,7 @@
     setView(viewMode);
     updateSelbar();
     syncCollapseAllBtn();
+    syncHkBtn();
   }
   function groupIds(key) {
     return visible().filter(p => String(Render.caGroup(p.name).key) === String(key)).map(p => p.id);
@@ -1011,11 +1012,60 @@
     } finally { $("delGo").disabled = false; }
   });
 
+  // ---------- housekeeping: delete superseded (Off) policy versions ----------
+  // "Match & replace" deliberately leaves the old version behind, switched Off,
+  // as the rollback. Nothing ever cleans those up, so a tenant that has been
+  // through a few baseline upgrades accumulates dead policies. This lists them
+  // with what replaced them and hands the chosen ones to the normal delete flow,
+  // guards and JSON backup included.
+  function hkFind() { return Importer.supersededOff(policies); }
+  function syncHkBtn() {
+    const n = hkFind().length;
+    const b = $("hkBtn"); if (!b) return;
+    b.style.display = (n && viewMode !== "analyze") ? "" : "none";
+    b.textContent = `🧹 Housekeeping (${n})`;
+    b.title = `${n} old policy version${n === 1 ? "" : "s"} left switched Off by a match & replace import — review and clean up`;
+  }
+  function openHousekeeping() {
+    const rows = hkFind();
+    $("hkDesc").textContent = `${rows.length} superseded ${rows.length === 1 ? "policy" : "policies"} in ${tenantName || "this tenant"}.`;
+    $("hkList").innerHTML = `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">`
+      + rows.map((r, i) => `<li><label class="chk" style="margin:0">
+          <input type="checkbox" data-hk="${i}" checked>
+          ${Render.stateChip(r.policy.state)} ${esc(r.policy.name)}
+          <span class="mini">superseded by <b>${esc(r.newer.name)}</b> ${Render.stateChip(r.newer.state)}</span>
+        </label></li>`).join("") + "</ul>";
+    syncHkGo();
+    $("hkModal").classList.add("open");
+  }
+  function syncHkGo() {
+    const n = document.querySelectorAll("[data-hk]:checked").length;
+    $("hkGo").disabled = n === 0;
+    $("hkGo").textContent = n ? `Review & delete ${n}` : "Review & delete";
+  }
+  $("hkBtn").addEventListener("click", openHousekeeping);
+  $("hkCancel").addEventListener("click", () => $("hkModal").classList.remove("open"));
+  $("hkList").addEventListener("change", (e) => { if (e.target.matches("[data-hk]")) syncHkGo(); });
+  $("hkGo").addEventListener("click", () => {
+    const rows = hkFind();
+    const ids = [...document.querySelectorAll("[data-hk]:checked")].map(cb => rows[+cb.dataset.hk]?.policy.id).filter(Boolean);
+    if (!ids.length) return;
+    $("hkModal").classList.remove("open");
+    // Hand over to the delete flow — typed DELETE, backup download, the lot.
+    selected = new Set(ids);
+    refreshViews();
+    openDeleteModal();
+  });
+
   // ---------- import tool (BETA) ----------
   let imBundle = null, imPlan = null, imFileName = "", imMode = "deploy";
+  // Workload ID licence state for this tenant: { known, licensed, sku }. Read
+  // once per file load — a workload-identity policy cannot be created without it.
+  let imLic = { known: false, licensed: false, sku: null };
+  const imWidBlocked = (p) => p.wid && imLic.known && !imLic.licensed;
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
-    imBundle = null; imPlan = null; imMode = "deploy";
+    imBundle = null; imPlan = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = "Select a CA Doc backup zip, or pick the extracted backup folder — both use the same structure.";
     $("importModal").classList.add("open");
@@ -1039,6 +1089,10 @@
     imPlan = Importer.plan(bundle, policies.map(p => p.raw));
     const dep = ["groups", "namedLocations", "authStrengths", "authContexts", "termsOfUse"].map(k => `${bundle[k].length} ${k}`).join(", ");
     $("imDesc").textContent = `${fileName}: ${bundle.policies.length} policies, dependencies: ${dep}.`;
+    // Only worth a Graph call when the file actually contains one.
+    imLic = imPlan.some(p => p.wid)
+      ? (isDemo ? { known: true, licensed: false, sku: null } : await Importer.workloadIdLicence())
+      : { known: false, licensed: false, sku: null };
     imRenderList();
     $("imPick").style.display = "none";
   }
@@ -1046,9 +1100,10 @@
   // Rebuilds the plan list — called on load and whenever the assignment mode
   // toggles, since the per-row hint depends on the mode.
   function imRenderList() {
-    const importable = imPlan.filter(p => !p.exists);
+    const importable = imPlan.filter(p => !p.exists && !imWidBlocked(p));
     const nUpg = imPlan.filter(p => p.upgrade).length;
     const replace = imMode === "replace";
+    const nWid = imPlan.filter(p => p.wid && !p.exists).length;
 
     // Persona filter: how many importable policies each persona has, so you can
     // bring in just one persona's set from a whole-tenant backup.
@@ -1060,6 +1115,7 @@
 
     const rowHint = (p) => {
       if (p.exists) return esc(p.reason);
+      if (imWidBlocked(p)) return `<span style="color:var(--off)">workload identity — this tenant has no Microsoft Entra Workload ID licence, so Graph will not create it</span>`;
       if (p.upgrade) return replace
         ? `♻️ replaces the current v${esc(p.existing.ver)} — assignment + state kept (new exclusions merged), old policy switched Off`
         : `→ ${esc(p.personaGroup || "")} · <span style="color:var(--muted)">current v${esc(p.existing.ver)} stays as-is</span>`;
@@ -1074,6 +1130,12 @@
         <label class="im-mode-opt${replace ? " on" : ""}"><input type="radio" name="imMode" value="replace" ${replace ? "checked" : ""}>
           <b>♻️ Match &amp; replace</b><span class="mini">A policy already in this tenant keeps its current assignment and state (plus any new exclusion groups this version adds); its old version is switched Off.${nUpg ? ` ${nUpg} match${nUpg === 1 ? "es" : "es"} here.` : " No matches in this file."}</span></label>
       </div>
+      ${nWid && imLic.known && !imLic.licensed ? `<div class="danger-note" style="margin:10px 0">
+        🔒 <b>${nWid} workload-identity ${nWid === 1 ? "policy is" : "policies are"} held back.</b> They target service principals, which needs the separately purchased
+        <b>Microsoft Entra Workload ID</b> licence — not included in Entra ID P1/P2 — and this tenant has none, so Graph would reject them with a bare 400.
+        Buy or trial the licence, then re-import; nothing else has to be redone.</div>` : ""}
+      ${nWid && imLic.known && imLic.licensed ? `<p class="mini" style="margin:8px 0">✅ Workload ID licence found${imLic.sku ? ` (<b>${esc(imLic.sku)}</b>)` : ""} — the ${nWid} workload-identity ${nWid === 1 ? "policy" : "policies"} can be imported.</p>` : ""}
+      ${nWid && !imLic.known ? `<p class="mini" style="margin:8px 0">⚠ Could not read the tenant's licences, so the ${nWid} workload-identity ${nWid === 1 ? "policy is" : "policies are"} attempted anyway — a 400 on those means the Workload ID licence is missing.</p>` : ""}
       <p class="mini" style="margin:8px 0">Dependencies are imported first (create-if-missing). Policies always land in state <b>Off</b>, and one with the same CA number + version is skipped.${isDemo ? " <b>Demo — simulated.</b>" : ""}</p>
       <p class="mini" style="margin:6px 0 4px"><b>Import only:</b> pick a persona to select just its policies, or use All / None.</p>
       <div class="persona-row" style="margin-bottom:10px">
@@ -1083,8 +1145,8 @@
       </div>
       <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
       imPlan.map((p, i) => `<li data-imrow="${i}" data-imkey="${esc(imPersonaKey(p))}"><label class="chk" style="margin:0">
-        <input type="checkbox" data-imp="${i}" ${p.exists ? "disabled" : "checked"}>
-        ${p.exists ? '<span class="tag">skip</span>' : p.upgrade ? '<span class="tag grant">update</span>' : p.asIs ? '<span class="tag new">as-is</span>' : `<span class="tag grant">import</span>`}
+        <input type="checkbox" data-imp="${i}" ${p.exists || imWidBlocked(p) ? "disabled" : "checked"}>
+        ${p.exists ? '<span class="tag">skip</span>' : imWidBlocked(p) ? '<span class="tag block" title="Conditional Access for workload identities requires the Microsoft Entra Workload ID licence">🔒 no Workload ID licence</span>' : p.upgrade ? '<span class="tag grant">update</span>' : p.asIs ? '<span class="tag new">as-is</span>' : `<span class="tag grant">import</span>`}
         ${p.needsTou ? '<span class="tag block" title="Grants a Terms of use — create the ToU in the portal first, then re-import; it imports now without that control">📜 needs ToU</span>' : ""}
         ${esc(p.name)}
         <span class="mini">${rowHint(p)}${p.needsTou && !p.exists ? ' · <span style="color:var(--off)">imports without the Terms of use until you create it</span>' : ""}</span>
@@ -1166,7 +1228,7 @@
       }
       // Change report — shown on screen and downloadable. A failed import is
       // the case you most need to read, so it should not require opening a file.
-      const md = Importer.buildReport({ tenantName, fileName: imFileName, depLog, planItems: imPlan, results: res.results, warnings: res.warnings, mode: imMode });
+      const md = Importer.buildReport({ tenantName, fileName: imFileName, depLog, planItems: imPlan, results: res.results, warnings: res.warnings, mode: imMode, licence: imLic });
       const failed = res.results.filter(r => !r.ok).length;
       $("importModal").classList.remove("open");
       showReport("📥 Import report", "CA-Import-Report", md);

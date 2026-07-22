@@ -44,6 +44,31 @@ const Importer = (() => {
   const isWorkloadIdentity = (raw) =>
     ((raw.conditions?.clientApplications?.includeServicePrincipals) || []).length > 0;
 
+  // Conditional Access for workload identities is a separately purchased SKU
+  // (Microsoft Entra Workload ID — NOT part of Entra ID P1/P2). Without it Graph
+  // refuses to create or modify a policy scoped to service principals, so the
+  // CA900-range policies must be left out of the import rather than attempted.
+  // /subscribedSkus is covered by the Directory.Read.All we already hold.
+  // Returns { known, licensed, sku } — `known:false` means the read failed, in
+  // which case we warn but do not block.
+  const WID_SKU = /workload[ _-]?id/i;   // Entra_Workload_IDP1, WORKLOAD_IDENTITY_P1/P2, …
+  async function workloadIdLicence() {
+    try {
+      const skus = await Graph.ggetAll("/subscribedSkus");
+      for (const s of skus) {
+        // A cancelled subscription still shows up — only a live one counts.
+        if (["Suspended", "Deleted", "LockedOut"].includes(s.capabilityStatus)) continue;
+        if (WID_SKU.test(s.skuPartNumber || "")) return { known: true, licensed: true, sku: s.skuPartNumber };
+        const sp = (s.servicePlans || []).find(x => WID_SKU.test(x.servicePlanName || "") && x.provisioningStatus === "Success");
+        if (sp) return { known: true, licensed: true, sku: `${s.skuPartNumber} / ${sp.servicePlanName}` };
+      }
+      return { known: true, licensed: false, sku: null };
+    } catch (e) {
+      console.warn("Workload ID licence check failed:", e.message);
+      return { known: false, licensed: false, sku: null, error: e.message };
+    }
+  }
+
   // Every application a policy references, included or excluded. A CA policy
   // can only name an app that has a service principal in THIS tenant — if it
   // hasn't, Graph rejects the whole create with a bare 400 BadRequest.
@@ -166,6 +191,8 @@ const Importer = (() => {
       const needsTou = touReferences(raw);
       return {
         raw, name: raw.displayName, num, ver, asIs,
+        // workload-identity policy (CA900 range): needs the Workload ID SKU
+        wid: isWorkloadIdentity(raw),
         persona, personaGroup: persona ? PERSONA_GROUPS[persona] : null,
         exists, upgrade,
         existing: upgrade ? { id: other.id, name: other.name, ver: other.ver, raw: other.raw } : null,
@@ -176,6 +203,38 @@ const Importer = (() => {
           : !persona ? "no persona detected — include assignment kept as-is" : null,
       };
     });
+  }
+
+  // ---------- housekeeping: policies left behind by a "match & replace" ----------
+  // Compare two dotted version strings ("3.10" > "3.9").
+  function cmpVer(a, b) {
+    const A = String(a).split("."), B = String(b).split(".");
+    for (let i = 0; i < Math.max(A.length, B.length); i++) {
+      const d = (parseInt(A[i], 10) || 0) - (parseInt(B[i], 10) || 0);
+      if (d) return d;
+    }
+    return 0;
+  }
+  // "Match & replace" leaves the superseded policy in the tenant, switched Off,
+  // on purpose: it is the rollback until the new version is trusted. Once it is,
+  // those Off leftovers are just clutter. A policy counts as superseded when it
+  // is Off and the same CA number also exists at a HIGHER version.
+  // `list` = the app's policy model ({id, name, state}); returns pairs so the
+  // review list can show what replaced what.
+  function supersededOff(list) {
+    const items = (list || []).map((p) => {
+      const { num, ver } = parseCaVersion(p.name);
+      return { p, num, ver };
+    }).filter((x) => x.num != null && x.ver);
+    const out = [];
+    for (const x of items) {
+      if (String(x.p.state || "").toLowerCase() !== "off") continue;
+      const newer = items
+        .filter((y) => y.num === x.num && y.p.id !== x.p.id && cmpVer(y.ver, x.ver) > 0)
+        .sort((a, b) => cmpVer(b.ver, a.ver))[0];
+      if (newer) out.push({ policy: x.p, num: x.num, ver: x.ver, newer: newer.p, newerVer: newer.ver });
+    }
+    return out.sort((a, b) => a.num - b.num || cmpVer(a.ver, b.ver));
   }
 
   // ---------- dependencies: create-if-missing, build old-id → new-id maps ----------
@@ -548,12 +607,15 @@ const Importer = (() => {
   }
 
   // ---------- markdown change report ----------
-  function buildReport({ tenantName, fileName, depLog, planItems, results, warnings, mode }) {
+  function buildReport({ tenantName, fileName, depLog, planItems, results, warnings, mode, licence }) {
     const d = new Date();
     const pad = (n) => String(n).padStart(2, "0");
     const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     const skipped = planItems.filter(p => p.exists);
     const replaced = results.filter(r => r.ok && r.matched);
+    // Workload-identity policies held back because the tenant has no Workload ID SKU
+    const widBlocked = (licence && licence.known && !licence.licensed)
+      ? planItems.filter(p => p.wid && !p.exists) : [];
     const stateLabel = (s) => s === "enabled" ? "On" : s === "enabledForReportingButNotEnforced" ? "Report-only" : "Off";
     const lines = [
       `# Conditional Access import report`,
@@ -580,6 +642,20 @@ const Importer = (() => {
         : `- ✅ **${r.name}** — state set to Off; include assignment → ${r.personaGroup ? `\`${r.personaGroup}\` (persona: ${r.persona})` : "kept as in source"}`)),
       ``,
       ...(skipped.length ? [`## Skipped (already exist by CA number + version)`, ``, ...skipped.map(p => `- ⏭ ${p.name} — ${p.reason}`), ``] : []),
+      ...(widBlocked.length ? [
+        `## 🔒 Not imported — Workload ID licence missing`,
+        ``,
+        `These policies are scoped to **service principals** (workload identities). Conditional Access for workload identities needs the separately purchased **Microsoft Entra Workload ID** licence — it is *not* included in Entra ID P1 or P2 — and without it Graph refuses to create or modify such a policy. They were left out rather than attempted:`,
+        ``,
+        ...widBlocked.map(p => `- 🔒 **${p.name}**`),
+        ``,
+        `Acquire the licence (a 90-day trial is available at **Entra admin center → Identity → Workload identities**), then re-run this import — nothing else needs redoing.`,
+        ``,
+      ] : []),
+      ...(licence && !licence.known ? [
+        `> ⚠ The Workload ID licence could not be read from \`/subscribedSkus\`${licence.error ? ` (${licence.error})` : ""}, so workload-identity policies were attempted anyway. A 400 on a CA900-range policy usually means the licence is absent.`,
+        ``,
+      ] : []),
       ...(results.some(r => !r.ok) ? [`## Failed`, ``, ...results.filter(r => !r.ok).map(r => `- ❌ ${r.name} — ${r.error}`), ``] : []),
       ...((depLog.missingTou || []).length ? [
         `## ⚠ Terms of use to create first (manual step)`,
@@ -600,5 +676,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, personaOf, isEAdmins, touReferences, parseCaVersion, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, personaOf, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();

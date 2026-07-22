@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=169">
+<link rel="stylesheet" href="css/app.css?v=170">
 </head>
 <body>
 
@@ -239,6 +239,7 @@
       <label class="chk selall" id="selAllWrap" title="Select or clear every policy matching the current filter"><input type="checkbox" id="selAllTop"> <span id="selAllLabel">Select all</span></label>
       <div class="tb-actions">
         <button class="btn" id="collapseAllBtn" title="Expand or collapse all persona sections">⊟ Collapse all</button>
+        <button class="btn" id="hkBtn" style="display:none" title="Old policy versions left switched Off by a match &amp; replace import — review and clean up">🧹 Housekeeping</button>
         <button class="btn" id="plFull" style="display:none" title="Open the settings matrix full screen">⤢ Full screen</button>
         <button class="btn" id="refreshBtn" disabled title="Fetch the latest policies from Entra">⟳ Refresh</button>
       </div>
@@ -648,6 +649,7 @@
         <li><b>Select policies</b> (checkboxes) — a green action bar appears: send the selection straight to <b>Documentation</b>, <b>Backup</b>, <b>Assign groups</b>, <b>Set state</b> or <b>Delete</b>.</li>
         <li><b>Per-card quick actions</b> — Documentation, Backup, Assign groups and Policy state, scoped to that one policy.</li>
         <li><b>Apply flow</b> (per persona) — a visual of what actually applies to a persona, including Global policies in scope and honouring exclusions (an excluded persona group drops the policy from the flow).</li>
+        <li><b>🧹 Housekeeping</b> — appears only when there is something to clean: policies that are <b>Off</b> while a <i>higher version of the same CA number</i> also exists, i.e. the old versions a <b>match &amp; replace</b> import left behind as your rollback. It lists each one next to the policy that superseded it; the ones you tick go through the normal delete flow (JSON backup + typed <code>DELETE</code>).</li>
       </ul>
       <p class="help-x">Read-only. Nothing changes until you open a write tool from the action bar.</p>
     </section>
@@ -810,6 +812,7 @@
         <li><b>Assignment mode — 🚀 Deployment groups</b>: new policies are scoped to this tenant’s deploy persona groups (<code>CAD-SEC-U-DG-*</code>). Staged and safe — nothing already in the tenant is touched.</li>
         <li><b>Assignment mode — ♻️ Match &amp; replace</b>: for a policy whose CA number already exists at a different version, the new version keeps the <b>current policy’s assignment and state</b>, merges in any <b>new exclusion groups</b> the update adds (created if missing), and the old version is switched <b>Off</b> — a seamless swap.</li>
         <li><b>Import only</b> — pick a persona to bring in just its policies, or use All / None. A policy with the same CA number <i>and</i> version is skipped.</li>
+        <li><b>🔒 no Workload ID licence</b> — a policy scoped to service principals (the CA900 range) needs the separately purchased <b>Microsoft Entra Workload ID</b> licence, which is <i>not</i> part of Entra ID P1/P2. The importer reads the tenant’s subscriptions first; without the licence those policies are shown greyed out and left out entirely, rather than attempted and rejected by Graph with a bare 400. Buy or trial the licence, then re-import.</li>
         <li><b>📜 needs ToU</b> — a policy granting a Terms of use imports without that control (Terms of use has no create API); the report gives a checklist to create it in the portal, then re-import.</li>
       </ul>
       <p class="help-x">Writes; a change report is shown on screen and downloadable.</p>
@@ -1139,6 +1142,20 @@
   </div>
 </div>
 
+<!-- ============ HOUSEKEEPING (superseded policies) ============ -->
+<div class="modal-bg" id="hkModal">
+  <div class="modal">
+    <h3>🧹 Housekeeping — superseded policies</h3>
+    <p class="mini" id="hkDesc"></p>
+    <p class="mini">A <b>match &amp; replace</b> import switches the version it supersedes <b>Off</b> and leaves it in place — that old policy is your rollback until the new one is trusted. Once it is, these are just clutter. Everything listed is <b>Off</b> and has a higher version of the same CA number in the tenant.</p>
+    <div id="hkList" style="max-height:45vh;overflow:auto;margin-top:12px"></div>
+    <div class="row">
+      <button class="btn" id="hkCancel">Close</button>
+      <button class="btn danger" id="hkGo" disabled>Review &amp; delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ DEPENDENCY SETTINGS OVERLAY ============ -->
 <div class="modal-bg" id="depModal">
   <div class="modal" style="max-width:620px">
@@ -1155,31 +1172,31 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=169"></script>
-<script src="js/authConfig.js?v=169"></script>
-<script src="js/labels.js?v=169"></script>
-<script src="js/graph.js?v=169"></script>
-<script src="js/model.js?v=169"></script>
-<script src="js/render.js?v=169"></script>
-<script src="js/analyze.js?v=169"></script>
-<script src="js/whatif.js?v=169"></script>
-<script src="js/mslearn.js?v=169"></script>
-<script src="js/gapcheck.js?v=169"></script>
-<script src="js/exclusions.js?v=169"></script>
-<script src="js/validator.js?v=169"></script>
-<script src="js/whatifeval.js?v=169"></script>
-<script src="js/locations.js?v=169"></script>
-<script src="js/audit.js?v=169"></script>
-<script src="js/changelog.js?v=169"></script>
-<script src="js/baselineData.js?v=169"></script>
-<script src="js/baselineJoeyData.js?v=169"></script>
-<script src="js/baseline.js?v=169"></script>
-<script src="js/groupTemplates.js?v=169"></script>
-<script src="js/assign.js?v=169"></script>
-<script src="js/cagroups.js?v=169"></script>
-<script src="js/import.js?v=169"></script>
-<script src="js/export.js?v=169"></script>
-<script src="js/demo.js?v=169"></script>
-<script src="js/app.js?v=169"></script>
+<script src="js/version.js?v=170"></script>
+<script src="js/authConfig.js?v=170"></script>
+<script src="js/labels.js?v=170"></script>
+<script src="js/graph.js?v=170"></script>
+<script src="js/model.js?v=170"></script>
+<script src="js/render.js?v=170"></script>
+<script src="js/analyze.js?v=170"></script>
+<script src="js/whatif.js?v=170"></script>
+<script src="js/mslearn.js?v=170"></script>
+<script src="js/gapcheck.js?v=170"></script>
+<script src="js/exclusions.js?v=170"></script>
+<script src="js/validator.js?v=170"></script>
+<script src="js/whatifeval.js?v=170"></script>
+<script src="js/locations.js?v=170"></script>
+<script src="js/audit.js?v=170"></script>
+<script src="js/changelog.js?v=170"></script>
+<script src="js/baselineData.js?v=170"></script>
+<script src="js/baselineJoeyData.js?v=170"></script>
+<script src="js/baseline.js?v=170"></script>
+<script src="js/groupTemplates.js?v=170"></script>
+<script src="js/assign.js?v=170"></script>
+<script src="js/cagroups.js?v=170"></script>
+<script src="js/import.js?v=170"></script>
+<script src="js/export.js?v=170"></script>
+<script src="js/demo.js?v=170"></script>
+<script src="js/app.js?v=170"></script>
 </body>
 </html>

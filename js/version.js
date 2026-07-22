@@ -8,8 +8,8 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 169,
-  date: "2026-07-21",
+  build: 170,
+  date: "2026-07-22",
   get label() { return `v${this.version}.${this.build}`; },
   get full() { return `${this.label} · ${this.date}`; },
 };
@@ -18,7 +18,7 @@ const APP_BUILD = {
 // its own pace, so a tenant-side reviewer can tell which one changed since
 // they last looked without diffing the whole app. Bump the tool you touched.
 const TOOL_VERSIONS = {
-  toolPolicies:     { v: "2.0", note: "cards / list / settings matrix, persona grouping, dependency inspector, full-screen matrix, selection actions, delete with typed confirmation, per-policy what-if flow, per-persona apply flow" },
+  toolPolicies:     { v: "2.1", note: "cards / list / settings matrix, persona grouping, dependency inspector, full-screen matrix, selection actions, delete with typed confirmation, per-policy what-if flow, per-persona apply flow, housekeeping (delete superseded Off versions)" },
   toolDocument:     { v: "1.4", note: "Word, PDF, PNG and PNG-bundle export with tenant branding" },
   toolAnalyze:      { v: "1.6", note: "users × policies impact matrix, group filters, standalone HTML report, scoped matrix columns" },
   toolGapCheck:     { v: "1.6", note: "bypass checks, persona × control matrix, deployed-but-Off state, Markdown export" },
@@ -33,5 +33,5 @@ const TOOL_VERSIONS = {
   toolCaGroups:     { v: "1.6", note: "baseline group check, creation, members × groups matrix, and policy assignment in one tool, per-group member scan, manual group builder, remove-group action, final confirm, assignment change report, pick-by-persona, TeamsSharedDevices template, per-row create, recreate-role-assignable" },
   toolLocations:    { v: "1.1", note: "named locations inventory with policy usage; create/edit/delete IP-range and country locations, CIDR + ISO-code validation, trusted-flag impact warning, typed confirm when a referenced location is deleted, Markdown export" },
   toolState:        { v: "1.0", note: "On / report-only / Off switching" },
-  toolImport:       { v: "2.0", note: "dependencies first, persona remapping, placeholder resolution, change report, on-screen report, claims-challenge step-up, up-front consent, import by persona, dependency scoping to selection, terms-of-use checklist, assignment mode (deployment groups or match & replace: keep the current policy's assignment and switch its superseded version Off)" },
+  toolImport:       { v: "2.1", note: "dependencies first, persona remapping, placeholder resolution, change report, on-screen report, claims-challenge step-up, up-front consent, import by persona, dependency scoping to selection, terms-of-use checklist, assignment mode (deployment groups or match & replace: keep the current policy's assignment and switch its superseded version Off), Workload ID licence check (workload-identity policies held back when the tenant lacks the SKU)" },
 };
