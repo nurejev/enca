@@ -128,8 +128,13 @@ const Assign = (() => {
   }
 
   // Create (or reuse) a group. Returns {id, name, created, dynamic, roleAssignable}.
-  async function createGroup(template) {
-    const existing = await findGroup(template.displayName);
+  // opts.mustCreate skips the reuse shortcut: a caller that has just renamed the
+  // old group out of the way cannot trust a name lookup, because the directory
+  // is eventually consistent and will happily return the group under its former
+  // name for a while. Reusing it there is not a no-op — it hands back the very
+  // id the caller is trying to replace.
+  async function createGroup(template, opts = {}) {
+    const existing = opts.mustCreate ? null : await findGroup(template.displayName);
     if (existing) return { ...existing, created: false };
     const payload = buildGroupPayload(template);
     const g = await Graph.gpostGroupCreate("/groups", payload);

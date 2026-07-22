@@ -305,14 +305,25 @@ const CaGroups = (() => {
     // 2. create the dynamic replacement under the original name
     let created;
     try {
-      created = await Assign.createGroup({ displayName: plan.name, dynamic: true, membershipRule: plan.rule, roleAssignable: false });
+      // mustCreate: never reuse a name match here. The rename above may not have
+      // replicated yet, so a lookup can still return the OLD group — and reusing
+      // it would mean steps 3 and 4 add and then remove the same id, quietly
+      // stripping the group from every policy instead of replacing it.
+      created = await Assign.createGroup({ displayName: plan.name, dynamic: true, membershipRule: plan.rule, roleAssignable: false }, { mustCreate: true });
     } catch (e) {
       // put the name back rather than leaving the tenant renamed for nothing
       try { await Graph.gpatch(`/groups/${plan.id}`, { displayName: plan.name }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]); } catch { /* reported below */ }
       note(false, `Could not create the dynamic group — the rename was rolled back`, e.message || String(e));
       throw e;
     }
-    note(true, `Created “${plan.name}” as a dynamic group`, `id ${created.id}`);
+    // Belt and braces: if anything ever hands back the id we just renamed, stop
+    // before touching a single policy. Adding and removing one id is destructive.
+    if (!created || !created.id || created.id === plan.id) {
+      try { await Graph.gpatch(`/groups/${plan.id}`, { displayName: plan.name }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]); } catch { /* reported below */ }
+      note(false, `The new group came back with the same id as the old one — nothing was changed on any policy, and the rename was rolled back`, `id ${created?.id || "none"}`);
+      throw new Error("Create returned the existing group instead of a new one — no policy was touched. Re-run once the rename has replicated.");
+    }
+    note(true, `Created “${plan.name}” as a dynamic group`, `id ${created.id} (was ${plan.id})`);
 
     // 3./4. move the policy references: add the new group first, then remove the
     // old one, so no policy is ever left without either.

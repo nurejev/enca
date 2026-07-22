@@ -1507,7 +1507,8 @@
       `Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by ENCA — Conditional Access Baseline Tools (enca.limon-it.nl).`, "",
       `- **Group:** ${plan.name}`,
       `- **Route:** ${plan.mode === "inPlace" ? "converted in place (id and every reference kept)" : `replaced (role-assignable groups cannot be dynamic); old group renamed to **${plan.archiveName}**`}`,
-      `- **Rule:** \`${plan.rule}\``, "",
+      `- **Rule:** \`${plan.rule}\``,
+      ...(out?.newGroupId && out.newGroupId !== plan.id ? [`- **New group id:** \`${out.newGroupId}\` (the old one is \`${plan.id}\`)`] : []), "",
       `## Steps`, ""];
     (out?.log || []).forEach((l) => md.push(`- ${l.ok ? "✅" : "❌"} ${l.text}${l.detail ? ` — ${l.detail}` : ""}`));
     if (err) md.push(`- ❌ **Stopped:** ${err.message || err}`);
