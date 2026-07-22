@@ -547,9 +547,143 @@ const CaGroups = (() => {
     return L.join("\n");
   }
 
+  // ---- ⑤ import members from CSV -----------------------------------------
+  // The deployment-test workflow: a CSV of pilot users (UPN + optional Persona
+  // column) is routed into the CA groups, exactly like the PowerShell
+  // bulk-add scripts consultants carry around — but with the same
+  // review-before-apply step as every other write in this app.
+
+  // A small but real CSV parser: quoted cells, embedded commas and quotes,
+  // CRLF. Returns { cols, rows } with rows as plain objects keyed by header.
+  function csvParse(text) {
+    const out = [];
+    let row = [], cell = "", q = false;
+    const s = String(text || "");
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (q) {
+        if (c === '"') { if (s[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += c;
+      } else if (c === '"') q = true;
+      else if (c === ",") { row.push(cell); cell = ""; }
+      else if (c === "\n" || c === "\r") {
+        if (c === "\r" && s[i + 1] === "\n") i++;
+        row.push(cell); cell = "";
+        if (row.some((x) => x.trim() !== "")) out.push(row);
+        row = [];
+      } else cell += c;
+    }
+    row.push(cell);
+    if (row.some((x) => x.trim() !== "")) out.push(row);
+    if (!out.length) return { cols: [], rows: [] };
+    const cols = out[0].map((c) => c.trim());
+    const rows = out.slice(1).map((r) => {
+      const o = {};
+      cols.forEach((c, i) => { o[c] = (r[i] ?? "").trim(); });
+      return o;
+    });
+    return { cols, rows };
+  }
+
+  // Which columns hold the UPN and the persona. Falls back to "the column
+  // whose values look like email addresses" so unnamed exports still work.
+  function csvDetect(cols, rows) {
+    const byName = (rx) => cols.find((c) => rx.test(c.trim()));
+    let upnCol = byName(/^(userprincipalname|upn|user|email|mail)$/i);
+    if (!upnCol) {
+      upnCol = cols.find((c) => rows.slice(0, 20).filter((r) => /@/.test(r[c] || "")).length >= Math.min(rows.length, 3));
+    }
+    const personaCol = byName(/^(persona|personas|role|roles|group|groups)$/i) || null;
+    return { upnCol: upnCol || cols[0] || null, personaCol };
+  }
+
+  // A persona cell may hold several personas: "Global, internals".
+  const csvPersonas = (v) => String(v || "").split(/[,;|\s]+/).map((x) => x.trim()).filter(Boolean);
+
+  // Distinct users with their union of personas, CSV order preserved.
+  function csvUsers(rows, upnCol, personaCol) {
+    const m = new Map();
+    for (const r of rows) {
+      const upn = (r[upnCol] || "").trim();
+      if (!upn) continue;
+      const k = upn.toLowerCase();
+      if (!m.has(k)) m.set(k, { upn, personas: [] });
+      if (personaCol) for (const p of csvPersonas(r[personaCol])) {
+        const e = m.get(k);
+        if (!e.personas.some((x) => x.toLowerCase() === p.toLowerCase())) e.personas.push(p);
+      }
+    }
+    return [...m.values()];
+  }
+
+  // Best-guess group for a persona name. Handles both this app's naming
+  // (CAB-SEC-U-Persona-Internals) and abbreviated deployments
+  // (CAD-SEC-U-DG-INT) via a persona → common-abbreviation table.
+  const CSV_ABBREV = {
+    global: ["glo", "global", "all"],
+    admins: ["adm", "admin"],
+    internals: ["int", "internal"],
+    externals: ["ext", "external"],
+    guestusers: ["guestuser", "guests", "guest"],
+    g_admins: ["guestadmin", "gadm"],
+    serviceaccounts: ["sa", "svc", "serviceaccount"],
+    devops: ["devops", "dvo"],
+    factoryworkers: ["fw", "factory", "frontline"],
+  };
+  function csvSuggest(persona, groupNames) {
+    const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+    const p = norm(persona);
+    if (!p) return "";
+    const keys = [p, ...(CSV_ABBREV[persona.toLowerCase()] || []).map(norm)];
+    // Token-aware scoring so "admins" prefers …-ADM (exact token via its
+    // abbreviation) over …-GUESTAdmins (mere substring): an exact name segment
+    // beats a segment prefix beats a substring anywhere. Earlier keys (the
+    // persona itself before its abbreviations) win ties, then the shorter
+    // group name (GLO over GLO-Something).
+    let best = "", bestScore = 0;
+    for (const g of groupNames) {
+      const tokens = String(g).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+      const gn = norm(g);
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        if (!k) continue;
+        let s = 0;
+        if (tokens.includes(k)) s = 3000;
+        else if (tokens.some((t) => t.startsWith(k))) s = 2000;
+        else if (tokens.some((t) => t.includes(k))) s = 1000;
+        else if (gn.includes(k)) s = 500;
+        if (!s) continue;
+        const score = s - i * 10 + k.length - g.length / 100;
+        if (score > bestScore) { bestScore = score; best = g; }
+      }
+    }
+    return best;
+  }
+
+  // Markdown change report, one section per target group.
+  function csvReport(meta, results) {
+    const L = [`# CA group member import — ${meta.tenant || "tenant"}`, "",
+      meta.generatedBy || "", "",
+      `- Source: \`${meta.fileName || "CSV"}\` — ${meta.userCount} distinct users${meta.personaCol ? `, personas via \`${meta.personaCol}\`` : ", manual group selection"}`,
+      `- Added: **${results.filter((r) => r.state === "added").length}** · already members: ${results.filter((r) => r.state === "already").length} · not found: ${results.filter((r) => r.state === "notfound").length} · failed: ${results.filter((r) => r.state === "failed").length}`, ""];
+    const byGroup = new Map();
+    for (const r of results) {
+      const k = r.group || "(unresolved)";
+      if (!byGroup.has(k)) byGroup.set(k, []);
+      byGroup.get(k).push(r);
+    }
+    for (const [g, rs] of byGroup) {
+      L.push(`## ${g}`, "", "| User | Result |", "| --- | --- |");
+      rs.forEach((r) => L.push(`| ${r.upn} | ${r.state}${r.error ? ` — ${String(r.error).replace(/\|/g, "\\|")}` : ""} |`));
+      L.push("");
+    }
+    return L.join("\n");
+  }
+
   return {
     STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate,
     renderSummary, chips, renderTable, renderMatrix, toMd, filtered,
     catalogGroupNames, templateNames, policyRefs, convertPlan, runConvert,
+    csvParse, csvDetect, csvPersonas, csvUsers, csvSuggest, csvReport,
   };
 })();

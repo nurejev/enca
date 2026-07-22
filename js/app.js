@@ -690,7 +690,7 @@
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
     { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
-    { scope: "Group.ReadWrite.All", use: "Create missing persona groups", tools: "CA groups (create)", onDemand: true },
+    { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable", tools: "CA groups (create)", onDemand: true },
   ];
   async function renderPermissions() {
@@ -1351,7 +1351,7 @@
     $("cgFull").style.display = cgTab === "members" ? "inline-flex" : "none";
     $("cgSearch").placeholder = cgTab === "members"
       ? "Search member name or UPN…" : "Search group name or object ID…";
-    $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" ? "none" : "";
+    $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" || cgTab === "csv" ? "none" : "";
 
     if (cgTab === "check") {
       $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery);
@@ -1359,6 +1359,8 @@
       renderCgCreate();
     } else if (cgTab === "members") {
       renderCgMembers();
+    } else if (cgTab === "csv") {
+      renderCgCsv();
     } else {
       renderCgAssign();
     }
@@ -1423,7 +1425,243 @@
     $("cgBody").innerHTML = batch + manual;
   }
 
+  // ---- ⑤ import members from CSV ----
+  // The deployment-test path: a CSV of pilot users (UPN + optional Persona
+  // column) routed into the CA groups. Stage machine: pick → map → review →
+  // done, with the same review-before-apply as every other write.
+  let cgCsv = null;   // { fileName, cols, rows, upnCol, personaCol, users, personas, mapping, manualTargets, plan, results, busy }
+
+  // Groups you can actually add members to: present in the tenant, not dynamic
+  // (Entra manages those memberships — an add is rejected).
+  const cgCsvTargets = () => (cgRes ? cgRes.rows : [])
+    .filter((r) => r.id && !r.dynamic)
+    .map((r) => r.name).sort();
+
+  function renderCgCsv() {
+    const t = cgCsv;
+    if (!t) {
+      $("cgBody").innerHTML = `<div class="cg-panel">
+        <h4>IMPORT MEMBERS FROM CSV (${isDemo ? "demo — simulated" : "deployment tests"})</h4>
+        <p class="mini">Add pilot users to the CA groups in bulk — the browser equivalent of the <code>Add-UsersToCAGroup</code> script.
+          The CSV needs a <b>UPN column</b>; with a <b>Persona column</b> (e.g. <code>"Global, internals"</code> — separated by <code>, ; |</code> or spaces)
+          every user is routed to the mapped group(s) automatically, otherwise you pick the target group(s) by hand and every user goes into all of them.</p>
+        <pre class="mini" style="background:var(--soft);border-radius:8px;padding:10px;margin:10px 0">UserPrincipalName,Persona
+eva@contoso.com,"Global, internals"
+max@contoso.com,"Global, DevOps"</pre>
+        <div class="row" style="justify-content:flex-start;margin-top:12px">
+          <button class="btn primary" id="cgCsvPick">📄 Choose CSV file…</button>
+        </div>
+        <p class="mini muted" style="margin-top:10px">Nothing is written until you review and confirm. Adds consent <code>Group.ReadWrite.All</code> on demand.
+          Dynamic groups are excluded — their membership is rule-managed, so a direct add would be rejected.</p>
+      </div>`;
+      return;
+    }
+
+    // ---- map: columns detected, personas → groups ----
+    if (t.stage === "map") {
+      const targets = cgCsvTargets();
+      const opt = (sel) => ['<option value="">— skip —</option>', ...targets.map((g) =>
+        `<option value="${esc(g)}"${g === sel ? " selected" : ""}>${esc(g)}</option>`)].join("");
+      const mapRows = t.personaCol
+        ? t.personas.map((p) => `<tr><td><b>${esc(p)}</b> <span class="mini muted">${t.users.filter((u) => u.personas.some((x) => x.toLowerCase() === p.toLowerCase())).length} users</span></td>
+            <td><select data-cgcsvmap="${esc(p)}">${opt(t.mapping[p] || "")}</select></td></tr>`).join("")
+        : "";
+      const manual = !t.personaCol
+        ? `<p class="mini" style="margin-top:8px">No persona column — pick the target group(s); <b>every</b> user in the CSV is added to all of them.</p>
+           <div class="cg-pick">${targets.map((g) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-cgcsvtarget="${esc(g)}"${(t.manualTargets || []).includes(g) ? " checked" : ""}> ${esc(g)}</label>`).join("") || '<p class="mini muted">No assignable groups found — run ① Check first.</p>'}</div>`
+        : "";
+      $("cgBody").innerHTML = `<div class="cg-panel">
+        <h4>MAP THE CSV — <span style="font-weight:400">${esc(t.fileName)}</span></h4>
+        <p class="mini">${t.users.length} distinct user${t.users.length === 1 ? "" : "s"} · UPN column <b>${esc(t.upnCol)}</b>${t.personaCol ? ` · persona column <b>${esc(t.personaCol)}</b>` : " · no persona column"}</p>
+        ${t.personaCol ? `<table class="cg-table" style="margin-top:8px"><thead><tr><th>Persona (from CSV)</th><th>Target group</th></tr></thead><tbody>${mapRows}</tbody></table>
+          <p class="mini muted" style="margin-top:6px">Pre-matched against the tenant's CA groups — check every row before scanning. "— skip —" leaves that persona's users alone. Dynamic groups are not offered.</p>` : manual}
+        <div class="row" style="justify-content:flex-start;margin-top:12px">
+          <button class="btn" id="cgCsvBack">← Different file</button>
+          <button class="btn primary" id="cgCsvScan">Scan users & memberships</button>
+        </div>
+      </div>`;
+      return;
+    }
+
+    // ---- review: the plan, per group ----
+    if (t.stage === "review") {
+      const adds = t.plan.filter((x) => x.state === "add");
+      const byGroup = new Map();
+      t.plan.forEach((x) => { const k = x.group || "(no group)"; if (!byGroup.has(k)) byGroup.set(k, []); byGroup.get(k).push(x); });
+      const ICON = { add: ["＋ add", "ok"], already: ["✓ already member", "muted"], notfound: ["✗ not found", "off"], skipped: ["– skipped", "muted"] };
+      $("cgBody").innerHTML = `<div class="cg-panel">
+        <h4>REVIEW BEFORE APPLYING — <span style="font-weight:400">${esc(t.fileName)}</span></h4>
+        <p class="mini"><b>${adds.length}</b> member add${adds.length === 1 ? "" : "s"} across ${[...byGroup.keys()].filter((g) => byGroup.get(g).some((x) => x.state === "add")).length} group(s) ·
+          ${t.plan.filter((x) => x.state === "already").length} already members · ${t.plan.filter((x) => x.state === "notfound").length} not found</p>
+        ${[...byGroup.entries()].map(([g, rows]) => `<div style="margin-top:12px"><b>${esc(g)}</b> <span class="mini muted">${rows.filter((x) => x.state === "add").length} to add</span>
+          <ul class="wi-list" style="margin-top:4px">${rows.map((x) => `<li><div class="wi-pn" style="font-weight:400">
+            <span class="mini" style="color:var(--${(ICON[x.state] || [])[1] === "ok" ? "on" : (ICON[x.state] || [])[1] === "off" ? "off" : "muted"})">${(ICON[x.state] || ["?"])[0]}</span>
+            ${esc(x.upn)}${x.persona ? ` <span class="mini muted">(${esc(x.persona)})</span>` : ""}</div></li>`).join("")}</ul></div>`).join("")}
+        <div class="cg-progress" id="cgCsvBar" style="display:none"><div style="width:0%"></div></div>
+        <div id="cgCsvLog" class="mini" style="margin-top:8px"></div>
+        <div class="row" style="justify-content:flex-start;margin-top:12px">
+          <button class="btn" id="cgCsvBack">← Back to mapping</button>
+          ${adds.length ? `<button class="btn primary" id="cgCsvApply">Add ${adds.length} member${adds.length === 1 ? "" : "s"}${isDemo ? " (simulated)" : ""}</button>` : ""}
+        </div>
+      </div>`;
+      return;
+    }
+
+    // ---- done ----
+    const ok = t.results.filter((x) => x.state === "added").length;
+    const failed = t.results.filter((x) => x.state === "failed").length;
+    $("cgBody").innerHTML = `<div class="cg-panel">
+      <h4>IMPORT COMPLETE</h4>
+      <p class="mini"><b style="color:var(--on)">${ok} added</b>${failed ? ` · <b style="color:var(--off)">${failed} failed</b>` : ""} ·
+        ${t.results.filter((x) => x.state === "already").length} already members · ${t.results.filter((x) => x.state === "notfound").length} not found</p>
+      <div class="row" style="justify-content:flex-start;margin-top:12px">
+        <button class="btn" id="cgCsvReport">📄 Change report</button>
+        <button class="btn" id="cgCsvAgain">Import another CSV</button>
+      </div>
+      <p class="mini muted" style="margin-top:10px">③ Members re-reads live, so the matrix reflects the adds on its next scan.</p>
+    </div>`;
+  }
+
+  $("cgCsvFile").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    const text = await f.text();
+    const { cols, rows } = CaGroups.csvParse(text);
+    if (!rows.length) { toast("That CSV has no data rows"); return; }
+    const { upnCol, personaCol } = CaGroups.csvDetect(cols, rows);
+    if (!upnCol) { toast("Could not find a UPN column"); return; }
+    const users = CaGroups.csvUsers(rows, upnCol, personaCol);
+    const personas = [...new Set(users.flatMap((u) => u.personas.map((p) => p.toLowerCase())))]
+      .map((k) => users.flatMap((u) => u.personas).find((p) => p.toLowerCase() === k));
+    const targets = cgCsvTargets();
+    const mapping = {};
+    personas.forEach((p) => { mapping[p] = CaGroups.csvSuggest(p, targets); });
+    cgCsv = { stage: "map", fileName: f.name, cols, rows, upnCol, personaCol, users, personas, mapping, manualTargets: [] };
+    renderCgCsv();
+  });
+  $("cgBody").addEventListener("change", (e) => {
+    const m = e.target.closest("[data-cgcsvmap]");
+    if (m && cgCsv) { cgCsv.mapping[m.dataset.cgcsvmap] = m.value; return; }
+    const mt = e.target.closest("[data-cgcsvtarget]");
+    if (mt && cgCsv) {
+      const set = new Set(cgCsv.manualTargets || []);
+      mt.checked ? set.add(mt.dataset.cgcsvtarget) : set.delete(mt.dataset.cgcsvtarget);
+      cgCsv.manualTargets = [...set];
+    }
+  });
+
+  // Resolve every user and every target group's membership, then build the
+  // add/skip plan. Reads only — the write happens after the review.
+  async function cgCsvScan() {
+    const t = cgCsv; if (!t || t.busy) return;
+    const groupByName = new Map((cgRes ? cgRes.rows : []).filter((r) => r.id).map((r) => [r.name, r]));
+    // (upn, group) pairs this CSV wants
+    const wanted = [];
+    for (const u of t.users) {
+      if (t.personaCol) {
+        for (const p of u.personas) {
+          const g = t.mapping[t.personas.find((x) => x.toLowerCase() === p.toLowerCase())] || "";
+          if (g) wanted.push({ upn: u.upn, persona: p, group: g });
+          else wanted.push({ upn: u.upn, persona: p, group: "", state: "skipped" });
+        }
+        if (!u.personas.length) wanted.push({ upn: u.upn, persona: "", group: "", state: "skipped" });
+      } else {
+        const targets = t.manualTargets || [];
+        if (!targets.length) { toast("Pick at least one target group"); return; }
+        targets.forEach((g) => wanted.push({ upn: u.upn, persona: "", group: g }));
+      }
+    }
+    t.busy = true;
+    $("cgBody").innerHTML = '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgCsvStatus">Resolving users…</p></div>';
+    const status = (m) => { const el = $("cgCsvStatus"); if (el) el.textContent = m; };
+    try {
+      // users
+      const ids = {};
+      const uniqueUpns = [...new Set(wanted.filter((w) => w.group).map((w) => w.upn))];
+      for (let i = 0; i < uniqueUpns.length; i++) {
+        const upn = uniqueUpns[i];
+        status(`Resolving users… ${i + 1}/${uniqueUpns.length}`);
+        if (isDemo) { ids[upn] = "u-" + upn; continue; }
+        try {
+          const f = upn.replace(/'/g, "''");
+          const r = await Graph.gget(`/users?$filter=userPrincipalName eq '${f}'&$select=id,userPrincipalName`);
+          ids[upn] = r.value && r.value[0] ? r.value[0].id : null;
+        } catch { ids[upn] = null; }
+      }
+      // memberships, one read per target group
+      const memberSets = {};
+      const groups = [...new Set(wanted.filter((w) => w.group).map((w) => w.group))];
+      for (let i = 0; i < groups.length; i++) {
+        const g = groups[i];
+        status(`Reading members of ${g}… ${i + 1}/${groups.length}`);
+        const row = groupByName.get(g);
+        if (!row) { memberSets[g] = null; continue; }
+        if (isDemo) { memberSets[g] = new Set(t.users.filter((_, j) => j % 4 === 0).map((u) => "u-" + u.upn)); continue; }
+        try {
+          const ms = await Graph.ggetAll(`/groups/${row.id}/members?$select=id&$top=999`);
+          memberSets[g] = new Set(ms.map((m) => m.id));
+        } catch { memberSets[g] = new Set(); }
+      }
+      t.plan = wanted.map((w) => {
+        if (w.state === "skipped") return w;
+        const uid = ids[w.upn];
+        if (!uid) return { ...w, state: "notfound" };
+        if (memberSets[w.group] && memberSets[w.group].has(uid)) return { ...w, state: "already", uid };
+        return { ...w, state: "add", uid, gid: (groupByName.get(w.group) || {}).id };
+      });
+      t.stage = "review";
+    } catch (e) {
+      console.error("CSV scan failed:", e);
+      toast(`Scan failed: <span>${esc(e.message || e)}</span>`);
+      t.stage = "map";
+    } finally { t.busy = false; }
+    renderCgCsv();
+  }
+
+  async function cgCsvApply(btn) {
+    const t = cgCsv; if (!t || t.busy) return;
+    const adds = t.plan.filter((x) => x.state === "add");
+    if (!adds.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All"])) return;
+    t.busy = true; btn.disabled = true;
+    const bar = $("cgCsvBar"), log = $("cgCsvLog");
+    bar.style.display = "block";
+    const lines = [];
+    t.results = t.plan.filter((x) => x.state !== "add").map((x) => ({ ...x, state: x.state === "already" ? "already" : x.state }));
+    for (let i = 0; i < adds.length; i++) {
+      const a = adds[i];
+      bar.firstElementChild.style.width = `${Math.round(((i + 1) / adds.length) * 100)}%`;
+      try {
+        if (!isDemo) await Graph.gpost(`/groups/${a.gid}/members/$ref`,
+          { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${a.uid}` });
+        t.results.push({ ...a, state: "added" });
+        lines.push(`<div>✓ ${esc(a.upn)} → <b>${esc(a.group)}</b></div>`);
+      } catch (err) {
+        t.results.push({ ...a, state: "failed", error: err.message || String(err) });
+        lines.push(`<div style="color:var(--off)">✗ ${esc(a.upn)} → <b>${esc(a.group)}</b> — ${esc(err.message || err)}</div>`);
+      }
+      log.innerHTML = lines.slice(-12).join("");
+    }
+    t.busy = false; t.stage = "done";
+    const ok = t.results.filter((x) => x.state === "added").length;
+    const failed = t.results.filter((x) => x.state === "failed").length;
+    toast(failed ? `${ok} added, <span>${failed} failed</span>` : `<span>${ok}</span> member${ok === 1 ? "" : "s"} added${isDemo ? " (simulated)" : ""}`);
+    renderCgCsv();
+  }
+
   $("cgBody").addEventListener("click", async (e) => {
+    if (e.target.id === "cgCsvPick") { $("cgCsvFile").click(); return; }
+    if (e.target.id === "cgCsvBack") { if (cgCsv) cgCsv.stage = cgCsv.stage === "review" ? "map" : null; if (cgCsv && !cgCsv.stage) cgCsv = null; renderCgCsv(); return; }
+    if (e.target.id === "cgCsvScan") { await cgCsvScan(); return; }
+    if (e.target.id === "cgCsvApply") { await cgCsvApply(e.target); return; }
+    if (e.target.id === "cgCsvAgain") { cgCsv = null; renderCgCsv(); return; }
+    if (e.target.id === "cgCsvReport" && cgCsv && cgCsv.results) {
+      showReport("👥 CA group member import", "CA-GroupMemberImport",
+        CaGroups.csvReport({ tenant: tenantName, fileName: cgCsv.fileName, userCount: cgCsv.users.length,
+          personaCol: cgCsv.personaCol, generatedBy: Brand.generatedBy("Generated") }, cgCsv.results));
+      return;
+    }
     if (e.target.id === "cgCreateAll" || e.target.id === "cgCreateNone") {
       const on = e.target.id === "cgCreateAll";
       document.querySelectorAll("[data-cgcreate]").forEach(cb => { cb.checked = on; });
@@ -3317,7 +3555,7 @@
     $("siRescan").style.display = siRes && !siBusy ? "" : "none";
     if (siBusy) { $("siBody").innerHTML = siBusyPanel(); return; }
     if (siRes) { renderSignins(); return; }
-    $("siHead").innerHTML = `<h3>🚦 Sign-in failures <span class="tag new">BETA</span></h3>
+    $("siHead").innerHTML = `<h3>🚦 Sign-in failures <span class="tag new">NEW</span></h3>
       <p style="margin-bottom:4px">Which sign-ins Conditional Access failed, and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. The log-side counterpart of What-If.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> failures are filtered by Graph; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins.</p>`;
     $("siChips").innerHTML = "";
@@ -3449,7 +3687,7 @@
     (window.requestAnimationFrame || setTimeout)(syncSiDetheadTop);
     $("siHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🚦 Sign-in failures <span class="tag new">BETA</span></h3>
+        <h3>🚦 Sign-in failures <span class="tag new">NEW</span></h3>
         <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
         <p class="mini muted" style="margin:0">${siMode === "reportonly"
           ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the numbers to check before flipping a policy on."
