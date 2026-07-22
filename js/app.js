@@ -2280,7 +2280,7 @@
   // ---------- CA validator (simulation report) ----------
   // A read-only port of the simulation generator from Jasper Baes' Conditional
   // Access Validator (https://github.com/jasperbaes/Conditional-Access-Validator).
-  let vaResult = null, vaFilter = "all", vaQuery = "", vaReportOnly = false, vaTargetObj = null;
+  let vaResult = null, vaFilter = "all", vaQuery = "", vaReportOnly = false, vaTargetObj = null, vaView = "compact";
   const vaCollapsed = new Set();
   const isGuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || "");
 
@@ -2404,6 +2404,46 @@
   }
 
   const VA_CTRL_ORDER = ["block", "mfa", "authenticationStrength", "compliantDevice", "domainJoinedDevice", "passwordChange"];
+
+  // Compact view: collapse a policy's whole cross-product into one summary card —
+  // what it enforces, on which apps/clients/conditions, and who it excludes.
+  function vaCompactCard(g, filter, q) {
+    const sims = g.sims; if (!sims.length) return "";
+    const uniq = (a) => [...new Set(a)];
+    const enforced = uniq(sims.filter((s) => !s.inverted).map((s) => s.expectedControl));
+    const shown = filter === "all" ? enforced : enforced.filter((c) => c === filter);
+    if (!shown.length) return "";
+    const inclUsers = uniq(sims.filter((s) => s.userType === "included").map((s) => s.upn));
+    const apps = uniq(sims.filter((s) => s.appType === "included").map((s) => s.appName));
+    const clients = uniq(sims.map((s) => s.clientApp)).map(Validator.clientLabel);
+    const locs = uniq(sims.filter((s) => s.locationType !== "excluded" && s.ipRange !== "All").map((s) => s.ipRange));
+    const plats = uniq(sims.filter((s) => s.platformType !== "excluded" && s.devicePlatform !== "All").map((s) => s.devicePlatform));
+    const risks = uniq([...sims.map((s) => s.userRisk), ...sims.map((s) => s.signInRisk)].filter((x) => x !== "All"));
+    const acts = uniq(sims.map((s) => s.userAction).filter((x) => x && x !== "All"));
+    const exUsers = uniq(sims.filter((s) => s.userType === "excluded").map((s) => s.upn));
+    const exApps = uniq(sims.filter((s) => s.appType === "excluded").map((s) => s.appName));
+    const exLocs = uniq(sims.filter((s) => s.locationType === "excluded").map((s) => s.ipRange));
+    const exPlats = uniq(sims.filter((s) => s.platformType === "excluded").map((s) => s.devicePlatform));
+    if (q && !(`${g.name} ${apps.join(" ")} ${inclUsers.join(" ")}`.toLowerCase().includes(q))) return "";
+
+    const list = (a) => a.length ? esc(a.join(", ")) : '<span class="muted">any</span>';
+    const stateTag = g.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">report-only</span>' : "";
+    const badges = shown.map((c) => `<span class="va-enf">enforces ${esc(Validator.CONTROL_LABEL[c])}</span>`).join(" ");
+    const cond = `${locs.length ? esc(locs.join(", ")) : "any location"} · ${plats.length ? esc(plats.join(", ")) : "any platform"} · ${risks.length ? esc(risks.join("/")) + " risk" : "any risk"}${acts.length ? " · " + esc(acts.join(", ")) + " action" : ""}`;
+    const rows = [["Users", list(inclUsers)], ["Apps", list(apps)], ["Client apps", list(clients)], ["Conditions", cond]];
+    const excl = [
+      exUsers.length ? `users ${esc(exUsers.join(", "))}` : "",
+      exApps.length ? `apps ${esc(exApps.join(", "))}` : "",
+      exLocs.length ? `locations ${esc(exLocs.join(", "))}` : "",
+      exPlats.length ? `platforms ${esc(exPlats.join(", "))}` : "",
+    ].filter(Boolean).join("; ");
+    return `<div class="list-card va-compact">
+      <div class="va-c-head"><b>${esc(g.name)}</b>${stateTag} <span class="va-enfs">${badges}</span></div>
+      <table class="va-c-tbl"><tbody>${rows.map(([k, v]) => `<tr><td class="va-c-k">${k}</td><td>${v}</td></tr>`).join("")}</tbody></table>
+      ${excl ? `<div class="va-c-excl"><span class="tag block">does not apply to</span> ${excl}</div>` : ""}
+    </div>`;
+  }
+
   function renderValidator() {
     if (!vaResult) return;
     const r = vaResult;
@@ -2427,20 +2467,32 @@
     const chips = [["all", `All (${r.simCount})`], ...VA_CTRL_ORDER.filter((c) => counts[c]).map((c) => [c, `${Validator.CONTROL_LABEL[c]} (${counts[c]})`])];
     $("vaChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${vaFilter === k ? "active" : ""}" data-vaf="${esc(k)}">${esc(l)}</button>`).join("");
 
-    // filter + search
+    // view toggle state
+    $("vaExpand").style.display = vaView === "detailed" ? "" : "none";
+    [...$("vaViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.vaview === vaView));
+
     const q = vaQuery.toLowerCase();
+    const skippedNote = r.skipped.length ? `<p class="mini muted" style="margin-top:10px">Not simulated (no grant control to assert): ${r.skipped.map((s) => esc(s.name)).join(", ")}</p>` : "";
+    const emptyMsg = () => { $("vaBody").innerHTML = (r.target && r.simulatedPolicies === 0)
+      ? `<p class="mini" style="padding:20px">No enabled policy applies to <b>${esc(r.target.name)}</b>${vaReportOnly ? "" : " — tick “Include report-only” to widen the check"}.</p>`
+      : '<p class="mini" style="padding:20px">No simulations match the current filter.</p>'; };
+
+    // ---- Compact: one summary card per policy (the readable default) ----
+    if (vaView === "compact") {
+      const cards = r.groups.map((g) => vaCompactCard(g, vaFilter, q)).filter(Boolean);
+      if (!cards.length) { emptyMsg(); return; }
+      $("vaBody").innerHTML = cards.join("") + skippedNote;
+      return;
+    }
+
+    // ---- Detailed: one row per simulation (the full cross-product) ----
     const match = (s) => (vaFilter === "all" || s.expectedControl === vaFilter);
     const groups = r.groups.map((g) => {
       const sims = g.sims.filter((s) => match(s) && (!q || s.title.toLowerCase().includes(q) || g.name.toLowerCase().includes(q)));
       return { ...g, shown: sims };
     }).filter((g) => g.shown.length);
 
-    if (!groups.length) {
-      $("vaBody").innerHTML = (r.target && r.simulatedPolicies === 0)
-        ? `<p class="mini" style="padding:20px">No enabled policy applies to <b>${esc(r.target.name)}</b>${vaReportOnly ? "" : " — tick “Include report-only” to widen the check"}.</p>`
-        : '<p class="mini" style="padding:20px">No simulations match the current filter.</p>';
-      return;
-    }
+    if (!groups.length) { emptyMsg(); return; }
     const stateTag = (st) => st === "enabledForReportingButNotEnforced" ? '<span class="tag">report-only</span>' : "";
     const cell = (v) => v && v !== "All" ? esc(v) : '<span class="muted">·</span>';
     $("vaBody").innerHTML = groups.map((g) => {
@@ -2491,6 +2543,7 @@
   }
 
   $("vaChips").addEventListener("click", (e) => { const b = e.target.closest("[data-vaf]"); if (!b) return; vaFilter = b.dataset.vaf; renderValidator(); });
+  $("vaViewSeg").addEventListener("click", (e) => { const b = e.target.closest("[data-vaview]"); if (!b) return; vaView = b.dataset.vaview; renderValidator(); });
   $("vaBody").addEventListener("click", (e) => {
     const h = e.target.closest("[data-vagroup]"); if (!h) return;
     const id = h.dataset.vagroup;
