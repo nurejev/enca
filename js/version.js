@@ -8,7 +8,7 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 155,
+  build: 156,
   date: "2026-07-21",
   get label() { return `v${this.version}.${this.build}`; },
   get full() { return `${this.label} · ${this.date}`; },
@@ -29,7 +29,7 @@ const TOOL_VERSIONS = {
   toolBaselineJoey: { v: "1.1", note: "Joey Verlinden catalog 2026.6.1, verified against commit 38469a4" },
   toolMsLearn:      { v: "2.0", note: "17 documented checks, 14 buildable fixes, apply-in-tenant with service-principal creation and change report" },
   toolJson:         { v: "1.2", note: "policy zip including dependencies and terms-of-use PDFs" },
-  toolCaGroups:     { v: "1.5", note: "baseline group check, creation, members × groups matrix, and policy assignment in one tool, per-group member scan, manual group builder, remove-group action, final confirm, assignment change report, pick-by-persona, TeamsSharedDevices template, per-row create, recreate-role-assignable" },
+  toolCaGroups:     { v: "1.6", note: "baseline group check, creation, members × groups matrix, and policy assignment in one tool, per-group member scan, manual group builder, remove-group action, final confirm, assignment change report, pick-by-persona, TeamsSharedDevices template, per-row create, recreate-role-assignable" },
   toolLocations:    { v: "1.1", note: "named locations inventory with policy usage; create/edit/delete IP-range and country locations, CIDR + ISO-code validation, trusted-flag impact warning, typed confirm when a referenced location is deleted, Markdown export" },
   toolState:        { v: "1.0", note: "On / report-only / Off switching" },
   toolImport:       { v: "1.9", note: "dependencies first, persona remapping, placeholder resolution, change report, on-screen report, claims-challenge step-up, up-front consent, import by persona, dependency scoping to selection, terms-of-use checklist, assignment mode (deployment groups or match & replace: keep the current policy's assignment and switch its superseded version Off)" },

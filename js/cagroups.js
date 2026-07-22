@@ -100,11 +100,21 @@ const CaGroups = (() => {
   // ---- scan ---------------------------------------------------------------
   // onStatus is called with human-readable progress; the caller decides
   // whether to show it. Nothing here writes.
+  // scope:
+  //   "policies" (default) — only the groups the tenant's own CA policies
+  //                          actually reference. Nothing is looked up that no
+  //                          policy points at, which is far less Graph traffic.
+  //   "all"                — additionally expect every bundled template and
+  //                          baseline-catalog group, so missing ones show up.
   async function scan(raws, opts) {
     const o = opts || {};
+    const scope = o.scope === "all" ? "all" : "policies";
     const tpl = templateNames();
     const cat = catalogGroupNames(raws);
     const refs = policyRefs(raws);
+    // names the baseline/templates know about — used to classify a referenced
+    // group as a baseline group or an ad-hoc one, in either scope
+    const known = new Set([...tpl.keys(), ...cat].map((n) => String(n).toLowerCase()));
 
     // Every expected name, with where the expectation comes from. A name in
     // more than one source is one row, not three.
@@ -115,8 +125,10 @@ const CaGroups = (() => {
       if (!e) { e = { name: n, sources: new Set(), template: tpl.get(n) || null }; expected.set(n, e); }
       e.sources.add(src);
     };
-    tpl.forEach((t, n) => want(n, "template"));
-    cat.forEach((n) => want(n, "catalog"));
+    if (scope === "all") {
+      tpl.forEach((t, n) => want(n, "template"));
+      cat.forEach((n) => want(n, "catalog"));
+    }
 
     // Resolve the expected names in one $filter per chunk rather than one call
     // per group — 100+ sequential lookups is a visibly slow tool.
@@ -166,11 +178,14 @@ const CaGroups = (() => {
     for (const [id, ref] of refs) {
       if (claimed.has(id)) continue;
       const g = byId.get(id) || null;
+      const isKnown = g && known.has(String(g.displayName).toLowerCase());
       rows.push(row({
-        name: g ? g.displayName : id, group: g, template: null,
+        name: g ? g.displayName : id, group: g,
+        template: g ? (tpl.get(g.displayName) || null) : null,
         sources: ["policy"],
-        // referenced by a policy but not resolvable = the dangling case
-        status: g ? "extra" : "dangling",
+        // referenced by a policy but not resolvable = the dangling case;
+        // resolvable and named in the baseline = a baseline group in use
+        status: g ? (isKnown ? "present" : "extra") : "dangling",
         refs: ref,
       }));
     }
@@ -179,7 +194,7 @@ const CaGroups = (() => {
     const counts = rows.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
     const expectedTotal = rows.filter((r) => r.status === "present" || r.status === "missing").length;
     return {
-      rows, counts, expectedTotal,
+      rows, counts, expectedTotal, scope,
       present: counts.present || 0,
       coverage: expectedTotal ? Math.round(((counts.present || 0) / expectedTotal) * 100) : 100,
       scanned: new Date(),
@@ -267,17 +282,22 @@ const CaGroups = (() => {
   function renderSummary(res, tenant) {
     const chip = (k) => res.counts[k]
       ? `<span class="bl-chip ${STATUS[k].cls}">${STATUS[k].icon} ${res.counts[k]} ${esc(STATUS[k].label.toLowerCase())}</span>` : "";
+    const onlyPolicies = res.scope === "policies";
+    const inUse = res.rows.length;
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
         <h3>👥 Conditional Access groups — ${esc(tenant || "this tenant")}</h3>
-        <p style="margin-bottom:10px">The groups your Conditional Access baseline depends on: every group named in the
-          bundled templates or in a baseline catalog, plus every group your own policies point at.
-          A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody.</p>
+        <p style="margin-bottom:10px">${onlyPolicies
+          ? `Only the groups your Conditional Access policies actually reference. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody. Switch the scope to <b>Baseline + templates</b> to also check which expected groups are missing.`
+          : `The groups your Conditional Access baseline depends on: every group named in the bundled templates or in a baseline catalog, plus every group your own policies point at. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody.`}</p>
         <div class="bl-chips">${["missing", "dangling", "present", "extra"].map(chip).join("")}</div>
       </div>
       <div style="text-align:right;min-width:150px">
-        <div style="font-size:34px;font-weight:700;color:${res.coverage >= 90 ? "var(--on)" : res.coverage >= 60 ? "var(--report)" : "var(--off)"}">${res.coverage}<span style="font-size:15px">%</span></div>
-        <div class="mini muted">${res.present} of ${res.expectedTotal} expected groups exist</div>
+        ${onlyPolicies
+          ? `<div style="font-size:34px;font-weight:700">${inUse}</div>
+             <div class="mini muted">groups referenced by policies</div>`
+          : `<div style="font-size:34px;font-weight:700;color:${res.coverage >= 90 ? "var(--on)" : res.coverage >= 60 ? "var(--report)" : "var(--off)"}">${res.coverage}<span style="font-size:15px">%</span></div>
+             <div class="mini muted">${res.present} of ${res.expectedTotal} expected groups exist</div>`}
       </div>
     </div>`;
   }

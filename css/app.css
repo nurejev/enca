@@ -565,6 +565,13 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .lo-d{margin-top:4px;font-family:var(--mono,ui-monospace,monospace)}
 .lo-u{margin-top:6px;font-size:12px;color:var(--muted);padding-top:6px;border-top:1px solid var(--line);line-height:1.7}
 .lo-imp{color:var(--report)}
+/* CA groups — member scan picker */
+.cg-picklist{max-height:44vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);
+  padding:6px 10px;background:var(--surface)}
+.cg-picklist .chk{display:flex;align-items:center;gap:8px;padding:4px 2px;margin:0;font-size:13px;
+  border-bottom:1px solid var(--line)}
+.cg-picklist .chk:last-child{border-bottom:0}
+.cg-picklist .chk:hover{background:var(--hover)}
 .tag.ok{background:var(--ok-bg2);color:var(--on)}
 .va-target{display:flex;align-items:center;gap:6px;flex:1 1 320px;min-width:220px;flex-wrap:nowrap}
 .va-target input{flex:1 1 auto;min-width:0;height:38px;padding:0 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);font-size:13px}

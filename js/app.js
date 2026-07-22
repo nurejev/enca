@@ -1107,6 +1107,11 @@
   // is the former standalone tool, unchanged — it just lives here now, next to
   // the groups it assigns.
   let cgRes = null, cgTab = "check", cgFilter = "all", cgQuery = "", cgBusy = false, cgStop = false;
+  // Default scope: only the groups the tenant's CA policies actually reference.
+  // "all" additionally expects every template / baseline group (finds missing).
+  let cgScope = "policies";
+  const cgMemberSel = new Set();   // group names picked for the member read
+  let cgMemberPick = false;        // showing the picker rather than the matrix
 
   $("toolCaGroups").addEventListener("click", () => { crumb("👥 Conditional Access groups"); openCaGroups(); });
 
@@ -1118,6 +1123,7 @@
       $("cgChips").innerHTML = ""; $("cgBody").innerHTML = "";
       try {
         cgRes = isDemo ? demoGroupScan() : await CaGroups.scan(policies, {
+          scope: cgScope,
           onStatus: (m) => { const el = $("cgHead").querySelector("p"); if (el) el.textContent = m; },
         });
       } catch (e) {
@@ -1269,7 +1275,7 @@
       return;
     }
     if (e.target.id === "cgmCreate") { await cgManualCreate(e.target); return; }
-    if (e.target.id === "cgMemberGo") { startMemberScan(); return; }
+    if (e.target.id === "cgMemberGo") { cgMemberPick = false; startMemberScan(); return; }
     if (e.target.id === "cgMemberStop") { cgStop = true; return; }
     // Scan one group. The full scan is a call per group, so reading a single
     // one you are curious about should not cost the other 130.
@@ -1405,6 +1411,14 @@
   // Dynamic and role-assignable are mutually exclusive in Entra. Reflect that
   // live: choosing Dynamic reveals the rule box and forces role-assignable off.
   $("cgBody").addEventListener("change", (e) => {
+    if (e.target.matches("[data-cgmem]")) {
+      const n = e.target.dataset.cgmem;
+      if (e.target.checked) cgMemberSel.add(n); else cgMemberSel.delete(n);
+      // refresh just the button label, not the whole list (keeps scroll + focus)
+      const go = $("cgMemberGo");
+      if (go) { const c = cgMemberSel.size; go.disabled = !c; go.textContent = `Read members of ${c} selected group${c === 1 ? "" : "s"}`; }
+      return;
+    }
     if (e.target.name === "cgmType") {
       const dyn = e.target.value === "dynamic";
       const w = $("cgmRuleWrap"); if (w) w.style.display = dyn ? "block" : "none";
@@ -1447,18 +1461,43 @@
   }
 
   // ---- ③ members ----
+  // The picker: choose which groups to read rather than reading all of them.
+  // One Graph call per group, so on a big tenant this is the difference between
+  // a handful of calls and a hundred.
+  function cgMemberPicker(open) {
+    const avail = cgRes.rows.filter((r) => r.id)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const q = cgQuery.toLowerCase();
+    const shown = q ? avail.filter((r) => r.name.toLowerCase().includes(q)) : avail;
+    const sel = [...cgMemberSel].filter((n) => avail.some((r) => r.name === n));
+    return `<div class="cg-panel">
+      <h4>MEMBER SCAN — PICK THE GROUPS</h4>
+      <p class="mini">Reading members costs <b>one Graph call per group</b>, so only the groups you tick are read.
+        Membership is read <b>transitively</b>, so a user nested through another group still shows up.
+        Groups larger than ${CaGroups.MEMBER_CAP} members are counted in full but listed to the cap.</p>
+      <div class="row" style="justify-content:flex-start;margin:10px 0 6px;gap:8px;flex-wrap:wrap">
+        <button class="btn sm" data-cgmsel="all">Select all${q ? " shown" : ""} (${shown.length})</button>
+        <button class="btn sm" data-cgmsel="none">Clear</button>
+        <button class="btn sm" data-cgmsel="unread">Only not-yet-read</button>
+        <span class="mini muted">${sel.length} selected${q ? ` · filtered by “${esc(cgQuery)}”` : " · use the search box to narrow the list"}</span>
+      </div>
+      <div class="cg-picklist">${shown.map((r) => `<label class="chk">
+          <input type="checkbox" data-cgmem="${esc(r.name)}" ${cgMemberSel.has(r.name) ? "checked" : ""}>
+          <span>${esc(r.name)}</span>
+          ${r.members ? `<span class="mini muted">· ${r.memberTotal} member${r.memberTotal === 1 ? "" : "s"} read</span>` : ""}
+          ${r.refs && (r.refs.include.length + r.refs.exclude.length) ? `<span class="mini muted">· ${r.refs.include.length + r.refs.exclude.length} policy ref${(r.refs.include.length + r.refs.exclude.length) === 1 ? "" : "s"}</span>` : ""}
+        </label>`).join("") || '<p class="mini">No group matches the search.</p>'}</div>
+      <div class="row" style="justify-content:flex-start;margin-top:12px">
+        <button class="btn primary" id="cgMemberGo" ${sel.length ? "" : "disabled"}>Read members of ${sel.length} selected group${sel.length === 1 ? "" : "s"}</button>
+        ${open ? '<button class="btn" data-cgmclose>Back to the matrix</button>' : ""}
+      </div>
+    </div>`;
+  }
+
   function renderCgMembers() {
     const scanned = cgRes.rows.filter(r => r.members);
-    if (!scanned.length && !cgBusy) {
-      const n = cgRes.rows.filter(r => r.id).length;
-      $("cgBody").innerHTML = `<div class="cg-panel">
-        <h4>MEMBER SCAN</h4>
-        <p class="mini">Reading members costs one Graph call per group — ${n} group${n === 1 ? "" : "s"} here, so it runs on demand rather than on every visit.
-          Membership is read <b>transitively</b>, so a user nested through another group still shows up. Groups larger than ${CaGroups.MEMBER_CAP} members are counted in full but listed to the cap.</p>
-        <div class="row" style="justify-content:flex-start;margin-top:12px">
-          <button class="btn primary" id="cgMemberGo">Read members of ${n} group${n === 1 ? "" : "s"}</button>
-        </div>
-      </div>`;
+    if (cgMemberPick || (!scanned.length && !cgBusy)) {
+      $("cgBody").innerHTML = cgMemberPicker(scanned.length > 0);
       return;
     }
     if (cgBusy) {
@@ -1478,7 +1517,8 @@
     const errs = cgRes.rows.filter(r => r.memberError);
     $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">
         ${m.users.length} distinct member${m.users.length === 1 ? "" : "s"} across ${m.cols.length} group${m.cols.length === 1 ? "" : "s"}.
-        <button class="btn sm" id="cgMemberGo" style="margin-left:8px">⟳ Re-read members</button>
+        <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Read more groups</button>
+        <button class="btn sm" id="cgMemberGo" style="margin-left:6px">⟳ Re-read selected</button>
       </div>${empties}
       ${errs.length ? `<p class="mini" style="color:var(--off)">${errs.length} group${errs.length === 1 ? "" : "s"} could not be read: ${errs.map(r => esc(r.name)).join(", ")}</p>` : ""}
       ${CaGroups.renderMatrix(m, cgQuery)}`;
@@ -1513,13 +1553,16 @@
   async function startMemberScan() {
     cgBusy = true; cgStop = false; renderCaGroups();
     try {
+      // only the groups the user ticked — one Graph call each
+      const picked = cgRes.rows.filter(r => r.id && cgMemberSel.has(r.name));
+      const targets = picked.length ? picked : cgRes.rows.filter(r => r.id && r.members);
       if (isDemo) {
-        cgRes.rows.filter(r => r.id).forEach((r, i) => {
+        targets.forEach((r, i) => {
           r.memberTotal = i % 4; r.members = Array.from({ length: i % 4 }, (_, k) =>
             ({ id: `u${k}-${i}`, name: `Demo user ${k + 1}`, upn: `demo${k + 1}@contoso.com`, disabled: false }));
         });
       } else {
-        await CaGroups.loadMembers(cgRes.rows, {
+        await CaGroups.loadMembers(targets, {
           shouldStop: () => cgStop,
           onStatus: (msg, i, n) => {
             const s = $("cgMemStatus"), b = $("cgMemBar");
@@ -1555,6 +1598,20 @@
     </div>`;
   }
   $("cgBody").addEventListener("click", (e) => {
+    // ---- member picker ----
+    const bulk = e.target.closest("[data-cgmsel]");
+    if (bulk) {
+      const avail = cgRes.rows.filter((r) => r.id);
+      const q = cgQuery.toLowerCase();
+      const shown = q ? avail.filter((r) => r.name.toLowerCase().includes(q)) : avail;
+      const mode = bulk.dataset.cgmsel;
+      if (mode === "none") cgMemberSel.clear();
+      else if (mode === "all") shown.forEach((r) => cgMemberSel.add(r.name));
+      else if (mode === "unread") { cgMemberSel.clear(); shown.filter((r) => !r.members).forEach((r) => cgMemberSel.add(r.name)); }
+      renderCaGroups(); return;
+    }
+    if (e.target.closest("[data-cgmpick]")) { cgMemberPick = true; renderCaGroups(); return; }
+    if (e.target.closest("[data-cgmclose]")) { cgMemberPick = false; renderCaGroups(); return; }
     if (e.target.id === "cgAssignGo") { openAssign(selected.size ? "selection" : "all"); return; }
     if (e.target.id === "cgAssignPick") {
       setToolMode("assign"); setView("cards"); show("screen-list");
@@ -1591,6 +1648,12 @@
     if (b) scanOneGroup(b.dataset.cgone, b);
   });
 
+  // Changing the scope means a different set of groups to look up → re-scan.
+  $("cgScope").addEventListener("change", async (e) => {
+    cgScope = e.target.value;
+    cgRes = null; cgMemberSel.clear(); cgMemberPick = false;
+    await openCaGroups(true);
+  });
   $("cgTabs").addEventListener("click", (e) => {
     const b = e.target.closest("[data-cgtab]"); if (!b) return;
     cgTab = b.dataset.cgtab; cgQuery = ""; $("cgSearch").value = "";
