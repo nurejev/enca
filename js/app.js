@@ -4277,6 +4277,34 @@
     show("screen-login");
   });
 
+  // Every search box gets a clear (×) — eight tools filter through one, and
+  // backspacing a query out is friction none of them needs. The tools all react
+  // to the input event already, so clearing just replays that rather than
+  // wiring anything per tool. Escape clears too, like a browser search field.
+  function wireSearchClears() {
+    document.querySelectorAll(".search").forEach((wrap) => {
+      const input = wrap.querySelector("input");
+      if (!input || wrap.querySelector(".search-x")) return;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "search-x";
+      btn.tabIndex = -1;                    // Tab should reach the results, not this
+      btn.title = "Clear search (Esc)";
+      btn.setAttribute("aria-label", "Clear search");
+      btn.textContent = "×";
+      const clear = () => {
+        if (!input.value) return;
+        input.value = "";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.focus();
+      };
+      btn.addEventListener("click", clear);
+      input.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); clear(); } });
+      wrap.appendChild(btn);               // must follow the input: CSS uses ~
+    });
+  }
+  wireSearchClears();
+
   $("searchBox").addEventListener("input", (e) => { query = e.target.value.toLowerCase(); refreshViews(); });
   $("stateChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-state]"); if (!b) return;
