@@ -1433,6 +1433,9 @@
     // Recreate a present-but-not-role-assignable group correctly.
     const rc = e.target.closest("[data-cgrecreate]");
     if (rc) { e.stopPropagation(); openRecreate(rc.dataset.cgrecreate); return; }
+    // Convert an assigned group to the dynamic membership its template expects.
+    const cv = e.target.closest("[data-cgdynamic]");
+    if (cv) { e.stopPropagation(); openConvertDynamic(cv.dataset.cgdynamic); return; }
     // a row in the check table opens that group's detail
     const row = e.target.closest("[data-cgrow]");
     if (row) showGroupRow(row.dataset.cgrow);
@@ -1450,6 +1453,78 @@
       cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
     } catch (err) { console.error(err); toast(`Create failed: <span>${esc(err.message || err)}</span>`); if (btn) { btn.disabled = false; btn.textContent = "Create"; } }
   }
+
+  // ---- convert an assigned group to dynamic membership ----
+  // Two routes, and which one applies is Entra's decision, not ours: a plain
+  // security group converts in place (id kept, every reference intact), while a
+  // role-assignable one cannot be dynamic at all and has to be replaced.
+  let cvPlan = null;
+  function openConvertDynamic(name) {
+    const r = cgRes && cgRes.rows.find((x) => x.name === name);
+    if (!r) return;
+    const plan = CaGroups.convertPlan(r);
+    cvPlan = plan;
+    if (!plan.ok) { toast(esc(plan.reason)); return; }
+    const inc = plan.refs.include, exc = plan.refs.exclude;
+    const md = [];
+    md.push(plan.mode === "inPlace"
+      ? `**${r.name}** is a plain security group, so Entra can switch it to dynamic membership **in place**.`
+      : `**${r.name}** is **role-assignable**, and Entra does not allow dynamic membership on a role-assignable group — \`isAssignableToRole\` is immutable, so this cannot be done in place. The group is replaced instead:`);
+    md.push("");
+    plan.steps.forEach((s, i) => md.push(`${i + 1}. ${s.text}`));
+    md.push("");
+    // mdToHtml has no fenced-code support — inline code renders, a fence would
+    // just print the backticks.
+    md.push("**Membership rule**");
+    md.push("");
+    md.push("`" + plan.rule + "`");
+    md.push("");
+    if (inc.length) { md.push("_Included in:_"); inc.forEach((p) => md.push(`- ${p.name}`)); md.push(""); }
+    if (exc.length) { md.push("_Excluded from:_"); exc.forEach((p) => md.push(`- ${p.name}`)); md.push(""); }
+    md.push(plan.keeps);
+    md.push("");
+    plan.warnings.forEach((w) => md.push(`⚠ ${w}`));
+    md.push("");
+    md.push(isDemo ? "_Demo mode — simulated, nothing is written._" : "This **writes to the tenant**.");
+    $("cvBody").innerHTML = mdToHtml(md.join("\n"));
+    $("cvOk").value = ""; $("cvGo").disabled = true;
+    $("cvModal").classList.add("open");
+  }
+  $("cvOk").addEventListener("input", (e) => { $("cvGo").disabled = e.target.value.trim().toUpperCase() !== "CONVERT"; });
+  $("cvCancel").addEventListener("click", () => $("cvModal").classList.remove("open"));
+  $("cvGo").addEventListener("click", async () => {
+    const plan = cvPlan; if (!plan || !plan.ok) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess"])) return;
+    $("cvGo").disabled = true;
+    let out = null, err = null;
+    try {
+      out = isDemo
+        ? { log: plan.steps.map((s) => ({ ok: true, text: s.text })), newGroupId: "g-demo", archiveName: plan.archiveName }
+        : await CaGroups.runConvert(plan, (m) => toast(esc(m)));
+    } catch (e) { console.error(e); err = e; }
+    $("cvModal").classList.remove("open");
+    const md = [`# Group converted to dynamic membership — ${tenantName || "tenant"}`, "",
+      `Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by ENCA — Conditional Access Baseline Tools (enca.limon-it.nl).`, "",
+      `- **Group:** ${plan.name}`,
+      `- **Route:** ${plan.mode === "inPlace" ? "converted in place (id and every reference kept)" : `replaced (role-assignable groups cannot be dynamic); old group renamed to **${plan.archiveName}**`}`,
+      `- **Rule:** \`${plan.rule}\``, "",
+      `## Steps`, ""];
+    (out?.log || []).forEach((l) => md.push(`- ${l.ok ? "✅" : "❌"} ${l.text}${l.detail ? ` — ${l.detail}` : ""}`));
+    if (err) md.push(`- ❌ **Stopped:** ${err.message || err}`);
+    md.push("");
+    if (plan.mode === "recreate" && !err) {
+      md.push(`## Next`, "",
+        `- The new group fills as Entra evaluates the rule — check its members before relying on the policies.`,
+        `- **${plan.archiveName}** is no longer referenced by any policy. Delete it once you are satisfied.`,
+        `- It is **not role-assignable** any more: if the old group held a directory role or a PIM assignment, that has to be re-established another way.`, "");
+    }
+    if (plan.mode === "inPlace" && !err) {
+      md.push(`## Next`, "", `- Members who do not match the rule are removed once Entra processes it, and members can no longer be added by hand.`, "");
+    }
+    showReport("⟳ Convert to dynamic", "CA-Group-Convert-Dynamic", md.join("\n"));
+    toast(err ? `Convert stopped: <span>${esc(err.message || err)}</span>` : `<span>${esc(plan.name)}</span> is now dynamic${isDemo ? " (simulated)" : ""}`);
+    if (!isDemo && !err) { cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups(); }
+  });
 
   // ---- recreate a not-role-assignable group correctly ----
   // isAssignableToRole is immutable, so the group has to be replaced: rename the

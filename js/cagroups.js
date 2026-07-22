@@ -210,6 +210,7 @@ const CaGroups = (() => {
       id: g ? g.id : null,
       description: g ? g.description || "" : (r.template?.description || ""),
       roleAssignable: g ? !!g.isAssignableToRole : null,
+      groupTypes: g ? (g.groupTypes || []).slice() : [],
       dynamic, membershipRule: g ? g.membershipRule || "" : (r.template?.membershipRule || ""),
       refs: r.refs || { include: [], exclude: [] },
       refCount: nRef,
@@ -222,6 +223,113 @@ const CaGroups = (() => {
         : (g && r.template && r.template.membershipRule && !dynamic
           ? "template is dynamic but this group is assigned" : null),
     };
+  }
+
+  // ---- convert an assigned group to dynamic ------------------------------
+  // Two different jobs wearing one name:
+  //
+  //  * A plain security group CAN be converted in place. Entra keeps the id, so
+  //    every policy, app and role assignment that points at it still does. This
+  //    is always the better route when it is available.
+  //  * A ROLE-ASSIGNABLE group cannot. `isAssignableToRole` is immutable and a
+  //    role-assignable group must have assigned membership — the two are
+  //    mutually exclusive by design, so "converting" it means standing up a new
+  //    group and moving the policy references across. The new group is NOT
+  //    role-assignable; that capability is what you are trading away.
+  //
+  // In both cases the members that do not match the rule stop being members.
+  const stamp = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`; };
+
+  function convertPlan(row, opts = {}) {
+    const rule = (opts.rule != null ? opts.rule : (row && (row.membershipRule || row.template?.membershipRule))) || "";
+    const base = { name: row?.name, id: row?.id, rule, refs: row?.refs || { include: [], exclude: [] } };
+    if (!row || !row.id) return { ...base, ok: false, reason: "This group does not exist in the tenant yet — create it from the template instead." };
+    if (row.dynamic) return { ...base, ok: false, reason: "This group already has dynamic membership." };
+    if (!rule.trim()) return { ...base, ok: false, reason: "No membership rule to convert to — the template does not define one." };
+
+    const nRef = base.refs.include.length + base.refs.exclude.length;
+    if (!row.roleAssignable) {
+      return { ...base, ok: true, mode: "inPlace",
+        // keep any unrelated groupTypes (Unified, …) — dropping one would change what the group IS
+        groupTypes: [...new Set([...(row.groupTypes || []), "DynamicMembership"])],
+        steps: [
+          { key: "patch", text: `Turn on dynamic membership for “${row.name}” with the rule below` },
+        ],
+        keeps: `The group keeps its id, so all ${nRef} policy reference${nRef === 1 ? "" : "s"} — and any app or role assignment outside Conditional Access — stay exactly as they are.`,
+        warnings: [
+          "Current members who do not match the rule are removed once Entra processes it, and you can no longer add members by hand.",
+        ],
+      };
+    }
+
+    const archiveName = `${row.name}-static-${stamp()}`;
+    return { ...base, ok: true, mode: "recreate", archiveName,
+      steps: [
+        { key: "rename", text: `Rename the current group to “${archiveName}” (it keeps its members and stays role-assignable)` },
+        { key: "create", text: `Create “${row.name}” as a dynamic group with the rule below` },
+        ...(base.refs.include.length ? [{ key: "addInc", text: `Add the new group to the INCLUDE of ${base.refs.include.length} polic${base.refs.include.length === 1 ? "y" : "ies"}` }] : []),
+        ...(base.refs.exclude.length ? [{ key: "addExc", text: `Add the new group to the EXCLUDE of ${base.refs.exclude.length} polic${base.refs.exclude.length === 1 ? "y" : "ies"}` }] : []),
+        ...(base.refs.include.length ? [{ key: "delInc", text: `Remove the renamed group from those ${base.refs.include.length} include assignment${base.refs.include.length === 1 ? "" : "s"}` }] : []),
+        ...(base.refs.exclude.length ? [{ key: "delExc", text: `Remove the renamed group from those ${base.refs.exclude.length} exclude assignment${base.refs.exclude.length === 1 ? "" : "s"}` }] : []),
+      ],
+      keeps: `The old group is kept, renamed and emptied of policy references — it is your rollback. Delete it once the new one has the right members.`,
+      warnings: [
+        "**The new group is not role-assignable.** Entra forbids dynamic membership on a role-assignable group, which is the whole reason this cannot be done in place — if the current group is used for a directory role or in PIM, do not convert it.",
+        "The new group starts empty and fills as Entra evaluates the rule. Between the add and the removal both groups are assigned, so nothing is uncovered mid-flight — but a policy is only as good as the new group's membership, so check it before deleting the old one.",
+        ...(nRef === 0 ? ["No policy references this group, so nothing is reassigned."] : []),
+      ],
+    };
+  }
+
+  // Executes the plan step by step, logging each one. Stops at the first
+  // failure: half a conversion is recoverable, a wrong order is not.
+  async function runConvert(plan, onStatus) {
+    const log = [];
+    const note = (ok, text, detail) => { log.push({ ok, text, detail }); onStatus?.(text); };
+    if (!plan || !plan.ok) throw new Error(plan?.reason || "Nothing to convert");
+
+    if (plan.mode === "inPlace") {
+      await Graph.gpatch(`/groups/${plan.id}`, {
+        groupTypes: plan.groupTypes,
+        membershipRule: plan.rule,
+        membershipRuleProcessingState: "On",
+      }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+      note(true, `“${plan.name}” now has dynamic membership`, `rule: ${plan.rule}`);
+      return { log, newGroupId: plan.id };
+    }
+
+    // 1. rename the current group out of the way
+    await Graph.gpatch(`/groups/${plan.id}`, { displayName: plan.archiveName }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+    note(true, `Renamed to “${plan.archiveName}”`, `id ${plan.id} — unchanged, still role-assignable`);
+
+    // 2. create the dynamic replacement under the original name
+    let created;
+    try {
+      created = await Assign.createGroup({ displayName: plan.name, dynamic: true, membershipRule: plan.rule, roleAssignable: false });
+    } catch (e) {
+      // put the name back rather than leaving the tenant renamed for nothing
+      try { await Graph.gpatch(`/groups/${plan.id}`, { displayName: plan.name }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]); } catch { /* reported below */ }
+      note(false, `Could not create the dynamic group — the rename was rolled back`, e.message || String(e));
+      throw e;
+    }
+    note(true, `Created “${plan.name}” as a dynamic group`, `id ${created.id}`);
+
+    // 3./4. move the policy references: add the new group first, then remove the
+    // old one, so no policy is ever left without either.
+    const incIds = plan.refs.include.map((p) => p.id), excIds = plan.refs.exclude.map((p) => p.id);
+    const run = async (ids, action, label) => {
+      if (!ids.length) return;
+      const res = await Assign.apply(ids, action, [action === 2 || action === 3 ? created.id : plan.id], onStatus);
+      const bad = res.filter((r) => !r.ok);
+      note(!bad.length, `${label}: ${res.filter((r) => r.ok).length}/${ids.length} polic${ids.length === 1 ? "y" : "ies"}`,
+        bad.length ? bad.map((r) => `${r.name}: ${r.error}`).join(" · ") : res.map((r) => r.name).join(", "));
+      if (bad.length) throw new Error(`${label} failed on ${bad.length} polic${bad.length === 1 ? "y" : "ies"} — the old group is still assigned, so nothing is uncovered. Fix and re-run.`);
+    };
+    await run(incIds, 2, "Added the new group to INCLUDE");
+    await run(excIds, 3, "Added the new group to EXCLUDE");
+    await run(incIds, 5, "Removed the old group from INCLUDE");
+    await run(excIds, 6, "Removed the old group from EXCLUDE");
+    return { log, newGroupId: created.id, oldGroupId: plan.id, archiveName: plan.archiveName };
   }
 
   // Which expected groups can be created, i.e. we have a template for them.
@@ -340,11 +448,15 @@ const CaGroups = (() => {
         // A present group that should be role-assignable but is not — isAssignableToRole
         // is immutable, so offer to recreate it (rename old, make a new one, move policies).
         const roleDrift = r.drift && /role-assignable/i.test(r.drift);
+        // The other direction: the template says dynamic, the tenant group is
+        // assigned. Offer the conversion — in place when Entra allows it.
+        const dynDrift = r.drift && /template is dynamic/i.test(r.drift);
         return `<tr class="cg-row" data-cgrow="${esc(r.name)}">
           <td class="cg-ic ${st.cls}">${st.icon}</td>
           <td><b>${esc(r.name)}</b>${r.id ? `<div class="mini muted">${esc(r.id)}</div>` : ""}
             ${r.drift ? `<div class="mini" style="color:var(--report)">⚠ ${esc(r.drift)}</div>` : ""}
             ${roleDrift ? `<button class="btn sm" data-cgrecreate="${esc(r.name)}" style="margin-top:4px">↻ Recreate role-assignable</button>` : ""}
+            ${dynDrift ? `<button class="btn sm" data-cgdynamic="${esc(r.name)}" style="margin-top:4px">⟳ Make dynamic</button>` : ""}
             ${r.status === "dangling" ? '<div class="mini" style="color:var(--off)">Referenced by a policy but not found in the directory</div>' : ""}</td>
           <td class="mini">${esc(type)}</td>
           <td class="mini">${r.refCount ? `${r.refCount} <span class="muted">(${r.refs.include.length} inc / ${r.refs.exclude.length} exc)</span>` : '<span class="muted">unused</span>'}</td>
@@ -427,6 +539,6 @@ const CaGroups = (() => {
   return {
     STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate,
     renderSummary, chips, renderTable, renderMatrix, toMd, filtered,
-    catalogGroupNames, templateNames, policyRefs,
+    catalogGroupNames, templateNames, policyRefs, convertPlan, runConvert,
   };
 })();
