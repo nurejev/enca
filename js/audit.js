@@ -21,6 +21,7 @@ const Audit = (() => {
     strength: { label: "Authentication strength", icon: "🔑" },
     context: { label: "Authentication context", icon: "🏷" },
     tou: { label: "Terms of use", icon: "📜" },
+    membership: { label: "Exclusion group membership", icon: "👥" },
     other: { label: "Other policy change", icon: "•" },
   };
   function kindOf(rec) {
@@ -148,12 +149,81 @@ const Audit = (() => {
     };
   }
 
+  // ---- group membership changes on the groups CA policies point at --------
+  // Adding someone to an exclusion group widens a bypass without any policy
+  // being touched, so it never shows up as a policy change. These land under
+  // GroupManagement as "Add member to group" / "Remove member from group".
+  const isMembershipActivity = (a) => /member (to|from) group/i.test(a || "");
+
+  function parseMembership(rec, watch) {
+    const trs = rec.targetResources || [];
+    let groupId = "", groupName = "";
+    // group identity can be its own targetResource, or carried as Group.* on the user's
+    for (const t of trs) {
+      if (String(t.type || "").toLowerCase() === "group" && !groupId) { groupId = t.id || ""; groupName = t.displayName || ""; }
+      for (const p of (t.modifiedProperties || [])) {
+        const dn = String(p.displayName || "");
+        if (/group\.objectid/i.test(dn) && !groupId) groupId = String(decode(p.newValue) ?? decode(p.oldValue) ?? "");
+        if (/group\.displayname/i.test(dn) && !groupName) groupName = String(decode(p.newValue) ?? decode(p.oldValue) ?? "");
+      }
+    }
+    if (!groupId) return null;
+    const w = watch && watch.get(groupId);
+    if (watch && !w) return null;              // not a group any policy references
+    const mt = trs.find((t) => t.id && t.id !== groupId) || {};
+    const member = mt.displayName || mt.userPrincipalName || mt.id || "(unknown)";
+    const removed = /remove/i.test(rec.activityDisplayName || "");
+    return {
+      id: rec.id,
+      when: rec.activityDateTime,
+      activity: rec.activityDisplayName || "",
+      action: removed ? "delete" : "add",
+      kind: "membership",
+      result: rec.result || "",
+      reason: rec.resultReason || "",
+      service: rec.loggedByService || "",
+      category: rec.category || "",
+      correlationId: rec.correlationId || "",
+      actor: actorOf(rec),
+      targetId: groupId,
+      target: groupName || (w && w.name) || groupId,
+      usedAs: w ? w.how : "",
+      usedBy: w ? w.policies : [],
+      changes: [{ path: removed ? "member removed" : "member added", op: removed ? "remove" : "add", value: [member] }],
+      changeCount: 1,
+      member,
+    };
+  }
+
+  // The groups worth watching: every group a CA policy includes or excludes.
+  // → Map(groupId → { name, how, policies[] })
+  function watchedGroups(rawPolicies, names) {
+    const m = new Map();
+    for (const p of rawPolicies || []) {
+      const u = (p.raw || p).conditions?.users || {};
+      for (const [ids, how] of [[u.excludeGroups, "exclude"], [u.includeGroups, "include"]]) {
+        for (const id of ids || []) {
+          let e = m.get(id);
+          if (!e) { e = { name: (names && names[id]) || id, how, policies: [] }; m.set(id, e); }
+          if (e.how !== how) e.how = "both";
+          e.policies.push(p.displayName || p.name || p.id);
+        }
+      }
+    }
+    return m;
+  }
+
   // Keep only records that touch a Conditional Access resource. The category
   // filter is done server-side; this drops anything unrelated that slips in.
   const isCaRecord = (r) => r.kind !== "other" || /conditional access|named location|authentication (strength|context)|terms of use/i.test(r.activity);
 
   function build(records, opts = {}) {
-    const rows = (records || []).map(parse).filter((r) => opts.keepAll || isCaRecord(r))
+    const watch = opts.watch || null;
+    const rows = (records || []).map((rec) => isMembershipActivity(rec.activityDisplayName)
+        ? parseMembership(rec, watch)
+        : parse(rec))
+      .filter(Boolean)
+      .filter((r) => r.kind === "membership" || opts.keepAll || isCaRecord(r))
       .sort((a, b) => String(b.when).localeCompare(String(a.when)));
     const by = (fn) => rows.reduce((m, r) => { const k = fn(r); m[k] = (m[k] || 0) + 1; return m; }, {});
     const actors = Object.entries(by((r) => r.actor.name)).sort((a, b) => b[1] - a[1]);
@@ -175,9 +245,13 @@ const Audit = (() => {
   function query(days, category) {
     const since = new Date(Date.now() - (days || 30) * 864e5).toISOString();
     const parts = [`activityDateTime ge ${since}`];
-    if (category !== "all") parts.push("category eq 'Policy'");
+    if (category && category !== "all") parts.push(`category eq '${category}'`);
     return `/auditLogs/directoryAudits?$filter=${encodeURIComponent(parts.join(" and "))}&$orderby=activityDateTime desc&$top=999`;
   }
+  // membership changes live in a different category, so they need their own pass
+  const queryPolicy = (days) => query(days, "Policy");
+  const queryMembership = (days) => query(days, "GroupManagement");
 
-  return { KIND, build, parse, diff, decode, query, kindOf, actionOf, actorOf };
+  return { KIND, build, parse, parseMembership, watchedGroups, isMembershipActivity,
+    diff, decode, query, queryPolicy, queryMembership, kindOf, actionOf, actorOf };
 })();

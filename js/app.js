@@ -2846,7 +2846,7 @@
 
   // ---------- Change audit (directory audit log) ----------
   const AU_READ = ["AuditLog.Read.All"];
-  let auRes = null, auFilter = "all", auQuery = "", auDays = 30;
+  let auRes = null, auFilter = "all", auQuery = "", auDays = 30, auWatch = null;
   const auOpen = new Set();
 
   function openAudit() {
@@ -2868,10 +2868,20 @@
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...AU_READ])) return;
     $("auBody").innerHTML = '<p class="mini" style="padding:20px">Reading the audit log…</p>';
     try {
-      const recs = isDemo
-        ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.auditRecords) || [])
-        : await Graph.ggetAll(Audit.query(auDays, "policy"), [...AUTH_CONFIG.scopes, ...AU_READ]);
-      auRes = Audit.build(recs);
+      // The groups every policy includes/excludes — membership changes on these
+      // widen or narrow a policy without the policy itself being touched. The
+      // audit record carries the group's display name, so ids are enough here.
+      const watch = Audit.watchedGroups(policies.map((p) => p.raw));
+      const scopes = [...AUTH_CONFIG.scopes, ...AU_READ];
+      const [pol, mem] = isDemo
+        ? [((typeof DEMO_DATA !== "undefined" && DEMO_DATA.auditRecords) || []), []]
+        : await Promise.all([
+            Graph.ggetAll(Audit.queryPolicy(auDays), scopes),
+            // only worth asking if any policy actually points at a group
+            watch.size ? Graph.ggetAll(Audit.queryMembership(auDays), scopes).catch(() => []) : [],
+          ]);
+      auRes = Audit.build([...pol, ...mem], { watch });
+      auWatch = watch;
       auOpen.clear();
       $("auRescan").style.display = "";
       renderAudit();
@@ -2942,6 +2952,9 @@
           <span class="au-when">${esc(auAgo(x.when))}</span>
         </div>
         <div class="au-sub">${esc(x.activity)} · by <b>${esc(x.actor.name)}</b>${x.actor.upn ? ` (${esc(x.actor.upn)})` : ""}${x.actor.ip ? ` from ${esc(x.actor.ip)}` : ""} · ${esc(new Date(x.when).toLocaleString())}</div>
+        ${x.kind === "membership" ? `<div class="au-sub au-why">${x.action === "add" ? "⚠ " : ""}<b>${esc(x.member)}</b> ${x.action === "add" ? "gained" : "lost"} whatever this group grants —
+          ${x.usedAs === "exclude" ? "it is an <b>exclusion</b> group" : x.usedAs === "include" ? "it is an <b>include</b> group" : "it is used as <b>include and exclude</b>"}
+          on ${x.usedBy.length} polic${x.usedBy.length === 1 ? "y" : "ies"}: ${esc(x.usedBy.slice(0, 4).join(", "))}${x.usedBy.length > 4 ? ` +${x.usedBy.length - 4} more` : ""}</div>` : ""}
         ${open ? diff : ""}
       </div>`;
     }).join("");
