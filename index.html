@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=160">
+<link rel="stylesheet" href="css/app.css?v=161">
 </head>
 <body>
 
@@ -147,6 +147,10 @@
     </div>
     <div class="tool-sec"><h3>❓ Help</h3></div>
     <div class="tools">
+      <div class="tool tool-help" id="toolChangelog">
+        <div class="tool-ic">📋</div><h3>What's new</h3>
+        <p>Everything added or changed in CA Doc, newest first — the full changelog behind the overlay you get after signing in.</p>
+      </div>
       <div class="tool tool-help" id="toolHelp">
         <div class="tool-ic">❓</div><h3>Help</h3>
         <p>How every tool works and what to expect from each option — opens in its own tab, jump back to any tool anytime.</p>
@@ -608,6 +612,15 @@
     <div id="auBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ CHANGELOG — the full history, as a page ============ -->
+  <section id="screen-changelog" class="screen">
+    <div class="help-page">
+      <h2 class="home-title" style="margin:0 0 8px">📋 What's new</h2>
+      <p class="mini muted" style="margin:0 0 16px">Everything added or changed in CA Doc, newest first. The overlay after sign-in shows you only what landed since your last visit — this is the full record.</p>
+      <div id="clBody"></div>
+    </div>
+  </section>
+
   <!-- ============ HELP — opens as a tool, in its own tab ============ -->
   <section id="screen-help" class="screen">
     <div class="help-page">
@@ -1012,6 +1025,19 @@
   </div>
 </div>
 
+<!-- ============ WHAT'S NEW (shown once per release, after sign-in) ============ -->
+<div class="modal-bg" id="newModal">
+  <div class="modal" style="max-width:680px">
+    <h3 id="newTitle">✨ What's new in CA Doc</h3>
+    <p class="mini" id="newSub" style="margin-bottom:12px"></p>
+    <div id="newBody" style="max-height:52vh;overflow:auto"></div>
+    <div class="row">
+      <button class="btn" id="newFull">Full changelog</button>
+      <button class="btn primary" id="newClose">Got it</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ NAMED LOCATION EDITOR ============ -->
 <div class="modal-bg" id="loEditModal">
   <div class="modal" style="max-width:640px">
@@ -1119,30 +1145,31 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=160"></script>
-<script src="js/authConfig.js?v=160"></script>
-<script src="js/labels.js?v=160"></script>
-<script src="js/graph.js?v=160"></script>
-<script src="js/model.js?v=160"></script>
-<script src="js/render.js?v=160"></script>
-<script src="js/analyze.js?v=160"></script>
-<script src="js/whatif.js?v=160"></script>
-<script src="js/mslearn.js?v=160"></script>
-<script src="js/gapcheck.js?v=160"></script>
-<script src="js/exclusions.js?v=160"></script>
-<script src="js/validator.js?v=160"></script>
-<script src="js/whatifeval.js?v=160"></script>
-<script src="js/locations.js?v=160"></script>
-<script src="js/audit.js?v=160"></script>
-<script src="js/baselineData.js?v=160"></script>
-<script src="js/baselineJoeyData.js?v=160"></script>
-<script src="js/baseline.js?v=160"></script>
-<script src="js/groupTemplates.js?v=160"></script>
-<script src="js/assign.js?v=160"></script>
-<script src="js/cagroups.js?v=160"></script>
-<script src="js/import.js?v=160"></script>
-<script src="js/export.js?v=160"></script>
-<script src="js/demo.js?v=160"></script>
-<script src="js/app.js?v=160"></script>
+<script src="js/version.js?v=161"></script>
+<script src="js/authConfig.js?v=161"></script>
+<script src="js/labels.js?v=161"></script>
+<script src="js/graph.js?v=161"></script>
+<script src="js/model.js?v=161"></script>
+<script src="js/render.js?v=161"></script>
+<script src="js/analyze.js?v=161"></script>
+<script src="js/whatif.js?v=161"></script>
+<script src="js/mslearn.js?v=161"></script>
+<script src="js/gapcheck.js?v=161"></script>
+<script src="js/exclusions.js?v=161"></script>
+<script src="js/validator.js?v=161"></script>
+<script src="js/whatifeval.js?v=161"></script>
+<script src="js/locations.js?v=161"></script>
+<script src="js/audit.js?v=161"></script>
+<script src="js/changelog.js?v=161"></script>
+<script src="js/baselineData.js?v=161"></script>
+<script src="js/baselineJoeyData.js?v=161"></script>
+<script src="js/baseline.js?v=161"></script>
+<script src="js/groupTemplates.js?v=161"></script>
+<script src="js/assign.js?v=161"></script>
+<script src="js/cagroups.js?v=161"></script>
+<script src="js/import.js?v=161"></script>
+<script src="js/export.js?v=161"></script>
+<script src="js/demo.js?v=161"></script>
+<script src="js/app.js?v=161"></script>
 </body>
 </html>

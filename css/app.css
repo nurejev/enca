@@ -486,6 +486,17 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .rk-flags{list-style:none;margin:8px 0 0;padding:0;font-size:13px}
 .rk-flags li{display:flex;gap:9px;align-items:flex-start;padding:5px 0;border-top:1px solid var(--line)}
 .rk-d{color:var(--muted);font-size:12px;margin-top:2px}
+/* changelog / what's new */
+.cl-rel{margin-bottom:20px}
+.cl-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding-bottom:6px;
+  border-bottom:2px solid var(--green);margin-bottom:8px}
+.cl-list{list-style:none;margin:0;padding:0}
+.cl-i{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px;line-height:1.6}
+.cl-i:last-child{border-bottom:0}
+.cl-k{font-size:11px;font-weight:700;padding:1px 9px;border-radius:999px;white-space:nowrap;flex:none;margin-top:2px}
+.cl-k.new{background:var(--ok-bg2);color:var(--on)}
+.cl-k.improved{background:var(--warn-bg2);color:var(--report)}
+.cl-k.fixed{background:var(--soft);color:var(--muted)}
 /* home page section headings */
 .tool-sec{margin:26px 0 10px}
 .tool-sec:first-of-type{margin-top:6px}

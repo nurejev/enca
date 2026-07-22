@@ -48,7 +48,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif",
-    "screen-locations", "screen-audit", "screen-help"]);
+    "screen-locations", "screen-audit", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   function show(id) {
@@ -85,7 +85,13 @@
     if (typeof APP_BUILD === "undefined") return;
     const stamp = $("buildStamp"), foot = $("buildStampFoot");
     if (stamp) stamp.textContent = `${APP_BUILD.label} · ${APP_BUILD.date}`;
-    if (foot) foot.textContent = APP_BUILD.label;
+    if (foot) {
+      // the build number is the natural way in to "what changed"
+      foot.textContent = APP_BUILD.label;
+      foot.style.cursor = "pointer";
+      foot.title = "See what's new";
+      foot.addEventListener("click", () => { if (policies.length) openChangelog(); });
+    }
     // per-tool version in the corner of each tile
     if (typeof TOOL_VERSIONS !== "undefined") {
       for (const [id, t] of Object.entries(TOOL_VERSIONS)) {
@@ -237,6 +243,57 @@
     $("reportModal").classList.add("open");
   }
   $("rptClose").addEventListener("click", () => $("reportModal").classList.remove("open"));
+
+  // ---------- What's new / changelog ----------
+  // The overlay appears once per release: we remember the build the person
+  // acknowledged and show everything newer than that. Anyone arriving for the
+  // first time just gets the newest release, not the whole history.
+  const CL_KEY = "cadoc-seen-build";
+  const clSeen = () => { try { return +localStorage.getItem(CL_KEY) || 0; } catch { return 0; } };
+  const clMarkSeen = () => { try { localStorage.setItem(CL_KEY, String(CHANGELOG_LATEST)); } catch { /* private mode */ } };
+  const CL_KIND = { new: "New", improved: "Improved", fixed: "Fixed" };
+
+  function clEntries(rel) {
+    const order = { new: 0, improved: 1, fixed: 2 };
+    return rel.items.slice().sort((a, b) => order[a.kind] - order[b.kind])
+      .map((i) => `<li class="cl-i">
+        <span class="cl-k ${i.kind}">${CL_KIND[i.kind]}</span>
+        <span><b>${esc(i.tool)}</b> — ${esc(i.text)}</span></li>`).join("");
+  }
+  function clRelease(rel) {
+    return `<div class="cl-rel">
+      <div class="cl-h"><b>${esc(rel.title)}</b>
+        <span class="mini muted">build ${rel.build} · ${esc(rel.date)}</span></div>
+      <ul class="cl-list">${clEntries(rel)}</ul>
+    </div>`;
+  }
+  function openChangelog() {
+    crumb("📋 What's new");
+    show("screen-changelog");
+    $("clBody").innerHTML = (typeof CHANGELOG !== "undefined" ? CHANGELOG : []).map(clRelease).join("")
+      || '<p class="mini">No changelog entries yet.</p>';
+    clMarkSeen();
+  }
+  $("toolChangelog").addEventListener("click", openChangelog);
+
+  // Called once the tenant has loaded, so it never covers the sign-in screen.
+  function maybeShowWhatsNew() {
+    if (typeof CHANGELOG === "undefined" || !CHANGELOG.length) return;
+    const seen = clSeen();
+    if (seen >= CHANGELOG_LATEST) return;
+    const fresh = CHANGELOG.filter((r) => r.build > seen);
+    const rels = fresh.length ? fresh : [CHANGELOG[0]];
+    const n = rels.reduce((s, r) => s + r.items.length, 0);
+    $("newSub").innerHTML = seen
+      ? `${n} change${n === 1 ? "" : "s"} since you were last here (build ${seen} → ${CHANGELOG_LATEST}).`
+      : `Here's what the toolset can do as of build ${CHANGELOG_LATEST}.`;
+    $("newBody").innerHTML = rels.map(clRelease).join("");
+    $("newModal").classList.add("open");
+  }
+  function closeWhatsNew() { clMarkSeen(); $("newModal").classList.remove("open"); }
+  $("newClose").addEventListener("click", closeWhatsNew);
+  $("newModal").addEventListener("click", (e) => { if (e.target.id === "newModal") closeWhatsNew(); });
+  $("newFull").addEventListener("click", () => { closeWhatsNew(); openChangelog(); });
 
   // ---------- Help (a full tool: own screen + tab) ----------
   // Table of contents is built once from the section headings so it can never
@@ -532,6 +589,7 @@
         ? `Refreshed from Entra — <span>${policies.length}</span> Conditional Access policies`
         : `Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
       warnUnresolved();
+      if (!isRefresh) maybeShowWhatsNew();   // after sign-in, never over the login screen
     } catch (e) {
       console.error("Failed while " + phase + ":", e); // full details for diagnostics
       alert(`Something went wrong while ${phase}.\n\nError: ${e.message || e}\n\n` +
@@ -558,6 +616,7 @@
     renderPermissions();
     show("screen-home");
     toast(`Demo mode — <span>${policies.length}</span> sample policies loaded`);
+    maybeShowWhatsNew();
   }
 
   // ---------- permissions overview (home) ----------
@@ -726,6 +785,7 @@
     ["toolImport", "📥 Import"],
   ];
   // Help is a tool too, but always sits last (after the + in the tab bar).
+  TOOL_TABS.push(["toolChangelog", "📋 What's new"]);
   TOOL_TABS.push(["toolHelp", "❓ Help"]);
   // Browser-style tabs: a tab exists only for a tool you have opened. Home shows
   // no tabs; opening a tool (from the grid or the + menu) adds one; the + opens
