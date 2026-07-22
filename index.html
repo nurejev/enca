@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=175">
+<link rel="stylesheet" href="css/app.css?v=176">
 </head>
 <body>
 
@@ -590,7 +590,10 @@
       </div>
       <div class="tb-actions">
         <button class="btn" id="loRefresh" title="Re-read the named locations from Entra">⟳ Refresh</button>
-        <button class="btn" id="loMd">Export MD</button>
+        <button class="btn" id="loMd" title="Documentation of every named location and its policy usage">Export MD</button>
+        <button class="btn" id="loJson" title="Save the configuration of every named location as JSON — compare a later state against it">⭳ Export JSON</button>
+        <label class="btn" for="loCmpFile" title="Load an earlier JSON export and see what changed since">⇄ Compare…</label>
+        <input type="file" id="loCmpFile" accept="application/json,.json" style="display:none">
         <button class="btn lemon" id="loNew">＋ New location</button>
       </div>
     </div>
@@ -799,7 +802,10 @@
         <li><b>＋ New location</b> — create an <b>IP ranges</b> location (CIDR, one per line, IPv4 or IPv6, optionally marked trusted) or a <b>countries/regions</b> location (two-letter ISO codes, optionally including unknown countries, with client-IP or Authenticator-GPS lookup).</li>
         <li><b>Edit</b> — rename and change the ranges/countries. The <b>type is fixed at creation</b>: an IP location can't become a country location. If you change the trusted flag, you're warned how many policies use “All trusted locations” and would follow the change.</li>
         <li><b>Delete</b> — a location that no policy references deletes after a plain confirm; one that is still referenced lists those policies and needs a typed <b>DELETE</b>, because removing it drops that condition and usually widens the policy.</li>
+        <li><b>Click a location name</b> — opens its report: every range or country, the trusted flag and what it means, the location id, and the <b>full list of policies</b> that name it plus the ones covering it through “All trusted locations” (each clickable through to the policy card). From there, <b>📄 Documentation (MD)</b> writes that one location up on its own.</li>
         <li><b>Export MD</b> — the full inventory with usage, as Markdown.</li>
+        <li><b>⭳ Export JSON</b> — the configuration of every location as a snapshot file. Nothing is stored server-side, so this is how you keep a record of what the ranges looked like on a given day.</li>
+        <li><b>⇄ Compare…</b> — load an earlier JSON export and see what moved since: locations whose <b>ranges, countries or trusted flag</b> changed, ones in the file that are gone from the tenant, and ones created since. Matched by display name, because an id from another tenant means nothing here. A flipped trusted flag is the one worth looking at first — it silently changes which policies match.</li>
       </ul>
       <p class="help-x">Reading is read-only; create, edit and delete write to the tenant and ask for Policy.ReadWrite.ConditionalAccess when you run them.</p>
     </section>
@@ -1148,6 +1154,20 @@
   </div>
 </div>
 
+<!-- ============ NAMED LOCATION DETAIL ============ -->
+<div class="modal-bg" id="loDetModal">
+  <div class="modal" style="max-width:720px">
+    <h3 id="loDetTitle"></h3>
+    <div id="loDetBody" style="max-height:62vh;overflow:auto"></div>
+    <div class="row">
+      <button class="btn" id="loDetClose">Close</button>
+      <div class="spacer"></div>
+      <button class="btn" id="loDetMd">📄 Documentation (MD)</button>
+      <button class="btn" id="loDetEdit">✎ Edit</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ HOUSEKEEPING (superseded policies) ============ -->
 <div class="modal-bg" id="hkModal">
   <div class="modal">
@@ -1178,31 +1198,31 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=175"></script>
-<script src="js/authConfig.js?v=175"></script>
-<script src="js/labels.js?v=175"></script>
-<script src="js/graph.js?v=175"></script>
-<script src="js/model.js?v=175"></script>
-<script src="js/render.js?v=175"></script>
-<script src="js/analyze.js?v=175"></script>
-<script src="js/whatif.js?v=175"></script>
-<script src="js/mslearn.js?v=175"></script>
-<script src="js/gapcheck.js?v=175"></script>
-<script src="js/exclusions.js?v=175"></script>
-<script src="js/validator.js?v=175"></script>
-<script src="js/whatifeval.js?v=175"></script>
-<script src="js/locations.js?v=175"></script>
-<script src="js/audit.js?v=175"></script>
-<script src="js/changelog.js?v=175"></script>
-<script src="js/baselineData.js?v=175"></script>
-<script src="js/baselineJoeyData.js?v=175"></script>
-<script src="js/baseline.js?v=175"></script>
-<script src="js/groupTemplates.js?v=175"></script>
-<script src="js/assign.js?v=175"></script>
-<script src="js/cagroups.js?v=175"></script>
-<script src="js/import.js?v=175"></script>
-<script src="js/export.js?v=175"></script>
-<script src="js/demo.js?v=175"></script>
-<script src="js/app.js?v=175"></script>
+<script src="js/version.js?v=176"></script>
+<script src="js/authConfig.js?v=176"></script>
+<script src="js/labels.js?v=176"></script>
+<script src="js/graph.js?v=176"></script>
+<script src="js/model.js?v=176"></script>
+<script src="js/render.js?v=176"></script>
+<script src="js/analyze.js?v=176"></script>
+<script src="js/whatif.js?v=176"></script>
+<script src="js/mslearn.js?v=176"></script>
+<script src="js/gapcheck.js?v=176"></script>
+<script src="js/exclusions.js?v=176"></script>
+<script src="js/validator.js?v=176"></script>
+<script src="js/whatifeval.js?v=176"></script>
+<script src="js/locations.js?v=176"></script>
+<script src="js/audit.js?v=176"></script>
+<script src="js/changelog.js?v=176"></script>
+<script src="js/baselineData.js?v=176"></script>
+<script src="js/baselineJoeyData.js?v=176"></script>
+<script src="js/baseline.js?v=176"></script>
+<script src="js/groupTemplates.js?v=176"></script>
+<script src="js/assign.js?v=176"></script>
+<script src="js/cagroups.js?v=176"></script>
+<script src="js/import.js?v=176"></script>
+<script src="js/export.js?v=176"></script>
+<script src="js/demo.js?v=176"></script>
+<script src="js/app.js?v=176"></script>
 </body>
 </html>

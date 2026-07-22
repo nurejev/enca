@@ -3183,6 +3183,8 @@
   // Cards sit in a grid (two or more per row); Table is the same information
   // one line per location, for tenants with 80+ of them.
   let loView = "cards";
+  // Loaded JSON snapshot being compared against the tenant (null = normal list)
+  let loCompare = null;
 
   async function openLocations(force) {
     crumb("🌐 Named locations");
@@ -3237,6 +3239,10 @@
     [...$("loViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.loview === loView));
     if (!rows.length) { $("loBody").innerHTML = '<p class="mini" style="padding:20px">No named location matches the current filter.</p>'; return; }
 
+    // Compare view takes over the body until it is closed — it is a different
+    // subject (this tenant vs a file), not a filter of the same list.
+    if (loCompare) { renderLoCompare(); return; }
+
     // Shared per-location facts, so the card and the table row can never drift.
     const facts = (l) => {
       const used = Locations.usedBy(l, raws);
@@ -3260,12 +3266,12 @@
           <tbody>${rows.map((l) => {
             const { k, used, canEdit, direct, implicit } = facts(l);
             return `<tr>
-              <td><b>${esc(l.displayName || "(unnamed)")}</b>${Locations.isTrusted(l) ? ' <span class="tag ok">trusted</span>' : ""}</td>
+              <td><b class="pol-link" data-lodet="${esc(l.id)}" title="Open the location report">${esc(l.displayName || "(unnamed)")}</b>${Locations.isTrusted(l) ? ' <span class="tag ok">trusted</span>' : ""}</td>
               <td class="mini">${icon(k)} ${esc(kindLabel(k))}</td>
               <td class="mini lo-d">${esc(Locations.detail(l))}</td>
               <td class="mini">${used.length ? [
-                  direct.length ? `<b>${direct.length}</b> named: ${list(direct)}` : "",
-                  implicit.length ? `<span class="lo-imp"><b>${implicit.length}</b> via “All trusted”: ${list(implicit)}</span>` : "",
+                  direct.length ? `<b>${direct.length}</b> named: ${list(direct.slice(0, 2))}${direct.length > 2 ? ` +${direct.length - 2}` : ""}` : "",
+                  implicit.length ? `<span class="lo-imp"><b>${implicit.length}</b> via “All trusted”</span>` : "",
                 ].filter(Boolean).join("<br>") : '<span class="muted">not referenced</span>'}</td>
               <td class="lo-tact">${actions(l, canEdit)}</td>
             </tr>`;
@@ -3279,15 +3285,15 @@
       return `<div class="list-card lo-card">
         <div class="lo-h">
           <span class="lo-ic">${icon(k)}</span>
-          <b>${esc(l.displayName || "(unnamed)")}</b>
+          <b class="pol-link" data-lodet="${esc(l.id)}" title="Open the location report">${esc(l.displayName || "(unnamed)")}</b>
           ${Locations.isTrusted(l) ? '<span class="tag ok">trusted</span>' : ""}
           <span class="tag">${esc(kindLabel(k))}</span>
         </div>
         <div class="mini lo-d">${esc(Locations.detail(l))}</div>
         <div class="lo-u">${used.length ? [
-            direct.length ? `Named by ${direct.length} polic${direct.length === 1 ? "y" : "ies"}: ${list(direct)}` : "",
-            implicit.length ? `<span class="lo-imp">Covered by ${implicit.length} polic${implicit.length === 1 ? "y" : "ies"} using “All trusted locations”: ${list(implicit)}</span>` : "",
-          ].filter(Boolean).join("<br>")
+            direct.length ? `Named by ${direct.length} polic${direct.length === 1 ? "y" : "ies"}: ${list(direct.slice(0, 2))}${direct.length > 2 ? ` <span class="muted">+${direct.length - 2} more</span>` : ""}` : "",
+            implicit.length ? `<span class="lo-imp">Covered by ${implicit.length} polic${implicit.length === 1 ? "y" : "ies"} using “All trusted locations”</span>` : "",
+          ].filter(Boolean).join("<br>") + ` <span class="lo-more" data-lodet="${esc(l.id)}">details →</span>`
           : '<span class="mini muted">Not referenced by any policy</span>'}</div>
         <div class="lo-act">${actions(l, canEdit)}</div>
       </div>`;
@@ -3299,8 +3305,165 @@
   $("loBody").addEventListener("click", (e) => {
     const ed = e.target.closest("[data-loedit]"); if (ed) { openLoEditor(loList.find((x) => x.id === ed.dataset.loedit)); return; }
     const dl = e.target.closest("[data-lodel]"); if (dl) { openLoDelete(loList.find((x) => x.id === dl.dataset.lodel)); return; }
-    const pl = e.target.closest(".pol-link"); if (pl) showDetail(pl.dataset.polid);
+    const dt = e.target.closest("[data-lodet]"); if (dt) { openLoDetail(dt.dataset.lodet); return; }
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
   });
+
+  // ---- one location, in full ----
+  // The cards only summarise usage; a location trusted by 18 policies needs a
+  // place that lists all of them, every range, and its own documentation.
+  let loDetailId = null;
+  function openLoDetail(id) {
+    const l = loList && loList.find((x) => x.id === id); if (!l) return;
+    loDetailId = id;
+    const raws = policies.map((p) => p.raw);
+    const k = Locations.kindOf(l), used = Locations.usedBy(l, raws);
+    const direct = used.filter((u) => !u.implicit), implicit = used.filter((u) => u.implicit);
+    const ranges = (l.ipRanges || []).map((x) => x.cidrAddress).filter(Boolean);
+    const countries = l.countriesAndRegions || [];
+    const polList = (arr) => `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px;max-height:200px;overflow:auto">`
+      + arr.map((p) => `<li><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.how ? ` <span class="mini muted">${esc(p.how)}</span>` : ""}</li>`).join("") + "</ul>";
+    $("loDetTitle").innerHTML = `${k === "ip" ? "🖧" : k === "country" ? "🌍" : "🛡"} ${esc(l.displayName || "(unnamed)")}`
+      + (Locations.isTrusted(l) ? ' <span class="tag ok">trusted</span>' : "")
+      + ` <span class="tag">${k === "ip" ? "IP ranges" : k === "country" ? "countries" : "network access"}</span>`;
+    $("loDetBody").innerHTML = `
+      <table class="plist" style="margin-bottom:12px"><tbody>
+        <tr><td style="width:150px" class="mini">Type</td><td>${k === "ip" ? "IP ranges" : k === "country" ? "Countries / regions" : "Compliant network (service-managed)"}</td></tr>
+        <tr><td class="mini">Trusted</td><td>${Locations.isTrusted(l)
+          ? 'Yes — policies using <b>“All trusted locations”</b> cover it implicitly'
+          : 'No — only policies that name it explicitly apply'}</td></tr>
+        ${k === "ip" ? `<tr><td class="mini">Ranges (${ranges.length})</td><td class="lo-d" style="margin:0">${ranges.length ? ranges.map(esc).join("<br>") : "<span class='muted'>none</span>"}</td></tr>` : ""}
+        ${k === "country" ? `<tr><td class="mini">Countries (${countries.length})</td><td>${countries.length ? esc(countries.join(", ")) : "<span class='muted'>none</span>"}</td></tr>
+          <tr><td class="mini">Unknown regions</td><td>${l.includeUnknownCountriesAndRegions ? "included" : "not included"}</td></tr>
+          <tr><td class="mini">Lookup</td><td>${esc(l.countryLookupMethod || "clientIpAddress")}</td></tr>` : ""}
+        <tr><td class="mini">Location id</td><td class="mini lo-d" style="margin:0">${esc(l.id)}</td></tr>
+      </tbody></table>
+      <h4 style="margin:14px 0 6px">Named by ${direct.length} polic${direct.length === 1 ? "y" : "ies"}</h4>
+      ${direct.length ? polList(direct) : '<p class="mini muted">No policy names this location.</p>'}
+      ${implicit.length ? `<h4 style="margin:14px 0 6px">Covered by ${implicit.length} polic${implicit.length === 1 ? "y" : "ies"} using “All trusted locations”</h4>
+        <p class="mini muted" style="margin:0 0 6px">These do not name it — they match it because it is trusted. Clearing the trusted flag removes it from all of them at once.</p>
+        ${polList(implicit)}` : ""}
+      ${!used.length ? '<p class="mini" style="color:var(--off)">Not referenced by any policy — deleting it changes nothing today.</p>' : ""}`;
+    $("loDetEdit").style.display = Locations.editable(l) ? "" : "none";
+    $("loDetModal").classList.add("open");
+  }
+  $("loDetClose").addEventListener("click", () => $("loDetModal").classList.remove("open"));
+  $("loDetBody").addEventListener("click", (e) => {
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { $("loDetModal").classList.remove("open"); showDetail(pl.dataset.polid); }
+  });
+  $("loDetEdit").addEventListener("click", () => {
+    const l = loList && loList.find((x) => x.id === loDetailId); if (!l) return;
+    $("loDetModal").classList.remove("open"); openLoEditor(l);
+  });
+  $("loDetMd").addEventListener("click", () => {
+    const l = loList && loList.find((x) => x.id === loDetailId); if (!l) return;
+    showReport(`🌐 ${l.displayName || "Named location"}`, `CA-NamedLocation-${(l.displayName || "location").replace(/[^\w.-]+/g, "-")}`, loLocationMd(l));
+  });
+
+  // Documentation for a single location — same footer and tone as the other
+  // Markdown exports, so it can be pasted straight into a design document.
+  function loLocationMd(l) {
+    const raws = policies.map((p) => p.raw);
+    const k = Locations.kindOf(l), used = Locations.usedBy(l, raws);
+    const direct = used.filter((u) => !u.implicit), implicit = used.filter((u) => u.implicit);
+    const L = [`# Named location — ${l.displayName || "(unnamed)"}`, "",
+      `Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by ENCA — Conditional Access Baseline Tools (enca.limon-it.nl).`,
+      `Tenant: ${tenantName || "—"}`, "",
+      `- **Type:** ${k === "ip" ? "IP ranges" : k === "country" ? "Countries / regions" : "Compliant network (service-managed)"}`,
+      `- **Trusted:** ${Locations.isTrusted(l) ? "yes" : "no"}`,
+      `- **Id:** \`${l.id}\``, ""];
+    if (k === "ip") {
+      const r = (l.ipRanges || []).map((x) => x.cidrAddress).filter(Boolean);
+      L.push(`## Ranges (${r.length})`, "", ...(r.length ? r.map((x) => `- \`${x}\``) : ["_none_"]), "");
+    } else if (k === "country") {
+      const c = l.countriesAndRegions || [];
+      L.push(`## Countries / regions (${c.length})`, "", c.length ? c.join(", ") : "_none_", "",
+        `- Unknown regions: ${l.includeUnknownCountriesAndRegions ? "included" : "not included"}`,
+        `- Lookup method: ${l.countryLookupMethod || "clientIpAddress"}`, "");
+    }
+    L.push(`## Policy usage`, "",
+      `### Named by ${direct.length} polic${direct.length === 1 ? "y" : "ies"}`, "",
+      ...(direct.length ? direct.map((p) => `- ${p.name}${p.how ? ` (${p.how})` : ""}`) : ["_none_"]), "");
+    if (implicit.length) {
+      L.push(`### Covered by ${implicit.length} polic${implicit.length === 1 ? "y" : "ies"} using “All trusted locations”`, "",
+        `These do not name the location — they match it because it is trusted. Clearing the trusted flag removes it from all of them at once.`, "",
+        ...implicit.map((p) => `- ${p.name}`), "");
+    }
+    if (!used.length) L.push(`_Not referenced by any policy — deleting it changes nothing today._`, "");
+    return L.join("\n");
+  }
+
+  // ---- config snapshot: export, and compare a later state against it ----
+  $("loJson").addEventListener("click", () => {
+    if (!loList) return;
+    const snap = Locations.toExport(loList, { tenant: tenantName, build: APP_BUILD.label });
+    downloadText("CA-NamedLocations-Config", "json", "application/json", JSON.stringify(snap, null, 2));
+    toast(`Exported <span>${snap.count}</span> named location${snap.count === 1 ? "" : "s"} — load it back with Compare to see what changed`);
+  });
+  $("loCmpFile").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f || !loList) return;
+    try {
+      const snap = Locations.fromExport(JSON.parse(await f.text()));
+      loCompare = { snap, fileName: f.name, result: Locations.compare(loList, snap.locations) };
+      renderLocations();
+    } catch (err) { console.error(err); toast(`Could not read that export: <span>${esc(err.message || err)}</span>`); }
+  });
+
+  function renderLoCompare() {
+    const { snap, fileName, result: r } = loCompare;
+    const when = (snap.generated || "").replace("T", " ").slice(0, 16);
+    const nDrift = r.changed.length + r.missing.length + r.extra.length;
+    const sec = (title, note, body) => `<h4 style="margin:16px 0 4px">${title}</h4>${note ? `<p class="mini muted" style="margin:0 0 6px">${note}</p>` : ""}${body}`;
+    const nameCell = (l) => `<b class="pol-link" data-lodet="${esc(l.id)}">${esc(l.displayName || "(unnamed)")}</b>`;
+    const rowsChanged = r.changed.map((c) => `<tr><td>${nameCell(c.location)}</td>
+      <td class="mini">${c.fields.map((f) => `<div class="lo-drift">${esc(f)}</div>`).join("")}</td></tr>`).join("");
+    $("loBody").innerHTML = `
+      <div class="list-card" style="border-left:3px solid var(--accent2)">
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:1;min-width:240px">
+            <h3 style="margin:0 0 4px">⇄ Compared against ${esc(fileName)}</h3>
+            <p class="mini" style="margin:0">Snapshot of <b>${snap.count}</b> location${snap.count === 1 ? "" : "s"}${snap.tenant ? ` from <b>${esc(snap.tenant)}</b>` : ""}${when ? `, taken ${esc(when)} UTC` : ""}${snap.build ? ` (${esc(snap.build)})` : ""}.
+              Matched by <b>display name</b> — an id from another tenant means nothing here.</p>
+            <p class="mini" style="margin:6px 0 0">${nDrift
+              ? `<b style="color:var(--off)">${nDrift}</b> difference${nDrift === 1 ? "" : "s"}: ${r.changed.length} changed, ${r.missing.length} missing here, ${r.extra.length} new here. ${r.same.length} identical.`
+              : `<b style="color:var(--on)">No differences</b> — all ${r.same.length} location${r.same.length === 1 ? " matches" : "s match"} the snapshot.`}</p>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn" id="loCmpMd">Export MD</button>
+            <button class="btn" id="loCmpClose">✕ Back to locations</button>
+          </div>
+        </div>
+      </div>
+      ${r.changed.length ? sec(`✎ Changed (${r.changed.length})`,
+        "Present in both, but the definition moved. A flipped <b>trusted</b> flag is the one to look at first — it silently changes which policies match.",
+        `<div class="list-card" style="padding:0;overflow:hidden"><table class="plist"><tbody>${rowsChanged}</tbody></table></div>`) : ""}
+      ${r.missing.length ? sec(`− In the snapshot, not in this tenant (${r.missing.length})`,
+        "Deleted or renamed since. Any policy that named one no longer has it.",
+        `<div class="list-card" style="padding:0;overflow:hidden"><table class="plist"><tbody>${r.missing.map((sl) => `<tr><td><b>${esc(sl.displayName)}</b></td><td class="mini">${esc(sl.kind === "country" ? (sl.countriesAndRegions || []).join(", ") : (sl.ipRanges || []).join(", "))}</td></tr>`).join("")}</tbody></table></div>`) : ""}
+      ${r.extra.length ? sec(`+ In this tenant, not in the snapshot (${r.extra.length})`,
+        "Created since the snapshot was taken.",
+        `<div class="list-card" style="padding:0;overflow:hidden"><table class="plist"><tbody>${r.extra.map((l) => `<tr><td>${nameCell(l)}</td><td class="mini lo-d" style="margin:0">${esc(Locations.detail(l))}</td></tr>`).join("")}</tbody></table></div>`) : ""}`;
+    $("loCmpClose").addEventListener("click", () => { loCompare = null; renderLocations(); });
+    $("loCmpMd").addEventListener("click", () => showReport("⇄ Named locations — compare", "CA-NamedLocations-Compare", loCompareMd()));
+  }
+
+  function loCompareMd() {
+    const { snap, fileName, result: r } = loCompare;
+    const L = [`# Named locations — compared against a snapshot`, "",
+      `Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by ENCA — Conditional Access Baseline Tools (enca.limon-it.nl).`, "",
+      `- **Tenant:** ${tenantName || "—"}`,
+      `- **Snapshot:** ${fileName}${snap.tenant ? ` (${snap.tenant})` : ""}, taken ${(snap.generated || "").replace("T", " ").slice(0, 16)} UTC`,
+      `- **Changed:** ${r.changed.length} · **Missing here:** ${r.missing.length} · **New here:** ${r.extra.length} · **Identical:** ${r.same.length}`, ""];
+    if (r.changed.length) {
+      L.push(`## Changed`, "", "| Location | What moved |", "| --- | --- |",
+        ...r.changed.map((c) => `| ${c.location.displayName} | ${c.fields.join("; ").replace(/\|/g, "\\|")} |`), "");
+    }
+    if (r.missing.length) L.push(`## In the snapshot, not in this tenant`, "", ...r.missing.map((s) => `- ${s.displayName}`), "");
+    if (r.extra.length) L.push(`## In this tenant, not in the snapshot`, "", ...r.extra.map((l) => `- ${l.displayName} — ${Locations.detail(l)}`), "");
+    if (!r.changed.length && !r.missing.length && !r.extra.length) L.push(`No differences — all ${r.same.length} locations match the snapshot.`, "");
+    return L.join("\n");
+  }
 
   // ---- editor ----
   function loSyncKind() {

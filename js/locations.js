@@ -184,6 +184,85 @@ const Locations = (() => {
     return out;
   }
 
-  return { IP_TYPE, COUNTRY_TYPE, kindOf, isTrusted, editable, validCidr, validCountry, splitList,
-    buildPayload, usedBy, trustedConsumers, summarize, detail, toForm, diff };
+  // ---------- config export / compare ----------------------------------
+  // Named locations are the quiet dependency of half a CA baseline: a policy
+  // that trusts an office range breaks silently when someone edits the range.
+  // Nothing is stored server-side here, so exporting a snapshot is the only way
+  // to hold "what it looked like then" and diff a later state against it.
+  const EXPORT_SCHEMA = "enca-locations/1";
+
+  // Only the fields that define the location — ids and timestamps are tenant
+  // state, not configuration, and would make every diff noisy.
+  function configOf(l) {
+    const k = kindOf(l);
+    const base = { displayName: l.displayName || "", kind: k };
+    if (k === "country") {
+      return { ...base,
+        countriesAndRegions: (l.countriesAndRegions || []).slice().sort(),
+        includeUnknownCountriesAndRegions: !!l.includeUnknownCountriesAndRegions,
+        countryLookupMethod: l.countryLookupMethod || "clientIpAddress" };
+    }
+    if (k === "compliantNetwork") return base;
+    return { ...base,
+      isTrusted: !!l.isTrusted,
+      ipRanges: (l.ipRanges || []).map((x) => x.cidrAddress).filter(Boolean).slice().sort() };
+  }
+
+  function toExport(list, meta = {}) {
+    return {
+      schema: EXPORT_SCHEMA,
+      generated: new Date().toISOString(),
+      tenant: meta.tenant || "",
+      build: meta.build || "",
+      count: (list || []).length,
+      locations: (list || []).map(configOf)
+        .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+    };
+  }
+  function fromExport(obj) {
+    if (!obj || typeof obj !== "object") throw new Error("That file isn't an ENCA named-locations export.");
+    if (obj.schema !== EXPORT_SCHEMA) throw new Error(`Unexpected format "${obj.schema || "unknown"}" — expected ${EXPORT_SCHEMA}.`);
+    if (!Array.isArray(obj.locations)) throw new Error("The export has no locations.");
+    return obj;
+  }
+
+  // Match on display name: it is the only stable handle across tenants, and an
+  // id from another tenant means nothing here. Returns four buckets.
+  function compare(current, snapLocations) {
+    const cur = new Map((current || []).map((l) => [(l.displayName || "").toLowerCase(), l]));
+    const snap = new Map((snapLocations || []).map((s) => [(s.displayName || "").toLowerCase(), s]));
+    const same = [], changed = [], missing = [], extra = [];
+    for (const [key, s] of snap) {
+      const c = cur.get(key);
+      if (!c) { missing.push(s); continue; }             // in the file, not here
+      const now = configOf(c), fields = [];
+      if (now.kind !== s.kind) fields.push(`type: ${s.kind} → ${now.kind}`);
+      const list = (a) => (a || []).join(", ") || "—";
+      if ((s.ipRanges || now.ipRanges) && list(s.ipRanges) !== list(now.ipRanges)) {
+        const was = new Set(s.ipRanges || []), is = new Set(now.ipRanges || []);
+        const added = [...is].filter((x) => !was.has(x)), removed = [...was].filter((x) => !is.has(x));
+        fields.push(`ranges: ${added.length ? `+${added.join(", +")}` : ""}${added.length && removed.length ? " · " : ""}${removed.length ? `−${removed.join(", −")}` : ""}`);
+      }
+      if ((s.countriesAndRegions || now.countriesAndRegions) && list(s.countriesAndRegions) !== list(now.countriesAndRegions)) {
+        const was = new Set(s.countriesAndRegions || []), is = new Set(now.countriesAndRegions || []);
+        const added = [...is].filter((x) => !was.has(x)), removed = [...was].filter((x) => !is.has(x));
+        fields.push(`countries: ${added.length ? `+${added.join(", +")}` : ""}${added.length && removed.length ? " · " : ""}${removed.length ? `−${removed.join(", −")}` : ""}`);
+      }
+      // The trusted flag is the one that silently changes what policies enforce
+      if (!!s.isTrusted !== !!now.isTrusted) fields.push(`trusted: ${!!s.isTrusted} → ${!!now.isTrusted}`);
+      if (!!s.includeUnknownCountriesAndRegions !== !!now.includeUnknownCountriesAndRegions) fields.push(`include-unknown: ${!!s.includeUnknownCountriesAndRegions} → ${!!now.includeUnknownCountriesAndRegions}`);
+      if ((s.countryLookupMethod || "") !== (now.countryLookupMethod || "") && (s.countryLookupMethod || now.countryLookupMethod)) fields.push(`lookup: ${s.countryLookupMethod || "—"} → ${now.countryLookupMethod || "—"}`);
+      if (fields.length) changed.push({ location: c, snapshot: s, fields });
+      else same.push(c);
+    }
+    for (const [key, c] of cur) if (!snap.has(key)) extra.push(c);   // here, not in the file
+    const byName = (a, b) => (a.displayName || "").localeCompare(b.displayName || "");
+    return {
+      same: same.sort(byName), extra: extra.sort(byName), missing: missing.sort(byName),
+      changed: changed.sort((a, b) => byName(a.location, b.location)),
+    };
+  }
+
+  return { IP_TYPE, COUNTRY_TYPE, EXPORT_SCHEMA, kindOf, isTrusted, editable, validCidr, validCountry, splitList,
+    buildPayload, usedBy, trustedConsumers, summarize, detail, toForm, diff, configOf, toExport, fromExport, compare };
 })();
