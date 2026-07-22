@@ -513,6 +513,14 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .au-when{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
 .au-sub{font-size:12px;color:var(--muted);margin-top:3px}
 .au-why{color:var(--report);background:var(--warn-bg2);border-radius:var(--radius);padding:5px 9px;margin-top:5px}
+.au-sum td{vertical-align:top}
+.au-sumrow{cursor:pointer}
+.au-sumrow:hover td{background:var(--hover)}
+.au-sumdet td{background:var(--soft);padding:12px 14px}
+.au-n{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;margin-right:5px;white-space:nowrap}
+.au-n.add{background:var(--ok-bg2);color:var(--on)}
+.au-n.rem{background:var(--bad-bg2);color:var(--off)}
+.au-n.upd{background:var(--warn-bg2);color:var(--report)}
 .au-diff{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;
   font-family:var(--mono,ui-monospace,monospace)}
 .au-diff div{padding:2px 0;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}

@@ -15,8 +15,9 @@
 // ======================================================================
 const CHANGELOG = [
   {
-    build: 163, date: "2026-07-21", title: "Change audit, named locations and a tidier home page",
+    build: 164, date: "2026-07-21", title: "Change audit, named locations and a tidier home page",
     items: [
+      { kind: "improved", tool: "Change audit", text: "Opens on a Summary view that rolls the log up per resource — one row per policy or group with how many adds, removes and updates it saw, how many distinct people moved, and who did it. On a large tenant that turns 2,600 near-identical entitlement-management events into a handful of readable rows; click one for the individual changes, or switch to Timeline for the raw feed." },
       { kind: "improved", tool: "Change audit", text: "Defaults to the last 7 days, and a read in progress now survives switching tabs — come back and it is still running (or already done) instead of showing the Run button again." },
       { kind: "new", tool: "Change audit", text: "Also watches membership of the groups your policies include or exclude. Adding someone to an exclusion group widens a bypass without any policy being edited, so it never appears as a policy change — those additions and removals are now listed alongside, showing who was added, to which group, by whom, and which policies that group exempts them from." },
       { kind: "new", tool: "Change audit", text: "New tool. Reads the Entra directory audit log and shows who changed which Conditional Access resource, when, and exactly what changed — a field-level diff (state: report-only → enabled, one group added to an exclusion) rather than a wall of JSON. Covers policies, named locations, authentication strengths and contexts, and terms of use, with the actor and their source IP. Needs the new AuditLog.Read.All permission, requested when you run it." },

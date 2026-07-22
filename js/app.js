@@ -2846,7 +2846,7 @@
 
   // ---------- Change audit (directory audit log) ----------
   const AU_READ = ["AuditLog.Read.All"];
-  let auRes = null, auFilter = "all", auQuery = "", auDays = 7, auWatch = null, auBusy = false;
+  let auRes = null, auFilter = "all", auQuery = "", auDays = 7, auWatch = null, auBusy = false, auView = "summary";
   const auOpen = new Set();
   const auBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted">Reading the audit log… this keeps running if you switch tabs.</p></div>';
 
@@ -2904,8 +2904,14 @@
   }
   $("auBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-aurun]")) { runAudit(); return; }
+    const s = e.target.closest("[data-ausum]");
+    if (s) { const k = "s:" + s.dataset.ausum; auOpen.has(k) ? auOpen.delete(k) : auOpen.add(k); renderAudit(); return; }
     const h = e.target.closest("[data-auid]");
     if (h) { const id = h.dataset.auid; auOpen.has(id) ? auOpen.delete(id) : auOpen.add(id); renderAudit(); }
+  });
+  $("auViewSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-auview]"); if (!b) return;
+    auView = b.dataset.auview; auOpen.clear(); renderAudit();
   });
   $("auChips").addEventListener("click", (e) => { const b = e.target.closest("[data-auf]"); if (!b) return; auFilter = b.dataset.auf; renderAudit(); });
   $("auSearch").addEventListener("input", (e) => { auQuery = e.target.value; renderAudit(); });
@@ -2942,7 +2948,42 @@
       && (!q || `${x.target} ${x.actor.name} ${x.activity} ${x.changes.map((c) => c.path).join(" ")}`.toLowerCase().includes(q)));
     if (!rows.length) { $("auBody").innerHTML = '<p class="mini" style="padding:20px">No change matches the current filter.</p>'; return; }
 
-    $("auBody").innerHTML = rows.map((x) => {
+    [...$("auViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.auview === auView));
+
+    // ---- Summary: one row per resource touched (the readable default) ----
+    if (auView === "summary") {
+      const sum = Audit.summarize(rows);
+      $("auBody").innerHTML = `<div class="list-card"><table class="plist au-sum">
+        <thead><tr><th>Resource</th><th style="width:150px">Changes</th><th style="width:120px">People moved</th><th>Changed by</th><th style="width:110px">Last change</th></tr></thead>
+        <tbody>${sum.map((s) => {
+          const open = auOpen.has("s:" + s.key);
+          const K = Audit.KIND[s.kind] || {};
+          const detail = open ? `<tr class="au-sumdet"><td colspan="5">
+            ${s.kind === "membership" && s.usedBy.length ? `<div class="au-why" style="margin:0 0 8px">This group is used as an <b>${esc(s.usedAs)}</b> on ${s.usedBy.length} polic${s.usedBy.length === 1 ? "y" : "ies"}: ${esc(s.usedBy.slice(0, 6).join(", "))}${s.usedBy.length > 6 ? ` +${s.usedBy.length - 6} more` : ""}</div>` : ""}
+            <ul class="wi-list">${s.rows.slice(0, 40).map((x) => `<li>
+              <div class="wi-pn"><span class="au-act ${x.action}">${x.action}</span> ${esc(x.member || x.activity)}</div>
+              <div class="wi-why">${esc(new Date(x.when).toLocaleString())} · by ${esc(x.actor.name)}${x.actor.ip ? ` from ${esc(x.actor.ip)}` : ""}${x.changeCount && x.kind !== "membership" ? ` · ${x.changeCount} field${x.changeCount === 1 ? "" : "s"}` : ""}</div>
+            </li>`).join("")}</ul>
+            ${s.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${s.rows.length} — switch to Timeline and search to see the rest.</p>` : ""}
+          </td></tr>` : "";
+          return `<tr class="au-sumrow" data-ausum="${esc(s.key)}">
+            <td><b>${K.icon || ""} ${esc(s.target)}</b><div class="mini muted">${esc(K.label || s.kind)}${s.usedAs ? ` · ${esc(s.usedAs)} group` : ""}</div></td>
+            <td>${s.add ? `<span class="au-n add">+${s.add}</span>` : ""}${s.remove ? `<span class="au-n rem">−${s.remove}</span>` : ""}${s.update ? `<span class="au-n upd">~${s.update}</span>` : ""}</td>
+            <td>${s.memberCount ? `${s.memberCount} distinct` : '<span class="muted">—</span>'}</td>
+            <td class="mini">${esc(s.actors.slice(0, 2).map(([n, c]) => `${n} (${c})`).join(", "))}${s.actors.length > 2 ? ` +${s.actors.length - 2}` : ""}</td>
+            <td class="mini">${esc(auAgo(s.last))}</td>
+          </tr>${detail}`;
+        }).join("")}</tbody></table></div>
+        <p class="mini muted" style="margin-top:8px">${sum.length} resource${sum.length === 1 ? "" : "s"} touched across ${rows.length} change${rows.length === 1 ? "" : "s"} — click a row for the individual events.</p>`;
+      return;
+    }
+
+    // ---- Timeline: one card per change (capped, it is a lot on a big tenant) ----
+    const CAP = 300;
+    const shown = rows.slice(0, CAP);
+    $("auBody").innerHTML = (rows.length > CAP
+      ? `<p class="mini muted" style="margin-bottom:8px">Showing the ${CAP} most recent of ${rows.length} changes — narrow with the filters or use Summary.</p>` : "")
+      + shown.map((x) => {
       const open = auOpen.has(x.id);
       const diff = x.changes.length ? `<div class="au-diff">${x.changes.slice(0, 60).map((c) => `<div>
           <span class="au-op ${c.op}">${c.op}</span>

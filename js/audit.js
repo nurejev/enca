@@ -240,6 +240,40 @@ const Audit = (() => {
     };
   }
 
+  // ---- aggregate ---------------------------------------------------------
+  // A busy tenant produces thousands of membership events that are all the same
+  // shape (entitlement management adding guests to one group). One card each is
+  // unreadable, so roll them up per resource: what was touched, how often, by
+  // whom, and how many distinct people moved.
+  function summarize(rows) {
+    const m = new Map();
+    for (const r of rows || []) {
+      const key = r.targetId || r.target;
+      let e = m.get(key);
+      if (!e) {
+        e = { key, target: r.target, kind: r.kind, usedAs: r.usedAs || "", usedBy: r.usedBy || [],
+          add: 0, remove: 0, update: 0, actors: new Map(), members: new Set(),
+          first: r.when, last: r.when, rows: [] };
+        m.set(key, e);
+      }
+      if (r.action === "add") e.add++;
+      else if (r.action === "delete") e.remove++;
+      else e.update++;
+      e.actors.set(r.actor.name, (e.actors.get(r.actor.name) || 0) + 1);
+      if (r.member) e.members.add(r.member);
+      if (String(r.when) > String(e.last)) e.last = r.when;
+      if (String(r.when) < String(e.first)) e.first = r.when;
+      e.rows.push(r);
+    }
+    return [...m.values()].map((e) => ({
+      ...e,
+      total: e.add + e.remove + e.update,
+      actors: [...e.actors.entries()].sort((a, b) => b[1] - a[1]),
+      memberCount: e.members.size,
+      rows: e.rows.sort((a, b) => String(b.when).localeCompare(String(a.when))),
+    })).sort((a, b) => b.total - a.total || String(b.last).localeCompare(String(a.last)));
+  }
+
   // Graph filter for the fetch: date window, optionally narrowed to policy
   // changes (the category every CA resource change lands in).
   function query(days, category) {
@@ -252,6 +286,6 @@ const Audit = (() => {
   const queryPolicy = (days) => query(days, "Policy");
   const queryMembership = (days) => query(days, "GroupManagement");
 
-  return { KIND, build, parse, parseMembership, watchedGroups, isMembershipActivity,
+  return { KIND, build, summarize, parse, parseMembership, watchedGroups, isMembershipActivity,
     diff, decode, query, queryPolicy, queryMembership, kindOf, actionOf, actorOf };
 })();
