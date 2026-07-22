@@ -2599,7 +2599,7 @@
         <div style="font-size:26px;font-weight:700">${r.simCount}<span class="mini" style="font-weight:400"> simulations</span></div>
         <div class="mini">${r.simulatedPolicies} of ${r.policyCount} policies ${r.target ? "apply" : "simulated"}</div>
         ${r.target ? `<div class="mini">${r.outOfScope} not in scope for this target</div>` : ""}
-        ${r.skipped.length ? `<div class="mini">${r.skipped.length} skipped (session-only / no controls)</div>` : ""}
+        ${r.skipped.length ? `<div class="mini">${r.skipped.length} with no controls</div>` : ""}
       </div></div>
       ${r.target ? `<div class="va-targetbar">🎯 Running against ${r.target.kind === "user" ? "user" : "persona group"} <b>${esc(r.target.name)}</b>${r.target.upn ? ` <span class="mini muted">${esc(r.target.upn)}</span>` : ""} — showing only the policies that apply. <button class="fchip" data-vacleartarget="1">✕ Clear</button></div>` : ""}`;
 
@@ -2614,7 +2614,7 @@
     [...$("vaViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.vaview === vaView));
 
     const q = vaQuery.toLowerCase();
-    const skippedNote = r.skipped.length ? `<p class="mini muted" style="margin-top:10px">Not simulated (no grant control to assert): ${r.skipped.map((s) => esc(s.name)).join(", ")}</p>` : "";
+    const skippedNote = r.skipped.length ? `<p class="mini muted" style="margin-top:10px">Not simulated (no grant or session control configured): ${r.skipped.map((s) => esc(s.name)).join(", ")}</p>` : "";
 
     // With a target, show the policies that do NOT reach it and why — the
     // overview is only complete if the misses are visible too.
@@ -2630,11 +2630,15 @@
       ? `<p class="mini" style="padding:20px">No enabled policy applies to <b>${esc(r.target.name)}</b>${vaReportOnly ? "" : " — tick “Include report-only” to widen the check"}.</p>`
       : '<p class="mini" style="padding:20px">No simulations match the current filter.</p>'; };
 
-    // ---- Compact: one summary card per policy (the readable default) ----
+    // ---- Compact: one summary card per policy, grouped by persona ----
     if (vaView === "compact") {
-      const cards = r.groups.map((g) => vaCompactCard(g, vaFilter, q)).filter(Boolean);
-      if (!cards.length && !oosHtml) { emptyMsg(); return; }
-      $("vaBody").innerHTML = (cards.length ? cards.join("") : '<p class="mini" style="padding:14px">No policy enforces a control for this target.</p>') + oosHtml + skippedNote;
+      const blocks = (r.personas || []).map((pb) => {
+        const cards = pb.groups.map((g) => vaCompactCard(g, vaFilter, q)).filter(Boolean);
+        if (!cards.length) return "";
+        return `<div class="va-persona"><h4>${esc(pb.label)} <span class="mini muted">${cards.length} polic${cards.length === 1 ? "y" : "ies"}</span></h4></div>${cards.join("")}`;
+      }).filter(Boolean);
+      if (!blocks.length && !oosHtml) { emptyMsg(); return; }
+      $("vaBody").innerHTML = (blocks.length ? blocks.join("") : '<p class="mini" style="padding:14px">No policy enforces a control for this target.</p>') + oosHtml + skippedNote;
       return;
     }
 
@@ -2648,7 +2652,18 @@
     if (!groups.length && !oosHtml) { emptyMsg(); return; }
     const stateTag = (st) => st === "enabledForReportingButNotEnforced" ? '<span class="tag">report-only</span>' : "";
     const cell = (v) => v && v !== "All" ? esc(v) : '<span class="muted">·</span>';
+    // insert a persona heading whenever the bucket changes
+    let lastPersona = null;
     $("vaBody").innerHTML = groups.map((g) => {
+      const pl = (g.persona && g.persona.label) || "Other";
+      const head = pl !== lastPersona ? (lastPersona = pl, `<div class="va-persona"><h4>${esc(pl)}</h4></div>`) : "";
+      return head + vaDetailCard(g, stateTag, cell);
+    }).join("") + oosHtml + skippedNote;
+  }
+
+  // one policy's simulation table (detailed view)
+  function vaDetailCard(g, stateTag, cell) {
+    {
       const open = !vaCollapsed.has(g.id);
       const rows = g.shown.map((s) => `<tr>
         <td>${s.inverted ? '<span class="va-no">no ' + esc(s.controlLabel) + '</span>' : '<span class="va-yes">' + esc(s.controlLabel) + '</span>'}</td>
@@ -2672,7 +2687,7 @@
           </table>
         </div>
       </div>`;
-    }).join("") + oosHtml + skippedNote;
+    }
   }
 
   function vaMarkdown() {

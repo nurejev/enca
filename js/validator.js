@@ -26,12 +26,24 @@ const Validator = (() => {
   const ALL_PLATFORMS = ["android", "iOS", "windows", "macOS", "linux"];
   const CLIENT_ALL = ["browser", "mobileAppsAndDesktopClients", "other"];
 
-  // grant controls we can assert an expectation for (session-only policies have none)
+  // Controls we can assert an expectation for. A policy with only SESSION
+  // controls still enforces something — sign-in frequency, token protection,
+  // app-enforced restrictions — so those are simulated too rather than skipped.
   const CONTROL_LABEL = {
     block: "Block access", mfa: "MFA", passwordChange: "Password change",
     compliantDevice: "Compliant device", domainJoinedDevice: "Hybrid Entra joined device",
-    authenticationStrength: "Authentication strength",
+    approvedApplication: "Approved client app", compliantApplication: "App protection policy",
+    authenticationStrength: "Authentication strength", termsOfUse: "Terms of use",
+    // session
+    signInFrequency: "Sign-in frequency", persistentBrowser: "Persistent browser",
+    applicationEnforcedRestrictions: "App enforced restrictions", cloudAppSecurity: "App control (MDA)",
+    continuousAccessEvaluation: "Continuous access evaluation", secureSignInSession: "Token protection",
+    disableResilienceDefaults: "Resilience defaults disabled",
+    globalSecureAccessFilteringProfile: "Global Secure Access profile",
   };
+  const SESSION_KEYS = new Set(["signInFrequency", "persistentBrowser", "applicationEnforcedRestrictions",
+    "cloudAppSecurity", "continuousAccessEvaluation", "secureSignInSession", "disableResilienceDefaults",
+    "globalSecureAccessFilteringProfile"]);
   const clientLabel = (c) => (c === "mobileAppsAndDesktopClients" ? "modern" : c === "other" ? "legacy" : c);
 
   // ---- placeholder resolvers (no membership sampling) ----
@@ -106,15 +118,41 @@ const Validator = (() => {
     return out;
   }
 
-  function controlsFor(g) {
-    if (!g) return [];
-    const out = (g.builtInControls || []).filter((c) => CONTROL_LABEL[c]);
-    if (g.authenticationStrength) out.push("authenticationStrength");
+  // → [{ key, label, type }]. Session controls carry their configured value in
+  // the label, because "sign-in frequency" alone doesn't tell you 14 days vs 3 hours.
+  function controlsFor(p) {
+    const g = p.grantControls || {}, s = p.sessionControls || {};
+    const out = [];
+    (g.builtInControls || []).filter((c) => CONTROL_LABEL[c] && c !== "unknownFutureValue")
+      .forEach((c) => out.push({ key: c, label: CONTROL_LABEL[c], type: "grant" }));
+    if (g.authenticationStrength) out.push({ key: "authenticationStrength", type: "grant",
+      label: "Authentication strength: " + (g.authenticationStrength.displayName || "configured") });
+    if ((g.termsOfUse || []).length) out.push({ key: "termsOfUse", label: "Terms of use", type: "grant" });
+
+    const sess = (key, label) => out.push({ key, label, type: "session" });
+    if (s.applicationEnforcedRestrictions?.isEnabled) sess("applicationEnforcedRestrictions", "App enforced restrictions");
+    if (s.cloudAppSecurity?.isEnabled) sess("cloudAppSecurity", "App control (MDA): " + (s.cloudAppSecurity.cloudAppSecurityType || "configured"));
+    if (s.signInFrequency?.isEnabled) sess("signInFrequency", "Sign-in frequency: " +
+      (s.signInFrequency.frequencyInterval === "everyTime" ? "every time"
+        : `${s.signInFrequency.value ?? ""} ${s.signInFrequency.type ?? ""}`.trim() || "configured"));
+    if (s.persistentBrowser?.isEnabled) sess("persistentBrowser", "Persistent browser: " + (s.persistentBrowser.mode || "configured"));
+    if (s.continuousAccessEvaluation?.mode) sess("continuousAccessEvaluation", "CAE: " + s.continuousAccessEvaluation.mode);
+    if (s.secureSignInSession?.isEnabled) sess("secureSignInSession", "Token protection");
+    if (s.disableResilienceDefaults) sess("disableResilienceDefaults", "Resilience defaults disabled");
+    if (s.globalSecureAccessFilteringProfile?.isEnabled) sess("globalSecureAccessFilteringProfile", "Global Secure Access profile");
     return out;
+  }
+  // persona bucket from the CA number in the name (Global 000-099, Admins 100-199, …)
+  function personaOf(name) {
+    if (typeof Render !== "undefined" && Render.caGroup) {
+      const g = Render.caGroup(name);
+      return { key: g.key ?? 9999, label: g.label || "Other" };
+    }
+    return { key: 9999, label: "Other" };
   }
 
   function title(inverted, control, s) {
-    let t = `${inverted ? "no " : ""}${CONTROL_LABEL[control]} for ${s.upn} on ${s.appName}`;
+    let t = `${inverted ? "no " : ""}${typeof control === "string" ? (CONTROL_LABEL[control] || control) : control.label} for ${s.upn} on ${s.appName}`;
     if (s.clientApp !== "All") t += ` with ${clientLabel(s.clientApp)} auth`;
     if (s.ipRange !== "All") t += ` from ${s.ipRange}`;
     if (s.devicePlatform !== "All") t += ` on ${s.devicePlatform}`;
@@ -155,9 +193,9 @@ const Validator = (() => {
   }
 
   function simulatePolicy(p, names, target) {
-    const c = p.conditions || {}, g = p.grantControls || {};
-    const controls = controlsFor(g);
-    if (!controls.length) return { sims: [], skipped: "session-only (no grant control to assert)" };
+    const c = p.conditions || {};
+    const controls = controlsFor(p);
+    if (!controls.length) return { sims: [], skipped: "no grant or session control configured" };
 
     let users, scope = null;
     if (target) {
@@ -190,7 +228,7 @@ const Validator = (() => {
         for (const ctrl of controls) {
           const s = {
             policyId: p.id, policyName: p.displayName, state: p.state,
-            expectedControl: ctrl, controlLabel: CONTROL_LABEL[ctrl], inverted,
+            expectedControl: ctrl.key, controlLabel: ctrl.label, controlType: ctrl.type, inverted,
             upn: u.upn, userType: u.type, userKind: u.kind,
             appName: a.name, appType: a.type,
             clientApp: cl, ipRange: loc.label, locationType: loc.type,
@@ -227,16 +265,25 @@ const Validator = (() => {
         continue;
       }
       if (r.skipped) { skipped.push({ name: p.displayName, reason: r.skipped }); continue; }
-      groups.push({ id: p.id, name: p.displayName, state: p.state, sims: r.sims, capped: r.capped, scope: r.scope });
+      groups.push({ id: p.id, name: p.displayName, state: p.state, sims: r.sims, capped: r.capped, scope: r.scope,
+        persona: personaOf(p.displayName) });
       all.push(...r.sims);
     }
+    // persona buckets, in CA-number order, for the grouped views
+    const personas = [];
+    for (const g of groups) {
+      let b = personas.find((x) => x.key === g.persona.key);
+      if (!b) { b = { key: g.persona.key, label: g.persona.label, groups: [] }; personas.push(b); }
+      b.groups.push(g);
+    }
+    personas.sort((a, b) => a.key - b.key);
     return {
       policyCount: eligible.length,
       simulatedPolicies: groups.length,
       simCount: all.length,
       target: target ? { kind: target.kind, name: target.name, upn: target.upn } : null,
       outOfScope: notInScope.length, notInScope,
-      groups, sims: all, skipped,
+      groups, personas, sims: all, skipped,
       controlCounts: all.reduce((m, s) => { const k = (s.inverted ? "no " : "") + s.expectedControl; m[k] = (m[k] || 0) + 1; return m; }, {}),
     };
   }

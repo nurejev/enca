@@ -8,7 +8,7 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 158,
+  build: 159,
   date: "2026-07-21",
   get label() { return `v${this.version}.${this.build}`; },
   get full() { return `${this.label} · ${this.date}`; },
@@ -23,7 +23,7 @@ const TOOL_VERSIONS = {
   toolAnalyze:      { v: "1.6", note: "users × policies impact matrix, group filters, standalone HTML report, scoped matrix columns" },
   toolGapCheck:     { v: "1.6", note: "bypass checks, persona × control matrix, deployed-but-Off state, Markdown export" },
   toolExclusions:   { v: "1.6", note: "exclusion × policy matrix (default, unmerged), effective-user view and risk review (governance flags per policy, patterns after Tiago S. Carvalho), click-to-filter rows and columns, group member list, CSV and Markdown" },
-  toolValidator:    { v: "1.4", note: "per-policy sign-in simulation report ported from Jasper Baes' Conditional Access Validator — expected control per user/app/client/location/platform/risk, inverted 'no control' for excluded scope, report-only toggle, filter/search, Markdown export (no Maester code, representative placeholder users)" },
+  toolValidator:    { v: "1.5", note: "per-policy sign-in simulation report ported from Jasper Baes' Conditional Access Validator — expected control per user/app/client/location/platform/risk, inverted 'no control' for excluded scope, report-only toggle, filter/search, Markdown export (no Maester code, representative placeholder users)" },
   toolWhatIf:       { v: "1.0", note: "Entra Conditional Access What If tool re-implementation — simulate a sign-in (identity, resource, platform, client app, IP/country, device state, risks, auth flow) and get the policies that apply with their grant/session controls plus the policies that don't and the first unmet condition; named-location CIDR and country matching, Markdown export" },
   toolAudit:        { v: "1.0", note: "directory audit log of Conditional Access changes — policy, named location, authentication strength/context and terms-of-use edits with a field-level diff of what moved, actor and IP, kind/action filters, 7/30/90-day window, Markdown export" },
   toolBaseline:     { v: "1.8", note: "Limon-IT catalog, card and table views, number-clash detection, collapsible personas, catalog revision 2026-07-21, refresh, on-screen gap report" },
