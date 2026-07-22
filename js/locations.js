@@ -1,0 +1,161 @@
+// ======================================================================
+// Named locations — view, create, edit and delete the Conditional Access
+// named locations of the tenant.
+//   https://learn.microsoft.com/graph/api/resources/namedlocation
+//
+// Two derived types, and the @odata.type decides which fields apply:
+//   ipNamedLocation      — ipRanges (IPv4/IPv6 CIDR) + isTrusted
+//   countryNamedLocation — countriesAndRegions (ISO 3166-2) +
+//                          includeUnknownCountriesAndRegions + countryLookupMethod
+// The type is fixed at creation: an existing location can be renamed and its
+// ranges/countries changed, but it cannot switch between the two.
+//
+// Writes need Policy.ReadWrite.ConditionalAccess. Deleting a location that a
+// policy still references silently widens that policy, so references are
+// surfaced and a referenced location needs a typed confirmation.
+// ======================================================================
+const Locations = (() => {
+  const IP_TYPE = "#microsoft.graph.ipNamedLocation";
+  const COUNTRY_TYPE = "#microsoft.graph.countryNamedLocation";
+
+  const kindOf = (l) => String(l && l["@odata.type"] || "").toLowerCase().includes("country") ? "country" : "ip";
+  const isTrusted = (l) => kindOf(l) === "ip" && !!l.isTrusted;
+
+  // ---- validation -------------------------------------------------------
+  // IPv4 a.b.c.d/0-32; IPv6 is accepted on shape (Graph does the real parsing).
+  function validCidr(s) {
+    const v = String(s || "").trim();
+    if (!v) return false;
+    const [addr, bitsRaw] = v.split("/");
+    if (bitsRaw === undefined || bitsRaw === "") return false;
+    const bits = Number(bitsRaw);
+    if (addr.includes(":")) return /^[0-9a-f:]+$/i.test(addr) && Number.isInteger(bits) && bits >= 0 && bits <= 128;
+    const p = addr.split(".");
+    if (p.length !== 4 || p.some((x) => x === "" || !/^\d+$/.test(x) || +x > 255)) return false;
+    return Number.isInteger(bits) && bits >= 0 && bits <= 32;
+  }
+  const validCountry = (s) => /^[A-Za-z]{2}$/.test(String(s || "").trim());
+  const isIPv6 = (s) => String(s).split("/")[0].includes(":");
+
+  // free text (newline / comma separated) → clean list
+  const splitList = (txt) => String(txt || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+
+  // Validate an editor form; returns { ok, errors[], payload }
+  function buildPayload(form) {
+    const errors = [];
+    const name = String(form.name || "").trim();
+    if (!name) errors.push("A display name is required.");
+    if (name.length > 256) errors.push("The display name is too long (max 256 characters).");
+
+    if (form.kind === "ip") {
+      const ranges = splitList(form.ranges);
+      if (!ranges.length) errors.push("At least one IP range in CIDR format is required (for example 203.0.113.0/24).");
+      const bad = ranges.filter((r) => !validCidr(r));
+      if (bad.length) errors.push(`Not valid CIDR: ${bad.slice(0, 5).join(", ")}${bad.length > 5 ? ` and ${bad.length - 5} more` : ""}.`);
+      if (errors.length) return { ok: false, errors };
+      return { ok: true, errors, payload: {
+        "@odata.type": IP_TYPE,
+        displayName: name,
+        isTrusted: !!form.isTrusted,
+        ipRanges: ranges.map((r) => ({
+          "@odata.type": isIPv6(r) ? "#microsoft.graph.iPv6CidrRange" : "#microsoft.graph.iPv4CidrRange",
+          cidrAddress: r,
+        })),
+      } };
+    }
+
+    const countries = [...new Set(splitList(form.countries).map((c) => c.toUpperCase()))];
+    if (!countries.length) errors.push("At least one country/region code is required (two letters, ISO 3166-2).");
+    const badC = countries.filter((c) => !validCountry(c));
+    if (badC.length) errors.push(`Not valid two-letter codes: ${badC.slice(0, 5).join(", ")}.`);
+    if (errors.length) return { ok: false, errors };
+    return { ok: true, errors, payload: {
+      "@odata.type": COUNTRY_TYPE,
+      displayName: name,
+      countriesAndRegions: countries,
+      includeUnknownCountriesAndRegions: !!form.includeUnknown,
+      countryLookupMethod: form.lookupMethod || "clientIpAddress",
+    } };
+  }
+
+  // ---- which policies reference a location? ----------------------------
+  // raws: the tenant's raw CA policies. Returns [{id,name,state,how}]
+  function usedBy(locationId, raws) {
+    const out = [];
+    for (const p of raws || []) {
+      const l = p.conditions?.locations || {};
+      const inc = (l.includeLocations || []).includes(locationId);
+      const exc = (l.excludeLocations || []).includes(locationId);
+      if (inc || exc) out.push({ id: p.id, name: p.displayName, state: p.state, how: inc && exc ? "included + excluded" : inc ? "included" : "excluded" });
+    }
+    return out;
+  }
+  // How many policies use "All trusted locations"? Those follow every trusted
+  // IP location, so flipping isTrusted changes their behaviour too.
+  function trustedConsumers(raws) {
+    return (raws || []).filter((p) => {
+      const l = p.conditions?.locations || {};
+      return (l.includeLocations || []).includes("AllTrusted") || (l.excludeLocations || []).includes("AllTrusted");
+    }).map((p) => ({ id: p.id, name: p.displayName, state: p.state }));
+  }
+
+  function summarize(list, raws) {
+    const ip = list.filter((l) => kindOf(l) === "ip");
+    return {
+      total: list.length,
+      ip: ip.length,
+      country: list.filter((l) => kindOf(l) === "country").length,
+      trusted: ip.filter(isTrusted).length,
+      ranges: ip.reduce((n, l) => n + (l.ipRanges || []).length, 0),
+      unused: list.filter((l) => usedBy(l.id, raws).length === 0).length,
+    };
+  }
+
+  // one-line description for a row
+  function detail(l) {
+    if (kindOf(l) === "ip") {
+      const r = (l.ipRanges || []).map((x) => x.cidrAddress).filter(Boolean);
+      return r.length ? `${r.length} range${r.length === 1 ? "" : "s"}: ${r.slice(0, 4).join(", ")}${r.length > 4 ? ` +${r.length - 4} more` : ""}` : "no ranges";
+    }
+    const c = l.countriesAndRegions || [];
+    return `${c.length} countr${c.length === 1 ? "y" : "ies"}: ${c.slice(0, 12).join(", ")}${c.length > 12 ? ` +${c.length - 12} more` : ""}`
+      + (l.includeUnknownCountriesAndRegions ? " · incl. unknown" : "")
+      + (l.countryLookupMethod === "authenticatorAppGps" ? " · GPS lookup" : "");
+  }
+
+  // editor form prefilled from an existing location
+  function toForm(l) {
+    if (!l) return { kind: "ip", name: "", ranges: "", isTrusted: false, countries: "", includeUnknown: false, lookupMethod: "clientIpAddress" };
+    return {
+      id: l.id, kind: kindOf(l), name: l.displayName || "",
+      ranges: (l.ipRanges || []).map((x) => x.cidrAddress).filter(Boolean).join("\n"),
+      isTrusted: !!l.isTrusted,
+      countries: (l.countriesAndRegions || []).join(", "),
+      includeUnknown: !!l.includeUnknownCountriesAndRegions,
+      lookupMethod: l.countryLookupMethod || "clientIpAddress",
+    };
+  }
+
+  // what changed between the stored location and the edited form
+  function diff(orig, payload) {
+    const out = [];
+    if (!orig) return ["created"];
+    if ((orig.displayName || "") !== payload.displayName) out.push(`name: ${orig.displayName} → ${payload.displayName}`);
+    if (kindOf(orig) === "ip") {
+      const a = (orig.ipRanges || []).map((x) => x.cidrAddress).sort().join(",");
+      const b = (payload.ipRanges || []).map((x) => x.cidrAddress).sort().join(",");
+      if (a !== b) out.push("IP ranges changed");
+      if (!!orig.isTrusted !== !!payload.isTrusted) out.push(`trusted: ${!!orig.isTrusted} → ${!!payload.isTrusted}`);
+    } else {
+      const a = (orig.countriesAndRegions || []).slice().sort().join(",");
+      const b = (payload.countriesAndRegions || []).slice().sort().join(",");
+      if (a !== b) out.push("countries changed");
+      if (!!orig.includeUnknownCountriesAndRegions !== !!payload.includeUnknownCountriesAndRegions) out.push("include-unknown changed");
+      if ((orig.countryLookupMethod || "clientIpAddress") !== payload.countryLookupMethod) out.push("lookup method changed");
+    }
+    return out;
+  }
+
+  return { IP_TYPE, COUNTRY_TYPE, kindOf, isTrusted, validCidr, validCountry, splitList,
+    buildPayload, usedBy, trustedConsumers, summarize, detail, toForm, diff };
+})();

@@ -47,7 +47,8 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-help"]);
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif",
+    "screen-locations", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   function show(id) {
@@ -718,6 +719,7 @@
     ["toolMsLearn", "📘 MS Learn checks"],
     ["toolJson", "🗄 Backup (JSON)"],
     ["toolCaGroups", "👥 Conditional Access groups"],
+    ["toolLocations", "🌐 Named locations"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
@@ -2685,6 +2687,194 @@
   function vaClearTarget() { vaTargetObj = null; $("vaTarget").value = ""; runValidatorScan(); }
   $("vaTargetClear").addEventListener("click", vaClearTarget);
   $("vaHead").addEventListener("click", (e) => { if (e.target.closest("[data-vacleartarget]")) vaClearTarget(); });
+
+  // ---------- Named locations (view / create / edit / delete) ----------
+  const LO_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let loList = null, loFilter = "all", loQuery = "", loEditing = null, loDeleting = null;
+
+  async function openLocations(force) {
+    crumb("🌐 Named locations");
+    show("screen-locations");
+    if (loList && !force) { renderLocations(); return; }   // cached
+    $("loHead").innerHTML = '<h3>🌐 Named locations</h3><p class="mini" style="margin:6px 0 0">Reading named locations…</p>';
+    $("loBody").innerHTML = ""; $("loChips").innerHTML = "";
+    try {
+      loList = isDemo
+        ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.namedLocations) || [])
+        : await Graph.ggetAll("/identity/conditionalAccess/namedLocations");
+      renderLocations();
+    } catch (e) {
+      console.error("Named locations failed:", e);
+      $("loHead").innerHTML = `<h3>🌐 Named locations</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+    }
+  }
+  $("toolLocations").addEventListener("click", () => openLocations());
+  $("loRefresh").addEventListener("click", () => openLocations(true));
+
+  function renderLocations() {
+    const raws = policies.map((p) => p.raw);
+    const s = Locations.summarize(loList, raws);
+    $("loHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">
+        <h3>🌐 Named locations <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <p style="margin-bottom:4px">The IP-range and country locations your Conditional Access policies can target. Create, edit and delete them here — each row shows which policies use it.</p>
+        <p class="mini muted" style="margin:0">A location's type is fixed at creation: an IP location cannot become a country location. Deleting one that a policy still references widens that policy.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> locations</span></div>
+        <div class="mini">${s.ip} IP (${s.ranges} ranges) · ${s.country} country</div>
+        <div class="mini">${s.trusted} trusted${s.unused ? ` · ${s.unused} unused` : ""}</div>
+      </div></div>`;
+
+    const counts = { all: loList.length, ip: s.ip, country: s.country, trusted: s.trusted, unused: s.unused };
+    $("loChips").innerHTML = [["all", `All (${counts.all})`], ["ip", `🖧 IP ranges (${counts.ip})`],
+      ["country", `🌍 Countries (${counts.country})`], ["trusted", `✓ Trusted (${counts.trusted})`],
+      ["unused", `Unused (${counts.unused})`]]
+      .map(([k, l]) => `<button class="fchip ${loFilter === k ? "active" : ""}" data-lof="${k}">${esc(l)}</button>`).join("");
+
+    const q = loQuery.toLowerCase();
+    const rows = loList.filter((l) => {
+      const k = Locations.kindOf(l), used = Locations.usedBy(l.id, raws).length;
+      if (loFilter === "ip" && k !== "ip") return false;
+      if (loFilter === "country" && k !== "country") return false;
+      if (loFilter === "trusted" && !Locations.isTrusted(l)) return false;
+      if (loFilter === "unused" && used) return false;
+      return !q || `${l.displayName} ${Locations.detail(l)}`.toLowerCase().includes(q);
+    }).sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
+
+    if (!rows.length) { $("loBody").innerHTML = '<p class="mini" style="padding:20px">No named location matches the current filter.</p>'; return; }
+    $("loBody").innerHTML = rows.map((l) => {
+      const k = Locations.kindOf(l), used = Locations.usedBy(l.id, raws);
+      return `<div class="list-card lo-card">
+        <div class="lo-h">
+          <span class="lo-ic">${k === "ip" ? "🖧" : "🌍"}</span>
+          <b>${esc(l.displayName || "(unnamed)")}</b>
+          ${Locations.isTrusted(l) ? '<span class="tag ok">trusted</span>' : ""}
+          <span class="tag">${k === "ip" ? "IP ranges" : "countries"}</span>
+          <span class="lo-act">
+            <button class="btn sm" data-loedit="${esc(l.id)}">✎ Edit</button>
+            <button class="btn sm danger" data-lodel="${esc(l.id)}">🗑 Delete</button>
+          </span>
+        </div>
+        <div class="mini lo-d">${esc(Locations.detail(l))}</div>
+        <div class="lo-u">${used.length
+          ? `Used by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ` + used.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span> <span class="mini muted">(${p.how})</span>`).join(", ")
+          : '<span class="mini muted">Not referenced by any policy</span>'}</div>
+      </div>`;
+    }).join("");
+  }
+  $("loChips").addEventListener("click", (e) => { const b = e.target.closest("[data-lof]"); if (!b) return; loFilter = b.dataset.lof; renderLocations(); });
+  $("loSearch").addEventListener("input", (e) => { loQuery = e.target.value; renderLocations(); });
+  $("loBody").addEventListener("click", (e) => {
+    const ed = e.target.closest("[data-loedit]"); if (ed) { openLoEditor(loList.find((x) => x.id === ed.dataset.loedit)); return; }
+    const dl = e.target.closest("[data-lodel]"); if (dl) { openLoDelete(loList.find((x) => x.id === dl.dataset.lodel)); return; }
+    const pl = e.target.closest(".pol-link"); if (pl) showDetail(pl.dataset.polid);
+  });
+
+  // ---- editor ----
+  function loSyncKind() {
+    const ip = $("loKind").value === "ip";
+    $("loIpFields").style.display = ip ? "" : "none";
+    $("loCountryFields").style.display = ip ? "none" : "";
+  }
+  $("loKind").addEventListener("change", loSyncKind);
+  function openLoEditor(loc) {
+    loEditing = loc || null;
+    const f = Locations.toForm(loc);
+    $("loEditTitle").textContent = loc ? "Edit named location" : "New named location";
+    $("loEditSub").innerHTML = loc
+      ? `<b>${esc(loc.displayName)}</b> — the type cannot be changed after creation.`
+      : "Creates a new named location in this tenant.";
+    $("loKind").value = f.kind; $("loKind").disabled = !!loc;
+    $("loName").value = f.name; $("loRanges").value = f.ranges; $("loTrusted").checked = f.isTrusted;
+    $("loCountries").value = f.countries; $("loUnknown").checked = f.includeUnknown; $("loLookup").value = f.lookupMethod;
+    loSyncKind();
+    // changing isTrusted moves every policy that uses "All trusted locations"
+    const at = Locations.trustedConsumers(policies.map((p) => p.raw));
+    $("loEditWarn").innerHTML = (f.kind === "ip" && at.length)
+      ? `<div class="mini muted">⚠ ${at.length} polic${at.length === 1 ? "y uses" : "ies use"} <b>All trusted locations</b> — changing the trusted flag changes ${at.length === 1 ? "it" : "them"} too.</div>` : "";
+    $("loEditModal").classList.add("open");
+  }
+  $("loNew").addEventListener("click", () => openLoEditor(null));
+  $("loEditCancel").addEventListener("click", () => $("loEditModal").classList.remove("open"));
+  $("loEditSave").addEventListener("click", async () => {
+    const form = {
+      kind: $("loKind").value, name: $("loName").value, ranges: $("loRanges").value,
+      isTrusted: $("loTrusted").checked, countries: $("loCountries").value,
+      includeUnknown: $("loUnknown").checked, lookupMethod: $("loLookup").value,
+    };
+    const built = Locations.buildPayload(form);
+    if (!built.ok) { $("loEditWarn").innerHTML = built.errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join(""); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...LO_WRITE])) return;
+    const btn = $("loEditSave"); btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      if (isDemo) {
+        toast("Demo — <span>save simulated</span>");
+      } else if (loEditing) {
+        await Graph.gpatch(`/identity/conditionalAccess/namedLocations/${loEditing.id}`, built.payload, [...AUTH_CONFIG.scopes, ...LO_WRITE]);
+        toast(`<span>${esc(built.payload.displayName)}</span> updated`);
+      } else {
+        await Graph.gpost("/identity/conditionalAccess/namedLocations", built.payload, [...AUTH_CONFIG.scopes, ...LO_WRITE]);
+        toast(`<span>${esc(built.payload.displayName)}</span> created`);
+      }
+      $("loEditModal").classList.remove("open");
+      await openLocations(true);
+    } catch (e) {
+      console.error("Save named location failed:", e);
+      $("loEditWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(e.message || e)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = "Save"; }
+  });
+
+  // ---- delete ----
+  function openLoDelete(loc) {
+    if (!loc) return;
+    loDeleting = loc;
+    const used = Locations.usedBy(loc.id, policies.map((p) => p.raw));
+    $("loDelDesc").innerHTML = `<b>${esc(loc.displayName)}</b> — ${esc(Locations.detail(loc))}`;
+    $("loDelRefs").innerHTML = used.length
+      ? `<div class="mini" style="color:var(--off);font-weight:600;margin-bottom:6px">⚠ Still referenced by ${used.length} polic${used.length === 1 ? "y" : "ies"}:</div>
+         <ul class="wi-list dim">${used.map((p) => `<li><div class="wi-pn">${esc(p.name)}</div><div class="wi-why">${esc(p.how)} · ${esc(p.state === "enabledForReportingButNotEnforced" ? "report-only" : p.state)}</div></li>`).join("")}</ul>`
+      : '<p class="mini muted">Not referenced by any policy — safe to remove.</p>';
+    $("loDelConfirmWrap").style.display = used.length ? "" : "none";
+    $("loDelConfirm").value = "";
+    $("loDelGo").disabled = used.length > 0;
+    $("loDelModal").classList.add("open");
+  }
+  $("loDelConfirm").addEventListener("input", (e) => { $("loDelGo").disabled = e.target.value.trim().toUpperCase() !== "DELETE"; });
+  $("loDelCancel").addEventListener("click", () => $("loDelModal").classList.remove("open"));
+  $("loDelGo").addEventListener("click", async () => {
+    if (!loDeleting) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...LO_WRITE])) return;
+    const btn = $("loDelGo"); btn.disabled = true; btn.textContent = "Deleting…";
+    try {
+      if (isDemo) toast("Demo — <span>delete simulated</span>");
+      else {
+        await Graph.gdelete(`/identity/conditionalAccess/namedLocations/${loDeleting.id}`, [...AUTH_CONFIG.scopes, ...LO_WRITE]);
+        toast(`<span>${esc(loDeleting.displayName)}</span> deleted`);
+      }
+      $("loDelModal").classList.remove("open");
+      await openLocations(true);
+    } catch (e) {
+      console.error("Delete named location failed:", e);
+      toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; btn.textContent = "Delete permanently"; }
+  });
+
+  $("loMd").addEventListener("click", () => {
+    if (!loList) return;
+    const raws = policies.map((p) => p.raw), s = Locations.summarize(loList, raws);
+    const L = [`# Named locations — ${tenantName || "tenant"}`, "",
+      `Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by Conditional Access Baseline Tools (cadoc.limon-it.nl).`, "",
+      `- Total: **${s.total}** — ${s.ip} IP (${s.ranges} ranges), ${s.country} country`,
+      `- Trusted: ${s.trusted} · Not referenced by any policy: ${s.unused}`, "",
+      "| Location | Type | Trusted | Detail | Used by |", "| --- | --- | --- | --- | --- |"];
+    loList.slice().sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "")).forEach((l) => {
+      const used = Locations.usedBy(l.id, raws);
+      const e = (v) => String(v ?? "").replace(/\|/g, "\\|");
+      L.push(`| ${e(l.displayName)} | ${Locations.kindOf(l) === "ip" ? "IP ranges" : "Countries"} | ${Locations.isTrusted(l) ? "yes" : "—"} | ${e(Locations.detail(l))} | ${used.length ? used.map((p) => `${e(p.name)} (${p.how})`).join("<br>") : "—"} |`);
+    });
+    showReport("🌐 Named locations", "CA-NamedLocations", L.join("\n"));
+  });
 
   // ---------- What-If (Entra Conditional Access What If tool) ----------
   let wiResult = null, wiScenario = null, wiLocations = null, wiNames = {};

@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=151">
+<link rel="stylesheet" href="css/app.css?v=152">
 </head>
 <body>
 
@@ -117,6 +117,10 @@
       <div class="tool" id="toolCaGroups">
         <div class="tool-ic">👥</div><h3>Conditional Access groups</h3>
         <p>Check the baseline groups against this tenant, create the missing ones, analyze their members in a matrix, and assign them to policies. <span class="tag block">writes to tenant</span></p>
+      </div>
+      <div class="tool" id="toolLocations">
+        <div class="tool-ic">🌐</div><h3>Named locations <span class="tag new">BETA</span></h3>
+        <p>View, create, edit and delete Conditional Access named locations — IP ranges and countries — and see which policies use each one. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolState">
         <div class="tool-ic">🎚</div><h3>Set Policy state</h3>
@@ -535,6 +539,24 @@
     <div id="wiBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ NAMED LOCATIONS ============ -->
+  <section id="screen-locations" class="screen">
+    <div class="list-card readme" id="loHead" style="margin-top:0"></div>
+    <div class="toolbar" id="loToolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="loSearch" placeholder="Search named locations…">
+      </div>
+      <div class="chip-filter" id="loChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="loRefresh" title="Re-read the named locations from Entra">⟳ Refresh</button>
+        <button class="btn" id="loMd">Export MD</button>
+        <button class="btn lemon" id="loNew">＋ New location</button>
+      </div>
+    </div>
+    <div id="loBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ HELP — opens as a tool, in its own tab ============ -->
   <section id="screen-help" class="screen">
     <div class="help-page">
@@ -672,6 +694,19 @@
         <li><b>Assign</b> — add a group to policies’ include or exclude lists (ADD is additive — it never removes what’s there). A final confirmation and a change report before anything is written.</li>
       </ul>
       <p class="help-x">Writes only on Create / Recreate / Assign, each behind a confirmation.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🌐 Named locations <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
+      <p>Manage the named locations your Conditional Access policies target — the IP-range and country locations — without leaving the tool.</p>
+      <ul>
+        <li><b>View</b> — every location with its ranges or country list, whether it's <b>trusted</b>, and <b>which policies use it</b> (included or excluded). Filter by IP / country / trusted / unused, or search.</li>
+        <li><b>＋ New location</b> — create an <b>IP ranges</b> location (CIDR, one per line, IPv4 or IPv6, optionally marked trusted) or a <b>countries/regions</b> location (two-letter ISO codes, optionally including unknown countries, with client-IP or Authenticator-GPS lookup).</li>
+        <li><b>Edit</b> — rename and change the ranges/countries. The <b>type is fixed at creation</b>: an IP location can't become a country location. If you change the trusted flag, you're warned how many policies use “All trusted locations” and would follow the change.</li>
+        <li><b>Delete</b> — a location that no policy references deletes after a plain confirm; one that is still referenced lists those policies and needs a typed <b>DELETE</b>, because removing it drops that condition and usually widens the policy.</li>
+        <li><b>Export MD</b> — the full inventory with usage, as Markdown.</li>
+      </ul>
+      <p class="help-x">Reading is read-only; create, edit and delete write to the tenant and ask for Policy.ReadWrite.ConditionalAccess when you run them.</p>
     </section>
 
     <section class="help-sec">
@@ -912,6 +947,60 @@
   </div>
 </div>
 
+<!-- ============ NAMED LOCATION EDITOR ============ -->
+<div class="modal-bg" id="loEditModal">
+  <div class="modal" style="max-width:640px">
+    <h3 id="loEditTitle">New named location</h3>
+    <p class="mini" id="loEditSub" style="margin-bottom:12px"></p>
+    <label class="wi-f" style="margin-bottom:10px"><span>Type</span>
+      <select id="loKind">
+        <option value="ip">IP ranges</option>
+        <option value="country">Countries / regions</option>
+      </select></label>
+    <label class="wi-f" style="margin-bottom:10px"><span>Display name</span>
+      <input id="loName" placeholder="e.g. Corporate network" autocomplete="off" spellcheck="false"></label>
+    <div id="loIpFields">
+      <label class="wi-f"><span>IP ranges — CIDR, one per line</span>
+        <textarea id="loRanges" rows="5" placeholder="203.0.113.0/24&#10;198.51.100.7/32&#10;2001:db8::/32" spellcheck="false"></textarea></label>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" id="loTrusted"> Mark as trusted location
+        <span class="mini muted">— policies using “All trusted locations” will follow it</span></label>
+    </div>
+    <div id="loCountryFields" style="display:none">
+      <label class="wi-f"><span>Countries / regions — two-letter ISO codes</span>
+        <textarea id="loCountries" rows="4" placeholder="NL, BE, DE" spellcheck="false"></textarea></label>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" id="loUnknown"> Include unknown countries / regions</label>
+      <label class="wi-f" style="margin-top:8px"><span>Location lookup method</span>
+        <select id="loLookup">
+          <option value="clientIpAddress">Client IP address (default)</option>
+          <option value="authenticatorAppGps">GPS from the Authenticator app</option>
+        </select></label>
+    </div>
+    <div id="loEditWarn" style="margin-top:12px"></div>
+    <div class="row">
+      <button class="btn" id="loEditCancel">Cancel</button>
+      <button class="btn primary" id="loEditSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ NAMED LOCATION DELETE ============ -->
+<div class="modal-bg" id="loDelModal">
+  <div class="modal">
+    <h3>🗑 Delete named location</h3>
+    <p class="mini" id="loDelDesc"></p>
+    <div class="danger-note"><b>This cannot be undone.</b> A policy that references this location loses that condition, which usually makes the policy apply more widely than before.</div>
+    <div id="loDelRefs" style="margin-top:12px"></div>
+    <div id="loDelConfirmWrap" style="display:none">
+      <label class="mini" for="loDelConfirm" style="display:block;margin-top:10px">Type <b>DELETE</b> to confirm</label>
+      <input id="loDelConfirm" class="txt" placeholder="DELETE" autocomplete="off" spellcheck="false" style="margin-top:4px">
+    </div>
+    <div class="row">
+      <button class="btn" id="loDelCancel">Cancel</button>
+      <button class="btn danger" id="loDelGo">Delete permanently</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ EXCLUSION GROUP MEMBERS ============ -->
 <div class="modal-bg" id="exMemModal">
   <div class="modal" style="max-width:620px">
@@ -965,28 +1054,29 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=151"></script>
-<script src="js/authConfig.js?v=151"></script>
-<script src="js/labels.js?v=151"></script>
-<script src="js/graph.js?v=151"></script>
-<script src="js/model.js?v=151"></script>
-<script src="js/render.js?v=151"></script>
-<script src="js/analyze.js?v=151"></script>
-<script src="js/whatif.js?v=151"></script>
-<script src="js/mslearn.js?v=151"></script>
-<script src="js/gapcheck.js?v=151"></script>
-<script src="js/exclusions.js?v=151"></script>
-<script src="js/validator.js?v=151"></script>
-<script src="js/whatifeval.js?v=151"></script>
-<script src="js/baselineData.js?v=151"></script>
-<script src="js/baselineJoeyData.js?v=151"></script>
-<script src="js/baseline.js?v=151"></script>
-<script src="js/groupTemplates.js?v=151"></script>
-<script src="js/assign.js?v=151"></script>
-<script src="js/cagroups.js?v=151"></script>
-<script src="js/import.js?v=151"></script>
-<script src="js/export.js?v=151"></script>
-<script src="js/demo.js?v=151"></script>
-<script src="js/app.js?v=151"></script>
+<script src="js/version.js?v=152"></script>
+<script src="js/authConfig.js?v=152"></script>
+<script src="js/labels.js?v=152"></script>
+<script src="js/graph.js?v=152"></script>
+<script src="js/model.js?v=152"></script>
+<script src="js/render.js?v=152"></script>
+<script src="js/analyze.js?v=152"></script>
+<script src="js/whatif.js?v=152"></script>
+<script src="js/mslearn.js?v=152"></script>
+<script src="js/gapcheck.js?v=152"></script>
+<script src="js/exclusions.js?v=152"></script>
+<script src="js/validator.js?v=152"></script>
+<script src="js/whatifeval.js?v=152"></script>
+<script src="js/locations.js?v=152"></script>
+<script src="js/baselineData.js?v=152"></script>
+<script src="js/baselineJoeyData.js?v=152"></script>
+<script src="js/baseline.js?v=152"></script>
+<script src="js/groupTemplates.js?v=152"></script>
+<script src="js/assign.js?v=152"></script>
+<script src="js/cagroups.js?v=152"></script>
+<script src="js/import.js?v=152"></script>
+<script src="js/export.js?v=152"></script>
+<script src="js/demo.js?v=152"></script>
+<script src="js/app.js?v=152"></script>
 </body>
 </html>
