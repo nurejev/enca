@@ -128,21 +128,30 @@ const Validator = (() => {
 
   // Does a policy apply to a specific target (a group/persona or a user)?
   // target: { kind:"group", id, name } | { kind:"user", id, name, upn, groupIds:Set, roleIds:Set }
+  // A group target counts as in scope for "All users" too — a catch-all policy
+  // covers every persona; only an exclusion takes it back out. groupIds carries
+  // the target's own id plus any group it is nested into, so an exclusion on a
+  // parent group is honoured.
   function appliesTo(p, target) {
     const u = p.conditions?.users || {};
     const incU = new Set(u.includeUsers || []), excU = new Set(u.excludeUsers || []);
     const incG = new Set(u.includeGroups || []), excG = new Set(u.excludeGroups || []);
     const incR = new Set(u.includeRoles || []), excR = new Set(u.excludeRoles || []);
-    let included = false, excluded = false;
+    const gids = (target.groupIds && target.groupIds.size) ? target.groupIds : new Set([target.id]);
+    const rids = target.roleIds || new Set();
+    let included = false, excluded = false, via = null, byAll = false;
     if (target.kind === "group") {
-      included = incU.has("All") || incG.has(target.id);
-      excluded = excG.has(target.id);
+      byAll = incU.has("All");
+      included = byAll || [...incG].some((x) => gids.has(x));
+      via = [...excG].find((x) => gids.has(x)) || null;
+      excluded = !!via;
     } else {
-      const gids = target.groupIds || new Set(), rids = target.roleIds || new Set();
-      included = incU.has("All") || incU.has(target.id) || [...incG].some((x) => gids.has(x)) || [...incR].some((x) => rids.has(x));
-      excluded = excU.has(target.id) || [...excG].some((x) => gids.has(x)) || [...excR].some((x) => rids.has(x));
+      byAll = incU.has("All");
+      included = byAll || incU.has(target.id) || [...incG].some((x) => gids.has(x)) || [...incR].some((x) => rids.has(x));
+      via = (excU.has(target.id) ? target.id : null) || [...excG].find((x) => gids.has(x)) || [...excR].find((x) => rids.has(x)) || null;
+      excluded = !!via;
     }
-    return { applies: included && !excluded, included, excluded };
+    return { applies: included && !excluded, included, excluded, via, byAll };
   }
 
   function simulatePolicy(p, names, target) {
@@ -150,10 +159,11 @@ const Validator = (() => {
     const controls = controlsFor(g);
     if (!controls.length) return { sims: [], skipped: "session-only (no grant control to assert)" };
 
-    let users;
+    let users, scope = null;
     if (target) {
       const ap = appliesTo(p, target);
-      if (!ap.applies) return { sims: [], outOfScope: true, excluded: ap.excluded };
+      if (!ap.applies) return { sims: [], outOfScope: true, scope: ap };
+      scope = ap;
       // the target is in scope → represent it as the single included principal
       users = [target.kind === "group"
         ? { upn: "members of " + target.name, type: "included", kind: "group" }
@@ -192,7 +202,7 @@ const Validator = (() => {
           if (sims.length >= PER_POLICY_CAP) { capped = true; break outer; }
         }
       }
-    return { sims, capped };
+    return { sims, capped, scope };
   }
 
   // ---- main ----
@@ -203,13 +213,21 @@ const Validator = (() => {
     const eligible = rawPolicies.filter((p) =>
       p.state === "enabled" || (includeReportOnly && p.state === "enabledForReportingButNotEnforced"));
 
-    const groups = [], all = [], skipped = [];
-    let outOfScope = 0;
+    const groups = [], all = [], skipped = [], notInScope = [];
     for (const p of eligible.slice().sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""))) {
       const r = simulatePolicy(p, names, target);
-      if (r.outOfScope) { outOfScope++; continue; }
+      if (r.outOfScope) {
+        // keep it visible with the reason — the overview should show the whole
+        // picture, not silently drop the policies that don't reach the target
+        notInScope.push({
+          name: p.displayName, state: p.state,
+          reason: r.scope.excluded ? "excluded" : "not targeted",
+          via: r.scope.via || null, byAll: r.scope.byAll,
+        });
+        continue;
+      }
       if (r.skipped) { skipped.push({ name: p.displayName, reason: r.skipped }); continue; }
-      groups.push({ id: p.id, name: p.displayName, state: p.state, sims: r.sims, capped: r.capped });
+      groups.push({ id: p.id, name: p.displayName, state: p.state, sims: r.sims, capped: r.capped, scope: r.scope });
       all.push(...r.sims);
     }
     return {
@@ -217,7 +235,7 @@ const Validator = (() => {
       simulatedPolicies: groups.length,
       simCount: all.length,
       target: target ? { kind: target.kind, name: target.name, upn: target.upn } : null,
-      outOfScope,
+      outOfScope: notInScope.length, notInScope,
       groups, sims: all, skipped,
       controlCounts: all.reduce((m, s) => { const k = (s.inverted ? "no " : "") + s.expectedControl; m[k] = (m[k] || 0) + 1; return m; }, {}),
     };

@@ -2280,7 +2280,7 @@
   // ---------- CA validator (simulation report) ----------
   // A read-only port of the simulation generator from Jasper Baes' Conditional
   // Access Validator (https://github.com/jasperbaes/Conditional-Access-Validator).
-  let vaResult = null, vaFilter = "all", vaQuery = "", vaReportOnly = false, vaTargetObj = null, vaView = "compact";
+  let vaResult = null, vaFilter = "all", vaQuery = "", vaReportOnly = false, vaTargetObj = null, vaView = "compact", vaNames = null;
   const vaCollapsed = new Set();
   const isGuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || "");
 
@@ -2355,6 +2355,7 @@
     $("vaTargetClear").style.display = vaTargetObj ? "" : "none";
     try {
       const names = await buildValidatorNames(vaReportOnly);
+      vaNames = names;
       vaResult = Validator.simulate(policies.map((p) => p.raw), { names, includeReportOnly: vaReportOnly, target: vaTargetObj });
       renderValidator();
     } catch (e) {
@@ -2381,14 +2382,24 @@
       return await userTarget(u);
     }
     if (guid) {              // GUID → try group, then user
-      try { const g = await Graph.gget(`/groups/${t}?$select=id,displayName`); return { kind: "group", id: g.id, name: g.displayName || t }; }
+      try { const g = await Graph.gget(`/groups/${t}?$select=id,displayName`); return await groupTarget(g); }
       catch { const u = await Graph.gget(`/users/${t}?$select=id,displayName,userPrincipalName`); return await userTarget(u); }
     }
     // plain text → group by display name (exact)
     const esc2 = t.replace(/'/g, "''");
     const res = await Graph.ggetAll(`/groups?$filter=displayName eq '${esc2}'&$select=id,displayName`);
     if (!res.length) throw new Error(`No group named "${t}" — use an exact group name, a group ID, or a user UPN (with @)`);
-    return { kind: "group", id: res[0].id, name: res[0].displayName };
+    return await groupTarget(res[0]);
+  }
+  // A persona group can be nested inside another group that a policy excludes —
+  // carry the parents so that exclusion is honoured.
+  async function groupTarget(g) {
+    const groupIds = new Set([g.id]);
+    try {
+      const parents = await Graph.ggetAll(`/groups/${g.id}/transitiveMemberOf?$select=id`);
+      parents.forEach((o) => groupIds.add(o.id));
+    } catch (e) { console.warn("validator: group nesting lookup failed", e.message); }
+    return { kind: "group", id: g.id, name: g.displayName || g.id, groupIds };
   }
   async function userTarget(u) {
     const groupIds = new Set(), roleIds = new Set();
@@ -2449,7 +2460,7 @@
     const r = vaResult;
     $("vaHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>⚡ CA validator</h3>
+        <h3>⚡ CA validator <span class="tag new">BETA</span></h3>
         <p style="margin-bottom:6px">For each enabled policy, the sign-in simulations it implies and the control each one should enforce. A simulation on the <b>excluded</b> side inverts to <b>“no &lt;control&gt;”</b>.</p>
         <p class="mini muted" style="margin:0">Ported from <a href="https://github.com/jasperbaes/Conditional-Access-Validator" target="_blank" rel="noopener">Jasper Baes' Conditional Access Validator</a> (CC BY-NC-SA 4.0). Simulation report only; users are representative placeholders.</p>
       </div>
@@ -2473,6 +2484,17 @@
 
     const q = vaQuery.toLowerCase();
     const skippedNote = r.skipped.length ? `<p class="mini muted" style="margin-top:10px">Not simulated (no grant control to assert): ${r.skipped.map((s) => esc(s.name)).join(", ")}</p>` : "";
+
+    // With a target, show the policies that do NOT reach it and why — the
+    // overview is only complete if the misses are visible too.
+    const nameOf = (id) => (vaNames && (vaNames.group[id] || vaNames.user[id] || vaNames.role[id])) || id;
+    const oosHtml = (r.target && r.notInScope && r.notInScope.length) ? `<div class="list-card va-oos">
+      <div class="va-oos-h"><b>Does not reach ${esc(r.target.name)}</b> <span class="mini muted">${r.notInScope.length} polic${r.notInScope.length === 1 ? "y" : "ies"}</span></div>
+      <ul class="va-oos-l">${r.notInScope.map((x) => `<li>
+        <span class="va-oos-n">${esc(x.name)}</span>${x.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">report-only</span>' : ""}
+        <span class="va-oos-r">${x.reason === "excluded"
+          ? `excluded${x.via ? " via " + esc(nameOf(x.via)) : ""}${x.byAll ? " (targets all users)" : ""}`
+          : "does not target this principal"}</span></li>`).join("")}</ul></div>` : "";
     const emptyMsg = () => { $("vaBody").innerHTML = (r.target && r.simulatedPolicies === 0)
       ? `<p class="mini" style="padding:20px">No enabled policy applies to <b>${esc(r.target.name)}</b>${vaReportOnly ? "" : " — tick “Include report-only” to widen the check"}.</p>`
       : '<p class="mini" style="padding:20px">No simulations match the current filter.</p>'; };
@@ -2480,8 +2502,8 @@
     // ---- Compact: one summary card per policy (the readable default) ----
     if (vaView === "compact") {
       const cards = r.groups.map((g) => vaCompactCard(g, vaFilter, q)).filter(Boolean);
-      if (!cards.length) { emptyMsg(); return; }
-      $("vaBody").innerHTML = cards.join("") + skippedNote;
+      if (!cards.length && !oosHtml) { emptyMsg(); return; }
+      $("vaBody").innerHTML = (cards.length ? cards.join("") : '<p class="mini" style="padding:14px">No policy enforces a control for this target.</p>') + oosHtml + skippedNote;
       return;
     }
 
@@ -2492,7 +2514,7 @@
       return { ...g, shown: sims };
     }).filter((g) => g.shown.length);
 
-    if (!groups.length) { emptyMsg(); return; }
+    if (!groups.length && !oosHtml) { emptyMsg(); return; }
     const stateTag = (st) => st === "enabledForReportingButNotEnforced" ? '<span class="tag">report-only</span>' : "";
     const cell = (v) => v && v !== "All" ? esc(v) : '<span class="muted">·</span>';
     $("vaBody").innerHTML = groups.map((g) => {
@@ -2519,7 +2541,7 @@
           </table>
         </div>
       </div>`;
-    }).join("") + (r.skipped.length ? `<p class="mini muted" style="margin-top:10px">Not simulated (no grant control to assert): ${r.skipped.map((s) => esc(s.name)).join(", ")}</p>` : "");
+    }).join("") + oosHtml + skippedNote;
   }
 
   function vaMarkdown() {

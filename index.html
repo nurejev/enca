@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=146">
+<link rel="stylesheet" href="css/app.css?v=147">
 </head>
 <body>
 
@@ -87,7 +87,7 @@
         <p>Check the baseline against known CA bypasses and the Swiss-cheese model — MFA coverage, FOCI token sharing, break-glass coverage, known bypass apps, persona × control matrix.</p>
       </div>
       <div class="tool" id="toolValidator">
-        <div class="tool-ic">⚡</div><h3>CA validator</h3>
+        <div class="tool-ic">⚡</div><h3>CA validator <span class="tag new">BETA</span></h3>
         <p>Per policy, the sign-in simulations it implies — user, app, client, location, platform, risk — and the control each one should (or should not) enforce. Ported from Jasper Baes' CA Validator.</p>
       </div>
       <div class="tool" id="toolExclusions">
@@ -522,7 +522,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>⚡ CA validator</h4>
+      <h4>⚡ CA validator <span class="tag new">BETA</span></h4>
       <p>For each enabled policy, the sign-in <b>simulations</b> it implies — the combinations of user, application, client app, location, device platform and risk it targets — and, per grant control, the control each one should enforce.</p>
       <ul>
         <li><b>Expected control</b> — every simulation shows the control the policy would require (MFA, Block, Compliant device, …). When the principal, app, location or platform is on the <b>excluded</b> side, the expectation inverts to <b>“no &lt;control&gt;”</b> — proving the policy does not fire there.</li>
@@ -869,27 +869,27 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=146"></script>
-<script src="js/authConfig.js?v=146"></script>
-<script src="js/labels.js?v=146"></script>
-<script src="js/graph.js?v=146"></script>
-<script src="js/model.js?v=146"></script>
-<script src="js/render.js?v=146"></script>
-<script src="js/analyze.js?v=146"></script>
-<script src="js/whatif.js?v=146"></script>
-<script src="js/mslearn.js?v=146"></script>
-<script src="js/gapcheck.js?v=146"></script>
-<script src="js/exclusions.js?v=146"></script>
-<script src="js/validator.js?v=146"></script>
-<script src="js/baselineData.js?v=146"></script>
-<script src="js/baselineJoeyData.js?v=146"></script>
-<script src="js/baseline.js?v=146"></script>
-<script src="js/groupTemplates.js?v=146"></script>
-<script src="js/assign.js?v=146"></script>
-<script src="js/cagroups.js?v=146"></script>
-<script src="js/import.js?v=146"></script>
-<script src="js/export.js?v=146"></script>
-<script src="js/demo.js?v=146"></script>
-<script src="js/app.js?v=146"></script>
+<script src="js/version.js?v=147"></script>
+<script src="js/authConfig.js?v=147"></script>
+<script src="js/labels.js?v=147"></script>
+<script src="js/graph.js?v=147"></script>
+<script src="js/model.js?v=147"></script>
+<script src="js/render.js?v=147"></script>
+<script src="js/analyze.js?v=147"></script>
+<script src="js/whatif.js?v=147"></script>
+<script src="js/mslearn.js?v=147"></script>
+<script src="js/gapcheck.js?v=147"></script>
+<script src="js/exclusions.js?v=147"></script>
+<script src="js/validator.js?v=147"></script>
+<script src="js/baselineData.js?v=147"></script>
+<script src="js/baselineJoeyData.js?v=147"></script>
+<script src="js/baseline.js?v=147"></script>
+<script src="js/groupTemplates.js?v=147"></script>
+<script src="js/assign.js?v=147"></script>
+<script src="js/cagroups.js?v=147"></script>
+<script src="js/import.js?v=147"></script>
+<script src="js/export.js?v=147"></script>
+<script src="js/demo.js?v=147"></script>
+<script src="js/app.js?v=147"></script>
 </body>
 </html>

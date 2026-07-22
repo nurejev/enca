@@ -513,8 +513,17 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .bl-chip.add{background:var(--ok-bg2);color:var(--on);border-color:var(--on)}
 .bl-chip.del{background:var(--bad-bg2);color:var(--off);border-color:var(--off)}
 .bl-chip.chg{background:var(--warn-bg2);color:var(--report);border-color:var(--report)}
-.va-target{display:flex;align-items:center;gap:6px;flex:1;min-width:240px;flex-wrap:wrap}
-.va-target input{flex:1;min-width:180px;padding:7px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);font-size:13px}
+/* validator: policies that do not reach the target */
+.va-oos{margin-top:12px;padding:12px 16px}
+.va-oos-h{margin-bottom:6px}
+.va-oos-l{list-style:none;margin:0;padding:0;font-size:13px}
+.va-oos-l li{display:flex;gap:10px;align-items:baseline;padding:4px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.va-oos-l li:first-child{border-top:0}
+.va-oos-n{flex:1;min-width:200px}
+.va-oos-r{color:var(--muted);font-size:12px;white-space:nowrap}
+.va-target{display:flex;align-items:center;gap:6px;flex:1 1 320px;min-width:220px;flex-wrap:nowrap}
+.va-target input{flex:1 1 auto;min-width:0;height:38px;padding:0 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);font-size:13px}
+.va-target .btn{flex:none}
 .va-target input:focus{outline:none;border-color:var(--green)}
 .va-targetbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding:8px 12px;background:var(--soft);border:1px solid var(--border);border-radius:var(--radius);font-size:13px}
 .va-targetbar .fchip{margin-left:auto}
