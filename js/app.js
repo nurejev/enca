@@ -2732,8 +2732,8 @@
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> locations</span></div>
-        <div class="mini">${s.ip} IP (${s.ranges} ranges) · ${s.country} country</div>
-        <div class="mini">${s.trusted} trusted${s.unused ? ` · ${s.unused} unused` : ""}</div>
+        <div class="mini">${s.ip} IP (${s.ranges} ranges) · ${s.country} country${s.compliantNetwork ? ` · ${s.compliantNetwork} compliant network` : ""}</div>
+        <div class="mini">${s.trusted} trusted${s.viaTrusted ? ` · ${s.viaTrusted} used only via “All trusted”` : ""}${s.unused ? ` · ${s.unused} unused` : ""}</div>
       </div></div>`;
 
     const counts = { all: loList.length, ip: s.ip, country: s.country, trusted: s.trusted, unused: s.unused };
@@ -2744,7 +2744,7 @@
 
     const q = loQuery.toLowerCase();
     const rows = loList.filter((l) => {
-      const k = Locations.kindOf(l), used = Locations.usedBy(l.id, raws).length;
+      const k = Locations.kindOf(l), used = Locations.usedBy(l, raws).length;
       if (loFilter === "ip" && k !== "ip") return false;
       if (loFilter === "country" && k !== "country") return false;
       if (loFilter === "trusted" && !Locations.isTrusted(l)) return false;
@@ -2754,21 +2754,26 @@
 
     if (!rows.length) { $("loBody").innerHTML = '<p class="mini" style="padding:20px">No named location matches the current filter.</p>'; return; }
     $("loBody").innerHTML = rows.map((l) => {
-      const k = Locations.kindOf(l), used = Locations.usedBy(l.id, raws);
+      const k = Locations.kindOf(l), used = Locations.usedBy(l, raws), canEdit = Locations.editable(l);
+      const direct = used.filter((u) => !u.implicit), implicit = used.filter((u) => u.implicit);
+      const list = (arr) => arr.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>`).join(", ");
       return `<div class="list-card lo-card">
         <div class="lo-h">
-          <span class="lo-ic">${k === "ip" ? "🖧" : "🌍"}</span>
+          <span class="lo-ic">${k === "ip" ? "🖧" : k === "country" ? "🌍" : "🛡"}</span>
           <b>${esc(l.displayName || "(unnamed)")}</b>
           ${Locations.isTrusted(l) ? '<span class="tag ok">trusted</span>' : ""}
-          <span class="tag">${k === "ip" ? "IP ranges" : "countries"}</span>
+          <span class="tag">${k === "ip" ? "IP ranges" : k === "country" ? "countries" : "network access"}</span>
           <span class="lo-act">
-            <button class="btn sm" data-loedit="${esc(l.id)}">✎ Edit</button>
-            <button class="btn sm danger" data-lodel="${esc(l.id)}">🗑 Delete</button>
+            ${canEdit ? `<button class="btn sm" data-loedit="${esc(l.id)}">✎ Edit</button>
+            <button class="btn sm danger" data-lodel="${esc(l.id)}">🗑 Delete</button>`
+            : '<span class="mini muted">service-managed</span>'}
           </span>
         </div>
         <div class="mini lo-d">${esc(Locations.detail(l))}</div>
-        <div class="lo-u">${used.length
-          ? `Used by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ` + used.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span> <span class="mini muted">(${p.how})</span>`).join(", ")
+        <div class="lo-u">${used.length ? [
+            direct.length ? `Named by ${direct.length} polic${direct.length === 1 ? "y" : "ies"}: ${list(direct)}` : "",
+            implicit.length ? `<span class="lo-imp">Covered by ${implicit.length} polic${implicit.length === 1 ? "y" : "ies"} using “All trusted locations”: ${list(implicit)}</span>` : "",
+          ].filter(Boolean).join("<br>")
           : '<span class="mini muted">Not referenced by any policy</span>'}</div>
       </div>`;
     }).join("");
@@ -2839,7 +2844,7 @@
   function openLoDelete(loc) {
     if (!loc) return;
     loDeleting = loc;
-    const used = Locations.usedBy(loc.id, policies.map((p) => p.raw));
+    const used = Locations.usedBy(loc, policies.map((p) => p.raw));
     $("loDelDesc").innerHTML = `<b>${esc(loc.displayName)}</b> — ${esc(Locations.detail(loc))}`;
     $("loDelRefs").innerHTML = used.length
       ? `<div class="mini" style="color:var(--off);font-weight:600;margin-bottom:6px">⚠ Still referenced by ${used.length} polic${used.length === 1 ? "y" : "ies"}:</div>
@@ -2879,7 +2884,7 @@
       `- Trusted: ${s.trusted} · Not referenced by any policy: ${s.unused}`, "",
       "| Location | Type | Trusted | Detail | Used by |", "| --- | --- | --- | --- | --- |"];
     loList.slice().sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "")).forEach((l) => {
-      const used = Locations.usedBy(l.id, raws);
+      const used = Locations.usedBy(l, raws);
       const e = (v) => String(v ?? "").replace(/\|/g, "\\|");
       L.push(`| ${e(l.displayName)} | ${Locations.kindOf(l) === "ip" ? "IP ranges" : "Countries"} | ${Locations.isTrusted(l) ? "yes" : "—"} | ${e(Locations.detail(l))} | ${used.length ? used.map((p) => `${e(p.name)} (${p.how})`).join("<br>") : "—"} |`);
     });

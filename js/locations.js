@@ -18,8 +18,16 @@ const Locations = (() => {
   const IP_TYPE = "#microsoft.graph.ipNamedLocation";
   const COUNTRY_TYPE = "#microsoft.graph.countryNamedLocation";
 
-  const kindOf = (l) => String(l && l["@odata.type"] || "").toLowerCase().includes("country") ? "country" : "ip";
+  // A tenant can also hold a Global Secure Access "compliant network" location.
+  // It is service-managed: it has no ranges and this tool won't edit it.
+  function kindOf(l) {
+    const t = String(l && l["@odata.type"] || "").toLowerCase();
+    if (t.includes("country")) return "country";
+    if (t.includes("compliantnetwork")) return "compliantNetwork";
+    return "ip";
+  }
   const isTrusted = (l) => kindOf(l) === "ip" && !!l.isTrusted;
+  const editable = (l) => kindOf(l) !== "compliantNetwork";
 
   // ---- validation -------------------------------------------------------
   // IPv4 a.b.c.d/0-32; IPv6 is accepted on shape (Graph does the real parsing).
@@ -79,14 +87,31 @@ const Locations = (() => {
   }
 
   // ---- which policies reference a location? ----------------------------
-  // raws: the tenant's raw CA policies. Returns [{id,name,state,how}]
-  function usedBy(locationId, raws) {
+  // Two ways a policy can reach a location:
+  //   directly   — its id sits in includeLocations / excludeLocations
+  //   implicitly — the policy uses "AllTrusted" and the location is trusted,
+  //                so it is covered without ever naming it. This is how most
+  //                trusted-network locations are actually consumed, and missing
+  //                it made them look unused.
+  // Pass the location object (an id still works, but then only direct hits are
+  // found because the trusted flag isn't known).
+  // Returns [{id,name,state,how,implicit}]
+  function usedBy(loc, raws) {
+    const id = typeof loc === "string" ? loc : (loc && loc.id);
+    const trusted = typeof loc === "object" && isTrusted(loc);
     const out = [];
     for (const p of raws || []) {
       const l = p.conditions?.locations || {};
-      const inc = (l.includeLocations || []).includes(locationId);
-      const exc = (l.excludeLocations || []).includes(locationId);
-      if (inc || exc) out.push({ id: p.id, name: p.displayName, state: p.state, how: inc && exc ? "included + excluded" : inc ? "included" : "excluded" });
+      const inc = l.includeLocations || [], exc = l.excludeLocations || [];
+      const dInc = inc.includes(id), dExc = exc.includes(id);
+      const tInc = trusted && inc.includes("AllTrusted");
+      const tExc = trusted && exc.includes("AllTrusted");
+      if (!(dInc || dExc || tInc || tExc)) continue;
+      const how = dInc && dExc ? "included + excluded"
+        : dInc ? "included" : dExc ? "excluded"
+        : tInc && tExc ? "included + excluded via All trusted locations"
+        : tInc ? "included via All trusted locations" : "excluded via All trusted locations";
+      out.push({ id: p.id, name: p.displayName, state: p.state, how, implicit: !(dInc || dExc) });
     }
     return out;
   }
@@ -105,14 +130,17 @@ const Locations = (() => {
       total: list.length,
       ip: ip.length,
       country: list.filter((l) => kindOf(l) === "country").length,
+      compliantNetwork: list.filter((l) => kindOf(l) === "compliantNetwork").length,
       trusted: ip.filter(isTrusted).length,
       ranges: ip.reduce((n, l) => n + (l.ipRanges || []).length, 0),
-      unused: list.filter((l) => usedBy(l.id, raws).length === 0).length,
+      unused: list.filter((l) => usedBy(l, raws).length === 0).length,
+      viaTrusted: list.filter((l) => usedBy(l, raws).every((u) => u.implicit) && usedBy(l, raws).length > 0).length,
     };
   }
 
   // one-line description for a row
   function detail(l) {
+    if (kindOf(l) === "compliantNetwork") return "Global Secure Access compliant network — managed by the service";
     if (kindOf(l) === "ip") {
       const r = (l.ipRanges || []).map((x) => x.cidrAddress).filter(Boolean);
       return r.length ? `${r.length} range${r.length === 1 ? "" : "s"}: ${r.slice(0, 4).join(", ")}${r.length > 4 ? ` +${r.length - 4} more` : ""}` : "no ranges";
@@ -156,6 +184,6 @@ const Locations = (() => {
     return out;
   }
 
-  return { IP_TYPE, COUNTRY_TYPE, kindOf, isTrusted, validCidr, validCountry, splitList,
+  return { IP_TYPE, COUNTRY_TYPE, kindOf, isTrusted, editable, validCidr, validCountry, splitList,
     buildPayload, usedBy, trustedConsumers, summarize, detail, toForm, diff };
 })();
