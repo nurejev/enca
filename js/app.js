@@ -47,7 +47,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-help"]);
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   function show(id) {
@@ -702,6 +702,7 @@
     ["toolAnalyze", "🔍 Gap analyse"],
     ["toolGapCheck", "🛡 Best-practice & bypass checks"],
     ["toolValidator", "⚡ CA validator"],
+    ["toolWhatIf", "🧪 What-If"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolBaseline", "🧬 Baseline Policies"],
     ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
@@ -2637,6 +2638,174 @@
   function vaClearTarget() { vaTargetObj = null; $("vaTarget").value = ""; runValidatorScan(); }
   $("vaTargetClear").addEventListener("click", vaClearTarget);
   $("vaHead").addEventListener("click", (e) => { if (e.target.closest("[data-vacleartarget]")) vaClearTarget(); });
+
+  // ---------- What-If (Entra Conditional Access What If tool) ----------
+  let wiResult = null, wiScenario = null, wiLocations = null, wiNames = {};
+  function openWhatIf() {
+    crumb("🧪 What-If");
+    show("screen-whatif");
+    $("wiHead").innerHTML = `<h3>🧪 What-If</h3>
+      <p style="margin-bottom:6px">Describe a sign-in and every <b>enabled</b> or <b>report-only</b> policy is evaluated against it — which would apply (and the controls to satisfy), and which would not, with the first condition that wasn't met.</p>
+      <p class="mini muted" style="margin:0">Mirrors the <a href="https://learn.microsoft.com/entra/identity/conditional-access/what-if-tool" target="_blank" rel="noopener">Entra Conditional Access What If tool</a>. Like the Microsoft tool it does not follow Conditional Access <b>service dependencies</b>, an app <i>group</i> (Office 365) never matches — use the app itself — and a condition the scenario leaves unspecified cannot be evaluated, so that policy will not apply.</p>`;
+    if (!policies.length) { $("wiBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
+    if (wiResult) renderWhatIf();   // keep the last run when returning to the tab
+  }
+  $("toolWhatIf").addEventListener("click", () => { openWhatIf(); });
+  $("wiApp").addEventListener("change", (e) => { $("wiAppIdWrap").style.display = e.target.value === "custom" ? "" : "none"; });
+  $("wiReset").addEventListener("click", () => {
+    ["wiUser", "wiIp", "wiCountry", "wiAppId"].forEach((id) => $(id).value = "");
+    ["wiDevice", "wiSignInRisk", "wiUserRisk", "wiInsiderRisk", "wiFlow"].forEach((id) => $(id).value = "");
+    $("wiApp").value = "00000002-0000-0ff1-ce00-000000000000"; $("wiAppIdWrap").style.display = "none";
+    $("wiPlatform").value = "windows"; $("wiClient").value = "browser";
+    wiResult = null; $("wiBody").innerHTML = ""; $("wiMd").style.display = "none";
+  });
+  // user type-ahead, same shape as the validator's
+  let wiSugTimer = null;
+  $("wiUser").addEventListener("input", (e) => {
+    const v = e.target.value; clearTimeout(wiSugTimer);
+    wiSugTimer = setTimeout(async () => {
+      const t = v.trim(); if (t.length < 2 || isDemo) return;
+      try {
+        const f = t.replace(/'/g, "''");
+        const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
+        $("wiUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+      } catch (err) { console.warn("what-if: suggest failed", err.message); }
+    }, 250);
+  });
+
+  $("wiRun").addEventListener("click", async () => {
+    const upn = $("wiUser").value.trim();
+    if (!upn) { toast("Pick a <span>user</span> first"); return; }
+    const btn = $("wiRun"); btn.disabled = true; btn.textContent = "Evaluating…";
+    try {
+      // ---- identity: resolve + memberships (groups and directory roles) ----
+      let sc = { groupIds: new Set(), roleIds: new Set(), isGuest: false };
+      if (isDemo) {
+        sc.userId = "demo-user"; sc.userName = upn;
+      } else {
+        const u = await Graph.gget(`/users/${encodeURIComponent(upn)}?$select=id,displayName,userPrincipalName,userType`);
+        sc.userId = u.id; sc.userName = u.displayName || u.userPrincipalName;
+        sc.isGuest = (u.userType || "").toLowerCase() === "guest";
+        try {
+          const mem = await Graph.ggetAll(`/users/${u.id}/transitiveMemberOf?$select=id,roleTemplateId`);
+          mem.forEach((o) => {
+            const ty = (o["@odata.type"] || "").toLowerCase();
+            if (ty.includes("directoryrole")) { if (o.roleTemplateId) sc.roleIds.add(o.roleTemplateId); }
+            else sc.groupIds.add(o.id);
+          });
+          wiNames = {};
+          mem.forEach((o) => { if (o.displayName) wiNames[o.id] = o.displayName; });
+        } catch (e) { console.warn("what-if: membership lookup failed", e.message); }
+      }
+      // ---- target resource ----
+      const appSel = $("wiApp").value;
+      if (appSel.startsWith("action:")) { sc.userAction = appSel.slice(7); sc.appName = "User action"; }
+      else if (appSel === "custom") { sc.appId = $("wiAppId").value.trim(); sc.appName = sc.appId || "(App ID)"; }
+      else { sc.appId = appSel; sc.appName = $("wiApp").selectedOptions[0].textContent; }
+      if (!sc.userAction && !sc.appId) { toast("Enter an <span>App ID</span>"); return; }
+      // ---- the rest of the sign-in ----
+      sc.platform = $("wiPlatform").value;
+      sc.clientApp = $("wiClient").value;
+      sc.ip = $("wiIp").value.trim() || null;
+      sc.country = $("wiCountry").value.trim().toUpperCase() || null;
+      sc.deviceState = $("wiDevice").value || null;
+      sc.signInRisk = $("wiSignInRisk").value || null;
+      sc.userRisk = $("wiUserRisk").value || null;
+      sc.insiderRisk = $("wiInsiderRisk").value || null;
+      sc.authFlow = $("wiFlow").value || null;
+      // ---- named locations (once) ----
+      if (!wiLocations) {
+        try { wiLocations = isDemo ? [] : await Graph.ggetAll("/identity/conditionalAccess/namedLocations"); }
+        catch (e) { wiLocations = []; console.warn("what-if: named locations failed", e.message); }
+      }
+      // group names for the "excluded via …" reasons
+      try {
+        const gids = [...sc.groupIds].filter((x) => !wiNames[x]);
+        for (let i = 0; i < gids.length && !isDemo; i += 1000) {
+          const j = await Graph.gpost("/directoryObjects/getByIds", { ids: gids.slice(i, i + 1000), types: ["group"] });
+          (j.value || []).forEach((o) => wiNames[o.id] = o.displayName || o.id);
+        }
+      } catch (e) { /* names are cosmetic */ }
+      wiScenario = sc;
+      wiResult = WhatIfEval.evaluate(policies.map((p) => p.raw), sc, { namedLocations: wiLocations, names: wiNames });
+      renderWhatIf();
+    } catch (e) {
+      console.error("What-If failed:", e);
+      toast(`What-If: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; btn.textContent = "▶ What If"; }
+  });
+
+  const WI_GRANT_LABEL = { block: "Block access", mfa: "Require MFA", compliantDevice: "Require compliant device",
+    domainJoinedDevice: "Require hybrid Entra joined device", approvedApplication: "Require approved client app",
+    compliantApplication: "Require app protection policy", passwordChange: "Require password change",
+    unknownFutureValue: "unknown" };
+  const wiCtrl = (c) => c.startsWith("authenticationStrength:") ? "Authentication strength: " + c.slice(23)
+    : c.startsWith("termsOfUse:") ? "Terms of use: " + c.slice(11) : (WI_GRANT_LABEL[c] || c);
+
+  function renderWhatIf() {
+    const r = wiResult, sc = wiScenario;
+    if (!r) return;
+    $("wiMd").style.display = "";
+    const scLine = [`${esc(sc.userName || "")}`, esc(sc.appName || ""), WhatIfEval.LABEL[sc.platform] || sc.platform,
+      WhatIfEval.LABEL[sc.clientApp] || sc.clientApp, sc.ip ? `IP ${esc(sc.ip)}` : "", sc.country ? `country ${esc(sc.country)}` : "",
+      sc.deviceState ? WhatIfEval.LABEL[sc.deviceState] : "", sc.signInRisk ? `sign-in risk ${sc.signInRisk}` : "",
+      sc.userRisk ? `user risk ${sc.userRisk}` : "", sc.authFlow ? esc(sc.authFlow) : ""].filter(Boolean).join(" · ");
+
+    const allControls = [...new Set(r.applied.flatMap((p) => p.grant || []))];
+    const verdict = r.blocked
+      ? `<div class="wi-verdict block">⛔ Access would be <b>blocked</b></div>`
+      : allControls.length
+        ? `<div class="wi-verdict grant">✅ Access granted after satisfying: <b>${esc(allControls.map(wiCtrl).join(", "))}</b></div>`
+        : `<div class="wi-verdict none">✅ No grant control required by any applying policy</div>`;
+
+    const applied = r.applied.length ? r.applied.map((p) => `<li>
+        <div class="wi-pn"><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">report-only</span>' : ""}</div>
+        <div class="wi-ctrls">
+          ${(p.grant || []).length ? `<span class="wi-g">Grant: ${esc((p.grant || []).map(wiCtrl).join(p.operator === "OR" ? " or " : " and "))}</span>` : ""}
+          ${(p.session || []).length ? `<span class="wi-s">Session: ${esc((p.session || []).join(" · "))}</span>` : ""}
+          ${!(p.grant || []).length && !(p.session || []).length ? '<span class="mini muted">no controls</span>' : ""}
+          ${(p.warnings || []).length ? `<span class="wi-w">⚠ ${esc(p.warnings.join("; "))}</span>` : ""}
+        </div></li>`).join("") : '<li class="mini muted">No policy applies to this sign-in.</li>';
+
+    const notApplied = r.notApplied.map((p) => `<li>
+        <div class="wi-pn"><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span></div>
+        <div class="wi-why">${esc(p.reason)}</div></li>`).join("");
+
+    $("wiBody").innerHTML = `
+      <div class="list-card wi-res">
+        ${verdict}
+        <p class="mini muted" style="margin:8px 0 0">${scLine}</p>
+      </div>
+      <div class="list-card wi-res">
+        <h4 class="wi-h">Policies that apply <span class="mini muted">${r.applied.length}</span></h4>
+        <ul class="wi-list">${applied}</ul>
+      </div>
+      <div class="list-card wi-res">
+        <h4 class="wi-h">Policies that do not apply <span class="mini muted">${r.notApplied.length}</span></h4>
+        <ul class="wi-list dim">${notApplied || '<li class="mini muted">None — every evaluated policy applies.</li>'}</ul>
+      </div>
+      ${r.notEvaluated.length ? `<p class="mini muted" style="margin-top:10px">Not evaluated (Off): ${r.notEvaluated.map((p) => esc(p.name)).join(", ")}</p>` : ""}`;
+  }
+  $("wiBody").addEventListener("click", (e) => {
+    const pl = e.target.closest(".pol-link"); if (pl) showDetail(pl.dataset.polid);
+  });
+  $("wiMd").addEventListener("click", () => {
+    const r = wiResult, sc = wiScenario; if (!r) return;
+    const L = [`# Conditional Access What-If — ${tenantName || "tenant"}`, "",
+      `Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by Conditional Access Baseline Tools (cadoc.limon-it.nl).`, "",
+      "## Sign-in simulated", "",
+      `- User: **${sc.userName}**`, `- Target resource: **${sc.appName}**`,
+      `- Device platform: ${sc.platform} · Client app: ${sc.clientApp}`,
+      `- IP: ${sc.ip || "—"} · Country: ${sc.country || "—"} · Device state: ${sc.deviceState || "not specified"}`,
+      `- Sign-in risk: ${sc.signInRisk || "not specified"} · User risk: ${sc.userRisk || "not specified"}`, "",
+      `**Result:** ${r.blocked ? "access would be BLOCKED" : "access granted after satisfying the controls below"}`, "",
+      `## Policies that apply (${r.applied.length})`, ""];
+    r.applied.forEach((p) => L.push(`- **${p.name}**${p.state === "enabledForReportingButNotEnforced" ? " *(report-only)*" : ""} — grant: ${(p.grant || []).map(wiCtrl).join(", ") || "none"}${(p.session || []).length ? `; session: ${p.session.join(" · ")}` : ""}`));
+    L.push("", `## Policies that do not apply (${r.notApplied.length})`, "");
+    r.notApplied.forEach((p) => L.push(`- ${p.name} — ${p.reason}`));
+    if (r.notEvaluated.length) { L.push("", `## Not evaluated (Off)`, ""); r.notEvaluated.forEach((p) => L.push(`- ${p.name}`)); }
+    showReport("🧪 What-If report", "CA-WhatIf", L.join("\n"));
+  });
 
   // ---------- MS Learn documented exclusion checks ----------
   let mlGroups = null, mlFilter = "all", mlStrengths = new Map(), mlFixes = null, mlTab = "findings";

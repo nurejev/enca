@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=147">
+<link rel="stylesheet" href="css/app.css?v=148">
 </head>
 <body>
 
@@ -89,6 +89,10 @@
       <div class="tool" id="toolValidator">
         <div class="tool-ic">⚡</div><h3>CA validator <span class="tag new">BETA</span></h3>
         <p>Per policy, the sign-in simulations it implies — user, app, client, location, platform, risk — and the control each one should (or should not) enforce. Ported from Jasper Baes' CA Validator.</p>
+      </div>
+      <div class="tool" id="toolWhatIf">
+        <div class="tool-ic">🧪</div><h3>What-If <span class="tag new">BETA</span></h3>
+        <p>Simulate a sign-in — user, app, platform, client, location, device state and risk — and see which policies would apply, with the controls required, and which would not and why.</p>
       </div>
       <div class="tool" id="toolExclusions">
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer</h3>
@@ -466,6 +470,71 @@
     <div id="vaBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ WHAT-IF ============
+       A re-implementation of the Entra Conditional Access What If tool: describe
+       a sign-in, evaluate every enabled/report-only policy against it. -->
+  <section id="screen-whatif" class="screen">
+    <div class="list-card readme" id="wiHead" style="margin-top:0"></div>
+    <div class="list-card wi-form">
+      <div class="wi-grid">
+        <label class="wi-f"><span>User <b class="req">*</b></span>
+          <input id="wiUser" list="wiUserList" placeholder="UPN or display name…" autocomplete="off" spellcheck="false">
+          <datalist id="wiUserList"></datalist></label>
+        <label class="wi-f"><span>Target resource <b class="req">*</b></span>
+          <select id="wiApp">
+            <option value="00000002-0000-0ff1-ce00-000000000000">Office 365 Exchange Online</option>
+            <option value="00000003-0000-0ff1-ce00-000000000000">Office 365 SharePoint Online</option>
+            <option value="00000006-0000-0ff1-ce00-000000000000">Office 365 Portal</option>
+            <option value="cc15fd57-2c6c-4117-a88c-83b1d56b4bbe">Microsoft Teams</option>
+            <option value="00000003-0000-0000-c000-000000000000">Microsoft Graph</option>
+            <option value="797f4846-ba00-4fd7-ba43-dac1f8f63013">Windows Azure Service Management API</option>
+            <option value="0000000c-0000-0000-c000-000000000000">My Apps portal</option>
+            <option value="custom">Other — enter an App ID…</option>
+            <option value="action:urn:user:registersecurityinfo">User action: register security information</option>
+            <option value="action:urn:user:registerdevice">User action: register or join devices</option>
+          </select></label>
+        <label class="wi-f" id="wiAppIdWrap" style="display:none"><span>App ID</span>
+          <input id="wiAppId" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false"></label>
+        <label class="wi-f"><span>Device platform <b class="req">*</b></span>
+          <select id="wiPlatform">
+            <option value="windows">Windows</option><option value="macOS">macOS</option>
+            <option value="iOS">iOS</option><option value="android">Android</option>
+            <option value="linux">Linux</option><option value="windowsPhone">Windows Phone</option>
+          </select></label>
+        <label class="wi-f"><span>Client app <b class="req">*</b></span>
+          <select id="wiClient">
+            <option value="browser">Browser</option>
+            <option value="mobileAppsAndDesktopClients">Mobile apps and desktop clients</option>
+            <option value="exchangeActiveSync">Exchange ActiveSync clients</option>
+            <option value="other">Other clients (legacy auth)</option>
+          </select></label>
+        <label class="wi-f"><span>IP address</span>
+          <input id="wiIp" placeholder="e.g. 203.0.113.5" autocomplete="off" spellcheck="false"></label>
+        <label class="wi-f"><span>Country / region</span>
+          <input id="wiCountry" placeholder="2-letter code, e.g. NL" maxlength="2" autocomplete="off" spellcheck="false"></label>
+        <label class="wi-f"><span>Device state</span>
+          <select id="wiDevice">
+            <option value="">Not specified</option><option value="compliant">Compliant</option>
+            <option value="hybrid">Hybrid Entra joined</option><option value="unmanaged">Neither</option>
+          </select></label>
+        <label class="wi-f"><span>Sign-in risk</span>
+          <select id="wiSignInRisk"><option value="">Not specified</option><option value="none">None</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+        <label class="wi-f"><span>User risk</span>
+          <select id="wiUserRisk"><option value="">Not specified</option><option value="none">None</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+        <label class="wi-f"><span>Insider risk</span>
+          <select id="wiInsiderRisk"><option value="">Not specified</option><option value="minor">Minor</option><option value="moderate">Moderate</option><option value="elevated">Elevated</option></select></label>
+        <label class="wi-f"><span>Authentication flow</span>
+          <select id="wiFlow"><option value="">Not specified</option><option value="deviceCodeFlow">Device code flow</option><option value="authenticationTransfer">Authentication transfer</option></select></label>
+      </div>
+      <div class="wi-actions">
+        <button class="btn primary" id="wiRun">▶ What If</button>
+        <button class="btn" id="wiReset">Reset</button>
+        <button class="btn" id="wiMd" style="display:none">Export MD</button>
+      </div>
+    </div>
+    <div id="wiBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ HELP — opens as a tool, in its own tab ============ -->
   <section id="screen-help" class="screen">
     <div class="help-page">
@@ -532,6 +601,20 @@
         <li>Users are shown as <b>representative placeholders</b> (“all users”, “members of &lt;group&gt;”, “role: …”) — no individual accounts are sampled. Session-only policies are listed as having nothing to assert.</li>
       </ul>
       <p class="help-x">Read-only. Ported from Jasper Baes' <a href="https://github.com/jasperbaes/Conditional-Access-Validator" target="_blank" rel="noopener">Conditional Access Validator</a> (CC BY-NC-SA 4.0); the Maester test-code generation is not included.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🧪 What-If <span class="tag new">BETA</span></h4>
+      <p>Simulate one sign-in and see exactly which policies would hit it — the same idea as the Entra portal's What If tool.</p>
+      <ul>
+        <li><b>Required conditions</b> — user, target resource, device platform and client app. Everything else (IP, country, device state, sign-in/user/insider risk, authentication flow) is optional.</li>
+        <li><b>Policies that apply</b> — each with the <b>grant</b> controls (and/or) and <b>session</b> controls that must be satisfied. A verdict line at the top says whether access ends up blocked or granted-with-controls.</li>
+        <li><b>Policies that do not apply</b> — each with the <b>first condition that wasn't met</b> (user excluded via a group, wrong client app, location out of scope, …).</li>
+        <li><b>Unspecified conditions</b> — if a policy scopes something your scenario leaves blank (say sign-in risk), it can't be evaluated and so does not apply. Fill the field in to test it, exactly as the Microsoft evaluation API behaves.</li>
+        <li><b>App groups don't match</b> — a policy targeting the <i>Office 365</i> group won't match by design; pick the specific app. Only <b>enabled</b> and <b>report-only</b> policies are evaluated; Off policies are listed separately.</li>
+        <li><b>Export MD</b> — the scenario and both lists as Markdown.</li>
+      </ul>
+      <p class="help-x">Read-only. Like the Microsoft tool it does not follow Conditional Access service dependencies, so a policy on a downstream service isn't pulled in.</p>
     </section>
 
     <section class="help-sec">
@@ -869,27 +952,28 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=147"></script>
-<script src="js/authConfig.js?v=147"></script>
-<script src="js/labels.js?v=147"></script>
-<script src="js/graph.js?v=147"></script>
-<script src="js/model.js?v=147"></script>
-<script src="js/render.js?v=147"></script>
-<script src="js/analyze.js?v=147"></script>
-<script src="js/whatif.js?v=147"></script>
-<script src="js/mslearn.js?v=147"></script>
-<script src="js/gapcheck.js?v=147"></script>
-<script src="js/exclusions.js?v=147"></script>
-<script src="js/validator.js?v=147"></script>
-<script src="js/baselineData.js?v=147"></script>
-<script src="js/baselineJoeyData.js?v=147"></script>
-<script src="js/baseline.js?v=147"></script>
-<script src="js/groupTemplates.js?v=147"></script>
-<script src="js/assign.js?v=147"></script>
-<script src="js/cagroups.js?v=147"></script>
-<script src="js/import.js?v=147"></script>
-<script src="js/export.js?v=147"></script>
-<script src="js/demo.js?v=147"></script>
-<script src="js/app.js?v=147"></script>
+<script src="js/version.js?v=148"></script>
+<script src="js/authConfig.js?v=148"></script>
+<script src="js/labels.js?v=148"></script>
+<script src="js/graph.js?v=148"></script>
+<script src="js/model.js?v=148"></script>
+<script src="js/render.js?v=148"></script>
+<script src="js/analyze.js?v=148"></script>
+<script src="js/whatif.js?v=148"></script>
+<script src="js/mslearn.js?v=148"></script>
+<script src="js/gapcheck.js?v=148"></script>
+<script src="js/exclusions.js?v=148"></script>
+<script src="js/validator.js?v=148"></script>
+<script src="js/whatifeval.js?v=148"></script>
+<script src="js/baselineData.js?v=148"></script>
+<script src="js/baselineJoeyData.js?v=148"></script>
+<script src="js/baseline.js?v=148"></script>
+<script src="js/groupTemplates.js?v=148"></script>
+<script src="js/assign.js?v=148"></script>
+<script src="js/cagroups.js?v=148"></script>
+<script src="js/import.js?v=148"></script>
+<script src="js/export.js?v=148"></script>
+<script src="js/demo.js?v=148"></script>
+<script src="js/app.js?v=148"></script>
 </body>
 </html>
