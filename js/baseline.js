@@ -421,7 +421,7 @@ const Baseline = (() => {
     const L = [];
     L.push(`# Baseline comparison — ${mdEsc(tenantName || "tenant")} vs the ${mdEsc(res.catalog.label)} baseline ${mdEsc(res.catalog.release)}`);
     L.push("");
-    L.push(`Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by Conditional Access Baseline Tools (cadoc.limon-it.nl).`);
+    L.push(`Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by ENCA — Conditional Access Baseline Tools (enca.limon-it.nl).`);
     if (res.catalog.url) L.push(`Baseline source: ${res.catalog.url}`);
     L.push("");
     L.push(`- Baseline coverage: **${res.coverage}%** — ${res.covered} of ${res.baselineTotal} baseline policies present in the tenant.`);

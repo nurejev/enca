@@ -113,7 +113,7 @@ const Assign = (() => {
     const roleAssignable = wantRole && !dynamic;   // Entra forbids the combination
     const p = {
       displayName: t.displayName,
-      description: t.description || "Conditional Access target group. Created by Conditional Access Baseline Tools.",
+      description: t.description || "Conditional Access target group. Created by ENCA — Conditional Access Baseline Tools.",
       mailEnabled: false,
       securityEnabled: true,
       mailNickname: nickname,

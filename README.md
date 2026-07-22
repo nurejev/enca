@@ -1,10 +1,12 @@
-# CA Doc — Conditional Access Baseline Tools
+# ENCA — Conditional Access Baseline Tools
 
 A browser-based toolset for a Microsoft Entra Conditional Access baseline: **document it, analyse it, check it against best practice, back it up and redeploy it** — from one page, with an interactive Entra sign-in and nothing to install.
 
 It started as a web successor to the idPowerToys CA documenter and grew into twelve tools. Everything runs **100% in the browser** as a static site: no backend, no database, no telemetry, and no policy data ever leaves the user's session. All Microsoft Graph calls go straight from the browser to `graph.microsoft.com` with a delegated token.
 
-**Live:** https://cadoc.limon-it.nl · **Demo without sign-in:** https://cadoc.limon-it.nl/?demo=1
+**Live:** https://enca.limon-it.nl · **Demo without sign-in:** https://enca.limon-it.nl/?demo=1
+
+> Renamed in July 2026: **CA Doc → ENCA**, `cadoc.limon-it.nl` → `enca.limon-it.nl`. The old host redirects (see the `cadoc-redirect` repo) and the Entra app registration keeps the same application ID, so no tenant has to consent again.
 
 ## What's in it
 
@@ -46,7 +48,7 @@ The writing actions are always behind an explicit review step and request their 
 
 ```powershell
 Install-Module Microsoft.Graph.Applications -Scope CurrentUser -RequiredVersion 2.25.0   # once, pinned
-./New-CaDocAppRegistration.ps1
+./New-EncaAppRegistration.ps1
 ```
 
 Re-runs: pass `-AppObjectId <object-id>` (shown in the summary output) to target the exact registration instead of matching by display name.
@@ -56,9 +58,9 @@ Reuses your current Graph session if connected (otherwise signs in interactively
 **Option B — portal:**
 
 1. [Entra admin center](https://entra.microsoft.com) → **Identity → Applications → App registrations → New registration**
-2. Name: `CA Doc (Limon-IT)`
+2. Name: `ENCA (Limon-IT)`
 3. Supported account types: **Accounts in any organizational directory (multi-tenant)**
-4. Redirect URI: platform **Single-page application (SPA)** → `https://cadoc.limon-it.nl`
+4. Redirect URI: platform **Single-page application (SPA)** → `https://enca.limon-it.nl`
 5. After creation, under **Authentication → Single-page application**, also add `http://localhost:8080` (local development)
 6. **API permissions → Add a permission → Microsoft Graph → Delegated:**
    - `Policy.Read.All`
@@ -72,18 +74,18 @@ No client secret needed — it's a public SPA using PKCE.
 ### 2. Create the GitHub repo and push
 
 ```bash
-cd cadoc
+cd enca
 git init -b main
 git add .
-git commit -m "CA Doc v1"
-git remote add origin https://github.com/<your-account>/cadoc.git
+git commit -m "ENCA v1"
+git remote add origin https://github.com/<your-account>/enca.git
 git push -u origin main
 ```
 
 ### 3. Enable GitHub Pages
 
 Repo → **Settings → Pages** → Source: **Deploy from a branch** → branch `main`, folder `/ (root)` → Save.
-The `CNAME` file (`cadoc.limon-it.nl`) is already in the repo, so the custom domain is picked up automatically.
+The `CNAME` file (`enca.limon-it.nl`) is already in the repo, so the custom domain is picked up automatically.
 
 ### 4. DNS record at your registrar
 
@@ -91,21 +93,21 @@ Add a CNAME record for `limon-it.nl`:
 
 | Type  | Name    | Value                       |
 |-------|---------|-----------------------------|
-| CNAME | `cadoc` | `<your-account>.github.io.` |
+| CNAME | `enca` | `<your-account>.github.io.` |
 
-Back in repo → Settings → Pages: confirm the custom domain shows `cadoc.limon-it.nl`, wait for the certificate, then tick **Enforce HTTPS**.
+Back in repo → Settings → Pages: confirm the custom domain shows `enca.limon-it.nl`, wait for the certificate, then tick **Enforce HTTPS**.
 
 ### 5. Test
 
-- Local: `cd cadoc && python3 -m http.server 8080` → http://localhost:8080 (sign-in works because of the localhost redirect URI). Or open `?demo=1` for sample data without any setup.
-- Production: https://cadoc.limon-it.nl
+- Local: `cd enca && python3 -m http.server 8080` → http://localhost:8080 (sign-in works because of the localhost redirect URI). Or open `?demo=1` for sample data without any setup.
+- Production: https://enca.limon-it.nl
 
 ### 6. Customer tenants (multi-tenant consent)
 
 An admin of each customer tenant must consent once. Send them this URL (replace `CLIENT_ID`):
 
 ```
-https://login.microsoftonline.com/organizations/adminconsent?client_id=CLIENT_ID&redirect_uri=https://cadoc.limon-it.nl
+https://login.microsoftonline.com/organizations/adminconsent?client_id=CLIENT_ID&redirect_uri=https://enca.limon-it.nl
 ```
 
 After consent, anyone in that tenant with permission to read CA policies (e.g. Security Reader/Global Reader) can sign in and document their policies.
@@ -139,7 +141,7 @@ js/export.js          Word / PDF / PNG / PNG-bundle export + JSON backup zip
 js/app.js             wiring: screens, toolbars, theme, permissions, tool state
 js/demo.js            sample policies for ?demo=1
 vendor/               msal-browser, html-to-image, jsPDF, JSZip (self-hosted)
-CNAME                 cadoc.limon-it.nl (GitHub Pages custom domain)
+CNAME                 enca.limon-it.nl (GitHub Pages custom domain)
 ```
 
 ## Permissions
@@ -210,23 +212,23 @@ If a write still fails with *"Operation requires conditional access and client d
 
 ## Credits & thanks
 
-Four community projects shaped CA Doc, and all four deserve the credit:
+Four community projects shaped ENCA, and all four deserve the credit:
 
-- **[idPowerToys](https://github.com/merill/idPowerToys)** — by **Merill Fernando**. The Conditional Access documenter that started all of this: the idea that a CA baseline should be readable as a document rather than clicked through in the portal. CA Doc is the web successor to that documenter, extended to the newest CA settings.
+- **[idPowerToys](https://github.com/merill/idPowerToys)** — by **Merill Fernando**. The Conditional Access documenter that started all of this: the idea that a CA baseline should be readable as a document rather than clicked through in the portal. ENCA is the web successor to that documenter, extended to the newest CA settings.
 - **[Conditional Access Impact Matrix](https://github.com/jasperbaes/Conditional-Access-Impact-Matrix)** — by **Jasper Baes**. The users × policies impact model behind the **Gap analyse** tool: working out which policies actually apply to a given user, who bypasses a policy through an exclusion, and whether that bypass is covered somewhere else.
-- **[Conditional Access Baseline](https://github.com/j0eyv/ConditionalAccessBaseline)** — by **Joey Verlinden**. A deliberately minimised community baseline built on the Microsoft Conditional Access framework, bundled here as a second catalog so a tenant can be measured against it exactly like the Limon-IT one. The policy set, personas and naming convention are his; CA Doc only reads and compares.
+- **[Conditional Access Baseline](https://github.com/j0eyv/ConditionalAccessBaseline)** — by **Joey Verlinden**. A deliberately minimised community baseline built on the Microsoft Conditional Access framework, bundled here as a second catalog so a tenant can be measured against it exactly like the Limon-IT one. The policy set, personas and naming convention are his; ENCA only reads and compares.
 - **[CA Policy Analyzer](https://github.com/Jhope188/ca-policy-analyzer)** — by **jhope188**. The inspiration for the **Best-practice & bypass checks** and **MS Learn checks** tools: best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.
 - **[Microsoft Entra Conditional Access blog series](https://www.chanceofsecurity.com/post/microsoft-entra-conditional-access)** — by **Sebastian F. Markdanner** (Chance of Security). A deep, practical walk-through of designing a persona-based Conditional Access framework; several of his policy designs also informed the Limon-IT baseline bundled here.
 
 All are independently reimplemented here in browser-side JavaScript against Microsoft Graph — no code was copied.
 
-Thanks also to the Conditional Access community whose baselines CA Doc is designed to compare against: **Kenneth van Surksum**, **Joey Verlinden**, and **Claus Jespersen** for the Zero Trust persona framework.
+Thanks also to the Conditional Access community whose baselines ENCA is designed to compare against: **Kenneth van Surksum**, **Joey Verlinden**, and **Claus Jespersen** for the Zero Trust persona framework.
 
 ## License & attribution
 
 MIT — see [LICENSE](LICENSE). The Limon-IT name and logo (`assets/`) are trademarks of Limon-IT and are excluded from the license; forks must use their own branding.
 
-Inspired by the Conditional Access documenter in [idPowerToys](https://github.com/merill/idPowerToys) by Merill Fernando (MIT). CA Doc is an independent from-scratch implementation.
+Inspired by the Conditional Access documenter in [idPowerToys](https://github.com/merill/idPowerToys) by Merill Fernando (MIT). ENCA is an independent from-scratch implementation.
 
 The **MS Learn checks** tool (`js/mslearn.js`) is an independent vanilla-JS implementation of the documented-exclusion check set from [ca-policy-analyzer](https://github.com/Jhope188/ca-policy-analyzer); the checks themselves encode guidance published on learn.microsoft.com (each finding links to its source page).
 

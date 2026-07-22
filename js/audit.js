@@ -278,7 +278,11 @@ const Audit = (() => {
   // The audit log only keeps ~30 days, and nothing here is stored server-side,
   // so the way to build real history is to export a snapshot now and compare a
   // later run against it. Records carry a stable id, which is what we match on.
-  const EXPORT_SCHEMA = "cadoc-audit/1";
+  const EXPORT_SCHEMA = "enca-audit/1";
+  // Snapshots are the whole point of this tool, so a rename must not orphan the
+  // ones already on disk: "cadoc-audit/1" (pre-2026-07 name) is the same format
+  // and is still accepted on load. New exports carry the current schema.
+  const EXPORT_SCHEMA_LEGACY = ["cadoc-audit/1"];
 
   function toExport(res, meta = {}) {
     return {
@@ -294,8 +298,8 @@ const Audit = (() => {
     };
   }
   function fromExport(obj) {
-    if (!obj || typeof obj !== "object") throw new Error("That file isn't a CA Doc audit export.");
-    if (obj.schema !== EXPORT_SCHEMA) throw new Error(`Unexpected format "${obj.schema || "unknown"}" — expected ${EXPORT_SCHEMA}.`);
+    if (!obj || typeof obj !== "object") throw new Error("That file isn't an ENCA audit export.");
+    if (obj.schema !== EXPORT_SCHEMA && !EXPORT_SCHEMA_LEGACY.includes(obj.schema)) throw new Error(`Unexpected format "${obj.schema || "unknown"}" — expected ${EXPORT_SCHEMA}.`);
     if (!Array.isArray(obj.rows)) throw new Error("The export has no rows.");
     return obj;
   }

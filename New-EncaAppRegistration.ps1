@@ -1,18 +1,22 @@
 <#
 .SYNOPSIS
-  Creates (or updates) the Entra app registration for CA Doc.
+  Creates (or updates) the Entra app registration for ENCA.
 
 .DESCRIPTION
   - Reuses an existing Microsoft Graph PowerShell session if it has the required
     scopes; otherwise signs in interactively.
-  - Creates a multi-tenant SPA app registration with the cadoc.limon-it.nl and
+  - Creates a multi-tenant SPA app registration with the enca.limon-it.nl and
     localhost redirect URIs and delegated Policy.Read.All + Directory.Read.All.
+  - Rename-safe: if the app is not found under -AppName it also looks for the
+    previous name (-PreviousAppName), so the 2026 CA Doc -> ENCA rename UPDATES
+    the existing registration instead of creating a second one. The AppId must
+    not change: every tenant that already consented is bound to it.
   - Idempotent: safe to run again (updates the existing app).
   - Grants admin consent in your own tenant (skip with -SkipAdminConsent).
   - Patches js/authConfig.js with the client ID when found next to this script.
 
 .EXAMPLE
-  ./New-CaDocAppRegistration.ps1
+  ./New-EncaAppRegistration.ps1
 
 .NOTES
   Requires: Microsoft.Graph.Applications module, and a role that can create
@@ -21,11 +25,17 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$AppName = "CA Documenter (Limon-IT)",
+  [string]$AppName = "ENCA (Limon-IT)",
+  # The pre-rename display name. Only used to FIND the existing app when it has
+  # not been renamed yet; tenants that already consented keep showing the old
+  # name in their Enterprise applications list, which is expected.
+  [string]$PreviousAppName = "CA Documenter (Limon-IT)",
   # Preferred: target the app registration by its immutable Object ID
   # (display-name lookup can match the wrong app if names collide).
   [string]$AppObjectId,
-  [string[]]$RedirectUris = @("https://cadoc.limon-it.nl", "http://localhost:8080"),
+  # cadoc.limon-it.nl stays listed while the old domain still redirects - drop
+  # it once nobody reaches the app on the old host any more.
+  [string[]]$RedirectUris = @("https://enca.limon-it.nl", "https://cadoc.limon-it.nl", "http://localhost:8080"),
   # Policy.ReadWrite.ConditionalAccess is only used by the Assign-groups tool;
   # Group.ReadWrite.All + RoleManagement.ReadWrite.Directory only when creating
   # role-assignable persona groups. All are requested on demand in the app but
@@ -84,6 +94,10 @@ $app = if ($AppObjectId) {
   Get-MgApplication -ApplicationId $AppObjectId
 } else {
   $matches2 = @(Get-MgApplication -Filter "displayName eq '$AppName'")
+  if (-not $matches2 -and $PreviousAppName) {
+    $matches2 = @(Get-MgApplication -Filter "displayName eq '$PreviousAppName'")
+    if ($matches2) { Write-Host "Found the app under its previous name '$PreviousAppName' - it will be renamed to '$AppName' (AppId is unchanged)." -ForegroundColor Yellow }
+  }
   if ($matches2.Count -gt 1) { throw "Multiple apps named '$AppName' found. Re-run with -AppObjectId <object-id> to target the right one." }
   $matches2 | Select-Object -First 1
 }
@@ -125,7 +139,7 @@ if (Test-Path $AuthConfigPath) {
 
 #--- 7. Summary ----------------------------------------------------------
 Write-Host ""
-Write-Host "==================== CA Doc app registration ====================" -ForegroundColor Cyan
+Write-Host "==================== ENCA app registration ====================" -ForegroundColor Cyan
 Write-Host "  Display name : $($app.DisplayName)"
 Write-Host "  Client ID    : $($app.AppId)"
 Write-Host "  Object ID    : $($app.Id)"

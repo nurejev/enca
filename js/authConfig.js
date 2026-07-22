@@ -1,5 +1,5 @@
 // ======================================================================
-// CA Doc — auth configuration
+// ENCA — auth configuration
 // Replace clientId with the Application (client) ID of your Entra app
 // registration (see README.md, step 1).
 // ======================================================================

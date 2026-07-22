@@ -8,9 +8,9 @@
      for silent token renewal; img-src data:/blob: is needed for PNG/PDF export
      and the tenant branding logo. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
-<title>Conditional Access Baseline Tools · Limon-IT</title>
+<title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=170">
+<link rel="stylesheet" href="css/app.css?v=171">
 </head>
 <body>
 
@@ -20,12 +20,12 @@
       <img src="assets/logo-mark-light.svg" width="34" height="34" alt="Limon-IT">
       <b>Limon-<span>IT</span></b>
     </div>
-    <span class="app-tag">CA Doc</span>
+    <span class="app-tag">ENCA</span>
     <button class="btn home-btn" id="homeBtn" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M3 10.6 12 3.2l9 7.4"/><path d="M5.2 9.4V20.4h13.6V9.4"/><path d="M9.6 20.4v-6.2h4.8v6.2"/>
       </svg>Tools</button>
-    <span class="mini muted">cadoc.limon-it.nl</span>
+    <span class="mini muted">enca.limon-it.nl</span>
     <div class="spacer"></div>
     <button class="btn" id="themeBtn" title="Theme: Auto (follows your device)"><span class="tico">🌗</span></button>
     <div class="tenant" id="tenantBox">
@@ -45,7 +45,7 @@
   <section id="screen-login" class="screen active">
     <div class="login-card">
       <img src="assets/logo-mark-light.svg" width="76" height="76" alt="Limon-IT">
-      <h1>Conditional Access Baseline Tools</h1>
+      <h1>ENCA — Conditional Access Baseline Tools</h1>
       <p>Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
         <svg width="17" height="17" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
@@ -152,7 +152,7 @@
     <div class="tools">
       <div class="tool tool-help" id="toolChangelog">
         <div class="tool-ic">📋</div><h3>What's new</h3>
-        <p>Everything added or changed in CA Doc, newest first — the full changelog behind the overlay you get after signing in.</p>
+        <p>Everything added or changed in ENCA, newest first — the full changelog behind the overlay you get after signing in.</p>
       </div>
       <div class="tool tool-help" id="toolHelp">
         <div class="tool-ic">❓</div><h3>Help</h3>
@@ -165,7 +165,7 @@
 
     <div class="list-card readme">
       <h3>📖 About these tools</h3>
-      <p><b>Conditional Access Baseline Tools</b> is a read-only toolset for your Microsoft Entra Conditional Access baseline.
+      <p><b>ENCA</b> (Entra Conditional Access) is a read-only toolset for your Microsoft Entra Conditional Access baseline.
         <b>List Policies</b> shows every policy as cards, a list or a settings matrix, grouped by persona (CA number ranges).
         <b>Create documentation</b> turns all or selected policies into shareable documentation — Word, PDF, PNG or a PNG bundle.
         <b>Gap analyse</b> builds a users × policies impact matrix: which policies apply to whom, who bypasses a policy via exclusions (and why),
@@ -627,7 +627,7 @@
   <section id="screen-changelog" class="screen">
     <div class="help-page">
       <h2 class="home-title" style="margin:0 0 8px">📋 What's new</h2>
-      <p class="mini muted" style="margin:0 0 16px">Everything added or changed in CA Doc, newest first. The overlay after sign-in shows you only what landed since your last visit — this is the full record.</p>
+      <p class="mini muted" style="margin:0 0 16px">Everything added or changed in ENCA, newest first. The overlay after sign-in shows you only what landed since your last visit — this is the full record.</p>
       <div id="clBody"></div>
     </div>
   </section>
@@ -635,7 +635,7 @@
   <!-- ============ HELP — opens as a tool, in its own tab ============ -->
   <section id="screen-help" class="screen">
     <div class="help-page">
-      <h2 class="home-title" style="margin:0 0 8px">❓ How to use CA Doc</h2>
+      <h2 class="home-title" style="margin:0 0 8px">❓ How to use ENCA</h2>
       <p class="mini muted" style="margin:0 0 10px">A read-only toolset for your Microsoft Entra Conditional Access baseline. Sign in gives read-only Graph access; the four tools that can change your tenant are marked <span class="tag block">writes to tenant</span> and ask for extra permission only when you run them. Every write lands safely — imported policies come in <b>Off</b>, deletes need a typed confirmation.</p>
 
     <div class="help-toc" id="helpToc"></div>
@@ -833,7 +833,7 @@
 
 <footer>
   <div class="fwrap">
-    <span>© 2026 Limon-IT · CA Doc <span id="buildStampFoot"></span></span>
+    <span>© 2026 Limon-IT · ENCA <span id="buildStampFoot"></span></span>
     <div class="spacer"></div>
     <a href="https://limon-it.nl">limon-it.nl</a>
   </div>
@@ -929,7 +929,7 @@
 <div class="modal-bg" id="importModal">
   <div class="modal" style="max-width:680px">
     <h3>Import backup</h3>
-    <p class="mini" id="imDesc">Select a CA Doc backup zip, or pick the extracted backup folder — both use the same structure.</p>
+    <p class="mini" id="imDesc">Select an ENCA backup zip, or pick the extracted backup folder — both use the same structure.</p>
     <div id="imPick" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0">
       <label class="btn primary" style="cursor:pointer">Choose backup .zip<input type="file" id="imZip" accept=".zip" style="display:none"></label>
       <label class="btn" style="cursor:pointer">Choose backup folder<input type="file" id="imFolder" webkitdirectory multiple style="display:none"></label>
@@ -1041,7 +1041,7 @@
 <!-- ============ WHAT'S NEW (shown once per release, after sign-in) ============ -->
 <div class="modal-bg" id="newModal">
   <div class="modal" style="max-width:680px">
-    <h3 id="newTitle">✨ What's new in CA Doc</h3>
+    <h3 id="newTitle">✨ What's new in ENCA</h3>
     <p class="mini" id="newSub" style="margin-bottom:12px"></p>
     <div id="newBody" style="max-height:52vh;overflow:auto"></div>
     <div class="row">
@@ -1172,31 +1172,31 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=170"></script>
-<script src="js/authConfig.js?v=170"></script>
-<script src="js/labels.js?v=170"></script>
-<script src="js/graph.js?v=170"></script>
-<script src="js/model.js?v=170"></script>
-<script src="js/render.js?v=170"></script>
-<script src="js/analyze.js?v=170"></script>
-<script src="js/whatif.js?v=170"></script>
-<script src="js/mslearn.js?v=170"></script>
-<script src="js/gapcheck.js?v=170"></script>
-<script src="js/exclusions.js?v=170"></script>
-<script src="js/validator.js?v=170"></script>
-<script src="js/whatifeval.js?v=170"></script>
-<script src="js/locations.js?v=170"></script>
-<script src="js/audit.js?v=170"></script>
-<script src="js/changelog.js?v=170"></script>
-<script src="js/baselineData.js?v=170"></script>
-<script src="js/baselineJoeyData.js?v=170"></script>
-<script src="js/baseline.js?v=170"></script>
-<script src="js/groupTemplates.js?v=170"></script>
-<script src="js/assign.js?v=170"></script>
-<script src="js/cagroups.js?v=170"></script>
-<script src="js/import.js?v=170"></script>
-<script src="js/export.js?v=170"></script>
-<script src="js/demo.js?v=170"></script>
-<script src="js/app.js?v=170"></script>
+<script src="js/version.js?v=171"></script>
+<script src="js/authConfig.js?v=171"></script>
+<script src="js/labels.js?v=171"></script>
+<script src="js/graph.js?v=171"></script>
+<script src="js/model.js?v=171"></script>
+<script src="js/render.js?v=171"></script>
+<script src="js/analyze.js?v=171"></script>
+<script src="js/whatif.js?v=171"></script>
+<script src="js/mslearn.js?v=171"></script>
+<script src="js/gapcheck.js?v=171"></script>
+<script src="js/exclusions.js?v=171"></script>
+<script src="js/validator.js?v=171"></script>
+<script src="js/whatifeval.js?v=171"></script>
+<script src="js/locations.js?v=171"></script>
+<script src="js/audit.js?v=171"></script>
+<script src="js/changelog.js?v=171"></script>
+<script src="js/baselineData.js?v=171"></script>
+<script src="js/baselineJoeyData.js?v=171"></script>
+<script src="js/baseline.js?v=171"></script>
+<script src="js/groupTemplates.js?v=171"></script>
+<script src="js/assign.js?v=171"></script>
+<script src="js/cagroups.js?v=171"></script>
+<script src="js/import.js?v=171"></script>
+<script src="js/export.js?v=171"></script>
+<script src="js/demo.js?v=171"></script>
+<script src="js/app.js?v=171"></script>
 </body>
 </html>

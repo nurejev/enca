@@ -534,7 +534,7 @@ const Exclusions = (() => {
 
     L.push(`# CA Exclusion analysis — ${mdEsc(tenantName || "tenant")}`);
     L.push("");
-    L.push(`Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by Conditional Access Baseline Tools (cadoc.limon-it.nl).`);
+    L.push(`Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by ENCA — Conditional Access Baseline Tools (enca.limon-it.nl).`);
     L.push("");
     L.push("## Summary");
     L.push("");
