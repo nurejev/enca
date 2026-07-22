@@ -1,5 +1,5 @@
 // ======================================================================
-// Conditional Access validator (BETA)
+// Conditional Access validator
 //
 // A faithful, read-only re-implementation of the *simulation generator*
 // from Jasper Baes' Conditional Access Validator:

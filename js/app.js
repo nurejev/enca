@@ -2720,7 +2720,7 @@
       exPlats.length ? `platforms ${esc(exPlats.join(", "))}` : "",
     ].filter(Boolean).join("; ");
     return `<div class="list-card va-compact">
-      <div class="va-c-head"><b>${esc(g.name)}</b>${stateTag} <span class="va-enfs">${badges}</span></div>
+      <div class="va-c-head"><b class="pol-link" data-polid="${esc(g.id)}" title="Open the policy card">${esc(g.name)}</b>${stateTag} <span class="va-enfs">${badges}</span></div>
       <table class="va-c-tbl"><tbody>${rows.map(([k, v]) => `<tr><td class="va-c-k">${k}</td><td>${v}</td></tr>`).join("")}</tbody></table>
       ${excl ? `<div class="va-c-excl"><span class="tag block">does not apply to</span> ${excl}</div>` : ""}
     </div>`;
@@ -2731,7 +2731,7 @@
     const r = vaResult;
     $("vaHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>⚡ CA validator <span class="tag new">BETA</span></h3>
+        <h3>⚡ CA validator <span class="tag new">NEW</span></h3>
         <p style="margin-bottom:6px">For each enabled policy, the sign-in simulations it implies and the control each one should enforce. A simulation on the <b>excluded</b> side inverts to <b>“no &lt;control&gt;”</b>.</p>
         <p class="mini muted" style="margin:0">Ported from <a href="https://github.com/jasperbaes/Conditional-Access-Validator" target="_blank" rel="noopener">Jasper Baes' Conditional Access Validator</a> (CC BY-NC-SA 4.0). Simulation report only; users are representative placeholders.</p>
       </div>
@@ -2817,7 +2817,7 @@
       return `<div class="list-card va-card">
         <div class="va-h" data-vagroup="${esc(g.id)}">
           <span class="va-caret">${open ? "▾" : "▸"}</span>
-          <b>${esc(g.name)}</b> ${stateTag(g.state)}
+          <b class="pol-link" data-polid="${esc(g.id)}" title="Open the policy card">${esc(g.name)}</b> ${stateTag(g.state)}
           <span class="mini muted">${g.shown.length} simulation${g.shown.length === 1 ? "" : "s"}${g.capped ? " · capped" : ""}</span>
         </div>
         <div class="va-tablewrap" style="${open ? "" : "display:none"}">
@@ -2853,6 +2853,10 @@
   $("vaChips").addEventListener("click", (e) => { const b = e.target.closest("[data-vaf]"); if (!b) return; vaFilter = b.dataset.vaf; renderValidator(); });
   $("vaViewSeg").addEventListener("click", (e) => { const b = e.target.closest("[data-vaview]"); if (!b) return; vaView = b.dataset.vaview; renderValidator(); });
   $("vaBody").addEventListener("click", (e) => {
+    // The policy name opens its card. It sits inside the collapse header in the
+    // detailed view, so it has to be checked first or the click just toggles.
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const h = e.target.closest("[data-vagroup]"); if (!h) return;
     const id = h.dataset.vagroup;
     if (vaCollapsed.has(id)) vaCollapsed.delete(id); else vaCollapsed.add(id);
