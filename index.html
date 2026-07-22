@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=180">
+<link rel="stylesheet" href="css/app.css?v=181">
 </head>
 <body>
 
@@ -112,6 +112,10 @@
       <div class="tool" id="toolAudit">
         <div class="tool-ic">🕓</div><h3>Change audit <span class="tag new">NEW</span></h3>
         <p>Who changed which Conditional Access resource, when, and exactly what changed — a field-level diff of every policy, named location and authentication strength edit from the Entra audit log.</p>
+      </div>
+      <div class="tool" id="toolSignins">
+        <div class="tool-ic">🚦</div><h3>Sign-in failures <span class="tag new">BETA</span></h3>
+        <p>Which sign-ins Conditional Access failed and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. Enforced and report-only, with CSV export and a one-click replay in What-If.</p>
       </div>
     </div>
     <div class="tool-sec"><h3>🧬 Compare against a baseline</h3><p>Measure this tenant against a reference set of policies.</p></div>
@@ -630,6 +634,38 @@
     <div id="auBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ SIGN-IN FAILURES ============ -->
+  <section id="screen-signins" class="screen">
+    <div class="list-card readme" id="siHead" style="margin-top:0"></div>
+    <div class="toolbar" id="siToolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="siSearch" placeholder="Search user, app, policy, IP or location…">
+      </div>
+      <div class="chip-filter" id="siChips"></div>
+      <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px"><span>Range</span>
+        <select id="siDays" style="width:auto">
+          <option value="1">Last 24 hours</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select></label>
+      <div class="seg" id="siModeSeg">
+        <button class="active" data-simode="enforced" title="Sign-ins an enforced policy blocked or interrupted">Enforced</button>
+        <button data-simode="reportonly" title="Sign-ins a report-only policy would have failed">Report-only</button>
+      </div>
+      <div class="seg" id="siViewSeg">
+        <button class="active" data-siview="policies">Per policy</button>
+        <button data-siview="signins">Sign-ins</button>
+      </div>
+      <div class="tb-actions">
+        <button class="btn" id="siRescan" style="display:none" title="Re-read the sign-in log">⟳ Rescan</button>
+        <button class="btn" id="siMd">Export MD</button>
+        <button class="btn lemon" id="siCsv" title="One line per sign-in × failing policy — pivot-table and SIEM friendly">⤓ Export CSV</button>
+      </div>
+    </div>
+    <div id="siBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ CHANGELOG — the full history, as a page ============ -->
   <section id="screen-changelog" class="screen">
     <div class="help-page">
@@ -733,6 +769,19 @@
         <li><b>Export MD</b> — the whole change set with per-entry diff tables, for a review or a ticket.</li>
       </ul>
       <p class="help-x">Read-only. Needs <code>AuditLog.Read.All</code> (requested when you run it) and a reader role such as Reports Reader, Security Reader or Security Administrator. Audit retention is licence-bound — roughly 30 days on Entra ID P1/P2, 7 days otherwise — so this is a rolling window, not full history.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🚦 Sign-in failures <span class="tag new">BETA</span></h4>
+      <p>Which sign-ins Conditional Access failed and which policy did it — read from the Entra sign-in log, grouped per policy.</p>
+      <ul>
+        <li><b>Enforced</b> — sign-ins with <code>conditionalAccessStatus = failure</code>: a policy's controls were not satisfied and the sign-in was blocked or interrupted. Filtered by Graph, so the read is cheap. An abandoned MFA prompt lands here too — a failure is a prompt to look, not proof the policy is wrong.</li>
+        <li><b>Report-only</b> — sign-ins a report-only policy <i>would have failed</i>. These sign-ins complete, so Graph cannot pre-filter them: the whole window is read and filtered in the browser, capped at 10&#8239;000 sign-ins. This is the number to check before flipping a policy from report-only to On.</li>
+        <li><b>Per policy</b> — one row per failing policy: failure count, distinct users, most affected users, and the grant controls that weren't met. Expand a row for the individual sign-ins.</li>
+        <li><b>🧪 Replay in What-If</b> — one click prefills the What-If scenario with the sign-in's user, app, platform, client, IP, country and device state, so you can see exactly which policies apply and why.</li>
+        <li><b>Export CSV</b> — one line per sign-in × failing policy, ready for a pivot table or a SIEM. <b>Export MD</b> — the per-policy summary with sign-in tables, for a review or a ticket.</li>
+      </ul>
+      <p class="help-x">Read-only. Needs <code>AuditLog.Read.All</code> (requested when you run it) and a reader role such as Reports Reader, Security Reader or Security Administrator, plus an Entra ID P1/P2 licence for the sign-in log. Retention is licence-bound (≈30 days), so this is a rolling window.</p>
     </section>
 
     <section class="help-sec">
@@ -1214,32 +1263,33 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=180"></script>
-<script src="js/version.js?v=180"></script>
-<script src="js/authConfig.js?v=180"></script>
-<script src="js/labels.js?v=180"></script>
-<script src="js/graph.js?v=180"></script>
-<script src="js/model.js?v=180"></script>
-<script src="js/render.js?v=180"></script>
-<script src="js/analyze.js?v=180"></script>
-<script src="js/whatif.js?v=180"></script>
-<script src="js/mslearn.js?v=180"></script>
-<script src="js/gapcheck.js?v=180"></script>
-<script src="js/exclusions.js?v=180"></script>
-<script src="js/validator.js?v=180"></script>
-<script src="js/whatifeval.js?v=180"></script>
-<script src="js/locations.js?v=180"></script>
-<script src="js/audit.js?v=180"></script>
-<script src="js/changelog.js?v=180"></script>
-<script src="js/baselineData.js?v=180"></script>
-<script src="js/baselineJoeyData.js?v=180"></script>
-<script src="js/baseline.js?v=180"></script>
-<script src="js/groupTemplates.js?v=180"></script>
-<script src="js/assign.js?v=180"></script>
-<script src="js/cagroups.js?v=180"></script>
-<script src="js/import.js?v=180"></script>
-<script src="js/export.js?v=180"></script>
-<script src="js/demo.js?v=180"></script>
-<script src="js/app.js?v=180"></script>
+<script src="js/branding.js?v=181"></script>
+<script src="js/version.js?v=181"></script>
+<script src="js/authConfig.js?v=181"></script>
+<script src="js/labels.js?v=181"></script>
+<script src="js/graph.js?v=181"></script>
+<script src="js/model.js?v=181"></script>
+<script src="js/render.js?v=181"></script>
+<script src="js/analyze.js?v=181"></script>
+<script src="js/whatif.js?v=181"></script>
+<script src="js/mslearn.js?v=181"></script>
+<script src="js/gapcheck.js?v=181"></script>
+<script src="js/exclusions.js?v=181"></script>
+<script src="js/validator.js?v=181"></script>
+<script src="js/whatifeval.js?v=181"></script>
+<script src="js/locations.js?v=181"></script>
+<script src="js/audit.js?v=181"></script>
+<script src="js/signins.js?v=181"></script>
+<script src="js/changelog.js?v=181"></script>
+<script src="js/baselineData.js?v=181"></script>
+<script src="js/baselineJoeyData.js?v=181"></script>
+<script src="js/baseline.js?v=181"></script>
+<script src="js/groupTemplates.js?v=181"></script>
+<script src="js/assign.js?v=181"></script>
+<script src="js/cagroups.js?v=181"></script>
+<script src="js/import.js?v=181"></script>
+<script src="js/export.js?v=181"></script>
+<script src="js/demo.js?v=181"></script>
+<script src="js/app.js?v=181"></script>
 </body>
 </html>

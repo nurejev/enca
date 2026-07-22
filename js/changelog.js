@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 181, date: "2026-07-22", title: "The sign-in log joins the toolbox",
+    items: [
+      { kind: "new", tool: "Sign-in failures", text: "New tool. Reads the Entra sign-in log and shows which sign-ins Conditional Access failed and which policy did it — grouped per policy, so the policy generating the noise sits on top, with distinct users, affected apps and the grant controls that weren't met. Two modes: Enforced (conditionalAccessStatus = failure, filtered by Graph) and Report-only (policies that would have failed — the sign-ins complete, so the window is read and filtered in the browser, capped at 10 000). Any logged sign-in can be replayed in What-If with one click — user, app, platform, client, IP, country and device state prefilled — so the log tells you which policy failed and What-If tells you why. Exports: CSV with one line per sign-in × failing policy (pivot-table and SIEM friendly) and a per-policy Markdown report. Needs AuditLog.Read.All, requested when you run it." },
+    ],
+  },
+  {
     build: 180, date: "2026-07-22", title: "One file to rebrand a fork",
     items: [
       { kind: "new", tool: "All tools", text: "js/branding.js holds everything identity-shaped — product name, organisation, logos, favicon, host, footer and optional colour overrides — and nothing else hard-codes them any more. Fork the repo, edit that one object, drop your own mark in assets/, and the header, sign-in screen, page title, footer and the credit line at the bottom of every Markdown export follow. index.html still carries this repo's values as plain markup, so the page reads correctly before scripts run. Exports stay neutral by design: they carry the customer's tenant branding, never the tool's." },

@@ -48,7 +48,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif",
-    "screen-locations", "screen-audit", "screen-changelog", "screen-help"]);
+    "screen-locations", "screen-audit", "screen-signins", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   function show(id) {
@@ -678,7 +678,7 @@
   const SCOPE_INFO = [
     { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
     { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
-    { scope: "AuditLog.Read.All", use: "Read the directory audit log for Conditional Access changes", tools: "Change audit", onDemand: true },
+    { scope: "AuditLog.Read.All", use: "Read the directory audit log for Conditional Access changes and the sign-in log for CA failures", tools: "Change audit, Sign-in failures", onDemand: true },
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
     { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies, manage named locations", tools: "CA groups (assign), Set Policy state, Import, Named locations, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
@@ -829,6 +829,7 @@
     ["toolValidator", "⚡ CA validator"],
     ["toolWhatIf", "🧪 What-If"],
     ["toolAudit", "🕓 Change audit"],
+    ["toolSignins", "🚦 Sign-in failures"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolBaseline", "🧬 Baseline Policies"],
     ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
@@ -3290,6 +3291,245 @@
       }
     }
     showReport("🕓 Change audit", "CA-ChangeAudit", L.join("\n"));
+  });
+
+  // ---------- Sign-in failures (sign-in log × CA verdicts) ----------
+  const SI_READ = ["AuditLog.Read.All"];
+  // Report-only failures cannot be filtered server-side (the sign-in itself
+  // succeeds), so that mode reads the whole window. This cap keeps a busy
+  // tenant from turning the read into a half-hour of paging.
+  const SI_MAX = 10000;
+  let siRes = null, siFilter = "all", siQuery = "", siDays = 7, siMode = "enforced", siView = "policies";
+  let siBusy = false, siCapped = false;
+  const siOpen = new Set();
+  const siBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted">Reading the sign-in log… this keeps running if you switch tabs.</p></div>';
+  const siModeLabel = () => siMode === "reportonly" ? "report-only failures" : "enforced failures";
+
+  function openSignins() {
+    crumb("🚦 Sign-in failures");
+    show("screen-signins");
+    $("siRescan").style.display = siRes && !siBusy ? "" : "none";
+    if (siBusy) { $("siBody").innerHTML = siBusyPanel(); return; }
+    if (siRes) { renderSignins(); return; }
+    $("siHead").innerHTML = `<h3>🚦 Sign-in failures <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:4px">Which sign-ins Conditional Access failed, and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. The log-side counterpart of What-If.</p>
+      <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> failures are filtered by Graph; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins.</p>`;
+    $("siChips").innerHTML = "";
+    $("siBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-sirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
+  }
+  $("toolSignins").addEventListener("click", () => openSignins());
+  $("siRescan").addEventListener("click", () => runSignins());
+  $("siDays").addEventListener("change", (e) => { siDays = +e.target.value; if (siRes) runSignins(); });
+  $("siModeSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-simode]"); if (!b) return;
+    if (siMode === b.dataset.simode) return;
+    siMode = b.dataset.simode;
+    [...$("siModeSeg").children].forEach((x) => x.classList.toggle("active", x.dataset.simode === siMode));
+    if (siRes || siBusy) runSignins(); else openSignins();
+  });
+
+  // Capped pager: ggetAll but with a ceiling, for the report-only read.
+  async function siFetch(url, cap) {
+    let out = [], next = url;
+    while (next && out.length < cap) {
+      const j = await Graph.gget(next);
+      out = out.concat(j.value || []);
+      next = j["@odata.nextLink"] || null;
+    }
+    siCapped = !!next;
+    return out.slice(0, cap);
+  }
+
+  async function runSignins() {
+    if (siBusy) return;                       // already reading — don't start a second pass
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
+    siBusy = true; siCapped = false;
+    $("siRescan").style.display = "none";
+    $("siBody").innerHTML = siBusyPanel();
+    try {
+      const records = isDemo
+        ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [])
+        : await siFetch(Signins.query(siDays, siMode), SI_MAX);
+      siRes = Signins.build(records, siMode);
+      siOpen.clear(); siFilter = "all";
+      siBusy = false;
+      $("siRescan").style.display = "";
+      renderSignins();
+      if (!siRes.total) toast(`No Conditional Access ${siModeLabel()} in this window`);
+    } catch (e) {
+      console.error("Sign-in failures read failed:", e);
+      siBusy = false;
+      $("siBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read the sign-in log: ${esc(e.message || e)}<br>
+        <span class="muted">This needs AuditLog.Read.All and a reader role such as Reports Reader, Security Reader or Security Administrator. The sign-in log also needs an Entra ID P1/P2 licence.</span></p>
+        <div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-sirun>Try again</button></div>`;
+    } finally { siBusy = false; }
+  }
+
+  // ---- replay a logged sign-in in What-If --------------------------------
+  // The log says which policy failed; What-If says why. Prefill the scenario
+  // from the record so the two tools answer the same question about the same
+  // sign-in.
+  const siPlatform = (os) => {
+    const t = String(os || "").toLowerCase();
+    if (t.includes("windows phone")) return "windowsPhone";
+    if (t.includes("windows")) return "windows";
+    if (t.includes("mac")) return "macOS";
+    if (t.includes("ios")) return "iOS";
+    if (t.includes("android")) return "android";
+    if (t.includes("linux")) return "linux";
+    return "";
+  };
+  const siClient = (c) => {
+    const t = String(c || "").toLowerCase();
+    if (t.includes("browser")) return "browser";
+    if (t.includes("mobile apps and desktop")) return "mobileAppsAndDesktopClients";
+    if (t.includes("activesync")) return "exchangeActiveSync";
+    if (t) return "other";                     // IMAP, POP, SMTP, "Other clients"…
+    return "browser";
+  };
+  function siReplay(row) {
+    $("wiUser").value = row.upn || row.user;
+    const appOpt = [...$("wiApp").options].find((o) => o.value === row.appId);
+    if (appOpt) { $("wiApp").value = row.appId; $("wiAppIdWrap").style.display = "none"; }
+    else { $("wiApp").value = "custom"; $("wiAppId").value = row.appId || ""; $("wiAppIdWrap").style.display = ""; }
+    const plat = siPlatform(row.os); if (plat) $("wiPlatform").value = plat;
+    $("wiClient").value = siClient(row.client);
+    $("wiIp").value = row.ip || "";
+    $("wiCountry").value = row.country || "";
+    $("wiDevice").value = row.compliant ? "compliant" : /hybrid/i.test(row.trustType) ? "hybrid" : row.os ? "unmanaged" : "";
+    $("wiSignInRisk").value = ["none", "low", "medium", "high"].includes(row.signInRisk) ? row.signInRisk : "";
+    $("toolWhatIf").click();
+    toast("Scenario prefilled from the sign-in — press <span>Evaluate</span>");
+  }
+
+  $("siBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-sirun]")) { runSignins(); return; }
+    const rp = e.target.closest("[data-sireplay]");
+    if (rp) { const row = siRes && siRes.rows.find((x) => x.id === rp.dataset.sireplay); if (row) siReplay(row); return; }
+    const s = e.target.closest("[data-sisum]");
+    if (s) { const k = "p:" + s.dataset.sisum; siOpen.has(k) ? siOpen.delete(k) : siOpen.add(k); renderSignins(); return; }
+    const h = e.target.closest("[data-siid]");
+    if (h) { const id = h.dataset.siid; siOpen.has(id) ? siOpen.delete(id) : siOpen.add(id); renderSignins(); }
+  });
+  $("siViewSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-siview]"); if (!b) return;
+    siView = b.dataset.siview; renderSignins();
+  });
+  $("siChips").addEventListener("click", (e) => { const b = e.target.closest("[data-sif]"); if (!b) return; siFilter = b.dataset.sif; renderSignins(); });
+  $("siSearch").addEventListener("input", (e) => { siQuery = e.target.value; renderSignins(); });
+
+  const siWhere = (r) => [r.city, r.country].filter(Boolean).join(", ");
+  const siDevice = (r) => r.compliant ? "compliant" : /hybrid/i.test(r.trustType) ? "hybrid joined" : r.os ? "unmanaged" : "";
+
+  function renderSignins() {
+    const r = siRes; if (!r) return;
+    $("siHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:280px">
+        <h3>🚦 Sign-in failures <span class="tag new">BETA</span></h3>
+        <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
+        <p class="mini muted" style="margin:0">${siMode === "reportonly"
+          ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the numbers to check before flipping a policy on."
+          : "Enforced: the user did not satisfy the policy's controls — the sign-in was blocked or interrupted. An abandoned MFA prompt lands here too, so a failure is a prompt to look, not proof the policy is wrong."}</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${r.total}<span class="mini" style="font-weight:400"> sign-ins</span></div>
+        <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}</div>
+        ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated at ${SI_MAX.toLocaleString()} sign-ins</div>` : ""}
+      </div></div>`;
+
+    const chips = [["all", `All (${r.total})`],
+      ...r.policies.slice(0, 8).map((p) => [p.key, `${p.name.length > 34 ? p.name.slice(0, 32) + "…" : p.name} (${p.count})`])];
+    $("siChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${siFilter === k ? "active" : ""}" data-sif="${esc(k)}">${esc(l)}</button>`).join("");
+
+    const q = siQuery.toLowerCase();
+    const match = (x) => (siFilter === "all" || x.policies.some((p) => (p.id || p.name) === siFilter))
+      && (!q || `${x.user} ${x.upn} ${x.app} ${x.ip} ${x.country} ${x.city} ${x.client} ${x.os} ${x.policies.map((p) => p.name).join(" ")}`.toLowerCase().includes(q));
+    const rows = r.rows.filter(match);
+    if (!rows.length) { $("siBody").innerHTML = '<p class="mini" style="padding:20px">No sign-in matches the current filter.</p>'; return; }
+
+    [...$("siViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.siview === siView));
+
+    // ---- Per policy: one row per failing policy (the readable default) ----
+    if (siView === "policies") {
+      const pols = r.policies
+        .map((p) => ({ ...p, rows: p.rows.filter(match) }))
+        .filter((p) => p.rows.length && (siFilter === "all" || p.key === siFilter));
+      $("siBody").innerHTML = `<div class="list-card"><table class="plist au-sum">
+        <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
+        <tbody>${pols.map((p) => {
+          const open = siOpen.has("p:" + p.key);
+          const detail = open ? `<tr class="au-sumdet"><td colspan="6">
+            <ul class="wi-list">${p.rows.slice(0, 40).map((x) => `<li>
+              <div class="wi-pn">${esc(x.user)}${x.upn && x.upn !== x.user ? ` <span class="mini muted">(${esc(x.upn)})</span>` : ""} → <b>${esc(x.app)}</b>
+                <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪 Replay</button></div>
+              <div class="wi-why">${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
+            </li>`).join("")}</ul>
+            ${p.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${p.rows.length} — switch to Sign-ins and search to see the rest.</p>` : ""}
+          </td></tr>` : "";
+          return `<tr class="au-sumrow" data-sisum="${esc(p.key)}">
+            <td><b>${esc(p.name)}</b>${siMode === "reportonly" ? '<div class="mini muted">report-only</div>' : ""}</td>
+            <td><span class="au-n rem">${p.count}</span></td>
+            <td>${p.userCount} distinct</td>
+            <td class="mini">${esc(p.users.slice(0, 2).map(([n, c]) => `${n} (${c})`).join(", "))}${p.users.length > 2 ? ` +${p.users.length - 2}` : ""}</td>
+            <td class="mini">${esc(p.controls.join(", ") || "—")}</td>
+            <td class="mini">${esc(auAgo(p.last))}</td>
+          </tr>${detail}`;
+        }).join("")}</tbody></table></div>
+        <p class="mini muted" style="margin-top:8px">${pols.length} polic${pols.length === 1 ? "y" : "ies"} across ${rows.length} failed sign-in${rows.length === 1 ? "" : "s"} — click a row for the individual sign-ins, 🧪 to replay one in What-If.</p>`;
+      return;
+    }
+
+    // ---- Sign-ins: one card per failed sign-in (capped, newest first) ----
+    const CAP = 300;
+    const shown = rows.slice(0, CAP);
+    $("siBody").innerHTML = (rows.length > CAP
+      ? `<p class="mini muted" style="margin-bottom:8px">Showing the ${CAP} most recent of ${rows.length} sign-ins — narrow with the filters or use Per policy.</p>` : "")
+      + shown.map((x) => {
+      const open = siOpen.has(x.id);
+      const detail = open ? `<div class="au-diff">
+          ${x.policies.map((p) => `<div><span class="au-op remove">failed</span> <span class="au-path">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
+          ${x.failureReason ? `<div><span class="au-op change">reason</span> <span class="au-path">${esc(x.failureReason)}${x.errorCode ? ` (${esc(String(x.errorCode))})` : ""}</span></div>` : ""}
+          ${x.browser ? `<div><span class="au-op set">client</span> <span class="au-path">${esc([x.browser, x.os].filter(Boolean).join(" on "))}</span></div>` : ""}
+          ${x.signInRisk && x.signInRisk !== "none" && x.signInRisk !== "hidden" ? `<div><span class="au-op change">risk</span> <span class="au-path">${esc(x.signInRisk)}</span></div>` : ""}
+        </div>` : "";
+      return `<div class="list-card au-card">
+        <div class="au-h" data-siid="${esc(x.id)}">
+          <span class="au-act delete">${siMode === "reportonly" ? "would fail" : "failed"}</span>
+          <b>${esc(x.user)}</b> <span class="muted">→</span> <span>${esc(x.app)}</span>
+          <span class="mini muted">${esc(x.policies.map((p) => p.name).slice(0, 2).join(", "))}${x.policies.length > 2 ? ` +${x.policies.length - 2}` : ""}</span>
+          <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪</button>
+          <span class="au-when">${esc(auAgo(x.when))}</span>
+        </div>
+        <div class="au-sub">${esc([x.upn !== x.user ? x.upn : "", x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))} · ${esc(new Date(x.when).toLocaleString())}</div>
+        ${detail}
+      </div>`;
+    }).join("");
+  }
+
+  $("siCsv").addEventListener("click", () => {
+    const r = siRes; if (!r) return;
+    downloadText("CA-SignInFailures", "csv", "text/csv", Signins.toCsv(r.rows));
+    toast(`CSV <span>downloaded</span> — one line per sign-in × failing policy`);
+  });
+  $("siMd").addEventListener("click", () => {
+    const r = siRes; if (!r) return;
+    const L = [`# Conditional Access sign-in failures — ${tenantName || "tenant"}`, "",
+      Brand.generatedBy("Generated"), "",
+      `- Window: last ${siDays} days${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""} — ${siModeLabel()}${siCapped ? `, truncated at ${SI_MAX} sign-ins` : ""}`,
+      `- Sign-ins: **${r.total}** across ${r.policies.length} policies`,
+      `- Most affected users: ${r.users.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`,
+      `- Most affected apps: ${r.apps.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`, ""];
+    for (const p of r.policies) {
+      L.push(`## ${p.name}`, "",
+        `- Failures: **${p.count}** — ${p.userCount} distinct users, ${p.appCount} apps`,
+        `- Controls not met: ${p.controls.join(", ") || "—"}`,
+        `- Last failure: ${p.last}`, "",
+        "| When | User | App | Client | Location | IP | Device |", "| --- | --- | --- | --- | --- | --- | --- |");
+      p.rows.slice(0, 100).forEach((x) => L.push(`| ${String(x.when).replace("T", " ").slice(0, 19)} | ${x.user} | ${x.app} | ${x.client} | ${siWhere(x)} | ${x.ip} | ${siDevice(x) || "—"} |`));
+      if (p.rows.length > 100) L.push("", `_+${p.rows.length - 100} more — use the CSV export for the full set._`);
+      L.push("");
+    }
+    showReport("🚦 Sign-in failures", "CA-SignInFailures", L.join("\n"));
   });
 
   // ---------- Named locations (view / create / edit / delete) ----------
