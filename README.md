@@ -64,6 +64,7 @@ Reuses your current Graph session if connected (otherwise signs in interactively
    - `Policy.Read.All`
    - `Directory.Read.All`
    Then click **Grant admin consent** for your own tenant.
+   The remaining scopes in [Permissions](#permissions) — including `AuditLog.Read.All` for the Change audit tool — are requested **on demand** the first time you run the tool that needs them, so you can either add them here up front or consent when prompted. Option A adds them all for you.
 7. Copy the **Application (client) ID** and paste it into [`js/authConfig.js`](js/authConfig.js) (`clientId`).
 
 No client secret needed — it's a public SPA using PKCE.

@@ -36,7 +36,10 @@ param(
   # apps a fixed policy must reference (MS Learn "Apply in tenant").
   # Application.Read.All: Graph requires it to create/update policies that carry
   # an application condition (Import).
-  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "Agreement.Read.All", "Application.Read.All", "Application.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"),
+  # AuditLog.Read.All: read the directory audit log for the Change audit tool
+  # (read-only, on demand). The signed-in user also needs a reader role that can
+  # see audit logs - Reports Reader, Security Reader or Security Administrator.
+  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "AuditLog.Read.All", "Agreement.Read.All", "Application.Read.All", "Application.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"),
   [string]$AuthConfigPath = (Join-Path $PSScriptRoot "js/authConfig.js"),
   [switch]$SkipAdminConsent
 )
