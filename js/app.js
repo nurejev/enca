@@ -1432,10 +1432,44 @@
   let cgCsv = null;   // { fileName, cols, rows, upnCol, personaCol, users, personas, mapping, manualTargets, plan, results, busy }
 
   // Groups you can actually add members to: present in the tenant, not dynamic
-  // (Entra manages those memberships — an add is rejected).
-  const cgCsvTargets = () => (cgRes ? cgRes.rows : [])
-    .filter((r) => r.id && !r.dynamic)
-    .map((r) => r.name).sort();
+  // (Entra manages those memberships — an add is rejected). By default only
+  // groups that belong to the baseline deployment model (templates + catalog)
+  // are offered — a policy also references ad-hoc exclusion groups like
+  // Global-U-Exclude-MFA-P, and routing pilot users into one of those by a
+  // name coincidence is exactly the accident to prevent.
+  let cgCsvAll = false;   // opt-in: also offer non-baseline, policy-referenced groups
+  // "Baseline" is exact template/catalog names PLUS their naming family: the
+  // bundled templates only define a few of the CAD-SEC-U-DG-* groups, but a
+  // tenant group following that same prefix convention (…-ADM, …-EXT, …-SA)
+  // is plainly part of the deployment model, while Global-U-Exclude-MFA-P
+  // matches no baseline prefix and stays out.
+  function cgCsvBaseline() {
+    const names = new Set(), prefixes = new Set();
+    const add = (n) => {
+      const s = String(n || "").toLowerCase(); if (!s) return;
+      names.add(s);
+      const seg = s.split("-");
+      if (seg.length >= 4) prefixes.add(seg.slice(0, 3).join("-"));
+      if (seg.length >= 5) prefixes.add(seg.slice(0, 4).join("-"));
+    };
+    try { CaGroups.templateNames().forEach((_, n) => add(n)); } catch {}
+    try { CaGroups.catalogGroupNames(policies.map((p) => p.raw)).forEach((n) => add(n)); } catch {}
+    return { names, prefixes };
+  }
+  function cgCsvTargets(all) {
+    const base = cgCsvBaseline();
+    const isBaseline = (name) => {
+      const n = String(name || "").toLowerCase();
+      return base.names.has(n) || [...base.prefixes].some((p) => n.startsWith(p + "-"));
+    };
+    return (cgRes ? cgRes.rows : [])
+      .filter((r) => r.id && !r.dynamic)
+      .filter((r) => (all ?? cgCsvAll)
+        || r.template
+        || (r.sources || []).some((x) => x === "template" || x === "catalog")
+        || isBaseline(r.name))
+      .map((r) => r.name).sort();
+  }
 
   function renderCgCsv() {
     const t = cgCsv;
@@ -1474,7 +1508,9 @@ max@contoso.com,"Global, DevOps"</pre>
         <h4>MAP THE CSV — <span style="font-weight:400">${esc(t.fileName)}</span></h4>
         <p class="mini">${t.users.length} distinct user${t.users.length === 1 ? "" : "s"} · UPN column <b>${esc(t.upnCol)}</b>${t.personaCol ? ` · persona column <b>${esc(t.personaCol)}</b>` : " · no persona column"}</p>
         ${t.personaCol ? `<table class="cg-table" style="margin-top:8px"><thead><tr><th>Persona (from CSV)</th><th>Target group</th></tr></thead><tbody>${mapRows}</tbody></table>
-          <p class="mini muted" style="margin-top:6px">Pre-matched against the tenant's CA groups — check every row before scanning. "— skip —" leaves that persona's users alone. Dynamic groups are not offered.</p>` : manual}
+          <p class="mini muted" style="margin-top:6px">Pre-matched against the tenant's <b>baseline</b> CA groups — check every row before scanning. "— skip —" leaves that persona's users alone. Dynamic groups are not offered.</p>` : manual}
+        <label class="chk" style="margin-top:10px;display:block"><input type="checkbox" id="cgCsvAllToggle"${cgCsvAll ? " checked" : ""}> Also offer <b>non-baseline</b> groups that policies reference
+          <span class="mini muted">(ad-hoc exclusion groups and the like — off by default, so pilot users can only land in deployment-model groups)</span></label>
         <div class="row" style="justify-content:flex-start;margin-top:12px">
           <button class="btn" id="cgCsvBack">← Different file</button>
           <button class="btn primary" id="cgCsvScan">Scan users & memberships</button>
@@ -1541,6 +1577,20 @@ max@contoso.com,"Global, DevOps"</pre>
     renderCgCsv();
   });
   $("cgBody").addEventListener("change", (e) => {
+    if (e.target.id === "cgCsvAllToggle" && cgCsv) {
+      cgCsvAll = e.target.checked;
+      // Re-suggest only where nothing is picked yet, or the pick fell out of
+      // the narrowed list — never clobber a mapping the user chose.
+      const targets = cgCsvTargets();
+      for (const p of cgCsv.personas) {
+        if (!cgCsv.mapping[p] || !targets.includes(cgCsv.mapping[p])) {
+          cgCsv.mapping[p] = CaGroups.csvSuggest(p, targets);
+        }
+      }
+      cgCsv.manualTargets = (cgCsv.manualTargets || []).filter((g) => targets.includes(g));
+      renderCgCsv();
+      return;
+    }
     const m = e.target.closest("[data-cgcsvmap]");
     if (m && cgCsv) { cgCsv.mapping[m.dataset.cgcsvmap] = m.value; return; }
     const mt = e.target.closest("[data-cgcsvtarget]");
