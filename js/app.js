@@ -342,12 +342,21 @@
     // the highlight off whichever tool mode brought you here.
     $("selActAnalyze").classList.toggle("on", v === "analyze");
     if (v === "analyze") SEL_ACTIONS.forEach(([id]) => $(id).classList.remove("on"));
+    // Gap analyse lives inside this screen but has its own toolbar and its own
+    // subject (users, not policies) — the policy search, state chips, select-all
+    // and the sticky green action bar don't apply and would sit over its output.
+    const isAn = v === "analyze";
+    const pSearch = document.querySelector("#screen-list .toolbar .search");
+    if (pSearch) pSearch.style.display = isAn ? "none" : "";
+    $("stateChips").style.display = isAn ? "none" : "";
+    $("selAllWrap").style.display = isAn ? "none" : "";
+    updateSelbar();
   }
   function updateSelbar() {
     const n = selected.size;
     // The bar is the screen's action row, so it stays up as long as there are
     // policies to act on — an empty selection means "all visible", not "nothing".
-    $("selbar").classList.toggle("visible", policies.length > 0);
+    $("selbar").classList.toggle("visible", policies.length > 0 && viewMode !== "analyze");
     // "Select all" reflects the visible (filtered) set: checked when all of it
     // is selected, indeterminate while only part of it is.
     const vis = visible(), picked = vis.filter(p => selected.has(p.id)).length;
@@ -2132,7 +2141,36 @@
   // Click-to-filter: a row pins the exclusion/user (hides its out-of-scope
   // policy columns); a policy header pins the policy (hides out-of-scope rows).
   // Clicking the same target again, or the Clear button, releases the pin.
+  // "N members" on a group row → list who is actually in it
+  let exMemCur = null;
+  function openExMembers(key) {
+    const ent = exModel && exModel.entities.find((x) => x.key === key);
+    if (!ent) return;
+    exMemCur = ent;
+    const shown = ent.members || [], total = ent.memberTotal;
+    $("exMemTitle").textContent = `👥 ${ent.name}`;
+    $("exMemSub").innerHTML = `${total == null ? shown.length : total} member${(total ?? shown.length) === 1 ? "" : "s"}`
+      + (total != null && total > shown.length ? ` — showing the first ${shown.length}` : "")
+      + ` · excluded from ${ent.policyIds.size} polic${ent.policyIds.size === 1 ? "y" : "ies"}`;
+    $("exMemBody").innerHTML = shown.length
+      ? `<table class="plist"><tbody>${shown.map((m) => `<tr><td>${esc(m.name)}<div class="mini muted">${esc(m.upn || "")}</div></td></tr>`).join("")}</tbody></table>`
+      : '<p class="mini">No members resolved for this group.</p>';
+    $("exMemModal").classList.add("open");
+  }
+  $("exMemClose").addEventListener("click", () => $("exMemModal").classList.remove("open"));
+  $("exMemModal").addEventListener("click", (e) => { if (e.target.id === "exMemModal") $("exMemModal").classList.remove("open"); });
+  $("exMemCsv").addEventListener("click", () => {
+    if (!exMemCur) return;
+    const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [[q("Group"), q("Member"), q("UPN")].join(","),
+      ...(exMemCur.members || []).map((m) => [q(exMemCur.name), q(m.name), q(m.upn)].join(","))];
+    downloadText(`Members-${exMemCur.name}`.replace(/[^\w.-]+/g, "-"), "csv", "text/csv", rows.join("\n"));
+    toast("Member list <span>downloaded</span>");
+  });
+
   $("exBody").addEventListener("click", (e) => {
+    const mem = e.target.closest("[data-exmembers]");
+    if (mem) { e.stopPropagation(); openExMembers(mem.dataset.exmembers); return; }
     if (e.target.closest("[data-exrun]")) { runExclusionScan(); return; }
     if (e.target.closest("[data-exclearfocus]")) { exFocusRow = null; exFocusCol = null; exPage = 0; renderExclusions(); return; }
     if (e.target.closest("[data-colgrip]")) return;  // don't pin while resizing the first column

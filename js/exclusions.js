@@ -266,7 +266,15 @@ const Exclusions = (() => {
       const focused = rowKey && focus.row === rowKey ? " focused" : "";
       const label = r.merged
         ? `<span class="uname" title="${esc(r.items.map((i) => i.name).join(", "))}">${KIND[r.kind].icon} ${esc(r.name)}</span><div class="uupn" title="${esc(r.items.map((i) => i.name).join(", "))}">${esc(r.items.map((i) => i.name).join(" · "))}</div>`
-        : `<span class="uname" title="Click to show only the policies excluding: ${esc(r.items[0].name)}">${KIND[r.kind].icon} ${esc(r.items[0].name)}</span><div class="uupn" title="${esc(r.items[0].id)}">${esc(KIND[r.kind].label)}${rowSub(r.items[0]) ? " · " + esc(rowSub(r.items[0])) : ""}</div>`;
+        : (() => {
+            const e0 = r.items[0], sub = rowSub(e0);
+            // a group's member count opens the member list rather than filtering
+            const canList = r.kind === "group" && e0.members && e0.members.length;
+            const subHtml = sub ? " · " + (canList
+              ? `<button class="ex-memlink" data-exmembers="${esc(e0.key)}" title="Show the members of ${esc(e0.name)}">${esc(sub)}</button>`
+              : esc(sub)) : "";
+            return `<span class="uname" title="Click to show only the policies excluding: ${esc(e0.name)}">${KIND[r.kind].icon} ${esc(e0.name)}</span><div class="uupn" title="${esc(e0.id)}">${esc(KIND[r.kind].label)}${subHtml}</div>`;
+          })();
       return `<tr><td class="ucol${r.merged ? " merged" : ""}${clickable}${focused}"${rowKey ? ` data-exrow="${esc(rowKey)}"` : ""}>${label}</td>` +
         pols.map((p) => r.policyIds.has(p.id)
           ? `<td class="cellv no" title="${esc(r.name)} excluded from ${esc(p.name)}"><span class="cell no">✗</span></td>`

@@ -462,6 +462,10 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
   background:var(--soft);border:1px solid var(--border);border-radius:var(--radius);font-size:13px;
   position:sticky;top:var(--ex-focus-top,168px);z-index:38;box-shadow:0 2px 6px rgba(0,0,0,.06)}
 .ex-focus .fchip{margin-left:auto}
+/* a group's member count opens its member list */
+.ex-memlink{border:0;background:none;padding:0;font:inherit;color:var(--green);cursor:pointer;
+  text-decoration:underline;text-underline-offset:2px}
+.ex-memlink:hover{color:var(--accent2)}
 /* import assignment-mode chooser */
 .im-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 2px}
 .im-mode-opt{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start;

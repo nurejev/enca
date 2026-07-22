@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=150">
+<link rel="stylesheet" href="css/app.css?v=151">
 </head>
 <body>
 
@@ -912,6 +912,19 @@
   </div>
 </div>
 
+<!-- ============ EXCLUSION GROUP MEMBERS ============ -->
+<div class="modal-bg" id="exMemModal">
+  <div class="modal" style="max-width:620px">
+    <h3 id="exMemTitle">Group members</h3>
+    <p class="mini" id="exMemSub" style="margin-bottom:10px"></p>
+    <div id="exMemBody" style="max-height:52vh;overflow:auto"></div>
+    <div class="row">
+      <button class="btn" id="exMemClose">Close</button>
+      <button class="btn lemon" id="exMemCsv">Export CSV</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ DELETE POLICIES ============
      Deleting a CA policy is irreversible — Entra keeps no recycle bin for them.
      Hence: an explicit typed confirmation, a JSON backup offered by default,
@@ -952,28 +965,28 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=150"></script>
-<script src="js/authConfig.js?v=150"></script>
-<script src="js/labels.js?v=150"></script>
-<script src="js/graph.js?v=150"></script>
-<script src="js/model.js?v=150"></script>
-<script src="js/render.js?v=150"></script>
-<script src="js/analyze.js?v=150"></script>
-<script src="js/whatif.js?v=150"></script>
-<script src="js/mslearn.js?v=150"></script>
-<script src="js/gapcheck.js?v=150"></script>
-<script src="js/exclusions.js?v=150"></script>
-<script src="js/validator.js?v=150"></script>
-<script src="js/whatifeval.js?v=150"></script>
-<script src="js/baselineData.js?v=150"></script>
-<script src="js/baselineJoeyData.js?v=150"></script>
-<script src="js/baseline.js?v=150"></script>
-<script src="js/groupTemplates.js?v=150"></script>
-<script src="js/assign.js?v=150"></script>
-<script src="js/cagroups.js?v=150"></script>
-<script src="js/import.js?v=150"></script>
-<script src="js/export.js?v=150"></script>
-<script src="js/demo.js?v=150"></script>
-<script src="js/app.js?v=150"></script>
+<script src="js/version.js?v=151"></script>
+<script src="js/authConfig.js?v=151"></script>
+<script src="js/labels.js?v=151"></script>
+<script src="js/graph.js?v=151"></script>
+<script src="js/model.js?v=151"></script>
+<script src="js/render.js?v=151"></script>
+<script src="js/analyze.js?v=151"></script>
+<script src="js/whatif.js?v=151"></script>
+<script src="js/mslearn.js?v=151"></script>
+<script src="js/gapcheck.js?v=151"></script>
+<script src="js/exclusions.js?v=151"></script>
+<script src="js/validator.js?v=151"></script>
+<script src="js/whatifeval.js?v=151"></script>
+<script src="js/baselineData.js?v=151"></script>
+<script src="js/baselineJoeyData.js?v=151"></script>
+<script src="js/baseline.js?v=151"></script>
+<script src="js/groupTemplates.js?v=151"></script>
+<script src="js/assign.js?v=151"></script>
+<script src="js/cagroups.js?v=151"></script>
+<script src="js/import.js?v=151"></script>
+<script src="js/export.js?v=151"></script>
+<script src="js/demo.js?v=151"></script>
+<script src="js/app.js?v=151"></script>
 </body>
 </html>
