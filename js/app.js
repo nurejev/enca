@@ -356,7 +356,7 @@
       links.forEach((a) => a.classList.remove("active"));
       const a = top && links.get(top.id);
       if (a) a.classList.add("active");
-    }, { rootMargin: "-118px 0px -68% 0px", threshold: 0 });
+    }, { rootMargin: `-${106 + $("helpToc").offsetHeight + 8}px 0px -60% 0px`, threshold: 0 });
     secs.forEach((h) => spy.observe(h));
     helpTocBuilt = true;
   }
@@ -371,7 +371,13 @@
     const a = e.target.closest("a"); if (!a) return;
     e.preventDefault();
     const t = document.getElementById(a.getAttribute("href").slice(1));
-    if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!t) return;
+    // The ToC is sticky and wraps to more rows the more tools there are, so a
+    // fixed scroll offset lands the heading underneath it once the chips no
+    // longer fit two rows. Measure the actual obstruction instead: the ToC's
+    // sticky top plus however tall it currently is.
+    const off = 106 + $("helpToc").offsetHeight + 8;
+    window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - off, behavior: "smooth" });
   });
   $("rptDownload").addEventListener("click", () => {
     if (rptCurrent) downloadText(rptCurrent.base, rptCurrent.ext, "text/markdown", rptCurrent.md);
