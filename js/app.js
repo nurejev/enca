@@ -2939,7 +2939,7 @@
     // Run prompt reappears and it looks like the read was cancelled.
     if (auBusy) { $("auBody").innerHTML = auBusyPanel(); return; }
     if (auRes) { renderAudit(); return; }
-    $("auHead").innerHTML = `<h3>🕓 Change audit <span class="tag new">BETA</span></h3>
+    $("auHead").innerHTML = `<h3>🕓 Change audit <span class="tag new">NEW</span></h3>
       <p style="margin-bottom:4px">Who changed which Conditional Access resource, when, and exactly what changed — policies, named locations, authentication strengths and contexts, and terms of use.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>directory audit log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise.</p>`;
     $("auChips").innerHTML = "";
@@ -3061,7 +3061,7 @@
     const K = Audit.KIND;
     $("auHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🕓 Change audit <span class="tag new">BETA</span></h3>
+        <h3>🕓 Change audit <span class="tag new">NEW</span></h3>
         <p style="margin-bottom:4px">Every Conditional Access change in the window, newest first — expand one to see the exact fields that moved.</p>
         <p class="mini muted" style="margin:0">From the Entra directory audit log. Retention is licence-bound (≈30 days on P1/P2), so this is a rolling window, not a full history.</p>
       </div>
