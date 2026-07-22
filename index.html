@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=174">
+<link rel="stylesheet" href="css/app.css?v=175">
 </head>
 <body>
 
@@ -817,6 +817,7 @@
         <li><b>Assignment mode — 🚀 Deployment groups</b>: new policies are scoped to this tenant’s deploy persona groups (<code>CAD-SEC-U-DG-*</code>). Staged and safe — nothing already in the tenant is touched.</li>
         <li><b>Assignment mode — ♻️ Match &amp; replace</b>: for a policy whose CA number already exists at a different version, the new version keeps the <b>current policy’s assignment and state</b>, merges in any <b>new exclusion groups</b> the update adds (created if missing), and the old version is switched <b>Off</b> — a seamless swap.</li>
         <li><b>Import only</b> — pick a persona to bring in just its policies, or use All / None. A policy with the same CA number <i>and</i> version is skipped.</li>
+        <li><b>Unknown application references</b> — a policy can only name an app that has a <b>service principal</b> in this tenant, and Graph rejects the whole policy over one it cannot resolve. The importer instantiates the missing ones first (the baseline excludes Microsoft first-party apps like Defender for Endpoint and Defender for Mobile TVM that an unused tenant does not have). If one still cannot be created, the policy is imported <b>without that reference</b> rather than failing — the report names each drop, and a dropped <b>exclusion widens the policy</b>, so review it before switching it On.</li>
         <li><b>🔒 no Workload ID licence</b> — a policy scoped to service principals (the CA900 range) needs the separately purchased <b>Microsoft Entra Workload ID</b> licence, which is <i>not</i> part of Entra ID P1/P2. The importer reads the tenant’s subscriptions first; without the licence those policies are shown greyed out and left out entirely, rather than attempted and rejected by Graph with a bare 400. Buy or trial the licence, then re-import.</li>
         <li><b>📜 needs ToU</b> — a policy granting a Terms of use imports without that control (Terms of use has no create API); the report gives a checklist to create it in the portal, then re-import.</li>
       </ul>
@@ -1177,31 +1178,31 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=174"></script>
-<script src="js/authConfig.js?v=174"></script>
-<script src="js/labels.js?v=174"></script>
-<script src="js/graph.js?v=174"></script>
-<script src="js/model.js?v=174"></script>
-<script src="js/render.js?v=174"></script>
-<script src="js/analyze.js?v=174"></script>
-<script src="js/whatif.js?v=174"></script>
-<script src="js/mslearn.js?v=174"></script>
-<script src="js/gapcheck.js?v=174"></script>
-<script src="js/exclusions.js?v=174"></script>
-<script src="js/validator.js?v=174"></script>
-<script src="js/whatifeval.js?v=174"></script>
-<script src="js/locations.js?v=174"></script>
-<script src="js/audit.js?v=174"></script>
-<script src="js/changelog.js?v=174"></script>
-<script src="js/baselineData.js?v=174"></script>
-<script src="js/baselineJoeyData.js?v=174"></script>
-<script src="js/baseline.js?v=174"></script>
-<script src="js/groupTemplates.js?v=174"></script>
-<script src="js/assign.js?v=174"></script>
-<script src="js/cagroups.js?v=174"></script>
-<script src="js/import.js?v=174"></script>
-<script src="js/export.js?v=174"></script>
-<script src="js/demo.js?v=174"></script>
-<script src="js/app.js?v=174"></script>
+<script src="js/version.js?v=175"></script>
+<script src="js/authConfig.js?v=175"></script>
+<script src="js/labels.js?v=175"></script>
+<script src="js/graph.js?v=175"></script>
+<script src="js/model.js?v=175"></script>
+<script src="js/render.js?v=175"></script>
+<script src="js/analyze.js?v=175"></script>
+<script src="js/whatif.js?v=175"></script>
+<script src="js/mslearn.js?v=175"></script>
+<script src="js/gapcheck.js?v=175"></script>
+<script src="js/exclusions.js?v=175"></script>
+<script src="js/validator.js?v=175"></script>
+<script src="js/whatifeval.js?v=175"></script>
+<script src="js/locations.js?v=175"></script>
+<script src="js/audit.js?v=175"></script>
+<script src="js/changelog.js?v=175"></script>
+<script src="js/baselineData.js?v=175"></script>
+<script src="js/baselineJoeyData.js?v=175"></script>
+<script src="js/baseline.js?v=175"></script>
+<script src="js/groupTemplates.js?v=175"></script>
+<script src="js/assign.js?v=175"></script>
+<script src="js/cagroups.js?v=175"></script>
+<script src="js/import.js?v=175"></script>
+<script src="js/export.js?v=175"></script>
+<script src="js/demo.js?v=175"></script>
+<script src="js/app.js?v=175"></script>
 </body>
 </html>

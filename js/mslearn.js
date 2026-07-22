@@ -980,5 +980,5 @@ const MSLearn = (() => {
       Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${missing}${cards}${note}`;
   }
 
-  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();

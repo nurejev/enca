@@ -69,6 +69,13 @@ const Importer = (() => {
     }
   }
 
+  // Friendly name for the Microsoft first-party apps the baseline excludes —
+  // MSLearn already keeps that table, so borrow it rather than duplicating.
+  function appLabel(appId) {
+    const l = (typeof MSLearn !== "undefined" && MSLearn.APP_LABEL) ? MSLearn.APP_LABEL[String(appId).toLowerCase()] : null;
+    return l ? `${l} (${appId})` : `Application ${appId}`;
+  }
+
   // Every application a policy references, included or excluded. A CA policy
   // can only name an app that has a service principal in THIS tenant — if it
   // hasn't, Graph rejects the whole create with a bare 400 BadRequest.
@@ -324,6 +331,10 @@ const Importer = (() => {
     // has never used them won't have — and Graph answers a missing one with a
     // bare 400 on the whole policy, naming nothing. Instantiate them first.
     const apps = appRefs(bundle.policies);
+    // Apps that still have no service principal after the create pass. Kept so
+    // importPolicies can retry a rejected policy without them rather than lose
+    // the whole policy over an exclusion the tenant cannot express.
+    maps.missingApps = new Set();
     if (apps.length) {
       onStatus?.(`Checking ${apps.length} referenced application(s)…`);
       let present = new Set();
@@ -334,8 +345,9 @@ const Importer = (() => {
           const sp = await Graph.createServicePrincipal(appId);
           log.created.push(`Service principal: ${sp.displayName || appId} (${appId})`);
         } catch (e) {
-          log.warnings.push(`Application ${appId} has no service principal in this tenant and could not be created (${e.message}). `
-            + `Any policy that includes or excludes it will be rejected by Graph with a 400 — create the service principal, or remove that app reference, then re-import.`);
+          maps.missingApps.add(appId);
+          log.warnings.push(`${appLabel(appId)} has no service principal in this tenant and could not be created (${e.message}). `
+            + `A policy that includes or excludes it is rejected by Graph with a bare 400, so it is imported without that app reference instead — see the change report.`);
         }
       }
     }
@@ -444,6 +456,28 @@ const Importer = (() => {
     }
     return o;
   };
+
+  // Strip app ids the tenant has no service principal for. Graph rejects the
+  // whole policy over one unknown app id, so an exclusion the tenant cannot
+  // express is worth dropping to keep the policy — never silently: every drop
+  // is reported, and dropping an EXCLUSION makes the policy broader in scope,
+  // which is exactly what the admin has to review before switching it On.
+  function dropUnknownApps(payload, missing) {
+    if (!missing || !missing.size) return [];
+    const a = payload.conditions?.applications;
+    if (!a) return [];
+    const gone = (list) => (list || []).filter((x) => missing.has(String(x).toLowerCase()));
+    const keep = (list) => (list || []).filter((x) => !missing.has(String(x).toLowerCase()));
+    const removed = [...gone(a.includeApplications).map((id) => ({ id, where: "include" })),
+                     ...gone(a.excludeApplications).map((id) => ({ id, where: "exclude" }))];
+    if (!removed.length) return [];
+    a.excludeApplications = keep(a.excludeApplications);
+    const inc = keep(a.includeApplications);
+    // Never leave an empty include — that would change the policy from
+    // "these apps" to nothing at all. Fall back to All resources.
+    a.includeApplications = inc.length ? inc : ["All"];
+    return removed;
+  }
 
   function buildPolicyPayload(raw, maps, personaGroupId, warnings, asIs = false, matchFrom = null) {
     const ph = maps.ph || {};
@@ -569,7 +603,24 @@ const Importer = (() => {
         const gid = it.personaGroup ? maps.personaGroupIds?.[it.personaGroup] : null;
         const matchFrom = replace && it.upgrade && it.existing ? it.existing.raw : null;
         const payload = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom);
-        await Graph.gpost("/identity/conditionalAccess/policies", payload, [...AUTH_CONFIG.scopes, ...WRITE]);
+        let dropped = [];
+        try {
+          await Graph.gpost("/identity/conditionalAccess/policies", payload, [...AUTH_CONFIG.scopes, ...WRITE]);
+        } catch (e1) {
+          // One retry, and only for the case we can actually explain: the policy
+          // names an app this tenant has no service principal for. Anything else
+          // rethrows untouched.
+          const refs = appRefs([it.raw]).filter((a) => maps.missingApps?.has(a));
+          if (!/\(400\)|BadRequest/i.test(e1.message || "") || !refs.length) throw e1;
+          const retry = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom);
+          dropped = dropUnknownApps(retry, maps.missingApps);
+          onStatus?.(`${it.name}: retrying without ${dropped.length} unknown app reference(s)…`);
+          await Graph.gpost("/identity/conditionalAccess/policies", retry, [...AUTH_CONFIG.scopes, ...WRITE]);
+          warnings.push(`${it.name}: imported **without** ${dropped.map((d) => `${appLabel(d.id)} (${d.where}d)`).join(", ")} — `
+            + `this tenant has no service principal for ${dropped.length === 1 ? "it" : "them"}, and Graph rejects a policy that names one. `
+            + `${dropped.some((d) => d.where === "exclude") ? "A dropped **exclusion** makes the policy apply more widely than the source did — review before switching it On, " : ""}`
+            + `then add the reference back once the service principal exists.`);
+        }
         const newState = payload.state;
         let disabledOld = false;
         const oldName = it.existing?.name || null;
@@ -583,7 +634,7 @@ const Importer = (() => {
             warnings.push(`${it.name}: the new version was created, but disabling the current policy "${oldName}" failed — disable it manually: ${e.message}`);
           }
         }
-        results.push({ name: it.name, ok: true, persona: it.persona, personaGroup: matchFrom ? null : it.personaGroup, asIs: it.asIs, matched: !!matchFrom, disabledOld, oldName: matchFrom ? oldName : null, state: newState });
+        results.push({ name: it.name, ok: true, persona: it.persona, personaGroup: matchFrom ? null : it.personaGroup, asIs: it.asIs, matched: !!matchFrom, disabledOld, oldName: matchFrom ? oldName : null, state: newState, dropped });
       } catch (e) {
         console.error("Import failed:", it.name, e);
         // Graph answers most policy-shape problems with a bare 400, so add the
@@ -594,7 +645,9 @@ const Importer = (() => {
           const refs = [...(a.includeApplications || []), ...(a.excludeApplications || [])]
             .filter((x) => /^[0-9a-f]{8}-/i.test(x));
           const bits = [];
-          if (refs.length) bits.push(`it references ${refs.length} application(s) by id — each needs a service principal in this tenant`);
+          const unknown = refs.filter((x) => maps.missingApps?.has(String(x).toLowerCase()));
+          if (unknown.length) bits.push(`this tenant has no service principal for ${unknown.map(appLabel).join(", ")}`);
+          else if (refs.length) bits.push(`it references ${refs.length} application(s) by id — each needs a service principal in this tenant`);
           if (isWorkloadIdentity(it.raw)) bits.push("it is a workload-identity policy, which cannot also carry a user or group scope");
           if ((it.raw.conditions?.insiderRiskLevels || []).length) bits.push("it uses insider risk, which needs the licence and the feature enabled");
           if ((it.raw.grantControls?.termsOfUse || []).length) bits.push("it grants a terms of use, which must already exist here");
@@ -642,6 +695,17 @@ const Importer = (() => {
         : `- ✅ **${r.name}** — state set to Off; include assignment → ${r.personaGroup ? `\`${r.personaGroup}\` (persona: ${r.persona})` : "kept as in source"}`)),
       ``,
       ...(skipped.length ? [`## Skipped (already exist by CA number + version)`, ``, ...skipped.map(p => `- ⏭ ${p.name} — ${p.reason}`), ``] : []),
+      ...(results.some((r) => r.ok && (r.dropped || []).length) ? [
+        `## ⚠ App references dropped to get the policy in`,
+        ``,
+        `Graph rejects a whole policy over one application id it cannot resolve, so where this tenant has **no service principal** for a referenced app, that reference was removed and the policy imported without it. Everything below landed in state **Off**:`,
+        ``,
+        ...results.filter((r) => r.ok && (r.dropped || []).length).map((r) =>
+          `- **${r.name}** — dropped ${r.dropped.map((d) => `${d.where === "exclude" ? "exclusion" : "include"} of ${appLabel(d.id)}`).join(", ")}`),
+        ``,
+        `A dropped **exclusion widens the policy**: whatever that app was exempt from, it no longer is. Create the service principal (the app must be used once in the tenant, or instantiated), then re-add the reference — or delete and re-import the policy.`,
+        ``,
+      ] : []),
       ...(widBlocked.length ? [
         `## 🔒 Not imported — Workload ID licence missing`,
         ``,
