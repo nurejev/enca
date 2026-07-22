@@ -2129,8 +2129,7 @@
     if (!policies.length) { $("exHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("exBody").innerHTML = ""; $("exChips").innerHTML = ""; return; }
     if (exModel) {   // cached — restore the previous screen, no rescan
       $("exSearch").value = exQuery;
-      $("exTabMatrix").classList.toggle("active", exTab === "matrix");
-      $("exTabUsers").classList.toggle("active", exTab === "users");
+      Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === exTab));
       renderExclusions();
       return;
     }
@@ -2144,7 +2143,7 @@
     $("exHead").innerHTML = '<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">Collecting exclusions…</p>';
     $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
     exTab = "matrix"; exKind = "all"; exQuery = ""; exPage = 0; exFocusRow = null; exFocusCol = null; Fs.close(); $("exSearch").value = "";
-    $("exTabMatrix").classList.add("active"); $("exTabUsers").classList.remove("active");
+    Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === "matrix"));
     try {
       // the whole tenant's policies — exclusions are a tenant-wide question
       exModel = Exclusions.collect(policies.map(p => p.raw));
@@ -2189,6 +2188,12 @@
     $("exExpand").style.display = "";
     const full = Fs.isOpen();
     const focus = { row: exFocusRow, col: exFocusCol };
+    if (exTab === "risk") {
+      $("exPager").style.display = "none"; $("exHint").style.display = "none";
+      $("exExpand").style.display = "none"; $("exChips").innerHTML = "";
+      $("exBody").innerHTML = Exclusions.renderRisk(Exclusions.risk(exModel), exQuery);
+      return;
+    }
     if (exTab === "matrix") {
       $("exPager").style.display = "none";
       // merge disabled — show every exclusion row so nothing is hidden
@@ -2247,6 +2252,7 @@
     const mem = e.target.closest("[data-exmembers]");
     if (mem) { e.stopPropagation(); openExMembers(mem.dataset.exmembers); return; }
     if (e.target.closest("[data-exrun]")) { runExclusionScan(); return; }
+    const rp = e.target.closest(".pol-link"); if (rp) { showDetail(rp.dataset.polid); return; }
     if (e.target.closest("[data-exclearfocus]")) { exFocusRow = null; exFocusCol = null; exPage = 0; renderExclusions(); return; }
     if (e.target.closest("[data-colgrip]")) return;  // don't pin while resizing the first column
     const col = e.target.closest("[data-expol]");
@@ -2377,7 +2383,7 @@
   $("anFull").addEventListener("click", () => Fs.open("Users × policies impact matrix", { body: $("anMatrixWrap") }));
   $("gcFull").addEventListener("click", () => Fs.open("Persona × control coverage", { body: $("gcMatrix") }));
   $("exSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; renderExclusions(); });
-  const EX_TABS = { matrix: "exTabMatrix", users: "exTabUsers" };
+  const EX_TABS = { matrix: "exTabMatrix", users: "exTabUsers", risk: "exTabRisk" };
   for (const [tab, id] of Object.entries(EX_TABS)) {
     $(id).addEventListener("click", () => {
       // matrix rows are keyed by entity, users rows by user id — a pin from one

@@ -469,6 +469,23 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .ex-memlink{border:0;background:none;padding:0;font:inherit;color:var(--green);cursor:pointer;
   text-decoration:underline;text-underline-offset:2px}
 .ex-memlink:hover{color:var(--accent2)}
+/* exclusion risk review */
+.rk-card{padding:12px 16px;margin-bottom:10px;border-left:4px solid var(--border)}
+.rk-card.high{border-left-color:var(--off)}
+.rk-card.medium{border-left-color:var(--report)}
+.rk-card.info{border-left-color:var(--accent2)}
+.rk-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rk-h .pol-link{cursor:pointer}
+.rk-h .pol-link:hover{color:var(--accent2);text-decoration:underline}
+.rk-meta{margin-left:auto}
+.rk-lv,.rk-fl{font-size:11px;font-weight:700;padding:1px 9px;border-radius:999px;white-space:nowrap}
+.rk-lv.high,.rk-fl.high{background:var(--bad-bg2);color:var(--off)}
+.rk-lv.medium,.rk-fl.medium{background:var(--warn-bg2);color:var(--report)}
+.rk-lv.info,.rk-fl.info{background:var(--soft);color:var(--muted)}
+.rk-lv.none{background:var(--ok-bg2);color:var(--on)}
+.rk-flags{list-style:none;margin:8px 0 0;padding:0;font-size:13px}
+.rk-flags li{display:flex;gap:9px;align-items:flex-start;padding:5px 0;border-top:1px solid var(--line)}
+.rk-d{color:var(--muted);font-size:12px;margin-top:2px}
 /* import assignment-mode chooser */
 .im-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 2px}
 .im-mode-opt{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start;

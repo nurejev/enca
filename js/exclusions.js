@@ -54,7 +54,20 @@ const Exclusions = (() => {
       const n = (u.excludeUsers || []).length + (u.excludeGroups || []).length + (u.excludeRoles || []).length
         + (u.excludeGuestsOrExternalUsers ? 1 : 0) + (a.excludeApplications || []).length
         + (l.excludeLocations || []).length + (pl.excludePlatforms || []).length;
-      policies.push({ id: p.id, name: p.displayName || "(unnamed policy)", state: p.state, seq: null, exclusionCount: n });
+      // per-policy breakdown, kept for the risk review
+      const SENT = ["All", "None", "GuestsOrExternalUsers"];
+      policies.push({
+        id: p.id, name: p.displayName || "(unnamed policy)", state: p.state, seq: null, exclusionCount: n,
+        exc: {
+          users: (u.excludeUsers || []).filter((x) => !SENT.includes(x)),
+          groups: (u.excludeGroups || []),
+          roles: (u.excludeRoles || []),
+          guests: !!u.excludeGuestsOrExternalUsers || (u.excludeUsers || []).includes("GuestsOrExternalUsers"),
+          apps: (a.excludeApplications || []),
+          locations: (l.excludeLocations || []),
+          platforms: (pl.excludePlatforms || []),
+        },
+      });
     }
     return { policies, entities: [...entities.values()] };
   }
@@ -89,7 +102,12 @@ const Exclusions = (() => {
           const j = await Graph.gpost("/directoryObjects/getByIds", { ids, types: ["user", "group"] });
           (j.value || []).forEach((o) => {
             model.entities.forEach((e) => {
-              if (e.id === o.id) { e.name = o.displayName || e.name; e.upn = o.userPrincipalName || ""; }
+              if (e.id === o.id) {
+                e.name = o.displayName || e.name; e.upn = o.userPrincipalName || "";
+                // a disabled account still sitting in an exclusion list is the
+                // classic sign that offboarding never cleans exclusions up
+                if (o.accountEnabled === false) e.disabled = true;
+              }
             });
           });
         } catch (e) { console.warn("Exclusions: directory lookup failed", e.message); }
@@ -129,9 +147,10 @@ const Exclusions = (() => {
       const g = groups[i];
       onStatus?.(`Expanding group ${i + 1}/${groups.length}…`);
       try {
-        const members = await Graph.ggetAll(`/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id,displayName,userPrincipalName&$top=999`);
+        const members = await Graph.ggetAll(`/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id,displayName,userPrincipalName,accountEnabled&$top=999`);
         g.memberTotal = members.length;
-        g.members = members.slice(0, MEMBER_CAP).map((m) => ({ id: m.id, name: m.displayName || m.id, upn: m.userPrincipalName || "" }));
+        g.members = members.slice(0, MEMBER_CAP).map((m) => ({ id: m.id, name: m.displayName || m.id, upn: m.userPrincipalName || "", disabled: m.accountEnabled === false }));
+        g.disabledMembers = g.members.filter((m) => m.disabled).length;
       } catch (e) {
         console.warn(`Exclusions: members of ${g.name || g.id} failed`, e.message);
         g.members = []; g.memberTotal = null;
@@ -169,6 +188,92 @@ const Exclusions = (() => {
       }
     }
     return [...users.values()].sort((a, b) => b.byPolicy.size - a.byPolicy.size || a.name.localeCompare(b.name));
+  }
+
+  // ---- 4. risk review -----------------------------------------------------
+  // Per-policy governance flags. The pattern set follows Tiago S. Carvalho's
+  // "Audit Conditional Access Exclusions with PowerShell"
+  // (tiagoscarvalho.com/scripts-automation/ca-exclusions-audit), reimplemented
+  // here in JS and extended: because this tool expands group membership we can
+  // also see disabled accounts sitting *inside* an excluded group, not just
+  // directly excluded ones. Flags are prompts to review, not findings.
+  const PRIVILEGED_ROLE_IDS = {
+    "62e90394-69f5-4237-9190-012177145e10": "Global Administrator",
+    "e8611ab8-c189-46e8-94e1-60213ab1f814": "Privileged Role Administrator",
+    "7be44c8a-adaf-4e2a-84d6-ab2649e08a13": "Privileged Authentication Administrator",
+    "194ae4cb-b126-40b2-bd5b-6091b380977d": "Security Administrator",
+    "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9": "Conditional Access Administrator",
+    "c4e39bd9-1100-46d3-8c65-fb160da0071f": "Authentication Administrator",
+  };
+  const PRIVILEGED_ROLE_NAMES = new Set(Object.values(PRIVILEGED_ROLE_IDS).map((x) => x.toLowerCase()));
+  const LEVEL_ORDER = { high: 0, medium: 1, info: 2, none: 3 };
+  const MANY_GROUPS = 5;
+
+  function risk(model, opts = {}) {
+    const maxGroups = opts.maxGroups || MANY_GROUPS;
+    const byId = new Map(model.entities.map((e) => [`${e.kind}:${e.id}`, e]));
+    const ent = (kind, id) => byId.get(`${kind}:${id}`);
+
+    const rows = model.policies.filter((p) => p.exclusionCount > 0).map((p) => {
+      const x = p.exc || {}, flags = [];
+      const add = (level, text, detail) => flags.push({ level, text, detail: detail || "" });
+
+      // High — a privileged role excluded from the policy meant to protect it
+      const priv = (x.roles || []).map((id) => {
+        const e = ent("role", id);
+        const name = (e && e.name) || PRIVILEGED_ROLE_IDS[id] || id;
+        const isPriv = !!PRIVILEGED_ROLE_IDS[id] || PRIVILEGED_ROLE_NAMES.has(String(name).toLowerCase());
+        return isPriv ? name : null;
+      }).filter(Boolean);
+      if (priv.length) add("high", `High-privilege role excluded: ${priv.join(", ")}`,
+        "Privileged roles should rarely be excluded from MFA or compliance policies. If this is a break-glass path, make sure it is alerted on.");
+
+      // High — every guest/external principal removed from scope
+      if (x.guests) add("high", "All guests and external users are excluded",
+        "External collaborators fall outside this policy entirely. Prefer a dedicated guest policy over excluding them here.");
+
+      // Medium — direct user exclusions have no lifecycle
+      const directUsers = (x.users || []);
+      if (directUsers.length) add("medium", `${directUsers.length} direct user exclusion${directUsers.length === 1 ? "" : "s"}`,
+        "Individual accounts have no membership lifecycle. Move them to a per-policy exclusion group with an access review.");
+
+      // Medium — disabled accounts still excluded (directly, or via a group)
+      const disabledDirect = directUsers.map((id) => ent("user", id)).filter((e) => e && e.disabled);
+      const disabledViaGroup = (x.groups || []).map((id) => ent("group", id))
+        .filter((e) => e && e.disabledMembers > 0)
+        .map((e) => `${e.name} (${e.disabledMembers})`);
+      if (disabledDirect.length || disabledViaGroup.length) {
+        const bits = [];
+        if (disabledDirect.length) bits.push(`${disabledDirect.length} excluded directly: ${disabledDirect.map((e) => e.name).join(", ")}`);
+        if (disabledViaGroup.length) bits.push(`inside excluded group${disabledViaGroup.length === 1 ? "" : "s"}: ${disabledViaGroup.join(", ")}`);
+        add("medium", "Disabled accounts sit in the exclusion scope", bits.join(" · ")
+          + " — stale exclusions mean offboarding isn't clearing them.");
+      }
+
+      // Medium — an exclusion list that has grown
+      if ((x.groups || []).length > maxGroups) add("medium", `${x.groups.length} group exclusions`,
+        "Review each for relevance; consider restructuring who the policy includes instead.");
+
+      // Info — report-only exclusions become real the moment it is enforced
+      if (p.state === "enabledForReportingButNotEnforced") add("info", "Report-only policy with exclusions",
+        "These exclusions apply the instant the policy is enforced. Review them before switching it on.");
+
+      const level = flags.length ? flags.reduce((m, f) => LEVEL_ORDER[f.level] < LEVEL_ORDER[m] ? f.level : m, "info") : "none";
+      // how many users the policy's exclusions actually reach
+      const reach = new Set();
+      directUsers.forEach((id) => reach.add(id));
+      (x.groups || []).forEach((id) => { const e = ent("group", id); (e && e.members || []).forEach((m) => reach.add(m.id)); });
+      return { id: p.id, name: p.name, state: p.state, exclusionCount: p.exclusionCount, flags, level, reach: reach.size };
+    });
+
+    rows.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || b.flags.length - a.flags.length || a.name.localeCompare(b.name));
+    const counts = { high: 0, medium: 0, info: 0, none: 0 };
+    rows.forEach((r) => counts[r.level]++);
+    return {
+      rows, counts,
+      flagged: rows.filter((r) => r.level !== "none").length,
+      directUserPolicies: rows.filter((r) => r.flags.some((f) => /direct user exclusion/.test(f.text))).length,
+    };
   }
 
   function summary(model, users) {
@@ -366,6 +471,30 @@ const Exclusions = (() => {
     return { html: `${banner}<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`, pages, page };
   }
 
+  // risk review: policies worth looking at, worst first
+  const LEVEL_LABEL = { high: "High", medium: "Medium", info: "Info", none: "No flags" };
+  function renderRisk(rk, query) {
+    const q = (query || "").toLowerCase();
+    const rows = rk.rows.filter((r) => !q || r.name.toLowerCase().includes(q)
+      || r.flags.some((f) => `${f.text} ${f.detail}`.toLowerCase().includes(q)));
+    if (!rows.length) return '<p class="mini" style="padding:20px">No policy matches the current filter.</p>';
+    const stateTag = (s) => s === "disabled" ? '<span class="tag">Off</span>'
+      : s === "enabledForReportingButNotEnforced" ? '<span class="tag">report-only</span>' : "";
+    return `<p class="mini muted" style="margin:0 0 10px">${rk.counts.high} high · ${rk.counts.medium} medium · ${rk.counts.info} info · ${rk.counts.none} with no flags.
+      Patterns follow Tiago S. Carvalho's CA exclusions audit — each flag is a prompt to review, not a finding.</p>`
+      + rows.map((r) => `<div class="list-card rk-card ${r.level}">
+        <div class="rk-h">
+          <span class="rk-lv ${r.level}">${LEVEL_LABEL[r.level]}</span>
+          <b class="pol-link" data-polid="${esc(r.id)}">${esc(r.name)}</b> ${stateTag(r.state)}
+          <span class="mini muted rk-meta">${r.exclusionCount} exclusion${r.exclusionCount === 1 ? "" : "s"}${r.reach ? ` · reaches ${r.reach} user${r.reach === 1 ? "" : "s"}` : ""}</span>
+        </div>
+        ${r.flags.length ? `<ul class="rk-flags">${r.flags.map((f) => `<li class="${f.level}">
+            <span class="rk-fl ${f.level}">${LEVEL_LABEL[f.level]}</span>
+            <span><b>${esc(f.text)}</b>${f.detail ? `<div class="rk-d">${esc(f.detail)}</div>` : ""}</span></li>`).join("")}</ul>`
+          : '<p class="mini muted" style="margin:6px 0 0">No governance flags — exclusions look routine.</p>'}
+      </div>`).join("");
+  }
+
   // ---- CSV export (exclusion × policy) ----
   function toCsv(model, users) {
     const pols = model.policies.filter((p) => p.exclusionCount > 0).slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -415,6 +544,21 @@ const Exclusions = (() => {
       : ""));
     L.push(`- Users effectively excluded from at least one policy (directly or through a group): **${s.users}**`);
     L.push("");
+
+    // ---- risk review ----
+    const rk = risk(model);
+    if (rk.rows.length) {
+      L.push("## Risk review");
+      L.push("");
+      L.push(`**${rk.counts.high}** high · **${rk.counts.medium}** medium · ${rk.counts.info} info · ${rk.counts.none} with no flags. Flag patterns follow [Tiago S. Carvalho's CA exclusions audit](https://www.tiagoscarvalho.com/scripts-automation/ca-exclusions-audit) — each is a prompt to review, not a finding.`);
+      L.push("");
+      for (const r of rk.rows.filter((x) => x.level !== "none")) {
+        L.push(`### ${LEVEL_LABEL[r.level]} — ${mdEsc(r.name)}${stateTag(r.state)}`);
+        L.push("");
+        r.flags.forEach((f) => L.push(`- **${LEVEL_LABEL[f.level]}** — ${mdEsc(f.text)}${f.detail ? ` _${mdEsc(f.detail)}_` : ""}`));
+        L.push("");
+      }
+    }
 
     // ---- exclusions ----
     L.push("## Exclusions by policy");
@@ -495,5 +639,5 @@ const Exclusions = (() => {
     return L.join("\n");
   }
 
-  return { collect, resolve, effectiveUsers, summary, renderSummary, renderGroups, renderMatrix, renderUsers, toCsv, toMd, KIND };
+  return { collect, resolve, effectiveUsers, risk, summary, renderSummary, renderGroups, renderMatrix, renderUsers, renderRisk, toCsv, toMd, KIND };
 })();

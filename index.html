@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=156">
+<link rel="stylesheet" href="css/app.css?v=157">
 </head>
 <body>
 
@@ -179,6 +179,9 @@
           against it the same way. The policy set and naming convention are his; these tools only read and compare.</li>
         <li><b>CA Policy Analyzer</b> — by <b>jhope188</b>. The inspiration for the <b>Best-practice &amp; bypass checks</b> set:
           best-practice and known-bypass checks laid out against the Swiss-cheese layered-defense model.</li>
+        <li><b><a href="https://www.tiagoscarvalho.com/scripts-automation/ca-exclusions-audit" target="_blank" rel="noopener noreferrer">Audit Conditional Access Exclusions with PowerShell</a></b> — by <b>Tiago S. Carvalho</b>.
+          The governance flag patterns behind the <b>Risk review</b> in the Exclusion analyzer: privileged roles excluded, all-guest exclusions,
+          direct user exclusions, oversized exclusion lists, stale disabled accounts and report-only exclusions.</li>
         <li><b><a href="https://www.chanceofsecurity.com/post/microsoft-entra-conditional-access" target="_blank" rel="noopener noreferrer">Microsoft Entra Conditional Access blog series</a></b> — by <b>Sebastian F. Markdanner</b> (Chance of Security).
           A deep, practical walk-through of designing a persona-based Conditional Access framework; several of his policy designs also informed the Limon-IT baseline bundled here.</li>
       </ul>
@@ -348,6 +351,7 @@
       <div class="seg">
         <button class="active" id="exTabMatrix">Matrix</button>
         <button id="exTabUsers">Effective users</button>
+        <button id="exTabRisk">Risk review</button>
       </div>
       <div class="tb-actions">
         <button class="btn" id="exRescan" title="Re-scan exclusions from the tenant">⟳ Rescan</button>
@@ -649,7 +653,8 @@
       <h4>🚪 Exclusion analyzer</h4>
       <p>Every exclusion across all policies in one place.</p>
       <ul>
-        <li><b>Matrix</b> (default) — exclusions × policies; <b>Effective users</b> — the same but expanded to the individual users a group exclusion covers.</li>
+        <li><b>Matrix</b> (default) — exclusions × policies; <b>Effective users</b> — the same but expanded to the individual users a group exclusion covers; <b>Risk review</b> — policies scored for exclusion governance, worst first.</li>
+        <li><b>Risk review flags</b> — <span class="tag block">High</span> a privileged role excluded, or all guests/external excluded; <span class="tag">Medium</span> direct user exclusions (no lifecycle), more than five excluded groups, or <b>disabled accounts</b> still in scope — directly or sitting inside an excluded group; <span class="tag">Info</span> a report-only policy whose exclusions go live the moment it is enforced. Each flag is a prompt to review, not a finding. Patterns follow Tiago S. Carvalho's CA exclusions audit.</li>
         <li><b>Type chips</b> — All, User, Group, Directory role, Guest/external, Application, Named location, Device platform.</li>
         <li><b>Click to filter</b> — click a user/group row to show only the policies excluding it, or a policy column to show only the exclusions in scope for it. The out-of-scope “·” cells drop away; a banner shows the filter with a one-click clear.</li>
         <li><b>Export</b> — CSV or Markdown; full-screen for wide grids.</li>
@@ -1060,29 +1065,29 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/version.js?v=156"></script>
-<script src="js/authConfig.js?v=156"></script>
-<script src="js/labels.js?v=156"></script>
-<script src="js/graph.js?v=156"></script>
-<script src="js/model.js?v=156"></script>
-<script src="js/render.js?v=156"></script>
-<script src="js/analyze.js?v=156"></script>
-<script src="js/whatif.js?v=156"></script>
-<script src="js/mslearn.js?v=156"></script>
-<script src="js/gapcheck.js?v=156"></script>
-<script src="js/exclusions.js?v=156"></script>
-<script src="js/validator.js?v=156"></script>
-<script src="js/whatifeval.js?v=156"></script>
-<script src="js/locations.js?v=156"></script>
-<script src="js/baselineData.js?v=156"></script>
-<script src="js/baselineJoeyData.js?v=156"></script>
-<script src="js/baseline.js?v=156"></script>
-<script src="js/groupTemplates.js?v=156"></script>
-<script src="js/assign.js?v=156"></script>
-<script src="js/cagroups.js?v=156"></script>
-<script src="js/import.js?v=156"></script>
-<script src="js/export.js?v=156"></script>
-<script src="js/demo.js?v=156"></script>
-<script src="js/app.js?v=156"></script>
+<script src="js/version.js?v=157"></script>
+<script src="js/authConfig.js?v=157"></script>
+<script src="js/labels.js?v=157"></script>
+<script src="js/graph.js?v=157"></script>
+<script src="js/model.js?v=157"></script>
+<script src="js/render.js?v=157"></script>
+<script src="js/analyze.js?v=157"></script>
+<script src="js/whatif.js?v=157"></script>
+<script src="js/mslearn.js?v=157"></script>
+<script src="js/gapcheck.js?v=157"></script>
+<script src="js/exclusions.js?v=157"></script>
+<script src="js/validator.js?v=157"></script>
+<script src="js/whatifeval.js?v=157"></script>
+<script src="js/locations.js?v=157"></script>
+<script src="js/baselineData.js?v=157"></script>
+<script src="js/baselineJoeyData.js?v=157"></script>
+<script src="js/baseline.js?v=157"></script>
+<script src="js/groupTemplates.js?v=157"></script>
+<script src="js/assign.js?v=157"></script>
+<script src="js/cagroups.js?v=157"></script>
+<script src="js/import.js?v=157"></script>
+<script src="js/export.js?v=157"></script>
+<script src="js/demo.js?v=157"></script>
+<script src="js/app.js?v=157"></script>
 </body>
 </html>
