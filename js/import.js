@@ -38,6 +38,26 @@ const Importer = (() => {
     serviceaccounts: "CAD-SEC-U-DG-SA", devops: "CAD-SEC-U-DG-DevOps", factoryworkers: "CAD-SEC-U-DG-FW",
   };
 
+  // A workload-identity policy targets service principals, not people. Graph
+  // rejects a policy that carries both a user/group scope and a
+  // clientApplications scope, so these must never get the persona remap.
+  const isWorkloadIdentity = (raw) =>
+    ((raw.conditions?.clientApplications?.includeServicePrincipals) || []).length > 0;
+
+  // Every application a policy references, included or excluded. A CA policy
+  // can only name an app that has a service principal in THIS tenant — if it
+  // hasn't, Graph rejects the whole create with a bare 400 BadRequest.
+  function appRefs(raws) {
+    const out = new Set();
+    const isGuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || "");
+    for (const p of raws || []) {
+      const a = p.conditions?.applications || {};
+      [...(a.includeApplications || []), ...(a.excludeApplications || [])]
+        .forEach((x) => { if (isGuid(x)) out.add(String(x).toLowerCase()); });
+    }
+    return [...out];
+  }
+
   // E-Admins (emergency/break-glass) policies are imported AS-IS: no persona
   // remap, original state kept, assignments unchanged.
   function isEAdmins(name) {
@@ -238,6 +258,29 @@ const Importer = (() => {
       }
     }
 
+    // ---- applications referenced by the policies -------------------------
+    // A policy may only name an app that has a service principal here. The
+    // baseline excludes Microsoft first-party apps (Defender for Endpoint,
+    // Defender for Mobile TVM, Device Registration Service) that a tenant which
+    // has never used them won't have — and Graph answers a missing one with a
+    // bare 400 on the whole policy, naming nothing. Instantiate them first.
+    const apps = appRefs(bundle.policies);
+    if (apps.length) {
+      onStatus?.(`Checking ${apps.length} referenced application(s)…`);
+      let present = new Set();
+      try { present = await Graph.existingAppIds(apps); } catch (e) { console.warn("app check failed", e.message); }
+      const missing = apps.filter((a) => !present.has(a));
+      for (const appId of missing) {
+        try {
+          const sp = await Graph.createServicePrincipal(appId);
+          log.created.push(`Service principal: ${sp.displayName || appId} (${appId})`);
+        } catch (e) {
+          log.warnings.push(`Application ${appId} has no service principal in this tenant and could not be created (${e.message}). `
+            + `Any policy that includes or excludes it will be rejected by Graph with a 400 — create the service principal, or remove that app reference, then re-import.`);
+        }
+      }
+    }
+
     // persona groups needed by the policies themselves (not the replaced ones)
     const personaNames = [...new Set(bundle.policies.filter(p => !matchedNames.has(p.displayName)).map(p => personaOf(p.displayName)).filter(Boolean).map(p => PERSONA_GROUPS[p]))];
     maps.personaGroupIds = {};
@@ -398,10 +441,17 @@ const Importer = (() => {
         if (id && !u.excludeGroups.includes(id)) { u.excludeGroups.push(id); added++; }
       }
       if (added) warnings.push(`${raw.displayName}: kept the current assignment and merged ${added} new exclusion group(s) introduced by this baseline version.`);
-    } else if (asIs) {
-      // as-is: keep all assignments; resolve placeholders / known ids only
+    } else if (asIs || isWorkloadIdentity(raw)) {
+      // as-is, or a workload-identity policy: keep the assignment exactly as it
+      // is. Injecting a persona group into a clientApplications-scoped policy
+      // makes Graph reject the create outright.
       u.includeGroups = mapGroups(u.includeGroups);
       u.excludeGroups = mapGroups(u.excludeGroups);
+      const ca = c.clientApplications;
+      if (ca) {
+        ca.includeServicePrincipals = (ca.includeServicePrincipals || []).slice();
+        ca.excludeServicePrincipals = (ca.excludeServicePrincipals || []).slice();
+      }
     } else {
       // include assignment → persona deploy group
       if (personaGroupId) {
@@ -477,7 +527,21 @@ const Importer = (() => {
         results.push({ name: it.name, ok: true, persona: it.persona, personaGroup: matchFrom ? null : it.personaGroup, asIs: it.asIs, matched: !!matchFrom, disabledOld, oldName: matchFrom ? oldName : null, state: newState });
       } catch (e) {
         console.error("Import failed:", it.name, e);
-        results.push({ name: it.name, ok: false, error: e.message || String(e) });
+        // Graph answers most policy-shape problems with a bare 400, so add the
+        // causes we can actually see in the payload.
+        let hint = "";
+        if (/\(400\)|BadRequest/i.test(e.message || "")) {
+          const a = it.raw.conditions?.applications || {};
+          const refs = [...(a.includeApplications || []), ...(a.excludeApplications || [])]
+            .filter((x) => /^[0-9a-f]{8}-/i.test(x));
+          const bits = [];
+          if (refs.length) bits.push(`it references ${refs.length} application(s) by id — each needs a service principal in this tenant`);
+          if (isWorkloadIdentity(it.raw)) bits.push("it is a workload-identity policy, which cannot also carry a user or group scope");
+          if ((it.raw.conditions?.insiderRiskLevels || []).length) bits.push("it uses insider risk, which needs the licence and the feature enabled");
+          if ((it.raw.grantControls?.termsOfUse || []).length) bits.push("it grants a terms of use, which must already exist here");
+          if (bits.length) hint = ` — likely because ${bits.join("; ")}`;
+        }
+        results.push({ name: it.name, ok: false, error: (e.message || String(e)) + hint });
       }
     }
     return { results, warnings };
