@@ -128,8 +128,10 @@ table.plist tr:hover td{background:var(--hover)}
 /* stays put while you scroll and select — sticks just under the sticky toolbar
    (header 58 + tab bar 48 + toolbar ~62). z-index below the toolbar so the two
    never fight if the toolbar wraps on a narrow width. */
+/* sits directly under the sticky toolbar — the toolbar wraps to more rows on
+   narrow screens, so its real height is measured in JS into --selbar-top */
 .selbar{display:none;align-items:center;gap:12px;background:var(--green-deep);color:#fff;border-radius:12px;padding:10px 16px;margin-bottom:14px;box-shadow:var(--shadow);
-  position:sticky;top:168px;z-index:39}
+  position:sticky;top:var(--selbar-top,168px);z-index:39;flex-wrap:wrap;row-gap:8px}
 .selbar.visible{display:flex}
 .selbar b{color:var(--lemon)}
 .selhint{color:var(--on-deep-mute)}

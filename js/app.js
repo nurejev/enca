@@ -410,8 +410,20 @@
     $("selAllWrap").style.display = isAn ? "none" : "";
     updateSelbar();
   }
+  // Pin the action bar just below the toolbar. The toolbar wraps to two or
+  // three rows depending on width and which controls are showing, so a fixed
+  // offset ends up overlapping it — measure instead.
+  function syncSelbarTop() {
+    const tb = document.querySelector("#screen-list .toolbar");
+    if (!tb) return;
+    const h = Math.round(tb.getBoundingClientRect().height);
+    document.documentElement.style.setProperty("--selbar-top", (106 + h) + "px");
+  }
+  window.addEventListener("resize", syncSelbarTop);
+
   function updateSelbar() {
     const n = selected.size;
+    (window.requestAnimationFrame || setTimeout)(syncSelbarTop);
     // The bar is the screen's action row, so it stays up as long as there are
     // policies to act on — an empty selection means "all visible", not "nothing".
     $("selbar").classList.toggle("visible", policies.length > 0 && viewMode !== "analyze");
