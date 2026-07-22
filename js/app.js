@@ -48,7 +48,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif",
-    "screen-locations", "screen-help"]);
+    "screen-locations", "screen-audit", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   function show(id) {
@@ -564,6 +564,7 @@
   const SCOPE_INFO = [
     { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
     { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
+    { scope: "AuditLog.Read.All", use: "Read the directory audit log for Conditional Access changes", tools: "Change audit", onDemand: true },
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
     { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies, manage named locations", tools: "CA groups (assign), Set Policy state, Import, Named locations, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
@@ -713,6 +714,7 @@
     ["toolGapCheck", "🛡 Best-practice & bypass checks"],
     ["toolValidator", "⚡ CA validator"],
     ["toolWhatIf", "🧪 What-If"],
+    ["toolAudit", "🕓 Change audit"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolBaseline", "🧬 Baseline Policies"],
     ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
@@ -2766,6 +2768,131 @@
   function vaClearTarget() { vaTargetObj = null; $("vaTarget").value = ""; runValidatorScan(); }
   $("vaTargetClear").addEventListener("click", vaClearTarget);
   $("vaHead").addEventListener("click", (e) => { if (e.target.closest("[data-vacleartarget]")) vaClearTarget(); });
+
+  // ---------- Change audit (directory audit log) ----------
+  const AU_READ = ["AuditLog.Read.All"];
+  let auRes = null, auFilter = "all", auQuery = "", auDays = 30;
+  const auOpen = new Set();
+
+  function openAudit() {
+    crumb("🕓 Change audit");
+    show("screen-audit");
+    $("auRescan").style.display = auRes ? "" : "none";
+    if (auRes) { renderAudit(); return; }
+    $("auHead").innerHTML = `<h3>🕓 Change audit <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:4px">Who changed which Conditional Access resource, when, and exactly what changed — policies, named locations, authentication strengths and contexts, and terms of use.</p>
+      <p class="mini muted" style="margin:0">Reads the Entra <b>directory audit log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise.</p>`;
+    $("auChips").innerHTML = "";
+    $("auBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-aurun>▶ Read the audit log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
+  }
+  $("toolAudit").addEventListener("click", () => openAudit());
+  $("auRescan").addEventListener("click", () => runAudit());
+  $("auDays").addEventListener("change", (e) => { auDays = +e.target.value; if (auRes) runAudit(); });
+
+  async function runAudit() {
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...AU_READ])) return;
+    $("auBody").innerHTML = '<p class="mini" style="padding:20px">Reading the audit log…</p>';
+    try {
+      const recs = isDemo
+        ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.auditRecords) || [])
+        : await Graph.ggetAll(Audit.query(auDays, "policy"), [...AUTH_CONFIG.scopes, ...AU_READ]);
+      auRes = Audit.build(recs);
+      auOpen.clear();
+      $("auRescan").style.display = "";
+      renderAudit();
+      if (!auRes.total) toast("No Conditional Access changes in this window");
+    } catch (e) {
+      console.error("Change audit failed:", e);
+      $("auBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read the audit log: ${esc(e.message || e)}<br>
+        <span class="muted">This needs AuditLog.Read.All and a reader role such as Reports Reader, Security Reader or Security Administrator.</span></p>`;
+    }
+  }
+  $("auBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-aurun]")) { runAudit(); return; }
+    const h = e.target.closest("[data-auid]");
+    if (h) { const id = h.dataset.auid; auOpen.has(id) ? auOpen.delete(id) : auOpen.add(id); renderAudit(); }
+  });
+  $("auChips").addEventListener("click", (e) => { const b = e.target.closest("[data-auf]"); if (!b) return; auFilter = b.dataset.auf; renderAudit(); });
+  $("auSearch").addEventListener("input", (e) => { auQuery = e.target.value; renderAudit(); });
+
+  const auAgo = (iso) => {
+    const d = (Date.now() - new Date(iso).getTime()) / 36e5;
+    if (d < 1) return `${Math.max(1, Math.round(d * 60))} min ago`;
+    if (d < 48) return `${Math.round(d)} h ago`;
+    return `${Math.round(d / 24)} d ago`;
+  };
+  const auVal = (v) => Array.isArray(v) ? v.join(", ") : (v && typeof v === "object" ? JSON.stringify(v) : String(v ?? ""));
+
+  function renderAudit() {
+    const r = auRes; if (!r) return;
+    const K = Audit.KIND;
+    $("auHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:280px">
+        <h3>🕓 Change audit <span class="tag new">BETA</span></h3>
+        <p style="margin-bottom:4px">Every Conditional Access change in the window, newest first — expand one to see the exact fields that moved.</p>
+        <p class="mini muted" style="margin:0">From the Entra directory audit log. Retention is licence-bound (≈30 days on P1/P2), so this is a rolling window, not a full history.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${r.total}<span class="mini" style="font-weight:400"> changes</span></div>
+        <div class="mini">${Object.entries(r.byAction).map(([k, n]) => `${n} ${k}`).join(" · ") || "—"}</div>
+        ${r.failures ? `<div class="mini" style="color:var(--off)">${r.failures} failed</div>` : ""}
+      </div></div>`;
+
+    const chips = [["all", `All (${r.total})`],
+      ...Object.entries(r.byKind).map(([k, n]) => [k, `${K[k] ? K[k].icon : ""} ${K[k] ? K[k].label : k} (${n})`])];
+    $("auChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${auFilter === k ? "active" : ""}" data-auf="${esc(k)}">${esc(l)}</button>`).join("");
+
+    const q = auQuery.toLowerCase();
+    const rows = r.rows.filter((x) => (auFilter === "all" || x.kind === auFilter)
+      && (!q || `${x.target} ${x.actor.name} ${x.activity} ${x.changes.map((c) => c.path).join(" ")}`.toLowerCase().includes(q)));
+    if (!rows.length) { $("auBody").innerHTML = '<p class="mini" style="padding:20px">No change matches the current filter.</p>'; return; }
+
+    $("auBody").innerHTML = rows.map((x) => {
+      const open = auOpen.has(x.id);
+      const diff = x.changes.length ? `<div class="au-diff">${x.changes.slice(0, 60).map((c) => `<div>
+          <span class="au-op ${c.op}">${c.op}</span>
+          <span class="au-path">${esc(c.path || "(value)")}</span>
+          ${c.op === "change" ? `<span class="au-from">${esc(auVal(c.from))}</span> → <span class="au-to">${esc(auVal(c.to))}</span>`
+            : c.op === "remove" || c.op === "clear" ? `<span class="au-from">${esc(auVal(c.value ?? c.from))}</span>`
+            : `<span class="au-to">${esc(auVal(c.value ?? c.to))}</span>`}
+        </div>`).join("")}${x.changes.length > 60 ? `<div class="mini muted">+${x.changes.length - 60} more</div>` : ""}</div>`
+        : '<div class="au-diff mini muted">No field-level detail recorded for this entry.</div>';
+      return `<div class="list-card au-card">
+        <div class="au-h" data-auid="${esc(x.id)}">
+          <span class="au-act ${x.action}">${x.action}</span>
+          <span>${K[x.kind] ? K[x.kind].icon : ""}</span>
+          <b>${esc(x.target)}</b>
+          ${x.result && x.result.toLowerCase() !== "success" ? `<span class="tag block">${esc(x.result)}</span>` : ""}
+          ${x.changeCount ? `<span class="mini muted">${x.changeCount} field${x.changeCount === 1 ? "" : "s"}</span>` : ""}
+          <span class="au-when">${esc(auAgo(x.when))}</span>
+        </div>
+        <div class="au-sub">${esc(x.activity)} · by <b>${esc(x.actor.name)}</b>${x.actor.upn ? ` (${esc(x.actor.upn)})` : ""}${x.actor.ip ? ` from ${esc(x.actor.ip)}` : ""} · ${esc(new Date(x.when).toLocaleString())}</div>
+        ${open ? diff : ""}
+      </div>`;
+    }).join("");
+  }
+
+  $("auMd").addEventListener("click", () => {
+    const r = auRes; if (!r) return;
+    const L = [`# Conditional Access change audit — ${tenantName || "tenant"}`, "",
+      `Generated ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC by Conditional Access Baseline Tools (cadoc.limon-it.nl).`, "",
+      `- Window: last ${auDays} days${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""}`,
+      `- Changes: **${r.total}** — ${Object.entries(r.byAction).map(([k, n]) => `${n} ${k}`).join(", ") || "none"}`,
+      `- Most active: ${r.actors.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`,
+      `- Most changed: ${r.targets.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`, ""];
+    for (const x of r.rows) {
+      L.push(`## ${x.action.toUpperCase()} — ${x.target}`, "",
+        `- When: ${x.when}`, `- Activity: ${x.activity}`,
+        `- By: ${x.actor.name}${x.actor.upn ? ` (${x.actor.upn})` : ""}${x.actor.ip ? ` from ${x.actor.ip}` : ""}`,
+        `- Result: ${x.result || "—"}`, "");
+      if (x.changes.length) {
+        L.push("| Change | Field | Value |", "| --- | --- | --- |");
+        x.changes.forEach((c) => L.push(`| ${c.op} | ${String(c.path || "").replace(/\|/g, "\\|")} | ${String(c.op === "change" ? `${auVal(c.from)} → ${auVal(c.to)}` : auVal(c.value ?? c.to ?? c.from)).replace(/\|/g, "\\|")} |`));
+        L.push("");
+      }
+    }
+    showReport("🕓 Change audit", "CA-ChangeAudit", L.join("\n"));
+  });
 
   // ---------- Named locations (view / create / edit / delete) ----------
   const LO_WRITE = ["Policy.ReadWrite.ConditionalAccess"];

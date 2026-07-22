@@ -154,6 +154,7 @@ Requested **on demand** (incremental consent) only when a tool needs them:
 
 | Scope | Tool |
 |---|---|
+| `AuditLog.Read.All` | Change audit — read the directory audit log for Conditional Access changes |
 | `Agreement.Read.All` | Backup — terms-of-use agreements and their PDFs |
 | `Policy.ReadWrite.ConditionalAccess` | Assign groups, Set Policy state, Import, Named locations (create / edit / delete), MS Learn *Apply in tenant* |
 | `Application.Read.All` | Import — required by Graph to create policies with app conditions |
