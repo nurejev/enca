@@ -8,8 +8,8 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 187,
-  date: "2026-07-22",
+  build: 188,
+  date: "2026-07-23",
   get label() { return `v${this.version}.${this.build}`; },
   get full() { return `${this.label} · ${this.date}`; },
 };
@@ -25,6 +25,7 @@ const TOOL_VERSIONS = {
   toolExclusions:   { v: "1.6", note: "exclusion × policy matrix (default, unmerged), effective-user view and risk review (governance flags per policy, patterns after Tiago S. Carvalho), click-to-filter rows and columns, group member list, CSV and Markdown" },
   toolValidator:    { v: "1.6", note: "per-policy sign-in simulation report ported from Jasper Baes' Conditional Access Validator — expected control per user/app/client/location/platform/risk, inverted 'no control' for excluded scope, report-only toggle, filter/search, Markdown export (no Maester code, representative placeholder users), click a policy name to open its card — out of BETA" },
   toolWhatIf:       { v: "1.0", note: "Entra Conditional Access What If tool re-implementation — simulate a sign-in (identity, resource, platform, client app, IP/country, device state, risks, auth flow) and get the policies that apply with their grant/session controls plus the policies that don't and the first unmet condition; named-location CIDR and country matching, Markdown export" },
+  toolCompare:      { v: "0.1", note: "BETA — two or more users side by side: per-policy assignment (included / excluded and why / not targeted) with differences flagged, group and role membership diff, optional What-If sign-in scenario evaluated per user, differences-only toggle, Markdown export" },
   toolAudit:        { v: "1.5", note: "directory audit log of Conditional Access changes — policy, named location, authentication strength/context and terms-of-use edits with a field-level diff of what moved, actor and IP, kind/action filters, 7/30/90-day window, Markdown export, JSON snapshot export/compare, summary view — out of BETA" },
   toolSignins:      { v: "1.3", note: "out of BETA; policy names open the policy card (as in List Policies); sticky policy label while scrolling an expanded policy's sign-ins; sign-in log × Conditional Access verdicts — sign-ins a policy failed (enforced) or would have failed (report-only, client-filtered and capped), grouped per policy with distinct users, affected apps and unmet grant controls; per-policy chips, user/app/IP search, 1/7/30-day window, one-click replay of a logged sign-in in What-If, CSV export (one line per sign-in × failing policy) and Markdown report" },
   toolBaseline:     { v: "1.8", note: "Limon-IT catalog, card and table views, number-clash detection, collapsible personas, catalog revision 2026-07-21, refresh, on-screen gap report" },

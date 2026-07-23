@@ -47,7 +47,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare",
     "screen-locations", "screen-audit", "screen-signins", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -834,6 +834,7 @@
     ["toolGapCheck", "🛡 Best-practice & bypass checks"],
     ["toolValidator", "⚡ CA validator"],
     ["toolWhatIf", "🧪 What-If"],
+    ["toolCompare", "⚖ Compare users"],
     ["toolAudit", "🕓 Change audit"],
     ["toolSignins", "🚦 Sign-in failures"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
@@ -4404,6 +4405,164 @@ max@contoso.com,"Global, DevOps"</pre>
     r.notApplied.forEach((p) => L.push(`- ${p.name} — ${p.reason}`));
     if (r.notEvaluated.length) { L.push("", `## Not evaluated (Off)`, ""); r.notEvaluated.forEach((p) => L.push(`- ${p.name}`)); }
     showReport("🧪 What-If report", "CA-WhatIf", L.join("\n"));
+  });
+
+  // ---------- Compare users (BETA) ----------
+  let cuUsers = [], cuResult = null, cuLocations = null, cuSeedList = "";
+  function openCompare() {
+    crumb("⚖ Compare users");
+    show("screen-compare");
+    $("cuHead").innerHTML = `<h3>⚖ Compare users <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:6px">Add two or more users and see where Conditional Access treats them differently: per-policy <b>assignment</b> (included, excluded — and why — or not targeted), the <b>group and role memberships</b> behind the differences, and optionally one <b>What-If sign-in</b> evaluated for every user.</p>
+      <p class="mini muted" style="margin:0">Assignment compares user scoping only — location, platform, client and risk conditions only come in through the optional scenario. Read-only.</p>`;
+    if (!policies.length) { $("cuBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
+    if (isDemo) $("cuUserList").innerHTML = (DEMO_DATA.analyzeUsers || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+    else if (!$("cuUserList").children.length) {
+      // seed the picker with the first page of tenant users, so the dropdown
+      // offers names before anything is typed; typing refines via Graph search
+      Graph.gget("/users?$select=displayName,userPrincipalName&$top=100")
+        .then((r) => {
+          cuSeedList = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+          if (!$("cuUser").value.trim()) $("cuUserList").innerHTML = cuSeedList;
+        })
+        .catch((e) => console.warn("compare: user preload failed", e.message));
+    }
+    renderCuChips();
+    if (cuResult) renderCompare();   // keep the last run when returning to the tab
+  }
+  $("toolCompare").addEventListener("click", () => openCompare());
+
+  function renderCuChips() {
+    $("cuChips").innerHTML = cuUsers.map((u, i) => `<span class="cu-chip">${esc(u.name)}${u.guest ? ' <span class="tag new">guest</span>' : ""}
+      <span class="uupn mini muted">${esc(u.upn)}</span><button data-cu-del="${i}" title="Remove from comparison">×</button></span>`).join("") ||
+      '<span class="mini muted">No users yet — add at least two.</span>';
+  }
+  $("cuChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cu-del]"); if (!b) return;
+    cuUsers.splice(+b.dataset.cuDel, 1);
+    cuResult = null; $("cuBody").innerHTML = ""; $("cuMd").style.display = "none";
+    renderCuChips();
+  });
+
+  async function addCuUser(term) {
+    term = (term || "").trim(); if (!term) return false;
+    if (cuUsers.length >= 8) { toast("Compare up to <span>8</span> users at a time"); return false; }
+    try {
+      const u = isDemo ? Comparer.resolveUserDemo(term) : await Comparer.resolveUser(term);
+      if (cuUsers.some((x) => x.id === u.id)) { toast(`<span>${esc(u.name)}</span> is already in the comparison`); $("cuUser").value = ""; return false; }
+      cuUsers.push(u);
+      cuResult = null; $("cuBody").innerHTML = ""; $("cuMd").style.display = "none";
+      $("cuUser").value = ""; renderCuChips();
+      return true;
+    } catch (e) { toast(`${esc(e.message || e)}`); return false; }
+  }
+  $("cuUser").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addCuUser(e.target.value); } });
+  $("cuAdd").addEventListener("click", async () => { await addCuUser($("cuUser").value); $("cuUser").focus(); });
+  $("cuUser").addEventListener("change", (e) => { if (e.target.value.trim()) addCuUser(e.target.value); });
+  // user type-ahead, same shape as What-If's
+  let cuSugTimer = null;
+  $("cuUser").addEventListener("input", (e) => {
+    const v = e.target.value; clearTimeout(cuSugTimer);
+    cuSugTimer = setTimeout(async () => {
+      const t = v.trim();
+      if (isDemo) return;
+      if (t.length < 2) { if (cuSeedList) $("cuUserList").innerHTML = cuSeedList; return; }   // back to the seeded tenant list
+      try {
+        const f = t.replace(/'/g, "''");
+        const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
+        $("cuUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+      } catch (err) { console.warn("compare: suggest failed", err.message); }
+    }, 250);
+  });
+
+  $("cuScenOn").addEventListener("change", (e) => { $("cuScenGrid").style.display = e.target.checked ? "" : "none"; });
+  $("cuApp").addEventListener("change", (e) => { $("cuAppIdWrap").style.display = e.target.value === "custom" ? "" : "none"; });
+  $("cuDiffOnly").addEventListener("change", () => { if (cuResult) renderCompare(); });
+  $("cuReset").addEventListener("click", () => {
+    cuUsers = []; cuResult = null;
+    $("cuUser").value = ""; $("cuBody").innerHTML = ""; $("cuMd").style.display = "none";
+    ["cuIp", "cuCountry", "cuAppId"].forEach((id) => $(id).value = "");
+    ["cuDevice", "cuSignInRisk", "cuUserRisk"].forEach((id) => $(id).value = "");
+    $("cuApp").value = "00000002-0000-0ff1-ce00-000000000000"; $("cuAppIdWrap").style.display = "none";
+    $("cuPlatform").value = "windows"; $("cuClient").value = "browser";
+    renderCuChips();
+  });
+
+  $("cuRun").addEventListener("click", async () => {
+    if ($("cuUser").value.trim()) await addCuUser($("cuUser").value);   // take a typed-but-not-added user along
+    if (cuUsers.length < 2) { toast("Add at least <span>two users</span> to compare"); return; }
+    const btn = $("cuRun"); btn.disabled = true; btn.textContent = "Comparing…";
+    try {
+      const lookup = Comparer.buildLookup(policies);
+      const rows = Comparer.assignmentRows(lookup, cuUsers);
+      const groups = Comparer.membershipRows(cuUsers, "group");
+      const roles = Comparer.membershipRows(cuUsers, "role");
+      let sr = null, scLine = "";
+      if ($("cuScenOn").checked) {
+        const sc = {};
+        const appSel = $("cuApp").value;
+        if (appSel === "custom") { sc.appId = $("cuAppId").value.trim(); sc.appName = sc.appId || ""; }
+        else { sc.appId = appSel; sc.appName = $("cuApp").selectedOptions[0].textContent; }
+        if (!sc.appId) { toast("Enter an <span>App ID</span> for the scenario"); return; }
+        sc.platform = $("cuPlatform").value;
+        sc.clientApp = $("cuClient").value;
+        sc.ip = $("cuIp").value.trim() || null;
+        sc.country = $("cuCountry").value.trim().toUpperCase() || null;
+        sc.deviceState = $("cuDevice").value || null;
+        sc.signInRisk = $("cuSignInRisk").value || null;
+        sc.userRisk = $("cuUserRisk").value || null;
+        if (!cuLocations) {
+          try { cuLocations = isDemo ? [] : await Graph.ggetAll("/identity/conditionalAccess/namedLocations"); }
+          catch (e) { cuLocations = []; console.warn("compare: named locations failed", e.message); }
+        }
+        sr = Comparer.scenario(policies.map((p) => p.raw), cuUsers, sc, { namedLocations: cuLocations, names: {} });
+        scLine = [esc(sc.appName), WhatIfEval.LABEL[sc.platform] || sc.platform, WhatIfEval.LABEL[sc.clientApp] || sc.clientApp,
+          sc.ip ? `IP ${esc(sc.ip)}` : "", sc.country ? `country ${esc(sc.country)}` : "",
+          sc.deviceState ? WhatIfEval.LABEL[sc.deviceState] : "", sc.signInRisk ? `sign-in risk ${sc.signInRisk}` : "",
+          sc.userRisk ? `user risk ${sc.userRisk}` : ""].filter(Boolean).join(" · ");
+      }
+      cuResult = { users: cuUsers.slice(), rows, groups, roles, sr, scLine };
+      renderCompare();
+    } catch (e) {
+      console.error("Compare users failed:", e);
+      toast(`Compare: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; btn.textContent = "⚖ Compare"; }
+  });
+
+  function renderCompare() {
+    const R = cuResult; if (!R) return;
+    const diffOnly = $("cuDiffOnly").checked;
+    $("cuMd").style.display = "";
+    const nd = R.rows.filter((r) => r.differs).length;
+    const ng = R.groups.filter((r) => r.differs).length + R.roles.filter((r) => r.differs).length;
+    let scHtml = "";
+    if (R.sr) {
+      const verd = R.users.map((u, i) => {
+        const r = R.sr.perUser[i];
+        return `<div class="wi-verdict ${r.blocked ? "block" : "grant"}" style="margin-bottom:6px">${r.blocked ? "⛔" : "✅"} <b>${esc(u.name)}</b> — ${r.blocked ? "access would be <b>blocked</b>" : `${r.applied.length} ${r.applied.length === 1 ? "policy applies" : "policies apply"}`}</div>`;
+      }).join("");
+      scHtml = `<div class="list-card wi-res"><h4 class="wi-h">What-If scenario <span class="mini muted">${R.scLine}</span></h4>
+        ${verd}${Comparer.scenarioTable(R.sr, R.users, diffOnly)}
+        <p class="mini muted" style="margin:8px 0 0">✓ applies (amber = report-only) · ✗ does not apply — hover for the first unmet condition.</p></div>`;
+    }
+    $("cuBody").innerHTML = `
+      <div class="list-card wi-res"><h4 class="wi-h">Policy assignment <span class="mini muted">${nd} difference${nd === 1 ? "" : "s"}</span></h4>
+        ${Comparer.assignmentTable(R.rows, R.users, diffOnly)}
+        <p class="mini muted" style="margin:8px 0 0">✓ included · ✗ excluded — hover for the group, role or direct exclusion behind it · “·” not targeted. Enabled and report-only policies; user scoping only.</p></div>
+      <div class="list-card wi-res"><h4 class="wi-h">Memberships <span class="mini muted">${ng} difference${ng === 1 ? "" : "s"}</span></h4>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px">
+          <div>${Comparer.membershipTable(R.groups, R.users, "group", diffOnly)}</div>
+          <div>${Comparer.membershipTable(R.roles, R.users, "role", diffOnly)}</div>
+        </div></div>
+      ${scHtml}`;
+  }
+  $("cuBody").addEventListener("click", (e) => {
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+  $("cuMd").addEventListener("click", () => {
+    const R = cuResult; if (!R) return;
+    showReport("⚖ Compare users", "CA-CompareUsers",
+      Comparer.markdown({ tenant: tenantName || "tenant", scenarioLine: R.scLine }, R.users, R.rows, R.groups, R.roles, R.sr));
   });
 
   // ---------- MS Learn documented exclusion checks ----------

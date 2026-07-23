@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=187">
+<link rel="stylesheet" href="css/app.css?v=188">
 </head>
 <body>
 
@@ -104,6 +104,10 @@
       <div class="tool" id="toolWhatIf">
         <div class="tool-ic">🧪</div><h3>What-If <span class="tag new">NEW</span></h3>
         <p>Simulate a sign-in — user, app, platform, client, location, device state and risk — and see which policies would apply, with the controls required, and which would not and why.</p>
+      </div>
+      <div class="tool" id="toolCompare">
+        <div class="tool-ic">⚖</div><h3>Compare users <span class="tag new">BETA</span></h3>
+        <p>Two or more users side by side: which policies include, exclude or ignore each of them, the group and role memberships behind the differences, and optionally one What-If sign-in run for every user.</p>
       </div>
       <div class="tool" id="toolExclusions">
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer</h3>
@@ -581,6 +585,71 @@
     <div id="wiBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ COMPARE USERS (BETA) ============ -->
+  <section id="screen-compare" class="screen">
+    <div class="list-card readme" id="cuHead" style="margin-top:0"></div>
+    <div class="list-card wi-form">
+      <div class="wi-grid">
+        <label class="wi-f"><span>Add user <b class="req">*</b></span>
+          <input id="cuUser" list="cuUserList" placeholder="UPN or display name — Enter to add…" autocomplete="off" spellcheck="false">
+          <datalist id="cuUserList"></datalist></label>
+        <label class="wi-f"><span>&nbsp;</span>
+          <button class="btn" id="cuAdd" type="button" title="Add this user to the comparison" style="align-self:flex-start;height:38px;padding:0 16px">＋ Add</button></label>
+      </div>
+      <div id="cuChips" style="margin-top:8px"></div>
+      <label class="chk" style="display:inline-flex;gap:6px;align-items:center;margin-top:12px">
+        <input type="checkbox" id="cuScenOn"> Also run one What-If sign-in scenario for every user</label>
+      <div class="wi-grid" id="cuScenGrid" style="display:none;margin-top:10px">
+        <label class="wi-f"><span>Target resource</span>
+          <select id="cuApp">
+            <option value="00000002-0000-0ff1-ce00-000000000000">Office 365 Exchange Online</option>
+            <option value="00000003-0000-0ff1-ce00-000000000000">Office 365 SharePoint Online</option>
+            <option value="00000006-0000-0ff1-ce00-000000000000">Office 365 Portal</option>
+            <option value="cc15fd57-2c6c-4117-a88c-83b1d56b4bbe">Microsoft Teams</option>
+            <option value="00000003-0000-0000-c000-000000000000">Microsoft Graph</option>
+            <option value="797f4846-ba00-4fd7-ba43-dac1f8f63013">Windows Azure Service Management API</option>
+            <option value="0000000c-0000-0000-c000-000000000000">My Apps portal</option>
+            <option value="custom">Other — enter an App ID…</option>
+          </select></label>
+        <label class="wi-f" id="cuAppIdWrap" style="display:none"><span>App ID</span>
+          <input id="cuAppId" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false"></label>
+        <label class="wi-f"><span>Device platform</span>
+          <select id="cuPlatform">
+            <option value="windows">Windows</option><option value="macOS">macOS</option>
+            <option value="iOS">iOS</option><option value="android">Android</option>
+            <option value="linux">Linux</option><option value="windowsPhone">Windows Phone</option>
+          </select></label>
+        <label class="wi-f"><span>Client app</span>
+          <select id="cuClient">
+            <option value="browser">Browser</option>
+            <option value="mobileAppsAndDesktopClients">Mobile apps and desktop clients</option>
+            <option value="exchangeActiveSync">Exchange ActiveSync clients</option>
+            <option value="other">Other clients (legacy auth)</option>
+          </select></label>
+        <label class="wi-f"><span>IP address</span>
+          <input id="cuIp" placeholder="e.g. 203.0.113.5" autocomplete="off" spellcheck="false"></label>
+        <label class="wi-f"><span>Country / region</span>
+          <input id="cuCountry" placeholder="2-letter code, e.g. NL" maxlength="2" autocomplete="off" spellcheck="false"></label>
+        <label class="wi-f"><span>Device state</span>
+          <select id="cuDevice">
+            <option value="">Not specified</option><option value="compliant">Compliant</option>
+            <option value="hybrid">Hybrid Entra joined</option><option value="unmanaged">Neither</option>
+          </select></label>
+        <label class="wi-f"><span>Sign-in risk</span>
+          <select id="cuSignInRisk"><option value="">Not specified</option><option value="none">None</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+        <label class="wi-f"><span>User risk</span>
+          <select id="cuUserRisk"><option value="">Not specified</option><option value="none">None</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+      </div>
+      <div class="wi-actions">
+        <button class="btn primary" id="cuRun">⚖ Compare</button>
+        <label class="chk" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="cuDiffOnly" checked> Differences only</label>
+        <button class="btn" id="cuReset">Reset</button>
+        <button class="btn" id="cuMd" style="display:none">Export MD</button>
+      </div>
+    </div>
+    <div id="cuBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ NAMED LOCATIONS ============ -->
   <section id="screen-locations" class="screen">
     <div class="list-card readme" id="loHead" style="margin-top:0"></div>
@@ -758,6 +827,18 @@
         <li><b>Export MD</b> — the scenario and both lists as Markdown.</li>
       </ul>
       <p class="help-x">Read-only. Like the Microsoft tool it does not follow Conditional Access service dependencies, so a policy on a downstream service isn't pulled in.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>⚖ Compare users <span class="tag new">BETA</span></h4>
+      <p>Why does it work for her but not for him? Put two or more users side by side and see where Conditional Access treats them differently.</p>
+      <ul>
+        <li><b>Policy assignment</b> — per enabled or report-only policy, whether each user is <b>included</b> (✓), <b>excluded</b> (✗ — hover for the group, role or direct exclusion behind it) or <b>not targeted</b> (·). Rows where the users differ are flagged; <b>Differences only</b> (default) hides the rest.</li>
+        <li><b>Memberships</b> — the groups and directory roles each user holds, same ✓/· grid. Assignment differences almost always trace back to a row here.</li>
+        <li><b>What-If scenario</b> (optional) — describe one sign-in (resource, platform, client, IP/country, device state, risk) and it is evaluated once per user with the What-If engine: a verdict per user, then the per-policy matrix of who it would actually hit.</li>
+        <li><b>Export MD</b> — the whole comparison as Markdown tables, differences marked <b>≠</b>.</li>
+      </ul>
+      <p class="help-x">Read-only. Resolution is per user (a few Graph calls each), so it stays fast on any tenant size. Assignment looks at user scoping only — conditions like location or platform only enter through the scenario run.</p>
     </section>
 
     <section class="help-sec">
@@ -1266,33 +1347,34 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=187"></script>
-<script src="js/version.js?v=187"></script>
-<script src="js/authConfig.js?v=187"></script>
-<script src="js/labels.js?v=187"></script>
-<script src="js/graph.js?v=187"></script>
-<script src="js/model.js?v=187"></script>
-<script src="js/render.js?v=187"></script>
-<script src="js/analyze.js?v=187"></script>
-<script src="js/whatif.js?v=187"></script>
-<script src="js/mslearn.js?v=187"></script>
-<script src="js/gapcheck.js?v=187"></script>
-<script src="js/exclusions.js?v=187"></script>
-<script src="js/validator.js?v=187"></script>
-<script src="js/whatifeval.js?v=187"></script>
-<script src="js/locations.js?v=187"></script>
-<script src="js/audit.js?v=187"></script>
-<script src="js/signins.js?v=187"></script>
-<script src="js/changelog.js?v=187"></script>
-<script src="js/baselineData.js?v=187"></script>
-<script src="js/baselineJoeyData.js?v=187"></script>
-<script src="js/baseline.js?v=187"></script>
-<script src="js/groupTemplates.js?v=187"></script>
-<script src="js/assign.js?v=187"></script>
-<script src="js/cagroups.js?v=187"></script>
-<script src="js/import.js?v=187"></script>
-<script src="js/export.js?v=187"></script>
-<script src="js/demo.js?v=187"></script>
-<script src="js/app.js?v=187"></script>
+<script src="js/branding.js?v=188"></script>
+<script src="js/version.js?v=188"></script>
+<script src="js/authConfig.js?v=188"></script>
+<script src="js/labels.js?v=188"></script>
+<script src="js/graph.js?v=188"></script>
+<script src="js/model.js?v=188"></script>
+<script src="js/render.js?v=188"></script>
+<script src="js/analyze.js?v=188"></script>
+<script src="js/whatif.js?v=188"></script>
+<script src="js/mslearn.js?v=188"></script>
+<script src="js/gapcheck.js?v=188"></script>
+<script src="js/exclusions.js?v=188"></script>
+<script src="js/validator.js?v=188"></script>
+<script src="js/whatifeval.js?v=188"></script>
+<script src="js/compare.js?v=188"></script>
+<script src="js/locations.js?v=188"></script>
+<script src="js/audit.js?v=188"></script>
+<script src="js/signins.js?v=188"></script>
+<script src="js/changelog.js?v=188"></script>
+<script src="js/baselineData.js?v=188"></script>
+<script src="js/baselineJoeyData.js?v=188"></script>
+<script src="js/baseline.js?v=188"></script>
+<script src="js/groupTemplates.js?v=188"></script>
+<script src="js/assign.js?v=188"></script>
+<script src="js/cagroups.js?v=188"></script>
+<script src="js/import.js?v=188"></script>
+<script src="js/export.js?v=188"></script>
+<script src="js/demo.js?v=188"></script>
+<script src="js/app.js?v=188"></script>
 </body>
 </html>
