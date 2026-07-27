@@ -826,7 +826,14 @@ const GroupUse = (() => {
 
   // Sweep totals per group: { id, name, entra, intune, m365, azure, total }
   function sweepTotals(groups, rows) {
-    const per = new Map(groups.map((g) => [lc(g.id), { id: g.id, name: g.displayName || g.id, dynamic: !!g.membershipRule, roleAssignable: !!g.isAssignableToRole, entra: 0, intune: 0, m365: 0, azure: 0, total: 0 }]));
+    const per = new Map(groups.map((g) => [lc(g.id), {
+      id: g.id, name: g.displayName || g.id,
+      dynamic: !!g.membershipRule, roleAssignable: !!g.isAssignableToRole,
+      // set when the scope was "used by Conditional Access": the id a policy
+      // names but the directory no longer has, and the policies that name it
+      missing: !!g.missing, caPolicies: g.caPolicies || [],
+      entra: 0, intune: 0, m365: 0, azure: 0, total: 0,
+    }]));
     for (const r of rows) {
       const e = per.get(r.pid);
       if (!e) continue;
@@ -975,7 +982,7 @@ ${failHtml(res)}</main>
 </div>
 <main><section class="area"><h2>Groups by reference count</h2><div class="src">
 <table><thead><tr><th>Group</th>${AREAS.map((a) => `<th class="num">${esc(a.label)}</th>`).join("")}<th class="num">Total</th></tr></thead><tbody>
-${totals.map((t) => `<tr><td>${esc(t.name)}${t.dynamic ? ' <span class="mini">dynamic</span>' : ""}${t.roleAssignable ? ' <span class="mini">role-assignable</span>' : ""}<br><span class="mini">${esc(t.id)}</span></td>
+${totals.map((t) => `<tr><td>${esc(t.name)}${t.dynamic ? ' <span class="mini">dynamic</span>' : ""}${t.roleAssignable ? ' <span class="mini">role-assignable</span>' : ""}${t.missing ? ' <span class="how exc">not in the directory</span>' : ""}<br><span class="mini">${esc(t.id)}</span>${t.missing && t.caPolicies.length ? `<br><span class="mini">named by ${esc(t.caPolicies.join(", "))}</span>` : ""}</td>
   ${AREAS.map((a) => `<td class="num${t[a.id] ? "" : " zero"}">${t[a.id] || 0}</td>`).join("")}
   <td class="num"><b>${t.total}</b></td></tr>`).join("")}
 </tbody></table></div></section>
@@ -1002,8 +1009,9 @@ ${failHtml(res)}</main>
 
   function sweepCsv(totals) {
     const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const out = ["Group,GroupId,Dynamic,RoleAssignable,Entra,Intune,Microsoft365,Azure,Total"];
-    totals.forEach((t) => out.push([t.name, t.id, t.dynamic ? "yes" : "no", t.roleAssignable ? "yes" : "no", t.entra, t.intune, t.m365, t.azure, t.total].map(q).join(",")));
+    const out = ["Group,GroupId,Dynamic,RoleAssignable,InDirectory,NamedByCAPolicies,Entra,Intune,Microsoft365,Azure,Total"];
+    totals.forEach((t) => out.push([t.name, t.id, t.dynamic ? "yes" : "no", t.roleAssignable ? "yes" : "no",
+      t.missing ? "no" : "yes", (t.caPolicies || []).join("; "), t.entra, t.intune, t.m365, t.azure, t.total].map(q).join(",")));
     return out.join("\n");
   }
 
@@ -1013,7 +1021,14 @@ ${failHtml(res)}</main>
       `- **Groups with no usage found:** ${totals.filter((t) => !t.total).length}`,
       `- **Total references:** ${res.rows.length}`, "",
       "| Group | Entra | Intune | M365 | Azure | Total |", "| --- | ---: | ---: | ---: | ---: | ---: |"];
-    totals.forEach((t) => L.push(`| ${mdCell(t.name)}${t.dynamic ? " *(dynamic)*" : ""}${t.roleAssignable ? " *(role-assignable)*" : ""} | ${t.entra} | ${t.intune} | ${t.m365} | ${t.azure} | **${t.total}** |`));
+    totals.forEach((t) => L.push(`| ${mdCell(t.name)}${t.dynamic ? " *(dynamic)*" : ""}${t.roleAssignable ? " *(role-assignable)*" : ""}${t.missing ? " **⚠ not in the directory**" : ""} | ${t.entra} | ${t.intune} | ${t.m365} | ${t.azure} | **${t.total}** |`));
+    const gone = totals.filter((t) => t.missing);
+    if (gone.length) {
+      L.push("", `## Dangling references (${gone.length})`, "",
+        "*A Conditional Access policy still names these ids, but the directory no longer has the group — so that assignment targets nobody.*", "",
+        "| Object ID | Named by |", "| --- | --- |");
+      gone.forEach((t) => L.push(`| \`${mdCell(t.id)}\` | ${mdCell(t.caPolicies.join(", "))} |`));
+    }
     const unused = totals.filter((t) => !t.total);
     if (unused.length) {
       L.push("", `## Groups with no usage found (${unused.length})`, "",

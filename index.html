@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=193">
+<link rel="stylesheet" href="css/app.css?v=194">
 </head>
 <body>
 
@@ -608,6 +608,7 @@
         <div class="wi-grid">
           <label class="wi-f"><span>Groups in scope</span>
             <select id="guLimit">
+              <option value="ca">Only groups used by Conditional Access</option>
               <option value="100">First 100 groups</option>
               <option value="250">First 250 groups</option>
               <option value="500">First 500 groups</option>
@@ -626,6 +627,7 @@
             <label class="chk" style="display:inline-flex;gap:6px;align-items:center;height:38px">
               <input type="checkbox" id="guSweepDeep" checked> Include per-group lookups</label></label>
         </div>
+        <p class="mini muted" style="margin:8px 0 0"><b>Only groups used by Conditional Access</b> takes the include and exclude groups off every policy already loaded — enabled, report-only and Off alike. No <code>/groups</code> enumeration at all, so it is the fastest scope and the one that matches what this tool is for. An id a policy names but the directory no longer has is kept and flagged as a <b>dangling reference</b>: that assignment targets nobody.</p>
         <p class="mini muted" style="margin:8px 0 0">The name filter narrows which groups are <b>scanned</b>, so a prefix like <code>CAB-SEC-</code> keeps a sweep of a 20 000-group tenant to the set you actually care about. It runs server-side where Graph supports it and falls back to filtering locally if not. “Groups in scope” then counts matches, not raw groups.</p>
         <p class="mini muted" style="margin:8px 0 0">A sweep reads each service once and matches every group against it, so the cost barely grows with the number of groups. The exceptions are the per-group lookups — nesting, administrative units, app assignments, licensing and Teams — which are asked object by object, batched 20 at a time. Untick them for a fast first pass on a large tenant.</p>
       </div>
@@ -898,6 +900,7 @@
         <li><b>One group or user</b> — paste a group name, a UPN or an object ID. For a user, every group they are a member of is taken along, so you see what the person is actually subject to.</li>
         <li><b>Parents count too</b> — if the group is nested inside another group, anything targeting the parent reaches these members. Those hits are reported with <i>via parent group “…”</i> in the <b>Matched via</b> column, so you can tell a direct assignment from an inherited one.</li>
         <li><b>Sweep every group</b> — runs the same checks across the tenant and gives a group × service count table, plus the list of groups <b>nothing references</b>. Each service is read once and matched against every group, so a sweep costs little more than a single lookup.</li>
+        <li><b>Only groups used by Conditional Access</b> — the default scope, and the one that matches what ENCA is for. It takes the include and exclude groups off every policy already in memory (enabled, report-only and Off), so it needs no directory enumeration and is bounded by your baseline rather than by tenant size. Any id a policy names that the directory cannot resolve is kept and flagged as a <b>dangling reference</b> — the policy still points at it, but the group is gone, so that assignment targets nobody. Worth more attention than a group that is merely unused.</li>
         <li><b>Narrow the sweep by name</b> — a prefix (<code>CAB-SEC-</code>), a suffix or a substring. Naming conventions live at both ends of a name, so this is usually all it takes to cut a 20 000-group tenant down to the set you care about. It runs server-side where Graph supports it and falls back to filtering locally where it does not, and “Groups in scope” then counts matches rather than raw groups.</li>
         <li><b>Click a group in the sweep</b> — a popup opens with that group's references, filtered out of what the sweep already read. No second scan, so it is instant however large the tenant. A sweep matches each group only against itself, so the popup shows <b>direct</b> references; <b>⤢ Deep analyze</b> re-reads that one group with its parent groups expanded. Markdown, HTML and CSV export for that group alone sit in the popup footer. Deep analyze does not throw the sweep away — <b>← Back to the sweep</b> appears above the result and puts it straight back, filters and all, at no cost.</li>
         <li><b>Where to look</b> — Entra ID, Intune, Microsoft 365 and Azure are independent. Tick only what you need; each area asks for its own permissions when it first runs, and Azure needs a separate Azure sign-in (<code>management.azure.com</code>), which is a different token from Graph.</li>
@@ -1449,35 +1452,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=193"></script>
-<script src="js/version.js?v=193"></script>
-<script src="js/authConfig.js?v=193"></script>
-<script src="js/labels.js?v=193"></script>
-<script src="js/graph.js?v=193"></script>
-<script src="js/model.js?v=193"></script>
-<script src="js/render.js?v=193"></script>
-<script src="js/analyze.js?v=193"></script>
-<script src="js/whatif.js?v=193"></script>
-<script src="js/mslearn.js?v=193"></script>
-<script src="js/gapcheck.js?v=193"></script>
-<script src="js/exclusions.js?v=193"></script>
-<script src="js/validator.js?v=193"></script>
-<script src="js/whatifeval.js?v=193"></script>
-<script src="js/compare.js?v=193"></script>
-<script src="js/groupuse.js?v=193"></script>
-<script src="js/locations.js?v=193"></script>
-<script src="js/audit.js?v=193"></script>
-<script src="js/signins.js?v=193"></script>
-<script src="js/changelog.js?v=193"></script>
-<script src="js/baselineData.js?v=193"></script>
-<script src="js/baselineJoeyData.js?v=193"></script>
-<script src="js/baseline.js?v=193"></script>
-<script src="js/groupTemplates.js?v=193"></script>
-<script src="js/assign.js?v=193"></script>
-<script src="js/cagroups.js?v=193"></script>
-<script src="js/import.js?v=193"></script>
-<script src="js/export.js?v=193"></script>
-<script src="js/demo.js?v=193"></script>
-<script src="js/app.js?v=193"></script>
+<script src="js/branding.js?v=194"></script>
+<script src="js/version.js?v=194"></script>
+<script src="js/authConfig.js?v=194"></script>
+<script src="js/labels.js?v=194"></script>
+<script src="js/graph.js?v=194"></script>
+<script src="js/model.js?v=194"></script>
+<script src="js/render.js?v=194"></script>
+<script src="js/analyze.js?v=194"></script>
+<script src="js/whatif.js?v=194"></script>
+<script src="js/mslearn.js?v=194"></script>
+<script src="js/gapcheck.js?v=194"></script>
+<script src="js/exclusions.js?v=194"></script>
+<script src="js/validator.js?v=194"></script>
+<script src="js/whatifeval.js?v=194"></script>
+<script src="js/compare.js?v=194"></script>
+<script src="js/groupuse.js?v=194"></script>
+<script src="js/locations.js?v=194"></script>
+<script src="js/audit.js?v=194"></script>
+<script src="js/signins.js?v=194"></script>
+<script src="js/changelog.js?v=194"></script>
+<script src="js/baselineData.js?v=194"></script>
+<script src="js/baselineJoeyData.js?v=194"></script>
+<script src="js/baseline.js?v=194"></script>
+<script src="js/groupTemplates.js?v=194"></script>
+<script src="js/assign.js?v=194"></script>
+<script src="js/cagroups.js?v=194"></script>
+<script src="js/import.js?v=194"></script>
+<script src="js/export.js?v=194"></script>
+<script src="js/demo.js?v=194"></script>
+<script src="js/app.js?v=194"></script>
 </body>
 </html>

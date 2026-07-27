@@ -4583,7 +4583,7 @@ max@contoso.com,"Global, DevOps"</pre>
   // the exports live in js/groupuse.js; this is screen, consent and rendering.
   let guMode = "all", guAreas = new Set(["entra", "m365"]);
   let guRes = null, guMeta = null, guTotals = null, guGroups = null;
-  let guQuery = "", guUnusedOnly = false, guSeedList = "", guShowServices = false;
+  let guQuery = "", guUnusedOnly = false, guSeedList = "", guShowServices = false, guDanglingOnly = false;
   // A finished sweep is expensive. Drilling into one group must not throw it
   // away — park it here and offer the way back, rather than making the person
   // pay for the same scan twice.
@@ -4603,14 +4603,6 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     $("guRun").disabled = false;
     renderGuAreas();
-    if (!$("guTermList").children.length) {
-      Graph.gget("/groups?$select=id,displayName&$top=100&$orderby=displayName")
-        .then((r) => {
-          guSeedList = ((r && r.value) || []).map((g) => `<option value="${esc(g.displayName)}"></option>`).join("");
-          if (!$("guTerm").value.trim()) $("guTermList").innerHTML = guSeedList;
-        })
-        .catch((e) => console.warn("Group Analyzer: group preload failed", e.message));
-    }
     if (guRes || guTotals) renderGroupUse();
   }
   $("toolGroupUse").addEventListener("click", () => openGroupUse());
@@ -4646,6 +4638,17 @@ max@contoso.com,"Global, DevOps"</pre>
     guAreas.add(id); renderGuAreas();
   });
 
+  function guSeedPicker() {
+    if (isDemo || guSeedList || $("guTermList").children.length) return;
+    Graph.gget("/groups?$select=id,displayName&$top=100&$orderby=displayName")
+      .then((r) => {
+        guSeedList = ((r && r.value) || []).map((g) => `<option value="${esc(g.displayName)}"></option>`).join("");
+        if (!$("guTerm").value.trim()) $("guTermList").innerHTML = guSeedList;
+      })
+      .catch((e) => console.warn("Group Analyzer: group preload failed", e.message));
+  }
+  $("guTerm").addEventListener("focus", guSeedPicker);
+
   $("guModeSeg").addEventListener("click", (e) => {
     const b = e.target.closest("[data-gumode]"); if (!b) return;
     guMode = b.dataset.gumode;
@@ -4653,6 +4656,7 @@ max@contoso.com,"Global, DevOps"</pre>
     $("guOneWrap").style.display = guMode === "one" ? "" : "none";
     $("guAllWrap").style.display = guMode === "all" ? "" : "none";
     $("guRun").textContent = guMode === "all" ? "🔗 Sweep tenant" : "🔗 Analyze";
+    if (guMode === "one") guSeedPicker();
   });
 
   // user/group type-ahead, same shape as Compare users'
@@ -4750,7 +4754,7 @@ max@contoso.com,"Global, DevOps"</pre>
     // Drilling out of a finished sweep: keep it so "Back to the sweep" can put
     // it straight back on screen. A new sweep replaces whatever was parked.
     if (guMode === "one" && guTotals) {
-      guStash = { totals: guTotals, groups: guGroups, res: guRes, meta: guMeta, query: guQuery, unusedOnly: guUnusedOnly };
+      guStash = { totals: guTotals, groups: guGroups, res: guRes, meta: guMeta, query: guQuery, unusedOnly: guUnusedOnly, danglingOnly: guDanglingOnly };
     } else if (guMode === "all") guStash = null;
     guRes = guMeta = guTotals = guGroups = null;
     $("guBody").innerHTML = ""; ["guMd", "guHtml", "guCsv"].forEach((id) => $(id).style.display = "none");
@@ -4783,10 +4787,68 @@ max@contoso.com,"Global, DevOps"</pre>
     renderGroupUse();
   }
 
+  // The groups every Conditional Access policy points at — include and exclude,
+  // across enabled, report-only and Off alike. This is the scope that matters
+  // for a Conditional Access tool: it is bounded by the baseline rather than by
+  // the size of the directory, it needs no /groups enumeration at all (the
+  // policies are already in memory), and the answer it gives — "what else does
+  // this group touch, now that Conditional Access depends on it" — is the whole
+  // reason to look.
+  //
+  // A referenced id the directory cannot resolve is a DANGLING reference: the
+  // policy still names it, but the group is gone, so that assignment targets
+  // nobody. Those are kept and flagged rather than dropped — a policy quietly
+  // scoped to nothing is worth more attention than one scoped to a live group.
+  async function guCaScopedGroups(st) {
+    const refs = new Map();   // lower id -> Set of policy names
+    for (const p of policies) {
+      const u = (p.raw.conditions || {}).users || {};
+      for (const g of [...(u.includeGroups || []), ...(u.excludeGroups || [])]) {
+        const k = String(g).toLowerCase();
+        if (!GroupUse.isGuid(k)) continue;
+        if (!refs.has(k)) refs.set(k, new Set());
+        refs.get(k).add(p.raw.displayName || p.raw.id);
+      }
+    }
+    if (!refs.size) return [];
+
+    st(`Resolving ${refs.size} group${refs.size === 1 ? "" : "s"} referenced by Conditional Access…`);
+    const found = new Map();
+    const ids = [...refs.keys()];
+    for (let i = 0; i < ids.length; i += 900) {
+      try {
+        const j = await Graph.gpost("/directoryObjects/getByIds", { ids: ids.slice(i, i + 900), types: ["group"] });
+        (j.value || []).forEach((g) => found.set(String(g.id).toLowerCase(), g));
+      } catch (e) { console.warn("Group Analyzer: getByIds failed", e.message); }
+    }
+    return ids.map((id) => {
+      const g = found.get(id);
+      const usedBy = [...refs.get(id)];
+      return g
+        ? { ...g, caPolicies: usedBy }
+        : { id, displayName: "(not found in the directory)", missing: true, caPolicies: usedBy };
+    }).sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
+  }
+
   async function sweepGroupUse(st) {
     st("Listing groups…");
     const filter = guNameFilter($("guMatchMode").value, $("guMatchText").value);
-    const groups = await guListGroups(+$("guLimit").value || 0, st, filter);
+    const scope = $("guLimit").value;
+    let groups, scopeLabel;
+    if (scope === "ca") {
+      groups = await guCaScopedGroups(st);
+      if (filter.keep) groups = groups.filter((g) => filter.keep(g.displayName || ""));
+      scopeLabel = [`used by Conditional Access`, filter.label].filter(Boolean).join(" and ");
+      if (!groups.length) {
+        toast(filter.label
+          ? `No Conditional Access group where <span>${esc(filter.label)}</span>`
+          : "No Conditional Access policy in this tenant assigns a group");
+        return;
+      }
+    } else {
+      groups = await guListGroups(+scope || 0, st, filter);
+      scopeLabel = filter.label;
+    }
     if (!groups.length) {
       toast(filter.label ? `No groups where <span>${esc(filter.label)}</span>` : "No groups found in this tenant");
       return;
@@ -4796,12 +4858,14 @@ max@contoso.com,"Global, DevOps"</pre>
     const res = await GroupUse.analyze({
       ids, principal: { id: "", name: "tenant", type: "group" }, isUser: false,
       policies: policies.map((p) => p.raw), sourceIds: guSourceIds(true),
-      batchIds: groups.map((g) => g.id), onStatus: st,
+      // a dangling id has no group behind it — asking /groups/{id}/… would only
+      // generate 404s in every per-object batch
+      batchIds: groups.filter((g) => !g.missing).map((g) => g.id), onStatus: st,
     });
     guRes = res; guGroups = groups;
     guTotals = GroupUse.sweepTotals(groups, res.rows);
     guMeta = { principalName: `${groups.length} groups`, principalType: "sweep", principalId: "",
-      scopeNote: filter.label, via, parents: [], children: [], roles: [] };
+      scopeNote: scopeLabel, via, parents: [], children: [], roles: [] };
     renderGroupUse();
   }
 
@@ -4896,7 +4960,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!guStash) return;
     const s = guStash; guStash = null;
     guTotals = s.totals; guGroups = s.groups; guRes = s.res; guMeta = s.meta;
-    guQuery = s.query; guUnusedOnly = s.unusedOnly;
+    guQuery = s.query; guUnusedOnly = s.unusedOnly; guDanglingOnly = !!s.danglingOnly;
     guMode = "all";
     [...$("guModeSeg").children].forEach((x) => x.classList.toggle("active", x.dataset.gumode === "all"));
     $("guOneWrap").style.display = "none"; $("guAllWrap").style.display = "";
@@ -4908,16 +4972,19 @@ max@contoso.com,"Global, DevOps"</pre>
     const res = guRes;
     ["guMd", "guHtml", "guCsv"].forEach((id) => $(id).style.display = "");
     const q = guQuery.trim().toLowerCase();
-    const vis = guTotals.filter((t) => (!q || t.name.toLowerCase().includes(q)) && (!guUnusedOnly || !t.total));
+    const vis = guTotals.filter((t) => (!q || t.name.toLowerCase().includes(q))
+      && (!guUnusedOnly || !t.total) && (!guDanglingOnly || t.missing));
     const unused = guTotals.filter((t) => !t.total).length;
+    const gone = guTotals.filter((t) => t.missing).length;
     $("guBody").innerHTML = `
       <div class="list-card wi-res">
         <h4 class="wi-h">Tenant sweep <span class="mini muted">${guTotals.length} groups${guMeta && guMeta.scopeNote ? ` where ${esc(guMeta.scopeNote)}` : ""} · ${res.rows.length} references</span></h4>
         <div class="gu-sum">
-          <span class="gu-stat act${!guUnusedOnly && !guQuery ? " on" : ""}" data-gustat="all" title="Show every group in the sweep"><b>${guTotals.length}</b> groups</span>
+          <span class="gu-stat act${!guUnusedOnly && !guDanglingOnly && !guQuery ? " on" : ""}" data-gustat="all" title="Show every group in the sweep"><b>${guTotals.length}</b> groups</span>
           <span class="gu-stat act${guUnusedOnly ? " on" : ""}${unused ? "" : " zero"}" data-gustat="unused" title="Show only the groups nothing references"><b>${unused}</b> with no usage found</span>
           <span class="gu-stat act${guShowServices ? " on" : ""}" data-gustat="services" title="List every service that was read, and what it found"><b>${res.ran.length}</b> services read</span>
           <span class="gu-stat act${res.failed.length ? "" : " zero"}" data-gustat="notread" title="Jump to what could not be read"><b>${res.failed.length}</b> not read</span>
+          ${gone ? `<span class="gu-stat act on" data-gustat="dangling" title="Ids a policy still names but the directory no longer has"><b>${gone}</b> dangling</span>` : ""}
         </div>
         ${guShowServices ? guServicesPanel(res) : ""}
         <div class="gu-bar">
@@ -4930,7 +4997,8 @@ max@contoso.com,"Global, DevOps"</pre>
         <div class="gu-tw"><table class="plist">
           <thead><tr><th>Group</th><th class="gu-num">Entra</th><th class="gu-num">Intune</th><th class="gu-num">M365</th><th class="gu-num">Azure</th><th class="gu-num">Total</th></tr></thead>
           <tbody>${vis.map((t) => `<tr class="gu-row-link" data-gugroup="${esc(t.id)}" title="Open this group's references">
-            <td>${esc(t.name)}${t.dynamic ? ' <span class="tag">dynamic</span>' : ""}${t.roleAssignable ? ' <span class="tag block">role-assignable</span>' : ""}</td>
+            <td>${esc(t.name)}${t.dynamic ? ' <span class="tag">dynamic</span>' : ""}${t.roleAssignable ? ' <span class="tag block">role-assignable</span>' : ""}${
+              t.missing ? ` <span class="tag block">not in the directory</span><div class="mini" style="color:var(--off)">Named by ${esc(t.caPolicies.join(", "))} — that assignment targets nobody</div>` : ""}</td>
             <td class="gu-num${t.entra ? "" : " gu-zero"}">${t.entra}</td>
             <td class="gu-num${t.intune ? "" : " gu-zero"}">${t.intune}</td>
             <td class="gu-num${t.m365 ? "" : " gu-zero"}">${t.m365}</td>
@@ -4974,7 +5042,8 @@ max@contoso.com,"Global, DevOps"</pre>
     const per = GroupUse.byArea(rows);
 
     $("guModalTitle").innerHTML = `👥 ${esc(t.name)}
-      ${t.dynamic ? '<span class="tag">dynamic</span>' : ""}${t.roleAssignable ? '<span class="tag block">role-assignable</span>' : ""}`;
+      ${t.dynamic ? '<span class="tag">dynamic</span>' : ""}${t.roleAssignable ? '<span class="tag block">role-assignable</span>' : ""}${
+        t.missing ? '<span class="tag block">not in the directory</span>' : ""}`;
     $("guModalSub").innerHTML = `${rows.length} reference${rows.length === 1 ? "" : "s"} · <code>${esc(t.id)}</code>
       &nbsp;·&nbsp; ${GroupUse.AREAS.filter((a) => guAreas.has(a.id)).map((a) => `${a.icon} ${(per.get(a.id) || []).length}`).join(" &nbsp; ")}`;
 
@@ -4986,7 +5055,10 @@ max@contoso.com,"Global, DevOps"</pre>
         ${gs.map((g) => guSourceBlock(g, via)).join("")}`;
     }).join("");
 
-    $("guModalBody").innerHTML = (areas || `<p class="mini muted" style="margin:0">No references found in the services that were read. Check <b>Not read</b> on the sweep before treating this group as unused.</p>`)
+    const dangleNote = t.missing
+      ? `<div class="gu-fail" style="margin:0 0 12px"><b>Dangling reference.</b> ${esc(t.caPolicies.join(", "))} still name${t.caPolicies.length === 1 ? "s" : ""} this id, but the directory no longer has the group — so that assignment targets nobody. Remove the reference, or recreate the group.</div>`
+      : "";
+    $("guModalBody").innerHTML = dangleNote + (areas || `<p class="mini muted" style="margin:0">No references found in the services that were read. Check <b>Not read</b> on the sweep before treating this group as unused.</p>`)
       + `<p class="mini muted" style="margin:14px 0 0">A sweep matches every group against itself only. If this group is nested inside another, references that reach it <b>through the parent</b> are not listed here — use <b>Deep analyze</b> for that.</p>`;
     $("guModal").classList.add("open");
   }
@@ -5048,8 +5120,9 @@ max@contoso.com,"Global, DevOps"</pre>
     const stat = e.target.closest("[data-gustat]");
     if (stat) {
       const k = stat.dataset.gustat;
-      if (k === "all") { guUnusedOnly = false; guQuery = ""; renderGuSweep(); }
-      else if (k === "unused") { guUnusedOnly = !guUnusedOnly; renderGuSweep(); }
+      if (k === "all") { guUnusedOnly = false; guDanglingOnly = false; guQuery = ""; renderGuSweep(); }
+      else if (k === "unused") { guUnusedOnly = !guUnusedOnly; guDanglingOnly = false; renderGuSweep(); }
+      else if (k === "dangling") { guDanglingOnly = !guDanglingOnly; guUnusedOnly = false; renderGuSweep(); }
       else if (k === "services") { guShowServices = !guShowServices; renderGuSweep(); }
       else if (k === "notread") {
         const el = $("guNotRead");
