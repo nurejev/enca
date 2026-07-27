@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=188">
+<link rel="stylesheet" href="css/app.css?v=189">
 </head>
 <body>
 
@@ -108,6 +108,10 @@
       <div class="tool" id="toolCompare">
         <div class="tool-ic">⚖</div><h3>Compare users <span class="tag new">BETA</span></h3>
         <p>Two or more users side by side: which policies include, exclude or ignore each of them, the group and role memberships behind the differences, and optionally one What-If sign-in run for every user.</p>
+      </div>
+      <div class="tool" id="toolGroupUse">
+        <div class="tool-ic">🔗</div><h3>Group Analyzer <span class="tag new">BETA</span></h3>
+        <p>Where is a group actually used? One group or user checked against Conditional Access, Entra roles, apps and licensing, Intune, Microsoft 365 and Azure RBAC — or sweep every group and find the ones nothing references. <span class="tag grant">extra permissions</span></p>
       </div>
       <div class="tool" id="toolExclusions">
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer</h3>
@@ -585,6 +589,53 @@
     <div id="wiBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ GROUP ANALYZER (BETA) ============ -->
+  <section id="screen-groupuse" class="screen">
+    <div class="list-card readme" id="guHead" style="margin-top:0"></div>
+    <div class="list-card wi-form">
+      <div class="seg" id="guModeSeg" style="margin-bottom:12px">
+        <button class="active" data-gumode="one">One group or user</button>
+        <button data-gumode="all">Sweep every group</button>
+      </div>
+
+      <div class="wi-grid" id="guOneWrap">
+        <label class="wi-f"><span>Group or user <b class="req">*</b></span>
+          <input id="guTerm" list="guTermList" placeholder="Group name, UPN or object ID — Enter to analyze…" autocomplete="off" spellcheck="false">
+          <datalist id="guTermList"></datalist></label>
+      </div>
+
+      <div id="guAllWrap" style="display:none">
+        <div class="wi-grid">
+          <label class="wi-f"><span>Groups in scope</span>
+            <select id="guLimit">
+              <option value="100">First 100 groups</option>
+              <option value="250">First 250 groups</option>
+              <option value="500">First 500 groups</option>
+              <option value="0">Every group in the tenant</option>
+            </select></label>
+          <label class="wi-f"><span>&nbsp;</span>
+            <label class="chk" style="display:inline-flex;gap:6px;align-items:center;height:38px">
+              <input type="checkbox" id="guSweepDeep" checked> Include per-group lookups</label></label>
+        </div>
+        <p class="mini muted" style="margin:8px 0 0">A sweep reads each service once and matches every group against it, so the cost barely grows with the number of groups. The exceptions are the per-group lookups — nesting, administrative units, app assignments, licensing and Teams — which are asked object by object, batched 20 at a time. Untick them for a fast first pass on a large tenant.</p>
+      </div>
+
+      <div style="margin-top:14px">
+        <div class="mini" style="font-weight:600;margin-bottom:6px">Where to look</div>
+        <div id="guAreas" class="gu-areas"></div>
+      </div>
+
+      <div class="tb-actions" style="margin-top:14px">
+        <button class="btn primary" id="guRun">🔗 Analyze</button>
+        <button class="btn" id="guReset">Reset</button>
+        <button class="btn" id="guMd" style="display:none">Export MD</button>
+        <button class="btn" id="guCsv" style="display:none">⭳ Export CSV</button>
+      </div>
+      <div id="guProg" class="mini muted" style="margin-top:10px"></div>
+    </div>
+    <div id="guBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ COMPARE USERS (BETA) ============ -->
   <section id="screen-compare" class="screen">
     <div class="list-card readme" id="cuHead" style="margin-top:0"></div>
@@ -827,6 +878,23 @@
         <li><b>Export MD</b> — the scenario and both lists as Markdown.</li>
       </ul>
       <p class="help-x">Read-only. Like the Microsoft tool it does not follow Conditional Access service dependencies, so a policy on a downstream service isn't pulled in.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🔗 Group Analyzer <span class="tag new">BETA</span></h4>
+      <p>An Entra group is a shared handle. One admin scopes a Conditional Access policy to it, another targets an Intune compliance policy at it, a third grants it Contributor on a subscription — and nobody sees the whole picture, so adding a member has consequences that are invisible at the moment of the change. This tool reads that picture back out of the tenant. After Jasper Baes' <i>Microsoft Cloud Group Analyzer</i>, re-implemented here against delegated permissions.</p>
+      <ul>
+        <li><b>One group or user</b> — paste a group name, a UPN or an object ID. For a user, every group they are a member of is taken along, so you see what the person is actually subject to.</li>
+        <li><b>Parents count too</b> — if the group is nested inside another group, anything targeting the parent reaches these members. Those hits are reported with <i>via parent group “…”</i> in the <b>Matched via</b> column, so you can tell a direct assignment from an inherited one.</li>
+        <li><b>Sweep every group</b> — runs the same checks across the tenant and gives a group × service count table, plus the list of groups <b>nothing references</b>. Each service is read once and matched against every group, so a sweep costs little more than a single lookup.</li>
+        <li><b>Where to look</b> — Entra ID, Intune, Microsoft 365 and Azure are independent. Tick only what you need; each area asks for its own permissions when it first runs, and Azure needs a separate Azure sign-in (<code>management.azure.com</code>), which is a different token from Graph.</li>
+        <li><b>Entra</b> — group nesting, administrative units, directory roles (active and PIM-eligible), enterprise application assignments, group-based licensing, the authentication methods policy, Conditional Access, access packages, admin-consent reviewers, and — for a user — what they have actually registered.</li>
+        <li><b>Intune</b> — enrolment restrictions (device limit and platform), compliance policies, configuration profiles (device, settings catalog, ADMX), scripts and remediations, app protection, app configuration, app assignments, Autopilot profiles and Windows update profiles.</li>
+        <li><b>Microsoft 365 &amp; Azure</b> — whether the group is a Microsoft 365 group with a team provisioned on it, and every Azure RBAC role assignment across the subscriptions and management groups you can read, down to resource scope.</li>
+        <li><b>Not read</b> — any service that failed or was never granted is listed by name with the reason. Read that list before concluding a group is unused; “nothing found” only means “nothing found in what was actually read”.</li>
+        <li><b>Export MD / CSV</b> — the full report as Markdown, or one CSV line per reference for a spreadsheet.</li>
+      </ul>
+      <p class="help-x">Read-only — it never writes. A Conditional Access policy name opens its card, as in List Policies.</p>
     </section>
 
     <section class="help-sec">
@@ -1347,34 +1415,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=188"></script>
-<script src="js/version.js?v=188"></script>
-<script src="js/authConfig.js?v=188"></script>
-<script src="js/labels.js?v=188"></script>
-<script src="js/graph.js?v=188"></script>
-<script src="js/model.js?v=188"></script>
-<script src="js/render.js?v=188"></script>
-<script src="js/analyze.js?v=188"></script>
-<script src="js/whatif.js?v=188"></script>
-<script src="js/mslearn.js?v=188"></script>
-<script src="js/gapcheck.js?v=188"></script>
-<script src="js/exclusions.js?v=188"></script>
-<script src="js/validator.js?v=188"></script>
-<script src="js/whatifeval.js?v=188"></script>
-<script src="js/compare.js?v=188"></script>
-<script src="js/locations.js?v=188"></script>
-<script src="js/audit.js?v=188"></script>
-<script src="js/signins.js?v=188"></script>
-<script src="js/changelog.js?v=188"></script>
-<script src="js/baselineData.js?v=188"></script>
-<script src="js/baselineJoeyData.js?v=188"></script>
-<script src="js/baseline.js?v=188"></script>
-<script src="js/groupTemplates.js?v=188"></script>
-<script src="js/assign.js?v=188"></script>
-<script src="js/cagroups.js?v=188"></script>
-<script src="js/import.js?v=188"></script>
-<script src="js/export.js?v=188"></script>
-<script src="js/demo.js?v=188"></script>
-<script src="js/app.js?v=188"></script>
+<script src="js/branding.js?v=189"></script>
+<script src="js/version.js?v=189"></script>
+<script src="js/authConfig.js?v=189"></script>
+<script src="js/labels.js?v=189"></script>
+<script src="js/graph.js?v=189"></script>
+<script src="js/model.js?v=189"></script>
+<script src="js/render.js?v=189"></script>
+<script src="js/analyze.js?v=189"></script>
+<script src="js/whatif.js?v=189"></script>
+<script src="js/mslearn.js?v=189"></script>
+<script src="js/gapcheck.js?v=189"></script>
+<script src="js/exclusions.js?v=189"></script>
+<script src="js/validator.js?v=189"></script>
+<script src="js/whatifeval.js?v=189"></script>
+<script src="js/compare.js?v=189"></script>
+<script src="js/groupuse.js?v=189"></script>
+<script src="js/locations.js?v=189"></script>
+<script src="js/audit.js?v=189"></script>
+<script src="js/signins.js?v=189"></script>
+<script src="js/changelog.js?v=189"></script>
+<script src="js/baselineData.js?v=189"></script>
+<script src="js/baselineJoeyData.js?v=189"></script>
+<script src="js/baseline.js?v=189"></script>
+<script src="js/groupTemplates.js?v=189"></script>
+<script src="js/assign.js?v=189"></script>
+<script src="js/cagroups.js?v=189"></script>
+<script src="js/import.js?v=189"></script>
+<script src="js/export.js?v=189"></script>
+<script src="js/demo.js?v=189"></script>
+<script src="js/app.js?v=189"></script>
 </body>
 </html>

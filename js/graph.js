@@ -173,6 +173,105 @@ const Graph = (() => {
     return full;
   }
 
+  // ---- Azure Resource Manager ---------------------------------------------
+  // Azure RBAC does not live in Graph. It is a different resource, with a
+  // different audience, so it needs its own token — a Graph token sent to ARM
+  // is rejected, and (more to the point) an ARM token must never be sent to
+  // Graph. Hence a second host guard rather than a relaxed one.
+  //
+  // Consent is separate too: management.azure.com/user_impersonation is asked
+  // for only when a tool actually reaches into Azure (Group Analyzer).
+  const ARM_BASE = "https://management.azure.com";
+  const ARM_SCOPES = ["https://management.azure.com/user_impersonation"];
+
+  function safeArmUrl(url) {
+    const full = url.startsWith("http") ? url : ARM_BASE + url;
+    if (new URL(full).hostname !== "management.azure.com") throw new Error("Blocked non-ARM URL");
+    return full;
+  }
+
+  // Same 429 discipline as graphFetch — ARM throttles per subscription and
+  // answers with Retry-After just as Graph does.
+  async function armFetch(url) {
+    const full = safeArmUrl(url);
+    const send = (t) => fetch(full, { headers: { Authorization: "Bearer " + t, Accept: "application/json" } });
+    let r = await send(await token(ARM_SCOPES));
+    for (let attempt = 0; (r.status === 429 || r.status === 503 || r.status === 504) && attempt < MAX_RETRIES; attempt++) {
+      const ra = parseInt(r.headers.get("Retry-After"), 10);
+      const waitMs = Number.isFinite(ra) ? ra * 1000 : Math.min(2 ** attempt * 1000, 20000);
+      onThrottle(waitMs, attempt + 1);
+      await sleep(waitMs + 250);
+      r = await send(await token(ARM_SCOPES));
+    }
+    return r;
+  }
+
+  async function aget(url) {
+    const r = await armFetch(url);
+    if (!r.ok) {
+      let msg = `Azure request failed (${r.status})`;
+      try { const e = (await r.json()).error || {}; if (e.message) msg += ": " + e.message; } catch { /* no body */ }
+      throw new Error(msg);
+    }
+    return r.json();
+  }
+
+  // ARM pages with nextLink (absolute URL), same idea as Graph's @odata.nextLink.
+  async function agetAll(url) {
+    let out = [], next = url;
+    while (next) {
+      const j = await aget(next);
+      out = out.concat(j.value || []);
+      next = j.nextLink || j["nextLink"] || null;
+    }
+    return out;
+  }
+
+  // ---- JSON batching -------------------------------------------------------
+  // Some questions are per-object by nature ("which groups is THIS group a
+  // member of"), and a tenant-wide sweep asks them hundreds of times. Graph's
+  // $batch answers up to 20 in one round trip, which is the difference between
+  // a sweep that finishes and one that times out.
+  //
+  // Returns { [id]: { body } | { error } } — one entry per request, never
+  // throws for an individual failure, so one bad object cannot sink the run.
+  async function gbatch(requests, onProgress) {
+    const out = {};
+    const parts = chunk(requests || [], 20);
+    let done = 0;
+    for (const part of parts) {
+      const body = {
+        requests: part.map((r) => ({
+          id: String(r.id), method: r.method || "GET", url: r.url,
+          headers: { ConsistencyLevel: "eventual" },
+        })),
+      };
+      let j = null;
+      try { j = await gpost("/$batch", body); }
+      catch (e) { part.forEach((r) => out[r.id] = { error: e.message || String(e) }); done += part.length; onProgress?.(done, requests.length); continue; }
+
+      // Individual 429s inside a batch carry their own Retry-After; retry those
+      // ids once rather than failing them.
+      const retry = [];
+      for (const resp of (j.responses || [])) {
+        if (resp.status >= 200 && resp.status < 300) out[resp.id] = { body: resp.body };
+        else if (resp.status === 429 || resp.status === 503) retry.push(resp);
+        else out[resp.id] = { error: (resp.body && resp.body.error && resp.body.error.message) || `HTTP ${resp.status}` };
+      }
+      if (retry.length) {
+        const waitMs = Math.max(...retry.map((r) => parseInt((r.headers || {})["Retry-After"], 10) || 5)) * 1000;
+        onThrottle(waitMs, 1);
+        await sleep(waitMs + 250);
+        const again = part.filter((r) => retry.some((x) => x.id === String(r.id)));
+        const res2 = await gbatch(again);
+        Object.assign(out, res2);
+      }
+      done += part.length;
+      onProgress?.(done, requests.length);
+    }
+    return out;
+  }
+
   async function gget(url, scopes) {
     const r = await graphFetch(url, { headers: { ConsistencyLevel: "eventual" } }, scopes);
     if (!r.ok) throw new Error(`Graph request failed (${r.status})`);
@@ -308,7 +407,11 @@ const Graph = (() => {
   // import therefore gets blocked, which is why consent is pulled forward to
   // the click that starts the run — see hasScopes/ensureScopes below.
   const granted = new Set();
-  const scopeName = (s) => String(s).replace(/^https:\/\/graph\.microsoft\.com\//i, "").toLowerCase();
+  // Strip the resource prefix off a scope so "https://graph.microsoft.com/
+  // Policy.Read.All" and "Policy.Read.All" compare equal — and so ARM's
+  // "https://management.azure.com/user_impersonation" matches the bare
+  // "user_impersonation" that comes back in that token's scp claim.
+  const scopeName = (s) => String(s).replace(/^https?:\/\/[^/]+\//i, "").toLowerCase();
   function noteScopes(accessToken) {
     try {
       const p = JSON.parse(atob(accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
@@ -358,5 +461,5 @@ const Graph = (() => {
     } catch { return []; }
   }
 
-  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, existingAppIds, createServicePrincipal, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, get account() { return account; } };
+  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, ARM_SCOPES, existingAppIds, createServicePrincipal, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, get account() { return account; } };
 })();

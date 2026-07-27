@@ -971,3 +971,34 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
   font-family:ui-monospace,Consolas,monospace;color:var(--muted);background:var(--soft);
   border:1px solid var(--border);border-radius:999px;padding:2px 8px;cursor:help}
 .tool:hover .tool-ver{border-color:var(--accent2);color:var(--green)}
+
+/* ---------- Group Analyzer (gu-) ---------- */
+.gu-areas{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.gu-area{display:flex;flex-direction:column;gap:3px;border:1px solid var(--border);border-radius:12px;
+  padding:10px 12px;background:var(--soft2);cursor:pointer;position:relative}
+.gu-area:hover{border-color:var(--accent2)}
+.gu-area.on{border-color:var(--accent2);background:var(--ok-bg)}
+.gu-area input{position:absolute;top:12px;right:12px;margin:0}
+.gu-a-h{font-weight:600;font-size:13.5px;padding-right:22px}
+.gu-sum{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.gu-stat{border:1px solid var(--border);border-radius:999px;padding:4px 12px;font-size:12.5px;background:var(--soft2)}
+.gu-stat b{font-size:14px}
+.gu-stat.zero{color:var(--muted)}
+.gu-src{margin-top:14px}
+.gu-src:first-child{margin-top:0}
+.gu-src h5{margin:0 0 6px;font-size:13.5px;font-weight:600;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.gu-src h5 a{font-size:11px;font-weight:400}
+.gu-how{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 8px;
+  border-radius:999px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.gu-how.inc{background:var(--ok-bg);color:var(--on)}
+.gu-how.exc{background:var(--bad-bg);color:var(--off)}
+.gu-how.priv{background:var(--warn-bg);color:var(--warn-fg)}
+.gu-via{font-size:12px;color:var(--muted)}
+.gu-via.parent{color:var(--accent2)}
+.gu-fail{border:1px solid var(--border);border-left:3px solid var(--off);border-radius:10px;
+  padding:8px 12px;margin-top:8px;font-size:12.5px;background:var(--soft2)}
+.gu-skip{border-left-color:var(--muted)}
+.gu-row-link{cursor:pointer}
+.gu-row-link:hover td{background:var(--soft)}
+.gu-num{text-align:right;font-variant-numeric:tabular-nums}
+.gu-zero{color:var(--muted)}

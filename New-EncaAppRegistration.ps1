@@ -49,7 +49,19 @@ param(
   # AuditLog.Read.All: read the directory audit log (Change audit) and the sign-in log (Sign-in failures)
   # (read-only, on demand). The signed-in user also needs a reader role that can
   # see audit logs - Reports Reader, Security Reader or Security Administrator.
-  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "AuditLog.Read.All", "Agreement.Read.All", "Application.Read.All", "Application.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"),
+  # Group Analyzer (all read-only, all on demand, all optional - the tool runs
+  # per area and reports any area it could not read rather than failing):
+  #   RoleManagement.Read.Directory            directory role + PIM eligibility
+  #   EntitlementManagement.Read.All           access packages
+  #   DeviceManagementConfiguration.Read.All   Intune compliance/config/scripts
+  #   DeviceManagementApps.Read.All            Intune apps + app protection
+  #   DeviceManagementServiceConfig.Read.All   enrolment restrictions, Autopilot
+  # Azure RBAC is NOT a Graph permission: it uses the Azure Resource Manager
+  # resource (https://management.azure.com/user_impersonation), consented
+  # separately in the browser when the Azure area is switched on. Nothing to
+  # add here for it - the signed-in user just needs Reader on the scopes they
+  # want to see.
+  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "AuditLog.Read.All", "Agreement.Read.All", "Application.Read.All", "Application.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "RoleManagement.Read.Directory", "EntitlementManagement.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All"),
   [string]$AuthConfigPath = (Join-Path $PSScriptRoot "js/authConfig.js"),
   [switch]$SkipAdminConsent
 )

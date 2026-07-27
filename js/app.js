@@ -47,7 +47,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
     "screen-locations", "screen-audit", "screen-signins", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -692,7 +692,15 @@
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable", tools: "CA groups (create)", onDemand: true },
+    { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
+    { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "Group Analyzer", onDemand: true },
+    { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer", onDemand: true },
+    { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer", onDemand: true },
+    { scope: "DeviceManagementServiceConfig.Read.All", use: "Read Intune enrolment restrictions and Autopilot deployment profiles", tools: "Group Analyzer", onDemand: true },
   ];
+  // Azure Resource Manager is a different resource, not a Graph scope, so it is
+  // listed on its own rather than mixed into the Graph consent request.
+  const ARM_SCOPE_INFO = { scope: "management.azure.com/user_impersonation", use: "Read Azure role assignments across subscriptions and management groups", tools: "Group Analyzer (Azure area)" };
   async function renderPermissions() {
     const el = $("permOverview");
     const granted = isDemo ? ["Policy.Read.All", "Directory.Read.All"] : await Graph.grantedScopes();
@@ -707,8 +715,11 @@
           const has = granted.includes(s.scope);
           return `<tr><td><code>${s.scope}</code></td><td class="mini">${s.use}</td><td class="mini">${s.tools}</td>
             <td>${has ? '<span class="tag grant">granted</span>' : s.onDemand ? '<span class="tag">on demand</span>' : '<span class="tag block">missing</span>'}</td></tr>`;
-        }).join("")}</tbody>
-      </table>`;
+        }).join("")}
+        <tr><td><code>${ARM_SCOPE_INFO.scope}</code></td><td class="mini">${ARM_SCOPE_INFO.use}</td><td class="mini">${ARM_SCOPE_INFO.tools}</td>
+          <td>${!isDemo && Graph.hasScopes(Graph.ARM_SCOPES) ? '<span class="tag grant">granted</span>' : '<span class="tag">on demand</span>'}</td></tr></tbody>
+      </table>
+      <p class="mini muted" style="margin:8px 0 0">The last row is Azure Resource Manager, not Microsoft Graph — a separate resource with its own token, so it is consented on its own and never bundled into the request above.</p>`;
     el.style.display = "block";
   }
   $("permOverview").addEventListener("click", async (e) => {
@@ -834,6 +845,7 @@
     ["toolGapCheck", "🛡 Best-practice & bypass checks"],
     ["toolValidator", "⚡ CA validator"],
     ["toolWhatIf", "🧪 What-If"],
+    ["toolGroupUse", "🔗 Group Analyzer"],
     ["toolCompare", "⚖ Compare users"],
     ["toolAudit", "🕓 Change audit"],
     ["toolSignins", "🚦 Sign-in failures"],
@@ -4563,6 +4575,330 @@ max@contoso.com,"Global, DevOps"</pre>
     const R = cuResult; if (!R) return;
     showReport("⚖ Compare users", "CA-CompareUsers",
       Comparer.markdown({ tenant: tenantName || "tenant", scenarioLine: R.scLine }, R.users, R.rows, R.groups, R.roles, R.sr));
+  });
+
+  // ---------- Group Analyzer (BETA) ----------
+  // "Where is this group actually used?" The source registry, the matching and
+  // the exports live in js/groupuse.js; this is screen, consent and rendering.
+  let guMode = "one", guAreas = new Set(["entra", "m365"]);
+  let guRes = null, guMeta = null, guTotals = null, guGroups = null;
+  let guQuery = "", guUnusedOnly = false, guSeedList = "";
+
+  function openGroupUse() {
+    crumb("🔗 Group Analyzer");
+    show("screen-groupuse");
+    $("guHead").innerHTML = `<h3>🔗 Group Analyzer <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:6px">A group is a shared handle: one admin scopes a Conditional Access policy to it, another targets an Intune profile at it, a third grants it a role on a subscription. Paste a <b>group or user</b> and see every place it is referenced — or sweep the tenant and find the groups <b>nothing</b> references.</p>
+      <p class="mini muted" style="margin:0">Read-only. Hits inherited from a <b>parent group</b> are marked as such — anything targeting the parent reaches these members too. After Jasper Baes' <i>Microsoft Cloud Group Analyzer</i>.</p>`;
+
+    if (isDemo) {
+      $("guBody").innerHTML = `<div class="list-card"><p class="mini" style="margin:0">Group Analyzer reads live Entra, Intune, Microsoft 365 and Azure configuration, so there is nothing meaningful to show against the demo policy set. Sign in to a tenant to use it.</p></div>`;
+      $("guRun").disabled = true;
+      return;
+    }
+    $("guRun").disabled = false;
+    renderGuAreas();
+    if (!$("guTermList").children.length) {
+      Graph.gget("/groups?$select=id,displayName&$top=100&$orderby=displayName")
+        .then((r) => {
+          guSeedList = ((r && r.value) || []).map((g) => `<option value="${esc(g.displayName)}"></option>`).join("");
+          if (!$("guTerm").value.trim()) $("guTermList").innerHTML = guSeedList;
+        })
+        .catch((e) => console.warn("Group Analyzer: group preload failed", e.message));
+    }
+    if (guRes || guTotals) renderGroupUse();
+  }
+  $("toolGroupUse").addEventListener("click", () => openGroupUse());
+
+  // ---- area picker. Consent is asked at the tick, not at Run: the checkbox
+  // click is a live user gesture, and Safari/Edge revoke that the moment the
+  // run awaits its first Graph call — a popup raised there would be blocked.
+  function renderGuAreas() {
+    $("guAreas").innerHTML = GroupUse.AREAS.map((a) => {
+      const n = GroupUse.SOURCES.filter((s) => s.area === a.id).length;
+      const extra = a.id === "azure" ? "separate Azure sign-in"
+        : (GroupUse.AREA_SCOPES[a.id] || []).length ? "asks for extra permissions" : "no extra permissions";
+      return `<label class="gu-area${guAreas.has(a.id) ? " on" : ""}">
+        <input type="checkbox" data-guarea="${a.id}"${guAreas.has(a.id) ? " checked" : ""}>
+        <span class="gu-a-h">${a.icon} ${esc(a.label)}</span>
+        <span class="mini muted">${n} service${n === 1 ? "" : "s"} · ${extra}</span></label>`;
+    }).join("");
+  }
+  $("guAreas").addEventListener("change", async (e) => {
+    const cb = e.target.closest("[data-guarea]"); if (!cb) return;
+    const id = cb.dataset.guarea;
+    if (!cb.checked) { guAreas.delete(id); renderGuAreas(); return; }
+    const need = id === "azure" ? Graph.ARM_SCOPES : [...AUTH_CONFIG.scopes, ...(GroupUse.AREA_SCOPES[id] || [])];
+    if (!isDemo && !Graph.hasScopes(need)) {
+      cb.disabled = true;
+      let ok = false;
+      try { ok = await preConsent(need); }
+      catch (err) { console.error(err); toast(`Consent failed: <span>${esc(err.message || err)}</span>`); }
+      cb.disabled = false;
+      if (!ok) { renderGuAreas(); return; }
+      if (id === "azure") toast("Azure connected — subscriptions and role assignments will be read");
+    }
+    guAreas.add(id); renderGuAreas();
+  });
+
+  $("guModeSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-gumode]"); if (!b) return;
+    guMode = b.dataset.gumode;
+    [...$("guModeSeg").children].forEach((x) => x.classList.toggle("active", x === b));
+    $("guOneWrap").style.display = guMode === "one" ? "" : "none";
+    $("guAllWrap").style.display = guMode === "all" ? "" : "none";
+    $("guRun").textContent = guMode === "all" ? "🔗 Sweep tenant" : "🔗 Analyze";
+  });
+
+  // user/group type-ahead, same shape as Compare users'
+  let guSugTimer = null;
+  $("guTerm").addEventListener("input", (e) => {
+    const v = e.target.value; clearTimeout(guSugTimer);
+    guSugTimer = setTimeout(async () => {
+      const t = v.trim();
+      if (isDemo || t.length < 2) { if (guSeedList && t.length < 2) $("guTermList").innerHTML = guSeedList; return; }
+      try {
+        const f = t.replace(/'/g, "''");
+        const [g, u] = await Promise.all([
+          Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=displayName&$top=8`).catch(() => ({ value: [] })),
+          Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=8`).catch(() => ({ value: [] })),
+        ]);
+        $("guTermList").innerHTML =
+          ((g.value || []).map((x) => `<option value="${esc(x.displayName)}" label="group"></option>`).join("")) +
+          ((u.value || []).map((x) => `<option value="${esc(x.userPrincipalName)}" label="${esc(x.displayName || "")}"></option>`).join(""));
+      } catch (err) { console.warn("Group Analyzer: suggest failed", err.message); }
+    }, 250);
+  });
+  $("guTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runGroupUse(); } });
+
+  $("guRun").addEventListener("click", () => runGroupUse());
+  $("guReset").addEventListener("click", () => {
+    guRes = guMeta = guTotals = guGroups = null; guQuery = ""; guUnusedOnly = false;
+    $("guTerm").value = ""; $("guBody").innerHTML = ""; $("guProg").textContent = "";
+    $("guMd").style.display = "none"; $("guCsv").style.display = "none";
+  });
+
+  const guSourceIds = (sweep) => GroupUse.SOURCES
+    .filter((s) => guAreas.has(s.area))
+    .filter((s) => !sweep || $("guSweepDeep").checked || !s.perObject)
+    .map((s) => s.id);
+
+  // Page through /groups only as far as the chosen limit — a tenant with
+  // 20 000 groups should not be fully enumerated to answer "first 100".
+  async function guListGroups(limit, st) {
+    const top = limit ? Math.min(limit, 999) : 999;
+    let url = `/groups?$select=id,displayName,membershipRule,isAssignableToRole,groupTypes&$top=${top}`;
+    const out = [];
+    while (url) {
+      const j = await Graph.gget(url);
+      out.push(...(j.value || []));
+      st?.(`Listing groups… ${out.length}`);
+      if (limit && out.length >= limit) break;
+      url = j["@odata.nextLink"] || null;
+    }
+    return limit ? out.slice(0, limit) : out;
+  }
+
+  async function runGroupUse() {
+    if (isDemo) return;
+    if (!guAreas.size) { toast("Pick at least one <span>area</span> to look in"); return; }
+    const btn = $("guRun"); const label = btn.textContent;
+    btn.disabled = true; btn.textContent = "Analyzing…";
+    guRes = guMeta = guTotals = guGroups = null;
+    $("guBody").innerHTML = ""; $("guMd").style.display = "none"; $("guCsv").style.display = "none";
+    const st = (m) => { $("guProg").textContent = m; };
+    try {
+      if (guMode === "all") await sweepGroupUse(st);
+      else await analyzeOneGroup($("guTerm").value, st);
+    } catch (e) {
+      console.error("Group Analyzer failed:", e);
+      $("guBody").innerHTML = `<div class="list-card"><p class="mini" style="margin:0;color:var(--off)">${esc(e.message || e)}</p></div>`;
+    } finally { btn.disabled = false; btn.textContent = label; $("guProg").textContent = ""; }
+  }
+
+  async function analyzeOneGroup(term, st) {
+    term = (term || "").trim();
+    if (!term) { toast("Enter a <span>group or user</span>"); return; }
+    st("Resolving…");
+    const principal = await GroupUse.resolvePrincipal(term);
+    const scope = await GroupUse.buildScope(principal, st);
+    const res = await GroupUse.analyze({
+      ids: scope.ids, principal, isUser: principal.type === "user",
+      policies: policies.map((p) => p.raw), sourceIds: guSourceIds(false),
+      batchIds: scope.groupIds, onStatus: st,
+    });
+    guRes = res;
+    guMeta = {
+      principalName: principal.name, principalType: principal.type, principalId: principal.id,
+      via: scope.via, parents: scope.parents, children: scope.children, roles: scope.roles,
+    };
+    renderGroupUse();
+  }
+
+  async function sweepGroupUse(st) {
+    st("Listing groups…");
+    const groups = await guListGroups(+$("guLimit").value || 0, st);
+    if (!groups.length) { toast("No groups found in this tenant"); return; }
+    const ids = new Set(groups.map((g) => String(g.id).toLowerCase()));
+    const via = new Map(groups.map((g) => [String(g.id).toLowerCase(), g.displayName || g.id]));
+    const res = await GroupUse.analyze({
+      ids, principal: { id: "", name: "tenant", type: "group" }, isUser: false,
+      policies: policies.map((p) => p.raw), sourceIds: guSourceIds(true),
+      batchIds: groups.map((g) => g.id), onStatus: st,
+    });
+    guRes = res; guGroups = groups;
+    guTotals = GroupUse.sweepTotals(groups, res.rows);
+    guMeta = { principalName: `${groups.length} groups`, principalType: "sweep", principalId: "", via, parents: [], children: [], roles: [] };
+    renderGroupUse();
+  }
+
+  // ---- rendering -----------------------------------------------------------
+  const GU_HOW_CLASS = (h) => /exclud/i.test(h) ? "exc"
+    : /assigned|included|member of|referenced|team|Microsoft 365|yes/i.test(h) ? "inc"
+    : /eligible|reviewer/i.test(h) ? "priv" : "";
+
+  function guSourceBlock(g, meta) {
+    const s = g.source;
+    const rows = g.rows.map((r) => {
+      const viaLabel = meta.via.get(r.pid) || r.pid;
+      const inherited = /parent group|directory role/.test(viaLabel);
+      const name = r.source === "ca"
+        ? `<span class="pol-link" data-polid="${esc(r.id)}">${esc(r.name)}</span>`
+        : esc(r.name);
+      return `<tr>
+        <td>${name}${r.sub ? ` <span class="mini muted">${esc(r.sub)}</span>` : ""}</td>
+        <td><span class="gu-how ${GU_HOW_CLASS(r.how)}">${esc(r.how)}</span></td>
+        <td class="mini">${esc(r.detail || "")}</td>
+        <td class="gu-via${inherited ? " parent" : ""}">${esc(viaLabel)}</td></tr>`;
+    }).join("");
+    return `<div class="gu-src">
+      <h5>${esc(s.label)} <span class="mini muted">${g.rows.length}</span>
+        ${s.doc ? `<a href="${esc(s.doc)}" target="_blank" rel="noopener noreferrer">docs ↗</a>` : ""}</h5>
+      <p class="mini muted" style="margin:0 0 6px">${esc(s.hint || "")}</p>
+      <table class="plist"><thead><tr><th>Object</th><th>How</th><th>Detail</th><th>Matched via</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+  }
+
+  function guNotReadCard(res) {
+    const partial = res.partial || [];
+    if (!res.failed.length && !res.skipped.length && !partial.length) return "";
+    return `<div class="list-card"><h4 class="wi-h">Not read</h4>
+      <p class="mini muted" style="margin:0 0 4px">“Nothing found” only means “nothing found in what was actually read”. Check this list before concluding a group is unused.</p>
+      ${res.failed.map((f) => `<div class="gu-fail"><b>${esc(f.label)}</b> — ${esc(f.error)}</div>`).join("")}
+      ${partial.map((p) => `<div class="gu-fail gu-skip"><b>${esc(p.label)}</b> — read, but partly: ${esc(p.notes.join("; "))}</div>`).join("")}
+      ${res.skipped.map((s) => `<div class="gu-fail gu-skip"><b>${esc(s.label)}</b> — skipped (${esc(s.why)})</div>`).join("")}</div>`;
+  }
+
+  function renderGroupUse() {
+    if (guTotals) return renderGuSweep();
+    const res = guRes, meta = guMeta;
+    if (!res || !meta) return;
+    $("guMd").style.display = ""; $("guCsv").style.display = "";
+
+    const per = GroupUse.byArea(res.rows);
+    const stats = GroupUse.AREAS.map((a) => {
+      const n = (per.get(a.id) || []).length;
+      return guAreas.has(a.id) ? `<span class="gu-stat${n ? "" : " zero"}">${a.icon} ${esc(a.label)} <b>${n}</b></span>` : "";
+    }).join("");
+
+    const rel = [];
+    if (meta.parents.length) rel.push(`<b>Member of</b> ${meta.parents.map((p) => esc(p.name)).join(", ")}`);
+    if (meta.children.length) rel.push(`<b>Contains groups</b> ${meta.children.map((p) => esc(p.name)).join(", ")}`);
+    if (meta.roles.length) rel.push(`<b>Directory roles</b> ${meta.roles.map((p) => esc(p.name)).join(", ")}`);
+
+    const areaCards = GroupUse.AREAS.map((a) => {
+      if (!guAreas.has(a.id)) return "";
+      const rows = per.get(a.id) || [];
+      const groupsOf = GroupUse.grouped(rows);
+      const empty = res.ran.filter((r) => r.area === a.id && !r.count);
+      return `<div class="list-card wi-res">
+        <h4 class="wi-h">${a.icon} ${esc(a.label)} <span class="mini muted">${rows.length} reference${rows.length === 1 ? "" : "s"}</span></h4>
+        ${groupsOf.length ? groupsOf.map((g) => guSourceBlock(g, meta)).join("")
+          : `<p class="mini muted" style="margin:0">No references found.</p>`}
+        ${empty.length ? `<p class="mini muted" style="margin:10px 0 0">Read and clean: ${empty.map((e) => esc(e.label)).join(", ")}.</p>` : ""}</div>`;
+    }).join("");
+
+    $("guBody").innerHTML = `
+      <div class="list-card">
+        <h4 class="wi-h">${meta.principalType === "user" ? "👤" : "👥"} ${esc(meta.principalName)}
+          <span class="mini muted">${esc(meta.principalType)} · ${esc(meta.principalId)}</span></h4>
+        <div class="gu-sum"><span class="gu-stat"><b>${res.rows.length}</b> reference${res.rows.length === 1 ? "" : "s"}</span>${stats}</div>
+        ${rel.length ? `<p class="mini" style="margin:10px 0 0">${rel.join(" &nbsp;·&nbsp; ")}</p>` : ""}
+      </div>
+      ${areaCards}
+      ${guNotReadCard(res)}`;
+  }
+
+  function renderGuSweep() {
+    const res = guRes;
+    $("guMd").style.display = ""; $("guCsv").style.display = "";
+    const q = guQuery.trim().toLowerCase();
+    const vis = guTotals.filter((t) => (!q || t.name.toLowerCase().includes(q)) && (!guUnusedOnly || !t.total));
+    const unused = guTotals.filter((t) => !t.total).length;
+    $("guBody").innerHTML = `
+      <div class="list-card">
+        <h4 class="wi-h">Tenant sweep <span class="mini muted">${guTotals.length} groups · ${res.rows.length} references</span></h4>
+        <div class="gu-sum">
+          <span class="gu-stat"><b>${guTotals.length}</b> groups</span>
+          <span class="gu-stat${unused ? "" : " zero"}"><b>${unused}</b> with no usage found</span>
+          <span class="gu-stat"><b>${res.ran.length}</b> services read</span>
+          <span class="gu-stat${res.failed.length ? "" : " zero"}"><b>${res.failed.length}</b> not read</span>
+        </div>
+        <div class="toolbar" style="margin-top:12px">
+          <div class="search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+            <input id="guSweepSearch" placeholder="Search groups…" value="${esc(guQuery)}">
+          </div>
+          <label class="chk" style="display:inline-flex;gap:6px;align-items:center">
+            <input type="checkbox" id="guUnused"${guUnusedOnly ? " checked" : ""}> Only groups with no usage found</label>
+        </div>
+        <table class="plist" style="margin-top:10px">
+          <thead><tr><th>Group</th><th class="gu-num">Entra</th><th class="gu-num">Intune</th><th class="gu-num">M365</th><th class="gu-num">Azure</th><th class="gu-num">Total</th></tr></thead>
+          <tbody>${vis.map((t) => `<tr class="gu-row-link" data-gugroup="${esc(t.id)}" title="Analyze this group on its own">
+            <td>${esc(t.name)}${t.dynamic ? ' <span class="tag">dynamic</span>' : ""}${t.roleAssignable ? ' <span class="tag block">role-assignable</span>' : ""}</td>
+            <td class="gu-num${t.entra ? "" : " gu-zero"}">${t.entra}</td>
+            <td class="gu-num${t.intune ? "" : " gu-zero"}">${t.intune}</td>
+            <td class="gu-num${t.m365 ? "" : " gu-zero"}">${t.m365}</td>
+            <td class="gu-num${t.azure ? "" : " gu-zero"}">${t.azure}</td>
+            <td class="gu-num"><b>${t.total}</b></td></tr>`).join("")
+            || '<tr><td colspan="6" class="mini muted">Nothing matches that filter.</td></tr>'}</tbody>
+        </table>
+        <p class="mini muted" style="margin:8px 0 0">Click a row to analyze that group on its own — with its parent groups expanded, which a sweep does not do per group.</p>
+      </div>
+      ${guNotReadCard(res)}`;
+    wireSearchClears();
+  }
+
+  $("guBody").addEventListener("click", (e) => {
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const row = e.target.closest("[data-gugroup]");
+    if (row) {
+      guMode = "one";
+      [...$("guModeSeg").children].forEach((x) => x.classList.toggle("active", x.dataset.gumode === "one"));
+      $("guOneWrap").style.display = ""; $("guAllWrap").style.display = "none";
+      $("guRun").textContent = "🔗 Analyze";
+      $("guTerm").value = row.dataset.gugroup;
+      guTotals = null; guGroups = null;
+      runGroupUse();
+    }
+  });
+  $("guBody").addEventListener("input", (e) => {
+    if (e.target.id === "guSweepSearch") { guQuery = e.target.value; renderGuSweep(); $("guSweepSearch").focus(); }
+  });
+  $("guBody").addEventListener("change", (e) => {
+    if (e.target.id === "guUnused") { guUnusedOnly = e.target.checked; renderGuSweep(); }
+  });
+
+  $("guMd").addEventListener("click", () => {
+    if (!guRes) return;
+    if (guTotals) showReport("🔗 Group Analyzer — tenant sweep", "CA-GroupAnalyzer-Sweep", GroupUse.sweepMarkdown(guTotals, guRes, guMeta));
+    else showReport(`🔗 Group Analyzer — ${guMeta.principalName}`, "CA-GroupAnalyzer", GroupUse.markdown(guRes, guMeta));
+  });
+  $("guCsv").addEventListener("click", () => {
+    if (!guRes) return;
+    if (guTotals) downloadText("CA-GroupAnalyzer-Sweep", "csv", "text/csv", GroupUse.sweepCsv(guTotals));
+    else downloadText("CA-GroupAnalyzer", "csv", "text/csv", GroupUse.csv(guRes, guMeta));
   });
 
   // ---------- MS Learn documented exclusion checks ----------
