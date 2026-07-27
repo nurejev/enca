@@ -55,9 +55,10 @@ const GroupUse = (() => {
 
   // Graph's error text is long and often ends in a request id. Keep the part a
   // human can act on: "Insufficient privileges", "Resource not found", …
-  function shortErr(e) {
+  function shortErr(e, max) {
     const m = String((e && e.message) || e || "").split(" · ")[0];
-    return m.length > 180 ? m.slice(0, 177) + "…" : m;
+    const cap = max || 180;
+    return m.length > cap ? m.slice(0, cap - 3) + "…" : m;
   }
 
   // Never let one source kill the run. Returns [] and records the reason.
@@ -132,7 +133,9 @@ const GroupUse = (() => {
       try { return { items: await Graph.ggetAll(url), url }; }
       catch (e) { errs.push(`${url.split("?")[0].split("/").pop()}: ${shortErr(e)}`); }
     }
-    throw new Error(`${label} — none of ${urls.length} known shapes worked · ${errs.join(" · ")}`);
+    // Join with "; " — shortErr() splits on " · " to drop Graph's request-id
+    // tail, and joining with it here is what swallowed the individual reasons.
+    throw new Error(`${label} — none of ${urls.length} known shapes worked: ${errs.join("; ")}`);
   }
 
   // Run several collection endpoints as one logical source. Each entry is
@@ -357,7 +360,7 @@ const GroupUse = (() => {
                 out.push({ pid: h.pid, name: nameOf(it), id: it.id, how: "referenced", detail: prettyPath(h.path), sub: label });
               }
             }
-          } catch (e) { notes.push(shortErr(e)); }
+          } catch (e) { notes.push(shortErr(e, 400)); }
         };
         ctx.status?.("assignment policies");
         await scan([
@@ -570,6 +573,37 @@ const GroupUse = (() => {
           if (!isM365 && !isTeam) continue;
           out.push({ pid, name: g.displayName || g.id, id: g.id, how: isTeam ? "team provisioned" : "Microsoft 365 group",
             detail: [g.mail, g.visibility, (g.membershipRule ? "dynamic" : "")].filter(Boolean).join(" · ") });
+        }
+        return out;
+      },
+    },
+
+    {
+      // The honest limit of what a browser can see of Purview. A container
+      // label on a group is exposed on the group object and matters: it drives
+      // the team's and site's privacy, guest access, unmanaged-device access
+      // and external sharing, so membership plus label is the real posture.
+      //
+      // The rest of Purview — DLP policies, retention policies and label
+      // *publishing* policies, insider risk, communication compliance — has no
+      // Microsoft Graph surface at all. It lives behind Security & Compliance
+      // PowerShell (Connect-IPPSSession), which a static site cannot call: no
+      // CORS, and no delegated Graph token is accepted there. Say so rather
+      // than let a clean result imply Purview was checked.
+      id: "purviewLabel", perObject: true, area: "m365", label: "Sensitivity label (Purview)",
+      doc: "https://learn.microsoft.com/purview/sensitivity-labels-teams-groups-sites",
+      hint: "The container label on the group — it governs the team's and site's privacy, guest access and external sharing. Purview's policy surface (DLP, retention, label publishing, insider risk) is not in Microsoft Graph and cannot be read from a browser.",
+      async run(ctx) {
+        const out = [];
+        const reqs = ctx.batchIds.map((id, i) => ({ id: i, url: `/groups/${id}?$select=id,displayName,assignedLabels` }));
+        const res = await Graph.gbatch(reqs, ctx.progress);
+        for (const [k, v] of Object.entries(res)) {
+          const g = v.body; if (!g) continue;
+          const pid = lc(ctx.batchIds[+k]);
+          (g.assignedLabels || []).forEach((l) => out.push({
+            pid, name: l.displayName || l.labelId, id: l.labelId, how: "labelled",
+            detail: "container label — privacy, guest access and external sharing",
+          }));
         }
         return out;
       },
@@ -873,7 +907,7 @@ tr:last-child td{border-bottom:0}
 footer{padding:16px 26px;color:#6b7280;font-size:12px}`;
 
   const HOW_CLASS = (h) => /exclud/i.test(h) ? "exc"
-    : /assigned|included|member of|referenced|team|Microsoft 365|^yes$/i.test(h) ? "inc"
+    : /assigned|included|member of|referenced|team|Microsoft 365|labelled|^yes$/i.test(h) ? "inc"
     : /eligible|reviewer/i.test(h) ? "priv" : "";
 
   function failHtml(res) {
@@ -932,7 +966,7 @@ ${failHtml(res)}</main>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Group Analyzer — tenant sweep</title><style>${REPORT_CSS}</style></head><body>
 <header><h1>Group usage — tenant sweep</h1>
-  <div class="meta">${totals.length} groups · ${res.rows.length} references${meta && meta.tenant ? ` · ${esc(meta.tenant)}` : ""} · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</div></header>
+  <div class="meta">${totals.length} groups${meta && meta.scopeNote ? ` where ${esc(meta.scopeNote)}` : ""} · ${res.rows.length} references${meta && meta.tenant ? ` · ${esc(meta.tenant)}` : ""} · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</div></header>
 <div class="cards">
   <div class="card"><div class="n">${totals.length}</div><div class="l">Groups</div></div>
   <div class="card${unused.length ? "" : " zero"}"><div class="n">${unused.length}</div><div class="l">No usage found</div></div>
@@ -975,7 +1009,7 @@ ${failHtml(res)}</main>
 
   function sweepMarkdown(totals, res, meta) {
     const L = [`# Group Analyzer — tenant sweep`, "", Brand.generatedBy("Generated"), "",
-      `- **Groups analysed:** ${totals.length}`,
+      `- **Groups analysed:** ${totals.length}${meta && meta.scopeNote ? ` (${mdCell(meta.scopeNote)})` : ""}`,
       `- **Groups with no usage found:** ${totals.filter((t) => !t.total).length}`,
       `- **Total references:** ${res.rows.length}`, "",
       "| Group | Entra | Intune | M365 | Azure | Total |", "| --- | ---: | ---: | ---: | ---: | ---: |"];

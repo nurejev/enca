@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=190">
+<link rel="stylesheet" href="css/app.css?v=191">
 </head>
 <body>
 
@@ -613,10 +613,20 @@
               <option value="500">First 500 groups</option>
               <option value="0">Every group in the tenant</option>
             </select></label>
+          <label class="wi-f"><span>Name filter <span class="mini muted">optional</span></span>
+            <div style="display:flex;gap:8px">
+              <select id="guMatchMode" style="flex:0 0 auto;width:130px">
+                <option value="starts">Starts with</option>
+                <option value="ends">Ends with</option>
+                <option value="contains">Contains</option>
+              </select>
+              <input id="guMatchText" placeholder="e.g. CAB-SEC-" autocomplete="off" spellcheck="false" style="flex:1 1 auto;min-width:0">
+            </div></label>
           <label class="wi-f"><span>&nbsp;</span>
             <label class="chk" style="display:inline-flex;gap:6px;align-items:center;height:38px">
               <input type="checkbox" id="guSweepDeep" checked> Include per-group lookups</label></label>
         </div>
+        <p class="mini muted" style="margin:8px 0 0">The name filter narrows which groups are <b>scanned</b>, so a prefix like <code>CAB-SEC-</code> keeps a sweep of a 20 000-group tenant to the set you actually care about. It runs server-side where Graph supports it and falls back to filtering locally if not. “Groups in scope” then counts matches, not raw groups.</p>
         <p class="mini muted" style="margin:8px 0 0">A sweep reads each service once and matches every group against it, so the cost barely grows with the number of groups. The exceptions are the per-group lookups — nesting, administrative units, app assignments, licensing and Teams — which are asked object by object, batched 20 at a time. Untick them for a fast first pass on a large tenant.</p>
       </div>
 
@@ -888,11 +898,14 @@
         <li><b>One group or user</b> — paste a group name, a UPN or an object ID. For a user, every group they are a member of is taken along, so you see what the person is actually subject to.</li>
         <li><b>Parents count too</b> — if the group is nested inside another group, anything targeting the parent reaches these members. Those hits are reported with <i>via parent group “…”</i> in the <b>Matched via</b> column, so you can tell a direct assignment from an inherited one.</li>
         <li><b>Sweep every group</b> — runs the same checks across the tenant and gives a group × service count table, plus the list of groups <b>nothing references</b>. Each service is read once and matched against every group, so a sweep costs little more than a single lookup.</li>
-        <li><b>Click a group in the sweep</b> — a popup opens with that group's references, filtered out of what the sweep already read. No second scan, so it is instant however large the tenant. A sweep matches each group only against itself, so the popup shows <b>direct</b> references; <b>⤢ Deep analyze</b> re-reads that one group with its parent groups expanded. Markdown, HTML and CSV export for that group alone sit in the popup footer.</li>
+        <li><b>Narrow the sweep by name</b> — a prefix (<code>CAB-SEC-</code>), a suffix or a substring. Naming conventions live at both ends of a name, so this is usually all it takes to cut a 20 000-group tenant down to the set you care about. It runs server-side where Graph supports it and falls back to filtering locally where it does not, and “Groups in scope” then counts matches rather than raw groups.</li>
+        <li><b>Click a group in the sweep</b> — a popup opens with that group's references, filtered out of what the sweep already read. No second scan, so it is instant however large the tenant. A sweep matches each group only against itself, so the popup shows <b>direct</b> references; <b>⤢ Deep analyze</b> re-reads that one group with its parent groups expanded. Markdown, HTML and CSV export for that group alone sit in the popup footer. Deep analyze does not throw the sweep away — <b>← Back to the sweep</b> appears above the result and puts it straight back, filters and all, at no cost.</li>
         <li><b>Where to look</b> — Entra ID, Intune, Microsoft 365 and Azure are independent. Tick only what you need; each area asks for its own permissions when it first runs, and Azure needs a separate Azure sign-in (<code>management.azure.com</code>), which is a different token from Graph.</li>
         <li><b>Entra</b> — group nesting, administrative units, directory roles (active and PIM-eligible), enterprise application assignments, group-based licensing, the authentication methods policy, Conditional Access, access packages, admin-consent reviewers, and — for a user — what they have actually registered.</li>
         <li><b>Intune</b> — enrolment restrictions (device limit and platform), compliance policies, configuration profiles (device, settings catalog, ADMX), scripts and remediations, app protection, app configuration, app assignments, Autopilot profiles and Windows update profiles.</li>
-        <li><b>Microsoft 365 &amp; Azure</b> — whether the group is a Microsoft 365 group with a team provisioned on it, and every Azure RBAC role assignment across the subscriptions and management groups you can read, down to resource scope.</li>
+        <li><b>Microsoft 365 &amp; Azure</b> — whether the group is a Microsoft 365 group with a team provisioned on it, the <b>Purview sensitivity label</b> on the group (the container label that governs the team's and site's privacy, guest access and external sharing), and every Azure RBAC role assignment across the subscriptions and management groups you can read, down to resource scope.</li>
+        <li><b>What Purview cannot tell you here</b> — the container label above is the only part of Purview exposed to Microsoft Graph. DLP policies, retention policies, sensitivity-label <i>publishing</i> policies, insider risk and communication compliance have no Graph API at all: they live behind Security &amp; Compliance PowerShell, which a static site cannot call. If a group is used to scope one of those, this tool will not see it — check the Purview portal separately.</li>
+        <li><b>The summary chips are controls</b> — in a sweep, <b>groups</b> clears the filters, <b>with no usage found</b> toggles the unused-only list, <b>services read</b> opens the receipt (every service, what it found, how long it took) and <b>not read</b> jumps to the failures. On a single group, each area chip jumps to its section.</li>
         <li><b>Not read</b> — any service that failed, was only partly read, or was never granted is listed by name with the reason, the <b>permission</b> the call needs and the <b>role</b> the signed-in user needs on top of it. Those are two different things: a consented scope with no matching Entra or Intune role still returns 403. Read that list before concluding a group is unused; “nothing found” only means “nothing found in what was actually read”. A <code>404</code> is normal for a workload the tenant does not use.</li>
         <li><b>Export MD / HTML / CSV</b> — the full report as Markdown, a <b>standalone HTML report</b> that opens on any machine without access to the tenant (the artefact to attach to a change request), or one CSV line per reference for a spreadsheet.</li>
       </ul>
@@ -1436,35 +1449,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=190"></script>
-<script src="js/version.js?v=190"></script>
-<script src="js/authConfig.js?v=190"></script>
-<script src="js/labels.js?v=190"></script>
-<script src="js/graph.js?v=190"></script>
-<script src="js/model.js?v=190"></script>
-<script src="js/render.js?v=190"></script>
-<script src="js/analyze.js?v=190"></script>
-<script src="js/whatif.js?v=190"></script>
-<script src="js/mslearn.js?v=190"></script>
-<script src="js/gapcheck.js?v=190"></script>
-<script src="js/exclusions.js?v=190"></script>
-<script src="js/validator.js?v=190"></script>
-<script src="js/whatifeval.js?v=190"></script>
-<script src="js/compare.js?v=190"></script>
-<script src="js/groupuse.js?v=190"></script>
-<script src="js/locations.js?v=190"></script>
-<script src="js/audit.js?v=190"></script>
-<script src="js/signins.js?v=190"></script>
-<script src="js/changelog.js?v=190"></script>
-<script src="js/baselineData.js?v=190"></script>
-<script src="js/baselineJoeyData.js?v=190"></script>
-<script src="js/baseline.js?v=190"></script>
-<script src="js/groupTemplates.js?v=190"></script>
-<script src="js/assign.js?v=190"></script>
-<script src="js/cagroups.js?v=190"></script>
-<script src="js/import.js?v=190"></script>
-<script src="js/export.js?v=190"></script>
-<script src="js/demo.js?v=190"></script>
-<script src="js/app.js?v=190"></script>
+<script src="js/branding.js?v=191"></script>
+<script src="js/version.js?v=191"></script>
+<script src="js/authConfig.js?v=191"></script>
+<script src="js/labels.js?v=191"></script>
+<script src="js/graph.js?v=191"></script>
+<script src="js/model.js?v=191"></script>
+<script src="js/render.js?v=191"></script>
+<script src="js/analyze.js?v=191"></script>
+<script src="js/whatif.js?v=191"></script>
+<script src="js/mslearn.js?v=191"></script>
+<script src="js/gapcheck.js?v=191"></script>
+<script src="js/exclusions.js?v=191"></script>
+<script src="js/validator.js?v=191"></script>
+<script src="js/whatifeval.js?v=191"></script>
+<script src="js/compare.js?v=191"></script>
+<script src="js/groupuse.js?v=191"></script>
+<script src="js/locations.js?v=191"></script>
+<script src="js/audit.js?v=191"></script>
+<script src="js/signins.js?v=191"></script>
+<script src="js/changelog.js?v=191"></script>
+<script src="js/baselineData.js?v=191"></script>
+<script src="js/baselineJoeyData.js?v=191"></script>
+<script src="js/baseline.js?v=191"></script>
+<script src="js/groupTemplates.js?v=191"></script>
+<script src="js/assign.js?v=191"></script>
+<script src="js/cagroups.js?v=191"></script>
+<script src="js/import.js?v=191"></script>
+<script src="js/export.js?v=191"></script>
+<script src="js/demo.js?v=191"></script>
+<script src="js/app.js?v=191"></script>
 </body>
 </html>

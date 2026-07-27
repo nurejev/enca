@@ -4583,7 +4583,11 @@ max@contoso.com,"Global, DevOps"</pre>
   // the exports live in js/groupuse.js; this is screen, consent and rendering.
   let guMode = "one", guAreas = new Set(["entra", "m365"]);
   let guRes = null, guMeta = null, guTotals = null, guGroups = null;
-  let guQuery = "", guUnusedOnly = false, guSeedList = "";
+  let guQuery = "", guUnusedOnly = false, guSeedList = "", guShowServices = false;
+  // A finished sweep is expensive. Drilling into one group must not throw it
+  // away — park it here and offer the way back, rather than making the person
+  // pay for the same scan twice.
+  let guStash = null;
 
   function openGroupUse() {
     crumb("🔗 Group Analyzer");
@@ -4674,7 +4678,7 @@ max@contoso.com,"Global, DevOps"</pre>
 
   $("guRun").addEventListener("click", () => runGroupUse());
   $("guReset").addEventListener("click", () => {
-    guRes = guMeta = guTotals = guGroups = null; guQuery = ""; guUnusedOnly = false;
+    guRes = guMeta = guTotals = guGroups = guStash = null; guQuery = ""; guUnusedOnly = false;
     $("guTerm").value = ""; $("guBody").innerHTML = ""; $("guProg").textContent = "";
     ["guMd", "guHtml", "guCsv"].forEach((id) => $(id).style.display = "none");
   });
@@ -4684,19 +4688,57 @@ max@contoso.com,"Global, DevOps"</pre>
     .filter((s) => !sweep || $("guSweepDeep").checked || !s.perObject)
     .map((s) => s.id);
 
-  // Page through /groups only as far as the chosen limit — a tenant with
-  // 20 000 groups should not be fully enumerated to answer "first 100".
-  async function guListGroups(limit, st) {
-    const top = limit ? Math.min(limit, 999) : 999;
-    let url = `/groups?$select=id,displayName,membershipRule,isAssignableToRole,groupTypes&$top=${top}`;
-    const out = [];
-    while (url) {
-      const j = await Graph.gget(url);
-      out.push(...(j.value || []));
-      st?.(`Listing groups… ${out.length}`);
-      if (limit && out.length >= limit) break;
-      url = j["@odata.nextLink"] || null;
+  // Name filter for a sweep. Prefix and suffix are the useful ones in practice
+  // — naming conventions live at both ends — and Graph can do both server-side
+  // (endsWith needs $count=true, which pairs with the ConsistencyLevel header
+  // Graph.gget always sends). The client predicate is kept as well, both as a
+  // safety net and as the fallback when a tenant rejects the filter outright.
+  function guNameFilter(mode, text) {
+    const raw = String(text || "").trim();
+    if (!raw) return { q: "", keep: null, label: "" };
+    const t = raw.replace(/'/g, "''");
+    const lo = raw.toLowerCase();
+    if (mode === "ends") {
+      return { q: `&$count=true&$filter=${encodeURIComponent(`endswith(displayName,'${t}')`)}`,
+        keep: (n) => n.toLowerCase().endsWith(lo), label: `name ends with “${raw}”` };
     }
+    if (mode === "contains") {
+      return { q: `&$search=${encodeURIComponent(`"displayName:${raw}"`)}`,
+        keep: (n) => n.toLowerCase().includes(lo), label: `name contains “${raw}”` };
+    }
+    return { q: `&$filter=${encodeURIComponent(`startswith(displayName,'${t}')`)}`,
+      keep: (n) => n.toLowerCase().startsWith(lo), label: `name starts with “${raw}”` };
+  }
+
+  // Page through /groups only as far as the chosen limit — a tenant with
+  // 20 000 groups should not be fully enumerated to answer "first 100". With a
+  // name filter the limit counts matches, not rows scanned.
+  async function guListGroups(limit, st, filter) {
+    const f = filter || { q: "", keep: null };
+    const base = "/groups?$select=id,displayName,membershipRule,isAssignableToRole,groupTypes";
+    const top = limit ? Math.min(Math.max(limit, 50), 999) : 999;
+    const keep = f.keep || (() => true);
+    const collect = async (start) => {
+      const out = [];
+      let url = start;
+      while (url) {
+        const j = await Graph.gget(url);
+        (j.value || []).forEach((g) => { if (keep(g.displayName || "")) out.push(g); });
+        st?.(`Listing groups… ${out.length}`);
+        if (limit && out.length >= limit) break;
+        url = j["@odata.nextLink"] || null;
+      }
+      return out;
+    };
+    let out;
+    if (f.q) {
+      try { out = await collect(`${base}&$top=${top}${f.q}`); }
+      catch (e) {
+        console.warn("Group Analyzer: server-side name filter rejected —", e.message);
+        st?.("Name filter not supported here — filtering locally…");
+        out = await collect(`${base}&$top=${top}`);
+      }
+    } else out = await collect(`${base}&$top=${top}`);
     return limit ? out.slice(0, limit) : out;
   }
 
@@ -4705,6 +4747,11 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!guAreas.size) { toast("Pick at least one <span>area</span> to look in"); return; }
     const btn = $("guRun"); const label = btn.textContent;
     btn.disabled = true; btn.textContent = "Analyzing…";
+    // Drilling out of a finished sweep: keep it so "Back to the sweep" can put
+    // it straight back on screen. A new sweep replaces whatever was parked.
+    if (guMode === "one" && guTotals) {
+      guStash = { totals: guTotals, groups: guGroups, res: guRes, meta: guMeta, query: guQuery, unusedOnly: guUnusedOnly };
+    } else if (guMode === "all") guStash = null;
     guRes = guMeta = guTotals = guGroups = null;
     $("guBody").innerHTML = ""; ["guMd", "guHtml", "guCsv"].forEach((id) => $(id).style.display = "none");
     const st = (m) => { $("guProg").textContent = m; };
@@ -4738,8 +4785,12 @@ max@contoso.com,"Global, DevOps"</pre>
 
   async function sweepGroupUse(st) {
     st("Listing groups…");
-    const groups = await guListGroups(+$("guLimit").value || 0, st);
-    if (!groups.length) { toast("No groups found in this tenant"); return; }
+    const filter = guNameFilter($("guMatchMode").value, $("guMatchText").value);
+    const groups = await guListGroups(+$("guLimit").value || 0, st, filter);
+    if (!groups.length) {
+      toast(filter.label ? `No groups where <span>${esc(filter.label)}</span>` : "No groups found in this tenant");
+      return;
+    }
     const ids = new Set(groups.map((g) => String(g.id).toLowerCase()));
     const via = new Map(groups.map((g) => [String(g.id).toLowerCase(), g.displayName || g.id]));
     const res = await GroupUse.analyze({
@@ -4749,7 +4800,8 @@ max@contoso.com,"Global, DevOps"</pre>
     });
     guRes = res; guGroups = groups;
     guTotals = GroupUse.sweepTotals(groups, res.rows);
-    guMeta = { principalName: `${groups.length} groups`, principalType: "sweep", principalId: "", via, parents: [], children: [], roles: [] };
+    guMeta = { principalName: `${groups.length} groups`, principalType: "sweep", principalId: "",
+      scopeNote: filter.label, via, parents: [], children: [], roles: [] };
     renderGroupUse();
   }
 
@@ -4786,7 +4838,7 @@ max@contoso.com,"Global, DevOps"</pre>
   }
   function guNotReadCard(res) {
     const inner = guNotReadBlock(res);
-    return inner ? `<div class="list-card wi-res"><h4 class="wi-h">Not read</h4>${inner}</div>` : "";
+    return inner ? `<div class="list-card wi-res" id="guNotRead"><h4 class="wi-h">Not read</h4>${inner}</div>` : "";
   }
 
   function renderGroupUse() {
@@ -4798,7 +4850,9 @@ max@contoso.com,"Global, DevOps"</pre>
     const per = GroupUse.byArea(res.rows);
     const stats = GroupUse.AREAS.map((a) => {
       const n = (per.get(a.id) || []).length;
-      return guAreas.has(a.id) ? `<span class="gu-stat${n ? "" : " zero"}">${a.icon} ${esc(a.label)} <b>${n}</b></span>` : "";
+      return guAreas.has(a.id)
+        ? `<span class="gu-stat${n ? " act" : " zero"}"${n ? ` data-gujump="guArea-${a.id}" title="Jump to ${esc(a.label)}"` : ""}>${a.icon} ${esc(a.label)} <b>${n}</b></span>`
+        : "";
     }).join("");
 
     const rel = [];
@@ -4811,7 +4865,7 @@ max@contoso.com,"Global, DevOps"</pre>
       const rows = per.get(a.id) || [];
       const groupsOf = GroupUse.grouped(rows);
       const empty = res.ran.filter((r) => r.area === a.id && !r.count);
-      return `<div class="list-card wi-res">
+      return `<div class="list-card wi-res" id="guArea-${a.id}">
         <h4 class="wi-h">${a.icon} ${esc(a.label)} <span class="mini muted">${rows.length} reference${rows.length === 1 ? "" : "s"}</span></h4>
         ${groupsOf.length ? groupsOf.map((g) => guSourceBlock(g, meta.via)).join("")
           : `<p class="mini muted" style="margin:0">No references found.</p>`}
@@ -4819,14 +4873,35 @@ max@contoso.com,"Global, DevOps"</pre>
     }).join("");
 
     $("guBody").innerHTML = `
-      <div class="list-card">
+      ${guBackBar()}
+      <div class="list-card wi-res">
         <h4 class="wi-h">${meta.principalType === "user" ? "👤" : "👥"} ${esc(meta.principalName)}
           <span class="mini muted">${esc(meta.principalType)} · ${esc(meta.principalId)}</span></h4>
-        <div class="gu-sum"><span class="gu-stat"><b>${res.rows.length}</b> reference${res.rows.length === 1 ? "" : "s"}</span>${stats}</div>
+        <div class="gu-sum"><span class="gu-stat"><b>${res.rows.length}</b> reference${res.rows.length === 1 ? "" : "s"}</span>${stats}${
+          (res.failed.length || (res.partial || []).length) ? `<span class="gu-stat act" data-gujump="guNotRead" title="Jump to what could not be read"><b>${res.failed.length + (res.partial || []).length}</b> not read</span>` : ""}</div>
         ${rel.length ? `<p class="mini" style="margin:10px 0 0">${rel.join(" &nbsp;·&nbsp; ")}</p>` : ""}
       </div>
       ${areaCards}
       ${guNotReadCard(res)}`;
+  }
+
+  // Shown only when a finished sweep is parked behind this single-group view.
+  function guBackBar() {
+    if (!guStash) return "";
+    const n = guStash.totals.length;
+    return `<div class="gu-back"><button class="btn" id="guBack">← Back to the sweep</button>
+      <span class="mini muted">${n} group${n === 1 ? "" : "s"}${guStash.meta && guStash.meta.scopeNote ? ` · ${esc(guStash.meta.scopeNote)}` : ""}, still loaded — going back costs nothing</span></div>`;
+  }
+  function restoreGuSweep() {
+    if (!guStash) return;
+    const s = guStash; guStash = null;
+    guTotals = s.totals; guGroups = s.groups; guRes = s.res; guMeta = s.meta;
+    guQuery = s.query; guUnusedOnly = s.unusedOnly;
+    guMode = "all";
+    [...$("guModeSeg").children].forEach((x) => x.classList.toggle("active", x.dataset.gumode === "all"));
+    $("guOneWrap").style.display = "none"; $("guAllWrap").style.display = "";
+    $("guRun").textContent = "🔗 Sweep tenant";
+    renderGroupUse();
   }
 
   function renderGuSweep() {
@@ -4837,13 +4912,14 @@ max@contoso.com,"Global, DevOps"</pre>
     const unused = guTotals.filter((t) => !t.total).length;
     $("guBody").innerHTML = `
       <div class="list-card wi-res">
-        <h4 class="wi-h">Tenant sweep <span class="mini muted">${guTotals.length} groups · ${res.rows.length} references</span></h4>
+        <h4 class="wi-h">Tenant sweep <span class="mini muted">${guTotals.length} groups${guMeta && guMeta.scopeNote ? ` where ${esc(guMeta.scopeNote)}` : ""} · ${res.rows.length} references</span></h4>
         <div class="gu-sum">
-          <span class="gu-stat"><b>${guTotals.length}</b> groups</span>
-          <span class="gu-stat${unused ? "" : " zero"}"><b>${unused}</b> with no usage found</span>
-          <span class="gu-stat"><b>${res.ran.length}</b> services read</span>
-          <span class="gu-stat${res.failed.length ? "" : " zero"}"><b>${res.failed.length}</b> not read</span>
+          <span class="gu-stat act${!guUnusedOnly && !guQuery ? " on" : ""}" data-gustat="all" title="Show every group in the sweep"><b>${guTotals.length}</b> groups</span>
+          <span class="gu-stat act${guUnusedOnly ? " on" : ""}${unused ? "" : " zero"}" data-gustat="unused" title="Show only the groups nothing references"><b>${unused}</b> with no usage found</span>
+          <span class="gu-stat act${guShowServices ? " on" : ""}" data-gustat="services" title="List every service that was read, and what it found"><b>${res.ran.length}</b> services read</span>
+          <span class="gu-stat act${res.failed.length ? "" : " zero"}" data-gustat="notread" title="Jump to what could not be read"><b>${res.failed.length}</b> not read</span>
         </div>
+        ${guShowServices ? guServicesPanel(res) : ""}
         <div class="gu-bar">
           <div class="search">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
@@ -4866,6 +4942,19 @@ max@contoso.com,"Global, DevOps"</pre>
       </div>
       ${guNotReadCard(res)}`;
     wireSearchClears();
+  }
+
+  // What "19 services read" actually means, on demand — which services, what
+  // each one found, and how long it took. The counter alone invites the
+  // assumption that everything was covered; this is the receipt.
+  function guServicesPanel(res) {
+    const rows = [...res.ran]
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+      .map((r) => `<tr><td>${esc(r.label)}</td><td class="mini">${esc(GroupUse.AREAS.find((a) => a.id === r.area)?.label || r.area)}</td>
+        <td class="gu-num${r.count ? "" : " gu-zero"}">${r.count}</td><td class="gu-num mini">${r.ms} ms</td></tr>`).join("");
+    return `<div class="gu-tw" style="margin-top:10px"><table class="plist">
+      <thead><tr><th>Service read</th><th>Area</th><th class="gu-num">References</th><th class="gu-num">Time</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
   }
 
   // ---- per-group popup -----------------------------------------------------
@@ -4916,8 +5005,7 @@ max@contoso.com,"Global, DevOps"</pre>
     $("guOneWrap").style.display = ""; $("guAllWrap").style.display = "none";
     $("guRun").textContent = "🔗 Analyze";
     $("guTerm").value = t.id;
-    guTotals = null; guGroups = null;
-    runGroupUse();
+    runGroupUse();   // parks the sweep on the way out — see the stash in runGroupUse
   });
 
   // Exports from the popup reuse the shared builders — one group, direct
@@ -4948,11 +5036,34 @@ max@contoso.com,"Global, DevOps"</pre>
   });
 
   $("guBody").addEventListener("click", (e) => {
+    if (e.target.closest("#guBack")) { restoreGuSweep(); return; }
+
+    // summary chips are filters and jumps, not decoration
+    const jump = e.target.closest("[data-gujump]");
+    if (jump) {
+      const el = $(jump.dataset.gujump);
+      if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("gu-flash"); setTimeout(() => el.classList.remove("gu-flash"), 1200); }
+      return;
+    }
+    const stat = e.target.closest("[data-gustat]");
+    if (stat) {
+      const k = stat.dataset.gustat;
+      if (k === "all") { guUnusedOnly = false; guQuery = ""; renderGuSweep(); }
+      else if (k === "unused") { guUnusedOnly = !guUnusedOnly; renderGuSweep(); }
+      else if (k === "services") { guShowServices = !guShowServices; renderGuSweep(); }
+      else if (k === "notread") {
+        const el = $("guNotRead");
+        if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("gu-flash"); setTimeout(() => el.classList.remove("gu-flash"), 1200); }
+        else toast("Everything in scope was read — nothing to show");
+      }
+      return;
+    }
     const pl = e.target.closest(".pol-link");
     if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const row = e.target.closest("[data-gugroup]");
     if (row) openGuGroupModal(row.dataset.gugroup);
   });
+  $("guMatchText").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runGroupUse(); } });
   $("guBody").addEventListener("input", (e) => {
     if (e.target.id === "guSweepSearch") { guQuery = e.target.value; renderGuSweep(); $("guSweepSearch").focus(); }
   });

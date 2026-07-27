@@ -642,6 +642,9 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .wi-f input,.wi-f select{height:38px;padding:0 10px;border:1px solid var(--border);border-radius:8px;
   background:var(--surface);color:var(--ink);font:inherit;font-size:13px;width:100%}
 .wi-f input:focus,.wi-f select:focus{outline:none;border-color:var(--green)}
+/* …but not the tick boxes: the rule above is meant for text fields and selects,
+   and it was inflating a checkbox into a 38px bordered square. */
+.wi-f input[type=checkbox],.wi-f input[type=radio]{width:16px;height:16px;padding:0;border:0;border-radius:0}
 .wi-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
 .wi-res{margin-bottom:12px;padding:14px 16px}
 .wi-verdict{font-size:15px;padding:8px 12px;border-radius:var(--radius)}
@@ -984,6 +987,13 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .gu-stat{border:1px solid var(--border);border-radius:999px;padding:4px 12px;font-size:12.5px;background:var(--soft2)}
 .gu-stat b{font-size:14px}
 .gu-stat.zero{color:var(--muted)}
+/* a chip that does something says so */
+.gu-stat.act{cursor:pointer;user-select:none}
+.gu-stat.act:hover{border-color:var(--accent2);background:var(--soft)}
+.gu-stat.act.on{border-color:var(--accent2);background:var(--ok-bg);color:var(--on)}
+/* brief highlight when a chip scrolls you somewhere, so you land oriented */
+@keyframes gu-flash{0%{box-shadow:0 0 0 0 var(--accent2)}30%{box-shadow:0 0 0 3px var(--accent2)}100%{box-shadow:0 0 0 0 transparent}}
+.gu-flash{animation:gu-flash 1.2s ease-out}
 .gu-src{margin-top:14px}
 .gu-src:first-child{margin-top:0}
 .gu-src h5{margin:0 0 6px;font-size:13.5px;font-weight:600;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -1026,3 +1036,6 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
   flex-wrap:wrap;align-items:center;background:var(--soft2);border-radius:0 0 var(--radius) var(--radius)}
 .gu-m-foot .spacer{margin-left:auto}
 .gu-fail .why{display:block;color:var(--muted);margin-top:2px;font-size:12px}
+
+/* "back to the sweep" — only rendered when a finished sweep is parked */
+.gu-back{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
