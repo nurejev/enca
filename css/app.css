@@ -1002,3 +1002,27 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .gu-row-link:hover td{background:var(--soft)}
 .gu-num{text-align:right;font-variant-numeric:tabular-nums}
 .gu-zero{color:var(--muted)}
+
+/* A card-local toolbar. The shared .toolbar is position:sticky with a negative
+   margin — correct at the top of a screen, wrong inside a .list-card, where
+   overflow:hidden kills the stickiness and leaves the gap behind. */
+.gu-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 10px}
+.gu-bar .search{flex:1 1 240px;min-width:180px}
+.gu-bar .search input{padding:9px 32px 9px 36px}
+.gu-bar .search svg{top:50%;transform:translateY(-50%)}
+.gu-bar .chk{display:inline-flex;align-items:center;gap:8px;margin:0;white-space:nowrap}
+/* the table scrolls, not the card */
+.gu-tw{overflow-x:auto;border:1px solid var(--border);border-radius:12px}
+.gu-tw table.plist{min-width:620px}
+.gu-tw table.plist tr:last-child td{border-bottom:0}
+
+/* per-group popup: everything the sweep already knows, without re-scanning */
+.modal.gu-modal{max-width:1060px;width:100%;padding:0;max-height:88vh;display:flex;flex-direction:column}
+.gu-m-head{padding:20px 24px 14px;border-bottom:1px solid var(--border)}
+.gu-m-head h3{margin:0 0 4px}
+.gu-m-body{padding:14px 24px 20px;overflow:auto;flex:1 1 auto}
+.gu-m-body .gu-src:first-child{margin-top:0}
+.gu-m-foot{padding:12px 24px;border-top:1px solid var(--border);display:flex;gap:10px;
+  flex-wrap:wrap;align-items:center;background:var(--soft2);border-radius:0 0 var(--radius) var(--radius)}
+.gu-m-foot .spacer{margin-left:auto}
+.gu-fail .why{display:block;color:var(--muted);margin-top:2px;font-size:12px}

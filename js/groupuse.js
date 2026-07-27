@@ -30,7 +30,11 @@ const GroupUse = (() => {
   // demand, so an Entra-only run never prompts for Intune.
   const AREA_SCOPES = {
     entra: ["RoleManagement.Read.Directory", "EntitlementManagement.Read.All", "Application.Read.All", "AuditLog.Read.All"],
-    intune: ["DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All"],
+    // DeviceManagementScripts.Read.All is its own scope: PowerShell scripts,
+    // macOS shell scripts and remediations are NOT covered by
+    // DeviceManagementConfiguration.Read.All, which is why they came back 403
+    // while compliance and configuration profiles read fine.
+    intune: ["DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All", "DeviceManagementScripts.Read.All"],
     m365: [],
     azure: [],   // Azure is a different resource entirely — see Graph.ARM_SCOPES
   };
@@ -118,6 +122,19 @@ const GroupUse = (() => {
     return out;
   }
 
+  // Graph renames relationships between versions and rejects a query it does
+  // not recognise with a flat 400 that names nothing. Rather than pin one
+  // spelling and break when it moves, try the candidates in order and take the
+  // first that answers — reporting the last error only if all of them fail.
+  async function firstThatWorks(urls, label) {
+    const errs = [];
+    for (const url of urls) {
+      try { return { items: await Graph.ggetAll(url), url }; }
+      catch (e) { errs.push(`${url.split("?")[0].split("/").pop()}: ${shortErr(e)}`); }
+    }
+    throw new Error(`${label} — none of ${urls.length} known shapes worked · ${errs.join(" · ")}`);
+  }
+
   // Run several collection endpoints as one logical source. Each entry is
   // [url, nameField, subLabel]; a 404/403 on one family (a workload the tenant
   // does not have) does not fail the others.
@@ -189,7 +206,8 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "roles", area: "entra", label: "Entra ID directory roles",
+      id: "roles",
+      roleHint: "A role that can read role assignments — Global Reader, Security Reader or Privileged Role Administrator.", area: "entra", label: "Entra ID directory roles",
       scopes: ["RoleManagement.Read.Directory"],
       doc: "https://learn.microsoft.com/entra/identity/role-based-access-control/groups-concept",
       hint: "Active and PIM-eligible directory role assignments. A role-assignable group turns group membership into privilege.",
@@ -316,30 +334,46 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "accessPackages", area: "entra", label: "Access packages (entitlement management)",
+      id: "accessPackages",
+      roleHint: "An entitlement-management role (Catalog reader is the least privileged) or Global Reader / Security Reader / Identity Governance Administrator.", area: "entra", label: "Access packages (entitlement management)",
       scopes: ["EntitlementManagement.Read.All"],
       doc: "https://learn.microsoft.com/entra/id-governance/entitlement-management-overview",
       hint: "Where the group appears in entitlement management — as an allowed requestor, an approver, or a resource an access package grants.",
+      // Entitlement management is the one place where hard-coding the schema
+      // is a losing game: the relationship names moved between beta and v1.0
+      // (accessPackageAssignmentPolicies → assignmentPolicies,
+      // accessPackageResourceRoleScopes → resourceRoleScopes) and nested
+      // $expand/$select inside an $expand is rejected outright with a bare 400.
+      // So: single-level expands only, a candidate ladder per call, and a deep
+      // scan of whatever comes back rather than a fixed property path.
       async run(ctx) {
         const out = [];
         const notes = [];
-        const scan = async (url, label, nameOf) => {
+        const scan = async (urls, label, nameOf) => {
           try {
-            const items = await safeAll(url);
+            const { items } = await firstThatWorks(urls, label);
             for (const it of items) {
               for (const h of deepFind(it, ctx.ids)) {
                 out.push({ pid: h.pid, name: nameOf(it), id: it.id, how: "referenced", detail: prettyPath(h.path), sub: label });
               }
             }
-          } catch (e) { notes.push(`${label}: ${shortErr(e)}`); }
+          } catch (e) { notes.push(shortErr(e)); }
         };
         ctx.status?.("assignment policies");
-        await scan("/identityGovernance/entitlementManagement/assignmentPolicies?$expand=accessPackage($select=id,displayName)",
-          "Assignment policy", (p) => `${(p.accessPackage && p.accessPackage.displayName) || "?"} — ${p.displayName || p.id}`);
+        await scan([
+          "/identityGovernance/entitlementManagement/assignmentPolicies?$expand=accessPackage",
+          "/identityGovernance/entitlementManagement/accessPackageAssignmentPolicies?$expand=accessPackage",
+          "/identityGovernance/entitlementManagement/assignmentPolicies",
+        ], "Assignment policy", (p) => `${(p.accessPackage && p.accessPackage.displayName) || "Access package"} — ${p.displayName || p.id}`);
+
         ctx.status?.("access packages");
-        await scan("/identityGovernance/entitlementManagement/accessPackages?$expand=resourceRoleScopes($expand=scope,role)",
-          "Access package", (p) => p.displayName || p.id);
-        if (notes.length === 2) throw new Error(notes.join("; "));
+        await scan([
+          "/identityGovernance/entitlementManagement/accessPackages?$expand=accessPackageResourceRoleScopes",
+          "/identityGovernance/entitlementManagement/accessPackages?$expand=resourceRoleScopes",
+          "/identityGovernance/entitlementManagement/accessPackages",
+        ], "Access package", (p) => p.displayName || p.id);
+
+        if (notes.length === 2) throw new Error(notes.join(" · "));
         notes.forEach((n) => ctx.note?.(n));
         return out;
       },
@@ -360,7 +394,8 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "mfaReg", area: "entra", label: "Authentication method registration",
+      id: "mfaReg",
+      roleHint: "Reports Reader, Security Reader or Global Reader.", area: "entra", label: "Authentication method registration",
       scopes: ["AuditLog.Read.All"], userOnly: true,
       doc: "https://learn.microsoft.com/entra/identity/authentication/howto-authentication-methods-activity",
       hint: "What the user has actually registered — the difference between a policy requiring MFA and the user being able to satisfy it.",
@@ -381,7 +416,8 @@ const GroupUse = (() => {
 
     // --------------------------------------------------------------- Intune --
     {
-      id: "intuneEnrollLimit", area: "intune", label: "Enrolment device limit restrictions",
+      id: "intuneEnrollLimit",
+      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "Enrolment device limit restrictions",
       scopes: ["DeviceManagementServiceConfig.Read.All"],
       doc: "https://learn.microsoft.com/intune/intune-service/enrollment/enrollment-restrictions-set",
       hint: "How many devices a member may enrol.",
@@ -392,7 +428,8 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "intuneEnrollPlatform", area: "intune", label: "Enrolment platform restrictions",
+      id: "intuneEnrollPlatform",
+      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "Enrolment platform restrictions",
       scopes: ["DeviceManagementServiceConfig.Read.All"],
       doc: "https://learn.microsoft.com/intune/intune-service/enrollment/enrollment-restrictions-set",
       hint: "Which device platforms a member may enrol, and whether personal devices are allowed.",
@@ -404,7 +441,8 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "intuneCompliance", area: "intune", label: "Compliance policies",
+      id: "intuneCompliance",
+      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "Compliance policies",
       scopes: ["DeviceManagementConfiguration.Read.All"],
       doc: "https://learn.microsoft.com/intune/intune-service/protect/device-compliance-get-started",
       hint: "Compliance policies decide the 'device is compliant' grant control — this is where CA and Intune meet.",
@@ -417,7 +455,8 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "intuneConfig", area: "intune", label: "Configuration profiles",
+      id: "intuneConfig",
+      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "Configuration profiles",
       scopes: ["DeviceManagementConfiguration.Read.All"],
       doc: "https://learn.microsoft.com/intune/intune-service/configuration/device-profiles",
       hint: "Device configuration, settings-catalog and ADMX profiles — the largest single source of surprise.",
@@ -431,8 +470,10 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "intuneScripts", area: "intune", label: "Scripts & remediations",
-      scopes: ["DeviceManagementConfiguration.Read.All"],
+      id: "intuneScripts",
+      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "Scripts & remediations",
+      // Scripts have their own permission — see AREA_SCOPES.
+      scopes: ["DeviceManagementScripts.Read.All"],
       doc: "https://learn.microsoft.com/intune/intune-service/apps/intune-management-extension",
       hint: "Code that runs on the device. Adding a member here runs a script on their machine.",
       async run(ctx) {
@@ -445,7 +486,8 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "intuneAppProtection", area: "intune", label: "App protection policies",
+      id: "intuneAppProtection",
+      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "App protection policies",
       scopes: ["DeviceManagementApps.Read.All"],
       doc: "https://learn.microsoft.com/intune/intune-service/apps/app-protection-policy",
       hint: "MAM policies — they apply without enrolment, so their reach is easy to underestimate.",
@@ -460,7 +502,8 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "intuneAppConfig", area: "intune", label: "App configuration policies",
+      id: "intuneAppConfig",
+      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "App configuration policies",
       scopes: ["DeviceManagementApps.Read.All"],
       doc: "https://learn.microsoft.com/intune/intune-service/apps/app-configuration-policies-overview",
       hint: "Settings pushed into apps — for managed devices and for managed apps.",
@@ -473,7 +516,8 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "intuneApps", area: "intune", label: "Application assignments",
+      id: "intuneApps",
+      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "Application assignments",
       scopes: ["DeviceManagementApps.Read.All"],
       doc: "https://learn.microsoft.com/intune/intune-service/apps/apps-deploy",
       hint: "Required, available and uninstall assignments. 'Uninstall' is the one worth reading twice.",
@@ -483,7 +527,8 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "intuneAutopilot", area: "intune", label: "Autopilot deployment profiles",
+      id: "intuneAutopilot",
+      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "Autopilot deployment profiles",
       scopes: ["DeviceManagementServiceConfig.Read.All"],
       doc: "https://learn.microsoft.com/autopilot/profiles",
       hint: "Which out-of-box experience a device gets. Assigned to device groups, so watch for dynamic rules.",
@@ -493,7 +538,8 @@ const GroupUse = (() => {
       },
     },
     {
-      id: "intuneUpdates", area: "intune", label: "Windows update profiles",
+      id: "intuneUpdates",
+      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "Windows update profiles",
       scopes: ["DeviceManagementConfiguration.Read.All"],
       doc: "https://learn.microsoft.com/intune/intune-service/protect/windows-update-for-business-configure",
       hint: "Feature, quality and driver update profiles — update rings themselves live under configuration profiles.",
@@ -531,7 +577,8 @@ const GroupUse = (() => {
 
     // ---------------------------------------------------------------- Azure --
     {
-      id: "azureRbac", area: "azure", label: "Azure role assignments",
+      id: "azureRbac",
+      roleHint: "Reader (or any role granting Microsoft.Authorization/roleAssignments/read) on the subscriptions or management groups you want to see.", area: "azure", label: "Azure role assignments",
       arm: true,
       doc: "https://learn.microsoft.com/azure/role-based-access-control/overview",
       hint: "Azure RBAC across every subscription you can read, plus management-group scopes. Needs a separate Azure sign-in.",
@@ -668,6 +715,24 @@ const GroupUse = (() => {
     return { via, ids: new Set(via.keys()), groupIds, parents, children, roles };
   }
 
+  // A bare "403" or "400" tells nobody what to do next. Say which permission
+  // the call needs and which role the signed-in user needs on top of it —
+  // those are different things, and a scope alone is often not enough.
+  function whyFailed(src, e) {
+    const m = String((e && e.message) || e);
+    const scopes = (src.scopes || AREA_SCOPES[src.area] || []);
+    if (/\b(401|403)\b|Authorization_RequestDenied|Insufficient privileges|Forbidden/i.test(m)) {
+      return [
+        scopes.length ? `Needs ${scopes.join(" or ")}.` : "",
+        src.roleHint ? `Also needs: ${src.roleHint}` : "",
+      ].filter(Boolean).join(" ");
+    }
+    if (/\b400\b|BadRequest/i.test(m)) return "Graph rejected the query — usually a schema that moved. Worth reporting.";
+    if (/\b404\b/i.test(m)) return "Not present in this tenant — normal when the workload is not licensed or used.";
+    if (/\b429\b/i.test(m)) return "Throttled. Try again, or narrow the sweep.";
+    return "";
+  }
+
   // ------------------------------------------------------------------- run --
   // sources: array of source ids to run. Everything else comes from ctx.
   // Returns { rows, ran:[{id,label,count,ms}], failed:[{id,label,error}], skipped:[] }
@@ -696,7 +761,7 @@ const GroupUse = (() => {
         ran.push({ id, label: src.label, area: src.area, count: hits.length, ms: Date.now() - t0 });
         if (notes.length) partial.push({ id, label: src.label, area: src.area, notes });
       } catch (e) {
-        failed.push({ id, label: src.label, area: src.area, error: shortErr(e) });
+        failed.push({ id, label: src.label, area: src.area, error: shortErr(e), why: whyFailed(src, e) });
       }
     }
     return { rows, ran, failed, skipped, partial };
@@ -762,7 +827,7 @@ const GroupUse = (() => {
 
     if (res.failed.length) {
       L.push("## Not read", "");
-      res.failed.forEach((f) => L.push(`- **${mdCell(f.label)}** — ${mdCell(f.error)}`));
+      res.failed.forEach((f) => L.push(`- **${mdCell(f.label)}** — ${mdCell(f.error)}${f.why ? ` *${mdCell(f.why)}*` : ""}`));
       L.push("");
     }
     (res.partial || []).forEach((p) => L.push(`- **${mdCell(p.label)}** — read, but partly: ${mdCell(p.notes.join("; "))}`));
@@ -774,6 +839,122 @@ const GroupUse = (() => {
     if (clean.length) L.push(`*No usage found in: ${clean.map((s) => mdCell(s.label)).join(", ")}.*`, "");
     return L.join("\n");
   }
+
+  // ---- standalone HTML report ----------------------------------------------
+  // Self-contained, neutral (no product branding beyond the credit line), and
+  // openable by someone who has no access to the tenant — the artefact you
+  // attach to a change request when you argue that a group must not be touched.
+  const REPORT_CSS = `
+*{box-sizing:border-box}body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:#f4f5fa;color:#1f2330}
+header{padding:18px 26px;background:#1f2933;color:#fff}h1{margin:0;font-size:19px}
+.meta{color:#c8d1d9;font-size:12px;margin-top:4px}
+.cards{display:flex;gap:12px;padding:14px 26px;background:#fff;border-bottom:1px solid #e6e6ee;flex-wrap:wrap}
+.card{background:#f7f8fc;border:1px solid #e6e6ee;border-radius:10px;padding:10px 16px;min-width:120px}
+.card .n{font-size:22px;font-weight:700}.card .l{font-size:11px;color:#6b7280;text-transform:uppercase}
+.card.zero .n{color:#9aa0ab}
+main{padding:18px 26px;max-width:1400px}
+section.area{background:#fff;border:1px solid #e6e6ee;border-radius:10px;margin-bottom:16px;overflow:hidden}
+section.area>h2{margin:0;padding:12px 18px;font-size:15px;background:#f1f2f8;border-bottom:1px solid #e6e6ee}
+section.area>h2 span{font-weight:400;color:#6b7280;font-size:12px}
+.src{padding:14px 18px;border-bottom:1px solid #f0f0f5}.src:last-child{border-bottom:0}
+.src h3{margin:0 0 2px;font-size:13.5px}
+.src .hint{margin:0 0 8px;font-size:12px;color:#6b7280}
+table{border-collapse:collapse;width:100%;font-size:13px}
+thead th{background:#f7f8fc;padding:8px 12px;text-align:left;border-bottom:1px solid #e6e6ee;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b7280}
+td{padding:8px 12px;border-bottom:1px solid #f4f4f8;vertical-align:top}
+tr:last-child td{border-bottom:0}
+.num{text-align:right;font-variant-numeric:tabular-nums}.zero{color:#c2c7d0}
+.how{display:inline-block;padding:1px 9px;border-radius:11px;font-size:11px;font-weight:700;background:#f0f1f6;color:#6b7280;white-space:nowrap}
+.how.inc{background:#e6f5ec;color:#0a7d39}.how.exc{background:#fde8e6;color:#c0392b}.how.priv{background:#fff3cd;color:#8a5a00}
+.via{color:#6b7280;font-size:12px}.via.parent{color:#8a5a00}
+.mini{font-size:12px;color:#6b7280}
+.fail{border:1px solid #e6e6ee;border-left:3px solid #c0392b;border-radius:8px;padding:9px 13px;margin:8px 0;font-size:12.5px;background:#fff}
+.fail.skip{border-left-color:#9aa0ab}.fail .why{color:#6b7280;display:block;margin-top:2px}
+footer{padding:16px 26px;color:#6b7280;font-size:12px}`;
+
+  const HOW_CLASS = (h) => /exclud/i.test(h) ? "exc"
+    : /assigned|included|member of|referenced|team|Microsoft 365|^yes$/i.test(h) ? "inc"
+    : /eligible|reviewer/i.test(h) ? "priv" : "";
+
+  function failHtml(res) {
+    const partial = res.partial || [];
+    if (!res.failed.length && !res.skipped.length && !partial.length) return "";
+    return `<section class="area"><h2>Not read</h2><div class="src">
+      <p class="hint">“Nothing found” only means “nothing found in what was actually read”. Check this list before concluding a group is unused.</p>
+      ${res.failed.map((f) => `<div class="fail"><b>${esc(f.label)}</b> — ${esc(f.error)}${f.why ? `<span class="why">${esc(f.why)}</span>` : ""}</div>`).join("")}
+      ${partial.map((p) => `<div class="fail skip"><b>${esc(p.label)}</b> — read, but partly: ${esc(p.notes.join("; "))}</div>`).join("")}
+      ${res.skipped.map((s) => `<div class="fail skip"><b>${esc(s.label)}</b> — skipped (${esc(s.why)})</div>`).join("")}
+    </div></section>`;
+  }
+
+  function html(res, meta) {
+    const per = byArea(res.rows);
+    const cards = AREAS.map((a) => {
+      const n = (per.get(a.id) || []).length;
+      return `<div class="card${n ? "" : " zero"}"><div class="n">${n}</div><div class="l">${esc(a.label)}</div></div>`;
+    }).join("");
+    const areas = AREAS.map((a) => {
+      const gs = grouped(per.get(a.id) || []);
+      if (!gs.length) return "";
+      return `<section class="area"><h2>${a.icon} ${esc(a.label)} <span>${(per.get(a.id) || []).length} references</span></h2>
+        ${gs.map((g) => `<div class="src"><h3>${esc(g.source.label)} <span class="mini">${g.rows.length}</span></h3>
+          <p class="hint">${esc(g.source.hint || "")}</p>
+          <table><thead><tr><th>Object</th><th>How</th><th>Detail</th><th>Matched via</th></tr></thead><tbody>
+          ${g.rows.map((r) => {
+            const v = meta.via.get(r.pid) || r.pid;
+            return `<tr><td>${esc(r.name)}${r.sub ? ` <span class="mini">${esc(r.sub)}</span>` : ""}</td>
+              <td><span class="how ${HOW_CLASS(r.how)}">${esc(r.how)}</span></td>
+              <td class="mini">${esc(r.detail || "")}</td>
+              <td class="via${/parent group|directory role/.test(v) ? " parent" : ""}">${esc(v)}</td></tr>`;
+          }).join("")}
+          </tbody></table></div>`).join("")}
+      </section>`;
+    }).join("");
+    const rel = [];
+    if (meta.parents?.length) rel.push(`Member of ${meta.parents.map((p) => esc(p.name)).join(", ")}`);
+    if (meta.children?.length) rel.push(`Contains ${meta.children.map((p) => esc(p.name)).join(", ")}`);
+    if (meta.roles?.length) rel.push(`Roles: ${meta.roles.map((p) => esc(p.name)).join(", ")}`);
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Group Analyzer — ${esc(meta.principalName)}</title><style>${REPORT_CSS}</style></head><body>
+<header><h1>Group usage — ${esc(meta.principalName)}</h1>
+  <div class="meta">${esc(meta.principalType)} · ${esc(meta.principalId)}${meta.tenant ? ` · ${esc(meta.tenant)}` : ""} · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</div></header>
+<div class="cards"><div class="card"><div class="n">${res.rows.length}</div><div class="l">References</div></div>${cards}</div>
+<main>${rel.length ? `<p class="mini">${rel.join(" · ")}</p>` : ""}
+${areas || '<section class="area"><div class="src"><p class="hint">No references found in the services that were read.</p></div></section>'}
+${failHtml(res)}</main>
+<footer>${esc(Brand.generatedBy("Generated"))}</footer></body></html>`;
+  }
+
+  function sweepHtml(totals, res, meta) {
+    const unused = totals.filter((t) => !t.total);
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Group Analyzer — tenant sweep</title><style>${REPORT_CSS}</style></head><body>
+<header><h1>Group usage — tenant sweep</h1>
+  <div class="meta">${totals.length} groups · ${res.rows.length} references${meta && meta.tenant ? ` · ${esc(meta.tenant)}` : ""} · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</div></header>
+<div class="cards">
+  <div class="card"><div class="n">${totals.length}</div><div class="l">Groups</div></div>
+  <div class="card${unused.length ? "" : " zero"}"><div class="n">${unused.length}</div><div class="l">No usage found</div></div>
+  <div class="card"><div class="n">${res.ran.length}</div><div class="l">Services read</div></div>
+  <div class="card${res.failed.length ? "" : " zero"}"><div class="n">${res.failed.length}</div><div class="l">Not read</div></div>
+</div>
+<main><section class="area"><h2>Groups by reference count</h2><div class="src">
+<table><thead><tr><th>Group</th>${AREAS.map((a) => `<th class="num">${esc(a.label)}</th>`).join("")}<th class="num">Total</th></tr></thead><tbody>
+${totals.map((t) => `<tr><td>${esc(t.name)}${t.dynamic ? ' <span class="mini">dynamic</span>' : ""}${t.roleAssignable ? ' <span class="mini">role-assignable</span>' : ""}<br><span class="mini">${esc(t.id)}</span></td>
+  ${AREAS.map((a) => `<td class="num${t[a.id] ? "" : " zero"}">${t[a.id] || 0}</td>`).join("")}
+  <td class="num"><b>${t.total}</b></td></tr>`).join("")}
+</tbody></table></div></section>
+${unused.length ? `<section class="area"><h2>Groups with no usage found <span>${unused.length}</span></h2><div class="src">
+  <p class="hint">Nothing in the services read below references these groups. Read “Not read” before deleting anything.</p>
+  <table><thead><tr><th>Group</th><th>Object ID</th></tr></thead><tbody>
+  ${unused.map((t) => `<tr><td>${esc(t.name)}</td><td class="mini">${esc(t.id)}</td></tr>`).join("")}</tbody></table></div></section>` : ""}
+${failHtml(res)}</main>
+<footer>${esc(Brand.generatedBy("Generated"))} · Services read: ${res.ran.map((r) => esc(r.label)).join(", ")}.</footer></body></html>`;
+  }
+
+  // Everything the sweep already knows about one group — no new Graph calls.
+  const rowsFor = (rows, pid) => rows.filter((r) => r.pid === lc(pid));
 
   function csv(res, meta) {
     const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -807,7 +988,7 @@ const GroupUse = (() => {
     }
     if (res.failed.length) {
       L.push("", "## Not read", "");
-      res.failed.forEach((f) => L.push(`- **${mdCell(f.label)}** — ${mdCell(f.error)}`));
+      res.failed.forEach((f) => L.push(`- **${mdCell(f.label)}** — ${mdCell(f.error)}${f.why ? ` *${mdCell(f.why)}*` : ""}`));
     }
     L.push("", `*Services read: ${res.ran.map((r) => mdCell(r.label)).join(", ")}.*`);
     return L.join("\n");
@@ -816,8 +997,8 @@ const GroupUse = (() => {
   return {
     AREAS, AREA_SCOPES, SOURCES, sourceById,
     resolvePrincipal, buildScope, analyze,
-    grouped, byArea, sweepTotals,
-    markdown, csv, sweepCsv, sweepMarkdown,
-    esc, isGuid, shortErr,
+    grouped, byArea, sweepTotals, rowsFor,
+    markdown, csv, html, sweepCsv, sweepMarkdown, sweepHtml,
+    esc, isGuid, shortErr, HOW_CLASS,
   };
 })();

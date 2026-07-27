@@ -272,9 +272,12 @@ const Graph = (() => {
     return out;
   }
 
+  // Reads used to throw a bare "Graph request failed (403)", which tells the
+  // person nothing they can act on — Graph's own body says whether it is a
+  // missing scope, a missing directory role or a malformed query. Surface it.
   async function gget(url, scopes) {
     const r = await graphFetch(url, { headers: { ConsistencyLevel: "eventual" } }, scopes);
-    if (!r.ok) throw new Error(`Graph request failed (${r.status})`);
+    if (!r.ok) throw await graphError(r);
     return r.json();
   }
 
