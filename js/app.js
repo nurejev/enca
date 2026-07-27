@@ -4581,7 +4581,7 @@ max@contoso.com,"Global, DevOps"</pre>
   // ---------- Group Analyzer (BETA) ----------
   // "Where is this group actually used?" The source registry, the matching and
   // the exports live in js/groupuse.js; this is screen, consent and rendering.
-  let guMode = "one", guAreas = new Set(["entra", "m365"]);
+  let guMode = "all", guAreas = new Set(["entra", "m365"]);
   let guRes = null, guMeta = null, guTotals = null, guGroups = null;
   let guQuery = "", guUnusedOnly = false, guSeedList = "", guShowServices = false;
   // A finished sweep is expensive. Drilling into one group must not throw it

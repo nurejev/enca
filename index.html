@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=192">
+<link rel="stylesheet" href="css/app.css?v=193">
 </head>
 <body>
 
@@ -98,11 +98,11 @@
         <p>Check the baseline against known CA bypasses and the Swiss-cheese model — MFA coverage, FOCI token sharing, break-glass coverage, known bypass apps, persona × control matrix.</p>
       </div>
       <div class="tool" id="toolValidator">
-        <div class="tool-ic">⚡</div><h3>CA validator <span class="tag new">NEW</span></h3>
+        <div class="tool-ic">⚡</div><h3>CA validator</h3>
         <p>Per policy, the sign-in simulations it implies — user, app, client, location, platform, risk — and the control each one should (or should not) enforce. Ported from Jasper Baes' CA Validator.</p>
       </div>
       <div class="tool" id="toolWhatIf">
-        <div class="tool-ic">🧪</div><h3>What-If <span class="tag new">NEW</span></h3>
+        <div class="tool-ic">🧪</div><h3>What-If</h3>
         <p>Simulate a sign-in — user, app, platform, client, location, device state and risk — and see which policies would apply, with the controls required, and which would not and why.</p>
       </div>
       <div class="tool" id="toolCompare">
@@ -118,7 +118,7 @@
         <p>Every exclusion across all policies — users, groups (expanded to members), roles, guest types, apps and locations — in an exclusion × policy matrix.</p>
       </div>
       <div class="tool" id="toolAudit">
-        <div class="tool-ic">🕓</div><h3>Change audit <span class="tag new">NEW</span></h3>
+        <div class="tool-ic">🕓</div><h3>Change audit</h3>
         <p>Who changed which Conditional Access resource, when, and exactly what changed — a field-level diff of every policy, named location and authentication strength edit from the Entra audit log.</p>
       </div>
       <div class="tool" id="toolSignins">
@@ -594,17 +594,17 @@
     <div class="list-card readme" id="guHead" style="margin-top:0"></div>
     <div class="list-card wi-form">
       <div class="seg" id="guModeSeg" style="margin-bottom:12px">
-        <button class="active" data-gumode="one">One group or user</button>
-        <button data-gumode="all">Sweep every group</button>
+        <button data-gumode="one">One group or user</button>
+        <button class="active" data-gumode="all">Sweep every group</button>
       </div>
 
-      <div class="wi-grid" id="guOneWrap">
+      <div class="wi-grid" id="guOneWrap" style="display:none">
         <label class="wi-f"><span>Group or user <b class="req">*</b></span>
           <input id="guTerm" list="guTermList" placeholder="Group name, UPN or object ID — Enter to analyze…" autocomplete="off" spellcheck="false">
           <datalist id="guTermList"></datalist></label>
       </div>
 
-      <div id="guAllWrap" style="display:none">
+      <div id="guAllWrap">
         <div class="wi-grid">
           <label class="wi-f"><span>Groups in scope</span>
             <select id="guLimit">
@@ -636,7 +636,7 @@
       </div>
 
       <div class="tb-actions" style="margin-top:14px">
-        <button class="btn primary" id="guRun">🔗 Analyze</button>
+        <button class="btn primary" id="guRun">🔗 Sweep tenant</button>
         <button class="btn" id="guReset">Reset</button>
         <button class="btn" id="guMd" style="display:none">Export MD</button>
         <button class="btn" id="guHtml" style="display:none" title="Standalone HTML report — opens anywhere, no access to the tenant needed">⭳ Export HTML</button>
@@ -865,7 +865,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>⚡ CA validator <span class="tag new">NEW</span></h4>
+      <h4>⚡ CA validator</h4>
       <p>For each enabled policy, the sign-in <b>simulations</b> it implies — the combinations of user, application, client app, location, device platform and risk it targets — and, per grant control, the control each one should enforce.</p>
       <ul>
         <li><b>Expected control</b> — every simulation shows the control the policy would require (MFA, Block, Compliant device, …). When the principal, app, location or platform is on the <b>excluded</b> side, the expectation inverts to <b>“no &lt;control&gt;”</b> — proving the policy does not fire there.</li>
@@ -878,7 +878,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>🧪 What-If <span class="tag new">NEW</span></h4>
+      <h4>🧪 What-If</h4>
       <p>Simulate one sign-in and see exactly which policies would hit it — the same idea as the Entra portal's What If tool.</p>
       <ul>
         <li><b>Required conditions</b> — user, target resource, device platform and client app. Everything else (IP, country, device state, sign-in/user/insider risk, authentication flow) is optional.</li>
@@ -925,7 +925,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>🕓 Change audit <span class="tag new">NEW</span></h4>
+      <h4>🕓 Change audit</h4>
       <p>Who changed which Conditional Access resource, when, and exactly what changed — read from the Entra directory audit log.</p>
       <ul>
         <li><b>Covers</b> policies, named locations, authentication strengths and contexts, and terms of use — add, update and delete.</li>
@@ -1449,35 +1449,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=192"></script>
-<script src="js/version.js?v=192"></script>
-<script src="js/authConfig.js?v=192"></script>
-<script src="js/labels.js?v=192"></script>
-<script src="js/graph.js?v=192"></script>
-<script src="js/model.js?v=192"></script>
-<script src="js/render.js?v=192"></script>
-<script src="js/analyze.js?v=192"></script>
-<script src="js/whatif.js?v=192"></script>
-<script src="js/mslearn.js?v=192"></script>
-<script src="js/gapcheck.js?v=192"></script>
-<script src="js/exclusions.js?v=192"></script>
-<script src="js/validator.js?v=192"></script>
-<script src="js/whatifeval.js?v=192"></script>
-<script src="js/compare.js?v=192"></script>
-<script src="js/groupuse.js?v=192"></script>
-<script src="js/locations.js?v=192"></script>
-<script src="js/audit.js?v=192"></script>
-<script src="js/signins.js?v=192"></script>
-<script src="js/changelog.js?v=192"></script>
-<script src="js/baselineData.js?v=192"></script>
-<script src="js/baselineJoeyData.js?v=192"></script>
-<script src="js/baseline.js?v=192"></script>
-<script src="js/groupTemplates.js?v=192"></script>
-<script src="js/assign.js?v=192"></script>
-<script src="js/cagroups.js?v=192"></script>
-<script src="js/import.js?v=192"></script>
-<script src="js/export.js?v=192"></script>
-<script src="js/demo.js?v=192"></script>
-<script src="js/app.js?v=192"></script>
+<script src="js/branding.js?v=193"></script>
+<script src="js/version.js?v=193"></script>
+<script src="js/authConfig.js?v=193"></script>
+<script src="js/labels.js?v=193"></script>
+<script src="js/graph.js?v=193"></script>
+<script src="js/model.js?v=193"></script>
+<script src="js/render.js?v=193"></script>
+<script src="js/analyze.js?v=193"></script>
+<script src="js/whatif.js?v=193"></script>
+<script src="js/mslearn.js?v=193"></script>
+<script src="js/gapcheck.js?v=193"></script>
+<script src="js/exclusions.js?v=193"></script>
+<script src="js/validator.js?v=193"></script>
+<script src="js/whatifeval.js?v=193"></script>
+<script src="js/compare.js?v=193"></script>
+<script src="js/groupuse.js?v=193"></script>
+<script src="js/locations.js?v=193"></script>
+<script src="js/audit.js?v=193"></script>
+<script src="js/signins.js?v=193"></script>
+<script src="js/changelog.js?v=193"></script>
+<script src="js/baselineData.js?v=193"></script>
+<script src="js/baselineJoeyData.js?v=193"></script>
+<script src="js/baseline.js?v=193"></script>
+<script src="js/groupTemplates.js?v=193"></script>
+<script src="js/assign.js?v=193"></script>
+<script src="js/cagroups.js?v=193"></script>
+<script src="js/import.js?v=193"></script>
+<script src="js/export.js?v=193"></script>
+<script src="js/demo.js?v=193"></script>
+<script src="js/app.js?v=193"></script>
 </body>
 </html>

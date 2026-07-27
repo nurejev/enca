@@ -879,8 +879,8 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 :root[data-theme="dark"] .logo img, :root[data-theme="dark"] .login-card > img{content:url("../assets/logo-mark-dark.svg")}
 
 /* the site's own treatment: white card titles, lemon pill, lemon CTA, hero glow */
-:root[data-theme="dark"] .tool h3, :root[data-theme="dark"] .readme h3{color:var(--ink)}
-:root[data-theme="dark"] .tag.new{background:var(--lemon);border-color:var(--lemon);color:var(--green-deep);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+:root[data-theme="dark"] .tool h3, :root[data-theme="dark"] .readme h3{color:var(--lemon)}
+:root[data-theme="dark"] .tag.new{background:var(--soft);border-color:var(--ghost-bd);color:var(--lemon);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 :root[data-theme="dark"] .btn.primary{background:var(--lemon);border-color:var(--lemon)}
 :root[data-theme="dark"] .btn.primary:hover{background:var(--lemon-deep);border-color:var(--lemon-deep)}
 :root[data-theme="dark"] .app-tag{background:var(--lemon);border-color:var(--lemon);color:var(--green-deep)}
@@ -898,8 +898,8 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn:hover,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x:hover{background:rgba(0,0,0,.12);color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .fs-bg{background:rgba(0,0,0,.62)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .logo img, :root:not([data-theme="light"]):not([data-theme="dark"]) .login-card > img{content:url("../assets/logo-mark-dark.svg")}
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .tool h3, :root:not([data-theme="light"]):not([data-theme="dark"]) .readme h3{color:var(--ink)}
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .tag.new{background:var(--lemon);border-color:var(--lemon);color:var(--green-deep);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .tool h3, :root:not([data-theme="light"]):not([data-theme="dark"]) .readme h3{color:var(--lemon)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .tag.new{background:var(--soft);border-color:var(--ghost-bd);color:var(--lemon);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary{background:var(--lemon);border-color:var(--lemon)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary:hover{background:var(--lemon-deep);border-color:var(--lemon-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .app-tag{background:var(--lemon);border-color:var(--lemon);color:var(--green-deep)}

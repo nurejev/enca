@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 193, date: "2026-07-27", title: "Lemon headings, and the sweep up front",
+    items: [
+      { kind: "improved", tool: "All tools", text: "In dark, tool card titles are lemon rather than white — the same role the accent plays on limon-it.nl, where it is green in light and lemon in dark. Section labels stay white: on the site only the small eyebrow labels take the accent, headings do not. The BETA pill is now an outlined lemon chip rather than a solid one, because a solid lemon pill sitting beside a lemon title turns the whole line one colour." },
+      { kind: "improved", tool: "Group Analyzer", text: "Sweep every group is the default mode. It is the more useful first move — it answers “which of my groups is dead” across the whole tenant, and any single group is one click away from the result." },
+      { kind: "improved", tool: "All tools", text: "The NEW badge is off CA validator, What-If and Change audit. They have been in for several builds; a badge that never comes off stops meaning anything." },
+    ],
+  },
+  {
     build: 192, date: "2026-07-27", title: "Dark mode, in Limon-IT colours",
     items: [
       { kind: "improved", tool: "All tools", text: "The dark theme now uses limon-it.nl's own palette, value for value: the background, surfaces, borders, ink and the sage muted tone are lifted straight from the site, and the lemon is the logo lemon (#f7d65a) rather than the duller shade this theme had drifted to. The greens are deeper and greener, so the tools and the site read as one product instead of two." },
@@ -109,12 +117,10 @@ const CHANGELOG = [
       { kind: "new", tool: "Sign-in failures", text: "New tool. Reads the Entra sign-in log and shows which sign-ins Conditional Access failed and which policy did it — grouped per policy, so the policy generating the noise sits on top, with distinct users, affected apps and the grant controls that weren't met. Two modes: Enforced (conditionalAccessStatus = failure, filtered by Graph) and Report-only (policies that would have failed — the sign-ins complete, so the window is read and filtered in the browser, capped at 10 000). Any logged sign-in can be replayed in What-If with one click — user, app, platform, client, IP, country and device state prefilled — so the log tells you which policy failed and What-If tells you why. Exports: CSV with one line per sign-in × failing policy (pivot-table and SIEM friendly) and a per-policy Markdown report. Needs AuditLog.Read.All, requested when you run it." },
     ],
   },
-  {
-    build: 180, date: "2026-07-22", title: "One file to rebrand a fork",
-    items: [
-      { kind: "new", tool: "All tools", text: "js/branding.js holds everything identity-shaped — product name, organisation, logos, favicon, host, footer and optional colour overrides — and nothing else hard-codes them any more. Fork the repo, edit that one object, drop your own mark in assets/, and the header, sign-in screen, page title, footer and the credit line at the bottom of every Markdown export follow. index.html still carries this repo's values as plain markup, so the page reads correctly before scripts run. Exports stay neutral by design: they carry the customer's tenant branding, never the tool's." },
-    ],
-  },
+  // Build 180 ("One file to rebrand a fork", js/branding.js) is deliberately
+  // not listed. This changelog is what a tenant-side reader sees; how the repo
+  // is re-skinned for a fork is not their release note. The capability is
+  // documented in README.md under "Rebranding a fork".
   {
     build: 179, date: "2026-07-22", title: "Make dynamic: a create that was not a create",
     items: [
