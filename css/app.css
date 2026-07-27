@@ -44,7 +44,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .toolnav-btn.home svg{width:19px;height:19px;display:block}
 .toolnav-btn.home:hover{background:var(--soft);border-color:var(--green);color:var(--green)}
 .toolnav-btn.home.active{background:var(--green);border-color:var(--green);color:#fff}
-:root[data-theme="dark"] .toolnav-btn.home.active{color:#0b120e}
+:root[data-theme="dark"] .toolnav-btn.home.active{color:var(--green-deep)}
 /* header "Tools" button — same house, sized to sit next to the label */
 .btn.home-btn{display:inline-flex;align-items:center;gap:7px}
 .btn.home-btn svg{width:16px;height:16px;flex:none}
@@ -60,8 +60,8 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
    paints a light background, which left white text unreadable on green */
 .toolnav-tab.active .toolnav-btn:hover{background:rgba(255,255,255,.15);color:#fff}
 .toolnav-tab.active .toolnav-x:hover{background:rgba(255,255,255,.15);color:#fff}
-:root[data-theme="dark"] .toolnav-tab.active .toolnav-btn,:root[data-theme="dark"] .toolnav-tab.active .toolnav-x{color:#0b120e}
-:root[data-theme="dark"] .toolnav-tab.active .toolnav-btn:hover,:root[data-theme="dark"] .toolnav-tab.active .toolnav-x:hover{background:rgba(0,0,0,.12);color:#0b120e}
+:root[data-theme="dark"] .toolnav-tab.active .toolnav-btn,:root[data-theme="dark"] .toolnav-tab.active .toolnav-x{color:var(--green-deep)}
+:root[data-theme="dark"] .toolnav-tab.active .toolnav-btn:hover,:root[data-theme="dark"] .toolnav-tab.active .toolnav-x:hover{background:rgba(0,0,0,.12);color:var(--green-deep)}
 /* + menu popover */
 .toolnav-menu{position:fixed;z-index:410;background:var(--surface);border:1px solid var(--border);border-radius:12px;
   box-shadow:var(--shadow);padding:6px;max-height:60vh;overflow:auto;width:264px}
@@ -822,43 +822,55 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
    Auto (no data-theme attribute). Explicit: html[data-theme="dark"|"light"].
    The theme button in the header cycles Auto → Light → Dark. */
 :root[data-theme="dark"]{
-  --ink:#e6f0e8; --green:#7fc98f; --green-deep:#0b120e; --accent2:#8fd977;
-  --lemon:#e9c94f; --lemon-deep:#c9a92c;
-  --muted:#93a89a; --border:#2a3630; --surface:#161d19; --bg:#0f1512; --soft:#1c2620;
-  --shadow:0 10px 30px rgba(0,0,0,.5);
+  /* Greens, ink and lemon are lifted verbatim from limon-it.nl's dark theme so
+     the tools and the site read as one product. The rule the site follows and
+     this now follows too: the GREEN is the surface, the LEMON is the signal —
+     it appears only on the primary action and the category pill, never as body
+     colour. Earlier this theme had it the other way round, which is why it
+     looked like a different product. */
+  --ink:#eaf3ec; --green:#7fc98f; --green-deep:#12331f; --accent2:#8fd977;
+  --lemon:#f7d65a; --lemon-deep:#e2bd3f;
+  --muted:#8ca991; --border:#26402f; --surface:#14261a; --bg:#0c1811; --soft:#1a2f21;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
   --on:#7fc98f; --off:#e58a78; --report:#e0b64f;
-  --hover:#1b241e; --line:#232e28; --soft2:#1a231d; --glow:#1e3a28;
+  --hover:#1e3524; --line:#1f3627; --soft2:#102417; --glow:#1e472955;
   --ok-bg:#1d3325; --ok-bg2:#18291d; --ok-bd:#2f5c3a;
   --warn-bg:#392f14; --warn-bg2:#2b2513; --warn-bd:#5c4a1c; --warn-fg:#e8c766;
   --bad-bg:#3a231f; --bad-bg2:#2b1b18; --bad-bd:#6a3a31;
   --crit-bg:#42201a; --crit-fg:#f0a091; --high-bg:#3d2a15; --high-fg:#e8b072;
   --blue:#8ab4e8; --blue-bg:#1a2637;
-  --na:#4a574f; --faint:#5d6b62; --ghost-bd:#3a4a40; --on-deep-mute:#9db3a4;
+  --na:#4a574f; --faint:#718277; --ghost-bd:#3a4a40; --on-deep-mute:#9db3a4;
   --hl:rgba(143,217,119,.13); --hl2:rgba(143,217,119,.26);
   color-scheme:dark;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]):not([data-theme="dark"]){
-  --ink:#e6f0e8; --green:#7fc98f; --green-deep:#0b120e; --accent2:#8fd977;
-  --lemon:#e9c94f; --lemon-deep:#c9a92c;
-  --muted:#93a89a; --border:#2a3630; --surface:#161d19; --bg:#0f1512; --soft:#1c2620;
-  --shadow:0 10px 30px rgba(0,0,0,.5);
+  /* Greens, ink and lemon are lifted verbatim from limon-it.nl's dark theme so
+     the tools and the site read as one product. The rule the site follows and
+     this now follows too: the GREEN is the surface, the LEMON is the signal —
+     it appears only on the primary action and the category pill, never as body
+     colour. Earlier this theme had it the other way round, which is why it
+     looked like a different product. */
+  --ink:#eaf3ec; --green:#7fc98f; --green-deep:#12331f; --accent2:#8fd977;
+  --lemon:#f7d65a; --lemon-deep:#e2bd3f;
+  --muted:#8ca991; --border:#26402f; --surface:#14261a; --bg:#0c1811; --soft:#1a2f21;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
   --on:#7fc98f; --off:#e58a78; --report:#e0b64f;
-  --hover:#1b241e; --line:#232e28; --soft2:#1a231d; --glow:#1e3a28;
+  --hover:#1e3524; --line:#1f3627; --soft2:#102417; --glow:#1e472955;
   --ok-bg:#1d3325; --ok-bg2:#18291d; --ok-bd:#2f5c3a;
   --warn-bg:#392f14; --warn-bg2:#2b2513; --warn-bd:#5c4a1c; --warn-fg:#e8c766;
   --bad-bg:#3a231f; --bad-bg2:#2b1b18; --bad-bd:#6a3a31;
   --crit-bg:#42201a; --crit-fg:#f0a091; --high-bg:#3d2a15; --high-fg:#e8b072;
   --blue:#8ab4e8; --blue-bg:#1a2637;
-  --na:#4a574f; --faint:#5d6b62; --ghost-bd:#3a4a40; --on-deep-mute:#9db3a4;
+  --na:#4a574f; --faint:#718277; --ghost-bd:#3a4a40; --on-deep-mute:#9db3a4;
   --hl:rgba(143,217,119,.13); --hl2:rgba(143,217,119,.26);
   color-scheme:dark;
   }
 }
 
 /* dark-mode rules that need more than a variable swap (incl. the logo variant) */
-:root[data-theme="dark"] .btn.primary, :root[data-theme="dark"] .seg button.active, :root[data-theme="dark"] .avatar{color:#0b120e}
-:root[data-theme="dark"] .btn.lemon{color:#0b120e}
+:root[data-theme="dark"] .btn.primary, :root[data-theme="dark"] .seg button.active, :root[data-theme="dark"] .avatar{color:var(--green-deep)}
+:root[data-theme="dark"] .btn.lemon{color:var(--green-deep)}
 :root[data-theme="dark"] .pcard-head{background:linear-gradient(100deg,#132119 0%,#20402a 70%)}
 :root[data-theme="dark"] table.matrix thead th{background:#132119}
 :root[data-theme="dark"] .selbar, :root[data-theme="dark"] .toast{background:#0d1a12;border:1px solid var(--border)}
@@ -866,15 +878,32 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 :root[data-theme="dark"] .fs-bg{background:rgba(0,0,0,.62)}
 :root[data-theme="dark"] .logo img, :root[data-theme="dark"] .login-card > img{content:url("../assets/logo-mark-dark.svg")}
 
+/* the site's own treatment: white card titles, lemon pill, lemon CTA, hero glow */
+:root[data-theme="dark"] .tool h3, :root[data-theme="dark"] .readme h3{color:var(--ink)}
+:root[data-theme="dark"] .tag.new{background:var(--lemon);border-color:var(--lemon);color:var(--green-deep);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+:root[data-theme="dark"] .btn.primary{background:var(--lemon);border-color:var(--lemon)}
+:root[data-theme="dark"] .btn.primary:hover{background:var(--lemon-deep);border-color:var(--lemon-deep)}
+:root[data-theme="dark"] .app-tag{background:var(--lemon);border-color:var(--lemon);color:var(--green-deep)}
+:root[data-theme="dark"] main{background-image:radial-gradient(900px 500px at 85% -140px,rgba(30,71,41,.45) 0%,transparent 60%),radial-gradient(700px 420px at -10% 18%,rgba(247,214,90,.055) 0%,transparent 60%);background-repeat:no-repeat}
+
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary, :root:not([data-theme="light"]):not([data-theme="dark"]) .seg button.active, :root:not([data-theme="light"]):not([data-theme="dark"]) .avatar{color:#0b120e}
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.lemon{color:#0b120e}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary, :root:not([data-theme="light"]):not([data-theme="dark"]) .seg button.active, :root:not([data-theme="light"]):not([data-theme="dark"]) .avatar{color:var(--green-deep)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.lemon{color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .pcard-head{background:linear-gradient(100deg,#132119 0%,#20402a 70%)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) table.matrix thead th{background:#132119}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .selbar, :root:not([data-theme="light"]):not([data-theme="dark"]) .toast{background:#0d1a12;border:1px solid var(--border)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .exp-ic.md{background:#4a5450}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-btn.home.active{color:var(--green-deep)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x{color:var(--green-deep)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn:hover,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x:hover{background:rgba(0,0,0,.12);color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .fs-bg{background:rgba(0,0,0,.62)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .logo img, :root:not([data-theme="light"]):not([data-theme="dark"]) .login-card > img{content:url("../assets/logo-mark-dark.svg")}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .tool h3, :root:not([data-theme="light"]):not([data-theme="dark"]) .readme h3{color:var(--ink)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .tag.new{background:var(--lemon);border-color:var(--lemon);color:var(--green-deep);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary{background:var(--lemon);border-color:var(--lemon)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary:hover{background:var(--lemon-deep);border-color:var(--lemon-deep)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .app-tag{background:var(--lemon);border-color:var(--lemon);color:var(--green-deep)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) main{background-image:radial-gradient(900px 500px at 85% -140px,rgba(30,71,41,.45) 0%,transparent 60%),radial-gradient(700px 420px at -10% 18%,rgba(247,214,90,.055) 0%,transparent 60%);background-repeat:no-repeat}
 }
 
 /* theme toggle in the header */
