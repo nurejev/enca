@@ -3892,7 +3892,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const s = Locations.summarize(loList, raws);
     $("loHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🌐 Named locations <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <h3>🌐 Named locations <span class="tag block">writes to tenant</span></h3>
         <p style="margin-bottom:4px">The IP-range and country locations your Conditional Access policies can target. Create, edit and delete them here — each row shows which policies use it.</p>
         <p class="mini muted" style="margin:0">A location's type is fixed at creation: an IP location cannot become a country location. Deleting one that a policy still references widens that policy.</p>
       </div>
@@ -4420,12 +4420,12 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("🧪 What-If report", "CA-WhatIf", L.join("\n"));
   });
 
-  // ---------- Compare users (BETA) ----------
+  // ---------- Compare users ----------
   let cuUsers = [], cuResult = null, cuLocations = null, cuSeedList = "";
   function openCompare() {
     crumb("⚖ Compare users");
     show("screen-compare");
-    $("cuHead").innerHTML = `<h3>⚖ Compare users <span class="tag new">BETA</span></h3>
+    $("cuHead").innerHTML = `<h3>⚖ Compare users</h3>
       <p style="margin-bottom:6px">Add two or more users and see where Conditional Access treats them differently: per-policy <b>assignment</b> (included, excluded — and why — or not targeted), the <b>group and role memberships</b> behind the differences, and optionally one <b>What-If sign-in</b> evaluated for every user.</p>
       <p class="mini muted" style="margin:0">Assignment compares user scoping only — location, platform, client and risk conditions only come in through the optional scenario. Read-only.</p>`;
     if (!policies.length) { $("cuBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }

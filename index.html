@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=195">
+<link rel="stylesheet" href="css/app.css?v=196">
 </head>
 <body>
 
@@ -106,7 +106,7 @@
         <p>Simulate a sign-in — user, app, platform, client, location, device state and risk — and see which policies would apply, with the controls required, and which would not and why.</p>
       </div>
       <div class="tool" id="toolCompare">
-        <div class="tool-ic">⚖</div><h3>Compare users <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">⚖</div><h3>Compare users</h3>
         <p>Two or more users side by side: which policies include, exclude or ignore each of them, the group and role memberships behind the differences, and optionally one What-If sign-in run for every user.</p>
       </div>
       <div class="tool" id="toolGroupUse">
@@ -148,7 +148,7 @@
         <p>Check the baseline groups against this tenant, create the missing ones, analyze their members in a matrix, and assign them to policies. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolLocations">
-        <div class="tool-ic">🌐</div><h3>Named locations <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">🌐</div><h3>Named locations</h3>
         <p>View, create, edit and delete Conditional Access named locations — IP ranges and countries — and see which policies use each one. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolState">
@@ -649,7 +649,7 @@
     <div id="guBody" style="margin-top:14px"></div>
   </section>
 
-  <!-- ============ COMPARE USERS (BETA) ============ -->
+  <!-- ============ COMPARE USERS ============ -->
   <section id="screen-compare" class="screen">
     <div class="list-card readme" id="cuHead" style="margin-top:0"></div>
     <div class="list-card wi-form">
@@ -916,7 +916,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>⚖ Compare users <span class="tag new">BETA</span></h4>
+      <h4>⚖ Compare users</h4>
       <p>Why does it work for her but not for him? Put two or more users side by side and see where Conditional Access treats them differently.</p>
       <ul>
         <li><b>Policy assignment</b> — per enabled or report-only policy, whether each user is <b>included</b> (✓), <b>excluded</b> (✗ — hover for the group, role or direct exclusion behind it) or <b>not targeted</b> (·). Rows where the users differ are flagged; <b>Differences only</b> (default) hides the rest.</li>
@@ -1014,7 +1014,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>🌐 Named locations <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
+      <h4>🌐 Named locations <span class="tag block">writes to tenant</span></h4>
       <p>Manage the named locations your Conditional Access policies target — the IP-range and country locations — without leaving the tool.</p>
       <ul>
         <li><b>Cards / Table</b> — Cards tile at least two per row with the ranges, usage and the Edit/Delete buttons; Table is the same information one line per location, which is the readable option once a tenant has dozens.</li>
@@ -1452,35 +1452,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=195"></script>
-<script src="js/version.js?v=195"></script>
-<script src="js/authConfig.js?v=195"></script>
-<script src="js/labels.js?v=195"></script>
-<script src="js/graph.js?v=195"></script>
-<script src="js/model.js?v=195"></script>
-<script src="js/render.js?v=195"></script>
-<script src="js/analyze.js?v=195"></script>
-<script src="js/whatif.js?v=195"></script>
-<script src="js/mslearn.js?v=195"></script>
-<script src="js/gapcheck.js?v=195"></script>
-<script src="js/exclusions.js?v=195"></script>
-<script src="js/validator.js?v=195"></script>
-<script src="js/whatifeval.js?v=195"></script>
-<script src="js/compare.js?v=195"></script>
-<script src="js/groupuse.js?v=195"></script>
-<script src="js/locations.js?v=195"></script>
-<script src="js/audit.js?v=195"></script>
-<script src="js/signins.js?v=195"></script>
-<script src="js/changelog.js?v=195"></script>
-<script src="js/baselineData.js?v=195"></script>
-<script src="js/baselineJoeyData.js?v=195"></script>
-<script src="js/baseline.js?v=195"></script>
-<script src="js/groupTemplates.js?v=195"></script>
-<script src="js/assign.js?v=195"></script>
-<script src="js/cagroups.js?v=195"></script>
-<script src="js/import.js?v=195"></script>
-<script src="js/export.js?v=195"></script>
-<script src="js/demo.js?v=195"></script>
-<script src="js/app.js?v=195"></script>
+<script src="js/branding.js?v=196"></script>
+<script src="js/version.js?v=196"></script>
+<script src="js/authConfig.js?v=196"></script>
+<script src="js/labels.js?v=196"></script>
+<script src="js/graph.js?v=196"></script>
+<script src="js/model.js?v=196"></script>
+<script src="js/render.js?v=196"></script>
+<script src="js/analyze.js?v=196"></script>
+<script src="js/whatif.js?v=196"></script>
+<script src="js/mslearn.js?v=196"></script>
+<script src="js/gapcheck.js?v=196"></script>
+<script src="js/exclusions.js?v=196"></script>
+<script src="js/validator.js?v=196"></script>
+<script src="js/whatifeval.js?v=196"></script>
+<script src="js/compare.js?v=196"></script>
+<script src="js/groupuse.js?v=196"></script>
+<script src="js/locations.js?v=196"></script>
+<script src="js/audit.js?v=196"></script>
+<script src="js/signins.js?v=196"></script>
+<script src="js/changelog.js?v=196"></script>
+<script src="js/baselineData.js?v=196"></script>
+<script src="js/baselineJoeyData.js?v=196"></script>
+<script src="js/baseline.js?v=196"></script>
+<script src="js/groupTemplates.js?v=196"></script>
+<script src="js/assign.js?v=196"></script>
+<script src="js/cagroups.js?v=196"></script>
+<script src="js/import.js?v=196"></script>
+<script src="js/export.js?v=196"></script>
+<script src="js/demo.js?v=196"></script>
+<script src="js/app.js?v=196"></script>
 </body>
 </html>

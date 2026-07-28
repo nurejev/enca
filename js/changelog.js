@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 196, date: "2026-07-27", title: "Compare users and Named locations are out of BETA",
+    items: [
+      { kind: "improved", tool: "Compare users", text: "Out of BETA, at v1.0. Nothing about it changed in this build — the badge is off because the tool has held up: per-policy assignment for two to eight users with the group, role or direct exclusion behind every difference, the membership grid underneath it, and the optional What-If sign-in run per user. It stays read-only and resolves per user, so it is unaffected by tenant size." },
+      { kind: "improved", tool: "Named locations", text: "Out of BETA, at v1.4. It still writes to the tenant, and that badge stays: create, edit and delete IP-range and country locations, with CIDR and ISO-code validation, a warning when the trusted flag changes what policies do, and a typed confirmation before deleting a location a policy still references." },
+      { kind: "fixed", tool: "All tools", text: "The README still listed Sign-in failures as BETA, three builds after it graduated. Corrected." },
+    ],
+  },
+  {
     build: 195, date: "2026-07-27", title: "The summary follows you down the page",
     items: [
       { kind: "improved", tool: "Group Analyzer", text: "The summary chips now sit in a strip that stays put while you scroll — in both the sweep and the single-group view. On an account with a few hundred references the counts are the navigation (each area chip jumps to its section), and having them scroll away meant returning to the top to move anywhere. The object's name rides along, so it stays obvious whose result you are reading, and in the sweep the search box and the unused-only toggle come with it." },
