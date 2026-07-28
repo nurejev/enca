@@ -47,7 +47,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif",
     "screen-locations", "screen-audit", "screen-signins", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -691,17 +691,9 @@
     { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
+    { scope: "AdministrativeUnit.ReadWrite.All", use: "Create a restricted management administrative unit and place the CA exclusion groups in it", tools: "CA groups (protect)", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable", tools: "CA groups (create)", onDemand: true },
-    { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
-    { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "Group Analyzer", onDemand: true },
-    { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer", onDemand: true },
-    { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer", onDemand: true },
-    { scope: "DeviceManagementServiceConfig.Read.All", use: "Read Intune enrolment restrictions and Autopilot deployment profiles", tools: "Group Analyzer", onDemand: true },
-    { scope: "DeviceManagementScripts.Read.All", use: "Read Intune PowerShell scripts, macOS shell scripts and remediations — a separate scope, not covered by DeviceManagementConfiguration.Read.All", tools: "Group Analyzer", onDemand: true },
   ];
-  // Azure Resource Manager is a different resource, not a Graph scope, so it is
-  // listed on its own rather than mixed into the Graph consent request.
-  const ARM_SCOPE_INFO = { scope: "management.azure.com/user_impersonation", use: "Read Azure role assignments across subscriptions and management groups", tools: "Group Analyzer (Azure area)" };
   async function renderPermissions() {
     const el = $("permOverview");
     const granted = isDemo ? ["Policy.Read.All", "Directory.Read.All"] : await Graph.grantedScopes();
@@ -716,11 +708,8 @@
           const has = granted.includes(s.scope);
           return `<tr><td><code>${s.scope}</code></td><td class="mini">${s.use}</td><td class="mini">${s.tools}</td>
             <td>${has ? '<span class="tag grant">granted</span>' : s.onDemand ? '<span class="tag">on demand</span>' : '<span class="tag block">missing</span>'}</td></tr>`;
-        }).join("")}
-        <tr><td><code>${ARM_SCOPE_INFO.scope}</code></td><td class="mini">${ARM_SCOPE_INFO.use}</td><td class="mini">${ARM_SCOPE_INFO.tools}</td>
-          <td>${!isDemo && Graph.hasScopes(Graph.ARM_SCOPES) ? '<span class="tag grant">granted</span>' : '<span class="tag">on demand</span>'}</td></tr></tbody>
-      </table>
-      <p class="mini muted" style="margin:8px 0 0">The last row is Azure Resource Manager, not Microsoft Graph — a separate resource with its own token, so it is consented on its own and never bundled into the request above.</p>`;
+        }).join("")}</tbody>
+      </table>`;
     el.style.display = "block";
   }
   $("permOverview").addEventListener("click", async (e) => {
@@ -846,8 +835,6 @@
     ["toolGapCheck", "🛡 Best-practice & bypass checks"],
     ["toolValidator", "⚡ CA validator"],
     ["toolWhatIf", "🧪 What-If"],
-    ["toolGroupUse", "🔗 Group Analyzer"],
-    ["toolCompare", "⚖ Compare users"],
     ["toolAudit", "🕓 Change audit"],
     ["toolSignins", "🚦 Sign-in failures"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
@@ -1346,7 +1333,7 @@
       sources: ["template"], template: t, id: i % 5 === 0 ? null : "g-demo-" + i,
       description: t.description || "", roleAssignable: !t.membershipRule,
       dynamic: !!t.membershipRule, membershipRule: t.membershipRule || "",
-      refs: { include: [], exclude: [] }, refCount: i % 3,
+      refs: { include: [], exclude: i % 3 === 1 && i % 5 !== 0 ? ["d1", "d2"].slice(0, (i % 2) + 1) : [] }, refCount: i % 3,
       members: null, memberTotal: null, memberError: null, drift: null,
     }));
     const counts = rows.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
@@ -1365,7 +1352,7 @@
     $("cgFull").style.display = cgTab === "members" ? "inline-flex" : "none";
     $("cgSearch").placeholder = cgTab === "members"
       ? "Search member name or UPN…" : "Search group name or object ID…";
-    $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" || cgTab === "csv" ? "none" : "";
+    $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" || cgTab === "csv" || cgTab === "rmau" ? "none" : "";
 
     if (cgTab === "check") {
       $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery);
@@ -1375,6 +1362,8 @@
       renderCgMembers();
     } else if (cgTab === "csv") {
       renderCgCsv();
+    } else if (cgTab === "rmau") {
+      renderCgRmau();
     } else {
       renderCgAssign();
     }
@@ -1591,6 +1580,25 @@ max@contoso.com,"Global, DevOps"</pre>
     renderCgCsv();
   });
   $("cgBody").addEventListener("change", (e) => {
+    // Snapshot the free-text inputs before a re-render, so a checkbox toggle
+    // doesn't eat what was typed but not yet blurred.
+    const rmSnap = () => { if (!cgRmau) return;
+      const a = $("cgRmauAdmin"); if (a) cgRmau.admin = a.value;
+      const n = $("cgRmauName"); if (n) cgRmau.auName = n.value; };
+    const rm = e.target.closest("[data-cgrmau]");
+    if (rm && cgRmau) {
+      rmSnap();
+      e.target.checked ? cgRmau.sel.add(rm.dataset.cgrmau) : cgRmau.sel.delete(rm.dataset.cgrmau);
+      renderCgRmau();
+      return;
+    }
+    if (e.target.id === "cgRmauAu" && cgRmau) {
+      rmSnap();
+      cgRmau.auChoice = e.target.value;
+      renderCgRmau();
+      return;
+    }
+    if (e.target.id === "cgRmauAdmin" && cgRmau) { cgRmau.admin = e.target.value; return; }
     if (e.target.id === "cgCsvAllToggle" && cgCsv) {
       cgCsvAll = e.target.checked;
       // Re-suggest only where nothing is picked yet, or the pick fell out of
@@ -1714,8 +1722,199 @@ max@contoso.com,"Global, DevOps"</pre>
     renderCgCsv();
   }
 
+  // ---- ⑥ protect: restricted management administrative unit for the CA
+  // exclusion groups. Membership of an exclusion group IS a CA bypass, and a
+  // tenant-level Groups Administrator can grant it to anyone, themselves
+  // included. A restricted management AU closes that: only roles scoped to the
+  // AU can change members. Graph: POST /administrativeUnits with
+  // isMemberManagementRestricted:true (immutable), then members/$ref.
+  const RMAU_WRITE = ["AdministrativeUnit.ReadWrite.All"];
+  const RMAU_DEFAULT_NAME = "CAB-SEC-RMAU-CA-Exclusions";
+  const GROUPS_ADMIN_TEMPLATE = "fdd7a751-b60b-444a-984c-02652fe8fa1c"; // Groups Administrator
+  let cgRmau = null;  // { status: Map(groupId → {auName, restricted}), rmaus: [], sel: Set, auChoice, auName, admin, busy, results, au }
+
+  async function cgRmauScan() {
+    const cands = CaGroups.rmauCandidates(cgRes);
+    const st = { status: new Map(), rmaus: [], sel: new Set(), auChoice: "new", auName: RMAU_DEFAULT_NAME, admin: "", busy: false, results: null, au: null };
+    $("cgBody").innerHTML = '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgRmauStatus">Reading administrative units…</p></div>';
+    const status = (m) => { const el = $("cgRmauStatus"); if (el) el.textContent = m; };
+    try {
+      if (isDemo) {
+        st.rmaus = [];
+      } else {
+        const aus = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
+        st.rmaus = aus.filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
+      }
+      for (let i = 0; i < cands.length; i++) {
+        const g = cands[i];
+        status(`Checking ${g.name}… ${i + 1}/${cands.length}`);
+        if (isDemo) { st.status.set(g.id, null); continue; }
+        try {
+          const r = await Graph.gget(`/groups/${g.id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
+          const hit = ((r && r.value) || []).find((a) => a.isMemberManagementRestricted === true);
+          st.status.set(g.id, hit ? { auId: hit.id, auName: hit.displayName } : null);
+        } catch { st.status.set(g.id, null); }
+      }
+      // preselect every unprotected, non-role-assignable exclusion group
+      cands.forEach((g) => { if (!st.status.get(g.id) && !g.roleAssignable) st.sel.add(g.id); });
+      if (st.rmaus.length) { st.auChoice = st.rmaus[0].id; }
+      cgRmau = st;
+    } catch (e) {
+      console.error("RMAU scan failed:", e);
+      $("cgBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read administrative units: ${esc(e.message || e)}</p>`;
+      return;
+    }
+    renderCgRmau();
+  }
+
+  function renderCgRmau() {
+    if (!cgRmau) { cgRmauScan(); return; }
+    const t = cgRmau;
+    const cands = CaGroups.rmauCandidates(cgRes);
+
+    if (t.results) {
+      const ok = t.results.filter((x) => x.state === "added").length;
+      const failed = t.results.filter((x) => x.state === "failed").length;
+      $("cgBody").innerHTML = `<div class="cg-panel">
+        <h4>PROTECTION APPLIED</h4>
+        <p class="mini"><b style="color:var(--on)">${ok} group${ok === 1 ? "" : "s"} protected</b> in <b>${esc(t.au?.name || "")}</b>${failed ? ` · <b style="color:var(--off)">${failed} failed</b>` : ""} · ${t.results.filter((x) => x.state === "already").length} already in it</p>
+        <p class="mini" style="color:var(--report)">⚠ From now on, membership of these groups can only be changed by principals holding a role <b>scoped to this administrative unit</b> — including by this tool's own ⑤ Import members.</p>
+        <div class="row" style="justify-content:flex-start;margin-top:12px">
+          <button class="btn" id="cgRmauReport">📄 Change report</button>
+          <button class="btn" id="cgRmauAgain">⟳ Rescan</button>
+        </div>
+      </div>`;
+      return;
+    }
+
+    const rows = cands.map((g) => {
+      const prot = t.status.get(g.id);
+      const disabled = !!prot;
+      return `<tr>
+        <td><label class="chk" style="margin:0"><input type="checkbox" data-cgrmau="${esc(g.id)}"${t.sel.has(g.id) ? " checked" : ""}${disabled ? " disabled" : ""}> <b>${esc(g.name)}</b></label>
+          ${g.roleAssignable ? '<div class="mini muted">role-assignable — already modifiable only by privileged roles; adding it is optional</div>' : ""}
+          ${g.dynamic ? '<div class="mini" style="color:var(--report)">dynamic group — membership is rule-driven; the restriction protects the rule\'s result, not the rule itself</div>' : ""}</td>
+        <td class="mini">${g.refs.exclude.length} polic${g.refs.exclude.length === 1 ? "y" : "ies"}</td>
+        <td class="mini">${prot ? `🔒 in <b>${esc(prot.auName)}</b>` : '<span style="color:var(--report)">unprotected</span>'}</td>
+      </tr>`;
+    }).join("");
+
+    const auPick = `<label class="mini" style="display:block;margin:14px 0 4px">Restricted management administrative unit</label>
+      <select id="cgRmauAu" style="max-width:420px">
+        ${t.rmaus.map((a) => `<option value="${esc(a.id)}"${t.auChoice === a.id ? " selected" : ""}>${esc(a.name)} (existing)</option>`).join("")}
+        <option value="new"${t.auChoice === "new" ? " selected" : ""}>＋ Create a new one…</option>
+      </select>
+      ${t.auChoice === "new" ? `<input id="cgRmauName" class="txt" value="${esc(t.auName)}" autocomplete="off" style="max-width:420px;margin-top:6px;letter-spacing:normal;font-weight:400">
+        <p class="mini muted" style="margin-top:4px">Created with <code>isMemberManagementRestricted: true</code> — that flag is <b>immutable</b>; it cannot be added to or removed from an existing administrative unit.</p>` : ""}`;
+
+    const picked = [...t.sel].filter((id) => !t.status.get(id)).length;
+    $("cgBody").innerHTML = `<div class="cg-panel">
+      <h4>PROTECT THE EXCLUSION GROUPS (restricted management administrative unit)</h4>
+      <p class="mini">Membership of a CA <b>exclusion</b> group is a Conditional Access bypass — and any tenant-level Groups/User Administrator can add someone (or themselves) to one.
+        Placing these groups in a <b>restricted management administrative unit</b> closes that path: only principals holding a role <b>scoped to that administrative unit</b> can change their members. Tenant-wide admins — Global Administrator included — can read but not modify.</p>
+      <div class="cg-tablewrap" style="margin-top:10px"><table class="cg-table">
+        <thead><tr><th>Exclusion group</th><th style="width:110px">Excluded on</th><th style="width:220px">Protection</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="3" class="mini muted" style="padding:14px">No groups are used as exclusions by the tenant\'s policies.</td></tr>'}</tbody></table></div>
+      ${auPick}
+      <label class="mini" style="display:block;margin:14px 0 4px">Scoped administrator <span class="muted">(optional but recommended — otherwise nobody can manage these members until a role is scoped later)</span></label>
+      <input id="cgRmauAdmin" class="txt" value="${esc(t.admin)}" placeholder="UPN to grant Groups Administrator scoped to this administrative unit" autocomplete="off" spellcheck="false" style="max-width:420px;letter-spacing:normal;font-weight:400">
+      <label class="chk" style="margin-top:14px;display:block"><input type="checkbox" id="cgRmauAck"> I understand that after this, membership of the selected groups can <b>only</b> be changed by administrative-unit-scoped roles — tenant-level admin roles (and this tool, signed in without one) lose write access to their membership.</label>
+      <div class="cg-progress" id="cgRmauBar" style="display:none"><div style="width:0%"></div></div>
+      <div id="cgRmauLog" class="mini" style="margin-top:8px"></div>
+      <div class="row" style="justify-content:flex-start;margin-top:12px">
+        <button class="btn primary" id="cgRmauGo" ${picked ? "" : "disabled"}>Protect ${picked} group${picked === 1 ? "" : "s"}${isDemo ? " (simulated)" : ""}</button>
+      </div>
+      <p class="mini muted" style="margin-top:10px">Consents <code>AdministrativeUnit.ReadWrite.All</code>${""} on demand (plus <code>RoleManagement.ReadWrite.Directory</code> if a scoped administrator is set).
+        Requires the <b>Privileged Role Administrator</b> role and an Entra ID P1 licence for administrative-unit administrators. Only cloud security groups can be added — mail-enabled or on-premises-synced groups are rejected by Graph.</p>
+    </div>`;
+  }
+
+  async function cgRmauApply(btn) {
+    const t = cgRmau; if (!t || t.busy) return;
+    if (!$("cgRmauAck").checked) { toast("Tick the <span>confirmation</span> first — this restricts who can manage these groups"); return; }
+    t.admin = $("cgRmauAdmin").value.trim();
+    const cands = CaGroups.rmauCandidates(cgRes);
+    const picked = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id));
+    if (!picked.length) return;
+    const scopes = [...AUTH_CONFIG.scopes, ...RMAU_WRITE, ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
+    if (!isDemo && !await preConsent(scopes)) return;
+    t.busy = true; btn.disabled = true;
+    const bar = $("cgRmauBar"), log = $("cgRmauLog");
+    bar.style.display = "block";
+    const lines = [], results = [];
+    const say = (h) => { lines.push(h); log.innerHTML = lines.slice(-10).join(""); };
+    try {
+      // 1) the AU itself
+      let au;
+      if (t.auChoice !== "new") {
+        const hit = t.rmaus.find((a) => a.id === t.auChoice);
+        au = { id: hit.id, name: hit.name, created: false };
+      } else {
+        const name = ($("cgRmauName")?.value || RMAU_DEFAULT_NAME).trim() || RMAU_DEFAULT_NAME;
+        if (isDemo) au = { id: "au-demo", name, created: true };
+        else {
+          const made = await Graph.gpost("/administrativeUnits", {
+            displayName: name,
+            description: "Restricted management administrative unit protecting Conditional Access exclusion groups. Membership changes require a role scoped to this administrative unit.",
+            isMemberManagementRestricted: true,
+          });
+          au = { id: made.id, name, created: true };
+        }
+        say(`<div>✓ created restricted management administrative unit <b>${esc(au.name)}</b></div>`);
+      }
+      t.au = au;
+      // 2) the groups
+      for (let i = 0; i < picked.length; i++) {
+        const g = picked[i];
+        bar.firstElementChild.style.width = `${Math.round(((i + 1) / picked.length) * 100)}%`;
+        try {
+          if (!isDemo) await Graph.gpost(`/administrativeUnits/${au.id}/members/$ref`,
+            { "@odata.id": `https://graph.microsoft.com/beta/groups/${g.id}` });
+          results.push({ name: g.name, excludeCount: g.refs.exclude.length, state: "added" });
+          say(`<div>✓ protected <b>${esc(g.name)}</b></div>`);
+        } catch (err) {
+          const already = /added object references already exist|one or more added object references already exist/i.test(err.message || "");
+          results.push({ name: g.name, excludeCount: g.refs.exclude.length, state: already ? "already" : "failed", error: already ? "" : (err.message || String(err)) });
+          say(`<div style="color:var(--off)">${already ? "•" : "✗"} <b>${esc(g.name)}</b>${already ? " — already a member" : ` — ${esc(err.message || err)}`}</div>`);
+        }
+      }
+      // 3) the scoped administrator, so somebody can still manage the members
+      if (t.admin) {
+        try {
+          if (!isDemo) {
+            const u = await Graph.gget(`/users/${encodeURIComponent(t.admin)}?$select=id,userPrincipalName`);
+            // scopedRoleMembers wants the ACTIVATED directory-role object id, not the template id
+            let role = (await Graph.gget(`/directoryRoles?$filter=roleTemplateId eq '${GROUPS_ADMIN_TEMPLATE}'`)).value?.[0];
+            if (!role) role = await Graph.gpost("/directoryRoles", { roleTemplateId: GROUPS_ADMIN_TEMPLATE });
+            await Graph.gpost(`/administrativeUnits/${au.id}/scopedRoleMembers`,
+              { roleId: role.id, roleMemberInfo: { id: u.id } });
+          }
+          say(`<div>✓ <b>${esc(t.admin)}</b> granted Groups Administrator scoped to <b>${esc(au.name)}</b></div>`);
+        } catch (err) {
+          t.adminError = err.message || String(err);
+          say(`<div style="color:var(--off)">✗ scoped administrator — ${esc(t.adminError)}</div>`);
+        }
+      }
+      t.results = results;
+      const ok = results.filter((r) => r.state === "added").length;
+      toast(`<span>${ok}</span> exclusion group${ok === 1 ? "" : "s"} protected${isDemo ? " (simulated)" : ""}`);
+    } catch (e) {
+      console.error("RMAU apply failed:", e);
+      say(`<div style="color:var(--off)">✗ ${esc(e.message || e)}<br><span class="muted">Creating a restricted management administrative unit needs the Privileged Role Administrator role.</span></div>`);
+    } finally { t.busy = false; btn.disabled = false; }
+    if (t.results) renderCgRmau();
+  }
+
   $("cgBody").addEventListener("click", async (e) => {
     if (e.target.id === "cgCsvPick") { $("cgCsvFile").click(); return; }
+    if (e.target.id === "cgRmauGo") { await cgRmauApply(e.target); return; }
+    if (e.target.id === "cgRmauAgain") { cgRmau = null; renderCgRmau(); return; }
+    if (e.target.id === "cgRmauReport" && cgRmau && cgRmau.results) {
+      showReport("🔒 Restricted management administrative unit", "CA-ExclusionProtection",
+        CaGroups.rmauReport({ tenant: tenantName, generatedBy: Brand.generatedBy("Generated"),
+          scopedAdmin: cgRmau.adminError ? "" : cgRmau.admin }, cgRmau.au, cgRmau.results));
+      return;
+    }
     if (e.target.id === "cgCsvBack") { if (cgCsv) cgCsv.stage = cgCsv.stage === "review" ? "map" : null; if (cgCsv && !cgCsv.stage) cgCsv = null; renderCgCsv(); return; }
     if (e.target.id === "cgCsvScan") { await cgCsvScan(); return; }
     if (e.target.id === "cgCsvApply") { await cgCsvApply(e.target); return; }
@@ -3892,7 +4091,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const s = Locations.summarize(loList, raws);
     $("loHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🌐 Named locations <span class="tag block">writes to tenant</span></h3>
+        <h3>🌐 Named locations <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
         <p style="margin-bottom:4px">The IP-range and country locations your Conditional Access policies can target. Create, edit and delete them here — each row shows which policies use it.</p>
         <p class="mini muted" style="margin:0">A location's type is fixed at creation: an IP location cannot become a country location. Deleting one that a policy still references widens that policy.</p>
       </div>
@@ -4418,759 +4617,6 @@ max@contoso.com,"Global, DevOps"</pre>
     r.notApplied.forEach((p) => L.push(`- ${p.name} — ${p.reason}`));
     if (r.notEvaluated.length) { L.push("", `## Not evaluated (Off)`, ""); r.notEvaluated.forEach((p) => L.push(`- ${p.name}`)); }
     showReport("🧪 What-If report", "CA-WhatIf", L.join("\n"));
-  });
-
-  // ---------- Compare users ----------
-  let cuUsers = [], cuResult = null, cuLocations = null, cuSeedList = "";
-  function openCompare() {
-    crumb("⚖ Compare users");
-    show("screen-compare");
-    $("cuHead").innerHTML = `<h3>⚖ Compare users</h3>
-      <p style="margin-bottom:6px">Add two or more users and see where Conditional Access treats them differently: per-policy <b>assignment</b> (included, excluded — and why — or not targeted), the <b>group and role memberships</b> behind the differences, and optionally one <b>What-If sign-in</b> evaluated for every user.</p>
-      <p class="mini muted" style="margin:0">Assignment compares user scoping only — location, platform, client and risk conditions only come in through the optional scenario. Read-only.</p>`;
-    if (!policies.length) { $("cuBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
-    if (isDemo) $("cuUserList").innerHTML = (DEMO_DATA.analyzeUsers || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
-    else if (!$("cuUserList").children.length) {
-      // seed the picker with the first page of tenant users, so the dropdown
-      // offers names before anything is typed; typing refines via Graph search
-      Graph.gget("/users?$select=displayName,userPrincipalName&$top=100")
-        .then((r) => {
-          cuSeedList = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
-          if (!$("cuUser").value.trim()) $("cuUserList").innerHTML = cuSeedList;
-        })
-        .catch((e) => console.warn("compare: user preload failed", e.message));
-    }
-    renderCuChips();
-    if (cuResult) renderCompare();   // keep the last run when returning to the tab
-  }
-  $("toolCompare").addEventListener("click", () => openCompare());
-
-  function renderCuChips() {
-    $("cuChips").innerHTML = cuUsers.map((u, i) => `<span class="cu-chip">${esc(u.name)}${u.guest ? ' <span class="tag new">guest</span>' : ""}
-      <span class="uupn mini muted">${esc(u.upn)}</span><button data-cu-del="${i}" title="Remove from comparison">×</button></span>`).join("") ||
-      '<span class="mini muted">No users yet — add at least two.</span>';
-  }
-  $("cuChips").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-cu-del]"); if (!b) return;
-    cuUsers.splice(+b.dataset.cuDel, 1);
-    cuResult = null; $("cuBody").innerHTML = ""; $("cuMd").style.display = "none";
-    renderCuChips();
-  });
-
-  async function addCuUser(term) {
-    term = (term || "").trim(); if (!term) return false;
-    if (cuUsers.length >= 8) { toast("Compare up to <span>8</span> users at a time"); return false; }
-    try {
-      const u = isDemo ? Comparer.resolveUserDemo(term) : await Comparer.resolveUser(term);
-      if (cuUsers.some((x) => x.id === u.id)) { toast(`<span>${esc(u.name)}</span> is already in the comparison`); $("cuUser").value = ""; return false; }
-      cuUsers.push(u);
-      cuResult = null; $("cuBody").innerHTML = ""; $("cuMd").style.display = "none";
-      $("cuUser").value = ""; renderCuChips();
-      return true;
-    } catch (e) { toast(`${esc(e.message || e)}`); return false; }
-  }
-  $("cuUser").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addCuUser(e.target.value); } });
-  $("cuAdd").addEventListener("click", async () => { await addCuUser($("cuUser").value); $("cuUser").focus(); });
-  $("cuUser").addEventListener("change", (e) => { if (e.target.value.trim()) addCuUser(e.target.value); });
-  // user type-ahead, same shape as What-If's
-  let cuSugTimer = null;
-  $("cuUser").addEventListener("input", (e) => {
-    const v = e.target.value; clearTimeout(cuSugTimer);
-    cuSugTimer = setTimeout(async () => {
-      const t = v.trim();
-      if (isDemo) return;
-      if (t.length < 2) { if (cuSeedList) $("cuUserList").innerHTML = cuSeedList; return; }   // back to the seeded tenant list
-      try {
-        const f = t.replace(/'/g, "''");
-        const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
-        $("cuUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
-      } catch (err) { console.warn("compare: suggest failed", err.message); }
-    }, 250);
-  });
-
-  $("cuScenOn").addEventListener("change", (e) => { $("cuScenGrid").style.display = e.target.checked ? "" : "none"; });
-  $("cuApp").addEventListener("change", (e) => { $("cuAppIdWrap").style.display = e.target.value === "custom" ? "" : "none"; });
-  $("cuDiffOnly").addEventListener("change", () => { if (cuResult) renderCompare(); });
-  $("cuReset").addEventListener("click", () => {
-    cuUsers = []; cuResult = null;
-    $("cuUser").value = ""; $("cuBody").innerHTML = ""; $("cuMd").style.display = "none";
-    ["cuIp", "cuCountry", "cuAppId"].forEach((id) => $(id).value = "");
-    ["cuDevice", "cuSignInRisk", "cuUserRisk"].forEach((id) => $(id).value = "");
-    $("cuApp").value = "00000002-0000-0ff1-ce00-000000000000"; $("cuAppIdWrap").style.display = "none";
-    $("cuPlatform").value = "windows"; $("cuClient").value = "browser";
-    renderCuChips();
-  });
-
-  $("cuRun").addEventListener("click", async () => {
-    if ($("cuUser").value.trim()) await addCuUser($("cuUser").value);   // take a typed-but-not-added user along
-    if (cuUsers.length < 2) { toast("Add at least <span>two users</span> to compare"); return; }
-    const btn = $("cuRun"); btn.disabled = true; btn.textContent = "Comparing…";
-    try {
-      const lookup = Comparer.buildLookup(policies);
-      const rows = Comparer.assignmentRows(lookup, cuUsers);
-      const groups = Comparer.membershipRows(cuUsers, "group");
-      const roles = Comparer.membershipRows(cuUsers, "role");
-      let sr = null, scLine = "";
-      if ($("cuScenOn").checked) {
-        const sc = {};
-        const appSel = $("cuApp").value;
-        if (appSel === "custom") { sc.appId = $("cuAppId").value.trim(); sc.appName = sc.appId || ""; }
-        else { sc.appId = appSel; sc.appName = $("cuApp").selectedOptions[0].textContent; }
-        if (!sc.appId) { toast("Enter an <span>App ID</span> for the scenario"); return; }
-        sc.platform = $("cuPlatform").value;
-        sc.clientApp = $("cuClient").value;
-        sc.ip = $("cuIp").value.trim() || null;
-        sc.country = $("cuCountry").value.trim().toUpperCase() || null;
-        sc.deviceState = $("cuDevice").value || null;
-        sc.signInRisk = $("cuSignInRisk").value || null;
-        sc.userRisk = $("cuUserRisk").value || null;
-        if (!cuLocations) {
-          try { cuLocations = isDemo ? [] : await Graph.ggetAll("/identity/conditionalAccess/namedLocations"); }
-          catch (e) { cuLocations = []; console.warn("compare: named locations failed", e.message); }
-        }
-        sr = Comparer.scenario(policies.map((p) => p.raw), cuUsers, sc, { namedLocations: cuLocations, names: {} });
-        scLine = [esc(sc.appName), WhatIfEval.LABEL[sc.platform] || sc.platform, WhatIfEval.LABEL[sc.clientApp] || sc.clientApp,
-          sc.ip ? `IP ${esc(sc.ip)}` : "", sc.country ? `country ${esc(sc.country)}` : "",
-          sc.deviceState ? WhatIfEval.LABEL[sc.deviceState] : "", sc.signInRisk ? `sign-in risk ${sc.signInRisk}` : "",
-          sc.userRisk ? `user risk ${sc.userRisk}` : ""].filter(Boolean).join(" · ");
-      }
-      cuResult = { users: cuUsers.slice(), rows, groups, roles, sr, scLine };
-      renderCompare();
-    } catch (e) {
-      console.error("Compare users failed:", e);
-      toast(`Compare: <span>${esc(e.message || e)}</span>`);
-    } finally { btn.disabled = false; btn.textContent = "⚖ Compare"; }
-  });
-
-  function renderCompare() {
-    const R = cuResult; if (!R) return;
-    const diffOnly = $("cuDiffOnly").checked;
-    $("cuMd").style.display = "";
-    const nd = R.rows.filter((r) => r.differs).length;
-    const ng = R.groups.filter((r) => r.differs).length + R.roles.filter((r) => r.differs).length;
-    let scHtml = "";
-    if (R.sr) {
-      const verd = R.users.map((u, i) => {
-        const r = R.sr.perUser[i];
-        return `<div class="wi-verdict ${r.blocked ? "block" : "grant"}" style="margin-bottom:6px">${r.blocked ? "⛔" : "✅"} <b>${esc(u.name)}</b> — ${r.blocked ? "access would be <b>blocked</b>" : `${r.applied.length} ${r.applied.length === 1 ? "policy applies" : "policies apply"}`}</div>`;
-      }).join("");
-      scHtml = `<div class="list-card wi-res"><h4 class="wi-h">What-If scenario <span class="mini muted">${R.scLine}</span></h4>
-        ${verd}${Comparer.scenarioTable(R.sr, R.users, diffOnly)}
-        <p class="mini muted" style="margin:8px 0 0">✓ applies (amber = report-only) · ✗ does not apply — hover for the first unmet condition.</p></div>`;
-    }
-    $("cuBody").innerHTML = `
-      <div class="list-card wi-res"><h4 class="wi-h">Policy assignment <span class="mini muted">${nd} difference${nd === 1 ? "" : "s"}</span></h4>
-        ${Comparer.assignmentTable(R.rows, R.users, diffOnly)}
-        <p class="mini muted" style="margin:8px 0 0">✓ included · ✗ excluded — hover for the group, role or direct exclusion behind it · “·” not targeted. Enabled and report-only policies; user scoping only.</p></div>
-      <div class="list-card wi-res"><h4 class="wi-h">Memberships <span class="mini muted">${ng} difference${ng === 1 ? "" : "s"}</span></h4>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px">
-          <div>${Comparer.membershipTable(R.groups, R.users, "group", diffOnly)}</div>
-          <div>${Comparer.membershipTable(R.roles, R.users, "role", diffOnly)}</div>
-        </div></div>
-      ${scHtml}`;
-  }
-  $("cuBody").addEventListener("click", (e) => {
-    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
-  });
-  $("cuMd").addEventListener("click", () => {
-    const R = cuResult; if (!R) return;
-    showReport("⚖ Compare users", "CA-CompareUsers",
-      Comparer.markdown({ tenant: tenantName || "tenant", scenarioLine: R.scLine }, R.users, R.rows, R.groups, R.roles, R.sr));
-  });
-
-  // ---------- Group Analyzer (BETA) ----------
-  // "Where is this group actually used?" The source registry, the matching and
-  // the exports live in js/groupuse.js; this is screen, consent and rendering.
-  let guMode = "all", guAreas = new Set(["entra", "m365"]);
-  let guRes = null, guMeta = null, guTotals = null, guGroups = null;
-  let guQuery = "", guUnusedOnly = false, guSeedList = "", guShowServices = false, guDanglingOnly = false;
-  // A finished sweep is expensive. Drilling into one group must not throw it
-  // away — park it here and offer the way back, rather than making the person
-  // pay for the same scan twice.
-  let guStash = null;
-
-  function openGroupUse() {
-    crumb("🔗 Group Analyzer");
-    show("screen-groupuse");
-    $("guHead").innerHTML = `<h3>🔗 Group Analyzer <span class="tag new">BETA</span></h3>
-      <p style="margin-bottom:6px">A group is a shared handle: one admin scopes a Conditional Access policy to it, another targets an Intune profile at it, a third grants it a role on a subscription. Paste a <b>group or user</b> and see every place it is referenced — or sweep the tenant and find the groups <b>nothing</b> references.</p>
-      <p class="mini muted" style="margin:0">Read-only. Hits inherited from a <b>parent group</b> are marked as such — anything targeting the parent reaches these members too. After Jasper Baes' <i>Microsoft Cloud Group Analyzer</i>.</p>`;
-
-    if (isDemo) {
-      $("guBody").innerHTML = `<div class="list-card"><p class="mini" style="margin:0">Group Analyzer reads live Entra, Intune, Microsoft 365 and Azure configuration, so there is nothing meaningful to show against the demo policy set. Sign in to a tenant to use it.</p></div>`;
-      $("guRun").disabled = true;
-      return;
-    }
-    $("guRun").disabled = false;
-    renderGuAreas();
-    if (guRes || guTotals) renderGroupUse();
-  }
-  $("toolGroupUse").addEventListener("click", () => openGroupUse());
-
-  // ---- area picker. Consent is asked at the tick, not at Run: the checkbox
-  // click is a live user gesture, and Safari/Edge revoke that the moment the
-  // run awaits its first Graph call — a popup raised there would be blocked.
-  function renderGuAreas() {
-    $("guAreas").innerHTML = GroupUse.AREAS.map((a) => {
-      const n = GroupUse.SOURCES.filter((s) => s.area === a.id).length;
-      const extra = a.id === "azure" ? "separate Azure sign-in"
-        : (GroupUse.AREA_SCOPES[a.id] || []).length ? "asks for extra permissions" : "no extra permissions";
-      return `<label class="gu-area${guAreas.has(a.id) ? " on" : ""}">
-        <input type="checkbox" data-guarea="${a.id}"${guAreas.has(a.id) ? " checked" : ""}>
-        <span class="gu-a-h">${a.icon} ${esc(a.label)}</span>
-        <span class="mini muted">${n} service${n === 1 ? "" : "s"} · ${extra}</span></label>`;
-    }).join("");
-  }
-  $("guAreas").addEventListener("change", async (e) => {
-    const cb = e.target.closest("[data-guarea]"); if (!cb) return;
-    const id = cb.dataset.guarea;
-    if (!cb.checked) { guAreas.delete(id); renderGuAreas(); return; }
-    const need = id === "azure" ? Graph.ARM_SCOPES : [...AUTH_CONFIG.scopes, ...(GroupUse.AREA_SCOPES[id] || [])];
-    if (!isDemo && !Graph.hasScopes(need)) {
-      cb.disabled = true;
-      let ok = false;
-      try { ok = await preConsent(need); }
-      catch (err) { console.error(err); toast(`Consent failed: <span>${esc(err.message || err)}</span>`); }
-      cb.disabled = false;
-      if (!ok) { renderGuAreas(); return; }
-      if (id === "azure") toast("Azure connected — subscriptions and role assignments will be read");
-    }
-    guAreas.add(id); renderGuAreas();
-  });
-
-  function guSeedPicker() {
-    if (isDemo || guSeedList || $("guTermList").children.length) return;
-    Graph.gget("/groups?$select=id,displayName&$top=100&$orderby=displayName")
-      .then((r) => {
-        guSeedList = ((r && r.value) || []).map((g) => `<option value="${esc(g.displayName)}"></option>`).join("");
-        if (!$("guTerm").value.trim()) $("guTermList").innerHTML = guSeedList;
-      })
-      .catch((e) => console.warn("Group Analyzer: group preload failed", e.message));
-  }
-  $("guTerm").addEventListener("focus", guSeedPicker);
-
-  $("guModeSeg").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-gumode]"); if (!b) return;
-    guMode = b.dataset.gumode;
-    [...$("guModeSeg").children].forEach((x) => x.classList.toggle("active", x === b));
-    $("guOneWrap").style.display = guMode === "one" ? "" : "none";
-    $("guAllWrap").style.display = guMode === "all" ? "" : "none";
-    $("guRun").textContent = guMode === "all" ? "🔗 Sweep tenant" : "🔗 Analyze";
-    if (guMode === "one") guSeedPicker();
-  });
-
-  // user/group type-ahead, same shape as Compare users'
-  let guSugTimer = null;
-  $("guTerm").addEventListener("input", (e) => {
-    const v = e.target.value; clearTimeout(guSugTimer);
-    guSugTimer = setTimeout(async () => {
-      const t = v.trim();
-      if (isDemo || t.length < 2) { if (guSeedList && t.length < 2) $("guTermList").innerHTML = guSeedList; return; }
-      try {
-        const f = t.replace(/'/g, "''");
-        const [g, u] = await Promise.all([
-          Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=displayName&$top=8`).catch(() => ({ value: [] })),
-          Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=8`).catch(() => ({ value: [] })),
-        ]);
-        $("guTermList").innerHTML =
-          ((g.value || []).map((x) => `<option value="${esc(x.displayName)}" label="group"></option>`).join("")) +
-          ((u.value || []).map((x) => `<option value="${esc(x.userPrincipalName)}" label="${esc(x.displayName || "")}"></option>`).join(""));
-      } catch (err) { console.warn("Group Analyzer: suggest failed", err.message); }
-    }, 250);
-  });
-  $("guTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runGroupUse(); } });
-
-  $("guRun").addEventListener("click", () => runGroupUse());
-  $("guReset").addEventListener("click", () => {
-    guRes = guMeta = guTotals = guGroups = guStash = null; guQuery = ""; guUnusedOnly = false;
-    $("guTerm").value = ""; $("guBody").innerHTML = ""; $("guProg").textContent = "";
-    ["guMd", "guHtml", "guCsv"].forEach((id) => $(id).style.display = "none");
-  });
-
-  const guSourceIds = (sweep) => GroupUse.SOURCES
-    .filter((s) => guAreas.has(s.area))
-    .filter((s) => !sweep || $("guSweepDeep").checked || !s.perObject)
-    .map((s) => s.id);
-
-  // Name filter for a sweep. Prefix and suffix are the useful ones in practice
-  // — naming conventions live at both ends — and Graph can do both server-side
-  // (endsWith needs $count=true, which pairs with the ConsistencyLevel header
-  // Graph.gget always sends). The client predicate is kept as well, both as a
-  // safety net and as the fallback when a tenant rejects the filter outright.
-  function guNameFilter(mode, text) {
-    const raw = String(text || "").trim();
-    if (!raw) return { q: "", keep: null, label: "" };
-    const t = raw.replace(/'/g, "''");
-    const lo = raw.toLowerCase();
-    if (mode === "ends") {
-      return { q: `&$count=true&$filter=${encodeURIComponent(`endswith(displayName,'${t}')`)}`,
-        keep: (n) => n.toLowerCase().endsWith(lo), label: `name ends with “${raw}”` };
-    }
-    if (mode === "contains") {
-      return { q: `&$search=${encodeURIComponent(`"displayName:${raw}"`)}`,
-        keep: (n) => n.toLowerCase().includes(lo), label: `name contains “${raw}”` };
-    }
-    return { q: `&$filter=${encodeURIComponent(`startswith(displayName,'${t}')`)}`,
-      keep: (n) => n.toLowerCase().startsWith(lo), label: `name starts with “${raw}”` };
-  }
-
-  // Page through /groups only as far as the chosen limit — a tenant with
-  // 20 000 groups should not be fully enumerated to answer "first 100". With a
-  // name filter the limit counts matches, not rows scanned.
-  async function guListGroups(limit, st, filter) {
-    const f = filter || { q: "", keep: null };
-    const base = "/groups?$select=id,displayName,membershipRule,isAssignableToRole,groupTypes";
-    const top = limit ? Math.min(Math.max(limit, 50), 999) : 999;
-    const keep = f.keep || (() => true);
-    const collect = async (start) => {
-      const out = [];
-      let url = start;
-      while (url) {
-        const j = await Graph.gget(url);
-        (j.value || []).forEach((g) => { if (keep(g.displayName || "")) out.push(g); });
-        st?.(`Listing groups… ${out.length}`);
-        if (limit && out.length >= limit) break;
-        url = j["@odata.nextLink"] || null;
-      }
-      return out;
-    };
-    let out;
-    if (f.q) {
-      try { out = await collect(`${base}&$top=${top}${f.q}`); }
-      catch (e) {
-        console.warn("Group Analyzer: server-side name filter rejected —", e.message);
-        st?.("Name filter not supported here — filtering locally…");
-        out = await collect(`${base}&$top=${top}`);
-      }
-    } else out = await collect(`${base}&$top=${top}`);
-    return limit ? out.slice(0, limit) : out;
-  }
-
-  async function runGroupUse() {
-    if (isDemo) return;
-    if (!guAreas.size) { toast("Pick at least one <span>area</span> to look in"); return; }
-    const btn = $("guRun"); const label = btn.textContent;
-    btn.disabled = true; btn.textContent = "Analyzing…";
-    // Drilling out of a finished sweep: keep it so "Back to the sweep" can put
-    // it straight back on screen. A new sweep replaces whatever was parked.
-    if (guMode === "one" && guTotals) {
-      guStash = { totals: guTotals, groups: guGroups, res: guRes, meta: guMeta, query: guQuery, unusedOnly: guUnusedOnly, danglingOnly: guDanglingOnly };
-    } else if (guMode === "all") guStash = null;
-    guRes = guMeta = guTotals = guGroups = null;
-    $("guBody").innerHTML = ""; ["guMd", "guHtml", "guCsv"].forEach((id) => $(id).style.display = "none");
-    const st = (m) => { $("guProg").textContent = m; };
-    try {
-      if (guMode === "all") await sweepGroupUse(st);
-      else await analyzeOneGroup($("guTerm").value, st);
-    } catch (e) {
-      console.error("Group Analyzer failed:", e);
-      $("guBody").innerHTML = `<div class="list-card"><p class="mini" style="margin:0;color:var(--off)">${esc(e.message || e)}</p></div>`;
-    } finally { btn.disabled = false; btn.textContent = label; $("guProg").textContent = ""; }
-  }
-
-  async function analyzeOneGroup(term, st) {
-    term = (term || "").trim();
-    if (!term) { toast("Enter a <span>group or user</span>"); return; }
-    st("Resolving…");
-    const principal = await GroupUse.resolvePrincipal(term);
-    const scope = await GroupUse.buildScope(principal, st);
-    const res = await GroupUse.analyze({
-      ids: scope.ids, principal, isUser: principal.type === "user",
-      policies: policies.map((p) => p.raw), sourceIds: guSourceIds(false),
-      batchIds: scope.groupIds, onStatus: st,
-    });
-    guRes = res;
-    guMeta = {
-      principalName: principal.name, principalType: principal.type, principalId: principal.id,
-      via: scope.via, parents: scope.parents, children: scope.children, roles: scope.roles,
-    };
-    renderGroupUse();
-  }
-
-  // The groups every Conditional Access policy points at — include and exclude,
-  // across enabled, report-only and Off alike. This is the scope that matters
-  // for a Conditional Access tool: it is bounded by the baseline rather than by
-  // the size of the directory, it needs no /groups enumeration at all (the
-  // policies are already in memory), and the answer it gives — "what else does
-  // this group touch, now that Conditional Access depends on it" — is the whole
-  // reason to look.
-  //
-  // A referenced id the directory cannot resolve is a DANGLING reference: the
-  // policy still names it, but the group is gone, so that assignment targets
-  // nobody. Those are kept and flagged rather than dropped — a policy quietly
-  // scoped to nothing is worth more attention than one scoped to a live group.
-  async function guCaScopedGroups(st) {
-    const refs = new Map();   // lower id -> Set of policy names
-    for (const p of policies) {
-      const u = (p.raw.conditions || {}).users || {};
-      for (const g of [...(u.includeGroups || []), ...(u.excludeGroups || [])]) {
-        const k = String(g).toLowerCase();
-        if (!GroupUse.isGuid(k)) continue;
-        if (!refs.has(k)) refs.set(k, new Set());
-        refs.get(k).add(p.raw.displayName || p.raw.id);
-      }
-    }
-    if (!refs.size) return [];
-
-    st(`Resolving ${refs.size} group${refs.size === 1 ? "" : "s"} referenced by Conditional Access…`);
-    const found = new Map();
-    const ids = [...refs.keys()];
-    for (let i = 0; i < ids.length; i += 900) {
-      try {
-        const j = await Graph.gpost("/directoryObjects/getByIds", { ids: ids.slice(i, i + 900), types: ["group"] });
-        (j.value || []).forEach((g) => found.set(String(g.id).toLowerCase(), g));
-      } catch (e) { console.warn("Group Analyzer: getByIds failed", e.message); }
-    }
-    return ids.map((id) => {
-      const g = found.get(id);
-      const usedBy = [...refs.get(id)];
-      return g
-        ? { ...g, caPolicies: usedBy }
-        : { id, displayName: "(not found in the directory)", missing: true, caPolicies: usedBy };
-    }).sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
-  }
-
-  async function sweepGroupUse(st) {
-    st("Listing groups…");
-    const filter = guNameFilter($("guMatchMode").value, $("guMatchText").value);
-    const scope = $("guLimit").value;
-    let groups, scopeLabel;
-    if (scope === "ca") {
-      groups = await guCaScopedGroups(st);
-      if (filter.keep) groups = groups.filter((g) => filter.keep(g.displayName || ""));
-      scopeLabel = [`used by Conditional Access`, filter.label].filter(Boolean).join(" and ");
-      if (!groups.length) {
-        toast(filter.label
-          ? `No Conditional Access group where <span>${esc(filter.label)}</span>`
-          : "No Conditional Access policy in this tenant assigns a group");
-        return;
-      }
-    } else {
-      groups = await guListGroups(+scope || 0, st, filter);
-      scopeLabel = filter.label;
-    }
-    if (!groups.length) {
-      toast(filter.label ? `No groups where <span>${esc(filter.label)}</span>` : "No groups found in this tenant");
-      return;
-    }
-    const ids = new Set(groups.map((g) => String(g.id).toLowerCase()));
-    const via = new Map(groups.map((g) => [String(g.id).toLowerCase(), g.displayName || g.id]));
-    const res = await GroupUse.analyze({
-      ids, principal: { id: "", name: "tenant", type: "group" }, isUser: false,
-      policies: policies.map((p) => p.raw), sourceIds: guSourceIds(true),
-      // a dangling id has no group behind it — asking /groups/{id}/… would only
-      // generate 404s in every per-object batch
-      batchIds: groups.filter((g) => !g.missing).map((g) => g.id), onStatus: st,
-    });
-    guRes = res; guGroups = groups;
-    guTotals = GroupUse.sweepTotals(groups, res.rows);
-    guMeta = { principalName: `${groups.length} groups`, principalType: "sweep", principalId: "",
-      scopeNote: scopeLabel, via, parents: [], children: [], roles: [] };
-    renderGroupUse();
-  }
-
-  // ---- rendering -----------------------------------------------------------
-  function guSourceBlock(g, via) {
-    const s = g.source;
-    const rows = g.rows.map((r) => {
-      const viaLabel = via.get(r.pid) || r.pid;
-      const inherited = /parent group|directory role/.test(viaLabel);
-      const name = r.source === "ca"
-        ? `<span class="pol-link" data-polid="${esc(r.id)}">${esc(r.name)}</span>`
-        : esc(r.name);
-      return `<tr>
-        <td>${name}${r.sub ? ` <span class="mini muted">${esc(r.sub)}</span>` : ""}</td>
-        <td><span class="gu-how ${GroupUse.HOW_CLASS(r.how)}">${esc(r.how)}</span></td>
-        <td class="mini">${esc(r.detail || "")}</td>
-        <td class="gu-via${inherited ? " parent" : ""}">${esc(viaLabel)}</td></tr>`;
-    }).join("");
-    return `<div class="gu-src">
-      <h5>${esc(s.label)} <span class="mini muted">${g.rows.length}</span>
-        ${s.doc ? `<a href="${esc(s.doc)}" target="_blank" rel="noopener noreferrer">docs ↗</a>` : ""}</h5>
-      <p class="mini muted" style="margin:0 0 6px">${esc(s.hint || "")}</p>
-      <div class="gu-tw"><table class="plist"><thead><tr><th>Object</th><th>How</th><th>Detail</th><th>Matched via</th></tr></thead>
-        <tbody>${rows}</tbody></table></div></div>`;
-  }
-
-  function guNotReadBlock(res) {
-    const partial = res.partial || [];
-    if (!res.failed.length && !res.skipped.length && !partial.length) return "";
-    return `<p class="mini muted" style="margin:0 0 4px">“Nothing found” only means “nothing found in what was actually read”. Check this list before concluding a group is unused.</p>
-      ${res.failed.map((f) => `<div class="gu-fail"><b>${esc(f.label)}</b> — ${esc(f.error)}${f.why ? `<span class="why">${esc(f.why)}</span>` : ""}</div>`).join("")}
-      ${partial.map((p) => `<div class="gu-fail gu-skip"><b>${esc(p.label)}</b> — read, but partly: ${esc(p.notes.join("; "))}</div>`).join("")}
-      ${res.skipped.map((s) => `<div class="gu-fail gu-skip"><b>${esc(s.label)}</b> — skipped (${esc(s.why)})</div>`).join("")}`;
-  }
-  function guNotReadCard(res) {
-    const inner = guNotReadBlock(res);
-    return inner ? `<div class="list-card wi-res" id="guNotRead"><h4 class="wi-h">Not read</h4>${inner}</div>` : "";
-  }
-
-  function renderGroupUse() {
-    if (guTotals) return renderGuSweep();
-    const res = guRes, meta = guMeta;
-    if (!res || !meta) return;
-    ["guMd", "guHtml", "guCsv"].forEach((id) => $(id).style.display = "");
-
-    const per = GroupUse.byArea(res.rows);
-    const stats = GroupUse.AREAS.map((a) => {
-      const n = (per.get(a.id) || []).length;
-      return guAreas.has(a.id)
-        ? `<span class="gu-stat${n ? " act" : " zero"}"${n ? ` data-gujump="guArea-${a.id}" title="Jump to ${esc(a.label)}"` : ""}>${a.icon} ${esc(a.label)} <b>${n}</b></span>`
-        : "";
-    }).join("");
-
-    const rel = [];
-    if (meta.parents.length) rel.push(`<b>Member of</b> ${meta.parents.map((p) => esc(p.name)).join(", ")}`);
-    if (meta.children.length) rel.push(`<b>Contains groups</b> ${meta.children.map((p) => esc(p.name)).join(", ")}`);
-    if (meta.roles.length) rel.push(`<b>Directory roles</b> ${meta.roles.map((p) => esc(p.name)).join(", ")}`);
-
-    const areaCards = GroupUse.AREAS.map((a) => {
-      if (!guAreas.has(a.id)) return "";
-      const rows = per.get(a.id) || [];
-      const groupsOf = GroupUse.grouped(rows);
-      const empty = res.ran.filter((r) => r.area === a.id && !r.count);
-      return `<div class="list-card wi-res" id="guArea-${a.id}">
-        <h4 class="wi-h">${a.icon} ${esc(a.label)} <span class="mini muted">${rows.length} reference${rows.length === 1 ? "" : "s"}</span></h4>
-        ${groupsOf.length ? groupsOf.map((g) => guSourceBlock(g, meta.via)).join("")
-          : `<p class="mini muted" style="margin:0">No references found.</p>`}
-        ${empty.length ? `<p class="mini muted" style="margin:10px 0 0">Read and clean: ${empty.map((e) => esc(e.label)).join(", ")}.</p>` : ""}</div>`;
-    }).join("");
-
-    // The counts double as jump links, and on an account with hundreds of
-    // references they are the only way to navigate — so they ride along in a
-    // sticky strip rather than scrolling away with the header. The strip sits
-    // OUTSIDE the card on purpose: .list-card clips its overflow, and a sticky
-    // child of a clipping ancestor sticks only within that ancestor's box.
-    // The name comes with it, so it stays obvious whose result this is.
-    $("guBody").innerHTML = `
-      ${guBackBar()}
-      <div class="gu-sticky">
-        <span class="gu-who">${meta.principalType === "user" ? "👤" : "👥"} ${esc(meta.principalName)}
-          <span class="mini muted">${esc(meta.principalType)}</span></span>
-        <div class="gu-sum"><span class="gu-stat"><b>${res.rows.length}</b> reference${res.rows.length === 1 ? "" : "s"}</span>${stats}${
-          (res.failed.length || (res.partial || []).length) ? `<span class="gu-stat act" data-gujump="guNotRead" title="Jump to what could not be read"><b>${res.failed.length + (res.partial || []).length}</b> not read</span>` : ""}</div>
-      </div>
-      ${rel.length ? `<div class="list-card wi-res gu-jt">
-        <p class="mini muted" style="margin:0 0 4px">Object ID <code>${esc(meta.principalId)}</code></p>
-        <p class="mini" style="margin:0">${rel.join(" &nbsp;·&nbsp; ")}</p></div>` : ""}
-      ${areaCards}
-      ${guNotReadCard(res)}`;
-  }
-
-  // Shown only when a finished sweep is parked behind this single-group view.
-  function guBackBar() {
-    if (!guStash) return "";
-    const n = guStash.totals.length;
-    return `<div class="gu-back"><button class="btn" id="guBack">← Back to the sweep</button>
-      <span class="mini muted">${n} group${n === 1 ? "" : "s"}${guStash.meta && guStash.meta.scopeNote ? ` · ${esc(guStash.meta.scopeNote)}` : ""}, still loaded — going back costs nothing</span></div>`;
-  }
-  function restoreGuSweep() {
-    if (!guStash) return;
-    const s = guStash; guStash = null;
-    guTotals = s.totals; guGroups = s.groups; guRes = s.res; guMeta = s.meta;
-    guQuery = s.query; guUnusedOnly = s.unusedOnly; guDanglingOnly = !!s.danglingOnly;
-    guMode = "all";
-    [...$("guModeSeg").children].forEach((x) => x.classList.toggle("active", x.dataset.gumode === "all"));
-    $("guOneWrap").style.display = "none"; $("guAllWrap").style.display = "";
-    $("guRun").textContent = "🔗 Sweep tenant";
-    renderGroupUse();
-  }
-
-  function renderGuSweep() {
-    const res = guRes;
-    ["guMd", "guHtml", "guCsv"].forEach((id) => $(id).style.display = "");
-    const q = guQuery.trim().toLowerCase();
-    const vis = guTotals.filter((t) => (!q || t.name.toLowerCase().includes(q))
-      && (!guUnusedOnly || !t.total) && (!guDanglingOnly || t.missing));
-    const unused = guTotals.filter((t) => !t.total).length;
-    const gone = guTotals.filter((t) => t.missing).length;
-    $("guBody").innerHTML = `
-      <div class="gu-sticky">
-        <span class="gu-who">Tenant sweep
-          <span class="mini muted">${guTotals.length} groups${guMeta && guMeta.scopeNote ? ` where ${esc(guMeta.scopeNote)}` : ""} · ${res.rows.length} references</span></span>
-        <div class="gu-sum">
-          <span class="gu-stat act${!guUnusedOnly && !guDanglingOnly && !guQuery ? " on" : ""}" data-gustat="all" title="Show every group in the sweep"><b>${guTotals.length}</b> groups</span>
-          <span class="gu-stat act${guUnusedOnly ? " on" : ""}${unused ? "" : " zero"}" data-gustat="unused" title="Show only the groups nothing references"><b>${unused}</b> with no usage found</span>
-          <span class="gu-stat act${guShowServices ? " on" : ""}" data-gustat="services" title="List every service that was read, and what it found"><b>${res.ran.length}</b> services read</span>
-          <span class="gu-stat act${res.failed.length ? "" : " zero"}" data-gustat="notread" title="Jump to what could not be read"><b>${res.failed.length}</b> not read</span>
-          ${gone ? `<span class="gu-stat act${guDanglingOnly ? " on" : ""}" data-gustat="dangling" title="Ids a policy still names but the directory no longer has"><b>${gone}</b> dangling</span>` : ""}
-        </div>
-        <div class="gu-bar" style="margin:0">
-          <div class="search">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
-            <input id="guSweepSearch" placeholder="Search groups…" value="${esc(guQuery)}">
-          </div>
-          <label class="chk"><input type="checkbox" id="guUnused"${guUnusedOnly ? " checked" : ""}> Only groups with no usage found</label>
-        </div>
-      </div>
-      <div class="list-card wi-res gu-jt">
-        ${guShowServices ? guServicesPanel(res) : ""}
-        <div class="gu-tw"${guShowServices ? ' style="margin-top:12px"' : ""}><table class="plist">
-          <thead><tr><th>Group</th><th class="gu-num">Entra</th><th class="gu-num">Intune</th><th class="gu-num">M365</th><th class="gu-num">Azure</th><th class="gu-num">Total</th></tr></thead>
-          <tbody>${vis.map((t) => `<tr class="gu-row-link" data-gugroup="${esc(t.id)}" title="Open this group's references">
-            <td>${esc(t.name)}${t.dynamic ? ' <span class="tag">dynamic</span>' : ""}${t.roleAssignable ? ' <span class="tag block">role-assignable</span>' : ""}${
-              t.missing ? ` <span class="tag block">not in the directory</span><div class="mini" style="color:var(--off)">Named by ${esc(t.caPolicies.join(", "))} — that assignment targets nobody</div>` : ""}</td>
-            <td class="gu-num${t.entra ? "" : " gu-zero"}">${t.entra}</td>
-            <td class="gu-num${t.intune ? "" : " gu-zero"}">${t.intune}</td>
-            <td class="gu-num${t.m365 ? "" : " gu-zero"}">${t.m365}</td>
-            <td class="gu-num${t.azure ? "" : " gu-zero"}">${t.azure}</td>
-            <td class="gu-num"><b>${t.total}</b></td></tr>`).join("")
-            || '<tr><td colspan="6" class="mini muted">Nothing matches that filter.</td></tr>'}</tbody>
-        </table></div>
-        <p class="mini muted" style="margin:8px 0 0">Click a row to open that group's references — read straight from this sweep, no second scan.</p>
-      </div>
-      ${guNotReadCard(res)}`;
-    wireSearchClears();
-  }
-
-  // What "19 services read" actually means, on demand — which services, what
-  // each one found, and how long it took. The counter alone invites the
-  // assumption that everything was covered; this is the receipt.
-  function guServicesPanel(res) {
-    const rows = [...res.ran]
-      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
-      .map((r) => `<tr><td>${esc(r.label)}</td><td class="mini">${esc(GroupUse.AREAS.find((a) => a.id === r.area)?.label || r.area)}</td>
-        <td class="gu-num${r.count ? "" : " gu-zero"}">${r.count}</td><td class="gu-num mini">${r.ms} ms</td></tr>`).join("");
-    return `<div class="gu-tw" style="margin-top:10px"><table class="plist">
-      <thead><tr><th>Service read</th><th>Area</th><th class="gu-num">References</th><th class="gu-num">Time</th></tr></thead>
-      <tbody>${rows}</tbody></table></div>`;
-  }
-
-  // ---- per-group popup -----------------------------------------------------
-  // Clicking a sweep row used to re-run the whole analysis, which on a large
-  // tenant means waiting again for data already sitting in memory. The sweep
-  // holds every (group, object) hit, so the popup is a filter — instant. The
-  // one thing it cannot show is inheritance, because a sweep matches each group
-  // only against itself; "Deep analyze" is the explicit opt-in for that.
-  let guModalGroup = null;
-  function openGuGroupModal(id) {
-    if (!guTotals || !guRes) return;
-    const t = guTotals.find((x) => String(x.id).toLowerCase() === String(id).toLowerCase());
-    if (!t) return;
-    guModalGroup = t;
-    const rows = GroupUse.rowsFor(guRes.rows, t.id);
-    const via = new Map([[String(t.id).toLowerCase(), "this group"]]);
-    const per = GroupUse.byArea(rows);
-
-    $("guModalTitle").innerHTML = `👥 ${esc(t.name)}
-      ${t.dynamic ? '<span class="tag">dynamic</span>' : ""}${t.roleAssignable ? '<span class="tag block">role-assignable</span>' : ""}${
-        t.missing ? '<span class="tag block">not in the directory</span>' : ""}`;
-    $("guModalSub").innerHTML = `${rows.length} reference${rows.length === 1 ? "" : "s"} · <code>${esc(t.id)}</code>
-      &nbsp;·&nbsp; ${GroupUse.AREAS.filter((a) => guAreas.has(a.id)).map((a) => `${a.icon} ${(per.get(a.id) || []).length}`).join(" &nbsp; ")}`;
-
-    const areas = GroupUse.AREAS.map((a) => {
-      const gs = GroupUse.grouped(per.get(a.id) || []);
-      if (!gs.length) return "";
-      return `<h4 class="wi-h" style="margin-top:14px">${a.icon} ${esc(a.label)}
-        <span class="mini muted">${(per.get(a.id) || []).length}</span></h4>
-        ${gs.map((g) => guSourceBlock(g, via)).join("")}`;
-    }).join("");
-
-    const dangleNote = t.missing
-      ? `<div class="gu-fail" style="margin:0 0 12px"><b>Dangling reference.</b> ${esc(t.caPolicies.join(", "))} still name${t.caPolicies.length === 1 ? "s" : ""} this id, but the directory no longer has the group — so that assignment targets nobody. Remove the reference, or recreate the group.</div>`
-      : "";
-    $("guModalBody").innerHTML = dangleNote + (areas || `<p class="mini muted" style="margin:0">No references found in the services that were read. Check <b>Not read</b> on the sweep before treating this group as unused.</p>`)
-      + `<p class="mini muted" style="margin:14px 0 0">A sweep matches every group against itself only. If this group is nested inside another, references that reach it <b>through the parent</b> are not listed here — use <b>Deep analyze</b> for that.</p>`;
-    $("guModal").classList.add("open");
-  }
-  const closeGuModal = () => { $("guModal").classList.remove("open"); guModalGroup = null; };
-  $("guModalClose").addEventListener("click", closeGuModal);
-  $("guModal").addEventListener("click", (e) => {
-    if (e.target.id === "guModal") { closeGuModal(); return; }
-    const pl = e.target.closest(".pol-link");
-    if (pl && pl.dataset.polid) { closeGuModal(); showDetail(pl.dataset.polid); }
-  });
-  $("guModalDeep").addEventListener("click", () => {
-    const t = guModalGroup; if (!t) return;
-    closeGuModal();
-    guMode = "one";
-    [...$("guModeSeg").children].forEach((x) => x.classList.toggle("active", x.dataset.gumode === "one"));
-    $("guOneWrap").style.display = ""; $("guAllWrap").style.display = "none";
-    $("guRun").textContent = "🔗 Analyze";
-    $("guTerm").value = t.id;
-    runGroupUse();   // parks the sweep on the way out — see the stash in runGroupUse
-  });
-
-  // Exports from the popup reuse the shared builders — one group, direct
-  // references only, which is exactly what the popup shows.
-  function guModalSlice() {
-    const t = guModalGroup;
-    const rows = GroupUse.rowsFor(guRes.rows, t.id);
-    const res = { rows, ran: guRes.ran, failed: guRes.failed, skipped: guRes.skipped, partial: guRes.partial };
-    const meta = { principalName: t.name, principalType: "group", principalId: t.id, tenant: tenantName,
-      via: new Map([[String(t.id).toLowerCase(), "this group"]]), parents: [], children: [], roles: [] };
-    return { res, meta, base: `CA-GroupAnalyzer-${(t.name || "group").replace(/[^\w.-]+/g, "-").slice(0, 40)}` };
-  }
-  $("guModalMd").addEventListener("click", () => {
-    if (!guModalGroup) return;
-    const { res, meta, base } = guModalSlice();
-    closeGuModal();
-    showReport(`🔗 Group Analyzer — ${meta.principalName}`, base, GroupUse.markdown(res, meta));
-  });
-  $("guModalHtml").addEventListener("click", () => {
-    if (!guModalGroup) return;
-    const { res, meta, base } = guModalSlice();
-    downloadText(base, "html", "text/html", GroupUse.html(res, meta));
-  });
-  $("guModalCsv").addEventListener("click", () => {
-    if (!guModalGroup) return;
-    const { res, meta, base } = guModalSlice();
-    downloadText(base, "csv", "text/csv", GroupUse.csv(res, meta));
-  });
-
-  $("guBody").addEventListener("click", (e) => {
-    if (e.target.closest("#guBack")) { restoreGuSweep(); return; }
-
-    // summary chips are filters and jumps, not decoration
-    const jump = e.target.closest("[data-gujump]");
-    if (jump) {
-      const el = $(jump.dataset.gujump);
-      if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("gu-flash"); setTimeout(() => el.classList.remove("gu-flash"), 1200); }
-      return;
-    }
-    const stat = e.target.closest("[data-gustat]");
-    if (stat) {
-      const k = stat.dataset.gustat;
-      if (k === "all") { guUnusedOnly = false; guDanglingOnly = false; guQuery = ""; renderGuSweep(); }
-      else if (k === "unused") { guUnusedOnly = !guUnusedOnly; guDanglingOnly = false; renderGuSweep(); }
-      else if (k === "dangling") { guDanglingOnly = !guDanglingOnly; guUnusedOnly = false; renderGuSweep(); }
-      else if (k === "services") { guShowServices = !guShowServices; renderGuSweep(); }
-      else if (k === "notread") {
-        const el = $("guNotRead");
-        if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("gu-flash"); setTimeout(() => el.classList.remove("gu-flash"), 1200); }
-        else toast("Everything in scope was read — nothing to show");
-      }
-      return;
-    }
-    const pl = e.target.closest(".pol-link");
-    if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
-    const row = e.target.closest("[data-gugroup]");
-    if (row) openGuGroupModal(row.dataset.gugroup);
-  });
-  $("guMatchText").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runGroupUse(); } });
-  $("guBody").addEventListener("input", (e) => {
-    if (e.target.id === "guSweepSearch") { guQuery = e.target.value; renderGuSweep(); $("guSweepSearch").focus(); }
-  });
-  $("guBody").addEventListener("change", (e) => {
-    if (e.target.id === "guUnused") { guUnusedOnly = e.target.checked; renderGuSweep(); }
-  });
-
-  $("guMd").addEventListener("click", () => {
-    if (!guRes) return;
-    if (guTotals) showReport("🔗 Group Analyzer — tenant sweep", "CA-GroupAnalyzer-Sweep", GroupUse.sweepMarkdown(guTotals, guRes, guMeta));
-    else showReport(`🔗 Group Analyzer — ${guMeta.principalName}`, "CA-GroupAnalyzer", GroupUse.markdown(guRes, guMeta));
-  });
-  $("guHtml").addEventListener("click", () => {
-    if (!guRes) return;
-    const meta = { ...guMeta, tenant: tenantName };
-    if (guTotals) downloadText("CA-GroupAnalyzer-Sweep", "html", "text/html", GroupUse.sweepHtml(guTotals, guRes, meta));
-    else downloadText("CA-GroupAnalyzer", "html", "text/html", GroupUse.html(guRes, meta));
-    toast("Standalone <span>HTML report</span> downloaded — it opens without access to the tenant");
-  });
-  $("guCsv").addEventListener("click", () => {
-    if (!guRes) return;
-    if (guTotals) downloadText("CA-GroupAnalyzer-Sweep", "csv", "text/csv", GroupUse.sweepCsv(guTotals));
-    else downloadText("CA-GroupAnalyzer", "csv", "text/csv", GroupUse.csv(guRes, guMeta));
   });
 
   // ---------- MS Learn documented exclusion checks ----------

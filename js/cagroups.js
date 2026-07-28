@@ -680,10 +680,43 @@ const CaGroups = (() => {
     return L.join("\n");
   }
 
+  // ---- ⑥ protect: restricted management administrative unit ---------------
+  // The groups worth protecting are the ones a policy EXCLUDES: membership of
+  // an exclusion group is a Conditional Access bypass, and any tenant-level
+  // Groups/User Administrator can quietly add themselves to one. Placing those
+  // groups in a restricted management administrative unit
+  // (isMemberManagementRestricted, immutable at creation) removes that path:
+  // only principals holding a role scoped to THAT administrative unit can
+  // modify the members — tenant-wide admins, Global Administrator included,
+  // are reduced to read.
+  function rmauCandidates(res) {
+    return (res ? res.rows : [])
+      .filter((r) => r.id && (r.refs?.exclude || []).length)
+      .sort((a, b) => (b.refs.exclude.length - a.refs.exclude.length) || String(a.name).localeCompare(String(b.name)));
+  }
+
+  function rmauReport(meta, au, results) {
+    const ok = results.filter((r) => r.state === "added").length;
+    const L = [`# Restricted management administrative unit — ${meta.tenant || "tenant"}`, "",
+      meta.generatedBy || "", "",
+      `- Administrative unit: **${au.name}**${au.created ? " (created by this run)" : " (already existed, reused)"} — \`${au.id || ""}\``,
+      `- Restricted management: **yes** (\`isMemberManagementRestricted\`, immutable)`,
+      `- Groups protected: **${ok}** · already in it: ${results.filter((r) => r.state === "already").length} · failed: ${results.filter((r) => r.state === "failed").length}`,
+      ...(meta.scopedAdmin ? [`- Scoped administrator: **${meta.scopedAdmin}** — Groups Administrator scoped to this administrative unit`] : []),
+      "", "| Group | Excluded on | Result |", "| --- | --- | --- |"];
+    results.forEach((r) => L.push(`| ${r.name} | ${r.excludeCount} polic${r.excludeCount === 1 ? "y" : "ies"} | ${r.state}${r.error ? ` — ${String(r.error).replace(/\|/g, "\\|")}` : ""} |`));
+    L.push("", "## What changed operationally", "",
+      "- Membership of the protected groups can now only be changed by principals holding a role **scoped to this administrative unit** — tenant-level Groups/User Administrators (and Global Administrator) can read but not modify.",
+      "- That includes this tool: ⑤ Import members and any member add against these groups needs the signed-in account to hold an administrative-unit-scoped role.",
+      "- The groups themselves (name, policies referencing them) are unaffected — only member management is restricted.");
+    return L.join("\n");
+  }
+
   return {
     STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate,
     renderSummary, chips, renderTable, renderMatrix, toMd, filtered,
     catalogGroupNames, templateNames, policyRefs, convertPlan, runConvert,
     csvParse, csvDetect, csvPersonas, csvUsers, csvSuggest, csvReport,
+    rmauCandidates, rmauReport,
   };
 })();

@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=196">
+<link rel="stylesheet" href="css/app.css?v=188">
 </head>
 <body>
 
@@ -98,27 +98,19 @@
         <p>Check the baseline against known CA bypasses and the Swiss-cheese model — MFA coverage, FOCI token sharing, break-glass coverage, known bypass apps, persona × control matrix.</p>
       </div>
       <div class="tool" id="toolValidator">
-        <div class="tool-ic">⚡</div><h3>CA validator</h3>
+        <div class="tool-ic">⚡</div><h3>CA validator <span class="tag new">NEW</span></h3>
         <p>Per policy, the sign-in simulations it implies — user, app, client, location, platform, risk — and the control each one should (or should not) enforce. Ported from Jasper Baes' CA Validator.</p>
       </div>
       <div class="tool" id="toolWhatIf">
-        <div class="tool-ic">🧪</div><h3>What-If</h3>
+        <div class="tool-ic">🧪</div><h3>What-If <span class="tag new">NEW</span></h3>
         <p>Simulate a sign-in — user, app, platform, client, location, device state and risk — and see which policies would apply, with the controls required, and which would not and why.</p>
-      </div>
-      <div class="tool" id="toolCompare">
-        <div class="tool-ic">⚖</div><h3>Compare users</h3>
-        <p>Two or more users side by side: which policies include, exclude or ignore each of them, the group and role memberships behind the differences, and optionally one What-If sign-in run for every user.</p>
-      </div>
-      <div class="tool" id="toolGroupUse">
-        <div class="tool-ic">🔗</div><h3>Group Analyzer <span class="tag new">BETA</span></h3>
-        <p>Where is a group actually used? One group or user checked against Conditional Access, Entra roles, apps and licensing, Intune, Microsoft 365 and Azure RBAC — or sweep every group and find the ones nothing references. <span class="tag grant">extra permissions</span></p>
       </div>
       <div class="tool" id="toolExclusions">
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer</h3>
         <p>Every exclusion across all policies — users, groups (expanded to members), roles, guest types, apps and locations — in an exclusion × policy matrix.</p>
       </div>
       <div class="tool" id="toolAudit">
-        <div class="tool-ic">🕓</div><h3>Change audit</h3>
+        <div class="tool-ic">🕓</div><h3>Change audit <span class="tag new">NEW</span></h3>
         <p>Who changed which Conditional Access resource, when, and exactly what changed — a field-level diff of every policy, named location and authentication strength edit from the Entra audit log.</p>
       </div>
       <div class="tool" id="toolSignins">
@@ -148,7 +140,7 @@
         <p>Check the baseline groups against this tenant, create the missing ones, analyze their members in a matrix, and assign them to policies. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolLocations">
-        <div class="tool-ic">🌐</div><h3>Named locations</h3>
+        <div class="tool-ic">🌐</div><h3>Named locations <span class="tag new">BETA</span></h3>
         <p>View, create, edit and delete Conditional Access named locations — IP ranges and countries — and see which policies use each one. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolState">
@@ -436,6 +428,7 @@
         <button data-cgtab="members">③ Members</button>
         <button data-cgtab="assign">④ Assign</button>
         <button data-cgtab="csv">⑤ Import members</button>
+        <button data-cgtab="rmau">⑥ Protect</button>
       </div>
       <input type="file" id="cgCsvFile" accept=".csv,text/csv,text/plain" style="display:none">
       <div class="chip-filter" id="cgChips"></div>
@@ -587,131 +580,6 @@
       </div>
     </div>
     <div id="wiBody" style="margin-top:14px"></div>
-  </section>
-
-  <!-- ============ GROUP ANALYZER (BETA) ============ -->
-  <section id="screen-groupuse" class="screen">
-    <div class="list-card readme" id="guHead" style="margin-top:0"></div>
-    <div class="list-card wi-form">
-      <div class="seg" id="guModeSeg" style="margin-bottom:12px">
-        <button data-gumode="one">One group or user</button>
-        <button class="active" data-gumode="all">Sweep every group</button>
-      </div>
-
-      <div class="wi-grid" id="guOneWrap" style="display:none">
-        <label class="wi-f"><span>Group or user <b class="req">*</b></span>
-          <input id="guTerm" list="guTermList" placeholder="Group name, UPN or object ID — Enter to analyze…" autocomplete="off" spellcheck="false">
-          <datalist id="guTermList"></datalist></label>
-      </div>
-
-      <div id="guAllWrap">
-        <div class="wi-grid">
-          <label class="wi-f"><span>Groups in scope</span>
-            <select id="guLimit">
-              <option value="ca">Only groups used by Conditional Access</option>
-              <option value="100">First 100 groups</option>
-              <option value="250">First 250 groups</option>
-              <option value="500">First 500 groups</option>
-              <option value="0">Every group in the tenant</option>
-            </select></label>
-          <label class="wi-f"><span>Name filter <span class="mini muted">optional</span></span>
-            <div style="display:flex;gap:8px">
-              <select id="guMatchMode" style="flex:0 0 auto;width:130px">
-                <option value="starts">Starts with</option>
-                <option value="ends">Ends with</option>
-                <option value="contains">Contains</option>
-              </select>
-              <input id="guMatchText" placeholder="e.g. CAB-SEC-" autocomplete="off" spellcheck="false" style="flex:1 1 auto;min-width:0">
-            </div></label>
-          <label class="wi-f"><span>&nbsp;</span>
-            <label class="chk" style="display:inline-flex;gap:6px;align-items:center;height:38px">
-              <input type="checkbox" id="guSweepDeep" checked> Include per-group lookups</label></label>
-        </div>
-        <p class="mini muted" style="margin:8px 0 0"><b>Only groups used by Conditional Access</b> takes the include and exclude groups off every policy already loaded — enabled, report-only and Off alike. No <code>/groups</code> enumeration at all, so it is the fastest scope and the one that matches what this tool is for. An id a policy names but the directory no longer has is kept and flagged as a <b>dangling reference</b>: that assignment targets nobody.</p>
-        <p class="mini muted" style="margin:8px 0 0">The name filter narrows which groups are <b>scanned</b>, so a prefix like <code>CAB-SEC-</code> keeps a sweep of a 20 000-group tenant to the set you actually care about. It runs server-side where Graph supports it and falls back to filtering locally if not. “Groups in scope” then counts matches, not raw groups.</p>
-        <p class="mini muted" style="margin:8px 0 0">A sweep reads each service once and matches every group against it, so the cost barely grows with the number of groups. The exceptions are the per-group lookups — nesting, administrative units, app assignments, licensing and Teams — which are asked object by object, batched 20 at a time. Untick them for a fast first pass on a large tenant.</p>
-      </div>
-
-      <div style="margin-top:14px">
-        <div class="mini" style="font-weight:600;margin-bottom:6px">Where to look</div>
-        <div id="guAreas" class="gu-areas"></div>
-      </div>
-
-      <div class="tb-actions" style="margin-top:14px">
-        <button class="btn primary" id="guRun">🔗 Sweep tenant</button>
-        <button class="btn" id="guReset">Reset</button>
-        <button class="btn" id="guMd" style="display:none">Export MD</button>
-        <button class="btn" id="guHtml" style="display:none" title="Standalone HTML report — opens anywhere, no access to the tenant needed">⭳ Export HTML</button>
-        <button class="btn" id="guCsv" style="display:none">⭳ Export CSV</button>
-      </div>
-      <div id="guProg" class="mini muted" style="margin-top:10px"></div>
-    </div>
-    <div id="guBody" style="margin-top:14px"></div>
-  </section>
-
-  <!-- ============ COMPARE USERS ============ -->
-  <section id="screen-compare" class="screen">
-    <div class="list-card readme" id="cuHead" style="margin-top:0"></div>
-    <div class="list-card wi-form">
-      <div class="wi-grid">
-        <label class="wi-f"><span>Add user <b class="req">*</b></span>
-          <input id="cuUser" list="cuUserList" placeholder="UPN or display name — Enter to add…" autocomplete="off" spellcheck="false">
-          <datalist id="cuUserList"></datalist></label>
-        <label class="wi-f"><span>&nbsp;</span>
-          <button class="btn" id="cuAdd" type="button" title="Add this user to the comparison" style="align-self:flex-start;height:38px;padding:0 16px">＋ Add</button></label>
-      </div>
-      <div id="cuChips" style="margin-top:8px"></div>
-      <label class="chk" style="display:inline-flex;gap:6px;align-items:center;margin-top:12px">
-        <input type="checkbox" id="cuScenOn"> Also run one What-If sign-in scenario for every user</label>
-      <div class="wi-grid" id="cuScenGrid" style="display:none;margin-top:10px">
-        <label class="wi-f"><span>Target resource</span>
-          <select id="cuApp">
-            <option value="00000002-0000-0ff1-ce00-000000000000">Office 365 Exchange Online</option>
-            <option value="00000003-0000-0ff1-ce00-000000000000">Office 365 SharePoint Online</option>
-            <option value="00000006-0000-0ff1-ce00-000000000000">Office 365 Portal</option>
-            <option value="cc15fd57-2c6c-4117-a88c-83b1d56b4bbe">Microsoft Teams</option>
-            <option value="00000003-0000-0000-c000-000000000000">Microsoft Graph</option>
-            <option value="797f4846-ba00-4fd7-ba43-dac1f8f63013">Windows Azure Service Management API</option>
-            <option value="0000000c-0000-0000-c000-000000000000">My Apps portal</option>
-            <option value="custom">Other — enter an App ID…</option>
-          </select></label>
-        <label class="wi-f" id="cuAppIdWrap" style="display:none"><span>App ID</span>
-          <input id="cuAppId" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false"></label>
-        <label class="wi-f"><span>Device platform</span>
-          <select id="cuPlatform">
-            <option value="windows">Windows</option><option value="macOS">macOS</option>
-            <option value="iOS">iOS</option><option value="android">Android</option>
-            <option value="linux">Linux</option><option value="windowsPhone">Windows Phone</option>
-          </select></label>
-        <label class="wi-f"><span>Client app</span>
-          <select id="cuClient">
-            <option value="browser">Browser</option>
-            <option value="mobileAppsAndDesktopClients">Mobile apps and desktop clients</option>
-            <option value="exchangeActiveSync">Exchange ActiveSync clients</option>
-            <option value="other">Other clients (legacy auth)</option>
-          </select></label>
-        <label class="wi-f"><span>IP address</span>
-          <input id="cuIp" placeholder="e.g. 203.0.113.5" autocomplete="off" spellcheck="false"></label>
-        <label class="wi-f"><span>Country / region</span>
-          <input id="cuCountry" placeholder="2-letter code, e.g. NL" maxlength="2" autocomplete="off" spellcheck="false"></label>
-        <label class="wi-f"><span>Device state</span>
-          <select id="cuDevice">
-            <option value="">Not specified</option><option value="compliant">Compliant</option>
-            <option value="hybrid">Hybrid Entra joined</option><option value="unmanaged">Neither</option>
-          </select></label>
-        <label class="wi-f"><span>Sign-in risk</span>
-          <select id="cuSignInRisk"><option value="">Not specified</option><option value="none">None</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-        <label class="wi-f"><span>User risk</span>
-          <select id="cuUserRisk"><option value="">Not specified</option><option value="none">None</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-      </div>
-      <div class="wi-actions">
-        <button class="btn primary" id="cuRun">⚖ Compare</button>
-        <label class="chk" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="cuDiffOnly" checked> Differences only</label>
-        <button class="btn" id="cuReset">Reset</button>
-        <button class="btn" id="cuMd" style="display:none">Export MD</button>
-      </div>
-    </div>
-    <div id="cuBody" style="margin-top:14px"></div>
   </section>
 
   <!-- ============ NAMED LOCATIONS ============ -->
@@ -867,7 +735,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>⚡ CA validator</h4>
+      <h4>⚡ CA validator <span class="tag new">NEW</span></h4>
       <p>For each enabled policy, the sign-in <b>simulations</b> it implies — the combinations of user, application, client app, location, device platform and risk it targets — and, per grant control, the control each one should enforce.</p>
       <ul>
         <li><b>Expected control</b> — every simulation shows the control the policy would require (MFA, Block, Compliant device, …). When the principal, app, location or platform is on the <b>excluded</b> side, the expectation inverts to <b>“no &lt;control&gt;”</b> — proving the policy does not fire there.</li>
@@ -880,7 +748,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>🧪 What-If</h4>
+      <h4>🧪 What-If <span class="tag new">NEW</span></h4>
       <p>Simulate one sign-in and see exactly which policies would hit it — the same idea as the Entra portal's What If tool.</p>
       <ul>
         <li><b>Required conditions</b> — user, target resource, device platform and client app. Everything else (IP, country, device state, sign-in/user/insider risk, authentication flow) is optional.</li>
@@ -894,41 +762,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>🔗 Group Analyzer <span class="tag new">BETA</span></h4>
-      <p>An Entra group is a shared handle. One admin scopes a Conditional Access policy to it, another targets an Intune compliance policy at it, a third grants it Contributor on a subscription — and nobody sees the whole picture, so adding a member has consequences that are invisible at the moment of the change. This tool reads that picture back out of the tenant. After Jasper Baes' <i>Microsoft Cloud Group Analyzer</i>, re-implemented here against delegated permissions.</p>
-      <ul>
-        <li><b>One group or user</b> — paste a group name, a UPN or an object ID. For a user, every group they are a member of is taken along, so you see what the person is actually subject to.</li>
-        <li><b>Parents count too</b> — if the group is nested inside another group, anything targeting the parent reaches these members. Those hits are reported with <i>via parent group “…”</i> in the <b>Matched via</b> column, so you can tell a direct assignment from an inherited one.</li>
-        <li><b>Sweep every group</b> — runs the same checks across the tenant and gives a group × service count table, plus the list of groups <b>nothing references</b>. Each service is read once and matched against every group, so a sweep costs little more than a single lookup.</li>
-        <li><b>Only groups used by Conditional Access</b> — the default scope, and the one that matches what ENCA is for. It takes the include and exclude groups off every policy already in memory (enabled, report-only and Off), so it needs no directory enumeration and is bounded by your baseline rather than by tenant size. Any id a policy names that the directory cannot resolve is kept and flagged as a <b>dangling reference</b> — the policy still points at it, but the group is gone, so that assignment targets nobody. Worth more attention than a group that is merely unused.</li>
-        <li><b>Narrow the sweep by name</b> — a prefix (<code>CAB-SEC-</code>), a suffix or a substring. Naming conventions live at both ends of a name, so this is usually all it takes to cut a 20 000-group tenant down to the set you care about. It runs server-side where Graph supports it and falls back to filtering locally where it does not, and “Groups in scope” then counts matches rather than raw groups.</li>
-        <li><b>Click a group in the sweep</b> — a popup opens with that group's references, filtered out of what the sweep already read. No second scan, so it is instant however large the tenant. A sweep matches each group only against itself, so the popup shows <b>direct</b> references; <b>⤢ Deep analyze</b> re-reads that one group with its parent groups expanded. Markdown, HTML and CSV export for that group alone sit in the popup footer. Deep analyze does not throw the sweep away — <b>← Back to the sweep</b> appears above the result and puts it straight back, filters and all, at no cost.</li>
-        <li><b>Where to look</b> — Entra ID, Intune, Microsoft 365 and Azure are independent. Tick only what you need; each area asks for its own permissions when it first runs, and Azure needs a separate Azure sign-in (<code>management.azure.com</code>), which is a different token from Graph.</li>
-        <li><b>Entra</b> — group nesting, administrative units, directory roles (active and PIM-eligible), enterprise application assignments, group-based licensing, the authentication methods policy, Conditional Access, access packages, admin-consent reviewers, and — for a user — what they have actually registered.</li>
-        <li><b>Intune</b> — enrolment restrictions (device limit and platform), compliance policies, configuration profiles (device, settings catalog, ADMX), scripts and remediations, app protection, app configuration, app assignments, Autopilot profiles and Windows update profiles.</li>
-        <li><b>Microsoft 365 &amp; Azure</b> — whether the group is a Microsoft 365 group with a team provisioned on it, the <b>Purview sensitivity label</b> on the group (the container label that governs the team's and site's privacy, guest access and external sharing), and every Azure RBAC role assignment across the subscriptions and management groups you can read, down to resource scope.</li>
-        <li><b>What Purview cannot tell you here</b> — the container label above is the only part of Purview exposed to Microsoft Graph. DLP policies, retention policies, sensitivity-label <i>publishing</i> policies, insider risk and communication compliance have no Graph API at all: they live behind Security &amp; Compliance PowerShell, which a static site cannot call. If a group is used to scope one of those, this tool will not see it — check the Purview portal separately.</li>
-        <li><b>The summary chips are controls</b> — in a sweep, <b>groups</b> clears the filters, <b>with no usage found</b> toggles the unused-only list, <b>services read</b> opens the receipt (every service, what it found, how long it took) and <b>not read</b> jumps to the failures. On a single group, each area chip jumps to its section.</li>
-        <li><b>Not read</b> — any service that failed, was only partly read, or was never granted is listed by name with the reason, the <b>permission</b> the call needs and the <b>role</b> the signed-in user needs on top of it. Those are two different things: a consented scope with no matching Entra or Intune role still returns 403. Read that list before concluding a group is unused; “nothing found” only means “nothing found in what was actually read”. A <code>404</code> is normal for a workload the tenant does not use.</li>
-        <li><b>Export MD / HTML / CSV</b> — the full report as Markdown, a <b>standalone HTML report</b> that opens on any machine without access to the tenant (the artefact to attach to a change request), or one CSV line per reference for a spreadsheet.</li>
-      </ul>
-      <p class="help-x">Read-only — it never writes. A Conditional Access policy name opens its card, as in List Policies.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>⚖ Compare users</h4>
-      <p>Why does it work for her but not for him? Put two or more users side by side and see where Conditional Access treats them differently.</p>
-      <ul>
-        <li><b>Policy assignment</b> — per enabled or report-only policy, whether each user is <b>included</b> (✓), <b>excluded</b> (✗ — hover for the group, role or direct exclusion behind it) or <b>not targeted</b> (·). Rows where the users differ are flagged; <b>Differences only</b> (default) hides the rest.</li>
-        <li><b>Memberships</b> — the groups and directory roles each user holds, same ✓/· grid. Assignment differences almost always trace back to a row here.</li>
-        <li><b>What-If scenario</b> (optional) — describe one sign-in (resource, platform, client, IP/country, device state, risk) and it is evaluated once per user with the What-If engine: a verdict per user, then the per-policy matrix of who it would actually hit.</li>
-        <li><b>Export MD</b> — the whole comparison as Markdown tables, differences marked <b>≠</b>.</li>
-      </ul>
-      <p class="help-x">Read-only. Resolution is per user (a few Graph calls each), so it stays fast on any tenant size. Assignment looks at user scoping only — conditions like location or platform only enter through the scenario run.</p>
-    </section>
-
-    <section class="help-sec">
-      <h4>🕓 Change audit</h4>
+      <h4>🕓 Change audit <span class="tag new">NEW</span></h4>
       <p>Who changed which Conditional Access resource, when, and exactly what changed — read from the Entra directory audit log.</p>
       <ul>
         <li><b>Covers</b> policies, named locations, authentication strengths and contexts, and terms of use — add, update and delete.</li>
@@ -1008,13 +842,14 @@
         <li><b>⟳ Make dynamic</b> — appears when the template defines a membership rule but the tenant group is <b>assigned</b>. A plain security group is converted <b>in place</b>: same id, so every policy, app and role assignment that points at it is untouched. A <b>role-assignable</b> group cannot be dynamic at all — Entra makes the two mutually exclusive and <code>isAssignableToRole</code> is immutable — so it is replaced instead: the old group is renamed <code>-static-YYYYMMDD</code> and kept as your rollback, a dynamic group is created under the original name, added to the include/exclude of every policy that referenced the old one, and only then is the old one removed from those policies (so nothing is uncovered mid-flight). The replacement is <b>not role-assignable</b> — don’t convert a group that carries a directory role or PIM assignment. In both cases members who don’t match the rule stop being members.</li>
         <li><b>Members</b> — a members × groups matrix.</li>
         <li><b>Assign</b> — add a group to policies’ include or exclude lists (ADD is additive — it never removes what’s there). A final confirmation and a change report before anything is written.</li>
+        <li><b>⑥ Protect <span class="tag new">NEW</span></b> — place the CA <b>exclusion</b> groups in a <b>restricted management administrative unit</b>. Membership of an exclusion group is a CA bypass, and any tenant-level Groups/User Administrator can hand it out; with the groups in a restricted AU (<code>isMemberManagementRestricted</code>, immutable at creation) only roles <b>scoped to that AU</b> can change members — Global Administrator included. Shows which exclusion groups are already protected, creates or reuses the restricted AU, and optionally grants one account Groups Administrator <b>scoped to the AU</b> so membership stays manageable (do this — otherwise member changes need a new scoped assignment first). Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and P1. Only cloud security groups can be added; note that ⑤ Import members will afterwards need an AU-scoped role for these groups.</li>
         <li><b>⑤ Import members <span class="tag new">NEW</span></b> — bulk-add deployment-test users from a CSV. A <b>UPN column</b> is enough; with a <b>Persona column</b> (multi-persona cells split on <code>, ; |</code> or spaces) each user is auto-routed to the mapped group, pre-matched against the tenant’s group names — abbreviated conventions included (<code>internals → …-INT</code>). Only <b>baseline</b> groups (templates + active catalogs) are offered by default; ad-hoc groups that policies merely reference need an explicit opt-in checkbox. Users are resolved and existing memberships pre-checked (already-members are skipped), the plan is shown per group for review, and only then are members added. Dynamic groups are excluded — their membership is rule-managed. Ends with a Markdown change report.</li>
       </ul>
-      <p class="help-x">Writes only on Create / Recreate / Make dynamic / Assign / Import members, each behind a confirmation.</p>
+      <p class="help-x">Writes only on Create / Recreate / Make dynamic / Assign / Import members / Protect, each behind a confirmation.</p>
     </section>
 
     <section class="help-sec">
-      <h4>🌐 Named locations <span class="tag block">writes to tenant</span></h4>
+      <h4>🌐 Named locations <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
       <p>Manage the named locations your Conditional Access policies target — the IP-range and country locations — without leaving the tool.</p>
       <ul>
         <li><b>Cards / Table</b> — Cards tile at least two per row with the ranges, usage and the Edit/Delete buttons; Table is the same information one line per location, which is the readable option once a tenant has dozens.</li>
@@ -1403,25 +1238,6 @@
   </div>
 </div>
 
-<!-- ============ GROUP ANALYZER: per-group popup ============ -->
-<div class="modal-bg" id="guModal">
-  <div class="modal gu-modal">
-    <div class="gu-m-head">
-      <h3 id="guModalTitle"></h3>
-      <p class="mini muted" id="guModalSub" style="margin:0"></p>
-    </div>
-    <div class="gu-m-body" id="guModalBody"></div>
-    <div class="gu-m-foot">
-      <button class="btn" id="guModalClose">Close</button>
-      <button class="btn lemon" id="guModalDeep" title="Re-read this one group with its parent groups expanded — the sweep does not do that per group">⤢ Deep analyze</button>
-      <div class="spacer"></div>
-      <button class="btn" id="guModalMd">Export MD</button>
-      <button class="btn" id="guModalHtml">⭳ Export HTML</button>
-      <button class="btn" id="guModalCsv">⭳ Export CSV</button>
-    </div>
-  </div>
-</div>
-
 <!-- ============ HOUSEKEEPING (superseded policies) ============ -->
 <div class="modal-bg" id="hkModal">
   <div class="modal">
@@ -1452,35 +1268,33 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=196"></script>
-<script src="js/version.js?v=196"></script>
-<script src="js/authConfig.js?v=196"></script>
-<script src="js/labels.js?v=196"></script>
-<script src="js/graph.js?v=196"></script>
-<script src="js/model.js?v=196"></script>
-<script src="js/render.js?v=196"></script>
-<script src="js/analyze.js?v=196"></script>
-<script src="js/whatif.js?v=196"></script>
-<script src="js/mslearn.js?v=196"></script>
-<script src="js/gapcheck.js?v=196"></script>
-<script src="js/exclusions.js?v=196"></script>
-<script src="js/validator.js?v=196"></script>
-<script src="js/whatifeval.js?v=196"></script>
-<script src="js/compare.js?v=196"></script>
-<script src="js/groupuse.js?v=196"></script>
-<script src="js/locations.js?v=196"></script>
-<script src="js/audit.js?v=196"></script>
-<script src="js/signins.js?v=196"></script>
-<script src="js/changelog.js?v=196"></script>
-<script src="js/baselineData.js?v=196"></script>
-<script src="js/baselineJoeyData.js?v=196"></script>
-<script src="js/baseline.js?v=196"></script>
-<script src="js/groupTemplates.js?v=196"></script>
-<script src="js/assign.js?v=196"></script>
-<script src="js/cagroups.js?v=196"></script>
-<script src="js/import.js?v=196"></script>
-<script src="js/export.js?v=196"></script>
-<script src="js/demo.js?v=196"></script>
-<script src="js/app.js?v=196"></script>
+<script src="js/branding.js?v=188"></script>
+<script src="js/version.js?v=188"></script>
+<script src="js/authConfig.js?v=188"></script>
+<script src="js/labels.js?v=188"></script>
+<script src="js/graph.js?v=188"></script>
+<script src="js/model.js?v=188"></script>
+<script src="js/render.js?v=188"></script>
+<script src="js/analyze.js?v=188"></script>
+<script src="js/whatif.js?v=188"></script>
+<script src="js/mslearn.js?v=188"></script>
+<script src="js/gapcheck.js?v=188"></script>
+<script src="js/exclusions.js?v=188"></script>
+<script src="js/validator.js?v=188"></script>
+<script src="js/whatifeval.js?v=188"></script>
+<script src="js/locations.js?v=188"></script>
+<script src="js/audit.js?v=188"></script>
+<script src="js/signins.js?v=188"></script>
+<script src="js/changelog.js?v=188"></script>
+<script src="js/baselineData.js?v=188"></script>
+<script src="js/baselineJoeyData.js?v=188"></script>
+<script src="js/baseline.js?v=188"></script>
+<script src="js/groupTemplates.js?v=188"></script>
+<script src="js/assign.js?v=188"></script>
+<script src="js/cagroups.js?v=188"></script>
+<script src="js/import.js?v=188"></script>
+<script src="js/export.js?v=188"></script>
+<script src="js/demo.js?v=188"></script>
+<script src="js/app.js?v=188"></script>
 </body>
 </html>
