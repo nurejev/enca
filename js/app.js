@@ -4936,15 +4936,23 @@ max@contoso.com,"Global, DevOps"</pre>
         ${empty.length ? `<p class="mini muted" style="margin:10px 0 0">Read and clean: ${empty.map((e) => esc(e.label)).join(", ")}.</p>` : ""}</div>`;
     }).join("");
 
+    // The counts double as jump links, and on an account with hundreds of
+    // references they are the only way to navigate — so they ride along in a
+    // sticky strip rather than scrolling away with the header. The strip sits
+    // OUTSIDE the card on purpose: .list-card clips its overflow, and a sticky
+    // child of a clipping ancestor sticks only within that ancestor's box.
+    // The name comes with it, so it stays obvious whose result this is.
     $("guBody").innerHTML = `
       ${guBackBar()}
-      <div class="list-card wi-res">
-        <h4 class="wi-h">${meta.principalType === "user" ? "👤" : "👥"} ${esc(meta.principalName)}
-          <span class="mini muted">${esc(meta.principalType)} · ${esc(meta.principalId)}</span></h4>
+      <div class="gu-sticky">
+        <span class="gu-who">${meta.principalType === "user" ? "👤" : "👥"} ${esc(meta.principalName)}
+          <span class="mini muted">${esc(meta.principalType)}</span></span>
         <div class="gu-sum"><span class="gu-stat"><b>${res.rows.length}</b> reference${res.rows.length === 1 ? "" : "s"}</span>${stats}${
           (res.failed.length || (res.partial || []).length) ? `<span class="gu-stat act" data-gujump="guNotRead" title="Jump to what could not be read"><b>${res.failed.length + (res.partial || []).length}</b> not read</span>` : ""}</div>
-        ${rel.length ? `<p class="mini" style="margin:10px 0 0">${rel.join(" &nbsp;·&nbsp; ")}</p>` : ""}
       </div>
+      ${rel.length ? `<div class="list-card wi-res gu-jt">
+        <p class="mini muted" style="margin:0 0 4px">Object ID <code>${esc(meta.principalId)}</code></p>
+        <p class="mini" style="margin:0">${rel.join(" &nbsp;·&nbsp; ")}</p></div>` : ""}
       ${areaCards}
       ${guNotReadCard(res)}`;
   }
@@ -4977,24 +4985,27 @@ max@contoso.com,"Global, DevOps"</pre>
     const unused = guTotals.filter((t) => !t.total).length;
     const gone = guTotals.filter((t) => t.missing).length;
     $("guBody").innerHTML = `
-      <div class="list-card wi-res">
-        <h4 class="wi-h">Tenant sweep <span class="mini muted">${guTotals.length} groups${guMeta && guMeta.scopeNote ? ` where ${esc(guMeta.scopeNote)}` : ""} · ${res.rows.length} references</span></h4>
+      <div class="gu-sticky">
+        <span class="gu-who">Tenant sweep
+          <span class="mini muted">${guTotals.length} groups${guMeta && guMeta.scopeNote ? ` where ${esc(guMeta.scopeNote)}` : ""} · ${res.rows.length} references</span></span>
         <div class="gu-sum">
           <span class="gu-stat act${!guUnusedOnly && !guDanglingOnly && !guQuery ? " on" : ""}" data-gustat="all" title="Show every group in the sweep"><b>${guTotals.length}</b> groups</span>
           <span class="gu-stat act${guUnusedOnly ? " on" : ""}${unused ? "" : " zero"}" data-gustat="unused" title="Show only the groups nothing references"><b>${unused}</b> with no usage found</span>
           <span class="gu-stat act${guShowServices ? " on" : ""}" data-gustat="services" title="List every service that was read, and what it found"><b>${res.ran.length}</b> services read</span>
           <span class="gu-stat act${res.failed.length ? "" : " zero"}" data-gustat="notread" title="Jump to what could not be read"><b>${res.failed.length}</b> not read</span>
-          ${gone ? `<span class="gu-stat act on" data-gustat="dangling" title="Ids a policy still names but the directory no longer has"><b>${gone}</b> dangling</span>` : ""}
+          ${gone ? `<span class="gu-stat act${guDanglingOnly ? " on" : ""}" data-gustat="dangling" title="Ids a policy still names but the directory no longer has"><b>${gone}</b> dangling</span>` : ""}
         </div>
-        ${guShowServices ? guServicesPanel(res) : ""}
-        <div class="gu-bar">
+        <div class="gu-bar" style="margin:0">
           <div class="search">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
             <input id="guSweepSearch" placeholder="Search groups…" value="${esc(guQuery)}">
           </div>
           <label class="chk"><input type="checkbox" id="guUnused"${guUnusedOnly ? " checked" : ""}> Only groups with no usage found</label>
         </div>
-        <div class="gu-tw"><table class="plist">
+      </div>
+      <div class="list-card wi-res gu-jt">
+        ${guShowServices ? guServicesPanel(res) : ""}
+        <div class="gu-tw"${guShowServices ? ' style="margin-top:12px"' : ""}><table class="plist">
           <thead><tr><th>Group</th><th class="gu-num">Entra</th><th class="gu-num">Intune</th><th class="gu-num">M365</th><th class="gu-num">Azure</th><th class="gu-num">Total</th></tr></thead>
           <tbody>${vis.map((t) => `<tr class="gu-row-link" data-gugroup="${esc(t.id)}" title="Open this group's references">
             <td>${esc(t.name)}${t.dynamic ? ' <span class="tag">dynamic</span>' : ""}${t.roleAssignable ? ' <span class="tag block">role-assignable</span>' : ""}${

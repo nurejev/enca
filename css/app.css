@@ -1068,3 +1068,16 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 
 /* "back to the sweep" — only rendered when a finished sweep is parked */
 .gu-back{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+
+/* Summary strip that survives scrolling. Same recipe as the shared .toolbar —
+   page background so content passes underneath, and the 106px offset that
+   clears the header plus the tool tab bar. It has to live OUTSIDE .list-card:
+   that card sets overflow:hidden, and a sticky child of a clipping ancestor
+   sticks only within that ancestor's box, which is not what anyone wants. */
+.gu-sticky{position:sticky;top:106px;z-index:40;background:var(--bg);
+  padding:10px 0 12px;margin:0 0 12px;box-shadow:0 6px 12px -8px rgba(18,51,31,.15)}
+.gu-who{display:block;font-size:14px;font-weight:600;margin-bottom:2px}
+.gu-who .mini{font-weight:400}
+.gu-sticky .gu-sum{margin-top:6px}
+/* a jump lands the card below the strip, not behind it */
+.gu-jt,#guBody .list-card{scroll-margin-top:172px}
