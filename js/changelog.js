@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 202, date: "2026-07-28", title: "Protect keeps its result",
+    items: [
+      { kind: "improved", tool: "Protect exclusions", text: "Same manners as Sign-in failures now: opening the tool shows a ▶ Scan button instead of immediately reading the directory, the result stays when you switch tabs and come back (until an explicit ⟳ Rescan), and a scan in flight survives navigating away. The shared group scan also loads on demand rather than on open, so just visiting the tool costs nothing. Applies to both entrances — the standalone tile and CA groups ⑥. The scoped-administrator field also auto-completes UPNs now, the same way the What-If user field does." },
+    ],
+  },
+  {
     build: 201, date: "2026-07-28", title: "Sign-in failures, phone-sized",
     items: [
       { kind: "fixed", tool: "All tools", text: "On a phone, the sticky chrome (header, tool tab bar, each screen's toolbar) overlapped the content and stole taps — the layer offsets were hard-coded for a one-row desktop header, and on a narrow screen the header wraps taller. The offsets are now measured from the real header and tab-bar heights (and re-measured on resize and screen changes), so every sticky layer — toolbars, the Help table of contents, the List screen's action bar, the pinned labels — lands where the previous layer actually ends, at any width." },

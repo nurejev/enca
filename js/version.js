@@ -8,7 +8,7 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 201,
+  build: 202,
   date: "2026-07-28",
   get label() { return `v${this.version}.${this.build}`; },
   get full() { return `${this.label} · ${this.date}`; },
@@ -33,7 +33,7 @@ const TOOL_VERSIONS = {
   toolBaselineJoey: { v: "1.1", note: "Joey Verlinden catalog 2026.6.1, verified against commit 38469a4" },
   toolMsLearn:      { v: "2.0", note: "17 documented checks, 14 buildable fixes, apply-in-tenant with service-principal creation and change report" },
   toolJson:         { v: "1.2", note: "policy zip including dependencies and terms-of-use PDFs" },
-  toolProtect:      { v: "1.0", note: "standalone view of the exclusion-group protection workflow — restricted management administrative unit (create if missing or reuse), per-group protection status, optional AU-scoped Groups Administrator, explicit acknowledgement, Markdown report; the same workflow remains available as CA groups ⑥ Protect" },
+  toolProtect:      { v: "1.1", note: "scan on demand (▶ button) instead of on open, result persists across tab switches until an explicit rescan, a scan in flight survives navigation; standalone view of the exclusion-group protection workflow — restricted management administrative unit (create if missing or reuse), per-group protection status, optional AU-scoped Groups Administrator, explicit acknowledgement, Markdown report; the same workflow remains available as CA groups ⑥ Protect" },
   toolCaGroups:     { v: "2.0", note: "⑥ Protect: restricted management administrative unit for the CA exclusion groups — per-group protection status, create/reuse the restricted AU (isMemberManagementRestricted, immutable), optional AU-scoped Groups Administrator, explicit acknowledgement, Markdown report; ⑤ Import members: bulk-add pilot users from a CSV (UPN + optional multi-persona column) with persona→group auto-mapping, membership pre-check, review-before-apply and a Markdown change report;baseline group check, creation, members × groups matrix, and policy assignment in one tool, per-group member scan, manual group builder, remove-group action, final confirm, assignment change report, pick-by-persona, TeamsSharedDevices template, per-row create, recreate-role-assignable, convert-to-dynamic (in place or rename + recreate + reassign)" },
   toolLocations:    { v: "1.4", note: "named locations inventory with policy usage; create/edit/delete IP-range and country locations, CIDR + ISO-code validation, trusted-flag impact warning, typed confirm when a referenced location is deleted, card grid + table view, per-location report with full policy usage, per-location and inventory Markdown, JSON config snapshot + compare — out of BETA" },
   toolState:        { v: "1.0", note: "On / report-only / Off switching" },

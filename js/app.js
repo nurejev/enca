@@ -1825,8 +1825,9 @@ max@contoso.com,"Global, DevOps"</pre>
 
   // Shared by both hosts (CA groups ⑥ tab and the standalone tool tile).
   async function rmauClick(e) {
+    if (e.target.closest("[data-rmaurun]")) { await cgRmauScan(); return true; }
     if (e.target.id === "cgRmauGo") { await cgRmauApply(e.target); return true; }
-    if (e.target.id === "cgRmauAgain") { cgRmau = null; renderCgRmau(); return true; }
+    if (e.target.id === "cgRmauAgain") { cgRmau = null; await cgRmauScan(); return true; }
     if (e.target.id === "cgRmauReport" && cgRmau && cgRmau.results) {
       showReport("🔒 Restricted management administrative unit", "CA-ExclusionProtection",
         CaGroups.rmauReport({ tenant: tenantName, generatedBy: Brand.generatedBy("Generated"),
@@ -1837,9 +1838,10 @@ max@contoso.com,"Global, DevOps"</pre>
   }
   function rmauChange(e) {
     const snap = () => { if (!cgRmau) return;
-      const a = $("cgRmauAdmin"); if (a) cgRmau.admin = a.value;
-      const n = $("cgRmauName"); if (n) cgRmau.auName = n.value;
-      const k = $("cgRmauAck"); if (k) cgRmau.ack = k.checked; };
+      const host = rmauBody();
+      const a = host.querySelector("#cgRmauAdmin"); if (a) cgRmau.admin = a.value;
+      const n = host.querySelector("#cgRmauName"); if (n) cgRmau.auName = n.value;
+      const k = host.querySelector("#cgRmauAck"); if (k) cgRmau.ack = k.checked; };
     const rm = e.target.closest("[data-cgrmau]");
     if (rm && cgRmau) {
       snap();
@@ -1856,6 +1858,24 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "cgRmauAdmin" && cgRmau) { cgRmau.admin = e.target.value; return true; }
     return false;
   }
+  // Scoped-administrator type-ahead, same shape as the What-If user field.
+  let rmauSugTimer = null;
+  function rmauInput(e) {
+    if (e.target.id !== "cgRmauAdmin") return;
+    if (cgRmau) cgRmau.admin = e.target.value;
+    clearTimeout(rmauSugTimer);
+    rmauSugTimer = setTimeout(async () => {
+      const t = e.target.value.trim(); if (t.length < 2 || isDemo) return;
+      try {
+        const f = t.replace(/'/g, "''");
+        const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
+        const dl = rmauBody().querySelector("#cgRmauAdminList");
+        if (dl) dl.innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+      } catch (err) { console.warn("protect: admin suggest failed", err.message); }
+    }, 250);
+  }
+  $("cgBody").addEventListener("input", rmauInput);
+  $("prBody").addEventListener("input", rmauInput);
   $("prBody").addEventListener("click", (e) => { rmauClick(e); });
   $("prBody").addEventListener("change", (e) => { rmauChange(e); });
 
@@ -1865,28 +1885,33 @@ max@contoso.com,"Global, DevOps"</pre>
     rmauStandalone = true;
     crumb("🔒 Protect exclusions");
     show("screen-protect");
-    if (!cgRes) {
-      $("prBody").innerHTML = '<p class="mini" style="padding:6px 2px">Scanning groups…</p>';
-      try {
-        cgRes = isDemo ? demoGroupScan() : await CaGroups.scan(policies, {
-          scope: cgScope,
-          onStatus: (m) => { const el = $("prBody").querySelector("p"); if (el) el.textContent = m; },
-        });
-      } catch (e) {
-        console.error(e);
-        $("prBody").innerHTML = `<p class="mini" style="padding:6px 2px;color:var(--off)">Group scan failed: ${esc(e.message || e)}</p>`;
-        return;
-      }
-    }
     renderCgRmau();
   }
   $("toolProtect").addEventListener("click", () => { openProtect(); });
 
   async function cgRmauScan() {
+    if (rmauBusy) return;                     // already scanning — don't start a second pass
+    rmauBusy = true;
+    rmauBody().innerHTML = rmauBusyPanel();
+    const status = (m) => { const el = $("cgRmauStatus"); if (el) el.textContent = m; };
+    try {
+      // The candidates come from the shared group scan; load it here (not on
+      // open) so simply visiting the tool costs nothing.
+      if (!cgRes) {
+        cgRes = isDemo ? demoGroupScan() : await CaGroups.scan(policies, {
+          scope: cgScope,
+          onStatus: status,
+        });
+      }
+    } catch (e) {
+      console.error("Protect: group scan failed", e);
+      rmauBusy = false;
+      rmauBody().innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Group scan failed: ${esc(e.message || e)}</p>
+        <div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-rmaurun>Try again</button></div>`;
+      return;
+    }
     const cands = CaGroups.rmauCandidates(cgRes);
     const st = { status: new Map(), rmaus: [], sel: new Set(), auChoice: "new", auName: RMAU_DEFAULT_NAME, admin: "", busy: false, results: null, au: null };
-    rmauBody().innerHTML = '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgRmauStatus">Reading administrative units…</p></div>';
-    const status = (m) => { const el = $("cgRmauStatus"); if (el) el.textContent = m; };
     try {
       if (isDemo) {
         st.rmaus = [];
@@ -1913,14 +1938,29 @@ max@contoso.com,"Global, DevOps"</pre>
       cgRmau = st;
     } catch (e) {
       console.error("RMAU scan failed:", e);
-      rmauBody().innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read administrative units: ${esc(e.message || e)}</p>`;
+      rmauBusy = false;
+      rmauBody().innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read administrative units: ${esc(e.message || e)}</p>
+        <div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-rmaurun>Try again</button></div>`;
       return;
     }
+    rmauBusy = false;
     renderCgRmau();
   }
 
+  let rmauBusy = false;
+  const rmauBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgRmauStatus">Scanning… this keeps running if you switch tabs.</p></div>';
   function renderCgRmau() {
-    if (!cgRmau) { cgRmauScan(); return; }
+    // Same manners as Sign-in failures: nothing scans until asked, a scan in
+    // flight survives navigating away and back, and the result stays until
+    // an explicit rescan.
+    if (rmauBusy) { rmauBody().innerHTML = rmauBusyPanel(); return; }
+    if (!cgRmau) {
+      rmauBody().innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-rmaurun>▶ Scan the exclusion groups</button>
+        <p class="mini muted">Reads the tenant's groups, the administrative units and each exclusion group's protection status. Nothing is written. The result stays until you rescan.</p>
+      </div>`;
+      return;
+    }
     const t = cgRmau;
     const cands = CaGroups.rmauCandidates(cgRes);
 
@@ -1966,7 +2006,8 @@ max@contoso.com,"Global, DevOps"</pre>
         Placing these groups in a <b>restricted management administrative unit</b> closes that path: only principals holding a role <b>scoped to that administrative unit</b> can change their members. Tenant-wide admins — Global Administrator included — can read but not modify.</p>
       ${auPick}
       <label class="mini" style="display:block;margin:14px 0 4px">Scoped administrator <span class="muted">(optional but recommended — otherwise nobody can manage these members until a role is scoped later)</span></label>
-      <input id="cgRmauAdmin" class="txt" value="${esc(t.admin)}" placeholder="UPN to grant Groups Administrator scoped to this administrative unit" autocomplete="off" spellcheck="false" style="max-width:420px;letter-spacing:normal;font-weight:400">
+      <input id="cgRmauAdmin" class="txt" list="cgRmauAdminList" value="${esc(t.admin)}" placeholder="UPN to grant Groups Administrator scoped to this administrative unit" autocomplete="off" spellcheck="false" style="max-width:420px;letter-spacing:normal;font-weight:400">
+      <datalist id="cgRmauAdminList"></datalist>
       <label class="chk" style="margin-top:14px;display:block"><input type="checkbox" id="cgRmauAck"${t.ack ? " checked" : ""}> I understand that after this, membership of the selected groups can <b>only</b> be changed by administrative-unit-scoped roles — tenant-level admin roles (and this tool, signed in without one) lose write access to their membership.</label>
       <div class="cg-progress" id="cgRmauBar" style="display:none"><div style="width:0%"></div></div>
       <div id="cgRmauLog" class="mini" style="margin-top:8px"></div>
@@ -1987,15 +2028,15 @@ max@contoso.com,"Global, DevOps"</pre>
 
   async function cgRmauApply(btn) {
     const t = cgRmau; if (!t || t.busy) return;
-    if (!$("cgRmauAck").checked) { toast("Tick the <span>confirmation</span> first — this restricts who can manage these groups"); return; }
-    t.admin = $("cgRmauAdmin").value.trim();
+    if (!rmauBody().querySelector("#cgRmauAck")?.checked) { toast("Tick the <span>confirmation</span> first — this restricts who can manage these groups"); return; }
+    t.admin = (rmauBody().querySelector("#cgRmauAdmin")?.value || "").trim();
     const cands = CaGroups.rmauCandidates(cgRes);
     const picked = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id));
     if (!picked.length) return;
     const scopes = [...AUTH_CONFIG.scopes, ...RMAU_WRITE, ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
     if (!isDemo && !await preConsent(scopes)) return;
     t.busy = true; btn.disabled = true;
-    const bar = $("cgRmauBar"), log = $("cgRmauLog");
+    const bar = rmauBody().querySelector("#cgRmauBar"), log = rmauBody().querySelector("#cgRmauLog");
     bar.style.display = "block";
     const lines = [], results = [];
     const say = (h) => { lines.push(h); log.innerHTML = lines.slice(-10).join(""); };
@@ -2006,7 +2047,7 @@ max@contoso.com,"Global, DevOps"</pre>
         const hit = t.rmaus.find((a) => a.id === t.auChoice);
         au = { id: hit.id, name: hit.name, created: false };
       } else {
-        const name = ($("cgRmauName")?.value || RMAU_DEFAULT_NAME).trim() || RMAU_DEFAULT_NAME;
+        const name = (rmauBody().querySelector("#cgRmauName")?.value || RMAU_DEFAULT_NAME).trim() || RMAU_DEFAULT_NAME;
         if (isDemo) au = { id: "au-demo", name, created: true };
         else {
           const made = await Graph.gpost("/administrativeUnits", {
