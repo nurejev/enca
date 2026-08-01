@@ -41,6 +41,25 @@
   const AN_PAGE_SIZE = 50;
 
   // ---------- helpers ----------
+  // ---------- sticky stack: measured, not assumed ----------
+  // Header (top:0), tool tab bar (under it) and each screen's toolbar stack
+  // with position:sticky. Their offsets were hard-coded for a one-row desktop
+  // header — on a phone the header wraps taller and every layer below it
+  // overlapped the content. Measure the real heights into CSS variables and
+  // let every sticky top build on those.
+  function syncStickyTops() {
+    const h = document.querySelector("header");
+    const n = document.getElementById("toolNav");
+    const hh = h ? Math.round(h.getBoundingClientRect().height) : 58;
+    const navVisible = n && n.style.display !== "none" && n.offsetParent !== null;
+    const nh = navVisible ? Math.round(n.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty("--sticky-header", hh + "px");
+    document.documentElement.style.setProperty("--sticky-nav", (hh + nh) + "px");
+  }
+  const stickyNavTop = () => parseInt(getComputedStyle(document.documentElement).getPropertyValue("--sticky-nav")) || 106;
+  window.addEventListener("resize", syncStickyTops);
+  syncStickyTops();
+
   // ---------- screens + browser history ----------
   // This is a single page, so without history entries the Back button leaves
   // the site entirely — and after an MSAL popup sign-in the previous entry may
@@ -54,6 +73,7 @@
   function show(id) {
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     $(id).classList.add("active");
+    (window.requestAnimationFrame || setTimeout)(syncStickyTops);
     window.scrollTo(0, 0);
     if (navSuppress || !HISTORY_SCREENS.has(id)) return;
     // Replace rather than push when the screen has not changed, so clicking the
@@ -413,7 +433,7 @@
       links.forEach((a) => a.classList.remove("active"));
       const a = top && links.get(top.id);
       if (a) a.classList.add("active");
-    }, { rootMargin: `-${106 + $("helpToc").offsetHeight + 8}px 0px -60% 0px`, threshold: 0 });
+    }, { rootMargin: `-${stickyNavTop() + $("helpToc").offsetHeight + 8}px 0px -60% 0px`, threshold: 0 });
     secs.forEach((h) => spy.observe(h));
     helpTocBuilt = true;
   }
@@ -433,7 +453,7 @@
     // fixed scroll offset lands the heading underneath it once the chips no
     // longer fit two rows. Measure the actual obstruction instead: the ToC's
     // sticky top plus however tall it currently is.
-    const off = 106 + $("helpToc").offsetHeight + 8;
+    const off = stickyNavTop() + $("helpToc").offsetHeight + 8;
     window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - off, behavior: "smooth" });
   });
   $("rptDownload").addEventListener("click", () => {
@@ -523,7 +543,7 @@
     const tb = document.querySelector("#screen-list .toolbar");
     if (!tb) return;
     const h = Math.round(tb.getBoundingClientRect().height);
-    document.documentElement.style.setProperty("--selbar-top", (106 + h) + "px");
+    document.documentElement.style.setProperty("--selbar-top", (stickyNavTop() + h) + "px");
   }
   window.addEventListener("resize", syncSelbarTop);
 
@@ -3056,7 +3076,7 @@ max@contoso.com,"Global, DevOps"</pre>
   function syncExFocusTop() {
     const tb = $("exToolbar"); if (!tb) return;
     const fs = Fs.isOpen();
-    const top = fs ? 0 : 106 + Math.round(tb.getBoundingClientRect().height);
+    const top = fs ? 0 : stickyNavTop() + Math.round(tb.getBoundingClientRect().height);
     document.documentElement.style.setProperty("--ex-focus-top", top + "px");
     // Size the grid to the space left under the sticky chrome, so it scrolls
     // inside its own box — that is what keeps the policy header row (and the
@@ -3935,7 +3955,7 @@ max@contoso.com,"Global, DevOps"</pre>
   // succeeds), so that mode reads the whole window. This cap keeps a busy
   // tenant from turning the read into a half-hour of paging.
   const SI_MAX = 10000;
-  let siRes = null, siFilter = "all", siQuery = "", siDays = 7, siMode = "enforced", siView = "policies";
+  let siRes = null, siFilter = "all", siQuery = "", siDays = 7, siMode = "enforced", siView = "signins";
   let siBusy = false, siCapped = false;
   const siOpen = new Set();
   const siBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted">Reading the sign-in log… this keeps running if you switch tabs.</p></div>';
@@ -4070,7 +4090,7 @@ max@contoso.com,"Global, DevOps"</pre>
   function syncSiDetheadTop() {
     const tb = $("siToolbar");
     if (!tb) return;
-    document.documentElement.style.setProperty("--si-dethead-top", (106 + Math.round(tb.getBoundingClientRect().height)) + "px");
+    document.documentElement.style.setProperty("--si-dethead-top", (stickyNavTop() + Math.round(tb.getBoundingClientRect().height)) + "px");
   }
   window.addEventListener("resize", syncSiDetheadTop);
 

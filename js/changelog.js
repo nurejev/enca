@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 201, date: "2026-07-28", title: "Sign-in failures, phone-sized",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "On a phone, the sticky chrome (header, tool tab bar, each screen's toolbar) overlapped the content and stole taps — the layer offsets were hard-coded for a one-row desktop header, and on a narrow screen the header wraps taller. The offsets are now measured from the real header and tab-bar heights (and re-measured on resize and screen changes), so every sticky layer — toolbars, the Help table of contents, the List screen's action bar, the pinned labels — lands where the previous layer actually ends, at any width." },
+      { kind: "improved", tool: "Sign-in failures", text: "The per-sign-in list is now the DEFAULT view — a failed sign-in is usually investigated one event at a time, and the newest event is the one you came for; Per policy stays one tap away for the aggregate picture. And because this is exactly the tool that gets opened from a phone when something is blocking someone right now, it now behaves on small screens: full-width search, the policy chips as one swipeable strip instead of a wall, tighter cards with wrapping instead of clipping, and the Per-policy table scrolls sideways." },
+    ],
+  },
+  {
     build: 200, date: "2026-07-28", title: "Protect reads top-down",
     items: [
       { kind: "improved", tool: "Protect exclusions", text: "The panel now reads in the order you work: the administrative unit, scoped administrator and confirmation first, the group list below it — with a clearer explanation of why only the unprotected ASSIGNED exclusion groups are pre-selected. Dynamic groups are opt-in: their members follow a membership rule, not manual adds — the restriction still guards the group object (rule edits included) — and role-assignable groups are already privileged-only. The confirmation tick also survives toggling groups now." },

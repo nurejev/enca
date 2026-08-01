@@ -31,7 +31,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .app-tag{background:var(--soft);color:var(--green);font-weight:600;font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--border)}
 /* tool tab bar — sticky under the header. The inner strip is centred and
    aligned to the card width, so tabs open outward from the middle. */
-.toolnav{position:sticky;top:58px;z-index:45;background:var(--surface);border-bottom:1px solid var(--border);padding:6px 0}
+.toolnav{position:sticky;top:var(--sticky-header,58px);z-index:45;background:var(--surface);border-bottom:1px solid var(--border);padding:6px 0}
 .toolnav-inner{max-width:1180px;margin:0 auto;padding:0 24px;display:flex;gap:4px;align-items:center;
   justify-content:center;overflow-x:auto;scrollbar-width:thin}
 .toolnav-inner::-webkit-scrollbar{height:6px}
@@ -99,7 +99,7 @@ main{max-width:1180px;margin:0 auto;padding:28px 24px 80px}
 /* One toolbar shape for every tool: search / filters / view switch on the left,
    actions in a right-aligned group that wraps as a unit instead of scattering. */
 .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;row-gap:10px;
-  position:sticky;top:106px;z-index:40;background:var(--bg);
+  position:sticky;top:var(--sticky-nav,106px);z-index:40;background:var(--bg);
   padding:12px 0;margin:-12px 0 6px;box-shadow:0 6px 12px -8px rgba(18,51,31,.15)}
 .tb-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
 .toolbar > .chk{margin:0}
@@ -587,7 +587,7 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 /* sticky, scroll-spying table of contents — jump to any section, and the chip
    for the section you're reading stays highlighted */
 .help-toc{display:flex;flex-wrap:wrap;gap:6px;margin:0 -8px 14px;padding:10px 8px;
-  position:sticky;top:106px;z-index:38;background:var(--bg);border-bottom:1px solid var(--border)}
+  position:sticky;top:var(--sticky-nav,106px);z-index:38;background:var(--bg);border-bottom:1px solid var(--border)}
 .help-toc a{font-size:12px;text-decoration:none;color:var(--ink);border:1px solid var(--border);border-radius:999px;padding:3px 10px;background:var(--soft);white-space:nowrap;transition:background .12s,color .12s,border-color .12s}
 .help-toc a:hover{border-color:var(--green);color:var(--green)}
 .help-toc a.active{background:var(--green);border-color:var(--green);color:#fff}
@@ -1085,3 +1085,32 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 /* A brand override supplies its own logo for BOTH themes — the dark-mode
    content: swap above must not clobber it. */
 :root[data-brand] .logo img, :root[data-brand] .login-card > img{content:normal !important}
+
+/* ---------- small screens: Sign-in failures ----------
+   The app is desktop-first, but the sign-in log is exactly the tool that
+   gets opened from a phone when something is blocking someone right now.
+   Full-width search, the policy chips as one swipeable strip instead of a
+   wall, tighter cards, and the per-policy table scrolls sideways (its
+   pinned label goes static there — a scroll container would break it). */
+@media (max-width: 680px){
+  /* the header wraps instead of pushing the page wide: host string hidden
+     (decoration), tenant box on its own row, long names ellipsised */
+  .hwrap{flex-wrap:wrap;row-gap:6px;padding:10px 14px}
+  #brandHost{display:none}
+  .tenant{flex:1 1 100%;min-width:0;justify-content:flex-end}
+  #tenantName,#tenantUser{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:48vw}
+  /* wide tables (permissions overview, per-policy summaries) scroll inside
+     their card instead of stretching the whole page sideways */
+  .list-card{overflow-x:auto}
+  #siToolbar .search{flex:1 1 100%;min-width:0}
+  #siToolbar{row-gap:8px}
+  #siChips{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:4px;scrollbar-width:thin}
+  #siChips .fchip{flex:none}
+  #screen-signins .au-card{padding:10px 12px}
+  #screen-signins .au-h{font-size:13px}
+  #screen-signins .au-h > b{overflow-wrap:anywhere}
+  #screen-signins .au-sub{font-size:11px;overflow-wrap:anywhere}
+  #screen-signins .au-when{flex-basis:100%;margin-left:0;text-align:left}
+  .si-stickyhost{overflow-x:auto}
+  .si-dethead{position:static}
+}
