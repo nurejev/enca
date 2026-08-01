@@ -112,16 +112,47 @@
   // Everything identity-shaped comes from js/branding.js, so a fork edits one
   // file. The markup carries this repo's own values as defaults, which keeps
   // the page readable before scripts run and makes the diff for a fork tiny.
-  (function applyBranding() {
-    if (typeof BRANDING === "undefined") return;
-    const B = BRANDING;
+  // ---------- branding, including per-audience overrides ----------
+  // The active look: BRANDING, unless a brand override is selected — via the
+  // ?brand= query (set by the /<key>/ front-door pages), a stored choice from
+  // earlier in the session, or (later) the signed-in account's UPN domain.
+  const BRAND_STORE = "enca-brand";
+  function activeOverrideKey() {
+    const q = new URLSearchParams(location.search).get("brand");
+    if (q != null) {
+      try { q && typeof BrandOverrides !== "undefined" && BrandOverrides.byKey(q) ? sessionStorage.setItem(BRAND_STORE, q) : sessionStorage.removeItem(BRAND_STORE); } catch {}
+      return q;
+    }
+    try { return sessionStorage.getItem(BRAND_STORE); } catch { return null; }
+  }
+  function activeBrand() {
+    if (typeof BRANDING === "undefined") return null;
+    const o = typeof BrandOverrides !== "undefined" ? BrandOverrides.byKey(activeOverrideKey()) : null;
+    return o
+      ? Object.assign({}, BRANDING, o.brand, { colors: Object.assign({}, BRANDING.colors, o.brand.colors) })
+      : BRANDING;
+  }
+  // Colour overrides land as inline :root properties; remember what we set so
+  // switching back to the default look actually removes them.
+  let appliedBrandColors = [];
+  function applyBranding(B) {
+    if (!B) return;
     const set = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
     document.title = Brand.pageTitle;
     set("favicon", (el) => { if (B.favicon) el.href = B.favicon; });
     ["brandLogo", "brandLogoLogin"].forEach((id) => set(id, (el) => {
       if (B.logo) el.src = B.logo;
       el.alt = B.org || B.name;
+      // Wide wordmarks (the default marks are 1:1) keep their aspect: fix the
+      // height the layout expects and let the width follow.
+      if (B.logoWide) { el.style.height = id === "brandLogo" ? "34px" : "56px"; el.style.width = "auto"; }
+      else { el.style.height = ""; el.style.width = ""; }
     }));
+    // Dark mode swaps the DEFAULT logo via a CSS content: rule; flag the root
+    // when an override is active so that rule stands down (see app.css).
+    const oKey = typeof BrandOverrides !== "undefined" && BrandOverrides.byKey(activeOverrideKey()) ? activeOverrideKey() : "";
+    if (oKey) document.documentElement.setAttribute("data-brand", oKey);
+    else document.documentElement.removeAttribute("data-brand");
     // "Limon-IT" → "Limon-<span>IT</span>": the tail takes the accent colour.
     set("brandOrg", (el) => {
       const org = B.org || "";
@@ -142,10 +173,13 @@
     });
     // Colour overrides land on :root, so they beat the stylesheet without
     // anyone having to edit css/app.css.
+    appliedBrandColors.forEach((k) => document.documentElement.style.removeProperty(k));
+    appliedBrandColors = [];
     Object.entries(B.colors || {}).forEach(([k, v]) => {
-      if (k.startsWith("--") && v) document.documentElement.style.setProperty(k, v);
+      if (k.startsWith("--") && v) { document.documentElement.style.setProperty(k, v); appliedBrandColors.push(k); }
     });
-  })();
+  }
+  applyBranding(activeBrand());
 
   // ---------- theme: Auto (device) → Light → Dark ----------
   // Auto leaves data-theme off so the CSS prefers-color-scheme block decides;
@@ -632,6 +666,15 @@
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
       tenantDomain = (account?.username || "").split("@")[1] || "";
+      // Audience branding by who signed in: an @pvmict.com account gets the
+      // Perfetti Van Melle look even without coming in through /pvm.
+      if (typeof BrandOverrides !== "undefined") {
+        const bo = BrandOverrides.forUpn(account?.username);
+        if (bo && activeOverrideKey() !== bo.key) {
+          try { sessionStorage.setItem(BRAND_STORE, bo.key); } catch {}
+          applyBranding(activeBrand());
+        }
+      }
       tenantLogo = logo || null;
       isDemo = false; anReport = null;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
@@ -1752,7 +1795,8 @@ max@contoso.com,"Global, DevOps"</pre>
   function rmauChange(e) {
     const snap = () => { if (!cgRmau) return;
       const a = $("cgRmauAdmin"); if (a) cgRmau.admin = a.value;
-      const n = $("cgRmauName"); if (n) cgRmau.auName = n.value; };
+      const n = $("cgRmauName"); if (n) cgRmau.auName = n.value;
+      const k = $("cgRmauAck"); if (k) cgRmau.ack = k.checked; };
     const rm = e.target.closest("[data-cgrmau]");
     if (rm && cgRmau) {
       snap();
@@ -1817,8 +1861,11 @@ max@contoso.com,"Global, DevOps"</pre>
           st.status.set(g.id, hit ? { auId: hit.id, auName: hit.displayName } : null);
         } catch { st.status.set(g.id, null); }
       }
-      // preselect every unprotected, non-role-assignable exclusion group
-      cands.forEach((g) => { if (!st.status.get(g.id) && !g.roleAssignable) st.sel.add(g.id); });
+      // Pre-select the groups the protection is FOR: the assigned exclusion
+      // groups someone maintains by hand. Dynamic groups stay opt-in (their
+      // membership follows a rule), and role-assignable groups are already
+      // privileged-only.
+      cands.forEach((g) => { if (!st.status.get(g.id) && !g.roleAssignable && !g.dynamic) st.sel.add(g.id); });
       if (st.rmaus.length) { st.auChoice = st.rmaus[0].id; }
       cgRmau = st;
     } catch (e) {
@@ -1855,7 +1902,7 @@ max@contoso.com,"Global, DevOps"</pre>
       return `<tr>
         <td><label class="chk" style="margin:0"><input type="checkbox" data-cgrmau="${esc(g.id)}"${t.sel.has(g.id) ? " checked" : ""}${disabled ? " disabled" : ""}> <b>${esc(g.name)}</b></label>
           ${g.roleAssignable ? '<div class="mini muted">role-assignable — already modifiable only by privileged roles; adding it is optional</div>' : ""}
-          ${g.dynamic ? '<div class="mini" style="color:var(--report)">dynamic group — membership is rule-driven; the restriction protects the rule\'s result, not the rule itself</div>' : ""}</td>
+          ${g.dynamic ? '<div class="mini" style="color:var(--report)">dynamic group — not pre-selected: members come and go with its membership rule, not by hand. Adding it still helps (the restriction covers the group object, so editing the <b>rule</b> also needs an AU-scoped role) — but protect the hand-managed exclusion groups first.</div>' : ""}</td>
         <td class="mini">${g.refs.exclude.length} polic${g.refs.exclude.length === 1 ? "y" : "ies"}</td>
         <td class="mini">${prot ? `🔒 in <b>${esc(prot.auName)}</b>` : '<span style="color:var(--report)">unprotected</span>'}</td>
       </tr>`;
@@ -1874,18 +1921,22 @@ max@contoso.com,"Global, DevOps"</pre>
       <h4>PROTECT THE EXCLUSION GROUPS (restricted management administrative unit)</h4>
       <p class="mini">Membership of a CA <b>exclusion</b> group is a Conditional Access bypass — and any tenant-level Groups/User Administrator can add someone (or themselves) to one.
         Placing these groups in a <b>restricted management administrative unit</b> closes that path: only principals holding a role <b>scoped to that administrative unit</b> can change their members. Tenant-wide admins — Global Administrator included — can read but not modify.</p>
-      <div class="cg-tablewrap" style="margin-top:10px"><table class="cg-table">
-        <thead><tr><th>Exclusion group</th><th style="width:110px">Excluded on</th><th style="width:220px">Protection</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="3" class="mini muted" style="padding:14px">No groups are used as exclusions by the tenant\'s policies.</td></tr>'}</tbody></table></div>
       ${auPick}
       <label class="mini" style="display:block;margin:14px 0 4px">Scoped administrator <span class="muted">(optional but recommended — otherwise nobody can manage these members until a role is scoped later)</span></label>
       <input id="cgRmauAdmin" class="txt" value="${esc(t.admin)}" placeholder="UPN to grant Groups Administrator scoped to this administrative unit" autocomplete="off" spellcheck="false" style="max-width:420px;letter-spacing:normal;font-weight:400">
-      <label class="chk" style="margin-top:14px;display:block"><input type="checkbox" id="cgRmauAck"> I understand that after this, membership of the selected groups can <b>only</b> be changed by administrative-unit-scoped roles — tenant-level admin roles (and this tool, signed in without one) lose write access to their membership.</label>
+      <label class="chk" style="margin-top:14px;display:block"><input type="checkbox" id="cgRmauAck"${t.ack ? " checked" : ""}> I understand that after this, membership of the selected groups can <b>only</b> be changed by administrative-unit-scoped roles — tenant-level admin roles (and this tool, signed in without one) lose write access to their membership.</label>
       <div class="cg-progress" id="cgRmauBar" style="display:none"><div style="width:0%"></div></div>
       <div id="cgRmauLog" class="mini" style="margin-top:8px"></div>
       <div class="row" style="justify-content:flex-start;margin-top:12px">
         <button class="btn primary" id="cgRmauGo" ${picked ? "" : "disabled"}>Protect ${picked} group${picked === 1 ? "" : "s"}${isDemo ? " (simulated)" : ""}</button>
       </div>
+      <h5 class="mini" style="margin:18px 0 4px">THE GROUPS</h5>
+      <p class="mini muted" style="margin:0 0 8px">Pre-selected: the unprotected <b>assigned exclusion groups</b> — the ones whose membership is maintained by hand, which is exactly the membership this protection locks down.
+        <b>Dynamic</b> groups are listed but not pre-selected: their members come and go with a membership rule, not by hand — the restriction still guards the group object (so changing the <b>rule</b> would also need an AU-scoped role), but the hand-managed exclusion groups are the priority.
+        <b>Role-assignable</b> groups are already modifiable only by privileged roles.</p>
+      <div class="cg-tablewrap"><table class="cg-table">
+        <thead><tr><th>Exclusion group</th><th style="width:110px">Excluded on</th><th style="width:220px">Protection</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="3" class="mini muted" style="padding:14px">No groups are used as exclusions by the tenant\'s policies.</td></tr>'}</tbody></table></div>
       <p class="mini muted" style="margin-top:10px">Consents <code>AdministrativeUnit.ReadWrite.All</code>${""} on demand (plus <code>RoleManagement.ReadWrite.Directory</code> if a scoped administrator is set).
         Requires the <b>Privileged Role Administrator</b> role and an Entra ID P1 licence for administrative-unit administrators. Only cloud security groups can be added — mail-enabled or on-premises-synced groups are rejected by Graph.</p>
     </div>`;
@@ -5962,6 +6013,10 @@ max@contoso.com,"Global, DevOps"</pre>
     $("homeBtn").style.display = "none";
     $("toolNav").style.display = "none";
     policies = []; selected.clear();
+    // Back to the neutral look — the next person at this browser may not be
+    // the same audience.
+    try { sessionStorage.removeItem(BRAND_STORE); } catch {}
+    applyBranding(activeBrand());
     Graph.signOut?.();
     show("screen-login");
   });

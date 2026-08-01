@@ -148,6 +148,10 @@ vendor/               msal-browser, html-to-image, jsPDF, JSZip (self-hosted)
 CNAME                 enca.limon-it.nl (GitHub Pages custom domain)
 ```
 
+## Per-audience branding (one deployment, several looks)
+
+Independent of forking, one deployment can wear different chrome per audience. `BRAND_OVERRIDES` in `js/branding.js` maps a UPN pattern to a look (org name, logo, identity colours, login blurb): when a matching account signs in — e.g. `@pvmict.com` → **Perfetti Van Melle** — the header, colours, login screen and favicon switch to that brand. Each audience also gets its own front door at `/<key>/` (live: [`/pvm`](https://enca.limon-it.nl/pvm)) — a static landing page that opens the app pre-branded via `?brand=<key>`. Exports deliberately keep the neutral credit, and only identity colours are overridden so light/dark themes keep working. To add an audience: append an entry to `BRAND_OVERRIDES`, drop a logo in `assets/<key>/`, copy `pvm/index.html` to `<key>/index.html`.
+
 ## Rebranding a fork
 
 All of it lives in **`js/branding.js`** — one object, no other file hard-codes the name, the organisation or the colours:

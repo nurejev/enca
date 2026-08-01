@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=198">
+<link rel="stylesheet" href="css/app.css?v=200">
 </head>
 <body>
 
@@ -1023,7 +1023,7 @@
         <li><b>⟳ Make dynamic</b> — appears when the template defines a membership rule but the tenant group is <b>assigned</b>. A plain security group is converted <b>in place</b>: same id, so every policy, app and role assignment that points at it is untouched. A <b>role-assignable</b> group cannot be dynamic at all — Entra makes the two mutually exclusive and <code>isAssignableToRole</code> is immutable — so it is replaced instead: the old group is renamed <code>-static-YYYYMMDD</code> and kept as your rollback, a dynamic group is created under the original name, added to the include/exclude of every policy that referenced the old one, and only then is the old one removed from those policies (so nothing is uncovered mid-flight). The replacement is <b>not role-assignable</b> — don’t convert a group that carries a directory role or PIM assignment. In both cases members who don’t match the rule stop being members.</li>
         <li><b>Members</b> — a members × groups matrix.</li>
         <li><b>Assign</b> — add a group to policies’ include or exclude lists (ADD is additive — it never removes what’s there). A final confirmation and a change report before anything is written.</li>
-        <li><b>⑥ Protect <span class="tag new">NEW</span></b> — place the CA <b>exclusion</b> groups in a <b>restricted management administrative unit</b>. Membership of an exclusion group is a CA bypass, and any tenant-level Groups/User Administrator can hand it out; with the groups in a restricted AU (<code>isMemberManagementRestricted</code>, immutable at creation) only roles <b>scoped to that AU</b> can change members — Global Administrator included. Shows which exclusion groups are already protected, creates or reuses the restricted AU, and optionally grants one account Groups Administrator <b>scoped to the AU</b> so membership stays manageable (do this — otherwise member changes need a new scoped assignment first). Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and P1. Only cloud security groups can be added; note that ⑤ Import members will afterwards need an AU-scoped role for these groups.</li>
+        <li><b>⑥ Protect <span class="tag new">NEW</span></b> — place the CA <b>exclusion</b> groups in a <b>restricted management administrative unit</b>. Membership of an exclusion group is a CA bypass, and any tenant-level Groups/User Administrator can hand it out; with the groups in a restricted AU (<code>isMemberManagementRestricted</code>, immutable at creation) only roles <b>scoped to that AU</b> can change members — Global Administrator included. Shows which exclusion groups are already protected, pre-selects the unprotected <b>assigned</b> exclusion groups (dynamic groups are opt-in — their membership follows a rule), creates or reuses the restricted AU, and optionally grants one account Groups Administrator <b>scoped to the AU</b> so membership stays manageable (do this — otherwise member changes need a new scoped assignment first). Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and P1. Only cloud security groups can be added; note that ⑤ Import members will afterwards need an AU-scoped role for these groups.</li>
         <li><b>⑤ Import members <span class="tag new">NEW</span></b> — bulk-add deployment-test users from a CSV. A <b>UPN column</b> is enough; with a <b>Persona column</b> (multi-persona cells split on <code>, ; |</code> or spaces) each user is auto-routed to the mapped group, pre-matched against the tenant’s group names — abbreviated conventions included (<code>internals → …-INT</code>). Only <b>baseline</b> groups (templates + active catalogs) are offered by default; ad-hoc groups that policies merely reference need an explicit opt-in checkbox. Users are resolved and existing memberships pre-checked (already-members are skipped), the plan is shown per group for review, and only then are members added. Dynamic groups are excluded — their membership is rule-managed. Ends with a Markdown change report.</li>
       </ul>
       <p class="help-x">Writes only on Create / Recreate / Make dynamic / Assign / Import members / Protect, each behind a confirmation.</p>
@@ -1478,35 +1478,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=198"></script>
-<script src="js/version.js?v=198"></script>
-<script src="js/authConfig.js?v=198"></script>
-<script src="js/labels.js?v=198"></script>
-<script src="js/graph.js?v=198"></script>
-<script src="js/model.js?v=198"></script>
-<script src="js/render.js?v=198"></script>
-<script src="js/analyze.js?v=198"></script>
-<script src="js/whatif.js?v=198"></script>
-<script src="js/mslearn.js?v=198"></script>
-<script src="js/gapcheck.js?v=198"></script>
-<script src="js/exclusions.js?v=198"></script>
-<script src="js/validator.js?v=198"></script>
-<script src="js/whatifeval.js?v=198"></script>
-<script src="js/compare.js?v=198"></script>
-<script src="js/groupuse.js?v=198"></script>
-<script src="js/locations.js?v=198"></script>
-<script src="js/audit.js?v=198"></script>
-<script src="js/signins.js?v=198"></script>
-<script src="js/changelog.js?v=198"></script>
-<script src="js/baselineData.js?v=198"></script>
-<script src="js/baselineJoeyData.js?v=198"></script>
-<script src="js/baseline.js?v=198"></script>
-<script src="js/groupTemplates.js?v=198"></script>
-<script src="js/assign.js?v=198"></script>
-<script src="js/cagroups.js?v=198"></script>
-<script src="js/import.js?v=198"></script>
-<script src="js/export.js?v=198"></script>
-<script src="js/demo.js?v=198"></script>
-<script src="js/app.js?v=198"></script>
+<script src="js/branding.js?v=200"></script>
+<script src="js/version.js?v=200"></script>
+<script src="js/authConfig.js?v=200"></script>
+<script src="js/labels.js?v=200"></script>
+<script src="js/graph.js?v=200"></script>
+<script src="js/model.js?v=200"></script>
+<script src="js/render.js?v=200"></script>
+<script src="js/analyze.js?v=200"></script>
+<script src="js/whatif.js?v=200"></script>
+<script src="js/mslearn.js?v=200"></script>
+<script src="js/gapcheck.js?v=200"></script>
+<script src="js/exclusions.js?v=200"></script>
+<script src="js/validator.js?v=200"></script>
+<script src="js/whatifeval.js?v=200"></script>
+<script src="js/compare.js?v=200"></script>
+<script src="js/groupuse.js?v=200"></script>
+<script src="js/locations.js?v=200"></script>
+<script src="js/audit.js?v=200"></script>
+<script src="js/signins.js?v=200"></script>
+<script src="js/changelog.js?v=200"></script>
+<script src="js/baselineData.js?v=200"></script>
+<script src="js/baselineJoeyData.js?v=200"></script>
+<script src="js/baseline.js?v=200"></script>
+<script src="js/groupTemplates.js?v=200"></script>
+<script src="js/assign.js?v=200"></script>
+<script src="js/cagroups.js?v=200"></script>
+<script src="js/import.js?v=200"></script>
+<script src="js/export.js?v=200"></script>
+<script src="js/demo.js?v=200"></script>
+<script src="js/app.js?v=200"></script>
 </body>
 </html>

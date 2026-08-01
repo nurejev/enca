@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<!-- ====================================================================
+  Perfetti Van Melle front door for ENCA — enca.limon-it.nl/pvm
+  A static, self-contained landing page in the PVM look. It opens the app
+  with ?brand=pvm so the sign-in screen and the whole session wear the
+  Perfetti Van Melle chrome; signing in with an @pvmict.com account applies
+  the same look even without this page. To rebrand: this page and
+  assets/pvm/ carry everything PVM-specific; the app itself stays neutral.
+===================================================================== -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ENCA · Conditional Access Baseline Tools · Perfetti Van Melle</title>
+<link rel="icon" href="../assets/pvm/favicon.png">
+<style>
+  :root{
+    --blue:#003d7d; --blue-deep:#12233d; --blue-mid:#0067b1;
+    --gold:#f2a900; --red:#e30613;
+    --ink:#12233d; --muted:#5b6e86; --bg:#f2f6fa; --surface:#ffffff; --border:#d9e2ee;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(160deg,var(--bg) 0%,#e6eef7 60%,#dfe9f4 100%);color:var(--ink);
+    min-height:100vh;display:flex;flex-direction:column}
+  header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 28px;
+    display:flex;align-items:center;gap:14px}
+  header img{height:34px;width:auto}
+  header .org{font-weight:800;font-size:18px;color:var(--blue)}
+  header .chip{font-size:11px;font-weight:700;background:#e9f0f8;color:var(--blue);
+    border-radius:999px;padding:3px 10px;letter-spacing:.4px}
+  main{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 20px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:20px;
+    box-shadow:0 10px 30px rgba(18,35,61,.10);max-width:520px;width:100%;padding:40px 42px;text-align:center}
+  .card img{height:88px;width:auto;max-width:100%;margin-bottom:18px}
+  h1{font-size:22px;letter-spacing:-.02em;margin-bottom:6px}
+  h1 span{color:var(--blue-mid)}
+  .sub{font-size:13px;color:var(--muted);margin-bottom:26px;line-height:1.55}
+  .btn{display:inline-block;background:var(--blue);color:#fff;border:0;border-radius:12px;
+    padding:13px 34px;font-size:15px;font-weight:700;text-decoration:none;cursor:pointer;
+    transition:background .15s, transform .1s}
+  .btn:hover{background:var(--blue-mid);transform:translateY(-1px)}
+  .stripe{height:5px;border-radius:3px;margin:26px auto 0;max-width:220px;
+    background:linear-gradient(90deg,var(--red) 0 33%,var(--gold) 33% 66%,var(--blue-mid) 66% 100%)}
+  .note{font-size:11.5px;color:var(--muted);margin-top:18px}
+  .note a{color:var(--blue-mid);text-decoration:none}
+  .note a:hover{text-decoration:underline}
+  footer{padding:16px 28px;font-size:12px;color:var(--muted);text-align:center}
+  footer b{color:var(--blue)}
+</style>
+</head>
+<body>
+<header>
+  <img src="../assets/pvm/logo.png" alt="Perfetti Van Melle">
+  <span class="org" style="display:none">Perfetti Van Melle</span>
+  <span class="chip">ICT · IDENTITY</span>
+</header>
+<main>
+  <div class="card">
+    <img src="../assets/pvm/logo.png" alt="Perfetti Van Melle">
+    <h1>ENCA — <span>Conditional Access Baseline</span></h1>
+    <p class="sub">The Perfetti Van Melle Conditional Access baseline: browse it, document it,
+      analyze it and keep it healthy — everything runs in your browser, nothing is stored anywhere else.
+      Sign in with your <b>@pvmict.com</b> account.</p>
+    <a class="btn" href="../?brand=pvm">Sign in&nbsp;&nbsp;→</a>
+    <div class="stripe" aria-hidden="true"></div>
+    <p class="note">Wrong place? The neutral entrance lives at <a href="../">enca.limon-it.nl</a>.</p>
+  </div>
+</main>
+<footer>Powered by <b>ENCA</b> · Conditional Access Baseline Tools · Limon-IT</footer>
+</body>
+</html>

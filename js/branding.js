@@ -61,6 +61,59 @@ const BRANDING = {
   },
 };
 
+// ======================================================================
+// Per-audience looks. A deployment can serve more than one organisation:
+// when the signed-in account's UPN matches an override, the app's CHROME
+// (header, colours, login screen, favicon) switches to that audience's
+// brand — and each override gets its own front door at /<key>/ (a static
+// page that opens the app pre-branded, e.g. enca.limon-it.nl/pvm).
+//
+// What an override does NOT change, by design:
+//   · Exports keep the neutral credit built from BRANDING above — the tool
+//     stays ENCA regardless of whose colours the chrome wears.
+//   · Only identity colours are overridden (greens → the audience's hue,
+//     the lemon accent) — background/surface/ink stay theme-managed, so
+//     light and dark mode both keep working.
+//
+// To add an audience: append an entry here, drop a logo in assets/<key>/,
+// and copy pvm/index.html to <key>/index.html with the same key.
+// ======================================================================
+const BRAND_OVERRIDES = [
+  {
+    key: "pvm",
+    label: "Perfetti Van Melle",
+    match: /@pvmict\.com$/i,               // UPN domain(s) that get this look on sign-in
+    brand: {
+      org: "Perfetti Van Melle",
+      orgSplit: "",
+      orgUrl: "https://www.perfettivanmelle.com",
+      logo: "assets/pvm/logo.png",       // the official wide wordmark
+      logoDark: "assets/pvm/logo.png",   // transparent background — works on dark too
+      logoWide: true,                    // draw at natural aspect, not the 1:1 mark size
+      favicon: "assets/pvm/favicon.png",
+      loginTitle: "",
+      loginBlurb: "Sign in with your Perfetti Van Melle account (@pvmict.com) to browse, document, analyze and back up the Conditional Access baseline.",
+      // PVM corporate hues: deep blue identity, lighter blue accent, golden
+      // action colour. Approximated from the corporate brand — swap for the
+      // official style-guide values via this one object when available.
+      // Sampled from the official logo: navy #202a6f, red #c80b1a. The navy
+      // family carries the identity; the red lives in the logo itself (using
+      // it for action buttons would read as "destructive", so it stays out
+      // of the controls). Gold keeps the warm action accent.
+      colors: {
+        "--green": "#202a6f", "--green-deep": "#141a4a", "--accent2": "#3a48a8",
+        "--lemon": "#f2a900", "--lemon-deep": "#cf8d00",
+        "--glow": "#d6dbf2", "--hl": "rgba(58,72,168,.10)", "--hl2": "rgba(58,72,168,.22)",
+        "--ghost-bd": "#1b2358",
+      },
+    },
+  },
+];
+const BrandOverrides = {
+  forUpn: (upn) => BRAND_OVERRIDES.find((o) => o.match.test(String(upn || ""))) || null,
+  byKey: (k) => BRAND_OVERRIDES.find((o) => o.key === k) || null,
+};
+
 // Small helpers so no other file has to assemble these strings. Every export
 // footer and on-screen credit goes through here.
 const Brand = {
