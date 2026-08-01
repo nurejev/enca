@@ -19,9 +19,94 @@
 // ======================================================================
 const CHANGELOG = [
   {
-    build: 188, date: "2026-07-22", title: "Exclusion groups, out of reach",
+    build: 198, date: "2026-07-28", title: "Protect exclusions gets its own front door",
+    items: [
+      { kind: "new", tool: "Protect exclusions", text: "The exclusion-group protection workflow is now also a tool of its own on the home grid — same engine as CA groups ⑥ Protect (one state, one renderer, two entrances): restricted management administrative unit created if missing or reused, per-group protection status, optional AU-scoped Groups Administrator, explicit acknowledgement, Markdown report. Opening either view primes the other — the group scan is shared." },
+    ],
+  },
+  {
+    build: 197, date: "2026-07-28", title: "Exclusion groups, out of reach",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "⑥ Protect — membership of a CA exclusion group is a Conditional Access bypass, and any tenant-level Groups/User Administrator can quietly hand it out. The new tab places the exclusion groups in a restricted management administrative unit (isMemberManagementRestricted — set at creation, immutable), after which only roles scoped to that administrative unit can change their members; tenant-wide admins, Global Administrator included, drop to read. Shows which exclusion groups are already protected, creates or reuses the restricted AU, and can grant one account Groups Administrator scoped to the AU so membership stays manageable — recommended, and called out because it also affects this tool's own ⑤ Import members. Behind an explicit acknowledgement; ends with a Markdown report. Needs AdministrativeUnit.ReadWrite.All (added to the app-registration script — re-run it against an existing app to pick the permission up), the Privileged Role Administrator role, and Entra ID P1 for AU administrators. Cloud security groups only — mail-enabled and on-premises-synced groups are rejected by Graph." },
+    ],
+  },
+  {
+    build: 196, date: "2026-07-27", title: "Compare users and Named locations are out of BETA",
+    items: [
+      { kind: "improved", tool: "Compare users", text: "Out of BETA, at v1.0. Nothing about it changed in this build — the badge is off because the tool has held up: per-policy assignment for two to eight users with the group, role or direct exclusion behind every difference, the membership grid underneath it, and the optional What-If sign-in run per user. It stays read-only and resolves per user, so it is unaffected by tenant size." },
+      { kind: "improved", tool: "Named locations", text: "Out of BETA, at v1.4. It still writes to the tenant, and that badge stays: create, edit and delete IP-range and country locations, with CIDR and ISO-code validation, a warning when the trusted flag changes what policies do, and a typed confirmation before deleting a location a policy still references." },
+      { kind: "fixed", tool: "All tools", text: "The README still listed Sign-in failures as BETA, three builds after it graduated. Corrected." },
+    ],
+  },
+  {
+    build: 195, date: "2026-07-27", title: "The summary follows you down the page",
+    items: [
+      { kind: "improved", tool: "Group Analyzer", text: "The summary chips now sit in a strip that stays put while you scroll — in both the sweep and the single-group view. On an account with a few hundred references the counts are the navigation (each area chip jumps to its section), and having them scroll away meant returning to the top to move anywhere. The object's name rides along, so it stays obvious whose result you are reading, and in the sweep the search box and the unused-only toggle come with it." },
+      { kind: "improved", tool: "Group Analyzer", text: "The single-group header no longer buries the counts under a wall of group memberships. The object ID and the “member of / contains / roles” lines moved into their own card below the strip, where a hundred-group membership list can be as long as it likes." },
+    ],
+  },
+  {
+    build: 194, date: "2026-07-27", title: "Sweep only the groups Conditional Access actually uses",
+    items: [
+      { kind: "new", tool: "Group Analyzer", text: "New sweep scope, and the new default: Only groups used by Conditional Access. It takes the include and exclude groups off every policy already loaded — enabled, report-only and Off alike — so it needs no directory enumeration at all and is bounded by your baseline rather than by the size of the tenant. On a 20 000-group tenant it is the difference between a sweep you plan and one you just run. It is also the question worth asking here: not “which of my 20 000 groups is dead”, but “now that Conditional Access depends on this group, what else does it touch?”" },
+      { kind: "new", tool: "Group Analyzer", text: "Dangling references are kept, not dropped. When a policy names a group id the directory can no longer resolve, that row stays in the sweep flagged “not in the directory”, with the policies that name it — because the policy still points at it, so that assignment targets nobody, and a policy quietly scoped to nothing deserves more attention than a group that is merely unused. A chip filters the table down to them, the popup spells out the consequence, and they carry through to the Markdown, HTML and CSV exports." },
+      { kind: "improved", tool: "Group Analyzer", text: "Opening the tool no longer reads a page of groups to seed the single-group picker. With the sweep as the default mode that list is not even on screen, so it is fetched when the picker is actually reached — switching to single-group mode, or clicking into the box." },
+    ],
+  },
+  {
+    build: 193, date: "2026-07-27", title: "Lemon headings, and the sweep up front",
+    items: [
+      { kind: "improved", tool: "All tools", text: "In dark, tool card titles are lemon rather than white — the same role the accent plays on limon-it.nl, where it is green in light and lemon in dark. Section labels stay white: on the site only the small eyebrow labels take the accent, headings do not. The BETA pill is now an outlined lemon chip rather than a solid one, because a solid lemon pill sitting beside a lemon title turns the whole line one colour." },
+      { kind: "improved", tool: "Group Analyzer", text: "Sweep every group is the default mode. It is the more useful first move — it answers “which of my groups is dead” across the whole tenant, and any single group is one click away from the result." },
+      { kind: "improved", tool: "All tools", text: "The NEW badge is off CA validator, What-If and Change audit. They have been in for several builds; a badge that never comes off stops meaning anything." },
+    ],
+  },
+  {
+    build: 192, date: "2026-07-27", title: "Dark mode, in Limon-IT colours",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The dark theme now uses limon-it.nl's own palette, value for value: the background, surfaces, borders, ink and the sage muted tone are lifted straight from the site, and the lemon is the logo lemon (#f7d65a) rather than the duller shade this theme had drifted to. The greens are deeper and greener, so the tools and the site read as one product instead of two." },
+      { kind: "improved", tool: "All tools", text: "More than a palette swap: the site's rule is that the green is the surface and the lemon is the signal, and this theme had it the other way round. So in dark, tool titles are white rather than green, the BETA and NEW pills are the site's lemon category pill (uppercase, letter-spaced, dark green text), the primary button is lemon, and the home screen carries the site's two-tone hero glow. Light mode is untouched — there the green is the accent, exactly as on the site." },
+      { kind: "fixed", tool: "All tools", text: "Dark-mode rules that need more than a variable swap were only written for the explicit theme picker, so anyone on Auto with a dark OS got the light-mode active tab — white text on green. Every dark rule now exists in both branches, and they are kept in parity." },
+      { kind: "fixed", tool: "All tools", text: "The faint tone used for “not applicable” rows and disclosure carets fell below 3:1 against the new, lighter surface. Lifted back over the line; every other text pair in the theme checks out at AA or better." },
+    ],
+  },
+  {
+    build: 191, date: "2026-07-27", title: "Group Analyzer: a way back, and a way to sweep less",
+    items: [
+      { kind: "new", tool: "Group Analyzer", text: "Deep analyze no longer costs you the sweep. Drilling into a single group keeps the finished sweep loaded, and ← Back to the sweep appears above the result to put it straight back — same groups, same search, same “only unused” filter, no second scan. It survives analysing several groups in a row, and is cleared only by a new sweep or Reset." },
+      { kind: "new", tool: "Group Analyzer", text: "A sweep can be narrowed by name: starts with, ends with or contains. Naming conventions live at both ends of a name, so a prefix like CAB-SEC- is usually enough to cut a 20 000-group tenant down to the set worth looking at — and “Groups in scope” then counts matches rather than raw groups, so “first 100” means a hundred groups you care about. The filter runs server-side where Graph supports it (endsWith needs $count, which pairs with the ConsistencyLevel header ENCA already sends) and falls back to filtering locally where a tenant rejects it. The scope is carried into the sweep header and into every export." },
+      { kind: "new", tool: "Group Analyzer", text: "Purview, as far as Graph allows: the container sensitivity label on a group is now read and reported under Microsoft 365. It is worth having — the label drives the team's and site's privacy, guest access and external sharing, so membership plus label is the real posture. It is also the only part of Purview with a Microsoft Graph surface: DLP policies, retention policies, label publishing policies, insider risk and communication compliance live behind Security & Compliance PowerShell, which a static site cannot call. The help text says so outright rather than letting a clean result imply Purview was checked." },
+      { kind: "new", tool: "Group Analyzer", text: "The summary chips do something. In a sweep, “groups” clears the filters, “with no usage found” toggles the unused-only list, “services read” opens the receipt — every service read, what it found and how long it took — and “not read” jumps to the failures. On a single group, each area chip jumps to its section." },
+      { kind: "fixed", tool: "All tools", text: "A checkbox sitting inside a What-If–style form field was being inflated into a 38-pixel bordered square: the rule that gives text inputs and selects their height was matching every input, tick boxes included." },
+      { kind: "fixed", tool: "Group Analyzer", text: "When all candidate shapes of a call failed, the “Not read” entry said only “none of 3 known shapes worked” and swallowed the individual reasons — the joiner used the same separator the error shortener splits on. The per-URL reasons are back." },
+    ],
+  },
+  {
+    build: 190, date: "2026-07-27", title: "Group Analyzer: no second scan, and two calls that were quietly failing",
+    items: [
+      { kind: "improved", tool: "Group Analyzer", text: "Clicking a group in a tenant sweep no longer re-runs the whole analysis. The sweep already holds every (group, object) hit, so the row now opens a popup that filters what is in memory — instant, on a tenant of any size. The one thing a sweep genuinely cannot know is inheritance, because it matches each group only against itself; the popup says so and offers ⤢ Deep analyze, which re-reads that single group with its parent groups expanded. Markdown, HTML and CSV export straight from the popup, for that group alone." },
+      { kind: "fixed", tool: "Group Analyzer", text: "Intune scripts came back 403 while compliance and configuration profiles read fine, which looked like a role problem and was not: PowerShell scripts, macOS shell scripts and remediations sit behind their own permission, DeviceManagementScripts.Read.All, and are not covered by DeviceManagementConfiguration.Read.All. It is now requested with the rest of the Intune area and added to the app registration script." },
+      { kind: "fixed", tool: "Group Analyzer", text: "Access packages came back 400 on both calls. The cause was nesting inside an $expand — $expand=accessPackage($select=…) and $expand=resourceRoleScopes($expand=scope,role) — which Graph rejects outright while naming nothing. Both are now single-level expands, and because entitlement management has renamed these relationships between versions before, each call tries a short ladder of known spellings and takes the first that answers instead of failing on the first miss." },
+      { kind: "improved", tool: "Group Analyzer", text: "A failure now says what to do about it. Under “Not read”, each entry carries the permission the call needs and, separately, the directory or Intune role the signed-in user needs on top of it — those are different things, and a consented scope is often not enough. A 404 is called out as normal for a workload the tenant does not use, rather than looking like a fault." },
+      { kind: "new", tool: "Group Analyzer", text: "Export HTML: a self-contained report — summary cards, every reference grouped by service, and the “Not read” list — that opens on any machine with no access to the tenant. The artefact to attach to a change request when the argument is that a group must not be touched. Available for a single group, for a whole sweep, and from the per-group popup." },
+      { kind: "fixed", tool: "Group Analyzer", text: "The tenant-sweep card had a dead band above the search row and its content ran off the right edge: it reused the shared sticky toolbar, which is built for the top of a screen and breaks inside a card that clips its overflow. The card now has its own toolbar and the table scrolls instead of the card." },
+      { kind: "improved", tool: "All tools", text: "A failed Graph read used to throw a bare “Graph request failed (403)”. It now carries Graph's own message, code and details — the same treatment writes already had — so every tool says whether it hit a missing scope, a missing role or a malformed query." },
+    ],
+  },
+  {
+    build: 189, date: "2026-07-27", title: "Where is this group actually used?",
+    items: [
+      { kind: "new", tool: "Group Analyzer", text: "New tool (BETA) in Analyse & simulate. A group is a shared handle: one admin scopes a Conditional Access policy to it, another targets an Intune configuration profile at it, a third grants it a role on an Azure subscription — and nobody sees the whole picture, so adding a member has consequences that are invisible at the moment of the change. Paste a group name, a UPN or an object ID and get every place it is referenced, across 23 services: Entra ID (group nesting, administrative units, directory roles including PIM eligibility, enterprise application assignments, group-based licensing, the authentication methods policy, Conditional Access, access packages, admin-consent reviewers and — for a user — what they have actually registered), Intune (enrolment device-limit and platform restrictions, compliance policies, configuration profiles across device / settings catalog / ADMX, PowerShell and shell scripts and remediations, app protection, app configuration, app assignments, Autopilot profiles, Windows update profiles), Microsoft 365 (whether the group is an M365 group with a team on it) and Azure RBAC across every subscription and management group you can read, down to resource scope. After Jasper Baes' Microsoft Cloud Group Analyzer, re-implemented in the browser against delegated permissions — nothing installed, no client secret." },
+      { kind: "new", tool: "Group Analyzer", text: "Parent groups are taken along. If the group is nested inside another group, anything targeting the parent reaches these members too — those hits are reported with “via parent group …” in the Matched via column, so an inherited reference is never mistaken for a direct one. For a user, every group they are a member of and every directory role they hold is in scope, so you see what the person is actually subject to." },
+      { kind: "new", tool: "Group Analyzer", text: "Sweep every group: the same checks run tenant-wide and produce a group × service count table plus the list of groups nothing references — the starting point for a clean-up. Each service is read once and matched against every group, so a sweep costs little more than a single lookup; the per-group lookups (nesting, administrative units, app assignments, licensing, Teams) are batched 20 at a time through Graph's $batch and can be switched off for a fast first pass. Click any row to analyse that group on its own." },
+      { kind: "new", tool: "Group Analyzer", text: "Nothing is read that you did not ask for. Entra, Intune, Microsoft 365 and Azure are ticked independently, and each area asks for its own permissions at the moment you tick it — while the click is still a live user gesture, which is where a consent popup actually survives. Azure is a different resource entirely (management.azure.com), so it gets its own token and its own consent, never bundled with Graph. Any service that failed or was never granted is listed by name with the reason under “Not read”: nothing found only ever means nothing found in what was actually read." },
+      { kind: "new", tool: "All tools", text: "The permissions overview on the home screen now lists the six additional read scopes Group Analyzer can ask for and, separately, the Azure Resource Manager permission — marked as its own resource rather than mixed into the Graph consent request." },
+    ],
+  },
+  {
+    build: 188, date: "2026-07-23", title: "Compare users, side by side",
+    items: [
+      { kind: "new", tool: "Compare users", text: "New tool (BETA) in Analyse & simulate: add two to eight users and see where Conditional Access treats them differently. Per enabled or report-only policy, whether each user is included, excluded (hover for the group, role or direct exclusion behind it) or not targeted — rows where the users differ are flagged, and a differences-only toggle (on by default) hides the rest. A membership grid shows the groups and directory roles behind those differences. Optionally describe one What-If sign-in (resource, platform, client, IP/country, device state, risk) and it runs once per user through the What-If engine — a verdict per user, then the per-policy matrix of who it would actually hit. Markdown export of the whole comparison. Resolution is per user (transitiveMemberOf), so no tenant-wide group expansion — it stays fast on any tenant size." },
     ],
   },
   {
@@ -67,12 +152,10 @@ const CHANGELOG = [
       { kind: "new", tool: "Sign-in failures", text: "New tool. Reads the Entra sign-in log and shows which sign-ins Conditional Access failed and which policy did it — grouped per policy, so the policy generating the noise sits on top, with distinct users, affected apps and the grant controls that weren't met. Two modes: Enforced (conditionalAccessStatus = failure, filtered by Graph) and Report-only (policies that would have failed — the sign-ins complete, so the window is read and filtered in the browser, capped at 10 000). Any logged sign-in can be replayed in What-If with one click — user, app, platform, client, IP, country and device state prefilled — so the log tells you which policy failed and What-If tells you why. Exports: CSV with one line per sign-in × failing policy (pivot-table and SIEM friendly) and a per-policy Markdown report. Needs AuditLog.Read.All, requested when you run it." },
     ],
   },
-  {
-    build: 180, date: "2026-07-22", title: "One file to rebrand a fork",
-    items: [
-      { kind: "new", tool: "All tools", text: "js/branding.js holds everything identity-shaped — product name, organisation, logos, favicon, host, footer and optional colour overrides — and nothing else hard-codes them any more. Fork the repo, edit that one object, drop your own mark in assets/, and the header, sign-in screen, page title, footer and the credit line at the bottom of every Markdown export follow. index.html still carries this repo's values as plain markup, so the page reads correctly before scripts run. Exports stay neutral by design: they carry the customer's tenant branding, never the tool's." },
-    ],
-  },
+  // Build 180 ("One file to rebrand a fork", js/branding.js) is deliberately
+  // not listed. This changelog is what a tenant-side reader sees; how the repo
+  // is re-skinned for a fork is not their release note. The capability is
+  // documented in README.md under "Rebranding a fork".
   {
     build: 179, date: "2026-07-22", title: "Make dynamic: a create that was not a create",
     items: [
