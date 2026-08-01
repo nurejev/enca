@@ -19,27 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
-<<<<<<< HEAD
-    build: 200, date: "2026-07-28", title: "The real logo, and Protect reads top-down",
-    items: [
-      { kind: "improved", tool: "All tools", text: "The Perfetti Van Melle look now carries the official logo (transparent background, drawn at its natural width in the header, login screen, favicon and the /pvm front door) and its exact colours, sampled from the artwork: navy #202a6f as the identity hue, with the logo's red staying in the logo — red controls would read as destructive. A brand override's logo is now also safe from the dark-mode logo swap." },
-=======
     build: 200, date: "2026-07-28", title: "Protect reads top-down",
     items: [
->>>>>>> ae5759b (PVM branding + official logo, /pvm front door, Protect panel reordered (builds 199-200))
       { kind: "improved", tool: "Protect exclusions", text: "The panel now reads in the order you work: the administrative unit, scoped administrator and confirmation first, the group list below it — with a clearer explanation of why only the unprotected ASSIGNED exclusion groups are pre-selected. Dynamic groups are opt-in: their members follow a membership rule, not manual adds — the restriction still guards the group object (rule edits included) — and role-assignable groups are already privileged-only. The confirmation tick also survives toggling groups now." },
     ],
   },
   {
-<<<<<<< HEAD
-    build: 199, date: "2026-07-28", title: "One app, more than one face",
-    items: [
-      { kind: "new", tool: "All tools", text: "Per-audience branding. js/branding.js now carries BRAND_OVERRIDES: when the signed-in account's UPN matches an override (first one: @pvmict.com → the Perfetti Van Melle look), the app's chrome — header, identity colours, login screen, favicon — switches to that audience's brand. Each audience also gets its own front door: a static branded landing page at /<key>/ (live: /pvm) that opens the app pre-branded via ?brand=<key>. Deliberately unchanged: exports keep the neutral ENCA credit, and only identity colours are overridden so light and dark mode both keep working. The PVM palette is approximated from the corporate brand — the official logo drops into assets/pvm/logo.svg, colours adjust in the one override object. Signing out returns the neutral look." },
-    ],
-  },
-  {
-=======
->>>>>>> ae5759b (PVM branding + official logo, /pvm front door, Protect panel reordered (builds 199-200))
     build: 198, date: "2026-07-28", title: "Protect exclusions gets its own front door",
     items: [
       { kind: "new", tool: "Protect exclusions", text: "The exclusion-group protection workflow is now also a tool of its own on the home grid — same engine as CA groups ⑥ Protect (one state, one renderer, two entrances): restricted management administrative unit created if missing or reused, per-group protection status, optional AU-scoped Groups Administrator, explicit acknowledgement, Markdown report. Opening either view primes the other — the group scan is shared." },

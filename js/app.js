@@ -128,13 +128,7 @@
   function activeBrand() {
     if (typeof BRANDING === "undefined") return null;
     const o = typeof BrandOverrides !== "undefined" ? BrandOverrides.byKey(activeOverrideKey()) : null;
-<<<<<<< HEAD
-    return o
-      ? Object.assign({}, BRANDING, o.brand, { colors: Object.assign({}, BRANDING.colors, o.brand.colors) })
-      : BRANDING;
-=======
     return o ? Object.assign({}, BRANDING, o.brand, { colors: BRANDING.colors }) : BRANDING;
->>>>>>> ae5759b (PVM branding + official logo, /pvm front door, Protect panel reordered (builds 199-200))
   }
   // Colour overrides land as inline :root properties; remember what we set so
   // switching back to the default look actually removes them.
@@ -154,11 +148,6 @@
     }));
     // Dark mode swaps the DEFAULT logo via a CSS content: rule; flag the root
     // when an override is active so that rule stands down (see app.css).
-<<<<<<< HEAD
-    const oKey = typeof BrandOverrides !== "undefined" && BrandOverrides.byKey(activeOverrideKey()) ? activeOverrideKey() : "";
-    if (oKey) document.documentElement.setAttribute("data-brand", oKey);
-    else document.documentElement.removeAttribute("data-brand");
-=======
     const oBrand = typeof BrandOverrides !== "undefined" ? BrandOverrides.byKey(activeOverrideKey()) : null;
     const oKey = oBrand ? oBrand.key : "";
     if (oKey) document.documentElement.setAttribute("data-brand", oKey);
@@ -184,7 +173,6 @@
       tag.textContent = css;
       document.head.appendChild(tag);
     }
->>>>>>> ae5759b (PVM branding + official logo, /pvm front door, Protect panel reordered (builds 199-200))
     // "Limon-IT" → "Limon-<span>IT</span>": the tail takes the accent colour.
     set("brandOrg", (el) => {
       // A wordmark logo already carries the name — drawing it again as text

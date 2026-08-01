@@ -90,23 +90,6 @@ const BRAND_OVERRIDES = [
       logo: "assets/pvm/logo.png",       // the official wide wordmark
       logoDark: "assets/pvm/logo.png",   // transparent background — works on dark too
       logoWide: true,                    // draw at natural aspect, not the 1:1 mark size
-<<<<<<< HEAD
-      favicon: "assets/pvm/favicon.png",
-      loginTitle: "",
-      loginBlurb: "Sign in with your Perfetti Van Melle account (@pvmict.com) to browse, document, analyze and back up the Conditional Access baseline.",
-      // PVM corporate hues: deep blue identity, lighter blue accent, golden
-      // action colour. Approximated from the corporate brand — swap for the
-      // official style-guide values via this one object when available.
-      // Sampled from the official logo: navy #202a6f, red #c80b1a. The navy
-      // family carries the identity; the red lives in the logo itself (using
-      // it for action buttons would read as "destructive", so it stays out
-      // of the controls). Gold keeps the warm action accent.
-      colors: {
-        "--green": "#202a6f", "--green-deep": "#141a4a", "--accent2": "#3a48a8",
-        "--lemon": "#f2a900", "--lemon-deep": "#cf8d00",
-        "--glow": "#d6dbf2", "--hl": "rgba(58,72,168,.10)", "--hl2": "rgba(58,72,168,.22)",
-        "--ghost-bd": "#1b2358",
-=======
       hideOrgName: true,                 // the wordmark already says it — no text next to the logo
       favicon: "assets/pvm/favicon.png",
       loginTitle: "",
@@ -134,7 +117,6 @@ const BRAND_OVERRIDES = [
         "--soft": "#1a2142", "--hover": "#1f2749", "--line": "#202950", "--soft2": "#111834",
         "--glow": "#202a6f55", "--shadow": "0 10px 30px rgba(0,0,0,.35)",
         "--hl": "rgba(143,160,232,.12)", "--hl2": "rgba(143,160,232,.25)",
->>>>>>> ae5759b (PVM branding + official logo, /pvm front door, Protect panel reordered (builds 199-200))
       },
     },
   },
