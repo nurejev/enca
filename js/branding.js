@@ -90,6 +90,7 @@ const BRAND_OVERRIDES = [
       logo: "assets/pvm/logo.png",       // the official wide wordmark
       logoDark: "assets/pvm/logo.png",   // transparent background — works on dark too
       logoWide: true,                    // draw at natural aspect, not the 1:1 mark size
+<<<<<<< HEAD
       favicon: "assets/pvm/favicon.png",
       loginTitle: "",
       loginBlurb: "Sign in with your Perfetti Van Melle account (@pvmict.com) to browse, document, analyze and back up the Conditional Access baseline.",
@@ -105,6 +106,35 @@ const BRAND_OVERRIDES = [
         "--lemon": "#f2a900", "--lemon-deep": "#cf8d00",
         "--glow": "#d6dbf2", "--hl": "rgba(58,72,168,.10)", "--hl2": "rgba(58,72,168,.22)",
         "--ghost-bd": "#1b2358",
+=======
+      hideOrgName: true,                 // the wordmark already says it — no text next to the logo
+      favicon: "assets/pvm/favicon.png",
+      loginTitle: "",
+      loginBlurb: "Sign in with your Perfetti Van Melle account (@pvmict.com) to browse, document, analyze and back up the Conditional Access baseline.",
+      // Sampled from the official logo: navy #202a6f, red #c80b1a. The navy
+      // family replaces the greens EVERYWHERE — identity colours and the
+      // green-tinted canvas (ink, backgrounds, borders) alike — per theme, so
+      // no Limon green survives in either mode. The logo's red stays in the
+      // logo (red controls would read as "destructive"); gold keeps the warm
+      // action accent. Theme-scoped palettes are injected as a stylesheet by
+      // applyBranding(), so light/dark/auto all resolve correctly.
+      colorsLight: {
+        "--ink": "#151b3e", "--green": "#202a6f", "--green-deep": "#141a4a", "--accent2": "#3a48a8",
+        "--lemon": "#f2a900", "--lemon-deep": "#cf8d00",
+        "--muted": "#5c6584", "--border": "#dde1ee", "--bg": "#f3f5fa", "--soft": "#ecf0f8",
+        "--hover": "#fafbfe", "--line": "#eef1f8", "--soft2": "#f6f8fc", "--glow": "#d7ddf2",
+        "--shadow": "0 10px 30px rgba(21,27,62,.10)",
+        "--hl": "rgba(58,72,168,.10)", "--hl2": "rgba(58,72,168,.22)",
+        "--ghost-bd": "#1b2358", "--na": "#ced4e2", "--faint": "#bdc4da", "--on-deep-mute": "#c8cde2",
+      },
+      colorsDark: {
+        "--ink": "#e8ecf7", "--green": "#8fa0e8", "--green-deep": "#141a4a", "--accent2": "#9db1f2",
+        "--lemon": "#f2c14e", "--lemon-deep": "#d9a32e",
+        "--muted": "#93a0c4", "--border": "#252d52", "--surface": "#151b36", "--bg": "#0d1226",
+        "--soft": "#1a2142", "--hover": "#1f2749", "--line": "#202950", "--soft2": "#111834",
+        "--glow": "#202a6f55", "--shadow": "0 10px 30px rgba(0,0,0,.35)",
+        "--hl": "rgba(143,160,232,.12)", "--hl2": "rgba(143,160,232,.25)",
+>>>>>>> ae5759b (PVM branding + official logo, /pvm front door, Protect panel reordered (builds 199-200))
       },
     },
   },

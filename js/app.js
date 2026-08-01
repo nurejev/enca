@@ -128,9 +128,13 @@
   function activeBrand() {
     if (typeof BRANDING === "undefined") return null;
     const o = typeof BrandOverrides !== "undefined" ? BrandOverrides.byKey(activeOverrideKey()) : null;
+<<<<<<< HEAD
     return o
       ? Object.assign({}, BRANDING, o.brand, { colors: Object.assign({}, BRANDING.colors, o.brand.colors) })
       : BRANDING;
+=======
+    return o ? Object.assign({}, BRANDING, o.brand, { colors: BRANDING.colors }) : BRANDING;
+>>>>>>> ae5759b (PVM branding + official logo, /pvm front door, Protect panel reordered (builds 199-200))
   }
   // Colour overrides land as inline :root properties; remember what we set so
   // switching back to the default look actually removes them.
@@ -150,11 +154,42 @@
     }));
     // Dark mode swaps the DEFAULT logo via a CSS content: rule; flag the root
     // when an override is active so that rule stands down (see app.css).
+<<<<<<< HEAD
     const oKey = typeof BrandOverrides !== "undefined" && BrandOverrides.byKey(activeOverrideKey()) ? activeOverrideKey() : "";
     if (oKey) document.documentElement.setAttribute("data-brand", oKey);
     else document.documentElement.removeAttribute("data-brand");
+=======
+    const oBrand = typeof BrandOverrides !== "undefined" ? BrandOverrides.byKey(activeOverrideKey()) : null;
+    const oKey = oBrand ? oBrand.key : "";
+    if (oKey) document.documentElement.setAttribute("data-brand", oKey);
+    else document.documentElement.removeAttribute("data-brand");
+    // Override palettes ship as a stylesheet, scoped per theme — explicit
+    // light/dark via data-theme, auto via prefers-color-scheme — so both
+    // modes get a palette designed for them (appended last, so it wins ties).
+    document.getElementById("brandOverrideCss")?.remove();
+    if (oBrand) {
+      const decl = (obj) => Object.entries(obj || {}).filter(([k, v]) => k.startsWith("--") && v)
+        .map(([k, v]) => `${k}:${v}`).join(";");
+      const both = decl(oBrand.brand.colors), L = decl(oBrand.brand.colorsLight), D = decl(oBrand.brand.colorsDark);
+      const sel = `:root[data-brand="${oKey}"]`;
+      const css = [
+        both ? `${sel}{${both}}` : "",
+        L ? `${sel}[data-theme="light"]{${L}}
+@media (prefers-color-scheme: light){ ${sel}:not([data-theme="dark"]){${L}} }` : "",
+        D ? `${sel}[data-theme="dark"]{${D}}
+@media (prefers-color-scheme: dark){ ${sel}:not([data-theme="light"]){${D}} }` : "",
+      ].filter(Boolean).join("\n");
+      const tag = document.createElement("style");
+      tag.id = "brandOverrideCss";
+      tag.textContent = css;
+      document.head.appendChild(tag);
+    }
+>>>>>>> ae5759b (PVM branding + official logo, /pvm front door, Protect panel reordered (builds 199-200))
     // "Limon-IT" → "Limon-<span>IT</span>": the tail takes the accent colour.
     set("brandOrg", (el) => {
+      // A wordmark logo already carries the name — drawing it again as text
+      // next to it is redundant.
+      el.style.display = B.hideOrgName ? "none" : "";
       const org = B.org || "";
       const tail = B.orgSplit && org.endsWith(B.orgSplit) ? B.orgSplit : "";
       el.innerHTML = tail
