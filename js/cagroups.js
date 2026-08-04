@@ -279,6 +279,11 @@ const CaGroups = (() => {
       .filter(Boolean))];
   }
 
+  // The archive names this tool leaves behind: "(legacy YYYY-MM-DD)" from the
+  // role-assignable recreate, "(nesting YYYY-MM-DD)" from this one, and
+  // "-static-<stamp>" from the make-dynamic conversion.
+  const ARCHIVE_SUFFIX = /(\s*\((?:legacy|nesting)\s+\d{4}-\d{2}-\d{2}\)|-static-[\w.-]+)\s*$/i;
+
   const NESTING = {
     disabled: { icon: "🚫", label: "Nesting disabled", cls: "ok" },
     allowed:  { icon: "↪", label: "Nesting allowed", cls: "warn" },
@@ -306,6 +311,17 @@ const CaGroups = (() => {
     const base = { name: row?.name, id: row?.id, nested, userCount: users.length, refs, nRef };
 
     if (!row || !row.id) return { ...base, ok: false, reason: "This group does not exist in the tenant yet. Create it first — new groups can be created with nesting already disabled." };
+
+    // A group whose NAME still carries an archive suffix is the leftover half
+    // of an earlier recreate — "X (legacy 2026-08-04)", "X-static-…". Acting on
+    // one is wrong twice over: the live group is the one WITHOUT the suffix,
+    // and a recreate here would create a brand-new group literally called
+    // "X (legacy 2026-08-04)", then rename this one to
+    // "X (legacy 2026-08-04) (nesting 2026-08-04)". Stacked archive suffixes,
+    // and a permanent group with a misleading name.
+    if (ARCHIVE_SUFFIX.test(row.name)) {
+      return { ...base, ok: false, reason: `“${row.name}” is the archived half of an earlier recreate, not the live group — the live one is the same name without the suffix. Disabling nesting here would create a permanent new group still called “${row.name}”. Work on the live group instead, and delete this one once you are satisfied nothing still points at it (Group Analyzer will tell you).` };
+    }
     if (row.nesting === "disabled") return { ...base, ok: false, reason: "Nesting is already disabled on this group." };
     if (row.dynamic) return { ...base, ok: false, reason: "This is a dynamic group. Its membership is decided by the rule, so a group cannot be added to it by hand in the first place." };
 
@@ -330,7 +346,7 @@ const CaGroups = (() => {
       ],
       warnings: [
         "The property is beta and undocumented for updates. If Entra refuses the in-place change, the only route is to recreate the group — which gives it a new object id.",
-        nRef ? `A new id means anything outside Conditional Access that points at this group — app assignments, Intune, licensing, Azure RBAC — keeps pointing at the OLD one. Run Group Analyzer on it first.` : "Anything outside Conditional Access that points at this group would keep pointing at the old one if a recreate is needed. Run Group Analyzer on it first.",
+        nRef ? `A new id means anything outside Conditional Access that points at this group — app assignments, Intune, licensing, Azure RBAC — keeps pointing at the OLD one. Run Group Analyzer on it first.` : "Anything outside Conditional Access that points at this group would keep pointing at the old one if a recreate is needed. Run [Group Analyzer](#tool:toolGroupUse) on it first.",
       ],
     };
   }
@@ -360,7 +376,7 @@ const CaGroups = (() => {
     }
     if (log.route === "recreate") {
       L.push("", "The old group is renamed, not deleted. Check the new group, then remove the old one once you are satisfied.",
-        "", "**Before you delete it:** the old id may still be referenced outside Conditional Access — app assignments, Intune, group-based licensing, Azure RBAC. Group Analyzer will tell you.");
+        "", "**Before you delete it:** the old id may still be referenced outside Conditional Access — app assignments, Intune, group-based licensing, Azure RBAC. [Group Analyzer](#tool:toolGroupUse) will tell you.");
     }
     L.push("", "---", Brand.generatedBy("Generated"));
     return L.join("\n");

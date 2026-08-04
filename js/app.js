@@ -314,6 +314,12 @@
   // containing "<" can never become markup.
   function mdToHtml(md) {
     const inline = (s) => esc(s)
+      // [label](#tool:toolGroupUse) — an in-app jump, resolved by the click
+      // delegate below. Downloaded Markdown keeps a readable link either way.
+      .replace(/\[([^\]]+)\]\(#tool:([A-Za-z]+)\)/g,
+        (m, label, tool) => `<a href="#" class="md-tool" data-tool="${tool}">${label}</a>`)
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+        (m, label, url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`)
       .replace(/`([^`]+)`/g, "<code>$1</code>")
       .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
       .replace(/(^|[\s(])_([^_]+)_(?=[\s.,)]|$)/g, "$1<i>$2</i>")
@@ -359,6 +365,16 @@
     $("reportModal").classList.add("open");
   }
   $("rptClose").addEventListener("click", () => $("reportModal").classList.remove("open"));
+
+  // An in-app link inside any rendered report or confirmation: close whatever
+  // is open and land on the tool, rather than telling someone to go find it.
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("a.md-tool"); if (!a) return;
+    e.preventDefault();
+    document.querySelectorAll(".modal-bg.open").forEach((m) => m.classList.remove("open"));
+    const tile = $(a.dataset.tool);
+    if (tile) tile.click(); else toast("That tool is not available here");
+  });
 
   // ---------- What's new / changelog ----------
   // The overlay appears once per release: we remember the build the person
@@ -2412,7 +2428,7 @@ max@contoso.com,"Global, DevOps"</pre>
         `> ${patchError}`, "",
         "The only remaining route is to recreate the group. That means:", "",
         ...p.fallback.map((s, i) => `${i + 1}. ${s.text}`), "",
-        `**The group gets a new object id.** Conditional Access assignments are moved for you. Anything else that points at this group — app assignments, Intune, group-based licensing, Azure RBAC — is **not**, and will keep pointing at the old, renamed group. Run **Group Analyzer** on it first if you are unsure.`, "",
+        `**The group gets a new object id.** Conditional Access assignments are moved for you. Anything else that points at this group — app assignments, Intune, group-based licensing, Azure RBAC — is **not**, and will keep pointing at the old, renamed group. Run [Group Analyzer](#tool:toolGroupUse) on it first if you are unsure.`, "",
         "The old group is renamed, not deleted, so this is recoverable.",
       ].join("\n"));
       $("nestRcOk").value = ""; $("nestRcGo").disabled = true;

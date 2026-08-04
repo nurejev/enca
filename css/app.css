@@ -1117,18 +1117,22 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 
 /* ---------- List Policies on a phone ----------
    The 201 pass covered Sign-in failures; this is the same treatment for the
-   screen people actually open first. Three things made it unusable:
-   the toolbar is sticky at a fixed 106px offset that assumes a one-row header
-   (on mobile the header wraps, so it covered the content it was pinned above);
-   the policy card is a three-column grid, which at 390px gives columns barely
-   wider than a word; and the list table is width:100%, so it crushed its
-   columns instead of scrolling. */
+   screen people actually open first.
+   NOT a sticky-offset problem — 201 already measures --sticky-nav correctly.
+   The issue is budget: this toolbar wraps to five rows on a phone (search,
+   state chips, view switch + select-all, two action rows), and pinning a
+   quarter of the viewport leaves nothing to read. So it scrolls away here,
+   and the action bar under it does too rather than being measured against a
+   toolbar that is no longer sticky. The other two: the policy card is a
+   three-column grid, barely a word wide at 390px, and the list table is
+   width:100%, so it crushed its columns instead of scrolling. */
 @media (max-width: 680px){
   main{padding:18px 14px 72px}
 
   /* a sticky toolbar on a phone eats a third of the viewport, and the offset
      it needs depends on how many rows the header wrapped to — so don't */
   .toolbar{position:static;box-shadow:none;margin:0 0 10px;padding:0}
+  .selbar{position:static}
   .toolbar .search{flex:1 1 100%;min-width:0}
   .tb-actions{margin-left:0;width:100%}
   .tb-actions .btn{flex:1 1 auto;justify-content:center}
