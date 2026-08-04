@@ -267,6 +267,18 @@ const CaGroups = (() => {
   //     Entra refuses. When Microsoft finishes shipping this, ENCA quietly
   //     stops recreating groups without a line of code changing.
   // ====================================================================
+  // The scoped-administrator box takes several accounts. One is the common
+  // case, but a break-glass pair — or an admin plus the team that covers them —
+  // is exactly the shape you want here, and typing a comma is the obvious way
+  // to ask for it. Split on comma, semicolon or newline; de-duplicate, because
+  // granting the same principal twice is a 400 nobody needs to read.
+  function adminList(raw) {
+    return [...new Set(String(raw || "")
+      .split(/[,;\n]+/)
+      .map((x) => x.trim())
+      .filter(Boolean))];
+  }
+
   const NESTING = {
     disabled: { icon: "🚫", label: "Nesting disabled", cls: "ok" },
     allowed:  { icon: "↪", label: "Nesting allowed", cls: "warn" },
@@ -821,7 +833,10 @@ const CaGroups = (() => {
       `- Administrative unit: **${au.name}**${au.created ? " (created by this run)" : " (already existed, reused)"} — \`${au.id || ""}\``,
       `- Restricted management: **yes** (\`isMemberManagementRestricted\`, immutable)`,
       `- Groups protected: **${ok}** · already in it: ${results.filter((r) => r.state === "already").length} · failed: ${results.filter((r) => r.state === "failed").length}`,
-      ...(meta.scopedAdmin ? [`- Scoped administrator: **${meta.scopedAdmin}** — Groups Administrator scoped to this administrative unit`] : []),
+      ...((meta.scopedAdmins && meta.scopedAdmins.length)
+        ? [`- Scoped administrator${meta.scopedAdmins.length === 1 ? "" : "s"} (Groups Administrator scoped to this administrative unit): `
+            + meta.scopedAdmins.map((a) => `**${a.upn}**${a.ok ? "" : ` — ❌ ${String(a.error || "failed").replace(/\|/g, "\\|")}`}`).join(", ")]
+        : []),
       "", "| Group | Excluded on | Result |", "| --- | --- | --- |"];
     results.forEach((r) => L.push(`| ${r.name} | ${r.excludeCount} polic${r.excludeCount === 1 ? "y" : "ies"} | ${r.state}${r.error ? ` — ${String(r.error).replace(/\|/g, "\\|")}` : ""} |`));
     L.push("", "## What changed operationally", "",
@@ -834,7 +849,7 @@ const CaGroups = (() => {
   return {
     STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate,
     renderSummary, chips, renderTable, renderMatrix, toMd, filtered,
-    NESTING, NEST_WRITE_SCOPES, nestingState, nestingPlan, nestingReport,
+    NESTING, NEST_WRITE_SCOPES, nestingState, nestingPlan, nestingReport, adminList,
     catalogGroupNames, templateNames, policyRefs, convertPlan, runConvert,
     csvParse, csvDetect, csvPersonas, csvUsers, csvSuggest, csvReport,
     rmauCandidates, rmauReport,

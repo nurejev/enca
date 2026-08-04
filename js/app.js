@@ -1840,7 +1840,9 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "cgRmauReport" && cgRmau && cgRmau.results) {
       showReport("🔒 Restricted management administrative unit", "CA-ExclusionProtection",
         CaGroups.rmauReport({ tenant: tenantName, generatedBy: Brand.generatedBy("Generated"),
-          scopedAdmin: cgRmau.adminError ? "" : cgRmau.admin }, cgRmau.au, cgRmau.results));
+          // every admin, with its own outcome — a partial failure has to be
+          // visible in the report, not flattened into "no admin was set"
+          scopedAdmins: cgRmau.adminResults || [] }, cgRmau.au, cgRmau.results));
       return true;
     }
     return false;
@@ -1874,7 +1876,10 @@ max@contoso.com,"Global, DevOps"</pre>
     if (cgRmau) cgRmau.admin = e.target.value;
     clearTimeout(rmauSugTimer);
     rmauSugTimer = setTimeout(async () => {
-      const t = e.target.value.trim(); if (t.length < 2 || isDemo) return;
+      // The box takes a list, so complete the fragment after the last
+      // separator — otherwise typing a second name searches for the whole line.
+      const t = String(e.target.value).split(/[,;\n]/).pop().trim();
+      if (t.length < 2 || isDemo) return;
       try {
         const f = t.replace(/'/g, "''");
         const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
@@ -2014,8 +2019,8 @@ max@contoso.com,"Global, DevOps"</pre>
       <p class="mini">Membership of a CA <b>exclusion</b> group is a Conditional Access bypass — and any tenant-level Groups/User Administrator can add someone (or themselves) to one.
         Placing these groups in a <b>restricted management administrative unit</b> closes that path: only principals holding a role <b>scoped to that administrative unit</b> can change their members. Tenant-wide admins — Global Administrator included — can read but not modify.</p>
       ${auPick}
-      <label class="mini" style="display:block;margin:14px 0 4px">Scoped administrator <span class="muted">(optional but recommended — otherwise nobody can manage these members until a role is scoped later)</span></label>
-      <input id="cgRmauAdmin" class="txt" list="cgRmauAdminList" value="${esc(t.admin)}" placeholder="UPN to grant Groups Administrator scoped to this administrative unit" autocomplete="off" spellcheck="false" style="max-width:420px;letter-spacing:normal;font-weight:400">
+      <label class="mini" style="display:block;margin:14px 0 4px">Scoped administrator${(() => { const n = CaGroups.adminList(t.admin).length; return n > 1 ? `s <span class="tag">${n}</span>` : ""; })()} <span class="muted">(optional but recommended — otherwise nobody can manage these members until a role is scoped later. Several are allowed: separate them with a comma — a break-glass pair, or an admin plus the team that covers them.)</span></label>
+      <input id="cgRmauAdmin" class="txt" list="cgRmauAdminList" value="${esc(t.admin)}" placeholder="UPN, or several separated by a comma" autocomplete="off" spellcheck="false" style="max-width:560px;letter-spacing:normal;font-weight:400">
       <datalist id="cgRmauAdminList"></datalist>
       <label class="chk" style="margin-top:14px;display:block"><input type="checkbox" id="cgRmauAck"${t.ack ? " checked" : ""}> I understand that after this, membership of the selected groups can <b>only</b> be changed by administrative-unit-scoped roles — tenant-level admin roles (and this tool, signed in without one) lose write access to their membership.</label>
       <div class="cg-progress" id="cgRmauBar" style="display:none"><div style="width:0%"></div></div>
@@ -2084,22 +2089,41 @@ max@contoso.com,"Global, DevOps"</pre>
           say(`<div style="color:var(--off)">${already ? "•" : "✗"} <b>${esc(g.name)}</b>${already ? " — already a member" : ` — ${esc(err.message || err)}`}</div>`);
         }
       }
-      // 3) the scoped administrator, so somebody can still manage the members
-      if (t.admin) {
-        try {
-          if (!isDemo) {
-            const u = await Graph.gget(`/users/${encodeURIComponent(t.admin)}?$select=id,userPrincipalName`);
+      // 3) the scoped administrators, so somebody can still manage the members.
+      // One failure must not cost the others: each is resolved and granted on
+      // its own, and every outcome reaches the report. The directory role is
+      // activated once, outside the loop.
+      const admins = CaGroups.adminList(t.admin);
+      t.adminResults = [];
+      if (admins.length) {
+        let role = null, roleErr = null;
+        if (!isDemo) {
+          try {
             // scopedRoleMembers wants the ACTIVATED directory-role object id, not the template id
-            let role = (await Graph.gget(`/directoryRoles?$filter=roleTemplateId eq '${GROUPS_ADMIN_TEMPLATE}'`)).value?.[0];
+            role = (await Graph.gget(`/directoryRoles?$filter=roleTemplateId eq '${GROUPS_ADMIN_TEMPLATE}'`)).value?.[0];
             if (!role) role = await Graph.gpost("/directoryRoles", { roleTemplateId: GROUPS_ADMIN_TEMPLATE });
-            await Graph.gpost(`/administrativeUnits/${au.id}/scopedRoleMembers`,
-              { roleId: role.id, roleMemberInfo: { id: u.id } });
-          }
-          say(`<div>✓ <b>${esc(t.admin)}</b> granted Groups Administrator scoped to <b>${esc(au.name)}</b></div>`);
-        } catch (err) {
-          t.adminError = err.message || String(err);
-          say(`<div style="color:var(--off)">✗ scoped administrator — ${esc(t.adminError)}</div>`);
+          } catch (err) { roleErr = err.message || String(err); }
         }
+        for (const upn of admins) {
+          try {
+            if (roleErr) throw new Error(`Groups Administrator role could not be activated: ${roleErr}`);
+            if (!isDemo) {
+              const u = await Graph.gget(`/users/${encodeURIComponent(upn)}?$select=id,userPrincipalName`);
+              await Graph.gpost(`/administrativeUnits/${au.id}/scopedRoleMembers`,
+                { roleId: role.id, roleMemberInfo: { id: u.id } });
+            }
+            t.adminResults.push({ upn, ok: true });
+            say(`<div>✓ <b>${esc(upn)}</b> granted Groups Administrator scoped to <b>${esc(au.name)}</b></div>`);
+          } catch (err) {
+            const already = /already exist|conflicting object/i.test(err.message || "");
+            t.adminResults.push({ upn, ok: already, error: already ? "" : (err.message || String(err)) });
+            say(already
+              ? `<div>• <b>${esc(upn)}</b> — already scoped to this administrative unit</div>`
+              : `<div style="color:var(--off)">✗ <b>${esc(upn)}</b> — ${esc(err.message || err)}</div>`);
+          }
+        }
+        const bad = t.adminResults.filter((a) => !a.ok);
+        t.adminError = bad.length ? `${bad.length} of ${admins.length} could not be granted` : null;
       }
       t.results = results;
       const ok = results.filter((r) => r.state === "added").length;

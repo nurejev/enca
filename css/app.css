@@ -1114,3 +1114,54 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
   .si-stickyhost{overflow-x:auto}
   .si-dethead{position:static}
 }
+
+/* ---------- List Policies on a phone ----------
+   The 201 pass covered Sign-in failures; this is the same treatment for the
+   screen people actually open first. Three things made it unusable:
+   the toolbar is sticky at a fixed 106px offset that assumes a one-row header
+   (on mobile the header wraps, so it covered the content it was pinned above);
+   the policy card is a three-column grid, which at 390px gives columns barely
+   wider than a word; and the list table is width:100%, so it crushed its
+   columns instead of scrolling. */
+@media (max-width: 680px){
+  main{padding:18px 14px 72px}
+
+  /* a sticky toolbar on a phone eats a third of the viewport, and the offset
+     it needs depends on how many rows the header wrapped to — so don't */
+  .toolbar{position:static;box-shadow:none;margin:0 0 10px;padding:0}
+  .toolbar .search{flex:1 1 100%;min-width:0}
+  .tb-actions{margin-left:0;width:100%}
+  .tb-actions .btn{flex:1 1 auto;justify-content:center}
+  /* the state filters scroll sideways rather than stacking three rows deep */
+  #stateChips{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:4px;scrollbar-width:thin}
+  #stateChips .fchip{flex:none}
+  .toolbar .seg{flex:1 1 100%}
+  .toolbar .seg button{flex:1;padding:0 8px}
+  .chk.selall{width:100%;justify-content:flex-start}
+
+  /* the action bar becomes two rows instead of one squeezed line */
+  .selbar{flex-wrap:wrap;row-gap:8px;padding:10px 12px}
+  .selbar .spacer{display:none}
+  .selbar .sel-actions{width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px;scrollbar-width:thin}
+  .selbar .sel-actions .btn{flex:none}
+  .selbar #clearSelBtn{margin-left:auto}
+  .selhint{flex:1 1 100%}
+
+  /* one column, and every divider that assumed three of them */
+  .pcard-grid{grid-template-columns:1fr}
+  .sect{border-right:0;padding:12px 14px}
+  .sect:nth-child(3n),.sect:nth-child(2n){border-right:0}
+  .pcard-head{padding:12px 14px;gap:10px}
+  .pcard-head h3{font-size:15px;overflow-wrap:anywhere}
+  .pcard-foot{padding:10px 14px;flex-wrap:wrap;row-gap:8px}
+  .pcard-actions{gap:6px}
+  .pcard-actions .pa-sep{display:none}
+
+  /* scroll the table, do not crush it */
+  #listView{overflow-x:auto}
+  #ptable{min-width:660px}
+
+  /* the matrix already scrolls both ways — just give it more of the screen,
+     since the header no longer sits above it in a fixed 260px band */
+  .mwrap-x{max-height:calc(100vh - 200px)}
+}

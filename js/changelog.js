@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 204, date: "2026-07-28", title: "List Policies on a phone, and more than one scoped admin",
+    items: [
+      { kind: "improved", tool: "List Policies", text: "Usable on a phone. Three things were wrong and all three are fixed. The toolbar was sticky at a fixed offset that assumed a one-row header — on a narrow screen the header wraps, so the toolbar covered the content it was pinned above; it is simply not sticky there any more, because on a phone it would eat a third of the viewport anyway. The policy card was a three-column grid, which at 390 pixels gave columns barely wider than a word; it is one column, with the dividers that assumed three of them removed. And the list table was width:100%, so it crushed its columns instead of scrolling; it scrolls now. The state filters swipe sideways rather than stacking three rows deep, and the action bar wraps to two rows instead of one squeezed line." },
+      { kind: "improved", tool: "Protect exclusions", text: "The scoped-administrator box takes more than one account. Separate them with a comma — a break-glass pair, or an admin plus the team that covers them, which is exactly the shape you want when the whole point is that tenant-level admins can no longer manage these groups. Each account is resolved and granted on its own, so one bad UPN no longer costs the others, and every outcome reaches the change report by name; an account that already holds the scoped role is reported as such rather than as a failure. Type-ahead now completes the entry after the last comma instead of searching for the whole line. Applies to both entrances — the standalone tile and CA groups ⑥." },
+    ],
+  },
+  {
     build: 203, date: "2026-07-28", title: "Close the side door: disable group nesting",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "🚫 Disable group nesting (BETA), on any present, non-dynamic group in ① Check. A nested group is an invisible route into a Conditional Access assignment: someone adds a group to a group, a policy's scope widens, and the policy itself was never touched — so nothing in a review of that policy shows it happened. Entra's beta disableNesting property closes it: with the property set, no group can be added as a member. On a persona group, where the whole design assumes membership is deliberate, that is worth having." },
