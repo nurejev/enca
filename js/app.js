@@ -155,6 +155,11 @@
   let appliedBrandColors = [];
   function applyBranding(B) {
     if (!B) return;
+    // Publish before painting: Render draws policy marks from Brand.current,
+    // and activeBrand() hands back a MERGED COPY rather than mutating the
+    // global BRANDING — so anything reading the global directly would keep
+    // showing the deployment's own logo under an override.
+    Brand.setActive(B);
     const set = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
     document.title = Brand.pageTitle;
     set("favicon", (el) => { if (B.favicon) el.href = B.favicon; });

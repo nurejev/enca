@@ -128,7 +128,21 @@ const BrandOverrides = {
 
 // Small helpers so no other file has to assemble these strings. Every export
 // footer and on-screen credit goes through here.
+// The look currently on screen. BRANDING is the deployment's own identity;
+// when a per-audience override is active (see BRAND_OVERRIDES) the chrome
+// wears that instead — and anything drawing a mark needs the override, not the
+// base. applyBranding() sets this; everything else reads it.
+//
+// Deliberately NOT used by Brand.title / Brand.credit: exports carry the
+// neutral product credit whoever is signed in, which is the whole point of
+// the override only changing chrome.
+let ACTIVE_BRANDING = null;
+
 const Brand = {
+  // the active look, falling back to the deployment's own
+  get current() { return ACTIVE_BRANDING || BRANDING; },
+  setActive(b) { ACTIVE_BRANDING = b || null; },
+
   // "ENCA — Conditional Access Baseline Tools"
   get title() { return BRANDING.longName ? `${BRANDING.name} — ${BRANDING.longName}` : BRANDING.name; },
   // "ENCA · Conditional Access Baseline Tools · Limon-IT" — the <title>

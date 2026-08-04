@@ -10,7 +10,9 @@ const Render = (() => {
   //
   // dark=true is for the card header, which sits on the dark green band.
   function brandMark(px, dark) {
-    const B = typeof BRANDING !== "undefined" ? BRANDING : {};
+    // Brand.current, not BRANDING: under a per-audience override the two
+    // differ, and the mark on a policy card must follow the chrome.
+    const B = (typeof Brand !== "undefined" && Brand.current) || (typeof BRANDING !== "undefined" ? BRANDING : {});
     const src = (dark ? B.logoDark : B.logo) || B.logo;
     if (!src) return "";
     // the bundled marks are square; a wordmark keeps its aspect instead

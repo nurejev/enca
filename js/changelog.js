@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 206, date: "2026-08-04", title: "The logo, properly this time",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "205 fixed half of it. The policy-card marks stopped being hard-coded, but they read the deployment's own BRANDING — and a per-audience override does not mutate that. activeBrand() builds a merged copy for the chrome and leaves the global untouched, so under an override the header wore the right logo while every policy card still drew the deployment's. The active look is now published as Brand.current and that is what draws the marks. Exports are deliberately excluded and still carry the neutral product credit, which is the entire point of an override changing chrome only." },
+    ],
+  },
+  {
     build: 205, date: "2026-08-04", title: "A logo that should not have been there",
     items: [
       { kind: "fixed", tool: "All tools", text: "A rebranded deployment was still showing the Limon-IT mark on every policy card. js/branding.js was meant to be the one file that carries the identity, but js/render.js hard-coded assets/logo-mark-light.svg and assets/logo-mark-dark.svg for the two on-screen policy marks, so a fork's own logo never reached them. Both now come from branding, and a wide wordmark keeps its aspect instead of being squashed into a 30-pixel square. Exports are unaffected — they carry the customer's tenant branding and never a product logo, which was already correct." },
