@@ -124,6 +124,9 @@ const Assign = (() => {
       p.membershipRuleProcessingState = "On";
     }
     if (roleAssignable) p.isAssignableToRole = true;
+    // beta-only: no group may be added as a member of this one. Only settable
+    // at creation today, which is why the CA groups tool has a recreate path.
+    if (t.disableNesting) p.disableNesting = true;
     return p;
   }
 

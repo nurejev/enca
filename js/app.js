@@ -780,6 +780,7 @@
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create a restricted management administrative unit and place the CA exclusion groups in it", tools: "CA groups (protect)", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable", tools: "CA groups (create)", onDemand: true },
     { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
+    { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting on a group so no group can be added as a member (beta)", tools: "CA groups (disable nesting)", onDemand: true },
     { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "Group Analyzer", onDemand: true },
     { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer", onDemand: true },
     { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer", onDemand: true },
@@ -1457,6 +1458,14 @@
 
     if (cgTab === "check") {
       $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery);
+      // disableNesting is invisible to the main scan, so fill it in after the
+      // table is already on screen and repaint — the check should never make
+      // the tool feel slower to open.
+      if (cgRes.rows.some((r) => r.id && r.nesting === undefined)) {
+        loadNestingStates(cgRes.rows)
+          .then(() => { if (cgTab === "check") $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery); })
+          .catch((e) => console.warn("nesting state read failed:", e.message));
+      }
     } else if (cgTab === "create") {
       renderCgCreate();
     } else if (cgTab === "members") {
@@ -2170,6 +2179,8 @@ max@contoso.com,"Global, DevOps"</pre>
     // Recreate a present-but-not-role-assignable group correctly.
     const rc = e.target.closest("[data-cgrecreate]");
     if (rc) { e.stopPropagation(); openRecreate(rc.dataset.cgrecreate); return; }
+    const nb = e.target.closest("[data-cgnesting]");
+    if (nb) { e.stopPropagation(); openNesting(nb.dataset.cgnesting, nb); return; }
     // Convert an assigned group to the dynamic membership its template expects.
     const cv = e.target.closest("[data-cgdynamic]");
     if (cv) { e.stopPropagation(); openConvertDynamic(cv.dataset.cgdynamic); return; }
@@ -2262,6 +2273,203 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("⟳ Convert to dynamic", "CA-Group-Convert-Dynamic", md.join("\n"));
     toast(err ? `Convert stopped: <span>${esc(err.message || err)}</span>` : `<span>${esc(plan.name)}</span> is now dynamic${isDemo ? " (simulated)" : ""}`);
     if (!isDemo && !err) { cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups(); }
+  });
+
+  // ---- disable group nesting (BETA) ----------------------------------------
+  // See the block comment in js/cagroups.js for why this reads and writes the
+  // way it does. Shape here: read the current state and the direct members,
+  // show exactly what will happen, try the non-destructive PATCH, and only
+  // offer the recreate — behind its own typed confirmation — if Entra refuses.
+  let nestRow = null, nestPlan = null;
+
+  // disableNesting is invisible to a plain GET, so ask for it explicitly. One
+  // batched pass over the groups that have an id; anything that errors stays
+  // "unknown", which is a real answer here rather than a failure.
+  async function loadNestingStates(rows) {
+    const targets = rows.filter((r) => r.id && r.nesting === undefined);
+    if (!targets.length) return;
+    if (isDemo) { targets.forEach((r, i) => r.nesting = i % 4 === 0 ? "disabled" : "allowed"); return; }
+    const res = await Graph.gbatch(targets.map((r, i) => ({ id: i, url: `/groups/${r.id}?$select=id,disableNesting` })));
+    targets.forEach((r, i) => {
+      const v = res[i];
+      r.nesting = v && v.body ? CaGroups.nestingState(v.body) : "unknown";
+    });
+  }
+
+  async function openNesting(name, btn) {
+    const r = cgRes && cgRes.rows.find((x) => x.name === name);
+    if (!r) return;
+    const label = btn ? btn.innerHTML : null;
+    if (btn) { btn.disabled = true; btn.textContent = "Checking…"; }
+    try {
+      // Direct members only — split by type, because a group member is the
+      // blocker and a user member is the thing that has to be carried across.
+      let members = { groups: [], users: [] };
+      if (isDemo) {
+        members = { groups: name.toLowerCase().includes("internals") ? [{ id: "g-nested", displayName: "Demo nested group" }] : [], users: [{ id: "u1", displayName: "Demo user" }] };
+      } else {
+        const [gs, us] = await Promise.all([
+          Graph.ggetAll(`/groups/${r.id}/members/microsoft.graph.group?$select=id,displayName`).catch(() => []),
+          Graph.ggetAll(`/groups/${r.id}/members/microsoft.graph.user?$select=id,displayName,userPrincipalName`).catch(() => []),
+        ]);
+        members = { groups: gs, users: us };
+      }
+      nestRow = r;
+      nestPlan = CaGroups.nestingPlan(r, members);
+      renderNestingModal();
+      $("nestModal").classList.add("open");
+    } catch (e) {
+      console.error(e); toast(`Could not read the group: <span>${esc(e.message || e)}</span>`);
+    } finally { if (btn) { btn.disabled = false; btn.innerHTML = label; } }
+  }
+
+  function renderNestingModal() {
+    const p = nestPlan;
+    const md = [];
+    md.push(`**${p.name}**`, "");
+    if (!p.ok) {
+      md.push(p.reason);
+      if (p.blocked && p.nested.length) {
+        md.push("", "### Nested groups in the way", "", "| Group |", "|---|");
+        p.nested.forEach((g) => md.push(`| ${g.displayName || g.id} |`));
+        md.push("", "_Remove these from the group — or accept that the users they bring in must be added directly — and the action becomes available._");
+      }
+    } else {
+      md.push("Nesting disabled means **no group can be added as a member of this one**. On a Conditional Access persona group that closes a side door: today someone can widen a policy's scope by adding a group to a group, without the policy being touched.", "");
+      md.push(`It has **${p.userCount} direct user member${p.userCount === 1 ? "" : "s"}**, no nested groups, and **${p.nRef} Conditional Access assignment${p.nRef === 1 ? "" : "s"}**.`, "");
+      md.push("### What happens", "");
+      p.steps.forEach((s, i) => md.push(`${i + 1}. ${s.text}`));
+      md.push("", "### If Entra refuses the in-place change", "");
+      p.fallback.forEach((s, i) => md.push(`${i + 1}. ${s.text}`));
+      md.push("", "_You will be asked again before any of that runs._", "");
+      p.warnings.forEach((w) => md.push(`> ⚠ ${w}`, ""));
+    }
+    $("nestBody").innerHTML = mdToHtml(md.join("\n"));
+    $("nestGo").style.display = p.ok ? "" : "none";
+    $("nestCancel").textContent = p.ok ? "Cancel" : "Close";
+  }
+  $("nestCancel").addEventListener("click", () => $("nestModal").classList.remove("open"));
+
+  $("nestGo").addEventListener("click", async () => {
+    const p = nestPlan; if (!p || !p.ok) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES])) return;
+    const btn = $("nestGo"); btn.disabled = true; btn.textContent = "Setting…";
+    try {
+      let ok = false, patchError = null;
+      if (isDemo) {
+        ok = !p.name.toLowerCase().includes("admins");   // exercise both routes in demo
+        patchError = ok ? null : "Demo — simulated refusal";
+      } else {
+        try {
+          await Graph.gpatch(`/groups/${p.id}`, { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
+          // Entra can accept a PATCH and silently ignore an unknown property,
+          // so success is not "no error" — it is the value reading back true.
+          const back = await Graph.gget(`/groups/${p.id}?$select=id,disableNesting`);
+          ok = CaGroups.nestingState(back) === "disabled";
+          if (!ok) patchError = "Entra accepted the update but the property did not stick — it is still only settable at creation.";
+        } catch (e) { patchError = GroupUse.shortErr(e); }
+      }
+
+      if (ok) {
+        $("nestModal").classList.remove("open");
+        nestRow.nesting = "disabled";
+        showReport("🚫 Disable nesting", "CA-Group-DisableNesting",
+          CaGroups.nestingReport(p, { route: "patch" }, tenantName));
+        toast(`Nesting disabled on <span>${esc(p.name)}</span> — id unchanged`);
+        renderCaGroups();
+        return;
+      }
+
+      // In-place refused. Ask again, explicitly, for the destructive route.
+      $("nestModal").classList.remove("open");
+      nestPlan = { ...p, patchError };
+      $("nestRcBody").innerHTML = mdToHtml([
+        `Entra refused to set the property on **${p.name}** as it stands:`, "",
+        `> ${patchError}`, "",
+        "The only remaining route is to recreate the group. That means:", "",
+        ...p.fallback.map((s, i) => `${i + 1}. ${s.text}`), "",
+        `**The group gets a new object id.** Conditional Access assignments are moved for you. Anything else that points at this group — app assignments, Intune, group-based licensing, Azure RBAC — is **not**, and will keep pointing at the old, renamed group. Run **Group Analyzer** on it first if you are unsure.`, "",
+        "The old group is renamed, not deleted, so this is recoverable.",
+      ].join("\n"));
+      $("nestRcOk").value = ""; $("nestRcGo").disabled = true;
+      $("nestRcModal").classList.add("open");
+    } catch (e) {
+      console.error(e); toast(`Failed: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; btn.textContent = "Disable nesting"; }
+  });
+
+  $("nestRcOk").addEventListener("input", (e) => { $("nestRcGo").disabled = e.target.value.trim().toUpperCase() !== "RECREATE"; });
+  $("nestRcCancel").addEventListener("click", () => $("nestRcModal").classList.remove("open"));
+  $("nestRcGo").addEventListener("click", async () => {
+    const p = nestPlan, r = nestRow; if (!p || !r) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES, "Policy.ReadWrite.ConditionalAccess"])) return;
+    const btn = $("nestRcGo"); btn.disabled = true;
+    const archiveName = `${p.name} (nesting ${new Date().toISOString().slice(0, 10)})`;
+    const log = { route: "recreate", archiveName, newId: null, membersMoved: 0, moved: [], failed: [], patchError: p.patchError };
+    try {
+      if (isDemo) {
+        log.newId = "g-new-demo"; log.membersMoved = p.userCount;
+        log.moved = [...p.refs.include.map((x) => ({ name: x.name, how: "include" })), ...p.refs.exclude.map((x) => ({ name: x.name, how: "exclude" }))];
+      } else {
+        toast("Renaming the current group…");
+        await Graph.gpatch(`/groups/${r.id}`, { displayName: archiveName }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+
+        toast("Creating the replacement…");
+        let g;
+        try {
+          g = await Assign.createGroup({
+            displayName: p.name, description: r.description,
+            roleAssignable: !!r.roleAssignable, disableNesting: true,
+          }, { mustCreate: true });
+        } catch (e) {
+          // roll the rename back rather than leave the tenant half-changed
+          await Graph.gpatch(`/groups/${r.id}`, { displayName: p.name }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]).catch(() => {});
+          throw new Error(`Could not create the replacement, so the rename was undone and nothing changed: ${e.message || e}`);
+        }
+        // The build-179 guard: creation can hand back the group we just renamed
+        // if the directory has not caught up. Acting on that id would strip the
+        // original's assignments instead of moving them.
+        if (String(g.id).toLowerCase() === String(r.id).toLowerCase()) {
+          await Graph.gpatch(`/groups/${r.id}`, { displayName: p.name }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]).catch(() => {});
+          throw new Error("Entra returned the original group's id for the new group — the directory has not replicated the rename yet. The rename was undone and nothing else was touched. Try again in a minute.");
+        }
+        log.newId = g.id;
+
+        // carry the user members across
+        const users = (await Graph.ggetAll(`/groups/${r.id}/members/microsoft.graph.user?$select=id`).catch(() => []));
+        for (let i = 0; i < users.length; i++) {
+          toast(`Moving member ${i + 1}/${users.length}…`);
+          try {
+            await Graph.gpost(`/groups/${g.id}/members/$ref`,
+              { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${users[i].id}` },
+              [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+            log.membersMoved++;
+          } catch (e) { log.failed.push({ name: `member ${users[i].id}`, error: e.message || String(e) }); }
+        }
+
+        // point the policies at the new group
+        const refs = [...p.refs.include.map((x) => ({ ...x, how: "include" })), ...p.refs.exclude.map((x) => ({ ...x, how: "exclude" }))];
+        for (let i = 0; i < refs.length; i++) {
+          const pol = refs[i];
+          toast(`Moving policy ${i + 1}/${refs.length}…`);
+          try {
+            const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${pol.id}`);
+            const u = fresh.conditions?.users || {};
+            const key = pol.how === "include" ? "includeGroups" : "excludeGroups";
+            const list = (u[key] || []).map((x) => (x === r.id ? g.id : x));
+            await Graph.gpatch(`/identity/conditionalAccess/policies/${pol.id}`, { conditions: { users: { ...u, [key]: [...new Set(list)] } } });
+            log.moved.push({ name: pol.name, how: pol.how });
+          } catch (e) { console.error(e); log.failed.push({ name: pol.name, error: e.message || String(e) }); }
+        }
+      }
+      $("nestRcModal").classList.remove("open");
+      showReport("🚫 Disable nesting — recreated", "CA-Group-DisableNesting", CaGroups.nestingReport(p, log, tenantName));
+      toast(log.failed.length ? `Recreated with <span>${log.failed.length} failure(s)</span>` : `<span>${p.name}</span> recreated with nesting disabled`);
+      cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
+    } catch (e) {
+      console.error(e); toast(`Recreate failed: <span>${esc(e.message || e)}</span>`);
+      btn.disabled = false;
+    }
   });
 
   // ---- recreate a not-role-assignable group correctly ----

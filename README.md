@@ -203,6 +203,7 @@ Requested **on demand** (incremental consent) only when a tool needs them:
 | `AdministrativeUnit.ReadWrite.All` | CA groups — ⑥ Protect: create a restricted management administrative unit and place the CA exclusion groups in it |
 | `RoleManagement.ReadWrite.Directory` | Assign groups — create those groups as role-assignable |
 | `RoleManagement.Read.Directory` | Group Analyzer — directory role assignments and PIM eligibility for a group |
+| `Group-NestingSupport.ReadWrite.All` | CA groups — set `disableNesting` on a group (beta) so no group can be added as a member |
 | `EntitlementManagement.Read.All` | Group Analyzer — access packages and their assignment policies |
 | `DeviceManagementConfiguration.Read.All` | Group Analyzer — Intune compliance policies, configuration profiles, scripts, update profiles |
 | `DeviceManagementApps.Read.All` | Group Analyzer — Intune app assignments, app protection and app configuration policies |

@@ -240,6 +240,120 @@ const CaGroups = (() => {
   // In both cases the members that do not match the rule stop being members.
   const stamp = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`; };
 
+  // ====================================================================
+  // Disable group nesting (BETA)
+  //
+  // Entra exposes `disableNesting` on the beta group resource: set it and no
+  // other group can be added as a member. That matters here because a nested
+  // group is an invisible route into a Conditional Access assignment — someone
+  // adds a group to a group and a policy's scope changes without the policy
+  // being touched. On a persona group the whole design assumes membership is
+  // deliberate, so this closes the side door.
+  //
+  // Two awkward facts drive the shape of this code:
+  //
+  //  1. READING it is not free. A plain GET does not return the property at
+  //     all; only `?$select=disableNesting` does, and only on groups where it
+  //     is already set. So "not returned" is genuinely ambiguous — it means
+  //     "allowed", or "this tenant does not have the feature yet". We report
+  //     that third state honestly rather than guessing.
+  //
+  //  2. WRITING it is undocumented. Group-NestingSupport.ReadWrite.All is
+  //     listed on Learn as the least-privileged permission for PATCH /groups,
+  //     which strongly implies the property is meant to be patchable — but
+  //     `disableNesting` is absent from the documented updatable-properties
+  //     table, and the field reports say it only takes at creation. So we TRY
+  //     THE PATCH FIRST and only fall back to the destructive recreate if
+  //     Entra refuses. When Microsoft finishes shipping this, ENCA quietly
+  //     stops recreating groups without a line of code changing.
+  // ====================================================================
+  const NESTING = {
+    disabled: { icon: "🚫", label: "Nesting disabled", cls: "ok" },
+    allowed:  { icon: "↪", label: "Nesting allowed", cls: "warn" },
+    unknown:  { icon: "?", label: "Not reported", cls: "muted" },
+  };
+  // Group.ReadWrite.All comes along because the fallback creates a group and
+  // renames one; the nesting scope alone only covers the PATCH.
+  const NEST_WRITE_SCOPES = ["Group-NestingSupport.ReadWrite.All", "Group.ReadWrite.All"];
+
+  // g is whatever came back from ?$select=id,disableNesting.
+  function nestingState(g) {
+    if (!g) return "unknown";
+    if (g.disableNesting === true) return "disabled";
+    if (g.disableNesting === false) return "allowed";
+    return "unknown";   // property absent — see note 1 above
+  }
+
+  // row: a Check row. nested/users: the group's DIRECT members, split by type.
+  // → { ok, blocked?, reason?, steps[], warnings[], nested[], userCount, refs }
+  function nestingPlan(row, members = {}) {
+    const nested = members.groups || [];
+    const users = members.users || [];
+    const refs = row?.refs || { include: [], exclude: [] };
+    const nRef = refs.include.length + refs.exclude.length;
+    const base = { name: row?.name, id: row?.id, nested, userCount: users.length, refs, nRef };
+
+    if (!row || !row.id) return { ...base, ok: false, reason: "This group does not exist in the tenant yet. Create it first — new groups can be created with nesting already disabled." };
+    if (row.nesting === "disabled") return { ...base, ok: false, reason: "Nesting is already disabled on this group." };
+    if (row.dynamic) return { ...base, ok: false, reason: "This is a dynamic group. Its membership is decided by the rule, so a group cannot be added to it by hand in the first place." };
+
+    // The blocker. A nesting-disabled group cannot hold a group, so recreating
+    // one that currently does means those memberships are lost — and with them,
+    // silently, every user who was only in the group through the nested one.
+    if (nested.length) {
+      return { ...base, ok: false, blocked: true,
+        reason: `This group contains ${nested.length} nested group${nested.length === 1 ? "" : "s"}. A nesting-disabled group cannot hold them, so they cannot come across — and neither can the users who are only members through them. Resolve those memberships first, then come back.` };
+    }
+
+    return { ...base, ok: true,
+      steps: [
+        { key: "patch", text: "Try setting disableNesting on the group as it stands — no id change, nothing else touched" },
+        { key: "verify", text: "Read the property back to confirm Entra actually took it" },
+      ],
+      fallback: [
+        { key: "rename", text: `Rename “${row.name}” aside, keeping its members` },
+        { key: "create", text: `Create “${row.name}” again with nesting disabled from the start` },
+        ...(users.length ? [{ key: "members", text: `Add its ${users.length} user member${users.length === 1 ? "" : "s"} to the new group` }] : []),
+        ...(nRef ? [{ key: "policies", text: `Point ${nRef} Conditional Access assignment${nRef === 1 ? "" : "s"} at the new group` }] : []),
+      ],
+      warnings: [
+        "The property is beta and undocumented for updates. If Entra refuses the in-place change, the only route is to recreate the group — which gives it a new object id.",
+        nRef ? `A new id means anything outside Conditional Access that points at this group — app assignments, Intune, licensing, Azure RBAC — keeps pointing at the OLD one. Run Group Analyzer on it first.` : "Anything outside Conditional Access that points at this group would keep pointing at the old one if a recreate is needed. Run Group Analyzer on it first.",
+      ],
+    };
+  }
+
+  // One Markdown change report for both routes.
+  function nestingReport(plan, log, tenant) {
+    const L = [`# Disable group nesting — ${tenant || "tenant"}`, "",
+      `- **Group:** ${plan.name}`,
+      `- **Route:** ${log.route === "patch" ? "set in place (group id unchanged)" : "recreated"}`];
+    if (log.route === "patch") {
+      L.push(`- **Object ID:** \`${plan.id}\` — unchanged`, "",
+        "Nesting is now disabled. Nothing else about the group moved: members, policy assignments, app assignments and licensing are untouched.");
+    } else {
+      L.push(`- **Old group renamed to:** ${log.archiveName} (id \`${plan.id}\`)`,
+        `- **New group id:** \`${log.newId}\``,
+        `- **Members moved:** ${log.membersMoved}/${plan.userCount}`,
+        `- **Policies moved:** ${log.moved.length}${log.failed.length ? ` · **failed:** ${log.failed.length}` : ""}`, "",
+        `_In-place update was attempted first and refused: ${log.patchError || "unknown reason"}._`);
+    }
+    if (log.moved && log.moved.length) {
+      L.push("", "## Policies moved to the new group", "", "| Policy | Slot |", "|---|---|");
+      log.moved.forEach((m) => L.push(`| ${m.name} | ${m.how} |`));
+    }
+    if (log.failed && log.failed.length) {
+      L.push("", "## Failed — fix these by hand", "");
+      log.failed.forEach((f) => L.push(`- ❌ **${f.name}** — ${f.error}`));
+    }
+    if (log.route === "recreate") {
+      L.push("", "The old group is renamed, not deleted. Check the new group, then remove the old one once you are satisfied.",
+        "", "**Before you delete it:** the old id may still be referenced outside Conditional Access — app assignments, Intune, group-based licensing, Azure RBAC. Group Analyzer will tell you.");
+    }
+    L.push("", "---", Brand.generatedBy("Generated"));
+    return L.join("\n");
+  }
+
   function convertPlan(row, opts = {}) {
     const rule = (opts.rule != null ? opts.rule : (row && (row.membershipRule || row.template?.membershipRule))) || "";
     const base = { name: row?.name, id: row?.id, rule, refs: row?.refs || { include: [], exclude: [] } };
@@ -468,6 +582,11 @@ const CaGroups = (() => {
             ${r.drift ? `<div class="mini" style="color:var(--report)">⚠ ${esc(r.drift)}</div>` : ""}
             ${roleDrift ? `<button class="btn sm" data-cgrecreate="${esc(r.name)}" style="margin-top:4px">↻ Recreate role-assignable</button>` : ""}
             ${dynDrift ? `<button class="btn sm" data-cgdynamic="${esc(r.name)}" style="margin-top:4px">⟳ Make dynamic</button>` : ""}
+            ${r.nesting === "disabled"
+              ? `<div class="mini" style="color:var(--on)">🚫 Nesting disabled — no group can be added as a member</div>`
+              : r.id && !r.dynamic
+                ? `<button class="btn sm" data-cgnesting="${esc(r.name)}" style="margin-top:4px" title="Stop any group being added as a member of this one">🚫 Disable nesting <span class="tag new">BETA</span></button>`
+                : ""}
             ${r.status === "dangling" ? '<div class="mini" style="color:var(--off)">Referenced by a policy but not found in the directory</div>' : ""}</td>
           <td class="mini">${esc(type)}</td>
           <td class="mini">${r.refCount ? `${r.refCount} <span class="muted">(${r.refs.include.length} inc / ${r.refs.exclude.length} exc)</span>` : '<span class="muted">unused</span>'}</td>
@@ -715,6 +834,7 @@ const CaGroups = (() => {
   return {
     STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate,
     renderSummary, chips, renderTable, renderMatrix, toMd, filtered,
+    NESTING, NEST_WRITE_SCOPES, nestingState, nestingPlan, nestingReport,
     catalogGroupNames, templateNames, policyRefs, convertPlan, runConvert,
     csvParse, csvDetect, csvPersonas, csvUsers, csvSuggest, csvReport,
     rmauCandidates, rmauReport,

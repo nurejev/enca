@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=202">
+<link rel="stylesheet" href="css/app.css?v=203">
 </head>
 <body>
 
@@ -1023,6 +1023,10 @@
         <li><b>⟳ Make dynamic</b> — appears when the template defines a membership rule but the tenant group is <b>assigned</b>. A plain security group is converted <b>in place</b>: same id, so every policy, app and role assignment that points at it is untouched. A <b>role-assignable</b> group cannot be dynamic at all — Entra makes the two mutually exclusive and <code>isAssignableToRole</code> is immutable — so it is replaced instead: the old group is renamed <code>-static-YYYYMMDD</code> and kept as your rollback, a dynamic group is created under the original name, added to the include/exclude of every policy that referenced the old one, and only then is the old one removed from those policies (so nothing is uncovered mid-flight). The replacement is <b>not role-assignable</b> — don’t convert a group that carries a directory role or PIM assignment. In both cases members who don’t match the rule stop being members.</li>
         <li><b>Members</b> — a members × groups matrix.</li>
         <li><b>Assign</b> — add a group to policies’ include or exclude lists (ADD is additive — it never removes what’s there). A final confirmation and a change report before anything is written.</li>
+        <li><b>🚫 Disable group nesting <span class="tag new">BETA</span></b> — on any present, non-dynamic group in <b>① Check</b>. A nested group is an invisible route into a Conditional Access assignment: someone adds a group to a group and a policy's scope widens without the policy being touched, and the extra members never show up in a review of the policy itself. Entra's beta <code>disableNesting</code> property closes that side door — with it set, no group can be added as a member.<br>
+        Two things make this awkward, and the tool is explicit about both. <b>Reading it is not free</b>: a plain read does not return the property at all, so ENCA asks for it separately and reports three states — disabled, allowed, or <i>not reported</i> (which honestly means "this tenant does not surface it yet", not "allowed"). <b>Writing it is undocumented</b>: Microsoft lists a dedicated permission for updating it but does not list the property as updatable, and in the field it currently only takes at creation. So ENCA <b>tries the in-place change first</b> — and verifies it by reading the value back, because Entra will accept a PATCH and silently ignore a property it does not know. Only if that genuinely fails does it offer to <b>recreate</b> the group: rename the current one aside, create it again with nesting disabled, move the user members and repoint every Conditional Access assignment. That path is behind its own typed confirmation, never the first one. When Microsoft finishes shipping this, the recreate simply stops being offered.<br>
+        <b>It refuses to run on a group that already contains nested groups.</b> A nesting-disabled group cannot hold them, so recreating would silently drop those memberships and every user who was only a member through them. The tool names the nested groups and stops, so you resolve it deliberately.<br>
+        A recreate gives the group a <b>new object ID</b>. Conditional Access is moved for you; app assignments, Intune, group-based licensing and Azure RBAC are not — run <b>Group Analyzer</b> on the group first. The old group is renamed, not deleted, so it is recoverable. Needs <code>Group-NestingSupport.ReadWrite.All</code> and <code>Group.ReadWrite.All</code> (on demand). <a href="https://ourcloudnetwork.com/how-to-disable-group-nesting-in-microsoft-entra-id/" target="_blank" rel="noopener noreferrer">Background by Daniel Bradley ↗</a></li>
         <li><b>⑥ Protect <span class="tag new">NEW</span></b> — place the CA <b>exclusion</b> groups in a <b>restricted management administrative unit</b>. Membership of an exclusion group is a CA bypass, and any tenant-level Groups/User Administrator can hand it out; with the groups in a restricted AU (<code>isMemberManagementRestricted</code>, immutable at creation) only roles <b>scoped to that AU</b> can change members — Global Administrator included. Shows which exclusion groups are already protected, pre-selects the unprotected <b>assigned</b> exclusion groups (dynamic groups are opt-in — their membership follows a rule), creates or reuses the restricted AU, and optionally grants one account Groups Administrator <b>scoped to the AU</b> so membership stays manageable (do this — otherwise member changes need a new scoped assignment first). Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and P1. Only cloud security groups can be added; note that ⑤ Import members will afterwards need an AU-scoped role for these groups.</li>
         <li><b>⑤ Import members <span class="tag new">NEW</span></b> — bulk-add deployment-test users from a CSV. A <b>UPN column</b> is enough; with a <b>Persona column</b> (multi-persona cells split on <code>, ; |</code> or spaces) each user is auto-routed to the mapped group, pre-matched against the tenant’s group names — abbreviated conventions included (<code>internals → …-INT</code>). Only <b>baseline</b> groups (templates + active catalogs) are offered by default; ad-hoc groups that policies merely reference need an explicit opt-in checkbox. Users are resolved and existing memberships pre-checked (already-members are skipped), the plan is shown per group for review, and only then are members added. Dynamic groups are excluded — their membership is rule-managed. Ends with a Markdown change report.</li>
       </ul>
@@ -1258,6 +1262,33 @@
      isAssignableToRole is immutable, so fixing it means a new group: rename the
      old one aside, create a fresh role-assignable one with the original name,
      and move every referencing policy onto it. -->
+<!-- ============ DISABLE GROUP NESTING (BETA) ============ -->
+<div class="modal-bg" id="nestModal">
+  <div class="modal" style="max-width:640px">
+    <h3>🚫 Disable group nesting <span class="tag new">BETA</span></h3>
+    <div id="nestBody" class="md-view" style="max-height:56vh"></div>
+    <div class="row">
+      <button class="btn" id="nestCancel">Cancel</button>
+      <button class="btn primary" id="nestGo">Disable nesting</button>
+    </div>
+  </div>
+</div>
+
+<!-- Second gate: only shown when Entra refuses the in-place change, because
+     the fallback is destructive and must not ride on the first confirmation. -->
+<div class="modal-bg" id="nestRcModal">
+  <div class="modal" style="max-width:640px">
+    <h3>⚠ In-place change refused — recreate the group?</h3>
+    <div id="nestRcBody" class="md-view" style="max-height:48vh"></div>
+    <label class="mini" for="nestRcOk" style="display:block;margin-top:10px">Type <b>RECREATE</b> to confirm</label>
+    <input id="nestRcOk" class="txt" placeholder="RECREATE" autocomplete="off" spellcheck="false" style="margin-top:4px">
+    <div class="row">
+      <button class="btn" id="nestRcCancel">Cancel</button>
+      <button class="btn primary" id="nestRcGo" disabled>Recreate &amp; move</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="recreateModal">
   <div class="modal" style="max-width:620px">
     <h3>↻ Recreate as role-assignable</h3>
@@ -1478,35 +1509,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=202"></script>
-<script src="js/version.js?v=202"></script>
-<script src="js/authConfig.js?v=202"></script>
-<script src="js/labels.js?v=202"></script>
-<script src="js/graph.js?v=202"></script>
-<script src="js/model.js?v=202"></script>
-<script src="js/render.js?v=202"></script>
-<script src="js/analyze.js?v=202"></script>
-<script src="js/whatif.js?v=202"></script>
-<script src="js/mslearn.js?v=202"></script>
-<script src="js/gapcheck.js?v=202"></script>
-<script src="js/exclusions.js?v=202"></script>
-<script src="js/validator.js?v=202"></script>
-<script src="js/whatifeval.js?v=202"></script>
-<script src="js/compare.js?v=202"></script>
-<script src="js/groupuse.js?v=202"></script>
-<script src="js/locations.js?v=202"></script>
-<script src="js/audit.js?v=202"></script>
-<script src="js/signins.js?v=202"></script>
-<script src="js/changelog.js?v=202"></script>
-<script src="js/baselineData.js?v=202"></script>
-<script src="js/baselineJoeyData.js?v=202"></script>
-<script src="js/baseline.js?v=202"></script>
-<script src="js/groupTemplates.js?v=202"></script>
-<script src="js/assign.js?v=202"></script>
-<script src="js/cagroups.js?v=202"></script>
-<script src="js/import.js?v=202"></script>
-<script src="js/export.js?v=202"></script>
-<script src="js/demo.js?v=202"></script>
-<script src="js/app.js?v=202"></script>
+<script src="js/branding.js?v=203"></script>
+<script src="js/version.js?v=203"></script>
+<script src="js/authConfig.js?v=203"></script>
+<script src="js/labels.js?v=203"></script>
+<script src="js/graph.js?v=203"></script>
+<script src="js/model.js?v=203"></script>
+<script src="js/render.js?v=203"></script>
+<script src="js/analyze.js?v=203"></script>
+<script src="js/whatif.js?v=203"></script>
+<script src="js/mslearn.js?v=203"></script>
+<script src="js/gapcheck.js?v=203"></script>
+<script src="js/exclusions.js?v=203"></script>
+<script src="js/validator.js?v=203"></script>
+<script src="js/whatifeval.js?v=203"></script>
+<script src="js/compare.js?v=203"></script>
+<script src="js/groupuse.js?v=203"></script>
+<script src="js/locations.js?v=203"></script>
+<script src="js/audit.js?v=203"></script>
+<script src="js/signins.js?v=203"></script>
+<script src="js/changelog.js?v=203"></script>
+<script src="js/baselineData.js?v=203"></script>
+<script src="js/baselineJoeyData.js?v=203"></script>
+<script src="js/baseline.js?v=203"></script>
+<script src="js/groupTemplates.js?v=203"></script>
+<script src="js/assign.js?v=203"></script>
+<script src="js/cagroups.js?v=203"></script>
+<script src="js/import.js?v=203"></script>
+<script src="js/export.js?v=203"></script>
+<script src="js/demo.js?v=203"></script>
+<script src="js/app.js?v=203"></script>
 </body>
 </html>
