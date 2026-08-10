@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 221, date: "2026-08-10", title: "Stop reporting what you already fixed",
+    items: [
+      { kind: "fixed", tool: "MS Learn checks", text: "A policy that already excluded the shared-device group was still reported as breaking Teams devices. Every one of these checks remediates by adding that exclusion — but the detection never looked at whether it was already there, so CA004 showed the device-code finding while plainly excluding CAB-SEC-U-TeamsSharedDevices on the card above it. A finding whose entire remediation is already in place is not a lesser problem, it is not a problem: those are now suppressed rather than downgraded, and the summary says how many were handled that way so nothing goes quietly missing." },
+      { kind: "fixed", tool: "MS Learn checks", text: "The convention groups (break-glass, shared devices) are resolved before the checks run rather than after. They were looked up only to build the fixes, which is why the checks could not tell an existing exclusion from a missing one. It costs one directory lookup before the first paint — a fair trade for not reporting problems that were solved months ago." },
+    ],
+  },
+  {
     build: 220, date: "2026-08-10", title: "The shared-devices group it already had",
     items: [
       { kind: "fixed", tool: "MS Learn checks", text: "The shared-devices fixes asked for a group ENCA already ships. CAB-SEC-U-TeamsSharedDevices is the displayName in the bundled group templates and the name every exclusion in the R26.6 catalog actually uses — CA000, CA004, CA007, CA008, CA014, CA015, CA016 — but it was missing from the list of names these fixes accept, so a tenant that had done exactly the right thing was told six findings needed a group that did not exist. It is now the canonical name; the four older spellings stay as aliases." },

@@ -6156,14 +6156,12 @@ max@contoso.com,"Global, DevOps"</pre>
 
   async function runMsLearn() {
     const scope = checkScope($("mlDisabled").checked);
-    const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled });
-    mlGroups = MSLearn.group(findings);
-    mlFilter = "all"; mlExpanded.clear();
-    renderMsLearn();                       // show the findings before the lookups
 
-    // Fixes that add an exclusion need a real group. The baseline names them
-    // predictably (break-glass is always CAB-SEC-U-BreakGlass), so resolve by
-    // convention; only if that fails fall back to the detected break-glass.
+    // Resolve the convention groups FIRST. The checks need them: a policy that
+    // already excludes the shared-device group is not broken by the thing the
+    // check would fix, and reporting it anyway is a false positive. Fixes need
+    // them too, which is why this used to run after the findings — the cost is
+    // one lookup before the first paint, which is worth not lying.
     const ctx = {};
     ctx.breakGlass = await findGroupByConvention(MSLearn.CONVENTION.breakGlass);
     if (ctx.breakGlass) ctx.breakGlass.type = "group";
@@ -6174,6 +6172,11 @@ max@contoso.com,"Global, DevOps"</pre>
       } catch { /* GapCheck optional */ }
     }
     ctx.sharedDevices = await findGroupByConvention(MSLearn.CONVENTION.sharedDevices);
+
+    const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx });
+    mlGroups = MSLearn.group(findings);
+    mlFilter = "all"; mlExpanded.clear();
+    renderMsLearn();
 
     mlFixes = MSLearn.buildFixes(findings, scope.raws, ctx);
     // A policy cannot reference a service principal the tenant does not have.

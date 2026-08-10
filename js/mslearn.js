@@ -73,6 +73,16 @@ const MSLearn = (() => {
 
   // Add a group exclusion from ctx, or decline (null) when the tenant has no
   // group matching the convention — an invented exclusion is worse than none.
+  // The remediation for every needsGroup check is "exclude this group". A
+  // policy that already does is not broken, and saying so anyway is how a tool
+  // trains people to ignore it. Suppressed rather than downgraded: the finding
+  // is not a lesser problem, it is not a problem.
+  function alreadyExcluded(p, key, ctx) {
+    const g = ctx && ctx[key];
+    if (!g || !g.id) return false;
+    return (p.conditions?.users?.excludeGroups || []).includes(g.id);
+  }
+
   function excludeGroupFix(ctxKey, what) {
     const fn = (d, ctx) => {
       const g = ctx && ctx[ctxKey];
@@ -591,19 +601,28 @@ const MSLearn = (() => {
   // ---- run every check against every policy ----
   // rawPolicies: raw Graph policy objects; strengths: Map<id, authStrengthPolicy>
   // opts.includeDisabled: also evaluate policies in the Off (disabled) state.
+  // opts.groups: the convention groups already resolved in the tenant
+  // ({ breakGlass, sharedDevices }). Without them every needsGroup check fires
+  // even on policies that already carry the exclusion it would add.
+  let LAST_SUPPRESSED = 0;
   function run(rawPolicies, strengths, opts = {}) {
     INCLUDE_DISABLED = !!opts.includeDisabled;
     const findings = [];
-    const ctx = { strengths: strengths || new Map() };
+    const ctx = { strengths: strengths || new Map(), ...(opts.groups || {}) };
+    let suppressed = 0;
     for (const p of rawPolicies) {
       for (const chk of CHECKS) {
         let res = null;
         try { res = chk.detect(p, ctx); } catch (e) { console.warn(`MS Learn check ${chk.id} failed on ${p.displayName}:`, e); }
-        if (res) findings.push({ check: chk, result: res, policyId: p.id, policyName: p.displayName || "(unnamed policy)", policyState: p.state });
+        if (!res) continue;
+        if (chk.needsGroup && alreadyExcluded(p, chk.needsGroup, ctx)) { suppressed++; continue; }
+        findings.push({ check: chk, result: res, policyId: p.id, policyName: p.displayName || "(unnamed policy)", policyState: p.state });
       }
     }
+    LAST_SUPPRESSED = suppressed;
     return findings;
   }
+  const suppressedCount = () => LAST_SUPPRESSED;
 
   // group findings per check so one issue hitting many policies is one card
   function group(findings) {
@@ -636,6 +655,7 @@ const MSLearn = (() => {
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${groups.length}<span class="mini" style="font-weight:400"> finding${groups.length === 1 ? "" : "s"}</span></div>
         <div class="mini">across ${nPol} ${nPol === 1 ? "policy match" : "policy matches"}</div>
+        ${LAST_SUPPRESSED ? `<div class="mini" style="color:var(--on);margin-top:4px">${LAST_SUPPRESSED} already handled by an existing exclusion</div>` : ""}
         <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">${chips}</div>
       </div>
     </div>`;
@@ -987,5 +1007,5 @@ const MSLearn = (() => {
       Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${missing}${cards}${note}`;
   }
 
-  return { run, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  return { run, suppressedCount, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();
