@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 217, date: "2026-08-10", title: "Legacy auth: the block and the noise — and a scorecard you can click",
+    items: [
+      { kind: "fixed", tool: "Best-practice & bypass checks", text: "Twelve HIGH findings next to a 100-point legacy signal was both too loud and too quiet. The per-policy 'legacy targeted but not blocked' finding now correlates with the tenant's dedicated block, the way the DRS and platform checks already do: with an enabled tenant-wide legacy block, a grant policy that merely lists legacy client types drops to LOW ('covered by the tenant-wide block' — CA applies the union, the block wins), with the reminder that the block's own exclusions are the only legacy path left. A block that is enabled but narrower than All users downgrades them to MEDIUM instead; no block at all stays HIGH. The scorecard mirrors it: 100 only when the block covers everyone, 70 for a narrower block, 50 report-only, 0 none." },
+      { kind: "improved", tool: "Best-practice & bypass checks", text: "The Zero Trust scorecard now filters the findings: click a pillar or a signal and the list below narrows to the finding categories that signal is derived from — 'Legacy authentication blocked' shows only the Legacy Authentication findings, 'Break-glass identified' only Break-Glass Coverage, a pillar shows everything its signals draw on. A dismissable chip in the filter bar names the active categories, the severity chips count only what is on screen, and clicking the same signal again — or All — clears it." },
+    ],
+  },
+  {
     build: 216, date: "2026-08-10", title: "Select all shown, in the role picker",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "The directory-role picker gains Select all shown, which takes whatever the list is currently displaying — so it follows both the “administrator roles only” tickbox and the search box. Search for Teams and it selects every Teams role; untick the filter and it selects every built-in template. It adds to the selection rather than replacing it, so several searches can be combined into one assignment." },

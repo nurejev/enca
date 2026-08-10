@@ -6388,6 +6388,7 @@ max@contoso.com,"Global, DevOps"</pre>
 
   // ---------- gap analysis (best-practice & bypass checks) ----------
   let gcResult = null, gcFilter = "all", gcCtx = null, gcMeta = null;
+  let gcCats = null; // category filter set by clicking a scorecard signal/pillar (array or null)
   const gcExpanded = new Set();
   function openGapCheck() {
     show("screen-gapcheck");
@@ -6439,7 +6440,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const scope = checkScope($("gcDisabled").checked);
     gcResult = GapCheck.run(scope.raws, gcCtx, { includeDisabled: scope.includeDisabled });
     gcMeta = { tenantName, policyCount: scope.raws.length, includeDisabled: scope.includeDisabled, skipped: scope.skipped };
-    gcFilter = "all"; gcExpanded.clear();
+    gcFilter = "all"; gcCats = null; gcExpanded.clear();
     renderGapCheck();
   }
   // Refresh: pull the policies again from Entra, then re-run every gap check.
@@ -6465,18 +6466,35 @@ max@contoso.com,"Global, DevOps"</pre>
   $("gcDisabled").addEventListener("change", runGapCheck);
   function renderGapCheck() {
     if (!gcResult) return;
-    $("gcHead").innerHTML = GapCheck.renderSummary(gcResult);
+    $("gcHead").innerHTML = GapCheck.renderSummary(gcResult, gcCats);
     $("gcMatrix").innerHTML = GapCheck.renderPersonaMatrix(gcResult.personas);
     $("gcFull").style.display = gcResult.personas.length ? "" : "none";
-    const n = (s) => s === "all" ? gcResult.findings.length : gcResult.findings.filter(f => f.severity === s).length;
-    $("gcChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
+    // Severity counts respect an active scorecard category filter, so the
+    // chips describe what is actually on screen.
+    const inCats = gcCats && gcCats.length ? gcResult.findings.filter(f => gcCats.includes(f.category)) : gcResult.findings;
+    const n = (s) => s === "all" ? inCats.length : inCats.filter(f => f.severity === s).length;
+    const catChip = gcCats && gcCats.length
+      ? `<button class="fchip active" data-gccatclear title="Click to show all categories again">✕ ${esc(gcCats.join(", "))}</button>` : "";
+    $("gcChips").innerHTML = catChip + [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
       .filter(([k]) => n(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${gcFilter === k ? "active" : ""}" data-gcf="${k}">${l} (${n(k)})</button>`).join("");
-    $("gcBody").innerHTML = GapCheck.renderFindings(gcResult, gcFilter, gcExpanded);
+    $("gcBody").innerHTML = GapCheck.renderFindings(gcResult, gcFilter, gcExpanded, gcCats);
   }
   $("gcChips").addEventListener("click", (e) => {
+    if (e.target.closest("[data-gccatclear]")) { gcCats = null; renderGapCheck(); return; }
     const b = e.target.closest("[data-gcf]"); if (!b) return;
-    gcFilter = b.dataset.gcf; renderGapCheck();
+    gcFilter = b.dataset.gcf;
+    if (b.dataset.gcf === "all") gcCats = null; // "All" also clears a scorecard filter
+    renderGapCheck();
+  });
+  // Scorecard signals / pillars live inside gcHead — clicking one filters the
+  // findings list to its related categories; clicking the same one clears it.
+  $("gcHead").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-gccat]"); if (!b) return;
+    const cats = b.dataset.gccat ? b.dataset.gccat.split("|") : [];
+    if (!cats.length) return;
+    gcCats = (gcCats && gcCats.join("|") === cats.join("|")) ? null : cats;
+    renderGapCheck();
   });
   $("gcBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-gcrun]")) { runGapCheckScan(); return; }

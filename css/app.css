@@ -829,6 +829,13 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 .gc-matrix td.gc-cell.missing{color:var(--off);background:var(--bad-bg2)}
 .gc-matrix td.gc-cell.na{color:var(--na)}
 
+/* Zero Trust scorecard — clickable signals & pillars filter the findings */
+.zt-sig{display:flex;justify-content:space-between;align-items:baseline;gap:8px;width:100%;margin:3px 0 0 -5px;padding:1px 5px;border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:7px;box-sizing:content-box}
+.zt-sig.zt-pillar{margin-top:0}
+.zt-sig:hover{background:var(--hover);outline:1px solid var(--border)}
+.zt-sig.active{background:var(--soft);outline:1px solid var(--accent2)}
+.zt-sig.active .muted{color:var(--green)}
+
 
 /* ================= dark theme =================
    Auto: follows the OS under prefers-color-scheme while the theme picker is on

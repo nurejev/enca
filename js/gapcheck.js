@@ -431,11 +431,26 @@ const GapCheck = (() => {
         "Add MFA (or an authentication strength) as a grant control, or ensure a separate All-Users MFA baseline policy covers these users.");
     })();
 
-    // Legacy auth targeted but not blocked
+    // Legacy auth targeted but not blocked — correlated with the tenant's
+    // dedicated block: CA applies the UNION of policies, so when an enabled
+    // block catches legacy sign-ins anyway, a grant policy that merely lists
+    // the legacy client types is overlap, not a hole. The residual risk is
+    // only whoever is EXCLUDED from the block.
     if (targetsLegacy(p) && !hasBlock(p)) {
-      F(out, "high", "Legacy Authentication", "Legacy auth clients targeted but NOT blocked", p,
-        "This policy targets legacy authentication clients (Exchange ActiveSync / Other) but does not block them. Legacy auth protocols cannot perform MFA.",
-        "Change the grant to Block access. Legacy auth is a primary vector for password spray and credential stuffing.");
+      const cover = raws.find((q) => q.id !== p.id && isEnabled(q) && targetsLegacy(q) && hasBlock(q));
+      if (cover && coversEveryone(cover)) {
+        F(out, "low", "Legacy Authentication", "Legacy auth client types listed — covered by the tenant-wide block", p,
+          `This policy lists legacy client types (Exchange ActiveSync / Other) without blocking them, but "${cover.displayName}" blocks legacy authentication tenant-wide, so legacy sign-ins are stopped regardless of this policy. Residual exposure: only identities excluded from that block. Tidier is to scope this policy to modern clients (Browser + Mobile apps and desktop clients) so intent and effect match.`,
+          `No urgent action — the block carries the control. Optionally narrow this policy's client apps to modern types, and review the exclusions on "${cover.displayName}", because those identities are the only path legacy auth has left.`);
+      } else if (cover) {
+        F(out, "medium", "Legacy Authentication", "Legacy auth clients targeted but NOT blocked — block exists but is not tenant-wide", p,
+          `This policy targets legacy client types without blocking them. "${cover.displayName}" blocks legacy authentication, but its scope is narrower than All users — anyone outside that scope can still use legacy auth against this policy's grant.`,
+          `Widen "${cover.displayName}" to All users (with break-glass excluded), or change this policy's grant to Block for the legacy client types.`);
+      } else {
+        F(out, "high", "Legacy Authentication", "Legacy auth clients targeted but NOT blocked", p,
+          "This policy targets legacy authentication clients (Exchange ActiveSync / Other) but does not block them, and no enabled policy blocks legacy authentication elsewhere. Legacy auth protocols cannot perform MFA.",
+          "Change the grant to Block access, or create a dedicated tenant-wide legacy-auth block. Legacy auth is a primary vector for password spray and credential stuffing.");
+      }
     }
 
     // Guest authentication strength
@@ -718,12 +733,15 @@ const GapCheck = (() => {
     const anyRisk = active.some((p) => ((p.conditions?.signInRiskLevels) || []).length || ((p.conditions?.userRiskLevels) || []).length);
     const adminMfa = active.some((p) => hasMfa(p) && ((U(p).includeRoles || []).length || /admin/i.test(p.displayName || "")));
 
+    // Fourth element: the finding categories a signal is derived from or
+    // most closely related to — clicking the signal in the scorecard filters
+    // the findings list to these. Empty = nothing to drill into.
     const verify = [
-      ["MFA or block on enabled user policies", 3, mfaPct],
-      ["Phishing-resistant strength in use", 2, anyPR ? 100 : 0],
-      ["Compliant/hybrid device required somewhere", 2, anyCompliant ? 100 : 0],
-      ["Risk signals used as conditions", 2, anyRisk ? 100 : 0],
-      ["Admin-scoped MFA policy", 3, adminMfa ? 100 : 0],
+      ["MFA or block on enabled user policies", 3, mfaPct, ["MFA Coverage", "Client App Coverage"]],
+      ["Phishing-resistant strength in use", 2, anyPR ? 100 : 0, ["MFA Coverage", "Guest Authentication Strength"]],
+      ["Compliant/hybrid device required somewhere", 2, anyCompliant ? 100 : 0, ["Device Registration Bypass", "Persona Coverage"]],
+      ["Risk signals used as conditions", 2, anyRisk ? 100 : 0, ["Risk-Based Access"]],
+      ["Admin-scoped MFA policy", 3, adminMfa ? 100 : 0, ["MFA Coverage", "Persona Coverage"]],
     ];
 
     const roleExcl = nOf("Privileged Role Exclusions") + nOf("Known CA Bypass Apps") + nOf("FOCI Token Sharing");
@@ -733,10 +751,10 @@ const GapCheck = (() => {
       ? active.reduce((n, p) => n + (U(p).excludeUsers || []).length + (U(p).excludeGroups || []).length, 0) / active.length : 0;
 
     const least = [
-      ["No privileged/bypass exclusions flagged", 3, cap(100 - roleExcl * 25)],
-      ["Guests covered by MFA or block", 2, guestCovered ? 100 : 0],
-      ["Step-up (authentication context) in use", 1, stepUp ? 100 : 0],
-      ["Exclusion volume per policy", 2, cap(100 - Math.max(0, avgExc - 2) * 20)],
+      ["No privileged/bypass exclusions flagged", 3, cap(100 - roleExcl * 25), ["Known CA Bypass Apps", "FOCI Token Sharing", "Resource Exclusion Bypass"]],
+      ["Guests covered by MFA or block", 2, guestCovered ? 100 : 0, ["Guest Authentication Strength", "Persona Coverage"]],
+      ["Step-up (authentication context) in use", 1, stepUp ? 100 : 0, ["Protected Actions"]],
+      ["Exclusion volume per policy", 2, cap(100 - Math.max(0, avgExc - 2) * 20), ["Swiss Cheese Model", "Break-Glass Coverage"]],
     ];
 
     const bgOk = has("Break-Glass Coverage", ["info"]);
@@ -745,7 +763,9 @@ const GapCheck = (() => {
     // legacy-auth finding (an MFA policy that lists legacy client types
     // without blocking them) must not erase credit for a real, enabled
     // legacy-auth block elsewhere.
-    const legacyEnabled = enabled.some((p) => targetsLegacy(p) && hasBlock(p));
+    const legacyBlocks = enabled.filter((p) => targetsLegacy(p) && hasBlock(p));
+    const legacyEnabled = legacyBlocks.length > 0;
+    const legacyFull = legacyBlocks.some(coversEveryone);
     const legacyRO = !legacyEnabled && raws.filter(isReportOnly).some((p) => targetsLegacy(p) && hasBlock(p));
     const legacyBlocked = legacyEnabled;
     const anySif = active.some((p) => p.sessionControls?.signInFrequency?.isEnabled);
@@ -753,17 +773,18 @@ const GapCheck = (() => {
     const anyBlock = enabled.some(hasBlock);
 
     const assume = [
-      ["Break-glass identified and excluded everywhere", 3, bgOk ? 100 : bgMissing ? 0 : 50],
-      ["Legacy authentication blocked", 3, legacyEnabled ? 100 : legacyRO ? 50 : 0],
-      ["Sign-in frequency in use", 1, anySif ? 100 : 0],
-      ["Resilience defaults intact", 1, resilienceOk ? 100 : 0],
-      ["Block policies deployed", 1, anyBlock ? 100 : 0],
+      ["Break-glass identified and excluded everywhere", 3, bgOk ? 100 : bgMissing ? 0 : 50, ["Break-Glass Coverage"]],
+      ["Legacy authentication blocked", 3, legacyFull ? 100 : legacyEnabled ? 70 : legacyRO ? 50 : 0, ["Legacy Authentication"]],
+      ["Sign-in frequency in use", 1, anySif ? 100 : 0, []],
+      ["Resilience defaults intact", 1, resilienceOk ? 100 : 0, ["Resilience Defaults"]],
+      ["Block policies deployed", 1, anyBlock ? 100 : 0, ["Platform Bypass", "Legacy Authentication", "Named Locations"]],
     ];
 
     const pillar = (label, icon, signals) => {
       const w = signals.reduce((n, [, wt]) => n + wt, 0);
       const score = Math.round(signals.reduce((n, [, wt, sc]) => n + wt * sc, 0) / (w || 1));
-      return { label, icon, score, signals: signals.map(([l, wt, sc]) => ({ label: l, weight: wt, score: Math.round(sc) })) };
+      const cats = [...new Set(signals.flatMap(([, , , c]) => c || []))];
+      return { label, icon, score, cats, signals: signals.map(([l, wt, sc, c]) => ({ label: l, weight: wt, score: Math.round(sc), cats: c || [] })) };
     };
     const pillars = [
       pillar("Verify explicitly", "\u{1F50E}", verify),
@@ -774,19 +795,26 @@ const GapCheck = (() => {
   }
 
   const ztColor = (n) => n >= 80 ? "var(--on)" : n >= 55 ? "var(--report)" : "var(--off)";
-  function renderScorecard(zt) {
+  // activeCats: the category filter currently applied to the findings list
+  // (array from a clicked signal/pillar, or null). Used only to highlight the
+  // clicked element; the filtering itself happens in renderFindings.
+  function renderScorecard(zt, activeCats) {
     if (!zt) return "";
+    const activeKey = (activeCats || []).join("|");
+    const catAttr = (cats) => esc(cats.join("|"));
     return `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;margin-top:14px">
       <div style="flex:0 0 auto;display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:110px;border:1px solid var(--border);border-radius:12px;padding:10px 16px">
         <div style="font-size:30px;font-weight:800;color:${ztColor(zt.overall)}">${zt.overall}</div>
         <div class="mini muted">Zero Trust posture</div>
       </div>
       ${zt.pillars.map((p) => `<div style="flex:1;min-width:190px;border:1px solid var(--border);border-radius:12px;padding:10px 14px">
-        <div style="display:flex;justify-content:space-between;align-items:baseline"><b>${p.icon} ${esc(p.label)}</b><span style="font-weight:800;color:${ztColor(p.score)}">${p.score}</span></div>
-        ${p.signals.map((sg) => `<div class="mini" style="display:flex;justify-content:space-between;gap:8px;margin-top:3px"><span class="muted">${esc(sg.label)}</span><span style="color:${ztColor(sg.score)}">${sg.score}</span></div>`).join("")}
+        <button class="zt-sig zt-pillar ${activeKey && activeKey === p.cats.join("|") ? "active" : ""}" data-gccat="${catAttr(p.cats)}" title="Filter the findings below to this pillar's checks"><b>${p.icon} ${esc(p.label)}</b><span style="font-weight:800;color:${ztColor(p.score)}">${p.score}</span></button>
+        ${p.signals.map((sg) => sg.cats.length
+          ? `<button class="zt-sig mini ${activeKey && activeKey === sg.cats.join("|") ? "active" : ""}" data-gccat="${catAttr(sg.cats)}" title="Filter the findings below to: ${catAttr(sg.cats).replace(/\|/g, ", ")}"><span class="muted">${esc(sg.label)}</span><span style="color:${ztColor(sg.score)}">${sg.score}</span></button>`
+          : `<div class="mini" style="display:flex;justify-content:space-between;gap:8px;margin-top:3px;padding:1px 5px"><span class="muted">${esc(sg.label)}</span><span style="color:${ztColor(sg.score)}">${sg.score}</span></div>`).join("")}
       </div>`).join("")}
     </div>
-    <p class="mini muted" style="margin:8px 0 0">Weighted signals per Zero Trust pillar, 0–100 — derived from the findings and policy set above. A number, not a verdict: read it with the findings.</p>`;
+    <p class="mini muted" style="margin:8px 0 0">Weighted signals per Zero Trust pillar, 0–100 — derived from the findings and policy set above. A number, not a verdict: read it with the findings. Click a pillar or signal to filter the findings list to its related checks; click it again (or All) to clear.</p>`;
   }
 
   // ─── Run everything ───────────────────────────────────────────────
@@ -813,7 +841,7 @@ const GapCheck = (() => {
   const SEV_LABEL = { critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Info" };
   const sevBadge = (s) => `<span class="sev ${s}">${SEV_LABEL[s] || s}</span>`;
 
-  function renderSummary(result) {
+  function renderSummary(result, activeCats) {
     const f = result.findings;
     const n = (s) => f.filter((x) => x.severity === s).length;
     const chips = ["critical", "high", "medium", "low", "info"].filter((s) => n(s))
@@ -830,7 +858,7 @@ const GapCheck = (() => {
         <div style="font-size:26px;font-weight:700">${f.length}<span class="mini" style="font-weight:400"> finding${f.length === 1 ? "" : "s"}</span></div>
         <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;max-width:280px">${chips}</div>
       </div>
-    </div>${renderScorecard(result.zt)}`;
+    </div>${renderScorecard(result.zt, activeCats)}`;
   }
 
   const CELL = {
@@ -859,9 +887,12 @@ const GapCheck = (() => {
     </div>`;
   }
 
-  function renderFindings(result, filter, expanded) {
+  // cats: optional category filter (array of category names from a clicked
+  // scorecard signal/pillar) applied on top of the severity filter.
+  function renderFindings(result, filter, expanded, catFilter) {
     let list = result.findings.slice().sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
     if (filter !== "all") list = list.filter((f) => f.severity === filter);
+    if (catFilter && catFilter.length) list = list.filter((f) => catFilter.includes(f.category));
     if (!list.length) return `<p class="mini" style="padding:20px">No findings match the current filter.</p>`;
 
     // group by category, ordered by the worst severity inside each
