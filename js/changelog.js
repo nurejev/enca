@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 225, date: "2026-08-10", title: "Pilot groups count, and tabs keep your place",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Switching tool tabs no longer jumps to the top of the page — each screen's scroll position is remembered and restored when you come back. And reopening List Policies keeps the cards / list / matrix view you last chose instead of resetting to cards. (This fix is app-wide and safe for production ahead of the CIS beta.)" },
+      { kind: "improved", tool: "CIS Benchmark", text: "Catalog r3 — the deployment model's pilot phase now counts: a policy whose user include is entirely CAD- deployment groups is treated as All users (the include-group names are resolved via Graph for this), with a note that the benchmark's audit reads includeUsers = All, so switch the policy to All users when the pilot completes or document the pilot scope. This is why a Global persona policy mid-rollout no longer fails every users: All criterion." },
+      { kind: "improved", tool: "CIS Benchmark", text: "Sharper misses: the token-protection resource criterion (5.2.2.16) now names exactly which of Exchange Online / SharePoint Online / Teams Services is absent — 'missing only: Microsoft Teams Services' is a one-line fix that the generic label hid. Sign-in-frequency misses (5.2.2.4, 5.2.2.13) show the interval actually found ('found 14 days — the benchmark requires 7 days or less'), and a phishing-resistant-strength miss (5.2.2.5) says whether the strength was unresolvable or which non-phishing-resistant combinations it allows." },
+    ],
+  },
+  {
     build: 224, date: "2026-08-10", title: "CIS learns the persona model",
     items: [
       { kind: "fixed", tool: "CIS Benchmark", text: "The tool now sits in the tool tab bar — it was missing from the tab list, so it could not be opened from the ＋ menu or pinned as a tab." },

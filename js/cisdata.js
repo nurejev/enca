@@ -27,7 +27,7 @@ const CIS_BENCHMARK = {
   // of the app build and of the other tools' versions. Shown in the tool
   // header and in the Markdown report so a reviewer can tell which catalog
   // produced a given assessment.
-  revision: "2026-08-10 r2",
+  revision: "2026-08-10 r3",
   section: "5.2.2 Conditional Access",
   copyright: "Recommendation numbers and titles referenced from the CIS Microsoft 365 Foundations Benchmark v7.0.0, © Center for Internet Security, Inc. Assessment logic is ENCA's own implementation of the benchmark's Graph audit procedures.",
 
@@ -75,13 +75,13 @@ const CIS_BENCHMARK = {
       id: "5.2.2.2", level: 1, e5Only: false,
       title: "Ensure multifactor authentication is enabled for all users",
       what: "An enabled policy that requires MFA (or an authentication strength) for All users on All resources.",
-      checks: ["users: All", "resources: All", "grant: mfa OR an authentication strength", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All", "grant: mfa OR an authentication strength", "state: enabled"],
     },
     {
       id: "5.2.2.3", level: 1, e5Only: false,
       title: "Enable Conditional Access policies to block legacy authentication",
       what: "An enabled policy that blocks the legacy client app types (Exchange ActiveSync and Other clients) for All users on All resources.",
-      checks: ["users: All", "resources: All", "client app types: exchangeActiveSync AND other", "grant: block", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All", "client app types: exchangeActiveSync AND other", "grant: block", "state: enabled"],
     },
     {
       id: "5.2.2.4", level: 1, e5Only: false,
@@ -99,49 +99,49 @@ const CIS_BENCHMARK = {
       id: "5.2.2.6", level: 1, e5Only: true,
       title: "Enable Identity Protection user risk policies",
       what: "An enabled policy on user risk High (at least) for All users on All resources that requires MFA plus a password change, with sign-in frequency every time.",
-      checks: ["users: All", "resources: All", "condition: userRiskLevels includes high", "grant: passwordChange AND (mfa OR strength)", "session: sign-in frequency everyTime", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All", "condition: userRiskLevels includes high", "grant: passwordChange AND (mfa OR strength)", "session: sign-in frequency everyTime", "state: enabled"],
     },
     {
       id: "5.2.2.7", level: 1, e5Only: true,
       title: "Enable Identity Protection sign-in risk policies",
       what: "An enabled policy on sign-in risk High and Medium for All users on All resources that requires MFA (a block also satisfies), with sign-in frequency every time.",
-      checks: ["users: All", "resources: All", "condition: signInRiskLevels includes high AND medium", "grant: mfa OR strength (block satisfies grant+session)", "session: sign-in frequency everyTime", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All", "condition: signInRiskLevels includes high AND medium", "grant: mfa OR strength (block satisfies grant+session)", "session: sign-in frequency everyTime", "state: enabled"],
     },
     {
       id: "5.2.2.8", level: 2, e5Only: true,
       title: "Ensure 'sign-in risk' is blocked for medium and high risk",
       what: "An enabled policy that blocks sign-in risk High and Medium for All users on All resources, with no resource exclusions.",
-      checks: ["users: All", "resources: All, no resource exclusions", "condition: signInRiskLevels includes high AND medium", "grant: block", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All, no resource exclusions", "condition: signInRiskLevels includes high AND medium", "grant: block", "state: enabled"],
     },
     {
       id: "5.2.2.9", level: 1, e5Only: false,
       title: "Ensure a managed device is required for authentication",
       what: "An enabled policy for All users on All resources granting compliant device (optionally OR hybrid-joined) and nothing else, with the OR operator.",
-      checks: ["users: All", "resources: All", "grant: compliantDevice (optionally + domainJoinedDevice), no other controls", "operator: OR (a single control also satisfies)", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All", "grant: compliantDevice (optionally + domainJoinedDevice), no other controls", "operator: OR (a single control also satisfies)", "state: enabled"],
     },
     {
       id: "5.2.2.10", level: 1, e5Only: false,
       title: "Ensure a managed device is required to register security information",
       what: "An enabled policy on the Register security information user action for All users granting compliant device (optionally OR hybrid-joined) and nothing else.",
-      checks: ["users: All", "user action: urn:user:registersecurityinfo", "grant: compliantDevice (optionally + domainJoinedDevice), no other controls", "operator: OR (a single control also satisfies)", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "user action: urn:user:registersecurityinfo", "grant: compliantDevice (optionally + domainJoinedDevice), no other controls", "operator: OR (a single control also satisfies)", "state: enabled"],
     },
     {
       id: "5.2.2.11", level: 1, e5Only: false,
       title: "Ensure sign-in frequency for Intune Enrollment is set to 'Every time'",
       what: "An enabled policy on the Microsoft Intune Enrollment app for All users requiring MFA with sign-in frequency every time.",
-      checks: ["users: All", "resources: include Microsoft Intune Enrollment (d4ebce55-…)", "grant: mfa OR strength", "session: sign-in frequency everyTime", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: include Microsoft Intune Enrollment (d4ebce55-…)", "grant: mfa OR strength", "session: sign-in frequency everyTime", "state: enabled"],
     },
     {
       id: "5.2.2.12", level: 1, e5Only: false,
       title: "Ensure the device code sign-in flow is blocked",
       what: "An enabled policy that blocks the device code authentication flow for All users on All resources.",
-      checks: ["users: All", "resources: All", "condition: authenticationFlows.transferMethods includes deviceCodeFlow", "grant: block", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All", "condition: authenticationFlows.transferMethods includes deviceCodeFlow", "grant: block", "state: enabled"],
     },
     {
       id: "5.2.2.13", level: 1, e5Only: false,
       title: "Ensure that periodic reauthentication is required for all users",
       what: "An enabled non-risk policy for All users on All resources with time-based sign-in frequency of 7 days or less.",
-      checks: ["users: All", "resources: All", "no risk conditions on the policy", "session: sign-in frequency ≤ 7 days (every time also satisfies)", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All", "no risk conditions on the policy", "session: sign-in frequency ≤ 7 days (every time also satisfies)", "state: enabled"],
     },
     {
       id: "5.2.2.14", level: 2, e5Only: false,
@@ -153,7 +153,7 @@ const CIS_BENCHMARK = {
       id: "5.2.2.15", level: 2, e5Only: false,
       title: "Ensure exclusionary geographic access controls are utilized",
       what: "An enabled policy for All users on All resources that blocks at least one untrusted included location while excluding the trusted locations.",
-      checks: ["users: All", "resources: All", "network: include ≥ 1 untrusted location", "network: exclude AllTrusted or ≥ 1 trusted location", "grant: block", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All", "network: include ≥ 1 untrusted location", "network: exclude AllTrusted or ≥ 1 trusted location", "grant: block", "state: enabled"],
     },
     {
       id: "5.2.2.16", level: 2, e5Only: false,
@@ -165,7 +165,7 @@ const CIS_BENCHMARK = {
       id: "5.2.2.17", level: 1, e5Only: false,
       title: "Ensure authentication transfer is blocked",
       what: "An enabled policy that blocks the authentication transfer flow for All users on All resources.",
-      checks: ["users: All", "resources: All", "condition: authenticationFlows.transferMethods includes authenticationTransfer", "grant: block", "state: enabled"],
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All", "condition: authenticationFlows.transferMethods includes authenticationTransfer", "grant: block", "state: enabled"],
     },
   ],
 };

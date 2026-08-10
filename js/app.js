@@ -6683,12 +6683,13 @@ max@contoso.com,"Global, DevOps"</pre>
     $("ciHead").innerHTML = CI_IDLE_HEAD.replace("Score the", "Assessing… reads authentication strengths, named locations and licence SKUs, then scores the");
     $("ciChips").innerHTML = ""; $("ciBody").innerHTML = "";
     const raws = policies.map(p => p.raw);
-    ciCtx = { strengths: new Map(), namedLocations: [], p2: null };
+    ciCtx = { strengths: new Map(), namedLocations: [], p2: null, groupNames: {} };
     try {
       if (isDemo) {
         Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) ciCtx.strengths.set(v.id, v); });
         ciCtx.namedLocations = DEMO_DATA.namedLocations || [];
         ciCtx.p2 = true;
+        ciCtx.groupNames = DEMO_DATA.names || {};
       } else {
         const [strengths, locations, skus] = await Promise.all([
           Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(() => []),
@@ -6703,6 +6704,15 @@ max@contoso.com,"Global, DevOps"</pre>
         if (Array.isArray(skus)) {
           ciCtx.p2 = skus.some(s => !["Suspended", "Deleted", "LockedOut"].includes(s.capabilityStatus) &&
             (s.servicePlans || []).some(x => x.servicePlanName === "AAD_PREMIUM_P2" && ["Success", "PendingInput"].includes(x.provisioningStatus)));
+        }
+        // Include-group display names: the CAD- pilot-deployment detection
+        // needs them (policies store only GUIDs).
+        const gids = [...new Set(raws.flatMap(p => p.conditions?.users?.includeGroups || []))];
+        for (let i = 0; i < gids.length; i += 1000) {
+          try {
+            const j = await Graph.gpost("/directoryObjects/getByIds", { ids: gids.slice(i, i + 1000), types: ["group"] });
+            (j.value || []).forEach(o => ciCtx.groupNames[o.id] = o.displayName);
+          } catch (e) { console.warn("CIS group-name lookup failed:", e.message); break; }
         }
       }
     } catch (e) { console.warn("CIS benchmark context fetch failed:", e.message); }

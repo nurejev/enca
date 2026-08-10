@@ -74,6 +74,30 @@ const CisCheck = (() => {
   const ADMIN_CONTROLS = new Set(["5.2.2.1", "5.2.2.4", "5.2.2.5"]);
   const ADMIN_GROUP_NOTE = "Admin scope satisfied by an admin persona group rather than directory roles. The benchmark's Graph audit reads includeRoles — document the group as the tenant's administrator scope and verify every admin-role holder is actually a member (Compare users / Group Analyzer can check this).";
 
+  // Pilot deployment groups: in the ENCA deployment model a policy rolls out
+  // to a CAD-… deployment group first and is switched to All users when the
+  // pilot completes. A policy whose entire user include is CAD- groups is
+  // therefore accepted as satisfying "users: All" — with a note, because the
+  // benchmark's Graph audit reads includeUsers = All. Needs the group display
+  // names (ctx.groupNames, resolved by the app before the run).
+  const PILOT_RE = /^CAD-/i;
+  const groupName = (ctx, id) => (ctx.groupNames || {})[id] || null;
+  const pilotScoped = (p, ctx) => {
+    const gs = U(p).includeGroups || [];
+    return gs.length > 0 && gs.every((id) => PILOT_RE.test(groupName(ctx, id) || ""));
+  };
+  const allUsersOk = (p, ctx) => allUsers(p) || pilotScoped(p, ctx);
+  const usersWhy = (p, ctx) => {
+    const gs = U(p).includeGroups || [];
+    if (gs.length) {
+      const names = gs.map((id) => groupName(ctx, id) || id).slice(0, 3);
+      return `include is group ${names.join(", ")}${gs.length > 3 ? ` +${gs.length - 3} more` : ""} — not All users and not (only) CAD- pilot deployment groups`;
+    }
+    const iu = U(p).includeUsers || [];
+    return iu.length ? `includeUsers is ${iu.slice(0, 3).join(", ")}` : "no users included";
+  };
+  const PILOT_NOTE = "User scope satisfied by a CAD- pilot deployment group, treated as All users per the ENCA deployment model. The benchmark's Graph audit reads includeUsers = All — switch the policy to All users when the pilot completes, or document the pilot scope for the auditor.";
+
   // Phishing-resistant strength: allowed combinations restricted to the three
   // phishing-resistant methods. Resolved via the tenant's strength policies
   // when available; the built-in "Phishing-resistant MFA" GUID is accepted
@@ -115,7 +139,7 @@ const CisCheck = (() => {
     "5.2.2.2": {
       cand: (p) => allUsers(p) && mfaOrStrength(p),
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources: All", allApps],
         ["grant: mfa or authentication strength", mfaOrStrength],
       ],
@@ -123,7 +147,7 @@ const CisCheck = (() => {
     "5.2.2.3": {
       cand: (p) => clientTypes(p).includes("exchangeActiveSync") || clientTypes(p).includes("other"),
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources: All", allApps],
         ["client app types include exchangeActiveSync", (p) => clientTypes(p).includes("exchangeActiveSync")],
         ["client app types include other", (p) => clientTypes(p).includes("other")],
@@ -135,7 +159,8 @@ const CisCheck = (() => {
       crit: [
         ["admin scope: the 15 benchmark admin roles (includeRoles) or an admin persona group", (p) => adminScopeOk(p), (p) => adminScopeLabel(p)],
         ["resources: All", allApps],
-        ["sign-in frequency everyTime or ≤ 4 hours", (p) => sifHoursMax(p, 4)],
+        ["sign-in frequency everyTime or ≤ 4 hours", (p) => sifHoursMax(p, 4),
+          (p) => { const s = sif(p); return s.isEnabled && s.frequencyInterval === "timeBased" ? `found ${s.value} ${s.type}` : !s.isEnabled ? "no sign-in frequency on this policy" : null; }],
         ["persistent browser: never", (p) => S(p).persistentBrowser?.isEnabled && S(p).persistentBrowser?.mode === "never"],
       ],
     },
@@ -144,13 +169,21 @@ const CisCheck = (() => {
       crit: [
         ["admin scope: the 15 benchmark admin roles (includeRoles) or an admin persona group", (p) => adminScopeOk(p), (p) => adminScopeLabel(p)],
         ["resources: All", allApps],
-        ["authentication strength limited to phishing-resistant methods", (p, ctx) => prStrength(p, ctx)],
+        ["authentication strength limited to phishing-resistant methods", (p, ctx) => prStrength(p, ctx),
+          (p, ctx) => {
+            const id = strengthId(p);
+            if (!id) return "no authentication strength granted";
+            const st = ctx.strengths?.get?.(id);
+            if (!st) return `strength ${id} not found among the tenant's strength policies — combinations could not be verified`;
+            const bad = (st.allowedCombinations || []).filter((c) => !PR_COMBOS.has(String(c).toLowerCase().replace(/[^a-z0-9]/g, "")));
+            return bad.length ? `strength '${st.displayName || id}' also allows non-phishing-resistant combinations: ${bad.slice(0, 4).join(", ")}${bad.length > 4 ? "…" : ""}` : null;
+          }],
       ],
     },
     "5.2.2.6": {
       cand: (p) => ((p.conditions?.userRiskLevels) || []).length > 0,
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources: All", allApps],
         ["userRiskLevels includes high", (p) => (p.conditions?.userRiskLevels || []).includes("high")],
         ["grant: passwordChange", (p) => grants(p).includes("passwordChange")],
@@ -161,7 +194,7 @@ const CisCheck = (() => {
     "5.2.2.7": {
       cand: (p) => ((p.conditions?.signInRiskLevels) || []).length > 0,
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources: All", allApps],
         ["signInRiskLevels includes high", (p) => (p.conditions?.signInRiskLevels || []).includes("high")],
         ["signInRiskLevels includes medium", (p) => (p.conditions?.signInRiskLevels || []).includes("medium")],
@@ -174,7 +207,7 @@ const CisCheck = (() => {
     "5.2.2.8": {
       cand: (p) => ((p.conditions?.signInRiskLevels) || []).length > 0 && isBlock(p),
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources: All", allApps],
         ["no resource exclusions", noAppExcl],
         ["signInRiskLevels includes high", (p) => (p.conditions?.signInRiskLevels || []).includes("high")],
@@ -185,7 +218,7 @@ const CisCheck = (() => {
     "5.2.2.9": {
       cand: (p) => grants(p).includes("compliantDevice") || grants(p).includes("domainJoinedDevice"),
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources: All", allApps],
         ["grant: compliantDevice", (p) => grants(p).includes("compliantDevice")],
         ["no grant controls besides compliantDevice / domainJoinedDevice", (p) => grants(p).every((g) => g === "compliantDevice" || g === "domainJoinedDevice")],
@@ -197,7 +230,7 @@ const CisCheck = (() => {
     "5.2.2.10": {
       cand: (p) => (A(p).includeUserActions || []).includes("urn:user:registersecurityinfo"),
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["user action: register security information", (p) => (A(p).includeUserActions || []).includes("urn:user:registersecurityinfo")],
         ["grant: compliantDevice", (p) => grants(p).includes("compliantDevice")],
         ["no grant controls besides compliantDevice / domainJoinedDevice", (p) => grants(p).every((g) => g === "compliantDevice" || g === "domainJoinedDevice")],
@@ -207,7 +240,7 @@ const CisCheck = (() => {
     "5.2.2.11": {
       cand: (p) => appsInclude(p, [APPS.intuneEnrollment]) && (mfaOrStrength(p) || sif(p).isEnabled),
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources include Microsoft Intune Enrollment", (p) => appsInclude(p, [APPS.intuneEnrollment])],
         ["grant: mfa or authentication strength", mfaOrStrength],
         ["sign-in frequency: everyTime", sifEvery],
@@ -216,7 +249,7 @@ const CisCheck = (() => {
     "5.2.2.12": {
       cand: (p) => String(flows(p)).includes("deviceCodeFlow"),
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources: All", allApps],
         ["authentication flows include deviceCodeFlow", (p) => String(flows(p)).includes("deviceCodeFlow")],
         ["grant: block", isBlock],
@@ -225,7 +258,7 @@ const CisCheck = (() => {
     "5.2.2.13": {
       cand: (p) => sif(p).isEnabled && !hasRisk(p),
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources: All", allApps],
         ["no risk conditions", (p) => !hasRisk(p)],
         // everyTime is stricter than any 7-day interval — compliant per the
@@ -236,14 +269,14 @@ const CisCheck = (() => {
           if (s.frequencyInterval !== "timeBased") return false;
           const v = Number(s.value);
           return s.type === "days" ? v <= 7 : s.type === "hours" ? v <= 168 : false;
-        }],
+        }, (p) => { const s = sif(p); return s.isEnabled && s.frequencyInterval === "timeBased" ? `found ${s.value} ${s.type} — the benchmark requires 7 days or less` : !s.isEnabled ? "no sign-in frequency on this policy" : null; }],
       ],
     },
     // 5.2.2.14 is assessed from named locations, not policies — custom below.
     "5.2.2.15": {
       cand: (p) => ((p.conditions?.locations?.includeLocations) || []).length > 0 && isBlock(p),
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources: All", allApps],
         ["includes ≥ 1 untrusted named location", (p, ctx) => (p.conditions?.locations?.includeLocations || []).some((id) => !["All", "AllTrusted"].includes(id) && !isTrustedLoc(ctx, id))],
         ["excludes trusted locations (AllTrusted or ≥ 1 trusted location)", (p, ctx) => { const ex = p.conditions?.locations?.excludeLocations || []; return ex.includes("AllTrusted") || ex.some((id) => isTrustedLoc(ctx, id)); }],
@@ -254,7 +287,16 @@ const CisCheck = (() => {
       cand: (p) => !!S(p).secureSignInSession?.isEnabled,
       crit: [
         ["users: not none", (p) => !!anyUsers(p)],
-        ["resources include Exchange Online, SharePoint Online and Teams Services", (p) => appsInclude(p, [APPS.exchangeOnline, APPS.sharePointOnline, APPS.teamsServices])],
+        ["resources include Exchange Online, SharePoint Online and Teams Services", (p) => appsInclude(p, [APPS.exchangeOnline, APPS.sharePointOnline, APPS.teamsServices]),
+          // Name exactly which of the three is missing — "only Teams missing"
+          // is a one-line fix, and the generic label hid that.
+          (p) => {
+            const inc = (A(p).includeApplications || []).map((a) => String(a).toLowerCase());
+            if (inc.includes("all")) return null;
+            const miss = [["Office 365 Exchange Online", APPS.exchangeOnline], ["Office 365 SharePoint Online", APPS.sharePointOnline], ["Microsoft Teams Services", APPS.teamsServices]]
+              .filter(([, id]) => !inc.includes(id.toLowerCase())).map(([n]) => n);
+            return miss.length ? `missing only: ${miss.join(", ")}` : null;
+          }],
         ["platforms include windows", (p) => { const pl = p.conditions?.platforms?.includePlatforms || []; return pl.includes("windows") || pl.includes("all"); }],
         ["client app types: mobileAppsAndDesktopClients only", (p) => { const c = clientTypes(p); return c.length === 1 && c[0] === "mobileAppsAndDesktopClients"; }],
         ["session: token protection (secureSignInSession) enabled", (p) => !!S(p).secureSignInSession?.isEnabled],
@@ -263,7 +305,7 @@ const CisCheck = (() => {
     "5.2.2.17": {
       cand: (p) => String(flows(p)).includes("authenticationTransfer"),
       crit: [
-        ["users: All", allUsers],
+        ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources: All", allApps],
         ["authentication flows include authenticationTransfer", (p) => String(flows(p)).includes("authenticationTransfer")],
         ["grant: block", isBlock],
@@ -289,11 +331,16 @@ const CisCheck = (() => {
     }));
     const full = judged.filter((j) => j.missing.length === 0);
     const passers = full.filter((j) => isEnabled(j.p));
-    // Admin controls satisfied via a persona group (not includeRoles) carry an
-    // explanatory note — the letter of the benchmark audit reads includeRoles.
+    // Passes achieved through a convention rather than the audit's letter
+    // carry explanatory notes — admin persona group instead of includeRoles,
+    // CAD- pilot group instead of All users.
+    const wantsAllUsers = logic.crit.some(([l]) => l.startsWith("users: All"));
     const mk = (status, set) => {
       const r = { status, policies: set.map((j) => j.p.displayName), near: [] };
-      if (ADMIN_CONTROLS.has(ctl.id) && set.every((j) => !adminRolesOk(j.p))) r.note = ADMIN_GROUP_NOTE;
+      const notes = [];
+      if (ADMIN_CONTROLS.has(ctl.id) && set.every((j) => !adminRolesOk(j.p))) notes.push(ADMIN_GROUP_NOTE);
+      if (wantsAllUsers && set.every((j) => !allUsers(j.p))) notes.push(PILOT_NOTE);
+      if (notes.length) r.note = notes.join(" ");
       return r;
     };
     if (passers.length) return mk("pass", passers);
