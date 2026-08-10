@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 215, date: "2026-08-10", title: "The beta banner, front and centre",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The BETA \u2014 not production marker moved from the top-right corner to the middle of the top bar: a bold red banner centred over the header, unmissable in screenshots and demos alike." },
+    ],
+  },
+  {
     build: 214, date: "2026-08-10", title: "Credit where the block is",
     items: [
       { kind: "fixed", tool: "Best-practice & bypass checks", text: "The scorecard's 'Legacy authentication blocked' signal scored 0 when ANY legacy-auth finding existed — so an unrelated policy that lists legacy client types without blocking them erased the credit for a real, enabled legacy-auth block (e.g. CA002-BLOCK-…-LegacyAuthentication). The signal is now measured from the policies directly: 100 for an enabled block targeting legacy client types, 50 when the block only exists in report-only, 0 when there is none. Findings still tell the full story either way." },

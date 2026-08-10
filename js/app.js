@@ -238,8 +238,10 @@
       const here = location.hostname.toLowerCase();
       if (!prod || !here || here === prod) return;
       const r = document.createElement("div");
-      r.textContent = "BETA — not production";
-      r.style.cssText = "position:fixed;top:0;right:0;z-index:9999;background:#b04a3a;color:#fff;font:700 11px/1 Inter,system-ui,sans-serif;padding:5px 12px;border-bottom-left-radius:8px;letter-spacing:.4px;opacity:.92;pointer-events:none";
+      r.textContent = "\u26A0 BETA \u2014 not production";
+      r.style.cssText = "position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9999;" +
+        "background:#b04a3a;color:#fff;font:800 13px/1 Inter,system-ui,sans-serif;padding:7px 22px;" +
+        "border-radius:0 0 10px 10px;letter-spacing:.5px;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none;white-space:nowrap";
       document.body.appendChild(r);
       document.title = "[BETA] " + document.title;
     } catch { /* cosmetic only */ }
