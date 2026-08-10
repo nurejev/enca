@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 226, date: "2026-08-10", title: "Tabs keep your place",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Switching tool tabs no longer jumps to the top of the page \u2014 each screen's scroll position is remembered and restored when you come back. And reopening List Policies (or Create documentation) keeps the cards / list / matrix view you last chose instead of resetting to cards; only Gap analyse still resets, since it shares the screen with a different view. (Production hotfix \u2014 builds 222\u2013225 are on the beta channel.)" },
+    ],
+  },
+  {
     build: 221, date: "2026-08-10", title: "Stop reporting what you already fixed",
     items: [
       { kind: "fixed", tool: "MS Learn checks", text: "A policy that already excluded the shared-device group was still reported as breaking Teams devices. Every one of these checks remediates by adding that exclusion — but the detection never looked at whether it was already there, so CA004 showed the device-code finding while plainly excluding CAB-SEC-U-TeamsSharedDevices on the card above it. A finding whose entire remediation is already in place is not a lesser problem, it is not a problem: those are now suppressed rather than downgraded, and the summary says how many were handled that way so nothing goes quietly missing." },

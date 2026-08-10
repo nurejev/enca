@@ -70,11 +70,21 @@
     "screen-locations", "screen-audit", "screen-signins", "screen-protect", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
+  // Per-screen scroll memory: switching tabs used to jump to the top and lose
+  // your place. The position of the screen you leave is saved and restored when
+  // you come back; a screen you have not visited yet starts at the top.
+  const screenScroll = {};
+  let shownScreen = null;
   function show(id) {
+    if (shownScreen && shownScreen !== id) screenScroll[shownScreen] = window.scrollY;
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     $(id).classList.add("active");
     (window.requestAnimationFrame || setTimeout)(syncStickyTops);
-    window.scrollTo(0, 0);
+    if (shownScreen !== id) {
+      const y = screenScroll[id] || 0;
+      (window.requestAnimationFrame || setTimeout)(() => window.scrollTo(0, y));
+    }
+    shownScreen = id;
     if (navSuppress || !HISTORY_SCREENS.has(id)) return;
     // Replace rather than push when the screen has not changed, so clicking the
     // same tool twice does not need two Backs to leave it.
@@ -1071,11 +1081,14 @@
   $("homeBtn").addEventListener("click", () => { crumb(""); show("screen-home"); });
   // logo returns to the tools overview when signed in (does nothing on login)
   $("logoHome").addEventListener("click", () => { if (policies.length) { crumb(""); show("screen-home"); } });
-  $("toolPolicies").addEventListener("click", () => { crumb("🗂 List Policies"); setToolMode("document"); setView("cards"); show("screen-list"); });
+  // Keep the view (cards / list / matrix) the user last chose — reopening the
+  // tool used to force cards. Only the analyze mode (a different tool sharing
+  // this screen) resets to cards.
+  $("toolPolicies").addEventListener("click", () => { crumb("🗂 List Policies"); setToolMode("document"); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list"); });
   // Document tool: opens the policy overview first — select policies (or none
   // for all), then click "Create documentation" in the toolbar to choose the format.
   $("toolDocument").addEventListener("click", () => {
-    crumb("📄 Create documentation"); setToolMode("document"); setView("cards"); show("screen-list");
+    crumb("📄 Create documentation"); setToolMode("document"); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list");
     toast("Documentation mode — select policies (or none for all), then click <span>Create documentation</span>");
   });
   $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); });
