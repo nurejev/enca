@@ -10,10 +10,10 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=217"></script>
+<script src="js/popup-guard.js?v=218"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=217">
+<link rel="stylesheet" href="css/app.css?v=218">
 </head>
 <body>
 
@@ -281,7 +281,7 @@
         <button class="btn sm" id="selActDoc" title="Create documentation">📄 Documentation</button>
         <button class="btn sm" id="selActBackup" title="Download raw JSON definitions">🗄 Backup</button>
         <button class="btn sm" id="selActAnalyze" title="Users × policies impact matrix">🔍 Gap analyse</button>
-        <button class="btn sm" id="selActAssign" title="Change the persona groups — writes to your tenant">👥 Assign groups</button>
+        <button class="btn sm" id="selActAssign" title="Change the group or directory-role assignment — writes to your tenant">👥 Assign groups or roles</button>
         <button class="btn sm" id="selActState" title="Switch On / report-only / Off — writes to your tenant">🎚 Policy state</button>
         <span class="sel-sep"></span>
         <button class="btn sm danger" id="selActDelete" title="Permanently delete the selected policies — cannot be undone">🗑 Delete</button>
@@ -848,8 +848,8 @@
       <ul>
         <li><b>Cards / List / Settings matrix</b> — Cards show each policy in full; List is a compact one-line-per-policy view; the Settings matrix is a policies × settings grid for spotting differences at a glance. The matrix has a <b>full-screen</b> button.</li>
         <li><b>Search</b> — filter by CA number, policy name or persona.</li>
-        <li><b>Select policies</b> (checkboxes) — a green action bar appears: send the selection straight to <b>Documentation</b>, <b>Backup</b>, <b>Assign groups</b>, <b>Set state</b> or <b>Delete</b>.</li>
-        <li><b>Per-card quick actions</b> — Documentation, Backup, Assign groups and Policy state, scoped to that one policy.</li>
+        <li><b>Select policies</b> (checkboxes) — a green action bar appears: send the selection straight to <b>Documentation</b>, <b>Backup</b>, <b>Assign groups or roles</b>, <b>Set state</b> or <b>Delete</b>.</li>
+        <li><b>Per-card quick actions</b> — Documentation, Backup, Assign groups or roles, and Policy state, scoped to that one policy.</li>
         <li><b>Apply flow</b> (per persona) — a visual of what actually applies to a persona, including Global policies in scope and honouring exclusions (an excluded persona group drops the policy from the flow).</li>
         <li><b>🧹 Housekeeping</b> — appears only when there is something to clean: policies that are <b>Off</b> while a <i>higher version of the same CA number</i> also exists, i.e. the old versions a <b>match &amp; replace</b> import left behind as your rollback. It lists each one next to the policy that superseded it; the ones you tick go through the normal delete flow (JSON backup + typed <code>DELETE</code>).</li>
       </ul>
@@ -1182,7 +1182,7 @@
 <!-- ============ ASSIGN GROUPS WIZARD ============ -->
 <div class="modal-bg" id="assignModal">
   <div class="modal" style="max-width:640px">
-    <h3 id="asTitle">Assign groups</h3>
+    <h3 id="asTitle">Assign groups or roles</h3>
     <p class="mini" id="asSub"></p>
     <div id="asBody" style="max-height:60vh;overflow:auto"></div>
     <div class="row">
@@ -1519,35 +1519,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=217"></script>
-<script src="js/version.js?v=217"></script>
-<script src="js/authConfig.js?v=217"></script>
-<script src="js/labels.js?v=217"></script>
-<script src="js/graph.js?v=217"></script>
-<script src="js/model.js?v=217"></script>
-<script src="js/render.js?v=217"></script>
-<script src="js/analyze.js?v=217"></script>
-<script src="js/whatif.js?v=217"></script>
-<script src="js/mslearn.js?v=217"></script>
-<script src="js/gapcheck.js?v=217"></script>
-<script src="js/exclusions.js?v=217"></script>
-<script src="js/validator.js?v=217"></script>
-<script src="js/whatifeval.js?v=217"></script>
-<script src="js/compare.js?v=217"></script>
-<script src="js/groupuse.js?v=217"></script>
-<script src="js/locations.js?v=217"></script>
-<script src="js/audit.js?v=217"></script>
-<script src="js/signins.js?v=217"></script>
-<script src="js/changelog.js?v=217"></script>
-<script src="js/baselineData.js?v=217"></script>
-<script src="js/baselineJoeyData.js?v=217"></script>
-<script src="js/baseline.js?v=217"></script>
-<script src="js/groupTemplates.js?v=217"></script>
-<script src="js/assign.js?v=217"></script>
-<script src="js/cagroups.js?v=217"></script>
-<script src="js/import.js?v=217"></script>
-<script src="js/export.js?v=217"></script>
-<script src="js/demo.js?v=217"></script>
-<script src="js/app.js?v=217"></script>
+<script src="js/branding.js?v=218"></script>
+<script src="js/version.js?v=218"></script>
+<script src="js/authConfig.js?v=218"></script>
+<script src="js/labels.js?v=218"></script>
+<script src="js/graph.js?v=218"></script>
+<script src="js/model.js?v=218"></script>
+<script src="js/render.js?v=218"></script>
+<script src="js/analyze.js?v=218"></script>
+<script src="js/whatif.js?v=218"></script>
+<script src="js/mslearn.js?v=218"></script>
+<script src="js/gapcheck.js?v=218"></script>
+<script src="js/exclusions.js?v=218"></script>
+<script src="js/validator.js?v=218"></script>
+<script src="js/whatifeval.js?v=218"></script>
+<script src="js/compare.js?v=218"></script>
+<script src="js/groupuse.js?v=218"></script>
+<script src="js/locations.js?v=218"></script>
+<script src="js/audit.js?v=218"></script>
+<script src="js/signins.js?v=218"></script>
+<script src="js/changelog.js?v=218"></script>
+<script src="js/baselineData.js?v=218"></script>
+<script src="js/baselineJoeyData.js?v=218"></script>
+<script src="js/baseline.js?v=218"></script>
+<script src="js/groupTemplates.js?v=218"></script>
+<script src="js/assign.js?v=218"></script>
+<script src="js/cagroups.js?v=218"></script>
+<script src="js/import.js?v=218"></script>
+<script src="js/export.js?v=218"></script>
+<script src="js/demo.js?v=218"></script>
+<script src="js/app.js?v=218"></script>
 </body>
 </html>

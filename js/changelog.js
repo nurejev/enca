@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 218, date: "2026-08-10", title: "It assigns roles too, so it says so",
+    items: [
+      { kind: "improved", tool: "List Policies", text: "The action is called Assign groups or roles now — on the selection bar, on the per-policy card, in the help and at the top of the change report. It has been able to set directory roles since build 211, but the label still promised only groups, which is a good way to keep a capability hidden from the people who would use it. The wizard title follows what you are doing: “Assign groups or roles” while you are still choosing, then the specific one." },
+    ],
+  },
+  {
     build: 217, date: "2026-08-10", title: "Legacy auth: the block and the noise — and a scorecard you can click",
     items: [
       { kind: "fixed", tool: "Best-practice & bypass checks", text: "Twelve HIGH findings next to a 100-point legacy signal was both too loud and too quiet. The per-policy 'legacy targeted but not blocked' finding now correlates with the tenant's dedicated block, the way the DRS and platform checks already do: with an enabled tenant-wide legacy block, a grant policy that merely lists legacy client types drops to LOW ('covered by the tenant-wide block' — CA applies the union, the block wins), with the reminder that the block's own exclusions are the only legacy path left. A block that is enabled but narrower than All users downgrades them to MEDIUM instead; no block at all stays HIGH. The scorecard mirrors it: 100 only when the block covers everyone, 70 for a narrower block, 50 report-only, 0 none." },
