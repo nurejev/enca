@@ -8,7 +8,7 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 211,
+  build: 212,
   date: "2026-08-04",
   get label() { return `v${this.version}.${this.build}`; },
   get full() { return `${this.label} · ${this.date}`; },
@@ -18,7 +18,7 @@ const APP_BUILD = {
 // its own pace, so a tenant-side reviewer can tell which one changed since
 // they last looked without diffing the whole app. Bump the tool you touched.
 const TOOL_VERSIONS = {
-  toolPolicies:     { v: "2.2", note: "usable on a phone — non-sticky toolbar, single-column policy cards, scrolling state filters, scrolling list table, two-row action bar;cards / list / settings matrix, persona grouping, dependency inspector, full-screen matrix, selection actions, delete with typed confirmation, per-policy what-if flow, per-persona apply flow, housekeeping (delete superseded Off versions)" },
+  toolPolicies:     { v: "2.3", note: "list and summary say how many more include entries there are instead of showing only the first;usable on a phone — non-sticky toolbar, single-column policy cards, scrolling state filters, scrolling list table, two-row action bar;cards / list / settings matrix, persona grouping, dependency inspector, full-screen matrix, selection actions, delete with typed confirmation, per-policy what-if flow, per-persona apply flow, housekeeping (delete superseded Off versions)" },
   toolDocument:     { v: "1.4", note: "Word, PDF, PNG and PNG-bundle export with tenant branding" },
   toolAnalyze:      { v: "1.6", note: "users × policies impact matrix, group filters, standalone HTML report, scoped matrix columns" },
   toolGapCheck:     { v: "1.6", note: "bypass checks, persona × control matrix, deployed-but-Off state, Markdown export" },

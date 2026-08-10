@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 212, date: "2026-08-04", title: "146 roles, and only one of them showing",
+    items: [
+      { kind: "fixed", tool: "List Policies", text: "A policy scoped to many things showed only the first of them. The list row and the card summary printed users.inc[0] and nothing else — no count, no ellipsis — so a policy assigned a group plus 145 directory roles read exactly like one assigned a single group, and an assignment that had just been written looked like it had not been. Both now say “+N more”. The applications column already did this; the user column never did." },
+      { kind: "fixed", tool: "Conditional Access groups", text: "The assign wizard only reloaded the policies when it was closed with the Close button. Closing it with Cancel, or by clicking outside it, left the app showing the state from before the write. Any way out now reloads, and only when something actually changed." },
+      { kind: "improved", tool: "Conditional Access groups", text: "The role picker is about administrator roles, which is what people mean when they ask for them. “All built-in roles” has gone: directoryRoleTemplates includes Guest User, Restricted Guest User, Device Join and the Partner support roles, and offering all 146 behind one button is how a policy ends up scoped to things nobody intended. The list defaults to roles with “Administrator” in the name plus the privileged set, the quick pick selects exactly those, and a tickbox reveals the rest with a note about what is in there." },
+    ],
+  },
+  {
     build: 211, date: "2026-08-04", title: "Assign directory roles, not just groups",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "The assign wizard can now target a policy's Directory roles — the same include and exclude the portal offers under Users. Choose Groups or Directory roles at the top, and the same actions apply to whichever you picked, bar “Set INCLUDE to All Users”, which has no role equivalent and is hidden. This is the assignment behind every “require MFA for admins” policy, and it was the one thing the wizard could not express." },

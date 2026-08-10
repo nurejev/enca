@@ -42,7 +42,7 @@ const Render = (() => {
         <td><div class="pname" data-open="${p.id}">${esc(p.name)}</div>
             <div class="mini">${p.seq}${p.usesNew ? ' · <span class="tag new">uses new CA settings</span>' : ""}</div></td>
         <td>${stateChip(p.state)}</td>
-        <td class="mini">${esc(p.users.inc[0] || "")}${p.users.exc.length ? `<br><span class="excl-note">− ${p.users.exc.length} excluded</span>` : ""}</td>
+        <td class="mini">${esc(p.users.inc[0] || "")}${p.users.inc.length > 1 ? ` <span class="muted">+${p.users.inc.length - 1} more</span>` : ""}${p.users.exc.length ? `<br><span class="excl-note">− ${p.users.exc.length} excluded</span>` : ""}</td>
         <td class="mini">${esc(p.apps.inc.slice(0, 2).join(", "))}${p.apps.inc.length > 2 ? "…" : ""}</td>
         <td class="mini">${esc(p.grant.controls[0] || "")}</td>
         <td class="mini">${p.modified}</td>
@@ -145,7 +145,7 @@ const Render = (() => {
         <div class="scard-right">${stateChip(p.state)}<input type="checkbox" data-sel="${p.id}" ${selected && selected.has(p.id) ? "checked" : ""}></div>
       </div>
       <div class="scard-grid">
-        <div><label>User Scope</label><b>${esc(p.users.inc[0] || "")}${p.users.exc.length ? ` <span class="excl-note">(−${p.users.exc.length})</span>` : ""}</b></div>
+        <div><label>User Scope</label><b>${esc(p.users.inc[0] || "")}${p.users.inc.length > 1 ? ` <span class="muted">+${p.users.inc.length - 1}</span>` : ""}${p.users.exc.length ? ` <span class="excl-note">(−${p.users.exc.length})</span>` : ""}</b></div>
         <div><label>Applications</label><b>${esc(p.apps.inc[0] || "")}${p.apps.exc.length ? ` <span class="excl-note">(−${p.apps.exc.length})</span>` : ""}</b></div>
         <div><label>Enforcement</label><b>${enforcement}</b></div>
         <div><label>New CA settings</label><b>${p.usesNew ? '<span class="tag new">yes</span>' : "—"}</b></div>

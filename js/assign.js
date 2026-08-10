@@ -46,6 +46,13 @@ const Assign = (() => {
     "Security Administrator", "SharePoint Administrator", "User Administrator",
   ];
 
+  // "Admin roles" as someone asking for them means it. directoryRoleTemplates
+  // is every built-in template, which includes Guest User, Restricted Guest
+  // User, Device Join and the Partner Tier support roles — not things anyone
+  // means when they say "all the admin roles", and offering them behind one
+  // click is how a policy ends up scoped to 146 entries by accident.
+  const isAdminRole = (r) => /administrator/i.test(r.name) || !!r.recommended;
+
   // Conditional Access is enforced for BUILT-IN roles only — not custom roles
   // and not administrative-unit-scoped assignments. directoryRoleTemplates is
   // exactly the built-in set, and its id IS the roleTemplateId a policy stores.
@@ -318,5 +325,5 @@ const Assign = (() => {
     return results;
   }
 
-  return { ACTIONS, ROLE_ACTIONS, actionsFor, ADMIN_ROLE_NAMES, roleTemplates, NEEDS_GROUPS, REMOVE_ACTIONS, PERSONAS, personasWithGroup, templateFor, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, templates };
+  return { ACTIONS, ROLE_ACTIONS, actionsFor, ADMIN_ROLE_NAMES, roleTemplates, isAdminRole, NEEDS_GROUPS, REMOVE_ACTIONS, PERSONAS, personasWithGroup, templateFor, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, templates };
 })();

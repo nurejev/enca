@@ -2893,7 +2893,7 @@ max@contoso.com,"Global, DevOps"</pre>
   // ---------- assign-groups wizard ----------
   let asStep = 0, asAction = null, asGroups = [], asPolicies = [], asResults = null;
   // "groups" | "roles" — the portal's two ways of naming who a policy covers.
-  let asTarget = "groups", asRoles = [], asRoleQuery = "";
+  let asTarget = "groups", asRoles = [], asRoleQuery = "", asRoleAdminOnly = true;
   // "selection" = the policies ticked in the list; "all" = every policy loaded
   // from the tenant. Tenant-wide is what you want for a break-glass or
   // service-account exclusion that must never miss a policy.
@@ -2907,7 +2907,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (asScope === "all" && !selected.size) toast("Nothing selected — scoped to <span>all policies</span>, change it in step 1");
     asPolicies = asScopePolicies();
     asStep = 0; asAction = null; asGroups = []; asResults = null; asFound = [];
-    asTarget = "groups"; asRoles = []; asRoleQuery = "";
+    asTarget = "groups"; asRoles = []; asRoleQuery = ""; asRoleAdminOnly = true;
     renderAssign();
     $("assignModal").classList.add("open");
   }
@@ -2945,21 +2945,27 @@ max@contoso.com,"Global, DevOps"</pre>
         }
       }
       const q = asRoleQuery.trim().toLowerCase();
-      const vis = q ? asRoles.filter((r) => r.name.toLowerCase().includes(q)) : asRoles;
+      const pool = asRoleAdminOnly ? asRoles.filter(Assign.isAdminRole) : asRoles;
+      const vis = q ? pool.filter((r) => r.name.toLowerCase().includes(q)) : pool;
       const nSel = asRoles.filter((r) => r.checked).length;
       const nRec = asRoles.filter((r) => r.recommended).length;
+      const nAdmin = asRoles.filter(Assign.isAdminRole).length;
       b.innerHTML = `<h4 class="mini" style="margin-bottom:6px">QUICK PICKS</h4>
         <div class="persona-row">
           <button class="btn sm" data-asroleset="recommended">Microsoft's privileged set (${nRec})</button>
-          <button class="btn sm" data-asroleset="all">All built-in roles (${asRoles.length})</button>
+          <button class="btn sm" data-asroleset="admin">All administrator roles (${nAdmin})</button>
           <button class="btn sm" data-asroleset="none">Clear</button>
         </div>
         <p class="mini muted" style="margin:8px 0 0">The privileged set is the minimum Microsoft recommends requiring MFA on — Global, Application, Authentication, Billing, Cloud Application, Conditional Access, Exchange, Helpdesk, Password, Privileged Authentication, Privileged Role, Security, SharePoint and User Administrator. Resolved against this tenant's own role templates, not hard-coded IDs.</p>
         <p class="mini" style="margin:8px 0 0;color:var(--report)">⚠ Conditional Access only enforces <b>built-in</b> roles. Custom roles and administrative-unit-scoped assignments are not covered by a policy scoped this way — only the roles listed here are.</p>
         <h4 class="mini" style="margin:16px 0 8px">DIRECTORY ROLES <span class="muted">(${nSel} selected)</span></h4>
-        <div style="display:flex;gap:8px;margin-bottom:8px">
+        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
           <input id="asRoleSearch" class="btn" style="flex:1;cursor:text" placeholder="Search roles…" value="${esc(asRoleQuery)}">
+          <label class="chk" style="margin:0;white-space:nowrap"><input type="checkbox" id="asRoleAdminOnly" ${asRoleAdminOnly ? "checked" : ""}> Administrator roles only</label>
         </div>
+        <p class="mini muted" style="margin:0 0 8px">${asRoleAdminOnly
+          ? `Showing the ${nAdmin} roles with “Administrator” in the name, plus the privileged set. Untick to see all ${asRoles.length} built-in templates — which include Guest User, Device Join and the Partner support roles, rarely what a policy wants.`
+          : `Showing all ${asRoles.length} built-in templates, including non-admin ones such as Guest User and Device Join.`}</p>
         <div style="max-height:34vh;overflow:auto">` +
         (vis.map((r) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asrole="${esc(r.id)}" ${r.checked ? "checked" : ""}> ${assignEsc(r.name)}${r.recommended ? ' <span class="tag grant">privileged</span>' : ""}</label>`).join("")
           || '<p class="mini muted">No role matches that search.</p>') + `</div>`;
@@ -3059,6 +3065,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const t = e.target.closest('[name="asTarget"]');
     if (t) { asTarget = t.value; asAction = null; renderAssign(); return; }   // actions differ per target
     const r = e.target.closest('[name="asAct"]'); if (r) { asAction = +r.value; return; }
+    if (e.target.id === "asRoleAdminOnly") { asRoleAdminOnly = e.target.checked; renderAssign(); return; }
     const rr = e.target.closest("[data-asrole]");
     if (rr) { const role = asRoles.find((x) => x.id === rr.dataset.asrole); if (role) role.checked = rr.checked; renderAssign(); return; }
     const g = e.target.closest("[data-asg]"); if (g) { asGroups[+g.dataset.asg].checked = g.checked; return; }
@@ -3081,7 +3088,11 @@ max@contoso.com,"Global, DevOps"</pre>
     const set = e.target.closest("[data-asroleset]");
     if (set) {
       const how = set.dataset.asroleset;
-      asRoles.forEach((r) => { r.checked = how === "all" ? true : how === "recommended" ? !!r.recommended : false; });
+      asRoles.forEach((r) => {
+        r.checked = how === "admin" ? Assign.isAdminRole(r)
+          : how === "recommended" ? !!r.recommended
+          : false;
+      });
       renderAssign(); return;
     }
     const pc = e.target.closest("[data-asPersona]");
@@ -3150,7 +3161,14 @@ max@contoso.com,"Global, DevOps"</pre>
       finally { e.target.disabled = false; }
     }
   });
-  $("asCancel").addEventListener("click", () => $("assignModal").classList.remove("open"));
+  // A successful write followed by Cancel (or the backdrop) used to leave the
+  // app showing pre-change policies. Any way out reloads if something changed.
+  async function closeAssign() {
+    $("assignModal").classList.remove("open");
+    if (!isDemo && asResults?.some((r) => r.ok && r.changed !== false)) { asResults = null; await loadFromGraph(true); }
+  }
+  $("asCancel").addEventListener("click", closeAssign);
+  $("assignModal").addEventListener("click", (e) => { if (e.target.id === "assignModal") closeAssign(); });
   $("asBack").addEventListener("click", () => { asStep--; renderAssign(); });
   $("asNext").addEventListener("click", async () => {
     if (asStep === 0) {
@@ -3173,8 +3191,7 @@ max@contoso.com,"Global, DevOps"</pre>
       } else if (asAction !== 4 && !asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
       openAssignConfirm();
     } else {
-      $("assignModal").classList.remove("open");
-      if (!isDemo && asResults?.some(r => r.ok)) await loadFromGraph(true); // reload changed policies
+      await closeAssign();
     }
   });
 
