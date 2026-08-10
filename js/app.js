@@ -1491,6 +1491,7 @@
     $("cgChips").innerHTML = cgTab === "check" ? CaGroups.chips(cgRes, cgFilter) : "";
     $("cgChips").style.display = cgTab === "check" ? "flex" : "none";
     $("cgFull").style.display = cgTab === "members" ? "inline-flex" : "none";
+    $("cgArchived").style.display = cgTab === "check" ? "inline-flex" : "none";
     $("cgSearch").placeholder = cgTab === "members"
       ? "Search member name or UPN…" : "Search group name or object ID…";
     $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" || cgTab === "csv" || cgTab === "rmau" ? "none" : "";
@@ -2338,6 +2339,132 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!isDemo && !err) { cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups(); }
   });
 
+  // Carry the user members of one group into another. Role-assignable groups
+  // need RoleManagement.ReadWrite.Directory — Learn is explicit that
+  // Group.ReadWrite.All "won't work" for their membership — so both scopes go
+  // on every call rather than guessing which the target turned out to be.
+  const MEMBER_MOVE_SCOPES = ["Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"];
+  async function moveGroupMembers(fromId, toId, onStatus) {
+    const log = { moved: 0, total: 0, failed: [] };
+    const users = await Graph.ggetAll(`/groups/${fromId}/members/microsoft.graph.user?$select=id,displayName`).catch(() => []);
+    log.total = users.length;
+    for (let i = 0; i < users.length; i++) {
+      onStatus?.(`Moving member ${i + 1}/${users.length}…`);
+      try {
+        await Graph.gpost(`/groups/${toId}/members/$ref`,
+          { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${users[i].id}` },
+          [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
+        log.moved++;
+      } catch (e) {
+        const already = /already exist/i.test(e.message || "");
+        if (already) log.moved++;
+        else log.failed.push({ name: users[i].displayName || users[i].id, error: e.message || String(e) });
+      }
+    }
+    return log;
+  }
+
+  // ---- housekeeping: the groups a recreate left behind ----------------------
+  // Every recreate renames the original aside instead of deleting it, so a bad
+  // run stays recoverable. Nobody comes back to tidy up, so the directory fills
+  // with "X (legacy 2026-08-04)". This is that second visit.
+  let arcRows = [];
+  $("cgArchived").addEventListener("click", () => openArchived());
+  async function openArchived() {
+    $("arcSub").textContent = "Looking for groups a recreate left behind…";
+    $("arcBody").innerHTML = "";
+    $("arcOk").value = ""; $("arcGo").disabled = true;
+    $("arcModal").classList.add("open");
+    try {
+      arcRows = (isDemo
+        ? [{ id: "g-old1", name: "CAB-SEC-U-Persona-Admins (legacy 2026-08-04)", liveName: "CAB-SEC-U-Persona-Admins", roleAssignable: false, dynamic: false, refs: { include: [], exclude: [] }, refCount: 0 }]
+        : await CaGroups.findArchived(policies.map((p) => p.raw))).map((r) => ({ ...r, checked: r.refCount === 0 }));
+      await arcCountMembers();
+      renderArchived();
+    } catch (e) {
+      $("arcSub").textContent = "";
+      $("arcBody").innerHTML = `<p class="mini" style="color:var(--off)">Could not search for archived groups: ${esc(e.message || e)}</p>`;
+    }
+  }
+
+  // Member counts matter here: an archived group with members is one whose
+  // members were never carried across, which is a different problem to a tidy-up.
+  async function arcCountMembers() {
+    if (isDemo || !arcRows.length) return;
+    const res = await Graph.gbatch(arcRows.map((r, i) => ({ id: i, url: `/groups/${r.id}/members/$count` })))
+      .catch(() => ({}));
+    arcRows.forEach((r, i) => {
+      const v = res[i];
+      r.members = v && v.body != null ? Number(v.body) : null;
+    });
+  }
+
+  function renderArchived() {
+    const n = arcRows.length;
+    const stillUsed = arcRows.filter((r) => r.refCount > 0).length;
+    $("arcSub").innerHTML = n
+      ? `${n} archived group${n === 1 ? "" : "s"} found${stillUsed ? ` · <b style="color:var(--off)">${stillUsed} still referenced by a policy</b>` : ""}`
+      : "Nothing to tidy up.";
+    if (!n) { $("arcBody").innerHTML = '<p class="mini muted">No group in this tenant carries an archive suffix from a recreate.</p>'; return; }
+    $("arcBody").innerHTML = `
+      <p class="mini muted" style="margin:0 0 10px">A deleted group is <b>soft-deleted and restorable for 30 days</b>. Even so, check
+        <a href="#" class="md-tool" data-tool="toolGroupUse">Group Analyzer</a> first — Conditional Access is moved for you by a recreate,
+        but app assignments, Intune, licensing and Azure RBAC are not, and they would still be pointing at the old id.</p>
+      <div class="gu-tw"><table class="plist">
+        <thead><tr><th></th><th>Archived group</th><th>Replaced by</th><th class="gu-num">Members</th><th>Still referenced</th></tr></thead>
+        <tbody>${arcRows.map((r, i) => `<tr>
+          <td><input type="checkbox" data-arc="${i}" ${r.checked ? "checked" : ""}></td>
+          <td><b>${esc(r.name)}</b><div class="mini muted">${esc(r.id)}</div>
+            ${r.roleAssignable ? '<span class="tag block">role-assignable</span>' : ""}${r.dynamic ? '<span class="tag">dynamic</span>' : ""}</td>
+          <td class="mini">${esc(r.liveName)}</td>
+          <td class="gu-num${r.members ? "" : " gu-zero"}">${r.members == null ? "—" : r.members}</td>
+          <td class="mini">${r.refCount
+            ? `<span style="color:var(--off)">${r.refCount} polic${r.refCount === 1 ? "y" : "ies"}</span><div class="mini">${esc(
+                [...r.refs.include.map((p) => p.name), ...r.refs.exclude.map((p) => p.name)].slice(0, 3).join(", "))}</div>`
+            : '<span class="muted">no policy</span>'}</td></tr>`).join("")}</tbody></table></div>
+      ${stillUsed ? `<p class="mini" style="margin-top:10px;color:var(--off)">A group still referenced by a policy is <b>not</b> ticked by default —
+        deleting it would leave that policy pointing at nothing. Move the reference first (④ Assign), or tick it deliberately.</p>` : ""}
+      ${arcRows.some((r) => r.members) ? `<p class="mini" style="margin-top:6px;color:var(--report)">⚠ An archived group with members is one whose members were never carried across.
+        Check the replacement has them before deleting.</p>` : ""}`;
+  }
+  $("arcBody").addEventListener("change", (e) => {
+    const cb = e.target.closest("[data-arc]"); if (!cb) return;
+    arcRows[+cb.dataset.arc].checked = cb.checked;
+  });
+  $("arcOk").addEventListener("input", (e) => {
+    $("arcGo").disabled = e.target.value.trim().toUpperCase() !== "DELETE" || !arcRows.some((r) => r.checked);
+  });
+  $("arcCancel").addEventListener("click", () => $("arcModal").classList.remove("open"));
+  $("arcGo").addEventListener("click", async () => {
+    const picked = arcRows.filter((r) => r.checked);
+    if (!picked.length) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES])) return;
+    const btn = $("arcGo"); btn.disabled = true;
+    const done = [], failed = [];
+    for (let i = 0; i < picked.length; i++) {
+      toast(`Deleting ${i + 1}/${picked.length}…`);
+      try {
+        if (!isDemo) await Graph.gdelete(`/groups/${picked[i].id}`, [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
+        done.push(picked[i]);
+      } catch (e) { failed.push({ ...picked[i], error: e.message || String(e) }); }
+    }
+    $("arcModal").classList.remove("open");
+    const L = [`# Archived groups removed — ${tenantName || "tenant"}`, "", Brand.generatedBy("Generated"), "",
+      `- **Deleted:** ${done.length}${failed.length ? ` · **failed:** ${failed.length}` : ""}`,
+      isDemo ? "- _Demo mode — simulated._" : "- Each deletion is a **soft delete**: Entra keeps the group for 30 days and it can be restored.", ""];
+    if (done.length) {
+      L.push("| Group | Object ID | Replaced by |", "| --- | --- | --- |");
+      done.forEach((r) => L.push(`| ${r.name} | \`${r.id}\` | ${r.liveName} |`));
+    }
+    if (failed.length) {
+      L.push("", "## Failed", "");
+      failed.forEach((f) => L.push(`- ❌ **${f.name}** — ${f.error}`));
+    }
+    showReport("🧹 Archived groups removed", "CA-Groups-Housekeeping", L.join("\n"));
+    toast(failed.length ? `Deleted ${done.length}, <span>${failed.length} failed</span>` : `<span>${done.length}</span> archived group${done.length === 1 ? "" : "s"} deleted`);
+    cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
+  });
+
   // ---- disable group nesting (BETA) ----------------------------------------
   // See the block comment in js/cagroups.js for why this reads and writes the
   // way it does. Shape here: read the current state and the direct members,
@@ -2465,7 +2592,7 @@ max@contoso.com,"Global, DevOps"</pre>
   $("nestRcCancel").addEventListener("click", () => $("nestRcModal").classList.remove("open"));
   $("nestRcGo").addEventListener("click", async () => {
     const p = nestPlan, r = nestRow; if (!p || !r) return;
-    if (!await preConsent([...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES, "Policy.ReadWrite.ConditionalAccess"])) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES, ...MEMBER_MOVE_SCOPES, "Policy.ReadWrite.ConditionalAccess"])) return;
     const btn = $("nestRcGo"); btn.disabled = true;
     const archiveName = `${p.name} (nesting ${new Date().toISOString().slice(0, 10)})`;
     const log = { route: "recreate", archiveName, newId: null, membersMoved: 0, moved: [], failed: [], patchError: p.patchError };
@@ -2498,17 +2625,9 @@ max@contoso.com,"Global, DevOps"</pre>
         }
         log.newId = g.id;
 
-        // carry the user members across
-        const users = (await Graph.ggetAll(`/groups/${r.id}/members/microsoft.graph.user?$select=id`).catch(() => []));
-        for (let i = 0; i < users.length; i++) {
-          toast(`Moving member ${i + 1}/${users.length}…`);
-          try {
-            await Graph.gpost(`/groups/${g.id}/members/$ref`,
-              { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${users[i].id}` },
-              [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
-            log.membersMoved++;
-          } catch (e) { log.failed.push({ name: `member ${users[i].id}`, error: e.message || String(e) }); }
-        }
+        const mm = await moveGroupMembers(r.id, g.id, (m) => toast(m));
+        log.membersMoved = mm.moved;
+        mm.failed.forEach((f) => log.failed.push(f));
 
         // point the policies at the new group
         const refs = [...p.refs.include.map((x) => ({ ...x, how: "include" })), ...p.refs.exclude.map((x) => ({ ...x, how: "exclude" }))];
@@ -2566,10 +2685,10 @@ max@contoso.com,"Global, DevOps"</pre>
   $("recreateCancel").addEventListener("click", () => $("recreateModal").classList.remove("open"));
   $("recreateGo").addEventListener("click", async () => {
     const r = recreateRow; if (!r) return;
-    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Policy.ReadWrite.ConditionalAccess"])) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES, "Policy.ReadWrite.ConditionalAccess"])) return;
     const btn = $("recreateGo"); btn.disabled = true;
     const legacy = `${r.name} (legacy ${new Date().toISOString().slice(0, 10)})`;
-    const log = { renamed: false, newId: null, moved: [], failed: [] };
+    const log = { renamed: false, newId: null, membersMoved: 0, memberTotal: 0, moved: [], failed: [] };
     try {
       if (isDemo) {
         log.renamed = true; log.newId = "g-new-" + r.name;
@@ -2579,8 +2698,14 @@ max@contoso.com,"Global, DevOps"</pre>
         await Graph.gpatch(`/groups/${r.id}`, { displayName: legacy }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
         log.renamed = true;
         toast("Creating the new role-assignable group…");
-        const g = await Assign.createGroup({ displayName: r.name, description: r.description, roleAssignable: true });
+        const g = await Assign.createGroup({ displayName: r.name, description: r.description, roleAssignable: true }, { mustCreate: true });
         log.newId = g.id;
+        // Members come across too. Leaving them behind meant the new group was
+        // empty — an include group that applies to nobody, an exclude group
+        // that excludes nobody — until someone noticed and did it by hand.
+        const mm = await moveGroupMembers(r.id, g.id, (m) => toast(m));
+        log.membersMoved = mm.moved; log.memberTotal = mm.total;
+        mm.failed.forEach((f) => log.failed.push({ name: `member ${f.name}`, error: f.error }));
         // swap old id -> new id in every referencing policy
         const refs = [...r.refs.include.map((p) => ({ ...p, how: "include" })), ...r.refs.exclude.map((p) => ({ ...p, how: "exclude" }))];
         for (let i = 0; i < refs.length; i++) {
@@ -2604,6 +2729,7 @@ max@contoso.com,"Global, DevOps"</pre>
       md.push(`- **Group:** ${r.name}`);
       md.push(`- **Old group renamed to:** ${legacy} (id \`${r.id}\`)`);
       md.push(`- **New role-assignable group id:** \`${log.newId}\``);
+      md.push(`- **Members moved:** ${log.membersMoved || 0}${log.memberTotal ? `/${log.memberTotal}` : ""}`);
       md.push(`- **Policies moved:** ${log.moved.length}${log.failed.length ? ` · **failed:** ${log.failed.length}` : ""}`);
       if (isDemo) md.push(`- _Demo mode — simulated._`);
       md.push("");
@@ -2621,7 +2747,7 @@ max@contoso.com,"Global, DevOps"</pre>
         log.failed.forEach((f) => md.push(`- ❌ **${f.name}** — ${f.error}`));
         md.push("");
       }
-      md.push("The old group is renamed, not deleted — copy its members to the new group, then remove the old group when you are satisfied.");
+      md.push("The old group is renamed, not deleted. Its members have been copied to the new group; remove the old group from **① Check → 🧹 Archived groups** once you are satisfied. A deleted group is recoverable for 30 days.");
       md.push("");
       md.push("---");
       md.push(`Generated by ${BRANDING.name} — Conditional Access groups`);

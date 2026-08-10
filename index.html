@@ -10,10 +10,10 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=218"></script>
+<script src="js/popup-guard.js?v=219"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=218">
+<link rel="stylesheet" href="css/app.css?v=219">
 </head>
 <body>
 
@@ -460,6 +460,7 @@
         </select></label>
       <div class="tb-actions">
         <button class="btn" id="cgFull" style="display:none" title="Open the members matrix full screen">⤢ Full screen</button>
+        <button class="btn" id="cgArchived" title="Groups a recreate renamed aside and nobody deleted">🧹 Archived groups</button>
         <button class="btn" id="cgRefresh" title="Re-scan the tenant">⟳ Refresh</button>
         <button class="btn" id="cgMd">Export MD</button>
       </div>
@@ -1273,6 +1274,21 @@
      old one aside, create a fresh role-assignable one with the original name,
      and move every referencing policy onto it. -->
 <!-- ============ DISABLE GROUP NESTING (BETA) ============ -->
+<!-- ============ ARCHIVED GROUP HOUSEKEEPING ============ -->
+<div class="modal-bg" id="arcModal">
+  <div class="modal" style="max-width:720px">
+    <h3>🧹 Archived groups</h3>
+    <p class="mini" id="arcSub"></p>
+    <div id="arcBody" style="max-height:52vh;overflow:auto"></div>
+    <label class="mini" for="arcOk" style="display:block;margin-top:10px">Type <b>DELETE</b> to remove the ticked groups</label>
+    <input id="arcOk" class="txt" placeholder="DELETE" autocomplete="off" spellcheck="false" style="margin-top:4px">
+    <div class="row">
+      <button class="btn" id="arcCancel">Close</button>
+      <button class="btn danger" id="arcGo" disabled>Delete ticked</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="nestModal">
   <div class="modal" style="max-width:640px">
     <h3>🚫 Disable group nesting <span class="tag new">BETA</span></h3>
@@ -1519,35 +1535,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=218"></script>
-<script src="js/version.js?v=218"></script>
-<script src="js/authConfig.js?v=218"></script>
-<script src="js/labels.js?v=218"></script>
-<script src="js/graph.js?v=218"></script>
-<script src="js/model.js?v=218"></script>
-<script src="js/render.js?v=218"></script>
-<script src="js/analyze.js?v=218"></script>
-<script src="js/whatif.js?v=218"></script>
-<script src="js/mslearn.js?v=218"></script>
-<script src="js/gapcheck.js?v=218"></script>
-<script src="js/exclusions.js?v=218"></script>
-<script src="js/validator.js?v=218"></script>
-<script src="js/whatifeval.js?v=218"></script>
-<script src="js/compare.js?v=218"></script>
-<script src="js/groupuse.js?v=218"></script>
-<script src="js/locations.js?v=218"></script>
-<script src="js/audit.js?v=218"></script>
-<script src="js/signins.js?v=218"></script>
-<script src="js/changelog.js?v=218"></script>
-<script src="js/baselineData.js?v=218"></script>
-<script src="js/baselineJoeyData.js?v=218"></script>
-<script src="js/baseline.js?v=218"></script>
-<script src="js/groupTemplates.js?v=218"></script>
-<script src="js/assign.js?v=218"></script>
-<script src="js/cagroups.js?v=218"></script>
-<script src="js/import.js?v=218"></script>
-<script src="js/export.js?v=218"></script>
-<script src="js/demo.js?v=218"></script>
-<script src="js/app.js?v=218"></script>
+<script src="js/branding.js?v=219"></script>
+<script src="js/version.js?v=219"></script>
+<script src="js/authConfig.js?v=219"></script>
+<script src="js/labels.js?v=219"></script>
+<script src="js/graph.js?v=219"></script>
+<script src="js/model.js?v=219"></script>
+<script src="js/render.js?v=219"></script>
+<script src="js/analyze.js?v=219"></script>
+<script src="js/whatif.js?v=219"></script>
+<script src="js/mslearn.js?v=219"></script>
+<script src="js/gapcheck.js?v=219"></script>
+<script src="js/exclusions.js?v=219"></script>
+<script src="js/validator.js?v=219"></script>
+<script src="js/whatifeval.js?v=219"></script>
+<script src="js/compare.js?v=219"></script>
+<script src="js/groupuse.js?v=219"></script>
+<script src="js/locations.js?v=219"></script>
+<script src="js/audit.js?v=219"></script>
+<script src="js/signins.js?v=219"></script>
+<script src="js/changelog.js?v=219"></script>
+<script src="js/baselineData.js?v=219"></script>
+<script src="js/baselineJoeyData.js?v=219"></script>
+<script src="js/baseline.js?v=219"></script>
+<script src="js/groupTemplates.js?v=219"></script>
+<script src="js/assign.js?v=219"></script>
+<script src="js/cagroups.js?v=219"></script>
+<script src="js/import.js?v=219"></script>
+<script src="js/export.js?v=219"></script>
+<script src="js/demo.js?v=219"></script>
+<script src="js/app.js?v=219"></script>
 </body>
 </html>

@@ -97,6 +97,41 @@ const CaGroups = (() => {
     return byId;
   }
 
+  // ---- archived leftovers -------------------------------------------------
+  // Recreating a group (role-assignable, dynamic, nesting) renames the original
+  // aside rather than deleting it — deliberately, so a bad run is recoverable.
+  // The cost is that they accumulate, and a directory full of
+  // "X (legacy 2026-08-04)" is its own kind of mess. This finds them.
+  //
+  // $search rather than $filter: Graph has no contains() for displayName, and
+  // enumerating every group to regex it client-side is not a thing to do to a
+  // 20 000-group tenant. The search is a net; ARCHIVE_SUFFIX is the sieve.
+  async function findArchived(raws) {
+    const seen = new Map();
+    for (const term of ["legacy", "nesting", "static"]) {
+      try {
+        const gs = await Graph.ggetAll(`/groups?$search=${encodeURIComponent(`"displayName:${term}"`)}`
+          + "&$select=id,displayName,isAssignableToRole,groupTypes,membershipRule,createdDateTime&$top=999");
+        gs.forEach((g) => { if (ARCHIVE_SUFFIX.test(g.displayName || "")) seen.set(g.id, g); });
+      } catch (e) { console.warn("CaGroups: archived search failed for", term, e.message); }
+    }
+    const refs = policyRefs(raws);
+    return [...seen.values()].map((g) => {
+      const ref = refs.get(g.id) || { include: [], exclude: [] };
+      return {
+        id: g.id,
+        name: g.displayName,
+        // the name it was archived FROM — what the live group should be called
+        liveName: String(g.displayName).replace(ARCHIVE_SUFFIX, "").trim(),
+        roleAssignable: !!g.isAssignableToRole,
+        dynamic: !!g.membershipRule,
+        created: g.createdDateTime || "",
+        refs: ref,
+        refCount: ref.include.length + ref.exclude.length,
+      };
+    }).sort((a, b) => b.refCount - a.refCount || a.name.localeCompare(b.name));
+  }
+
   // ---- scan ---------------------------------------------------------------
   // onStatus is called with human-readable progress; the caller decides
   // whether to show it. Nothing here writes.
@@ -324,6 +359,10 @@ const CaGroups = (() => {
     }
     if (row.nesting === "disabled") return { ...base, ok: false, reason: "Nesting is already disabled on this group." };
     if (row.dynamic) return { ...base, ok: false, reason: "This is a dynamic group. Its membership is decided by the rule, so a group cannot be added to it by hand in the first place." };
+    // Entra already forbids it: "Group nesting isn't supported. A group can't be
+    // added as a member of a role-assignable group."
+    // (learn.microsoft.com/entra/identity/role-based-access-control/groups-concept)
+    if (row.roleAssignable) return { ...base, ok: false, reason: "This is a role-assignable group, and Entra already refuses to put a group inside one — nesting is impossible here whatever disableNesting says. Nothing to do." };
 
     // The blocker. A nesting-disabled group cannot hold a group, so recreating
     // one that currently does means those memberships are lost — and with them,
@@ -610,11 +649,13 @@ const CaGroups = (() => {
             ${r.drift ? `<div class="mini" style="color:var(--report)">⚠ ${esc(r.drift)}</div>` : ""}
             ${roleDrift ? `<button class="btn sm" data-cgrecreate="${esc(r.name)}" style="margin-top:4px">↻ Recreate role-assignable</button>` : ""}
             ${dynDrift ? `<button class="btn sm" data-cgdynamic="${esc(r.name)}" style="margin-top:4px">⟳ Make dynamic</button>` : ""}
-            ${r.nesting === "disabled"
-              ? `<div class="mini" style="color:var(--on)">🚫 Nesting disabled — no group can be added as a member</div>`
-              : r.id && !r.dynamic
-                ? `<button class="btn sm" data-cgnesting="${esc(r.name)}" style="margin-top:4px" title="Stop any group being added as a member of this one">🚫 Disable nesting <span class="tag new">BETA</span></button>`
-                : ""}
+            ${r.roleAssignable
+              ? `<div class="mini" style="color:var(--on)">🚫 Nesting already impossible — Entra does not allow a group as a member of a role-assignable group</div>`
+              : r.nesting === "disabled"
+                ? `<div class="mini" style="color:var(--on)">🚫 Nesting disabled — no group can be added as a member</div>`
+                : r.id && !r.dynamic
+                  ? `<button class="btn sm" data-cgnesting="${esc(r.name)}" style="margin-top:4px" title="Stop any group being added as a member of this one">🚫 Disable nesting <span class="tag new">BETA</span></button>`
+                  : ""}
             ${r.status === "dangling" ? '<div class="mini" style="color:var(--off)">Referenced by a policy but not found in the directory</div>' : ""}</td>
           <td class="mini">${esc(type)}</td>
           <td class="mini">${r.refCount ? `${r.refCount} <span class="muted">(${r.refs.include.length} inc / ${r.refs.exclude.length} exc)</span>` : '<span class="muted">unused</span>'}</td>
@@ -866,6 +907,7 @@ const CaGroups = (() => {
     STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate,
     renderSummary, chips, renderTable, renderMatrix, toMd, filtered,
     NESTING, NEST_WRITE_SCOPES, nestingState, nestingPlan, nestingReport, adminList,
+    ARCHIVE_SUFFIX, findArchived,
     catalogGroupNames, templateNames, policyRefs, convertPlan, runConvert,
     csvParse, csvDetect, csvPersonas, csvUsers, csvSuggest, csvReport,
     rmauCandidates, rmauReport,

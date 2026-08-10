@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 219, date: "2026-08-10", title: "Recreates: bring the members, then clean up after",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "Disable nesting is no longer offered on a role-assignable group. Entra already refuses to put a group inside one — “Group nesting isn't supported. A group can't be added as a member of a role-assignable group” — so the property would have changed nothing, and the recreate it may have led to would have been a new object id for no gain at all. The row says why instead." },
+      { kind: "fixed", tool: "Conditional Access groups", text: "Recreating a group as role-assignable now carries its members across. It never did: it renamed the original, created the replacement, moved every policy — and left the new group empty, so an include group applied to nobody and an exclude group excluded nobody until someone noticed and copied the members by hand. Both recreate paths use the same move now, and both ask for RoleManagement.ReadWrite.Directory alongside Group.ReadWrite.All, because Microsoft is explicit that Group.ReadWrite.All alone cannot manage the membership of a role-assignable group." },
+      { kind: "new", tool: "Conditional Access groups", text: "🧹 Archived groups, in ① Check: the leftovers every recreate deliberately leaves behind — “X (legacy 2026-08-04)”, “X (nesting …)”, “X-static-…” — found, listed and deletable. Each row shows what replaced it, how many members it still has and which policies still reference it. Anything a policy still points at is left unticked, because deleting it would leave that policy targeting nothing; anything still holding members is flagged, because that means its members were never carried across. Typed confirmation, a Markdown record of what was removed, and a reminder that a deleted group is restorable for 30 days — and that Group Analyzer, linked from the dialog, is what tells you whether Intune, licensing or Azure RBAC still point at the old id." },
+    ],
+  },
+  {
     build: 218, date: "2026-08-10", title: "It assigns roles too, so it says so",
     items: [
       { kind: "improved", tool: "List Policies", text: "The action is called Assign groups or roles now — on the selection bar, on the per-policy card, in the help and at the top of the change report. It has been able to set directory roles since build 211, but the label still promised only groups, which is a good way to keep a capability hidden from the people who would use it. The wizard title follows what you are doing: “Assign groups or roles” while you are still choosing, then the specific one." },
