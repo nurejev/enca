@@ -21,6 +21,13 @@ const CIS_BENCHMARK = {
   name: "CIS Microsoft 365 Foundations Benchmark",
   version: "7.0.0",
   released: "2026-05-20",
+  // Catalog revision of THIS file — the CIS tool's own release track. Bump it
+  // whenever the control set or the assessment criteria change (a new
+  // benchmark version, an added control, a corrected criterion), independent
+  // of the app build and of the other tools' versions. Shown in the tool
+  // header and in the Markdown report so a reviewer can tell which catalog
+  // produced a given assessment.
+  revision: "2026-08-10",
   section: "5.2.2 Conditional Access",
   copyright: "Recommendation numbers and titles referenced from the CIS Microsoft 365 Foundations Benchmark v7.0.0, © Center for Internet Security, Inc. Assessment logic is ENCA's own implementation of the benchmark's Graph audit procedures.",
 

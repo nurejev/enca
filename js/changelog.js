@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 223, date: "2026-08-10", title: "CIS on its own track",
+    items: [
+      { kind: "improved", tool: "CIS Benchmark", text: "The tool header now carries its version (v0.2, hover for the release notes) like every other tool — it was the one head missing the stamp. And the CIS content is now managed on its own release track: the benchmark catalog (the 17 controls and their assessment criteria in cisdata.js) has a revision stamp of its own, shown in the header and in the Markdown report. A new benchmark version, an added control or a corrected criterion bumps the catalog revision — independent of the app build and of the other beta tools — so a reviewer can always tell which catalog produced a given assessment." },
+    ],
+  },
+  {
     build: 222, date: "2026-08-10", title: "Scored against CIS",
     items: [
       { kind: "new", tool: "CIS Benchmark", text: "A new tool: the tenant's Conditional Access policies assessed against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — all 17 automated recommendations of section 5.2.2 Conditional Access. Per control: pass, report-only (a policy meets every criterion but isn't enforced) or fail, with the benchmark's Graph audit criteria spelled out and — for every failing control — the nearest policies and exactly which criteria they miss, so the result doubles as the remediation map. Level 1 / Level 2 profile filter, licence-awareness (the three Identity Protection controls read 'not licensed' instead of 'fail' when the tenant has no Entra ID P2), an overall and per-level compliance score, and a Markdown compliance report. It's a CA compliance slice of the benchmark, not a full M365 scan — and it says so. Recommendation numbers and titles referenced from the CIS Benchmark, © Center for Internet Security; the full benchmark text is not reproduced." },
