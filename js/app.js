@@ -2892,6 +2892,8 @@ max@contoso.com,"Global, DevOps"</pre>
 
   // ---------- assign-groups wizard ----------
   let asStep = 0, asAction = null, asGroups = [], asPolicies = [], asResults = null;
+  // "groups" | "roles" — the portal's two ways of naming who a policy covers.
+  let asTarget = "groups", asRoles = [], asRoleQuery = "";
   // "selection" = the policies ticked in the list; "all" = every policy loaded
   // from the tenant. Tenant-wide is what you want for a break-glass or
   // service-account exclusion that must never miss a policy.
@@ -2905,6 +2907,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (asScope === "all" && !selected.size) toast("Nothing selected — scoped to <span>all policies</span>, change it in step 1");
     asPolicies = asScopePolicies();
     asStep = 0; asAction = null; asGroups = []; asResults = null; asFound = [];
+    asTarget = "groups"; asRoles = []; asRoleQuery = "";
     renderAssign();
     $("assignModal").classList.add("open");
   }
@@ -2914,6 +2917,8 @@ max@contoso.com,"Global, DevOps"</pre>
     $("asSub").textContent = `${asPolicies.length} ${asPolicies.length === 1 ? "policy" : "policies"}`
       + ` ${asScope === "all" ? "(every policy in this tenant)" : "selected"} · step ${Math.min(asStep + 1, 3)} of 3`;
     back.style.display = asStep > 0 && asStep < 3 ? "inline-flex" : "none";
+    const asT = $("asTitle");
+    if (asT) asT.textContent = asTarget === "roles" ? "Assign directory roles" : "Assign groups";
     next.style.display = "inline-flex";
     if (asStep === 0) {
       next.textContent = "Next";
@@ -2921,8 +2926,43 @@ max@contoso.com,"Global, DevOps"</pre>
       b.innerHTML = `<h4 class="mini" style="margin-bottom:8px">APPLY TO</h4>
         <label class="chk" style="margin:6px 0"><input type="radio" name="asScope" value="selection" ${asScope === "selection" ? "checked" : ""} ${nSel ? "" : "disabled"}> Selected policies (${nSel})</label>
         <label class="chk" style="margin:6px 0"><input type="radio" name="asScope" value="all" ${asScope === "all" ? "checked" : ""}> <b>All policies in this tenant (${nAll})</b> <span class="mini muted">— for an exclusion that must cover everything</span></label>
-        <h4 class="mini" style="margin:16px 0 8px">ACTION</h4>` + Assign.ACTIONS.map((a, i) =>
-        `<label class="chk" style="margin:6px 0"><input type="radio" name="asAct" value="${i}" ${asAction === i ? "checked" : ""}> ${assignEsc(a)}</label>`).join("");
+        <h4 class="mini" style="margin:16px 0 8px">ASSIGN</h4>
+        <label class="chk" style="margin:6px 0"><input type="radio" name="asTarget" value="groups" ${asTarget === "groups" ? "checked" : ""}> Groups</label>
+        <label class="chk" style="margin:6px 0"><input type="radio" name="asTarget" value="roles" ${asTarget === "roles" ? "checked" : ""}> <b>Directory roles</b> <span class="mini muted">— the portal's “Directory roles” under Include/Exclude</span></label>
+        <h4 class="mini" style="margin:16px 0 8px">ACTION</h4>` + Assign.actionsFor(asTarget).map((a, i) =>
+        a ? `<label class="chk" style="margin:6px 0"><input type="radio" name="asAct" value="${i}" ${asAction === i ? "checked" : ""}> ${assignEsc(a)}</label>` : "").join("");
+    } else if (asStep === 1 && asTarget === "roles") {
+      next.textContent = "Next";
+      if (!asRoles.length) {
+        b.innerHTML = '<p class="mini">Reading the directory roles…</p>';
+        try {
+          asRoles = (isDemo
+            ? Assign.ADMIN_ROLE_NAMES.map((n, i) => ({ id: "r" + i, name: n, description: "", recommended: true }))
+            : await Assign.roleTemplates()).map((r) => ({ ...r, checked: false }));
+        } catch (e) {
+          b.innerHTML = `<p class="mini" style="color:var(--off)">Could not read the directory roles: ${esc(e.message || e)}</p>`;
+          return;
+        }
+      }
+      const q = asRoleQuery.trim().toLowerCase();
+      const vis = q ? asRoles.filter((r) => r.name.toLowerCase().includes(q)) : asRoles;
+      const nSel = asRoles.filter((r) => r.checked).length;
+      const nRec = asRoles.filter((r) => r.recommended).length;
+      b.innerHTML = `<h4 class="mini" style="margin-bottom:6px">QUICK PICKS</h4>
+        <div class="persona-row">
+          <button class="btn sm" data-asroleset="recommended">Microsoft's privileged set (${nRec})</button>
+          <button class="btn sm" data-asroleset="all">All built-in roles (${asRoles.length})</button>
+          <button class="btn sm" data-asroleset="none">Clear</button>
+        </div>
+        <p class="mini muted" style="margin:8px 0 0">The privileged set is the minimum Microsoft recommends requiring MFA on — Global, Application, Authentication, Billing, Cloud Application, Conditional Access, Exchange, Helpdesk, Password, Privileged Authentication, Privileged Role, Security, SharePoint and User Administrator. Resolved against this tenant's own role templates, not hard-coded IDs.</p>
+        <p class="mini" style="margin:8px 0 0;color:var(--report)">⚠ Conditional Access only enforces <b>built-in</b> roles. Custom roles and administrative-unit-scoped assignments are not covered by a policy scoped this way — only the roles listed here are.</p>
+        <h4 class="mini" style="margin:16px 0 8px">DIRECTORY ROLES <span class="muted">(${nSel} selected)</span></h4>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="asRoleSearch" class="btn" style="flex:1;cursor:text" placeholder="Search roles…" value="${esc(asRoleQuery)}">
+        </div>
+        <div style="max-height:34vh;overflow:auto">` +
+        (vis.map((r) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asrole="${esc(r.id)}" ${r.checked ? "checked" : ""}> ${assignEsc(r.name)}${r.recommended ? ' <span class="tag grant">privileged</span>' : ""}</label>`).join("")
+          || '<p class="mini muted">No role matches that search.</p>') + `</div>`;
     } else if (asStep === 1) {
       next.textContent = "Next";
       if (!asGroups.length) {
@@ -2969,23 +3009,28 @@ max@contoso.com,"Global, DevOps"</pre>
     } else if (asStep === 2) {
       next.textContent = "Review →";
       const gsel = asGroups.filter(g => g.checked);
-      const notes = asAction === 2 && asPolicies.some(p => (p.raw.conditions?.users?.includeUsers || []).includes("All"))
-        ? '<p class="mini" style="color:var(--report)">⚠ Policies currently targeting "All users" will switch to the selected groups.</p>' : "";
+      const rsel = asRoles.filter((r) => r.checked);
+      const isRoles = asTarget === "roles";
+      const notes = (asAction === 2 || (isRoles && asAction === 0)) && asPolicies.some(p => (p.raw.conditions?.users?.includeUsers || []).includes("All"))
+        ? `<p class="mini" style="color:var(--report)">⚠ Policies currently targeting "All users" will switch to the selected ${isRoles ? "roles" : "groups"}.</p>` : "";
       // Replace (0,1) and All-Users (4) rewrite existing assignment, so tenant-
       // wide they get a typed confirmation. Additive (2,3) and REMOVE (5,6) only
       // touch the named groups, so they are safe to run across everything.
       const rewrites = asAction === 0 || asAction === 1 || asAction === 4;
       const wide = asScope === "all" && rewrites;
       const wideWarn = wide ? `<div class="danger-note"><b>This rewrites the assignment of all ${asPolicies.length} policies.</b>
-          "${assignEsc(Assign.ACTIONS[asAction])}" replaces what is there now — it does not merge. Type <b>ALL</b> if that is really what you want.</div>
+          "${assignEsc(Assign.actionsFor(asTarget)[asAction])}" replaces what is there now — it does not merge. Type <b>ALL</b> if that is really what you want.</div>
         <input id="asWideOk" class="txt" placeholder="ALL" autocomplete="off" spellcheck="false" style="margin-bottom:6px">` : "";
-      b.innerHTML = `<h4 class="mini">STEP 3 — choose target groups</h4>
+      b.innerHTML = `<h4 class="mini">STEP 3 — review</h4>
         ${wideWarn}
-        <p style="margin:8px 0"><b>Action:</b> ${assignEsc(Assign.ACTIONS[asAction])}</p>
+        <p style="margin:8px 0"><b>Action:</b> ${assignEsc(Assign.actionsFor(asTarget)[asAction])}</p>
         <p style="margin:8px 0"><b>Policies (${asPolicies.length}):</b></p>
         <ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px">${asPolicies.map(p => `<li>${assignEsc(p.name)}</li>`).join("")}</ul>
         ${asAction === 4 ? '<p><b>Target:</b> All users (include groups will be cleared)</p>'
-          : `<p style="margin:8px 0"><b>Groups (${gsel.length}):</b></p><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${gsel.map(g => `<li>${assignEsc(g.name)} <span class="mini">${assignEsc(g.id)}</span></li>`).join("")}</ul>`}
+          : isRoles
+            ? `<p style="margin:8px 0"><b>Directory roles (${rsel.length}):</b></p><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${rsel.map(r => `<li>${assignEsc(r.name)}${r.recommended ? ' <span class="tag grant">privileged</span>' : ""}</li>`).join("")}</ul>
+               <p class="mini muted" style="margin:6px 0 0">Built-in roles only — Conditional Access does not enforce custom or administrative-unit-scoped roles.</p>`
+            : `<p style="margin:8px 0"><b>Groups (${gsel.length}):</b></p><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${gsel.map(g => `<li>${assignEsc(g.name)} <span class="mini">${assignEsc(g.id)}</span></li>`).join("")}</ul>`}
         ${notes}`;
     } else {
       // results
@@ -3011,7 +3056,11 @@ max@contoso.com,"Global, DevOps"</pre>
   $("asBody").addEventListener("change", (e) => {
     const sc = e.target.closest('[name="asScope"]');
     if (sc) { asScope = sc.value; asPolicies = asScopePolicies(); renderAssign(); return; }
+    const t = e.target.closest('[name="asTarget"]');
+    if (t) { asTarget = t.value; asAction = null; renderAssign(); return; }   // actions differ per target
     const r = e.target.closest('[name="asAct"]'); if (r) { asAction = +r.value; return; }
+    const rr = e.target.closest("[data-asrole]");
+    if (rr) { const role = asRoles.find((x) => x.id === rr.dataset.asrole); if (role) role.checked = rr.checked; renderAssign(); return; }
     const g = e.target.closest("[data-asg]"); if (g) { asGroups[+g.dataset.asg].checked = g.checked; return; }
     // a search hit promotes into the target list, so review shows it like any other
     const f = e.target.closest("[data-asfound]");
@@ -3022,7 +3071,19 @@ max@contoso.com,"Global, DevOps"</pre>
     else asGroups.find(x => x.id === g.id).checked = true;
     renderAssign();
   }
+  $("asBody").addEventListener("input", (e) => {
+    if (e.target.id === "asRoleSearch") {
+      asRoleQuery = e.target.value; renderAssign();
+      const el = $("asRoleSearch"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    }
+  });
   $("asBody").addEventListener("click", async (e) => {
+    const set = e.target.closest("[data-asroleset]");
+    if (set) {
+      const how = set.dataset.asroleset;
+      asRoles.forEach((r) => { r.checked = how === "all" ? true : how === "recommended" ? !!r.recommended : false; });
+      renderAssign(); return;
+    }
     const pc = e.target.closest("[data-asPersona]");
     if (pc) {
       const name = pc.dataset.asPersona;
@@ -3097,7 +3158,9 @@ max@contoso.com,"Global, DevOps"</pre>
       asStep = asAction === 4 ? 2 : 1; // "All Users" needs no group selection
       renderAssign();
     } else if (asStep === 1) {
-      if (!asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
+      if (asTarget === "roles") {
+        if (!asRoles.some((r) => r.checked)) { toast("Select at least one <span>directory role</span>"); return; }
+      } else if (!asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
       asStep = 2; renderAssign();
     } else if (asStep === 2) {
       const wideBox = $("asWideOk");
@@ -3105,7 +3168,9 @@ max@contoso.com,"Global, DevOps"</pre>
         toast("Type <span>ALL</span> to confirm a tenant-wide assignment change");
         wideBox.focus(); return;
       }
-      if (asAction !== 4 && !asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
+      if (asTarget === "roles") {
+        if (!asRoles.some((r) => r.checked)) { toast("Select at least one <span>directory role</span>"); return; }
+      } else if (asAction !== 4 && !asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
       openAssignConfirm();
     } else {
       $("assignModal").classList.remove("open");
@@ -3123,12 +3188,24 @@ max@contoso.com,"Global, DevOps"</pre>
   function openAssignConfirm() {
     const gsel = asGroups.filter(g => g.checked);
     const scope = asScope === "all" ? `all **${asPolicies.length}** policies in this tenant` : `**${asPolicies.length}** selected polic${asPolicies.length === 1 ? "y" : "ies"}`;
-    const verb = AS_VERB[asAction] || Assign.ACTIONS[asAction];
+    const rsel = asRoles.filter((r) => r.checked);
+    const verb = (asTarget === "roles"
+      ? (AS_VERB[asAction] || "").replace(/groups/g, "roles")
+      : AS_VERB[asAction]) || Assign.actionsFor(asTarget)[asAction];
     const lines = [];
     lines.push(`**${verb}** ${scope}.`);
     lines.push("");
     if (asAction === 4) {
       lines.push("The include assignment becomes **All users** and any include groups are cleared.");
+    } else if (asTarget === "roles") {
+      lines.push(`Directory role${rsel.length === 1 ? "" : "s"}:`);
+      rsel.forEach((r) => lines.push(`- ${r.name}${r.recommended ? " *(privileged)*" : ""}`));
+      lines.push("");
+      lines.push("_Conditional Access enforces built-in roles only — custom roles and administrative-unit-scoped assignments are not covered by this._");
+      if ((asAction === 0 || asAction === 2) && asPolicies.some((p) => (p.raw.conditions?.users?.includeUsers || []).includes("All"))) {
+        lines.push("");
+        lines.push("⚠ Policies currently including **All users** will switch to covering only these roles.");
+      }
     } else {
       lines.push(`Group${gsel.length === 1 ? "" : "s"}:`);
       gsel.forEach(g => lines.push(`- ${g.name}`));
@@ -3152,11 +3229,15 @@ max@contoso.com,"Global, DevOps"</pre>
         asResults = asPolicies.map(p => ({ name: p.name, ok: true, changed: true }));
         toast("Demo — changes <span>simulated</span>");
       } else {
-        asResults = await Assign.apply(asPolicies.map(p => p.id), asAction, gids, (m) => toast(m));
+        const ids = asTarget === "roles" ? asRoles.filter(r => r.checked).map(r => r.id) : gids;
+        asResults = await Assign.apply(asPolicies.map(p => p.id), asAction, ids, (m) => toast(m), asTarget);
       }
       // Snapshot the run so the report reflects exactly what was applied, not
       // whatever the wizard state happens to be when the button is clicked.
-      asRun = { action: asAction, scope: asScope, groups: asGroups.filter(g => g.checked).map(g => ({ ...g })), results: asResults, when: new Date() };
+      asRun = { action: asAction, scope: asScope, target: asTarget,
+        groups: asGroups.filter(g => g.checked).map(g => ({ ...g })),
+        roles: asRoles.filter(r => r.checked).map(r => ({ ...r })),
+        results: asResults, when: new Date() };
       $("asConfirm").classList.remove("open");
       asStep = 3; renderAssign();
       const failed = asResults.filter(r => !r.ok).length;
@@ -3181,7 +3262,8 @@ max@contoso.com,"Global, DevOps"</pre>
     const up = r.filter(x => x.ok && x.changed !== false);
     const unch = r.filter(x => x.ok && x.changed === false);
     const fail = r.filter(x => !x.ok);
-    const verb = AS_VERB[run.action] || Assign.ACTIONS[run.action];
+    const verb = (run.target === "roles" ? (AS_VERB[run.action] || "").replace(/groups/g, "roles") : AS_VERB[run.action])
+      || Assign.actionsFor(run.target)[run.action];
     const L = [];
     L.push(`# Conditional Access — group assignment report`);
     L.push("");
@@ -3190,7 +3272,9 @@ max@contoso.com,"Global, DevOps"</pre>
     L.push(`- **Action:** ${md(verb)}`);
     L.push(`- **Scope:** ${run.scope === "all" ? `all ${r.length} policies in the tenant` : `${r.length} selected`}`);
     if (run.action !== 4) {
-      L.push(`- **Group(s):** ${run.groups.map(g => `${md(g.name)}${g.id ? ` (\`${md(g.id)}\`)` : ""}`).join(", ") || "—"}`);
+      L.push(run.target === "roles"
+        ? `- **Directory role(s):** ${(run.roles || []).map(r => `${md(r.name)}${r.recommended ? " *(privileged)*" : ""}`).join(", ") || "—"}`
+        : `- **Group(s):** ${run.groups.map(g => `${md(g.name)}${g.id ? ` (\`${md(g.id)}\`)` : ""}`).join(", ") || "—"}`);
     }
     L.push(`- **Result:** ${up.length} updated · ${unch.length} already set · ${fail.length} failed`);
     if (isDemo) L.push(`- _Demo mode — simulated, nothing was written._`);

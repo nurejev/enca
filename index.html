@@ -10,10 +10,10 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=210"></script>
+<script src="js/popup-guard.js?v=211"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=210">
+<link rel="stylesheet" href="css/app.css?v=211">
 </head>
 <body>
 
@@ -1032,6 +1032,7 @@
         <li><b>⟳ Make dynamic</b> — appears when the template defines a membership rule but the tenant group is <b>assigned</b>. A plain security group is converted <b>in place</b>: same id, so every policy, app and role assignment that points at it is untouched. A <b>role-assignable</b> group cannot be dynamic at all — Entra makes the two mutually exclusive and <code>isAssignableToRole</code> is immutable — so it is replaced instead: the old group is renamed <code>-static-YYYYMMDD</code> and kept as your rollback, a dynamic group is created under the original name, added to the include/exclude of every policy that referenced the old one, and only then is the old one removed from those policies (so nothing is uncovered mid-flight). The replacement is <b>not role-assignable</b> — don’t convert a group that carries a directory role or PIM assignment. In both cases members who don’t match the rule stop being members.</li>
         <li><b>Members</b> — a members × groups matrix.</li>
         <li><b>Assign</b> — add a group to policies’ include or exclude lists (ADD is additive — it never removes what’s there). A final confirmation and a change report before anything is written.</li>
+        <li><b>Assign directory roles <span class="tag new">NEW</span></b> — the wizard can target a policy’s <b>Directory roles</b> include/exclude, the same assignment the portal offers, not only groups. Choose <b>Directory roles</b> at the top and the same actions apply to them (bar “All users”, which has no role equivalent). Quick picks give <b>Microsoft’s privileged set</b> — the fourteen roles Microsoft names as the minimum to require MFA on, resolved against this tenant’s own role templates rather than hard-coded IDs — or every built-in role. <b>Conditional Access enforces built-in roles only:</b> custom roles and administrative-unit-scoped assignments are not covered by a policy scoped this way, which the wizard says at the point of choosing, in the review and in the change report.</li>
         <li><b>🚫 Disable group nesting <span class="tag new">BETA</span></b> — on any present, non-dynamic group in <b>① Check</b>. A nested group is an invisible route into a Conditional Access assignment: someone adds a group to a group and a policy's scope widens without the policy being touched, and the extra members never show up in a review of the policy itself. Entra's beta <code>disableNesting</code> property closes that side door — with it set, no group can be added as a member.<br>
         Two things make this awkward, and the tool is explicit about both. <b>Reading it is not free</b>: a plain read does not return the property at all, so ENCA asks for it separately and reports three states — disabled, allowed, or <i>not reported</i> (which honestly means "this tenant does not surface it yet", not "allowed"). <b>Writing it is undocumented</b>: Microsoft lists a dedicated permission for updating it but does not list the property as updatable, and in the field it currently only takes at creation. So ENCA <b>tries the in-place change first</b> — and verifies it by reading the value back, because Entra will accept a PATCH and silently ignore a property it does not know. Only if that genuinely fails does it offer to <b>recreate</b> the group: rename the current one aside, create it again with nesting disabled, move the user members and repoint every Conditional Access assignment. That path is behind its own typed confirmation, never the first one. When Microsoft finishes shipping this, the recreate simply stops being offered.<br>
         <b>It refuses to run on a group that already contains nested groups.</b> A nesting-disabled group cannot hold them, so recreating would silently drop those memberships and every user who was only a member through them. The tool names the nested groups and stops, so you resolve it deliberately.<br>
@@ -1181,7 +1182,7 @@
 <!-- ============ ASSIGN GROUPS WIZARD ============ -->
 <div class="modal-bg" id="assignModal">
   <div class="modal" style="max-width:640px">
-    <h3>Assign groups</h3>
+    <h3 id="asTitle">Assign groups</h3>
     <p class="mini" id="asSub"></p>
     <div id="asBody" style="max-height:60vh;overflow:auto"></div>
     <div class="row">
@@ -1518,35 +1519,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=210"></script>
-<script src="js/version.js?v=210"></script>
-<script src="js/authConfig.js?v=210"></script>
-<script src="js/labels.js?v=210"></script>
-<script src="js/graph.js?v=210"></script>
-<script src="js/model.js?v=210"></script>
-<script src="js/render.js?v=210"></script>
-<script src="js/analyze.js?v=210"></script>
-<script src="js/whatif.js?v=210"></script>
-<script src="js/mslearn.js?v=210"></script>
-<script src="js/gapcheck.js?v=210"></script>
-<script src="js/exclusions.js?v=210"></script>
-<script src="js/validator.js?v=210"></script>
-<script src="js/whatifeval.js?v=210"></script>
-<script src="js/compare.js?v=210"></script>
-<script src="js/groupuse.js?v=210"></script>
-<script src="js/locations.js?v=210"></script>
-<script src="js/audit.js?v=210"></script>
-<script src="js/signins.js?v=210"></script>
-<script src="js/changelog.js?v=210"></script>
-<script src="js/baselineData.js?v=210"></script>
-<script src="js/baselineJoeyData.js?v=210"></script>
-<script src="js/baseline.js?v=210"></script>
-<script src="js/groupTemplates.js?v=210"></script>
-<script src="js/assign.js?v=210"></script>
-<script src="js/cagroups.js?v=210"></script>
-<script src="js/import.js?v=210"></script>
-<script src="js/export.js?v=210"></script>
-<script src="js/demo.js?v=210"></script>
-<script src="js/app.js?v=210"></script>
+<script src="js/branding.js?v=211"></script>
+<script src="js/version.js?v=211"></script>
+<script src="js/authConfig.js?v=211"></script>
+<script src="js/labels.js?v=211"></script>
+<script src="js/graph.js?v=211"></script>
+<script src="js/model.js?v=211"></script>
+<script src="js/render.js?v=211"></script>
+<script src="js/analyze.js?v=211"></script>
+<script src="js/whatif.js?v=211"></script>
+<script src="js/mslearn.js?v=211"></script>
+<script src="js/gapcheck.js?v=211"></script>
+<script src="js/exclusions.js?v=211"></script>
+<script src="js/validator.js?v=211"></script>
+<script src="js/whatifeval.js?v=211"></script>
+<script src="js/compare.js?v=211"></script>
+<script src="js/groupuse.js?v=211"></script>
+<script src="js/locations.js?v=211"></script>
+<script src="js/audit.js?v=211"></script>
+<script src="js/signins.js?v=211"></script>
+<script src="js/changelog.js?v=211"></script>
+<script src="js/baselineData.js?v=211"></script>
+<script src="js/baselineJoeyData.js?v=211"></script>
+<script src="js/baseline.js?v=211"></script>
+<script src="js/groupTemplates.js?v=211"></script>
+<script src="js/assign.js?v=211"></script>
+<script src="js/cagroups.js?v=211"></script>
+<script src="js/import.js?v=211"></script>
+<script src="js/export.js?v=211"></script>
+<script src="js/demo.js?v=211"></script>
+<script src="js/app.js?v=211"></script>
 </body>
 </html>

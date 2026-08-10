@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 211, date: "2026-08-04", title: "Assign directory roles, not just groups",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "The assign wizard can now target a policy's Directory roles — the same include and exclude the portal offers under Users. Choose Groups or Directory roles at the top, and the same actions apply to whichever you picked, bar “Set INCLUDE to All Users”, which has no role equivalent and is hidden. This is the assignment behind every “require MFA for admins” policy, and it was the one thing the wizard could not express." },
+      { kind: "new", tool: "Conditional Access groups", text: "Quick picks: Microsoft's privileged set — the fourteen roles Microsoft names as the minimum to require MFA on (Global, Application, Authentication, Billing, Cloud Application, Conditional Access, Exchange, Helpdesk, Password, Privileged Authentication, Privileged Role, Security, SharePoint and User Administrator) — or every built-in role, or clear. The set is held as names and resolved against this tenant's own role templates rather than hard-coded GUIDs, because a wrong GUID would silently target nothing at all." },
+      { kind: "improved", tool: "Conditional Access groups", text: "The wizard is explicit about the limit that catches people out: Conditional Access enforces built-in roles only. Custom roles and administrative-unit-scoped assignments are not covered by a policy scoped this way — said at the point of choosing, again in the review, and once more in the change report. Setting include roles on a policy that currently covers All users warns that it will narrow to those roles." },
+      { kind: "fixed", tool: "Conditional Access groups", text: "The no-op check that skips policies an assign would not change compared only groups and users. A role-only edit therefore compared equal and would have been skipped on every policy — the run reporting success having written nothing. It compares roles now." },
+    ],
+  },
+  {
     build: 210, date: "2026-08-04", title: "Small things: version on the tool, autofill on the search",
     items: [
       { kind: "improved", tool: "All tools", text: "The version badge now sits on the tool's own header card, not only on the home tile — which is where you are when you wonder whether what you are looking at has changed since last time. Hovering it still gives the full note of what that version covers. It survives the tool re-rendering its own header, so it does not vanish after a scan." },

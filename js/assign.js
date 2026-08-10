@@ -19,6 +19,45 @@ const Assign = (() => {
   // Which actions read a group selection (everything except "All Users").
   const NEEDS_GROUPS = (a) => a !== 4;
 
+  // The same seven actions, aimed at directory roles instead. This is the
+  // portal's "Directory roles" under Include/Exclude — the assignment behind
+  // every "require MFA for admins" policy. "All users" has no role equivalent,
+  // so that slot is empty and the wizard hides it.
+  const ROLE_ACTIONS = [
+    "Set INCLUDE roles (replace current include roles)",
+    "Set EXCLUDE roles (replace current exclude roles)",
+    "ADD to INCLUDE roles (keep existing, add selected)",
+    "ADD to EXCLUDE roles (keep existing, add selected)",
+    null,
+    "REMOVE from INCLUDE roles (keep the rest)",
+    "REMOVE from EXCLUDE roles (keep the rest)",
+  ];
+  const actionsFor = (target) => (target === "roles" ? ROLE_ACTIONS : ACTIONS);
+
+  // Microsoft's minimum set for "require MFA for administrators"
+  // (learn.microsoft.com/entra/identity/conditional-access/policy-old-require-mfa-admin).
+  // Held as NAMES and resolved against the tenant's own role templates rather
+  // than hard-coded GUIDs — a wrong GUID here would silently target nothing.
+  const ADMIN_ROLE_NAMES = [
+    "Global Administrator", "Application Administrator", "Authentication Administrator",
+    "Billing Administrator", "Cloud Application Administrator", "Conditional Access Administrator",
+    "Exchange Administrator", "Helpdesk Administrator", "Password Administrator",
+    "Privileged Authentication Administrator", "Privileged Role Administrator",
+    "Security Administrator", "SharePoint Administrator", "User Administrator",
+  ];
+
+  // Conditional Access is enforced for BUILT-IN roles only — not custom roles
+  // and not administrative-unit-scoped assignments. directoryRoleTemplates is
+  // exactly the built-in set, and its id IS the roleTemplateId a policy stores.
+  async function roleTemplates() {
+    const list = await Graph.ggetAll("/directoryRoleTemplates?$select=id,displayName,description");
+    const rec = new Set(ADMIN_ROLE_NAMES.map((n) => n.toLowerCase()));
+    return list
+      .map((r) => ({ id: r.id, name: r.displayName || r.id, description: r.description || "",
+                     recommended: rec.has(String(r.displayName || "").toLowerCase()) }))
+      .sort((a, b) => (b.recommended - a.recommended) || a.name.localeCompare(b.name));
+  }
+
   // The baseline personas and the group that represents each. Lets the wizard
   // offer "pick by persona" instead of hunting for the exact group name — and
   // create it from a template if the tenant does not have it yet. Order matches
@@ -148,7 +187,8 @@ const Assign = (() => {
   function templates() { return typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []; }
 
   // Same semantics as the PowerShell script's action switch.
-  function newUsersBlock(raw, action, groupIds) {
+  function newUsersBlock(raw, action, groupIds, target) {
+    if (target === "roles") return newRolesBlock(raw, action, groupIds);
     const u = raw.conditions?.users || {};
     const cur = {
       includeUsers: u.includeUsers || [], excludeUsers: u.excludeUsers || [],
@@ -195,22 +235,66 @@ const Assign = (() => {
     };
   }
 
+  // Roles version. Deliberately a separate function rather than more branches
+  // in the one above: the two share the shape but not the edge cases, and the
+  // group path is the one everything else already depends on.
+  function newRolesBlock(raw, action, roleIds) {
+    const u = raw.conditions?.users || {};
+    const cur = {
+      includeUsers: u.includeUsers || [], excludeUsers: u.excludeUsers || [],
+      includeGroups: u.includeGroups || [], excludeGroups: u.excludeGroups || [],
+      includeRoles: u.includeRoles || [], excludeRoles: u.excludeRoles || [],
+    };
+    let { includeUsers, includeRoles, excludeRoles } = cur;
+    const notes = [];
+    // Include is a choice in the portal: All users, or a selection. A policy
+    // holding "All" cannot also hold a role selection, so setting one clears
+    // the other — and says so, because it changes who the policy covers.
+    const clearAll = () => {
+      if (includeUsers.includes("All")) {
+        includeUsers = ["None"];
+        notes.push("clears 'All users' from include (the role selection takes over)");
+      }
+    };
+    switch (action) {
+      case 0: clearAll(); includeRoles = [...roleIds]; break;
+      case 1: excludeRoles = [...roleIds]; break;
+      case 2: clearAll(); includeRoles = [...new Set([...cur.includeRoles, ...roleIds])]; break;
+      case 3: excludeRoles = [...new Set([...cur.excludeRoles, ...roleIds])]; break;
+      case 5: { const drop = new Set(roleIds); includeRoles = cur.includeRoles.filter((r) => !drop.has(r)); break; }
+      case 6: { const drop = new Set(roleIds); excludeRoles = cur.excludeRoles.filter((r) => !drop.has(r)); break; }
+    }
+    return {
+      users: {
+        includeUsers, excludeUsers: cur.excludeUsers,
+        includeGroups: cur.includeGroups, excludeGroups: cur.excludeGroups,
+        includeRoles, excludeRoles,
+      },
+      notes,
+    };
+  }
+
   // Apply to each policy: GET a fresh copy, compute the new users block, PATCH.
   // Would this new users block actually change the group assignment? Removal
   // (and add) is a no-op on a policy that never referenced the group; skipping
   // the PATCH there means a tenant-wide remove only writes the policies that
   // really had it, and the result list can say "unchanged" for the rest.
+  // Would this new users block actually change the assignment? Roles are in
+  // here too: without them a role-only edit compares equal on the group fields
+  // and gets skipped as "no change", which is a silent no-op on every policy.
   function groupsChanged(raw, users) {
     const u = raw.conditions?.users || {};
     const same = (a, b) => { const A = new Set(a || []), B = new Set(b || []); return A.size === B.size && [...A].every((x) => B.has(x)); };
     return !same(u.includeGroups, users.includeGroups)
       || !same(u.excludeGroups, users.excludeGroups)
+      || !same(u.includeRoles, users.includeRoles)
+      || !same(u.excludeRoles, users.excludeRoles)
       || !same(u.includeUsers, users.includeUsers);
   }
 
   const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  async function apply(policyIds, action, groupIds, onStatus) {
+  async function apply(policyIds, action, groupIds, onStatus, target) {
     const results = [];
     for (let i = 0; i < policyIds.length; i++) {
       let name = policyIds[i];
@@ -218,7 +302,7 @@ const Assign = (() => {
         const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${policyIds[i]}`);
         name = fresh.displayName || name;
         onStatus?.(`Updating ${name} (${i + 1}/${policyIds.length})…`);
-        const { users } = newUsersBlock(fresh, action, groupIds);
+        const { users } = newUsersBlock(fresh, action, groupIds, target);
         if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false }); continue; }
         await Graph.gpatch(`/identity/conditionalAccess/policies/${policyIds[i]}`, { conditions: { users } });
         results.push({ name, ok: true, changed: true });
@@ -234,5 +318,5 @@ const Assign = (() => {
     return results;
   }
 
-  return { ACTIONS, NEEDS_GROUPS, REMOVE_ACTIONS, PERSONAS, personasWithGroup, templateFor, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, templates };
+  return { ACTIONS, ROLE_ACTIONS, actionsFor, ADMIN_ROLE_NAMES, roleTemplates, NEEDS_GROUPS, REMOVE_ACTIONS, PERSONAS, personasWithGroup, templateFor, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, templates };
 })();
