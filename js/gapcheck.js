@@ -741,14 +741,20 @@ const GapCheck = (() => {
 
     const bgOk = has("Break-Glass Coverage", ["info"]);
     const bgMissing = has("Break-Glass Coverage", ["critical"]);
-    const legacyBlocked = !has("Legacy Authentication", ["critical", "high"]);
+    // Measured from the policies, NOT from the findings: an unrelated
+    // legacy-auth finding (an MFA policy that lists legacy client types
+    // without blocking them) must not erase credit for a real, enabled
+    // legacy-auth block elsewhere.
+    const legacyEnabled = enabled.some((p) => targetsLegacy(p) && hasBlock(p));
+    const legacyRO = !legacyEnabled && raws.filter(isReportOnly).some((p) => targetsLegacy(p) && hasBlock(p));
+    const legacyBlocked = legacyEnabled;
     const anySif = active.some((p) => p.sessionControls?.signInFrequency?.isEnabled);
     const resilienceOk = !has("Resilience Defaults");
     const anyBlock = enabled.some(hasBlock);
 
     const assume = [
       ["Break-glass identified and excluded everywhere", 3, bgOk ? 100 : bgMissing ? 0 : 50],
-      ["Legacy authentication blocked", 3, legacyBlocked ? 100 : 0],
+      ["Legacy authentication blocked", 3, legacyEnabled ? 100 : legacyRO ? 50 : 0],
       ["Sign-in frequency in use", 1, anySif ? 100 : 0],
       ["Resilience defaults intact", 1, resilienceOk ? 100 : 0],
       ["Block policies deployed", 1, anyBlock ? 100 : 0],

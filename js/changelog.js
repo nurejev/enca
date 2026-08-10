@@ -19,7 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
-    build: 213, date: "2026-07-29", title: "A posture score, and seven checks deeper",
+    build: 214, date: "2026-08-10", title: "Credit where the block is",
+    items: [
+      { kind: "fixed", tool: "Best-practice & bypass checks", text: "The scorecard's 'Legacy authentication blocked' signal scored 0 when ANY legacy-auth finding existed — so an unrelated policy that lists legacy client types without blocking them erased the credit for a real, enabled legacy-auth block (e.g. CA002-BLOCK-…-LegacyAuthentication). The signal is now measured from the policies directly: 100 for an enabled block targeting legacy client types, 50 when the block only exists in report-only, 0 when there is none. Findings still tell the full story either way." },
+    ],
+  },
+  {
+    build: 213, date: "2026-08-10", title: "A posture score, and seven checks deeper",
     items: [
       { kind: "new", tool: "Best-practice & bypass checks", text: "Zero Trust scorecard — three pillars (Verify explicitly, Least privilege, Assume breach), each a weighted average of 0-100 signals derived from the policy set and the findings, with an overall posture number on the summary and in the Markdown export. A number, not a verdict: it points at the findings, it does not replace them. Modeled on the scorecard in Jhope188's CA Policy Analyzer (independent reimplementation, credited in the README)." },
       { kind: "new", tool: "Best-practice & bypass checks", text: "Seven new checks: no sign-in-risk / no user-risk policy (Identity Protection signals computed but unused), Microsoft-managed policy detection including disabled Baseline Security Mode phantom drafts (MC1246002), platform-scoped policies without an unknown-platform block (the platform condition comes from the user agent, which is spoofable), named-location hygiene (dangling location references, 'All trusted locations' while IP locations sit unmarked, country locations with empty country lists), broad MFA policies with client-app-type holes, disabled resilience defaults, and authentication-context / Protected Actions policies (basic MFA instead of a strength, All-users scoping, report-only step-up, missing break-glass exclusions)." },
