@@ -67,7 +67,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-audit", "screen-signins", "screen-protect", "screen-changelog", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-recycle", "screen-audit", "screen-signins", "screen-protect", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Per-screen scroll memory: switching tabs used to jump to the top and lose
@@ -997,6 +997,7 @@
     ["toolLocations", "🌐 Named locations"],
     ["toolAuthCtx", "🎫 Authentication contexts"],
     ["toolAuthStr", "💪 Authentication strengths"],
+    ["toolRecycle", "♻ Recycle bin"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
@@ -1146,11 +1147,12 @@
   });
 
   // ---------- delete policies ----------
-  // Entra has no recycle bin for Conditional Access, so a delete is final. The
-  // guards are deliberately heavier than for any other action here: the raw
-  // JSON is offered as a download first (that backup IS the only undo), the
-  // word DELETE must be typed, and enforced policies need a second tick because
-  // removing one silently drops a control that is live right now.
+  // A deleted policy sits in the CA recycle bin for 30 days (♻ Recycle bin
+  // tool restores it), but it stops applying the moment it is deleted. The
+  // guards therefore stay deliberately heavy: the raw JSON is offered as a
+  // download first (the only undo after the 30-day window), the word DELETE
+  // must be typed, and enforced policies need a second tick because removing
+  // one silently drops a control that is live right now.
   function delSelection() {
     return exportOrder([...selected].map(id => policies.find(p => p.id === id))).filter(Boolean);
   }
@@ -5577,6 +5579,157 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("💪 Authentication strengths", "CA-AuthenticationStrengths", AuthStrengths.toMd(asList, policies.map((p) => p.raw), { tenantName }));
   });
 
+  // ---------- Recycle bin (BETA — view / restore deleted CA policies & locations) ----------
+  const RC_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let rcPols = null, rcLocs = null, rcFilter = "all", rcQuery = "", rcRestoring = null;
+  // Demo data: two deleted policies (one was On — the dangerous restore) and
+  // a deleted location, with believable deletion timestamps.
+  const RC_DEMO = () => {
+    const ago = (d) => new Date(Date.now() - d * 864e5).toISOString();
+    return {
+      pols: [
+        { id: "del-pol-1", displayName: "CA004-GRANT-Global-MFA-AllApps-AnyPlatform-v2.9 (superseded)", state: "disabled", deletedDateTime: ago(3),
+          conditions: { users: { includeUsers: ["All"] }, applications: { includeApplications: ["All"] } }, grantControls: { builtInControls: ["mfa"] } },
+        { id: "del-pol-2", displayName: "CA210-BLOCK-Internals-LegacyAuth-v1.0", state: "enabled", deletedDateTime: ago(26),
+          conditions: { users: { includeGroups: ["g1"] }, applications: { includeApplications: ["All"] }, clientAppTypes: ["exchangeActiveSync", "other"] }, grantControls: { builtInControls: ["block"] } },
+      ],
+      locs: [
+        { id: "del-loc-1", displayName: "Old branch office", "@odata.type": "#microsoft.graph.ipNamedLocation", isTrusted: true, deletedDateTime: ago(12), ipRanges: [{ cidrAddress: "198.51.100.0/24" }] },
+      ],
+    };
+  };
+
+  async function openRecycle(force) {
+    crumb("♻ Recycle bin");
+    show("screen-recycle");
+    if (rcPols && !force) { renderRecycle(); return; }   // cached
+    $("rcHead").innerHTML = '<h3>♻ Recycle bin <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading recently deleted policies and named locations…</p>';
+    $("rcBody").innerHTML = ""; $("rcChips").innerHTML = "";
+    try {
+      if (isDemo) {
+        const d = RC_DEMO(); rcPols = d.pols; rcLocs = d.locs;
+      } else {
+        [rcPols, rcLocs] = await Promise.all([
+          Graph.ggetAll("/identity/conditionalAccess/deletedItems/policies"),
+          Graph.ggetAll("/identity/conditionalAccess/deletedItems/namedLocations").catch(() => []),
+        ]);
+      }
+      renderRecycle();
+    } catch (e) {
+      console.error("Recycle bin failed:", e);
+      $("rcHead").innerHTML = `<h3>♻ Recycle bin</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}${/403|Authorization/i.test(String(e.message || e)) ? " — reading the recycle bin needs the Security Administrator or Conditional Access Administrator role." : ""}</p>`;
+    }
+  }
+  $("toolRecycle").addEventListener("click", () => openRecycle());
+  $("rcRefresh").addEventListener("click", () => openRecycle(true));
+
+  function renderRecycle() {
+    const s = Recycle.summarize(rcPols, rcLocs);
+    $("rcHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">
+        <h3>♻ Recycle bin <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <p style="margin-bottom:4px">Deleted Conditional Access policies and named locations stay restorable for <b>${Recycle.RETENTION_DAYS} days</b>, then they are permanently gone. Each card shows what the item did, when it was deleted and how long it has left.</p>
+        <p class="mini muted" style="margin:0">A restored policy returns <b>in the state it was deleted in</b> — a policy that was On enforces again the moment it comes back, so that restore asks for an extra confirmation.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> deleted item${s.total === 1 ? "" : "s"}</span></div>
+        <div class="mini">${s.policies} polic${s.policies === 1 ? "y" : "ies"} · ${s.locations} location${s.locations === 1 ? "" : "s"}</div>
+        <div class="mini">${s.wereOn ? `${s.wereOn} ${s.wereOn === 1 ? "was" : "were"} On at deletion` : "none were On at deletion"}${s.expiringSoon ? ` · <b style="color:var(--off)">${s.expiringSoon} expiring ≤ 7 days</b>` : ""}</div>
+      </div></div>`;
+    $("rcChips").innerHTML = [["all", `All (${s.total})`], ["policies", `Policies (${s.policies})`],
+      ["locations", `Locations (${s.locations})`], ["expiring", `⏳ Expiring ≤ 7 days (${s.expiringSoon})`]]
+      .map(([k, l]) => `<button class="fchip ${rcFilter === k ? "active" : ""}" data-rcf="${k}">${esc(l)}</button>`).join("");
+
+    const liveNames = policies.map((p) => p.raw.displayName);
+    const q = rcQuery.toLowerCase();
+    const items = [
+      ...(rcPols || []).map((p) => ({ kind: "policy", it: p })),
+      ...(rcLocs || []).map((l) => ({ kind: "location", it: l })),
+    ].filter(({ kind, it }) => {
+      if (rcFilter === "policies" && kind !== "policy") return false;
+      if (rcFilter === "locations" && kind !== "location") return false;
+      if (rcFilter === "expiring") { const d = Recycle.daysLeft(it); if (d === null || d > 7) return false; }
+      return !q || (it.displayName || "").toLowerCase().includes(q);
+    }).sort((a, b) => (Recycle.daysLeft(a.it) ?? 99) - (Recycle.daysLeft(b.it) ?? 99));
+
+    if (!items.length) {
+      $("rcBody").innerHTML = s.total
+        ? '<p class="mini" style="padding:20px">No deleted item matches the current filter.</p>'
+        : '<p class="mini" style="padding:20px">The recycle bin is empty — nothing has been deleted in the last 30 days.</p>';
+      return;
+    }
+    $("rcBody").innerHTML = `<div class="lo-grid">` + items.map(({ kind, it }) => {
+      const d = Recycle.daysLeft(it);
+      const clash = Recycle.nameClash(it, liveNames);
+      const wasOn = kind === "policy" && Recycle.restoresEnforcing(it);
+      return `<div class="list-card lo-card">
+        <div class="lo-h">
+          <span class="lo-ic">${kind === "policy" ? "🗂" : "🌐"}</span>
+          <b>${esc(it.displayName || "(unnamed)")}</b>
+          ${kind === "policy" ? `<span class="tag ${wasOn ? "block" : ""}">${esc(Recycle.stateLabel(it.state))} at deletion</span>` : '<span class="tag">named location</span>'}
+        </div>
+        <div class="mini lo-d">${esc(kind === "policy" ? Recycle.policyBrief(it) : Recycle.locationBrief(it))}</div>
+        <div class="lo-u mini">Deleted ${esc(Recycle.deletedAgo(it))} · ${d === null ? "retention unknown" : d <= 7 ? `<b style="color:var(--off)">${d} day${d === 1 ? "" : "s"} left</b>` : `${d} days left`}
+          ${clash ? '<br><span style="color:var(--off)">⚠ an item with this name exists again — restoring creates a duplicate name</span>' : ""}</div>
+        <div class="lo-act"><button class="btn sm lemon" data-rcres="${esc(it.id)}" data-rckind="${kind}">♻ Restore</button></div>
+      </div>`;
+    }).join("") + `</div>`;
+  }
+  $("rcChips").addEventListener("click", (e) => { const b = e.target.closest("[data-rcf]"); if (!b) return; rcFilter = b.dataset.rcf; renderRecycle(); });
+  $("rcSearch").addEventListener("input", (e) => { rcQuery = e.target.value; renderRecycle(); });
+  $("rcBody").addEventListener("click", (e) => {
+    const r = e.target.closest("[data-rcres]"); if (!r) return;
+    const kind = r.dataset.rckind;
+    const it = (kind === "policy" ? rcPols : rcLocs).find((x) => x.id === r.dataset.rcres);
+    if (it) openRcRestore(kind, it);
+  });
+
+  function openRcRestore(kind, it) {
+    rcRestoring = { kind, it };
+    const wasOn = kind === "policy" && Recycle.restoresEnforcing(it);
+    const clash = Recycle.nameClash(it, policies.map((p) => p.raw.displayName));
+    $("rcResDesc").innerHTML = `<b>${esc(it.displayName || "(unnamed)")}</b> — ${esc(kind === "policy" ? `${Recycle.stateLabel(it.state)} at deletion · ${Recycle.policyBrief(it)}` : Recycle.locationBrief(it))}<br>Deleted ${esc(Recycle.deletedAgo(it))}, ${Recycle.daysLeft(it) ?? "?"} days left in the bin.`;
+    $("rcResWarn").innerHTML = [
+      wasOn ? "" : `<div class="mini muted">Restores ${kind === "policy" ? `as <b>${esc(Recycle.stateLabel(it.state))}</b> — it will not enforce until you switch it On` : "with its previous definition"}.</div>`,
+      clash ? '<div class="mini" style="color:var(--off)">⚠ An item with this display name exists again — after the restore there will be two with the same name.</div>' : "",
+      kind === "location" && it.isTrusted ? '<div class="mini" style="color:var(--off)">⚠ This location was <b>trusted</b> — policies using “All trusted locations” will follow it again immediately.</div>' : "",
+    ].filter(Boolean).join("");
+    $("rcResConfirmWrap").style.display = wasOn ? "" : "none";
+    $("rcResConfirm").value = "";
+    $("rcResGo").disabled = wasOn;
+    $("rcResModal").classList.add("open");
+  }
+  $("rcResConfirm").addEventListener("input", (e) => { $("rcResGo").disabled = e.target.value.trim().toUpperCase() !== "RESTORE"; });
+  $("rcResCancel").addEventListener("click", () => $("rcResModal").classList.remove("open"));
+  $("rcResGo").addEventListener("click", async () => {
+    if (!rcRestoring) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...RC_WRITE])) return;
+    const { kind, it } = rcRestoring;
+    const btn = $("rcResGo"); btn.disabled = true; btn.textContent = "Restoring…";
+    try {
+      if (isDemo) {
+        toast("Demo — <span>restore simulated</span>");
+        if (kind === "policy") rcPols = rcPols.filter((x) => x.id !== it.id); else rcLocs = rcLocs.filter((x) => x.id !== it.id);
+        $("rcResModal").classList.remove("open");
+        renderRecycle();
+        return;
+      }
+      await Graph.gpost(`/identity/conditionalAccess/deletedItems/${kind === "policy" ? "policies" : "namedLocations"}/${it.id}/restore`, {}, [...AUTH_CONFIG.scopes, ...RC_WRITE]);
+      toast(`<span>${esc(it.displayName || it.id)}</span> restored`);
+      $("rcResModal").classList.remove("open");
+      // the live policy set changed — reload it so every tool sees the restore
+      if (kind === "policy") { try { await loadFromGraph(true); } catch (e2) { console.warn("Reload after restore failed:", e2.message); } }
+      await openRecycle(true);
+    } catch (e) {
+      console.error("Restore failed:", e);
+      $("rcResWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(e.message || e)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = "Restore"; }
+  });
+  $("rcMd").addEventListener("click", () => {
+    if (!rcPols && !rcLocs) return;
+    showReport("♻ Recycle bin", "CA-RecycleBin", Recycle.toMd(rcPols, rcLocs, { tenantName }));
+  });
+
   // ---------- What-If (Entra Conditional Access What If tool) ----------
   let wiResult = null, wiScenario = null, wiLocations = null, wiNames = {};
   function openWhatIf() {
@@ -7530,7 +7683,7 @@ max@contoso.com,"Global, DevOps"</pre>
     mlHead: "toolMsLearn", exHead: "toolExclusions", cgHead: "toolCaGroups", prHead: "toolProtect",
     blHead: "toolBaseline", gcHead: "toolGapCheck", vaHead: "toolValidator", wiHead: "toolWhatIf",
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
-    siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr",
+    siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr", rcHead: "toolRecycle",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

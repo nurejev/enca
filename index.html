@@ -171,6 +171,10 @@
         <div class="tool-ic">💪</div><h3>Authentication strengths <span class="tag new">BETA</span></h3>
         <p>The method combinations a policy can require: the three built-in strengths read-only, custom strengths created, re-combined, renamed and deleted — with the policies granting each one. <span class="tag block">writes to tenant</span></p>
       </div>
+      <div class="tool" id="toolRecycle">
+        <div class="tool-ic">♻</div><h3>Recycle bin <span class="tag new">BETA</span></h3>
+        <p>Recently deleted Conditional Access policies and named locations — everything still inside the 30-day restore window, with what it did, when it went, and one-click restore. A policy that was On comes back enforcing. <span class="tag block">writes to tenant</span></p>
+      </div>
       <div class="tool" id="toolState">
         <div class="tool-ic">🎚</div><h3>Set Policy state</h3>
         <p>Switch selected policies between On, Report-only and Off. <span class="tag block">writes to tenant</span></p>
@@ -805,6 +809,23 @@
       </div>
     </div>
     <div id="asBody" style="margin-top:14px"></div>
+  </section>
+
+  <!-- ============ RECYCLE BIN (BETA) ============ -->
+  <section id="screen-recycle" class="screen">
+    <div class="list-card readme" id="rcHead" style="margin-top:0"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="rcSearch" placeholder="Search deleted items…">
+      </div>
+      <div class="chip-filter" id="rcChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="rcRefresh" title="Re-read the recycle bin from Entra">⟳ Refresh</button>
+        <button class="btn" id="rcMd" title="Documentation of everything in the recycle bin">Export MD</button>
+      </div>
+    </div>
+    <div id="rcBody" style="margin-top:14px"></div>
   </section>
 
   <!-- ============ CHANGE AUDIT ============ -->
@@ -1521,6 +1542,23 @@
   </div>
 </div>
 
+<!-- ============ RECYCLE BIN RESTORE ============ -->
+<div class="modal-bg" id="rcResModal">
+  <div class="modal" style="max-width:560px">
+    <h3>♻ Restore from the recycle bin</h3>
+    <p class="mini" id="rcResDesc"></p>
+    <div id="rcResWarn" style="margin-top:10px"></div>
+    <div id="rcResConfirmWrap" style="display:none">
+      <label class="mini" for="rcResConfirm" style="display:block;margin-top:10px">This policy was <b>On</b> when it was deleted and will enforce again immediately. Type <b>RESTORE</b> to confirm</label>
+      <input id="rcResConfirm" class="txt" placeholder="RESTORE" autocomplete="off" spellcheck="false" style="margin-top:4px">
+    </div>
+    <div class="row">
+      <button class="btn" id="rcResCancel">Cancel</button>
+      <button class="btn primary" id="rcResGo">Restore</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ AUTHENTICATION STRENGTH DELETE ============ -->
 <div class="modal-bg" id="asDelModal">
   <div class="modal">
@@ -1551,16 +1589,18 @@
 </div>
 
 <!-- ============ DELETE POLICIES ============
-     Deleting a CA policy is irreversible — Entra keeps no recycle bin for them.
-     Hence: an explicit typed confirmation, a JSON backup offered by default,
-     and a separate acknowledgement for any policy that is currently enforced. -->
+     A deleted CA policy lands in the 30-day recycle bin (see the Recycle bin
+     tool) — recoverable, but still disruptive while it is gone. Hence: an
+     explicit typed confirmation, a JSON backup offered by default, and a
+     separate acknowledgement for any policy that is currently enforced. -->
 <div class="modal-bg" id="delModal">
   <div class="modal">
     <h3>🗑 Delete policies</h3>
     <p class="mini" id="delDesc"></p>
     <div class="danger-note">
-      <b>This cannot be undone.</b> Conditional Access has no recycle bin — a deleted policy can only be
-      restored by recreating it from a backup, and it comes back with a new id.
+      <b>The policy stops applying the moment it is deleted.</b> It lands in the Conditional Access
+      recycle bin and can be restored within <b>30 days</b> (♻ Recycle bin tool) — after that it is
+      permanently gone, and only a JSON backup can recreate it (with a new id).
     </div>
     <div id="delOnWarn" style="display:none"></div>
     <div id="delList" style="max-height:35vh;overflow:auto;margin-top:12px"></div>
@@ -1670,6 +1710,7 @@
 <script src="js/locations.js?v=227"></script>
 <script src="js/authcontexts.js?v=227"></script>
 <script src="js/authstrengths.js?v=227"></script>
+<script src="js/recycle.js?v=227"></script>
 <script src="js/audit.js?v=227"></script>
 <script src="js/signins.js?v=227"></script>
 <script src="js/changelog.js?v=227"></script>
