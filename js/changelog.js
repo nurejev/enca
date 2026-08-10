@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 216, date: "2026-08-10", title: "Select all shown, in the role picker",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "The directory-role picker gains Select all shown, which takes whatever the list is currently displaying — so it follows both the “administrator roles only” tickbox and the search box. Search for Teams and it selects every Teams role; untick the filter and it selects every built-in template. It adds to the selection rather than replacing it, so several searches can be combined into one assignment." },
+    ],
+  },
+  {
     build: 215, date: "2026-08-10", title: "The beta banner, front and centre",
     items: [
       { kind: "improved", tool: "All tools", text: "The BETA \u2014 not production marker moved from the top-right corner to the middle of the top bar: a bold red banner centred over the header, unmissable in screenshots and demos alike." },

@@ -2972,6 +2972,7 @@ max@contoso.com,"Global, DevOps"</pre>
         <div class="persona-row">
           <button class="btn sm" data-asroleset="recommended">Microsoft's privileged set (${nRec})</button>
           <button class="btn sm" data-asroleset="admin">All administrator roles (${nAdmin})</button>
+          <button class="btn sm" data-asroleset="visible">Select all shown (${vis.length})</button>
           <button class="btn sm" data-asroleset="none">Clear</button>
         </div>
         <p class="mini muted" style="margin:8px 0 0">The privileged set is the minimum Microsoft recommends requiring MFA on — Global, Application, Authentication, Billing, Cloud Application, Conditional Access, Exchange, Helpdesk, Password, Privileged Authentication, Privileged Role, Security, SharePoint and User Administrator. Resolved against this tenant's own role templates, not hard-coded IDs.</p>
@@ -3106,11 +3107,19 @@ max@contoso.com,"Global, DevOps"</pre>
     const set = e.target.closest("[data-asroleset]");
     if (set) {
       const how = set.dataset.asroleset;
-      asRoles.forEach((r) => {
-        r.checked = how === "admin" ? Assign.isAdminRole(r)
-          : how === "recommended" ? !!r.recommended
-          : false;
-      });
+      if (how === "visible") {
+        const q2 = asRoleQuery.trim().toLowerCase();
+        const shown = new Set(asRoles
+          .filter((r) => (!asRoleAdminOnly || Assign.isAdminRole(r)) && (!q2 || r.name.toLowerCase().includes(q2)))
+          .map((r) => r.id));
+        asRoles.forEach((r) => { if (shown.has(r.id)) r.checked = true; });   // adds, never clears
+      } else {
+        asRoles.forEach((r) => {
+          r.checked = how === "admin" ? Assign.isAdminRole(r)
+            : how === "recommended" ? !!r.recommended
+            : false;
+        });
+      }
       renderAssign(); return;
     }
     const pc = e.target.closest("[data-asPersona]");
