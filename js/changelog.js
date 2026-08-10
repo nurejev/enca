@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 222, date: "2026-08-10", title: "Scored against CIS",
+    items: [
+      { kind: "new", tool: "CIS Benchmark", text: "A new tool: the tenant's Conditional Access policies assessed against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — all 17 automated recommendations of section 5.2.2 Conditional Access. Per control: pass, report-only (a policy meets every criterion but isn't enforced) or fail, with the benchmark's Graph audit criteria spelled out and — for every failing control — the nearest policies and exactly which criteria they miss, so the result doubles as the remediation map. Level 1 / Level 2 profile filter, licence-awareness (the three Identity Protection controls read 'not licensed' instead of 'fail' when the tenant has no Entra ID P2), an overall and per-level compliance score, and a Markdown compliance report. It's a CA compliance slice of the benchmark, not a full M365 scan — and it says so. Recommendation numbers and titles referenced from the CIS Benchmark, © Center for Internet Security; the full benchmark text is not reproduced." },
+    ],
+  },
+  {
     build: 221, date: "2026-08-10", title: "Stop reporting what you already fixed",
     items: [
       { kind: "fixed", tool: "MS Learn checks", text: "A policy that already excluded the shared-device group was still reported as breaking Teams devices. Every one of these checks remediates by adding that exclusion — but the detection never looked at whether it was already there, so CA004 showed the device-code finding while plainly excluding CAB-SEC-U-TeamsSharedDevices on the card above it. A finding whose entire remediation is already in place is not a lesser problem, it is not a problem: those are now suppressed rather than downgraded, and the summary says how many were handled that way so nothing goes quietly missing." },

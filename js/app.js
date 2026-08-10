@@ -66,7 +66,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
     "screen-locations", "screen-audit", "screen-signins", "screen-protect", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -1080,6 +1080,7 @@
   });
   $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); });
   $("toolMsLearn").addEventListener("click", () => { crumb("📘 MS Learn checks"); openMsLearn(); });
+  $("toolCis").addEventListener("click", () => { crumb("📐 CIS Benchmark"); openCis(); });
   $("toolGapCheck").addEventListener("click", () => { crumb("🛡 Best-practice & bypass checks"); openGapCheck(); });
   $("toolExclusions").addEventListener("click", () => { crumb("🚪 Exclusion analyzer"); openExclusions(); });
   $("toolValidator").addEventListener("click", () => { openValidator(); });   // openValidator sets its own crumb
@@ -6645,6 +6646,104 @@ max@contoso.com,"Global, DevOps"</pre>
     const id = t.dataset.gctoggle;
     gcExpanded.has(id) ? gcExpanded.delete(id) : gcExpanded.add(id);
     renderGapCheck();
+  });
+
+  // ---------- CIS Benchmark alignment ----------
+  // Scan on demand (▶ button), result persists across tab switches until an
+  // explicit rescan — same lifecycle as Sign-in failures and Protect.
+  let ciResult = null, ciCtx = null, ciMeta = null;
+  let ciFilter = { level: "all", status: "all" };
+  const ciExpanded = new Set();
+  const CI_IDLE_HEAD = '<h3>📐 CIS Benchmark alignment <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated CA recommendations of section 5.2.2, with per-control pass/fail and the nearest policy for every gap.</p>';
+  function openCis() {
+    show("screen-cis");
+    if (!policies.length) { $("ciHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("ciChips").innerHTML = ""; $("ciBody").innerHTML = ""; return; }
+    if (ciResult) { renderCis(); return; }   // cached — keep the previous screen
+    $("ciHead").innerHTML = CI_IDLE_HEAD;
+    $("ciChips").innerHTML = "";
+    $("ciBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-cirun>▶ Assess against CIS v7.0</button><p class="mini muted">Reads authentication strengths, named locations and the tenant\'s licence SKUs via Microsoft Graph. Results stay until you refresh.</p></div>';
+  }
+  async function runCisScan() {
+    show("screen-cis");
+    if (!policies.length) return;
+    $("ciHead").innerHTML = CI_IDLE_HEAD.replace("Score the", "Assessing… reads authentication strengths, named locations and licence SKUs, then scores the");
+    $("ciChips").innerHTML = ""; $("ciBody").innerHTML = "";
+    const raws = policies.map(p => p.raw);
+    ciCtx = { strengths: new Map(), namedLocations: [], p2: null };
+    try {
+      if (isDemo) {
+        Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) ciCtx.strengths.set(v.id, v); });
+        ciCtx.namedLocations = DEMO_DATA.namedLocations || [];
+        ciCtx.p2 = true;
+      } else {
+        const [strengths, locations, skus] = await Promise.all([
+          Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(() => []),
+          Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(() => []),
+          Graph.ggetAll("/subscribedSkus").catch(() => null),
+        ]);
+        strengths.forEach(s => ciCtx.strengths.set(s.id, s));
+        ciCtx.namedLocations = locations;
+        // Entra ID P2 (AAD_PREMIUM_P2 service plan) gates the three Identity
+        // Protection controls. skus === null → the read failed: licence
+        // unknown, assess anyway rather than guessing not-applicable.
+        if (Array.isArray(skus)) {
+          ciCtx.p2 = skus.some(s => !["Suspended", "Deleted", "LockedOut"].includes(s.capabilityStatus) &&
+            (s.servicePlans || []).some(x => x.servicePlanName === "AAD_PREMIUM_P2" && ["Success", "PendingInput"].includes(x.provisioningStatus)));
+        }
+      }
+    } catch (e) { console.warn("CIS benchmark context fetch failed:", e.message); }
+    ciResult = CisCheck.run(raws, ciCtx);
+    ciMeta = { tenantName, policyCount: raws.filter(p => p.state === "enabled" || p.state === "enabledForReportingButNotEnforced").length };
+    ciFilter = { level: "all", status: "all" }; ciExpanded.clear();
+    renderCis();
+  }
+  function renderCis() {
+    if (!ciResult) return;
+    $("ciHead").innerHTML = CisCheck.renderSummary(ciResult, ciMeta);
+    document.querySelectorAll("#ciLevelSeg button").forEach(b =>
+      b.classList.toggle("active", String(ciFilter.level) === b.dataset.cilvl));
+    const n = (s) => s === "all" ? ciResult.results.length : ciResult.results.filter(r => r.status === s).length;
+    $("ciChips").innerHTML = [["all", "All"], ["pass", "✓ Pass"], ["reportonly", "◐ Report-only"], ["fail", "✗ Fail"], ["unlicensed", "Not licensed"]]
+      .filter(([k]) => n(k) > 0 || k === "all")
+      .map(([k, l]) => `<button class="fchip ${ciFilter.status === k ? "active" : ""}" data-cist="${k}">${l} (${n(k)})</button>`).join("");
+    $("ciBody").innerHTML = CisCheck.renderTable(ciResult, ciFilter, ciExpanded);
+  }
+  $("ciLevelSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cilvl]"); if (!b) return;
+    ciFilter.level = b.dataset.cilvl === "all" ? "all" : Number(b.dataset.cilvl);
+    renderCis();
+  });
+  $("ciChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cist]"); if (!b) return;
+    ciFilter.status = b.dataset.cist; renderCis();
+  });
+  $("ciBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-cirun]")) { runCisScan(); return; }
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const t = e.target.closest("[data-cistoggle]"); if (!t) return;
+    const id = t.dataset.cistoggle;
+    ciExpanded.has(id) ? ciExpanded.delete(id) : ciExpanded.add(id);
+    renderCis();
+  });
+  $("ciRefresh").addEventListener("click", async () => {
+    const btn = $("ciRefresh");
+    btn.disabled = true; btn.textContent = "⟳ Refreshing…";
+    try {
+      if (isDemo) loadDemo(); else await loadFromGraph(true);
+      ciCtx = null;
+      await runCisScan();
+      toast("CIS Benchmark alignment <span>refreshed</span>");
+    } catch (e) {
+      toast(`Refresh failed: <span>${esc(e.message || e)}</span>`);
+    } finally {
+      btn.disabled = false; btn.textContent = "⟳ Refresh";
+    }
+  });
+  $("ciMd").addEventListener("click", () => {
+    if (!ciResult) return;
+    showReport("📐 CIS Benchmark alignment", "CA-CIS-Benchmark", CisCheck.toMd(ciResult, ciMeta || { tenantName }));
+    toast("CIS Benchmark Markdown <span>downloaded</span>");
   });
 
   // ---------- events ----------
