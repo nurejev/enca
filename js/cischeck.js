@@ -49,12 +49,30 @@ const CisCheck = (() => {
   const ADMIN = CIS_BENCHMARK.adminRoles;
   const adminMissing = (p) => Object.keys(ADMIN).filter((id) => !((U(p).includeRoles || []).some((r) => String(r).toLowerCase() === id.toLowerCase())));
   const adminRolesOk = (p) => adminMissing(p).length === 0;
-  const adminRolesLabel = (p) => {
+  // The benchmark's Graph audit reads includeRoles — but ENCA's deployment
+  // model (and many real baselines) scopes administrator policies through an
+  // admin persona GROUP instead. A group-scoped policy protects the admins
+  // just as well provided the group actually holds them, so it is accepted as
+  // satisfying the admin-scope criterion, and the control carries a note
+  // (see ADMIN_CONTROLS below) because an auditor following the letter of the
+  // procedure will ask. Recognised by an Admins/E-Admins token in the policy
+  // name plus a group in the include ("NonAdmins" does not match).
+  const ADMIN_NAME = /(^|[^a-z])(e-)?admins?([^a-z]|$)/i;
+  const adminGroupScoped = (p) => (U(p).includeGroups || []).length > 0 && ADMIN_NAME.test(p.displayName || "");
+  const adminScopeOk = (p) => adminRolesOk(p) || adminGroupScoped(p);
+  const adminScopeLabel = (p) => {
+    if (adminScopeOk(p)) return null;
     const miss = adminMissing(p);
-    if (!miss.length) return null;
-    const have = 15 - miss.length;
-    return `covers ${have}/15 benchmark admin roles — missing ${miss.slice(0, 4).map((id) => ADMIN[id]).join(", ")}${miss.length > 4 ? ` +${miss.length - 4} more` : ""}`;
+    if ((U(p).includeRoles || []).length) {
+      const have = 15 - miss.length;
+      return `covers ${have}/15 benchmark admin roles — missing ${miss.slice(0, 4).map((id) => ADMIN[id]).join(", ")}${miss.length > 4 ? ` +${miss.length - 4} more` : ""}`;
+    }
+    return "no admin directory roles included and no admin persona group recognised in the include";
   };
+  // Controls whose scope is the administrator set — a pass through a persona
+  // group gets an explanatory note.
+  const ADMIN_CONTROLS = new Set(["5.2.2.1", "5.2.2.4", "5.2.2.5"]);
+  const ADMIN_GROUP_NOTE = "Admin scope satisfied by an admin persona group rather than directory roles. The benchmark's Graph audit reads includeRoles — document the group as the tenant's administrator scope and verify every admin-role holder is actually a member (Compare users / Group Analyzer can check this).";
 
   // Phishing-resistant strength: allowed combinations restricted to the three
   // phishing-resistant methods. Resolved via the tenant's strength policies
@@ -87,9 +105,9 @@ const CisCheck = (() => {
   // the control. State is checked separately (enabled vs report-only).
   const CONTROL_LOGIC = {
     "5.2.2.1": {
-      cand: (p) => (U(p).includeRoles || []).length > 0 && mfaOrStrength(p),
+      cand: (p) => ((U(p).includeRoles || []).length > 0 || adminGroupScoped(p)) && mfaOrStrength(p),
       crit: [
-        ["includeRoles covers the 15 benchmark admin roles", (p) => adminRolesOk(p), (p) => adminRolesLabel(p)],
+        ["admin scope: the 15 benchmark admin roles (includeRoles) or an admin persona group", (p) => adminScopeOk(p), (p) => adminScopeLabel(p)],
         ["resources: All", allApps],
         ["grant: mfa or authentication strength", mfaOrStrength],
       ],
@@ -113,9 +131,9 @@ const CisCheck = (() => {
       ],
     },
     "5.2.2.4": {
-      cand: (p) => S(p).persistentBrowser?.isEnabled || ((U(p).includeRoles || []).length > 0 && sif(p).isEnabled),
+      cand: (p) => S(p).persistentBrowser?.isEnabled || (((U(p).includeRoles || []).length > 0 || adminGroupScoped(p)) && sif(p).isEnabled),
       crit: [
-        ["includeRoles covers the 15 benchmark admin roles", (p) => adminRolesOk(p), (p) => adminRolesLabel(p)],
+        ["admin scope: the 15 benchmark admin roles (includeRoles) or an admin persona group", (p) => adminScopeOk(p), (p) => adminScopeLabel(p)],
         ["resources: All", allApps],
         ["sign-in frequency everyTime or ≤ 4 hours", (p) => sifHoursMax(p, 4)],
         ["persistent browser: never", (p) => S(p).persistentBrowser?.isEnabled && S(p).persistentBrowser?.mode === "never"],
@@ -124,7 +142,7 @@ const CisCheck = (() => {
     "5.2.2.5": {
       cand: (p) => !!strengthId(p),
       crit: [
-        ["includeRoles covers the 15 benchmark admin roles", (p) => adminRolesOk(p), (p) => adminRolesLabel(p)],
+        ["admin scope: the 15 benchmark admin roles (includeRoles) or an admin persona group", (p) => adminScopeOk(p), (p) => adminScopeLabel(p)],
         ["resources: All", allApps],
         ["authentication strength limited to phishing-resistant methods", (p, ctx) => prStrength(p, ctx)],
       ],
@@ -171,7 +189,9 @@ const CisCheck = (() => {
         ["resources: All", allApps],
         ["grant: compliantDevice", (p) => grants(p).includes("compliantDevice")],
         ["no grant controls besides compliantDevice / domainJoinedDevice", (p) => grants(p).every((g) => g === "compliantDevice" || g === "domainJoinedDevice")],
-        ["operator: OR", (p) => G(p).operator === "OR"],
+        // A single selected control is functionally identical whichever
+        // operator the policy stores.
+        ["operator: OR (a single control also satisfies)", (p) => G(p).operator === "OR" || grants(p).length === 1],
       ],
     },
     "5.2.2.10": {
@@ -181,7 +201,7 @@ const CisCheck = (() => {
         ["user action: register security information", (p) => (A(p).includeUserActions || []).includes("urn:user:registersecurityinfo")],
         ["grant: compliantDevice", (p) => grants(p).includes("compliantDevice")],
         ["no grant controls besides compliantDevice / domainJoinedDevice", (p) => grants(p).every((g) => g === "compliantDevice" || g === "domainJoinedDevice")],
-        ["operator: OR", (p) => G(p).operator === "OR"],
+        ["operator: OR (a single control also satisfies)", (p) => G(p).operator === "OR" || grants(p).length === 1],
       ],
     },
     "5.2.2.11": {
@@ -208,8 +228,12 @@ const CisCheck = (() => {
         ["users: All", allUsers],
         ["resources: All", allApps],
         ["no risk conditions", (p) => !hasRisk(p)],
-        ["sign-in frequency timeBased ≤ 7 days", (p) => {
-          const s = sif(p); if (!s.isEnabled || s.frequencyInterval !== "timeBased") return false;
+        // everyTime is stricter than any 7-day interval — compliant per the
+        // benchmark's "any combination ≤ 7 days" note.
+        ["sign-in frequency ≤ 7 days (or every time)", (p) => {
+          const s = sif(p); if (!s.isEnabled) return false;
+          if (s.frequencyInterval === "everyTime") return true;
+          if (s.frequencyInterval !== "timeBased") return false;
           const v = Number(s.value);
           return s.type === "days" ? v <= 7 : s.type === "hours" ? v <= 168 : false;
         }],
@@ -265,8 +289,15 @@ const CisCheck = (() => {
     }));
     const full = judged.filter((j) => j.missing.length === 0);
     const passers = full.filter((j) => isEnabled(j.p));
-    if (passers.length) return { status: "pass", policies: passers.map((j) => j.p.displayName), near: [] };
-    if (full.length) return { status: "reportonly", policies: full.map((j) => j.p.displayName), near: [] };
+    // Admin controls satisfied via a persona group (not includeRoles) carry an
+    // explanatory note — the letter of the benchmark audit reads includeRoles.
+    const mk = (status, set) => {
+      const r = { status, policies: set.map((j) => j.p.displayName), near: [] };
+      if (ADMIN_CONTROLS.has(ctl.id) && set.every((j) => !adminRolesOk(j.p))) r.note = ADMIN_GROUP_NOTE;
+      return r;
+    };
+    if (passers.length) return mk("pass", passers);
+    if (full.length) return mk("reportonly", full);
     // Nearest misses: prefer policies that attempt the control, fewest gaps first.
     const attempts = judged.filter((j) => logic.cand(j.p, ctx));
     const ranked = (attempts.length ? attempts : judged).sort((a, b) => a.missing.length - b.missing.length).slice(0, 3);

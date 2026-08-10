@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 224, date: "2026-08-10", title: "CIS learns the persona model",
+    items: [
+      { kind: "fixed", tool: "CIS Benchmark", text: "The tool now sits in the tool tab bar — it was missing from the tab list, so it could not be opened from the ＋ menu or pinned as a tab." },
+      { kind: "improved", tool: "CIS Benchmark", text: "The three administrator-scoped controls (5.2.2.1 MFA for admins, 5.2.2.4 sign-in frequency + non-persistent browser, 5.2.2.5 phishing-resistant strength) scored 0/15 admin roles against baselines that scope admin policies through a persona group — an Admins / E-Admins group include — instead of directory roles, because the benchmark's Graph audit only reads includeRoles. Admin persona groups now satisfy the admin-scope criterion, recognised by the Admins token in the policy name plus a group include. A control passed this way carries a note: the audit letter expects includeRoles, so document the group as the tenant's administrator scope and verify every admin-role holder is actually in it." },
+      { kind: "fixed", tool: "CIS Benchmark", text: "Catalog r2, two criteria corrected to match the benchmark's own leniency notes: a sign-in frequency of Every time satisfies 5.2.2.13 (stricter than any 7-day interval), and a policy granting a single control satisfies the OR-operator criterion on 5.2.2.9/.10 — with one control selected, the stored operator makes no functional difference." },
+    ],
+  },
+  {
     build: 223, date: "2026-08-10", title: "CIS on its own track",
     items: [
       { kind: "improved", tool: "CIS Benchmark", text: "The tool header now carries its version (v0.2, hover for the release notes) like every other tool — it was the one head missing the stamp. And the CIS content is now managed on its own release track: the benchmark catalog (the 17 controls and their assessment criteria in cisdata.js) has a revision stamp of its own, shown in the header and in the Markdown report. A new benchmark version, an added control or a corrected criterion bumps the catalog revision — independent of the app build and of the other beta tools — so a reviewer can always tell which catalog produced a given assessment." },

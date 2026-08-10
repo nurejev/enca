@@ -27,7 +27,7 @@ const CIS_BENCHMARK = {
   // of the app build and of the other tools' versions. Shown in the tool
   // header and in the Markdown report so a reviewer can tell which catalog
   // produced a given assessment.
-  revision: "2026-08-10",
+  revision: "2026-08-10 r2",
   section: "5.2.2 Conditional Access",
   copyright: "Recommendation numbers and titles referenced from the CIS Microsoft 365 Foundations Benchmark v7.0.0, © Center for Internet Security, Inc. Assessment logic is ENCA's own implementation of the benchmark's Graph audit procedures.",
 
@@ -69,7 +69,7 @@ const CIS_BENCHMARK = {
       id: "5.2.2.1", level: 1, e5Only: false,
       title: "Ensure multifactor authentication is enabled for all users in administrative roles",
       what: "An enabled policy that requires MFA (or an authentication strength) on all resources for the benchmark's 15 administrator directory roles.",
-      checks: ["users: includeRoles covers the 15 benchmark admin roles", "resources: All", "grant: mfa OR an authentication strength", "state: enabled"],
+      checks: ["admin scope: includeRoles covers the 15 benchmark admin roles, OR an admin persona group (noted when used — the benchmark audit reads includeRoles)", "resources: All", "grant: mfa OR an authentication strength", "state: enabled"],
     },
     {
       id: "5.2.2.2", level: 1, e5Only: false,
@@ -87,13 +87,13 @@ const CIS_BENCHMARK = {
       id: "5.2.2.4", level: 1, e5Only: false,
       title: "Ensure Sign-in frequency is enabled and browser sessions are not persistent for Administrative users",
       what: "An enabled policy for the admin roles with sign-in frequency at most 4 hours (or every time) and persistent browser sessions set to never.",
-      checks: ["users: includeRoles covers the 15 benchmark admin roles", "resources: All", "session: sign-in frequency everyTime or ≤ 4 hours", "session: persistent browser = never", "state: enabled"],
+      checks: ["admin scope: includeRoles covers the 15 benchmark admin roles, OR an admin persona group (noted when used)", "resources: All", "session: sign-in frequency everyTime or ≤ 4 hours", "session: persistent browser = never", "state: enabled"],
     },
     {
       id: "5.2.2.5", level: 2, e5Only: false,
       title: "Ensure 'Phishing-resistant MFA strength' is required for Administrators",
       what: "An enabled policy granting an authentication strength limited to phishing-resistant methods (FIDO2 / Windows Hello / certificate MFA) for the admin roles on All resources.",
-      checks: ["users: includeRoles covers the 15 benchmark admin roles", "resources: All", "grant: authentication strength whose allowed combinations are only windowsHelloForBusiness / fido2 / x509CertificateMultiFactor", "state: enabled"],
+      checks: ["admin scope: includeRoles covers the 15 benchmark admin roles, OR an admin persona group (noted when used)", "resources: All", "grant: authentication strength whose allowed combinations are only windowsHelloForBusiness / fido2 / x509CertificateMultiFactor", "state: enabled"],
     },
     {
       id: "5.2.2.6", level: 1, e5Only: true,
@@ -117,13 +117,13 @@ const CIS_BENCHMARK = {
       id: "5.2.2.9", level: 1, e5Only: false,
       title: "Ensure a managed device is required for authentication",
       what: "An enabled policy for All users on All resources granting compliant device (optionally OR hybrid-joined) and nothing else, with the OR operator.",
-      checks: ["users: All", "resources: All", "grant: compliantDevice (optionally + domainJoinedDevice), no other controls", "operator: OR", "state: enabled"],
+      checks: ["users: All", "resources: All", "grant: compliantDevice (optionally + domainJoinedDevice), no other controls", "operator: OR (a single control also satisfies)", "state: enabled"],
     },
     {
       id: "5.2.2.10", level: 1, e5Only: false,
       title: "Ensure a managed device is required to register security information",
       what: "An enabled policy on the Register security information user action for All users granting compliant device (optionally OR hybrid-joined) and nothing else.",
-      checks: ["users: All", "user action: urn:user:registersecurityinfo", "grant: compliantDevice (optionally + domainJoinedDevice), no other controls", "operator: OR", "state: enabled"],
+      checks: ["users: All", "user action: urn:user:registersecurityinfo", "grant: compliantDevice (optionally + domainJoinedDevice), no other controls", "operator: OR (a single control also satisfies)", "state: enabled"],
     },
     {
       id: "5.2.2.11", level: 1, e5Only: false,
@@ -141,7 +141,7 @@ const CIS_BENCHMARK = {
       id: "5.2.2.13", level: 1, e5Only: false,
       title: "Ensure that periodic reauthentication is required for all users",
       what: "An enabled non-risk policy for All users on All resources with time-based sign-in frequency of 7 days or less.",
-      checks: ["users: All", "resources: All", "no risk conditions on the policy", "session: sign-in frequency timeBased, ≤ 7 days", "state: enabled"],
+      checks: ["users: All", "resources: All", "no risk conditions on the policy", "session: sign-in frequency ≤ 7 days (every time also satisfies)", "state: enabled"],
     },
     {
       id: "5.2.2.14", level: 2, e5Only: false,

@@ -981,6 +981,7 @@
     ["toolBaseline", "🧬 Baseline Policies"],
     ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
     ["toolMsLearn", "📘 MS Learn checks"],
+    ["toolCis", "📐 CIS Benchmark"],
     ["toolJson", "🗄 Backup (JSON)"],
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
