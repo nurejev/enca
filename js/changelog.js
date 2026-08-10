@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 209, date: "2026-08-04", title: "Sign in without a pop-up (for Edge work profiles)",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Microsoft Edge signed into a work profile could loop the sign-in forever, while the same account in the same browser without a profile worked. Edge's automatic profile switching decides a work sign-in belongs to another profile and reopens the pop-up in that profile's window — which severs the link back to the page that opened it. The pop-up then has no way to hand the response back, so Entra just asks again." },
+      { kind: "new", tool: "All tools", text: "A redirect sign-in is now available: “Pop-up not working? Sign in without one” under the sign-in button. It navigates this tab instead of opening a window, so there is no opener to lose, and the choice is remembered — the sign-in button uses it from then on, with the link offering to switch back. Returning from it carries straight on into the tenant rather than showing the sign-in screen to somebody who has just signed in. The pop-up remains the default; it keeps the page as you left it." },
+      { kind: "improved", tool: "All tools", text: "A pop-up that closes on its own now names Edge's profile switching as the first thing to check, since that is a browser problem with a one-click fix rather than anything to do with the tenant." },
+    ],
+  },
+  {
     build: 208, date: "2026-08-04", title: "The sign-in popup that ate its own answer",
     items: [
       { kind: "fixed", tool: "All tools", text: "Sign-in could loop on Microsoft's account picker: pick an account, land on /common/reprocess, and be asked to pick an account again, forever. The redirect URI is this app's own page, so after authentication the popup navigated back here and loaded the entire application again — every script, and a second MSAL instance — inside a window whose only job was to hand its own URL back to the opener. That second instance could consume the authorization response before the opener read it, leaving the sign-in with nothing to complete and the picker to reappear. The popup, and the hidden iframe used for silent token renewal, now stop loading the moment they see they are carrying an auth response. Nothing else changes: no new redirect URI, so no app registration needs touching." },

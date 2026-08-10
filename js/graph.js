@@ -4,6 +4,19 @@
 const Graph = (() => {
   let msalApp = null, account = null;
 
+  // Popup or redirect. Popup is the default and is nicer — the page keeps its
+  // state. But Edge's automatic work-profile switching can decide the sign-in
+  // belongs to a different profile and reopen the popup in THAT profile's
+  // window, which severs window.opener: the popup then has no way to hand the
+  // response back, and Entra just re-prompts. Forever.
+  //
+  // A redirect navigates this tab instead, so there is no opener to lose. It
+  // is the reliable route on a machine with an Edge work profile, and the
+  // choice sticks once made.
+  const AUTH_MODE_KEY = "enca-auth-mode";
+  const authMode = () => { try { return localStorage.getItem(AUTH_MODE_KEY) || "popup"; } catch { return "popup"; } };
+  const setAuthMode = (m) => { try { m === "popup" ? localStorage.removeItem(AUTH_MODE_KEY) : localStorage.setItem(AUTH_MODE_KEY, m); } catch { /* private mode */ } };
+
   function init() {
     msalApp = new msal.PublicClientApplication({
       auth: {
@@ -20,7 +33,30 @@ const Graph = (() => {
       },
       cache: { cacheLocation: "sessionStorage" },
     });
-    return msalApp.initialize();
+    // initialize() alone does not finish a redirect sign-in; handleRedirectPromise
+    // does. Resolves to true when we came back from one and are now signed in,
+    // so the caller can go straight on to loading the tenant.
+    return msalApp.initialize()
+      .then(() => msalApp.handleRedirectPromise())
+      .then((res) => {
+        if (res && res.account) {
+          account = res.account;
+          if (res.accessToken) noteScopes(res.accessToken);
+          return true;
+        }
+        return false;
+      })
+      .catch((e) => { console.error("Redirect sign-in did not complete:", e); redirectError = e; return false; });
+  }
+
+  // Kept so the app can report a redirect failure the same way it reports a
+  // popup one — a redirect error arrives on page load, not from a click.
+  let redirectError = null;
+  const takeRedirectError = () => { const e = redirectError; redirectError = null; return e; };
+
+  function signInRedirect() {
+    setAuthMode("redirect");
+    return msalApp.loginRedirect({ scopes: AUTH_CONFIG.scopes, prompt: "select_account" });
   }
 
   async function signIn() {
@@ -464,5 +500,5 @@ const Graph = (() => {
     } catch { return []; }
   }
 
-  return { init, signIn, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, ARM_SCOPES, existingAppIds, createServicePrincipal, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, get account() { return account; } };
+  return { init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, ARM_SCOPES, existingAppIds, createServicePrincipal, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, get account() { return account; } };
 })();

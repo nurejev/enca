@@ -6330,6 +6330,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const btn = $("signInBtn"); btn.disabled = true;
     $("loginErr").style.display = "none";
     try {
+      if (Graph.authMode() === "redirect") { await Graph.signInRedirect(); return; }   // navigates away
       await Graph.signIn();
       await loadFromGraph();
     } catch (e) {
@@ -6369,7 +6370,7 @@ max@contoso.com,"Global, DevOps"</pre>
       if (hit) { lead = "Sign-in did not complete."; hint = hit[1]; }
       else if (code === "user_cancelled") {
         lead = "The sign-in window closed before it finished.";
-        hint = "If you closed it yourself, just try again. If it closed on its own, this tenant is most likely interrupting the sign-in — a <b>Conditional Access policy</b> on this app, or consent that has not been granted. The sign-in log for this account will name it.";
+        hint = "If you closed it yourself, just try again. <b>If it closed on its own and you are in Microsoft Edge with a work profile</b>, Edge may be reopening the pop-up in another profile, which breaks the link back to this page — use <b>Sign in without a pop-up</b> below. Otherwise this tenant is interrupting the sign-in (a Conditional Access policy on this app, or consent that has not been granted) and the sign-in log for this account will name it.";
       } else { lead = "Sign-in failed."; hint = esc(msg); }
     }
 
@@ -6382,6 +6383,24 @@ max@contoso.com,"Global, DevOps"</pre>
       + `<div class="diag">${esc(diag)}</div>`;
     el.style.display = "";
   }
+  function markRedirectMode() {
+    const a = $("noPopupLink");
+    a.textContent = "Using redirect sign-in · switch back to a pop-up";
+  }
+  $("noPopupLink").addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (Graph.authMode() === "redirect") {          // toggle back
+      Graph.setAuthMode("popup");
+      $("noPopupLink").textContent = "Pop-up not working? Sign in without one →";
+      toast("Back to <span>pop-up</span> sign-in");
+      return;
+    }
+    $("loginErr").style.display = "none";
+    markRedirectMode();
+    try { await Graph.signInRedirect(); }           // leaves the page
+    catch (err) { console.error(err); showSignInError(err); }
+  });
+
   $("signOutBtn").addEventListener("click", () => {
     $("tenantBox").style.display = "none";
     $("homeBtn").style.display = "none";
@@ -6790,7 +6809,13 @@ max@contoso.com,"Global, DevOps"</pre>
   // Keep the user informed during a throttle back-off instead of looking hung.
   buildToolNav();
   Graph.setThrottleHandler((ms) => toast(`Microsoft Graph is throttling — waiting <span>${Math.ceil(ms / 1000)}s</span> then continuing…`));
-  Graph.init().then(() => {
-    if (new URLSearchParams(location.search).get("demo")) loadDemo();
+  Graph.init().then((resumed) => {
+    if (new URLSearchParams(location.search).get("demo")) { loadDemo(); return; }
+    // Came back from a redirect sign-in: carry straight on rather than showing
+    // the sign-in screen to somebody who has just signed in.
+    if (resumed) { loadFromGraph(); return; }
+    const err = Graph.takeRedirectError && Graph.takeRedirectError();
+    if (err) showSignInError(err);
+    else if (Graph.authMode && Graph.authMode() === "redirect") markRedirectMode();
   }).catch(e => console.error("MSAL init failed", e));
 })();
