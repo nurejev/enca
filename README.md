@@ -172,6 +172,17 @@ git checkout beta
 git merge main
 ```
 
+**Build numbering per channel.** Production builds on `main` are plain integers
+(`…, 226, 227`). Beta builds are five digits, `NNNII` — `NNN` is the production
+build the cycle will become, `II` the beta iteration — so build `22701` renders
+as `v1.0.227-beta.1` and can never collide with a production number. The
+"promote to production" step is therefore slightly more than a merge: set
+`APP_BUILD.build` to `NNN`, consolidate the cycle's beta changelog entries into
+one entry with `build: NNN`, and bump every `?v=` in `index.html` to match. The
+What's-new overlay compares build numbers per origin (production and the beta
+site have separate localStorage), and both series are monotone on their own
+origin, so the overlay logic needs no changes.
+
 ## Rebranding a fork
 
 All of it lives in **`js/branding.js`** — one object, no other file hard-codes the name, the organisation or the colours:

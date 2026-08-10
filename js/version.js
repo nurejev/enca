@@ -8,9 +8,22 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 225,
+  // Two number series, one per channel. Production builds are plain integers
+  // (…, 226, 227) on main. Beta-channel builds are five digits, NNNII — NNN
+  // is the production build this beta cycle will become, II the iteration —
+  // so 22701 renders as v1.0.227-beta.1 and can never collide with a
+  // production number. On release: merge beta into main, set build to NNN,
+  // and consolidate the cycle's changelog entries into one entry (build NNN).
+  // The What's-new overlay compares numerically per origin, and both series
+  // are monotone on their own origin, so nothing else changes.
+  build: 22701,
   date: "2026-08-10",
-  get label() { return `v${this.version}.${this.build}`; },
+  get isBeta() { return this.build >= 10000; },
+  get label() {
+    return this.isBeta
+      ? `v${this.version}.${Math.floor(this.build / 100)}-beta.${this.build % 100}`
+      : `v${this.version}.${this.build}`;
+  },
   get full() { return `${this.label} · ${this.date}`; },
 };
 

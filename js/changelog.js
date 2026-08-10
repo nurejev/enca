@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 22701, date: "2026-08-10", title: "Beta gets its own numbers",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The beta channel now has its own build series: five-digit numbers NNNII, where NNN is the production build this beta cycle will become and II the iteration — this build is 22701, shown as v1.0.227-beta.1. Production stays on plain integers (build 226 is the tabs-keep-your-place hotfix). No more shared number line between the channels: a beta build can never collide with a production build, and the label says at a glance which channel you are looking at. On release, the cycle's beta entries are consolidated into one production changelog entry." },
+    ],
+  },
+  {
     build: 225, date: "2026-08-10", title: "Pilot groups count, and tabs keep your place",
     items: [
       { kind: "fixed", tool: "All tools", text: "Switching tool tabs no longer jumps to the top of the page — each screen's scroll position is remembered and restored when you come back. And reopening List Policies keeps the cards / list / matrix view you last chose instead of resetting to cards. (This fix is app-wide and safe for production ahead of the CIS beta.)" },
