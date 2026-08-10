@@ -171,6 +171,10 @@
         <div class="tool-ic">💪</div><h3>Authentication strengths <span class="tag new">BETA</span></h3>
         <p>The method combinations a policy can require: the three built-in strengths read-only, custom strengths created, re-combined, renamed and deleted — with the policies granting each one. <span class="tag block">writes to tenant</span></p>
       </div>
+      <div class="tool" id="toolTou">
+        <div class="tool-ic">📜</div><h3>Terms of use <span class="tag new">BETA</span></h3>
+        <p>The terms-of-use agreements Conditional Access can require: every agreement with its behaviour settings, PDFs and the policies that require it — create with a PDF upload, edit behaviour, check acceptances, delete when unreferenced. <span class="tag block">writes to tenant</span></p>
+      </div>
       <div class="tool" id="toolRecycle">
         <div class="tool-ic">♻</div><h3>Recycle bin <span class="tag new">BETA</span></h3>
         <p>Recently deleted Conditional Access policies and named locations — everything still inside the 30-day restore window, with what it did, when it went, and one-click restore. A policy that was On comes back enforcing. <span class="tag block">writes to tenant</span></p>
@@ -809,6 +813,24 @@
       </div>
     </div>
     <div id="asBody" style="margin-top:14px"></div>
+  </section>
+
+  <!-- ============ TERMS OF USE (BETA) ============ -->
+  <section id="screen-tou" class="screen">
+    <div class="list-card readme" id="tuHead" style="margin-top:0"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="tuSearch" placeholder="Search agreements…">
+      </div>
+      <div class="chip-filter" id="tuChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="tuRefresh" title="Re-read the agreements from Entra">⟳ Refresh</button>
+        <button class="btn" id="tuMd" title="Documentation of every agreement and its policy usage">Export MD</button>
+        <button class="btn lemon" id="tuNew">＋ New agreement</button>
+      </div>
+    </div>
+    <div id="tuBody" style="margin-top:14px"></div>
   </section>
 
   <!-- ============ RECYCLE BIN (BETA) ============ -->
@@ -1542,6 +1564,47 @@
   </div>
 </div>
 
+<!-- ============ TERMS OF USE EDITOR ============ -->
+<div class="modal-bg" id="tuEditModal">
+  <div class="modal" style="max-width:600px">
+    <h3 id="tuEditTitle">New terms-of-use agreement</h3>
+    <p class="mini" id="tuEditSub" style="margin-bottom:12px"></p>
+    <label class="wi-f" style="margin-bottom:10px"><span>Display name (internal — end users never see it)</span>
+      <input id="tuName" placeholder="e.g. Contractor terms 2026" maxlength="64" autocomplete="off" spellcheck="false"></label>
+    <div id="tuPdfWrap">
+      <label class="wi-f" style="margin-bottom:10px"><span>Terms document (PDF)</span>
+        <input type="file" id="tuPdf" accept="application/pdf,.pdf"></label>
+      <label class="wi-f" style="margin-bottom:10px"><span>Language of this PDF (BCP-47, e.g. en, nl, en-US)</span>
+        <input id="tuLang" value="en" maxlength="12" autocomplete="off" spellcheck="false"></label>
+    </div>
+    <label class="chk" style="display:block;margin:4px 0"><input type="checkbox" id="tuView"> Require users to expand and view the terms before accepting</label>
+    <label class="chk" style="display:block;margin:4px 0"><input type="checkbox" id="tuDevice"> Require acceptance on every device <span class="mini muted">— devices must be registered in Entra</span></label>
+    <label class="wi-f" style="margin-top:8px"><span>Require re-acceptance</span>
+      <select id="tuReaccept"></select></label>
+    <div id="tuEditWarn" style="margin-top:12px"></div>
+    <div class="row">
+      <button class="btn" id="tuEditCancel">Cancel</button>
+      <button class="btn primary" id="tuEditSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TERMS OF USE DELETE ============ -->
+<div class="modal-bg" id="tuDelModal">
+  <div class="modal">
+    <h3>🗑 Delete terms-of-use agreement</h3>
+    <p class="mini" id="tuDelDesc"></p>
+    <div class="danger-note"><b>This cannot be undone</b> — the agreement, its PDFs and its acceptance records go with it. A policy that still requires it would keep a dangling grant control, so delete is blocked while any policy references it.</div>
+    <div id="tuDelRefs" style="margin-top:12px"></div>
+    <label class="mini" for="tuDelConfirm" style="display:block;margin-top:10px">Type <b>DELETE</b> to confirm</label>
+    <input id="tuDelConfirm" class="txt" placeholder="DELETE" autocomplete="off" spellcheck="false" style="margin-top:4px">
+    <div class="row">
+      <button class="btn" id="tuDelCancel">Cancel</button>
+      <button class="btn danger" id="tuDelGo">Delete permanently</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ RECYCLE BIN RESTORE ============ -->
 <div class="modal-bg" id="rcResModal">
   <div class="modal" style="max-width:560px">
@@ -1711,6 +1774,7 @@
 <script src="js/authcontexts.js?v=227"></script>
 <script src="js/authstrengths.js?v=227"></script>
 <script src="js/recycle.js?v=227"></script>
+<script src="js/termsofuse.js?v=227"></script>
 <script src="js/audit.js?v=227"></script>
 <script src="js/signins.js?v=227"></script>
 <script src="js/changelog.js?v=227"></script>

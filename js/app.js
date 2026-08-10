@@ -67,7 +67,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-recycle", "screen-audit", "screen-signins", "screen-protect", "screen-changelog", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-audit", "screen-signins", "screen-protect", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Per-screen scroll memory: switching tabs used to jump to the top and lose
@@ -997,6 +997,7 @@
     ["toolLocations", "🌐 Named locations"],
     ["toolAuthCtx", "🎫 Authentication contexts"],
     ["toolAuthStr", "💪 Authentication strengths"],
+    ["toolTou", "📜 Terms of use"],
     ["toolRecycle", "♻ Recycle bin"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
@@ -5579,6 +5580,228 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("💪 Authentication strengths", "CA-AuthenticationStrengths", AuthStrengths.toMd(asList, policies.map((p) => p.raw), { tenantName }));
   });
 
+  // ---------- Terms of use (BETA — view / create / edit / delete agreements) ----------
+  const TU_READ = ["Agreement.Read.All"];
+  const TU_WRITE = ["Agreement.ReadWrite.All"];
+  const TU_ACCEPT = ["AgreementAcceptance.Read.All"];
+  let tuList = null, tuFilter = "all", tuQuery = "", tuEditing = null, tuDeleting = null;
+  let tuPdfB64 = null, tuPdfName = null;
+  const TU_DEMO = [
+    { id: "tou-demo-1", displayName: "Employee acceptable use 2026", isViewingBeforeAcceptanceRequired: true, isPerDeviceAcceptanceRequired: false,
+      userReacceptRequiredFrequency: "P365D", files: [{ fileName: "AUP-2026.pdf", language: "en", isDefault: true }, { fileName: "AUP-2026-nl.pdf", language: "nl" }] },
+    { id: "tou-demo-2", displayName: "Guest collaboration terms", isViewingBeforeAcceptanceRequired: true, isPerDeviceAcceptanceRequired: true,
+      userReacceptRequiredFrequency: null, files: [{ fileName: "GuestTerms.pdf", language: "en", isDefault: true }] },
+  ];
+
+  async function openTou(force) {
+    crumb("📜 Terms of use");
+    show("screen-tou");
+    if (tuList && !force) { renderTou(); return; }   // cached
+    $("tuHead").innerHTML = '<h3>📜 Terms of use <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading terms-of-use agreements…</p>';
+    $("tuBody").innerHTML = ""; $("tuChips").innerHTML = "";
+    try {
+      if (isDemo) tuList = TU_DEMO;
+      else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_READ])) { $("tuHead").innerHTML = '<h3>📜 Terms of use</h3><p class="mini">Reading agreements needs Agreement.Read.All.</p>'; return; }
+        tuList = await Graph.ggetAll("/identityGovernance/termsOfUse/agreements?$expand=files");
+      }
+      renderTou();
+    } catch (e) {
+      console.error("Terms of use failed:", e);
+      $("tuHead").innerHTML = `<h3>📜 Terms of use</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+    }
+  }
+  $("toolTou").addEventListener("click", () => openTou());
+  $("tuRefresh").addEventListener("click", () => openTou(true));
+
+  function renderTou() {
+    const raws = policies.map((p) => p.raw);
+    const s = TermsOfUse.summarize(tuList, raws);
+    $("tuHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">
+        <h3>📜 Terms of use <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <p style="margin-bottom:4px">The agreements a Conditional Access policy can require through its <b>terms of use</b> grant control. Each card shows the agreement's behaviour, its PDFs per language, and the policies requiring it.</p>
+        <p class="mini muted" style="margin:0">The display name is internal — end users see the PDF, not the name. Deleting an agreement a policy still requires would leave a dangling grant, so that delete is blocked. Replacing a PDF (new version / extra language) is not in this tool yet — use the portal for that.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> agreement${s.total === 1 ? "" : "s"}</span></div>
+        <div class="mini">${s.files} PDF file${s.files === 1 ? "" : "s"} · ${s.inUse} required by a policy</div>
+        <div class="mini">${s.perDevice} per-device · ${s.reaccept} with a re-accept schedule</div>
+      </div></div>`;
+    $("tuChips").innerHTML = [["all", `All (${s.total})`], ["inuse", `Required (${s.inUse})`],
+      ["unused", `Unreferenced (${s.total - s.inUse})`], ["reaccept", `↻ Re-accept (${s.reaccept})`]]
+      .map(([k, l]) => `<button class="fchip ${tuFilter === k ? "active" : ""}" data-tuf="${k}">${esc(l)}</button>`).join("");
+
+    const q = tuQuery.toLowerCase();
+    const rows = (tuList || []).filter((a) => {
+      const used = TermsOfUse.usedBy(a.id, raws).length;
+      if (tuFilter === "inuse" && !used) return false;
+      if (tuFilter === "unused" && used) return false;
+      if (tuFilter === "reaccept" && !a.userReacceptRequiredFrequency) return false;
+      return !q || (a.displayName || "").toLowerCase().includes(q);
+    }).sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
+
+    if (!rows.length) {
+      $("tuBody").innerHTML = s.total
+        ? '<p class="mini" style="padding:20px">No agreement matches the current filter.</p>'
+        : '<p class="mini" style="padding:20px">No terms-of-use agreements exist in this tenant yet.</p>';
+      return;
+    }
+    const list = (arr) => arr.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>`).join(", ");
+    $("tuBody").innerHTML = `<div class="lo-grid">` + rows.map((a) => {
+      const used = TermsOfUse.usedBy(a.id, raws);
+      const del = TermsOfUse.deletable(a, raws);
+      const files = TermsOfUse.fileList(a);
+      return `<div class="list-card lo-card">
+        <div class="lo-h">
+          <span class="lo-ic">📜</span>
+          <b>${esc(a.displayName || "(unnamed)")}</b>
+          ${TermsOfUse.settingTags(a).map((t) => `<span class="tag">${esc(t)}</span>`).join(" ") || '<span class="tag">accept only</span>'}
+        </div>
+        <div class="mini lo-d">${files.length ? files.map((f, i) => `${esc(f.language || "?")}: ${esc(f.fileName || "file")}${f.fileData?.data ? ` <button class="btn sm" data-tupdf="${esc(a.id)}:${i}" style="font-size:11px;padding:1px 8px">⭳ PDF</button>` : ""}`).join(" · ") : "no files"}</div>
+        <div class="lo-u">${used.length
+          ? `Required by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          : '<span class="mini muted">Not required by any policy</span>'}</div>
+        <div class="lo-act">
+          <button class="btn sm" data-tuedit="${esc(a.id)}">✎ Edit</button>
+          <button class="btn sm" data-tuacc="${esc(a.id)}">👥 Acceptances</button>
+          <button class="btn sm danger" data-tudel="${esc(a.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>
+        </div>
+        <div class="mini" id="tuAcc-${esc(a.id)}" style="margin-top:6px"></div>
+      </div>`;
+    }).join("") + `</div>`;
+  }
+  $("tuChips").addEventListener("click", (e) => { const b = e.target.closest("[data-tuf]"); if (!b) return; tuFilter = b.dataset.tuf; renderTou(); });
+  $("tuSearch").addEventListener("input", (e) => { tuQuery = e.target.value; renderTou(); });
+  $("tuBody").addEventListener("click", async (e) => {
+    const ed = e.target.closest("[data-tuedit]"); if (ed) { openTuEditor(tuList.find((x) => x.id === ed.dataset.tuedit)); return; }
+    const dl = e.target.closest("[data-tudel]"); if (dl && !dl.disabled) { openTuDelete(tuList.find((x) => x.id === dl.dataset.tudel)); return; }
+    const ac = e.target.closest("[data-tuacc]"); if (ac) { await tuLoadAcceptances(ac.dataset.tuacc, ac); return; }
+    const pf = e.target.closest("[data-tupdf]"); if (pf) { tuDownloadPdf(pf.dataset.tupdf); return; }
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+
+  function tuDownloadPdf(key) {
+    const [id, idx] = key.split(":");
+    const a = tuList.find((x) => x.id === id); if (!a) return;
+    const f = TermsOfUse.fileList(a)[+idx]; if (!f?.fileData?.data) return;
+    const bytes = Uint8Array.from(atob(f.fileData.data), (c) => c.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const link = document.createElement("a"); link.href = url; link.download = f.fileName || "TermsOfUse.pdf"; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  // Acceptance summary, on demand per agreement — needs its own permission,
+  // so a refusal degrades to a clear message rather than blocking the tool.
+  async function tuLoadAcceptances(id, btn) {
+    const out = $(`tuAcc-${id}`); if (!out) return;
+    if (isDemo) {
+      out.innerHTML = '<b style="color:var(--on)">14 accepted</b> · <b style="color:var(--off)">1 declined</b> — latest: demo.user@contoso.com, yesterday <span class="muted">(demo)</span>';
+      return;
+    }
+    btn.disabled = true; btn.textContent = "Loading…";
+    try {
+      if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_ACCEPT])) { btn.disabled = false; btn.textContent = "👥 Acceptances"; return; }
+      const acc = await Graph.ggetAll(`/identityGovernance/termsOfUse/agreements/${id}/acceptances`);
+      const ok = acc.filter((x) => (x.state || "").toLowerCase() === "accepted");
+      const no = acc.filter((x) => (x.state || "").toLowerCase() !== "accepted");
+      const latest = acc.slice().sort((a, b) => (b.recordedDateTime || "").localeCompare(a.recordedDateTime || ""))[0];
+      out.innerHTML = acc.length
+        ? `<b style="color:var(--on)">${ok.length} accepted</b>${no.length ? ` · <b style="color:var(--off)">${no.length} declined/other</b>` : ""}${latest ? ` — latest: ${esc(latest.userPrincipalName || latest.userEmail || "?")}, ${esc((latest.recordedDateTime || "").slice(0, 10))}` : ""}`
+        : "No acceptance records yet.";
+    } catch (e) {
+      out.innerHTML = `<span style="color:var(--off)">Acceptances not readable: ${esc(e.message || e)} — needs AgreementAcceptance.Read.All.</span>`;
+    } finally { btn.disabled = false; btn.textContent = "👥 Acceptances"; }
+  }
+
+  function openTuEditor(a) {
+    tuEditing = a || null; tuPdfB64 = null; tuPdfName = null;
+    $("tuEditTitle").textContent = a ? `Edit ${a.displayName}` : "New terms-of-use agreement";
+    $("tuEditSub").innerHTML = a
+      ? "Behaviour settings and the name — replacing the PDF is not in this tool yet."
+      : "Creates the agreement with one PDF; more languages can be added in the portal later.";
+    $("tuPdfWrap").style.display = a ? "none" : "";
+    $("tuName").value = a ? (a.displayName || "") : "";
+    $("tuPdf").value = ""; $("tuLang").value = "en";
+    $("tuView").checked = a ? !!a.isViewingBeforeAcceptanceRequired : true;
+    $("tuDevice").checked = a ? !!a.isPerDeviceAcceptanceRequired : false;
+    $("tuReaccept").innerHTML = TermsOfUse.FREQ_OPTIONS.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
+    $("tuReaccept").value = a ? (a.userReacceptRequiredFrequency || "") : "";
+    $("tuEditWarn").innerHTML = "";
+    $("tuEditModal").classList.add("open");
+  }
+  $("tuPdf").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    tuPdfB64 = null; tuPdfName = null;
+    if (!f) return;
+    tuPdfName = f.name;
+    const r = new FileReader();
+    r.onload = () => { tuPdfB64 = String(r.result).split(",")[1] || null; };
+    r.readAsDataURL(f);
+  });
+  $("tuNew").addEventListener("click", () => openTuEditor(null));
+  $("tuEditCancel").addEventListener("click", () => $("tuEditModal").classList.remove("open"));
+  $("tuEditSave").addEventListener("click", async () => {
+    const built = TermsOfUse.buildPayload({
+      name: $("tuName").value, viewRequired: $("tuView").checked, perDevice: $("tuDevice").checked,
+      reaccept: $("tuReaccept").value || null, pdfBase64: tuPdfB64, pdfName: tuPdfName, language: $("tuLang").value,
+    }, tuEditing ? "edit" : "create");
+    if (!built.ok) { $("tuEditWarn").innerHTML = built.errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join(""); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_WRITE])) return;
+    const btn = $("tuEditSave"); btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      if (isDemo) {
+        toast("Demo — <span>save simulated</span>");
+      } else if (tuEditing) {
+        await Graph.gpatch(`/identityGovernance/termsOfUse/agreements/${tuEditing.id}`, built.payload, [...AUTH_CONFIG.scopes, ...TU_WRITE]);
+        toast(`<span>${esc(built.payload.displayName)}</span> updated`);
+      } else {
+        await Graph.gpost("/identityGovernance/termsOfUse/agreements", built.payload, [...AUTH_CONFIG.scopes, ...TU_WRITE]);
+        toast(`<span>${esc(built.payload.displayName)}</span> created`);
+      }
+      $("tuEditModal").classList.remove("open");
+      await openTou(true);
+    } catch (e) {
+      console.error("Save agreement failed:", e);
+      $("tuEditWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(e.message || e)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = "Save"; }
+  });
+
+  function openTuDelete(a) {
+    if (!a) return;
+    tuDeleting = a;
+    const used = TermsOfUse.usedBy(a.id, policies.map((p) => p.raw));
+    $("tuDelDesc").innerHTML = `<b>${esc(a.displayName)}</b> — ${TermsOfUse.fileList(a).length} PDF file${TermsOfUse.fileList(a).length === 1 ? "" : "s"}`;
+    $("tuDelRefs").innerHTML = used.length
+      ? `<div class="mini" style="color:var(--off)">Required by ${used.length} polic${used.length === 1 ? "y" : "ies"} — remove it from the grant first.</div>`
+      : '<p class="mini muted">Not required by any policy.</p>';
+    $("tuDelConfirm").value = ""; $("tuDelGo").disabled = true;
+    $("tuDelModal").classList.add("open");
+  }
+  $("tuDelConfirm").addEventListener("input", (e) => { $("tuDelGo").disabled = e.target.value.trim().toUpperCase() !== "DELETE"; });
+  $("tuDelCancel").addEventListener("click", () => $("tuDelModal").classList.remove("open"));
+  $("tuDelGo").addEventListener("click", async () => {
+    if (!tuDeleting) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_WRITE])) return;
+    const btn = $("tuDelGo"); btn.disabled = true; btn.textContent = "Deleting…";
+    try {
+      if (isDemo) toast("Demo — <span>delete simulated</span>");
+      else {
+        await Graph.gdelete(`/identityGovernance/termsOfUse/agreements/${tuDeleting.id}`, [...AUTH_CONFIG.scopes, ...TU_WRITE]);
+        toast(`<span>${esc(tuDeleting.displayName)}</span> deleted`);
+      }
+      $("tuDelModal").classList.remove("open");
+      await openTou(true);
+    } catch (e) {
+      console.error("Delete agreement failed:", e);
+      toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; btn.textContent = "Delete permanently"; }
+  });
+  $("tuMd").addEventListener("click", () => {
+    if (!tuList) return;
+    showReport("📜 Terms of use", "CA-TermsOfUse", TermsOfUse.toMd(tuList, policies.map((p) => p.raw), { tenantName }));
+  });
+
   // ---------- Recycle bin (BETA — view / restore deleted CA policies & locations) ----------
   const RC_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
   let rcPols = null, rcLocs = null, rcFilter = "all", rcQuery = "", rcRestoring = null;
@@ -7684,6 +7907,7 @@ max@contoso.com,"Global, DevOps"</pre>
     blHead: "toolBaseline", gcHead: "toolGapCheck", vaHead: "toolValidator", wiHead: "toolWhatIf",
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
     siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr", rcHead: "toolRecycle",
+    tuHead: "toolTou",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
