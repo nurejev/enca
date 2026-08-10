@@ -6328,23 +6328,60 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
     const btn = $("signInBtn"); btn.disabled = true;
+    $("loginErr").style.display = "none";
     try {
       await Graph.signIn();
       await loadFromGraph();
     } catch (e) {
-      const code = e.errorCode || e.name || "";
-      if (code === "user_cancelled") return;               // user closed the popup
       console.error("Sign-in failed:", e);
-      const msg = e.errorMessage || e.message || String(e);
-      if (code === "popup_window_error" || /popup/i.test(msg)) {
-        alert("The sign-in popup was blocked by the browser. Allow popups for this site and try again.");
-      } else if (/redirect_uri|AADSTS50011/i.test(msg)) {
-        alert(`Sign-in failed — redirect URI mismatch.\n\nThe app registration must have this exact SPA redirect URI:\n${window.location.origin + window.location.pathname}\n\nAdd it under App registration → Authentication → Single-page application.`);
-      } else {
-        alert(`Sign-in failed.\n\n${code ? code + "\n\n" : ""}${msg}`);
-      }
+      showSignInError(e);
     } finally { btn.disabled = false; }
   });
+
+  // MSAL reports user_cancelled for ANY popup that closes without a token —
+  // not just the X. A Conditional Access interrupt the popup cannot satisfy, a
+  // tenant that has not consented, an account blocked from the app: all of them
+  // close the window, and this used to `return` silently, dropping the person
+  // back on the sign-in screen with no explanation at all. Whatever the cause,
+  // the app owes them the reason.
+  const AADSTS = [
+    [/AADSTS53003|blocked by Conditional Access/i, "A <b>Conditional Access policy in this tenant blocks this sign-in</b>. Check the sign-in log for this account — the failure names the policy. If it requires a compliant or hybrid-joined device, a browser pop-up on an unmanaged device cannot satisfy it."],
+    [/AADSTS50076|AADSTS50079|AADSTS50072/i, "This sign-in needs <b>multi-factor authentication</b>, and the pop-up closed before it completed. Try again and finish the prompt, or sign in to portal.azure.com first so the session already carries MFA."],
+    [/AADSTS50005|AADSTS530003|device/i, "A <b>device policy</b> is blocking the sign-in — typically a Conditional Access rule requiring a managed or compliant device."],
+    [/AADSTS65001|AADSTS900971|consent/i, "This tenant has <b>not consented</b> to the app yet. A Global Administrator or Privileged Role Administrator must grant admin consent once — see the consent URL in the README."],
+    [/AADSTS700016|application.*not found/i, "The app is <b>not present in this tenant</b> — nobody has consented to it here yet. An administrator needs to run the admin-consent URL once."],
+    [/AADSTS50011|redirect_uri/i, `<b>Redirect URI mismatch.</b> The app registration needs this exact SPA redirect URI: <code>${window.location.origin + window.location.pathname}</code>`],
+    [/AADSTS50020|AADSTS50128|AADSTS50034/i, "That account does not exist in a tenant this app can sign in to — check you used the <b>work account</b>, not a personal one."],
+    [/AADSTS90094|admin.*consent/i, "The permissions need <b>admin consent</b>; a normal user cannot grant them."],
+  ];
+
+  function showSignInError(e) {
+    const code = e.errorCode || e.name || "";
+    const msg = e.errorMessage || e.message || String(e);
+    const el = $("loginErr");
+
+    let lead = "", hint = "";
+    if (code === "popup_window_error" || code === "empty_window_error" || /popup/i.test(msg)) {
+      lead = "The sign-in pop-up was blocked.";
+      hint = "Allow pop-ups for this site and try again.";
+    } else {
+      const hit = AADSTS.find(([re]) => re.test(msg));
+      if (hit) { lead = "Sign-in did not complete."; hint = hit[1]; }
+      else if (code === "user_cancelled") {
+        lead = "The sign-in window closed before it finished.";
+        hint = "If you closed it yourself, just try again. If it closed on its own, this tenant is most likely interrupting the sign-in — a <b>Conditional Access policy</b> on this app, or consent that has not been granted. The sign-in log for this account will name it.";
+      } else { lead = "Sign-in failed."; hint = esc(msg); }
+    }
+
+    // The raw detail, selectable in one click, so it can be pasted into a
+    // ticket or handed to whoever owns the tenant.
+    const diag = [code && `code: ${code}`, `at: ${new Date().toISOString()}`,
+      msg && msg !== code ? `detail: ${msg}` : ""].filter(Boolean).join(" · ");
+
+    el.innerHTML = `<p><b>${esc(lead)}</b></p><p>${hint}</p>`
+      + `<div class="diag">${esc(diag)}</div>`;
+    el.style.display = "";
+  }
   $("signOutBtn").addEventListener("click", () => {
     $("tenantBox").style.display = "none";
     $("homeBtn").style.display = "none";

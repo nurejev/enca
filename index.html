@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=206">
+<link rel="stylesheet" href="css/app.css?v=207">
 </head>
 <body>
 
@@ -51,6 +51,10 @@
         <svg width="17" height="17" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
         Sign in with Microsoft
       </button>
+      <!-- Populated on any failed attempt. Inline rather than an alert: a
+           sign-in that fails on a tenant policy is something you read and act
+           on, not something you dismiss. -->
+      <div class="login-err" id="loginErr" style="display:none"></div>
       <div class="login-note">
         Multi-tenant · read-only Microsoft Graph permissions<br>
         Runs entirely in your browser — no policy data leaves your session.
@@ -1509,35 +1513,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=206"></script>
-<script src="js/version.js?v=206"></script>
-<script src="js/authConfig.js?v=206"></script>
-<script src="js/labels.js?v=206"></script>
-<script src="js/graph.js?v=206"></script>
-<script src="js/model.js?v=206"></script>
-<script src="js/render.js?v=206"></script>
-<script src="js/analyze.js?v=206"></script>
-<script src="js/whatif.js?v=206"></script>
-<script src="js/mslearn.js?v=206"></script>
-<script src="js/gapcheck.js?v=206"></script>
-<script src="js/exclusions.js?v=206"></script>
-<script src="js/validator.js?v=206"></script>
-<script src="js/whatifeval.js?v=206"></script>
-<script src="js/compare.js?v=206"></script>
-<script src="js/groupuse.js?v=206"></script>
-<script src="js/locations.js?v=206"></script>
-<script src="js/audit.js?v=206"></script>
-<script src="js/signins.js?v=206"></script>
-<script src="js/changelog.js?v=206"></script>
-<script src="js/baselineData.js?v=206"></script>
-<script src="js/baselineJoeyData.js?v=206"></script>
-<script src="js/baseline.js?v=206"></script>
-<script src="js/groupTemplates.js?v=206"></script>
-<script src="js/assign.js?v=206"></script>
-<script src="js/cagroups.js?v=206"></script>
-<script src="js/import.js?v=206"></script>
-<script src="js/export.js?v=206"></script>
-<script src="js/demo.js?v=206"></script>
-<script src="js/app.js?v=206"></script>
+<script src="js/branding.js?v=207"></script>
+<script src="js/version.js?v=207"></script>
+<script src="js/authConfig.js?v=207"></script>
+<script src="js/labels.js?v=207"></script>
+<script src="js/graph.js?v=207"></script>
+<script src="js/model.js?v=207"></script>
+<script src="js/render.js?v=207"></script>
+<script src="js/analyze.js?v=207"></script>
+<script src="js/whatif.js?v=207"></script>
+<script src="js/mslearn.js?v=207"></script>
+<script src="js/gapcheck.js?v=207"></script>
+<script src="js/exclusions.js?v=207"></script>
+<script src="js/validator.js?v=207"></script>
+<script src="js/whatifeval.js?v=207"></script>
+<script src="js/compare.js?v=207"></script>
+<script src="js/groupuse.js?v=207"></script>
+<script src="js/locations.js?v=207"></script>
+<script src="js/audit.js?v=207"></script>
+<script src="js/signins.js?v=207"></script>
+<script src="js/changelog.js?v=207"></script>
+<script src="js/baselineData.js?v=207"></script>
+<script src="js/baselineJoeyData.js?v=207"></script>
+<script src="js/baseline.js?v=207"></script>
+<script src="js/groupTemplates.js?v=207"></script>
+<script src="js/assign.js?v=207"></script>
+<script src="js/cagroups.js?v=207"></script>
+<script src="js/import.js?v=207"></script>
+<script src="js/export.js?v=207"></script>
+<script src="js/demo.js?v=207"></script>
+<script src="js/app.js?v=207"></script>
 </body>
 </html>

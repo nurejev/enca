@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 207, date: "2026-08-04", title: "A sign-in that tells you why it failed",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "A failed sign-in could return you to the sign-in screen saying nothing at all. MSAL reports user_cancelled for any pop-up that closes without a token — not just the one you close yourself, but also a Conditional Access policy interrupting the sign-in, a tenant that has not consented, or an account blocked from the app — and the handler treated every one of those as “they changed their mind” and returned silently. It now always says what happened, in place under the sign-in button rather than as an alert you dismiss, and recognises the codes that matter: blocked by Conditional Access, MFA needed, device policy, consent missing, app not present in the tenant, redirect URI, wrong account type. Each one says what to do next, and the raw code and timestamp sit underneath in one click-to-select line for a ticket." },
+    ],
+  },
+  {
     build: 206, date: "2026-08-04", title: "The logo, properly this time",
     items: [
       { kind: "fixed", tool: "All tools", text: "205 fixed half of it. The policy-card marks stopped being hard-coded, but they read the deployment's own BRANDING — and a per-audience override does not mutate that. activeBrand() builds a merged copy for the chrome and leaves the global untouched, so under an override the header wore the right logo while every policy card still drew the deployment's. The active look is now published as Brand.current and that is what draws the marks. Exports are deliberately excluded and still carry the neutral product credit, which is the entire point of an override changing chrome only." },
