@@ -10,10 +10,10 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=209"></script>
+<script src="js/popup-guard.js?v=210"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=209">
+<link rel="stylesheet" href="css/app.css?v=210">
 </head>
 <body>
 
@@ -798,7 +798,8 @@
     <div class="toolbar" id="siToolbar" style="margin-top:14px">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
-        <input id="siSearch" placeholder="Search user, app, policy, IP or location…">
+        <input id="siSearch" list="siSearchList" placeholder="Search user, app, policy, IP or location…" autocomplete="off" spellcheck="false">
+        <datalist id="siSearchList"></datalist>
       </div>
       <div class="chip-filter" id="siChips"></div>
       <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px"><span>Range</span>
@@ -1517,35 +1518,35 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=209"></script>
-<script src="js/version.js?v=209"></script>
-<script src="js/authConfig.js?v=209"></script>
-<script src="js/labels.js?v=209"></script>
-<script src="js/graph.js?v=209"></script>
-<script src="js/model.js?v=209"></script>
-<script src="js/render.js?v=209"></script>
-<script src="js/analyze.js?v=209"></script>
-<script src="js/whatif.js?v=209"></script>
-<script src="js/mslearn.js?v=209"></script>
-<script src="js/gapcheck.js?v=209"></script>
-<script src="js/exclusions.js?v=209"></script>
-<script src="js/validator.js?v=209"></script>
-<script src="js/whatifeval.js?v=209"></script>
-<script src="js/compare.js?v=209"></script>
-<script src="js/groupuse.js?v=209"></script>
-<script src="js/locations.js?v=209"></script>
-<script src="js/audit.js?v=209"></script>
-<script src="js/signins.js?v=209"></script>
-<script src="js/changelog.js?v=209"></script>
-<script src="js/baselineData.js?v=209"></script>
-<script src="js/baselineJoeyData.js?v=209"></script>
-<script src="js/baseline.js?v=209"></script>
-<script src="js/groupTemplates.js?v=209"></script>
-<script src="js/assign.js?v=209"></script>
-<script src="js/cagroups.js?v=209"></script>
-<script src="js/import.js?v=209"></script>
-<script src="js/export.js?v=209"></script>
-<script src="js/demo.js?v=209"></script>
-<script src="js/app.js?v=209"></script>
+<script src="js/branding.js?v=210"></script>
+<script src="js/version.js?v=210"></script>
+<script src="js/authConfig.js?v=210"></script>
+<script src="js/labels.js?v=210"></script>
+<script src="js/graph.js?v=210"></script>
+<script src="js/model.js?v=210"></script>
+<script src="js/render.js?v=210"></script>
+<script src="js/analyze.js?v=210"></script>
+<script src="js/whatif.js?v=210"></script>
+<script src="js/mslearn.js?v=210"></script>
+<script src="js/gapcheck.js?v=210"></script>
+<script src="js/exclusions.js?v=210"></script>
+<script src="js/validator.js?v=210"></script>
+<script src="js/whatifeval.js?v=210"></script>
+<script src="js/compare.js?v=210"></script>
+<script src="js/groupuse.js?v=210"></script>
+<script src="js/locations.js?v=210"></script>
+<script src="js/audit.js?v=210"></script>
+<script src="js/signins.js?v=210"></script>
+<script src="js/changelog.js?v=210"></script>
+<script src="js/baselineData.js?v=210"></script>
+<script src="js/baselineJoeyData.js?v=210"></script>
+<script src="js/baseline.js?v=210"></script>
+<script src="js/groupTemplates.js?v=210"></script>
+<script src="js/assign.js?v=210"></script>
+<script src="js/cagroups.js?v=210"></script>
+<script src="js/import.js?v=210"></script>
+<script src="js/export.js?v=210"></script>
+<script src="js/demo.js?v=210"></script>
+<script src="js/app.js?v=210"></script>
 </body>
 </html>

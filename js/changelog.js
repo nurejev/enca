@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 210, date: "2026-08-04", title: "Small things: version on the tool, autofill on the search",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The version badge now sits on the tool's own header card, not only on the home tile — which is where you are when you wonder whether what you are looking at has changed since last time. Hovering it still gives the full note of what that version covers. It survives the tool re-rendering its own header, so it does not vanish after a scan." },
+      { kind: "improved", tool: "Sign-in failures", text: "The search box autocompletes, like the user fields elsewhere in the app. Two sources, in order: the users and apps that actually appear in the current result — the only ones worth typing once a scan has run — and then the directory, for when it has not. Typing two characters searches Entra; focusing the empty box offers what is already on screen." },
+    ],
+  },
+  {
     build: 209, date: "2026-08-04", title: "Sign in without a pop-up (for Edge work profiles)",
     items: [
       { kind: "fixed", tool: "All tools", text: "Microsoft Edge signed into a work profile could loop the sign-in forever, while the same account in the same browser without a profile worked. Edge's automatic profile switching decides a work sign-in belongs to another profile and reopens the pop-up in that profile's window — which severs the link back to the page that opened it. The pop-up then has no way to hand the response back, so Entra just asks again." },

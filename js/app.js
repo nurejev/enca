@@ -4250,6 +4250,44 @@ max@contoso.com,"Global, DevOps"</pre>
   // tenant from turning the read into a half-hour of paging.
   const SI_MAX = 10000;
   let siRes = null, siFilter = "all", siQuery = "", siDays = 7, siMode = "enforced", siView = "signins";
+
+  // Type-ahead for the search box. Two sources, because both are useful at
+  // different moments: once a scan has run, the users and apps that actually
+  // appear in the result are the only ones worth typing — and before it has,
+  // the directory is all there is. Merged, result first.
+  let siSugTimer = null;
+  function siSuggestFromResult() {
+    if (!siRes || !siRes.rows) return [];
+    const users = new Set(), apps = new Set();
+    siRes.rows.forEach((r) => {
+      (r.signins || [r]).forEach((x) => { if (x.upn) users.add(x.upn); if (x.app) apps.add(x.app); });
+    });
+    return [...users].slice(0, 40).map((u) => ({ v: u, l: "in this result" }))
+      .concat([...apps].slice(0, 20).map((a) => ({ v: a, l: "app in this result" })));
+  }
+  function siFillSuggest(extra) {
+    const dl = $("siSearchList"); if (!dl) return;
+    const seen = new Set(); const out = [];
+    [...siSuggestFromResult(), ...(extra || [])].forEach((o) => {
+      const k = String(o.v || "").toLowerCase();
+      if (!o.v || seen.has(k)) return;
+      seen.add(k); out.push(`<option value="${esc(o.v)}" label="${esc(o.l || "")}"></option>`);
+    });
+    dl.innerHTML = out.join("");
+  }
+  $("siSearch").addEventListener("focus", () => siFillSuggest());
+  $("siSearch").addEventListener("input", (e) => {
+    const v = e.target.value; clearTimeout(siSugTimer);
+    siSugTimer = setTimeout(async () => {
+      const t = v.trim();
+      if (isDemo || t.length < 2) { siFillSuggest(); return; }
+      try {
+        const f = t.replace(/'/g, "''");
+        const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
+        siFillSuggest(((r && r.value) || []).map((u) => ({ v: u.userPrincipalName, l: u.displayName || "" })));
+      } catch (err) { console.warn("sign-ins: suggest failed", err.message); }
+    }, 250);
+  });
   let siBusy = false, siCapped = false;
   const siOpen = new Set();
   const siBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted">Reading the sign-in log… this keeps running if you switch tabs.</p></div>';
@@ -6809,6 +6847,32 @@ max@contoso.com,"Global, DevOps"</pre>
   // Keep the user informed during a throttle back-off instead of looking hung.
   buildToolNav();
   Graph.setThrottleHandler((ms) => toast(`Microsoft Graph is throttling — waiting <span>${Math.ceil(ms / 1000)}s</span> then continuing…`));
+  // The version badge is on the home tile; it belongs on the tool's own header
+  // too, which is where somebody actually is when they wonder what changed.
+  // Heads are re-rendered by their tools, so observe rather than stamp once.
+  const HEAD_TOOL = {
+    mlHead: "toolMsLearn", exHead: "toolExclusions", cgHead: "toolCaGroups", prHead: "toolProtect",
+    blHead: "toolBaseline", gcHead: "toolGapCheck", vaHead: "toolValidator", wiHead: "toolWhatIf",
+    guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
+    siHead: "toolSignins",
+  };
+  function stampHeadVersion(el, toolId) {
+    const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
+    if (!t || !t.v) return;
+    const h = el.querySelector("h3, h4");
+    if (!h || h.querySelector(".tool-ver-head")) return;   // also stops the observer looping
+    const s = document.createElement("span");
+    s.className = "tool-ver-head";
+    s.textContent = "v" + t.v;
+    if (t.note) s.title = t.note;
+    h.appendChild(s);
+  }
+  Object.entries(HEAD_TOOL).forEach(([id, toolId]) => {
+    const el = $(id); if (!el) return;
+    stampHeadVersion(el, toolId);
+    new MutationObserver(() => stampHeadVersion(el, toolId)).observe(el, { childList: true, subtree: true });
+  });
+
   Graph.init().then((resumed) => {
     if (new URLSearchParams(location.search).get("demo")) { loadDemo(); return; }
     // Came back from a redirect sign-in: carry straight on rather than showing
