@@ -10,10 +10,10 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=226"></script>
+<script src="js/popup-guard.js?v=227"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=226">
+<link rel="stylesheet" href="css/app.css?v=227">
 </head>
 <body>
 
@@ -162,6 +162,14 @@
       <div class="tool" id="toolLocations">
         <div class="tool-ic">🌐</div><h3>Named locations</h3>
         <p>View, create, edit and delete Conditional Access named locations — IP ranges and countries — and see which policies use each one. <span class="tag block">writes to tenant</span></p>
+      </div>
+      <div class="tool" id="toolAuthCtx">
+        <div class="tool-ic">🎫</div><h3>Authentication contexts <span class="tag new">BETA</span></h3>
+        <p>The step-up requirements apps and Protected Actions can ask for (c1–c99): create, rename, publish or unpublish each context and see which Conditional Access policies enforce it. <span class="tag block">writes to tenant</span></p>
+      </div>
+      <div class="tool" id="toolAuthStr">
+        <div class="tool-ic">💪</div><h3>Authentication strengths <span class="tag new">BETA</span></h3>
+        <p>The method combinations a policy can require: the three built-in strengths read-only, custom strengths created, re-combined, renamed and deleted — with the policies granting each one. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolState">
         <div class="tool-ic">🎚</div><h3>Set Policy state</h3>
@@ -761,6 +769,42 @@
       </div>
     </div>
     <div id="loBody" style="margin-top:14px"></div>
+  </section>
+
+  <!-- ============ AUTHENTICATION CONTEXTS (BETA) ============ -->
+  <section id="screen-authctx" class="screen">
+    <div class="list-card readme" id="acHead" style="margin-top:0"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="acSearch" placeholder="Search contexts…">
+      </div>
+      <div class="chip-filter" id="acChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="acRefresh" title="Re-read the authentication contexts from Entra">⟳ Refresh</button>
+        <button class="btn" id="acMd" title="Documentation of every context and its policy usage">Export MD</button>
+        <button class="btn lemon" id="acNew">＋ New context</button>
+      </div>
+    </div>
+    <div id="acBody" style="margin-top:14px"></div>
+  </section>
+
+  <!-- ============ AUTHENTICATION STRENGTHS (BETA) ============ -->
+  <section id="screen-authstr" class="screen">
+    <div class="list-card readme" id="asHead" style="margin-top:0"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="asSearch" placeholder="Search strengths…">
+      </div>
+      <div class="chip-filter" id="asChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="asRefresh" title="Re-read the authentication strengths from Entra">⟳ Refresh</button>
+        <button class="btn" id="asMd" title="Documentation of every strength, its combinations and policy usage">Export MD</button>
+        <button class="btn lemon" id="asNew">＋ New custom strength</button>
+      </div>
+    </div>
+    <div id="asBody" style="margin-top:14px"></div>
   </section>
 
   <!-- ============ CHANGE AUDIT ============ -->
@@ -1421,6 +1465,78 @@
   </div>
 </div>
 
+<!-- ============ AUTHENTICATION CONTEXT EDITOR ============ -->
+<div class="modal-bg" id="acEditModal">
+  <div class="modal" style="max-width:560px">
+    <h3 id="acEditTitle">New authentication context</h3>
+    <p class="mini" id="acEditSub" style="margin-bottom:12px"></p>
+    <label class="wi-f" style="margin-bottom:10px"><span>Id (the contract — apps request this value; it can never change)</span>
+      <select id="acId"></select></label>
+    <label class="wi-f" style="margin-bottom:10px"><span>Display name</span>
+      <input id="acName" placeholder="e.g. Sensitive actions" maxlength="30" autocomplete="off" spellcheck="false"></label>
+    <label class="wi-f" style="margin-bottom:10px"><span>Description (shown as secondary text in selection UX)</span>
+      <textarea id="acDesc" rows="2" maxlength="500" spellcheck="false"></textarea></label>
+    <label class="chk"><input type="checkbox" id="acAvail"> Published (available to apps, Protected Actions and labels)
+      <span class="mini muted">— unpublished stays selectable for CA policy authoring only</span></label>
+    <div id="acEditWarn" style="margin-top:12px"></div>
+    <div class="row">
+      <button class="btn" id="acEditCancel">Cancel</button>
+      <button class="btn primary" id="acEditSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ AUTHENTICATION CONTEXT DELETE ============ -->
+<div class="modal-bg" id="acDelModal">
+  <div class="modal">
+    <h3>🗑 Delete authentication context</h3>
+    <p class="mini" id="acDelDesc"></p>
+    <div class="danger-note"><b>The id is the contract.</b> Any app, Protected Action or sensitivity label that requests this context id will keep requesting it — deleting the context does not update them.</div>
+    <div id="acDelRefs" style="margin-top:12px"></div>
+    <label class="mini" for="acDelConfirm" style="display:block;margin-top:10px">Type <b>DELETE</b> to confirm</label>
+    <input id="acDelConfirm" class="txt" placeholder="DELETE" autocomplete="off" spellcheck="false" style="margin-top:4px">
+    <div class="row">
+      <button class="btn" id="acDelCancel">Cancel</button>
+      <button class="btn danger" id="acDelGo">Delete permanently</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ AUTHENTICATION STRENGTH EDITOR ============ -->
+<div class="modal-bg" id="asEditModal">
+  <div class="modal" style="max-width:680px">
+    <h3 id="asEditTitle">New custom authentication strength</h3>
+    <p class="mini" id="asEditSub" style="margin-bottom:12px"></p>
+    <label class="wi-f" style="margin-bottom:10px"><span>Display name</span>
+      <input id="asName" placeholder="e.g. Phishing-resistant or TAP" maxlength="30" autocomplete="off" spellcheck="false"></label>
+    <label class="wi-f" style="margin-bottom:10px"><span>Description</span>
+      <textarea id="asDesc" rows="2" spellcheck="false"></textarea></label>
+    <div class="wi-f"><span>Allowed combinations — a sign-in satisfies the strength with ANY selected combination</span>
+      <div id="asCombos" style="max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-top:4px"></div></div>
+    <div id="asEditWarn" style="margin-top:12px"></div>
+    <div class="row">
+      <button class="btn" id="asEditCancel">Cancel</button>
+      <button class="btn primary" id="asEditSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ AUTHENTICATION STRENGTH DELETE ============ -->
+<div class="modal-bg" id="asDelModal">
+  <div class="modal">
+    <h3>🗑 Delete custom authentication strength</h3>
+    <p class="mini" id="asDelDesc"></p>
+    <div class="danger-note"><b>This cannot be undone.</b> A strength that a Conditional Access policy grants cannot be deleted — Graph refuses while it is referenced.</div>
+    <div id="asDelRefs" style="margin-top:12px"></div>
+    <label class="mini" for="asDelConfirm" style="display:block;margin-top:10px">Type <b>DELETE</b> to confirm</label>
+    <input id="asDelConfirm" class="txt" placeholder="DELETE" autocomplete="off" spellcheck="false" style="margin-top:4px">
+    <div class="row">
+      <button class="btn" id="asDelCancel">Cancel</button>
+      <button class="btn danger" id="asDelGo">Delete permanently</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ EXCLUSION GROUP MEMBERS ============ -->
 <div class="modal-bg" id="exMemModal">
   <div class="modal" style="max-width:620px">
@@ -1535,35 +1651,37 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=226"></script>
-<script src="js/version.js?v=226"></script>
-<script src="js/authConfig.js?v=226"></script>
-<script src="js/labels.js?v=226"></script>
-<script src="js/graph.js?v=226"></script>
-<script src="js/model.js?v=226"></script>
-<script src="js/render.js?v=226"></script>
-<script src="js/analyze.js?v=226"></script>
-<script src="js/whatif.js?v=226"></script>
-<script src="js/mslearn.js?v=226"></script>
-<script src="js/gapcheck.js?v=226"></script>
-<script src="js/exclusions.js?v=226"></script>
-<script src="js/validator.js?v=226"></script>
-<script src="js/whatifeval.js?v=226"></script>
-<script src="js/compare.js?v=226"></script>
-<script src="js/groupuse.js?v=226"></script>
-<script src="js/locations.js?v=226"></script>
-<script src="js/audit.js?v=226"></script>
-<script src="js/signins.js?v=226"></script>
-<script src="js/changelog.js?v=226"></script>
-<script src="js/baselineData.js?v=226"></script>
-<script src="js/baselineJoeyData.js?v=226"></script>
-<script src="js/baseline.js?v=226"></script>
-<script src="js/groupTemplates.js?v=226"></script>
-<script src="js/assign.js?v=226"></script>
-<script src="js/cagroups.js?v=226"></script>
-<script src="js/import.js?v=226"></script>
-<script src="js/export.js?v=226"></script>
-<script src="js/demo.js?v=226"></script>
-<script src="js/app.js?v=226"></script>
+<script src="js/branding.js?v=227"></script>
+<script src="js/version.js?v=227"></script>
+<script src="js/authConfig.js?v=227"></script>
+<script src="js/labels.js?v=227"></script>
+<script src="js/graph.js?v=227"></script>
+<script src="js/model.js?v=227"></script>
+<script src="js/render.js?v=227"></script>
+<script src="js/analyze.js?v=227"></script>
+<script src="js/whatif.js?v=227"></script>
+<script src="js/mslearn.js?v=227"></script>
+<script src="js/gapcheck.js?v=227"></script>
+<script src="js/exclusions.js?v=227"></script>
+<script src="js/validator.js?v=227"></script>
+<script src="js/whatifeval.js?v=227"></script>
+<script src="js/compare.js?v=227"></script>
+<script src="js/groupuse.js?v=227"></script>
+<script src="js/locations.js?v=227"></script>
+<script src="js/authcontexts.js?v=227"></script>
+<script src="js/authstrengths.js?v=227"></script>
+<script src="js/audit.js?v=227"></script>
+<script src="js/signins.js?v=227"></script>
+<script src="js/changelog.js?v=227"></script>
+<script src="js/baselineData.js?v=227"></script>
+<script src="js/baselineJoeyData.js?v=227"></script>
+<script src="js/baseline.js?v=227"></script>
+<script src="js/groupTemplates.js?v=227"></script>
+<script src="js/assign.js?v=227"></script>
+<script src="js/cagroups.js?v=227"></script>
+<script src="js/import.js?v=227"></script>
+<script src="js/export.js?v=227"></script>
+<script src="js/demo.js?v=227"></script>
+<script src="js/app.js?v=227"></script>
 </body>
 </html>

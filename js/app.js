@@ -67,7 +67,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-audit", "screen-signins", "screen-protect", "screen-changelog", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-audit", "screen-signins", "screen-protect", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Per-screen scroll memory: switching tabs used to jump to the top and lose
@@ -995,6 +995,8 @@
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
     ["toolLocations", "🌐 Named locations"],
+    ["toolAuthCtx", "🎫 Authentication contexts"],
+    ["toolAuthStr", "💪 Authentication strengths"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
@@ -5202,6 +5204,379 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("🌐 Named locations", "CA-NamedLocations", L.join("\n"));
   });
 
+  // ---------- Authentication contexts (BETA — view / create / edit / publish / delete) ----------
+  const AC_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let acList = null, acFilter = "all", acQuery = "", acEditing = null, acDeleting = null;
+  // Demo tenants rarely define contexts — a small sample keeps the tool
+  // explorable at ?demo=1 without touching demo.js.
+  const AC_DEMO = [
+    { id: "c1", displayName: "Sensitive actions", description: "Step-up for Protected Actions and admin portals", isAvailable: true },
+    { id: "c2", displayName: "Confidential documents", description: "Requested by the Highly Confidential sensitivity label", isAvailable: true },
+    { id: "c3", displayName: "Draft — legal hold", description: "", isAvailable: false },
+  ];
+
+  async function openAuthCtx(force) {
+    crumb("🎫 Authentication contexts");
+    show("screen-authctx");
+    if (acList && !force) { renderAuthCtx(); return; }   // cached
+    $("acHead").innerHTML = '<h3>🎫 Authentication contexts <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading authentication contexts…</p>';
+    $("acBody").innerHTML = ""; $("acChips").innerHTML = "";
+    try {
+      acList = isDemo
+        ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.authContexts) || AC_DEMO)
+        : await Graph.ggetAll("/identity/conditionalAccess/authenticationContextClassReferences");
+      renderAuthCtx();
+    } catch (e) {
+      console.error("Authentication contexts failed:", e);
+      $("acHead").innerHTML = `<h3>🎫 Authentication contexts</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+    }
+  }
+  $("toolAuthCtx").addEventListener("click", () => openAuthCtx());
+  $("acRefresh").addEventListener("click", () => openAuthCtx(true));
+
+  function renderAuthCtx() {
+    const raws = policies.map((p) => p.raw);
+    const s = AuthContexts.summarize(acList, raws);
+    $("acHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">
+        <h3>🎫 Authentication contexts <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <p style="margin-bottom:4px">The step-up requirements apps, Protected Actions and sensitivity labels can ask for. The <b>id</b> (c1–c${AuthContexts.SLOT_MAX}) is the contract — it is what callers request and what the token's ACRS claim carries — so it can be renamed and republished, but never changed. Each card shows which Conditional Access policies enforce it.</p>
+        <p class="mini muted" style="margin:0">Unpublished contexts are hidden from app and label selection but stay usable in CA policy authoring. Only an unpublished context that no policy references can be deleted.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> of ${AuthContexts.SLOT_MAX} slots</span></div>
+        <div class="mini">${s.published} published · ${s.unpublished} unpublished</div>
+        <div class="mini">${s.inUse} enforced by a policy${s.unused ? ` · ${s.unused} unreferenced` : ""}</div>
+      </div></div>`;
+    $("acChips").innerHTML = [["all", `All (${s.total})`], ["published", `✓ Published (${s.published})`],
+      ["unpublished", `Unpublished (${s.unpublished})`], ["inuse", `Enforced (${s.inUse})`], ["unused", `Unreferenced (${s.unused})`]]
+      .map(([k, l]) => `<button class="fchip ${acFilter === k ? "active" : ""}" data-acf="${k}">${esc(l)}</button>`).join("");
+
+    const q = acQuery.toLowerCase();
+    const rows = (acList || []).filter((c) => {
+      const used = AuthContexts.usedBy(c.id, raws).length;
+      if (acFilter === "published" && !c.isAvailable) return false;
+      if (acFilter === "unpublished" && c.isAvailable) return false;
+      if (acFilter === "inuse" && !used) return false;
+      if (acFilter === "unused" && used) return false;
+      return !q || `${c.id} ${c.displayName} ${c.description}`.toLowerCase().includes(q);
+    }).sort(AuthContexts.sortById);
+
+    if (!rows.length) { $("acBody").innerHTML = '<p class="mini" style="padding:20px">No authentication context matches the current filter.</p>'; return; }
+    const list = (arr) => arr.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>`).join(", ");
+    $("acBody").innerHTML = `<div class="lo-grid">` + rows.map((c) => {
+      const used = AuthContexts.usedBy(c.id, raws);
+      const del = AuthContexts.deletable(c, raws);
+      return `<div class="list-card lo-card">
+        <div class="lo-h">
+          <span class="lo-ic">🎫</span>
+          <b>${esc(c.id)}</b> <b>${esc(c.displayName || "(unnamed)")}</b>
+          ${c.isAvailable ? '<span class="tag ok">published</span>' : '<span class="tag">unpublished</span>'}
+        </div>
+        ${c.description ? `<div class="mini lo-d">${esc(c.description)}</div>` : ""}
+        <div class="lo-u">${used.length
+          ? `Enforced by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          : '<span class="mini muted">No Conditional Access policy enforces this context — callers requesting it get no step-up</span>'}</div>
+        <div class="lo-act">
+          <button class="btn sm" data-acedit="${esc(c.id)}">✎ Edit</button>
+          <button class="btn sm" data-acpub="${esc(c.id)}">${c.isAvailable ? "⏸ Unpublish" : "▶ Publish"}</button>
+          <button class="btn sm danger" data-acdel="${esc(c.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>
+        </div>
+      </div>`;
+    }).join("") + `</div>
+    <p class="mini muted" style="margin-top:10px">${s.free} free slot${s.free === 1 ? "" : "s"} (of c1–c${AuthContexts.SLOT_MAX}).</p>`;
+  }
+  $("acChips").addEventListener("click", (e) => { const b = e.target.closest("[data-acf]"); if (!b) return; acFilter = b.dataset.acf; renderAuthCtx(); });
+  $("acSearch").addEventListener("input", (e) => { acQuery = e.target.value; renderAuthCtx(); });
+  $("acBody").addEventListener("click", async (e) => {
+    const ed = e.target.closest("[data-acedit]"); if (ed) { openAcEditor(acList.find((x) => x.id === ed.dataset.acedit)); return; }
+    const pb = e.target.closest("[data-acpub]"); if (pb) { await acTogglePublish(acList.find((x) => x.id === pb.dataset.acpub), pb); return; }
+    const dl = e.target.closest("[data-acdel]"); if (dl && !dl.disabled) { openAcDelete(acList.find((x) => x.id === dl.dataset.acdel)); return; }
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+
+  async function acTogglePublish(c, btn) {
+    if (!c) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...AC_WRITE])) return;
+    btn.disabled = true;
+    try {
+      if (isDemo) { c.isAvailable = !c.isAvailable; toast("Demo — <span>publish state simulated</span>"); renderAuthCtx(); return; }
+      await Graph.gpatch(`/identity/conditionalAccess/authenticationContextClassReferences/${c.id}`, { isAvailable: !c.isAvailable }, [...AUTH_CONFIG.scopes, ...AC_WRITE]);
+      toast(`<span>${esc(c.id)} ${esc(c.displayName || "")}</span> ${c.isAvailable ? "unpublished" : "published"}`);
+      await openAuthCtx(true);
+    } catch (e2) {
+      console.error("Publish toggle failed:", e2);
+      toast(`Failed: <span>${esc(e2.message || e2)}</span>`);
+      btn.disabled = false;
+    }
+  }
+
+  function openAcEditor(ctx) {
+    acEditing = ctx || null;
+    const f = AuthContexts.toForm(ctx);
+    const free = AuthContexts.freeSlots(acList || []);
+    $("acEditTitle").textContent = ctx ? `Edit ${ctx.id}` : "New authentication context";
+    $("acEditSub").innerHTML = ctx
+      ? `<b>${esc(ctx.displayName || ctx.id)}</b> — the id cannot be changed; rename and republish instead.`
+      : `Creates a new context in a free slot. ${free.length} of ${AuthContexts.SLOT_MAX} slots free.`;
+    $("acId").innerHTML = ctx
+      ? `<option value="${esc(ctx.id)}">${esc(ctx.id)}</option>`
+      : free.map((id) => `<option value="${esc(id)}">${esc(id)}</option>`).join("");
+    $("acId").disabled = !!ctx;
+    $("acName").value = f.name; $("acDesc").value = f.description; $("acAvail").checked = f.isAvailable;
+    $("acEditWarn").innerHTML = "";
+    $("acEditModal").classList.add("open");
+  }
+  $("acNew").addEventListener("click", () => openAcEditor(null));
+  $("acEditCancel").addEventListener("click", () => $("acEditModal").classList.remove("open"));
+  $("acEditSave").addEventListener("click", async () => {
+    const built = AuthContexts.buildPayload({ id: acEditing ? acEditing.id : $("acId").value, name: $("acName").value, description: $("acDesc").value, isAvailable: $("acAvail").checked });
+    if (!built.ok) { $("acEditWarn").innerHTML = built.errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join(""); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...AC_WRITE])) return;
+    const btn = $("acEditSave"); btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      if (isDemo) {
+        toast("Demo — <span>save simulated</span>");
+      } else {
+        // Create-or-update by design: PATCH on the id upserts.
+        await Graph.gpatch(`/identity/conditionalAccess/authenticationContextClassReferences/${built.id}`, built.payload, [...AUTH_CONFIG.scopes, ...AC_WRITE]);
+        toast(`<span>${esc(built.id)} ${esc(built.payload.displayName)}</span> ${acEditing ? "updated" : "created"}`);
+      }
+      $("acEditModal").classList.remove("open");
+      await openAuthCtx(true);
+    } catch (e) {
+      console.error("Save authentication context failed:", e);
+      $("acEditWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(e.message || e)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = "Save"; }
+  });
+
+  function openAcDelete(c) {
+    if (!c) return;
+    acDeleting = c;
+    const used = AuthContexts.usedBy(c.id, policies.map((p) => p.raw));
+    $("acDelDesc").innerHTML = `<b>${esc(c.id)} ${esc(c.displayName || "")}</b>${c.description ? ` — ${esc(c.description)}` : ""}`;
+    $("acDelRefs").innerHTML = used.length
+      ? `<div class="mini" style="color:var(--off)">Still referenced by ${used.length} polic${used.length === 1 ? "y" : "ies"} — Graph will refuse this delete.</div>`
+      : '<p class="mini muted">Unpublished and unreferenced — Graph allows this delete.</p>';
+    $("acDelConfirm").value = ""; $("acDelGo").disabled = true;
+    $("acDelModal").classList.add("open");
+  }
+  $("acDelConfirm").addEventListener("input", (e) => { $("acDelGo").disabled = e.target.value.trim().toUpperCase() !== "DELETE"; });
+  $("acDelCancel").addEventListener("click", () => $("acDelModal").classList.remove("open"));
+  $("acDelGo").addEventListener("click", async () => {
+    if (!acDeleting) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...AC_WRITE])) return;
+    const btn = $("acDelGo"); btn.disabled = true; btn.textContent = "Deleting…";
+    try {
+      if (isDemo) toast("Demo — <span>delete simulated</span>");
+      else {
+        await Graph.gdelete(`/identity/conditionalAccess/authenticationContextClassReferences/${acDeleting.id}`, [...AUTH_CONFIG.scopes, ...AC_WRITE]);
+        toast(`<span>${esc(acDeleting.id)}</span> deleted`);
+      }
+      $("acDelModal").classList.remove("open");
+      await openAuthCtx(true);
+    } catch (e) {
+      console.error("Delete authentication context failed:", e);
+      toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; btn.textContent = "Delete permanently"; }
+  });
+  $("acMd").addEventListener("click", () => {
+    if (!acList) return;
+    showReport("🎫 Authentication contexts", "CA-AuthenticationContexts", AuthContexts.toMd(acList, policies.map((p) => p.raw), { tenantName }));
+  });
+
+  // ---------- Authentication strengths (BETA — view / create / edit / delete) ----------
+  const AS_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let asList = null, asCombos = null, asFilter = "all", asQuery = "", asEditing = null, asDeleting = null;
+
+  async function openAuthStr(force) {
+    crumb("💪 Authentication strengths");
+    show("screen-authstr");
+    if (asList && !force) { renderAuthStr(); return; }   // cached
+    $("asHead").innerHTML = '<h3>💪 Authentication strengths <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading authentication strengths…</p>';
+    $("asBody").innerHTML = ""; $("asChips").innerHTML = "";
+    try {
+      if (isDemo) {
+        asList = Object.entries((typeof DEMO_DATA !== "undefined" && DEMO_DATA.depSettings) || {})
+          .filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v);
+        // The demo data only carries the strengths its policies reference —
+        // add whichever of the three built-ins are missing so the screen
+        // shows the real shape of a tenant.
+        const demoBuiltins = [
+          { id: "00000000-0000-0000-0000-000000000002", displayName: "Multifactor authentication", policyType: "builtIn", description: "Combinations of methods that satisfy strong authentication, such as a password + SMS.", allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor", "deviceBasedPush", "temporaryAccessPassOneTime", "temporaryAccessPassMultiUse", "password,microsoftAuthenticatorPush", "password,softwareOath", "password,hardwareOath", "password,sms", "password,voice", "federatedMultiFactor"] },
+          { id: "00000000-0000-0000-0000-000000000003", displayName: "Passwordless MFA", policyType: "builtIn", description: "Passwordless methods that satisfy strong authentication.", allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor", "deviceBasedPush"] },
+          { id: "00000000-0000-0000-0000-000000000004", displayName: "Phishing-resistant MFA", policyType: "builtIn", description: "Phishing-resistant, passwordless methods for the strongest authentication.", allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor"] },
+        ];
+        for (const bi of demoBuiltins) if (!asList.some((p) => (p.id || "").toLowerCase() === bi.id || (p.displayName || "").toLowerCase() === bi.displayName.toLowerCase())) asList.push(bi);
+        asCombos = AuthStrengths.FALLBACK_COMBINATIONS;
+      } else {
+        asList = await Graph.ggetAll("/policies/authenticationStrengthPolicies");
+        // Live combination catalog — new modes appear without a code change.
+        try {
+          const root = await Graph.gget("/identity/conditionalAccess/authenticationStrength");
+          asCombos = (root.authenticationCombinations || []).length ? root.authenticationCombinations : AuthStrengths.FALLBACK_COMBINATIONS;
+        } catch { asCombos = AuthStrengths.FALLBACK_COMBINATIONS; }
+      }
+      renderAuthStr();
+    } catch (e) {
+      console.error("Authentication strengths failed:", e);
+      $("asHead").innerHTML = `<h3>💪 Authentication strengths</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+    }
+  }
+  $("toolAuthStr").addEventListener("click", () => openAuthStr());
+  $("asRefresh").addEventListener("click", () => openAuthStr(true));
+
+  function renderAuthStr() {
+    const raws = policies.map((p) => p.raw);
+    const s = AuthStrengths.summarize(asList, raws);
+    $("asHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">
+        <h3>💪 Authentication strengths <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <p style="margin-bottom:4px">The method combinations a Conditional Access policy can require through <b>Require authentication strength</b>. A sign-in satisfies a strength with <b>any one</b> of its allowed combinations — so every combination on the list is a door, and the weakest door defines the strength.</p>
+        <p class="mini muted" style="margin:0">The three built-in strengths are Microsoft-managed and immutable. Custom strengths can be created, renamed, re-combined and — when no policy grants them — deleted.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> strengths</span></div>
+        <div class="mini">${s.builtin} built-in · ${s.custom} custom</div>
+        <div class="mini">${s.inUse} granted by a policy · ${s.pr} fully phishing-resistant</div>
+      </div></div>`;
+    $("asChips").innerHTML = [["all", `All (${s.total})`], ["builtin", `Built-in (${s.builtin})`],
+      ["custom", `Custom (${s.custom})`], ["inuse", `Granted (${s.inUse})`]]
+      .map(([k, l]) => `<button class="fchip ${asFilter === k ? "active" : ""}" data-asf="${k}">${esc(l)}</button>`).join("");
+
+    const q = asQuery.toLowerCase();
+    const rows = (asList || []).filter((p) => {
+      const used = AuthStrengths.usedBy(p.id, raws).length;
+      if (asFilter === "builtin" && !AuthStrengths.isBuiltIn(p)) return false;
+      if (asFilter === "custom" && AuthStrengths.isBuiltIn(p)) return false;
+      if (asFilter === "inuse" && !used) return false;
+      return !q || `${p.displayName} ${p.description} ${(p.allowedCombinations || []).join(" ")}`.toLowerCase().includes(q);
+    }).sort((a, b) => (AuthStrengths.isBuiltIn(b) ? 1 : 0) - (AuthStrengths.isBuiltIn(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
+
+    if (!rows.length) { $("asBody").innerHTML = '<p class="mini" style="padding:20px">No authentication strength matches the current filter.</p>'; return; }
+    const list = (arr) => arr.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>`).join(", ");
+    const classTag = (c) => c === "pr" ? '<span class="tag grant">phishing-resistant</span>' : c === "mfa" ? '<span class="tag">MFA</span>' : '<span class="tag block">allows single-factor</span>';
+    $("asBody").innerHTML = `<div class="lo-grid">` + rows.map((p) => {
+      const used = AuthStrengths.usedBy(p.id, raws);
+      const del = AuthStrengths.deletable(p, raws);
+      const combos = p.allowedCombinations || [];
+      const builtin = AuthStrengths.isBuiltIn(p);
+      return `<div class="list-card lo-card">
+        <div class="lo-h">
+          <span class="lo-ic">💪</span>
+          <b>${esc(p.displayName || "(unnamed)")}</b>
+          ${builtin ? '<span class="tag">built-in</span>' : '<span class="tag ok">custom</span>'}
+          ${classTag(AuthStrengths.strengthClass(p))}
+        </div>
+        ${p.description ? `<div class="mini lo-d">${esc(p.description)}</div>` : ""}
+        <div class="mini" style="margin:6px 0 0">${combos.slice(0, 6).map((c) => `<span class="tag" title="${esc(AuthStrengths.CLASS_LABEL[AuthStrengths.classify(c)])}">${esc(AuthStrengths.comboLabel(c))}</span>`).join(" ")}${combos.length > 6 ? ` <span class="mini muted">+${combos.length - 6} more</span>` : ""}</div>
+        <div class="lo-u">${used.length
+          ? `Granted by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          : '<span class="mini muted">Not granted by any policy</span>'}</div>
+        <div class="lo-act">${builtin
+          ? '<span class="mini muted">Microsoft-managed</span>'
+          : `<button class="btn sm" data-asedit="${esc(p.id)}">✎ Edit</button>
+             <button class="btn sm danger" data-asdel="${esc(p.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>`}</div>
+      </div>`;
+    }).join("") + `</div>`;
+  }
+  $("asChips").addEventListener("click", (e) => { const b = e.target.closest("[data-asf]"); if (!b) return; asFilter = b.dataset.asf; renderAuthStr(); });
+  $("asSearch").addEventListener("input", (e) => { asQuery = e.target.value; renderAuthStr(); });
+  $("asBody").addEventListener("click", (e) => {
+    const ed = e.target.closest("[data-asedit]"); if (ed) { openAsEditor(asList.find((x) => x.id === ed.dataset.asedit)); return; }
+    const dl = e.target.closest("[data-asdel]"); if (dl && !dl.disabled) { openAsDelete(asList.find((x) => x.id === dl.dataset.asdel)); return; }
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+
+  function openAsEditor(p) {
+    asEditing = p || null;
+    $("asEditTitle").textContent = p ? `Edit ${p.displayName}` : "New custom authentication strength";
+    $("asEditSub").innerHTML = p
+      ? "Renames are a PATCH; the combinations go through Graph's dedicated <b>updateAllowedCombinations</b> action."
+      : "Creates a custom strength any Conditional Access policy can then require.";
+    $("asName").value = p ? (p.displayName || "") : "";
+    $("asDesc").value = p ? (p.description || "") : "";
+    const selected = new Set(p ? (p.allowedCombinations || []) : []);
+    const cat = { pr: [], mfa: [], single: [] };
+    for (const c of (asCombos || AuthStrengths.FALLBACK_COMBINATIONS)) cat[AuthStrengths.classify(c)].push(c);
+    const group = (label, arr, warn) => arr.length ? `<div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin:8px 0 2px">${label}${warn ? ` <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">${warn}</span>` : ""}</div>`
+      + arr.map((c) => `<label class="chk" style="display:block;margin:2px 0"><input type="checkbox" data-ascombo="${esc(c)}" ${selected.has(c) ? "checked" : ""}> ${esc(AuthStrengths.comboLabel(c))}</label>`).join("") : "";
+    $("asCombos").innerHTML =
+      group("Phishing-resistant", cat.pr) +
+      group("MFA", cat.mfa) +
+      group("Single-factor", cat.single, "— including any of these makes the whole strength satisfiable without MFA");
+    $("asEditWarn").innerHTML = "";
+    $("asEditModal").classList.add("open");
+  }
+  $("asNew").addEventListener("click", () => openAsEditor(null));
+  $("asEditCancel").addEventListener("click", () => $("asEditModal").classList.remove("open"));
+  $("asEditSave").addEventListener("click", async () => {
+    const combos = [...document.querySelectorAll("#asCombos [data-ascombo]")].filter((x) => x.checked).map((x) => x.dataset.ascombo);
+    const built = AuthStrengths.buildPayload({ name: $("asName").value, description: $("asDesc").value, combinations: combos });
+    if (!built.ok) { $("asEditWarn").innerHTML = built.errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join(""); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...AS_WRITE])) return;
+    const btn = $("asEditSave"); btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      if (isDemo) {
+        toast("Demo — <span>save simulated</span>");
+      } else if (asEditing) {
+        // name/description and combinations travel on different endpoints
+        const scopes = [...AUTH_CONFIG.scopes, ...AS_WRITE];
+        if ((asEditing.displayName || "") !== built.payload.displayName || (asEditing.description || "") !== built.payload.description) {
+          await Graph.gpatch(`/policies/authenticationStrengthPolicies/${asEditing.id}`, { displayName: built.payload.displayName, description: built.payload.description }, scopes);
+        }
+        const a = (asEditing.allowedCombinations || []).slice().sort().join("|");
+        if (a !== built.payload.allowedCombinations.slice().sort().join("|")) {
+          await Graph.gpost(`/policies/authenticationStrengthPolicies/${asEditing.id}/updateAllowedCombinations`, { allowedCombinations: built.payload.allowedCombinations }, scopes);
+        }
+        toast(`<span>${esc(built.payload.displayName)}</span> updated`);
+      } else {
+        await Graph.gpost("/policies/authenticationStrengthPolicies", built.payload, [...AUTH_CONFIG.scopes, ...AS_WRITE]);
+        toast(`<span>${esc(built.payload.displayName)}</span> created`);
+      }
+      $("asEditModal").classList.remove("open");
+      await openAuthStr(true);
+    } catch (e) {
+      console.error("Save authentication strength failed:", e);
+      $("asEditWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(e.message || e)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = "Save"; }
+  });
+
+  function openAsDelete(p) {
+    if (!p) return;
+    asDeleting = p;
+    const used = AuthStrengths.usedBy(p.id, policies.map((x) => x.raw));
+    $("asDelDesc").innerHTML = `<b>${esc(p.displayName)}</b> — ${(p.allowedCombinations || []).length} combination${(p.allowedCombinations || []).length === 1 ? "" : "s"}`;
+    $("asDelRefs").innerHTML = used.length
+      ? `<div class="mini" style="color:var(--off)">Granted by ${used.length} polic${used.length === 1 ? "y" : "ies"} — Graph will refuse this delete.</div>`
+      : '<p class="mini muted">Not granted by any policy — Graph allows this delete.</p>';
+    $("asDelConfirm").value = ""; $("asDelGo").disabled = true;
+    $("asDelModal").classList.add("open");
+  }
+  $("asDelConfirm").addEventListener("input", (e) => { $("asDelGo").disabled = e.target.value.trim().toUpperCase() !== "DELETE"; });
+  $("asDelCancel").addEventListener("click", () => $("asDelModal").classList.remove("open"));
+  $("asDelGo").addEventListener("click", async () => {
+    if (!asDeleting) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...AS_WRITE])) return;
+    const btn = $("asDelGo"); btn.disabled = true; btn.textContent = "Deleting…";
+    try {
+      if (isDemo) toast("Demo — <span>delete simulated</span>");
+      else {
+        await Graph.gdelete(`/policies/authenticationStrengthPolicies/${asDeleting.id}`, [...AUTH_CONFIG.scopes, ...AS_WRITE]);
+        toast(`<span>${esc(asDeleting.displayName)}</span> deleted`);
+      }
+      $("asDelModal").classList.remove("open");
+      await openAuthStr(true);
+    } catch (e) {
+      console.error("Delete authentication strength failed:", e);
+      toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; btn.textContent = "Delete permanently"; }
+  });
+  $("asMd").addEventListener("click", () => {
+    if (!asList) return;
+    showReport("💪 Authentication strengths", "CA-AuthenticationStrengths", AuthStrengths.toMd(asList, policies.map((p) => p.raw), { tenantName }));
+  });
+
   // ---------- What-If (Entra Conditional Access What If tool) ----------
   let wiResult = null, wiScenario = null, wiLocations = null, wiNames = {};
   function openWhatIf() {
@@ -7155,7 +7530,7 @@ max@contoso.com,"Global, DevOps"</pre>
     mlHead: "toolMsLearn", exHead: "toolExclusions", cgHead: "toolCaGroups", prHead: "toolProtect",
     blHead: "toolBaseline", gcHead: "toolGapCheck", vaHead: "toolValidator", wiHead: "toolWhatIf",
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
-    siHead: "toolSignins",
+    siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

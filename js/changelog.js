@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 227, date: "2026-08-10", title: "Two new tools: contexts and strengths",
+    items: [
+      { kind: "new", tool: "Authentication contexts", text: "A new manage tool (BETA): the Conditional Access authentication contexts — the step-up requirements apps, Protected Actions and sensitivity labels can ask for (c1-c99). Every defined context is a card with its publish state and the policies that enforce it (a published context no policy enforces is called out: callers requesting it get no step-up). Create in a free slot, rename, publish or unpublish with one click, and delete exactly where Graph allows it — unpublished and unreferenced only, behind a typed confirmation. The id is treated as what it is: the contract apps request and the ACRS claim carries, never changeable." },
+      { kind: "new", tool: "Authentication strengths", text: "A new manage tool (BETA): the Conditional Access authentication strengths. The three built-in strengths appear read-only with their full combination lists; custom strengths can be created, renamed, re-combined and — when no policy grants them — deleted behind a typed confirmation. Each strength is classified by its weakest allowed combination (phishing-resistant / MFA / allows single-factor), each card shows the policies granting it, and the combination picker groups the catalog by class — with the live catalog read from Graph so new methods appear without a code change. Edits use Graph's split model correctly: PATCH for name and description, the dedicated updateAllowedCombinations action for the combinations." },
+    ],
+  },
+  {
     build: 226, date: "2026-08-10", title: "Tabs keep your place",
     items: [
       { kind: "fixed", tool: "All tools", text: "Switching tool tabs no longer jumps to the top of the page \u2014 each screen's scroll position is remembered and restored when you come back. And reopening List Policies (or Create documentation) keeps the cards / list / matrix view you last chose instead of resetting to cards; only Gap analyse still resets, since it shares the screen with a different view. (Production hotfix \u2014 builds 222\u2013225 are on the beta channel.)" },
