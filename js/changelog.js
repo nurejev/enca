@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 208, date: "2026-08-04", title: "The sign-in popup that ate its own answer",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Sign-in could loop on Microsoft's account picker: pick an account, land on /common/reprocess, and be asked to pick an account again, forever. The redirect URI is this app's own page, so after authentication the popup navigated back here and loaded the entire application again — every script, and a second MSAL instance — inside a window whose only job was to hand its own URL back to the opener. That second instance could consume the authorization response before the opener read it, leaving the sign-in with nothing to complete and the picker to reappear. The popup, and the hidden iframe used for silent token renewal, now stop loading the moment they see they are carrying an auth response. Nothing else changes: no new redirect URI, so no app registration needs touching." },
+    ],
+  },
+  {
     build: 207, date: "2026-08-04", title: "A sign-in that tells you why it failed",
     items: [
       { kind: "fixed", tool: "All tools", text: "A failed sign-in could return you to the sign-in screen saying nothing at all. MSAL reports user_cancelled for any pop-up that closes without a token — not just the one you close yourself, but also a Conditional Access policy interrupting the sign-in, a tenant that has not consented, or an account blocked from the app — and the handler treated every one of those as “they changed their mind” and returned silently. It now always says what happened, in place under the sign-in button rather than as an alert you dismiss, and recognises the codes that matter: blocked by Conditional Access, MFA needed, device policy, consent missing, app not present in the tenant, redirect URI, wrong account type. Each one says what to do next, and the raw code and timestamp sit underneath in one click-to-select line for a ticket." },
