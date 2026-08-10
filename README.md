@@ -148,6 +148,10 @@ vendor/               msal-browser, html-to-image, jsPDF, JSZip (self-hosted)
 CNAME                 enca.limon-it.nl (GitHub Pages custom domain)
 ```
 
+## Beta channel
+
+Production is this repo's `main`, deployed by GitHub Pages to the custom domain. The beta channel is a second repo (`enca-beta`) whose Pages site serves from its default `github.io` URL — no DNS, no CNAME (the `CNAME` file must NOT exist in the beta repo, or the two sites fight over the domain). Work lands on the `beta` branch here, gets pushed to the beta repo's `main`, is tested on the beta URL, and only then merges to `main` and production. Any deployment on a host other than `BRANDING.host` wears a permanent **BETA — not production** ribbon and a `[BETA]` page title, so a test build can never be mistaken for production. One-time setup: create the beta repo, add it as a remote (`git remote add beta <url>`), enable Pages on it, delete its `CNAME`, and add the beta URL as an SPA redirect URI on the app registration.
+
 ## Rebranding a fork
 
 All of it lives in **`js/branding.js`** — one object, no other file hard-codes the name, the organisation or the colours:

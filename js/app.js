@@ -228,6 +228,22 @@
     });
   }
   applyBranding(activeBrand());
+  // ---------- beta / preview ribbon ----------
+  // The production deployment lives on BRANDING.host; any other origin
+  // (the beta Pages site, a local dev server) is visibly not production, so
+  // testers and screenshots can never be confused about what they're seeing.
+  (function markNonProduction() {
+    try {
+      const prod = (BRANDING.host || "").toLowerCase();
+      const here = location.hostname.toLowerCase();
+      if (!prod || !here || here === prod) return;
+      const r = document.createElement("div");
+      r.textContent = "BETA — not production";
+      r.style.cssText = "position:fixed;top:0;right:0;z-index:9999;background:#b04a3a;color:#fff;font:700 11px/1 Inter,system-ui,sans-serif;padding:5px 12px;border-bottom-left-radius:8px;letter-spacing:.4px;opacity:.92;pointer-events:none";
+      document.body.appendChild(r);
+      document.title = "[BETA] " + document.title;
+    } catch { /* cosmetic only */ }
+  })();
 
   // ---------- theme: Auto (device) → Light → Dark ----------
   // Auto leaves data-theme off so the CSS prefers-color-scheme block decides;
@@ -6389,6 +6405,7 @@ max@contoso.com,"Global, DevOps"</pre>
       if (isDemo) {
         Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) gcCtx.strengths.set(v.id, v); });
         gcCtx.names = DEMO_DATA.names || {};
+        gcCtx.namedLocations = DEMO_DATA.namedLocations || [];
       } else {
         const [strengths, locations] = await Promise.all([
           Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(() => []),

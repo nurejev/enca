@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 213, date: "2026-07-29", title: "A posture score, and seven checks deeper",
+    items: [
+      { kind: "new", tool: "Best-practice & bypass checks", text: "Zero Trust scorecard — three pillars (Verify explicitly, Least privilege, Assume breach), each a weighted average of 0-100 signals derived from the policy set and the findings, with an overall posture number on the summary and in the Markdown export. A number, not a verdict: it points at the findings, it does not replace them. Modeled on the scorecard in Jhope188's CA Policy Analyzer (independent reimplementation, credited in the README)." },
+      { kind: "new", tool: "Best-practice & bypass checks", text: "Seven new checks: no sign-in-risk / no user-risk policy (Identity Protection signals computed but unused), Microsoft-managed policy detection including disabled Baseline Security Mode phantom drafts (MC1246002), platform-scoped policies without an unknown-platform block (the platform condition comes from the user agent, which is spoofable), named-location hygiene (dangling location references, 'All trusted locations' while IP locations sit unmarked, country locations with empty country lists), broad MFA policies with client-app-type holes, disabled resilience defaults, and authentication-context / Protected Actions policies (basic MFA instead of a strength, All-users scoping, report-only step-up, missing break-glass exclusions)." },
+      { kind: "new", tool: "All tools", text: "Beta channel: a deployment on any host other than the production one wears a permanent BETA ribbon and a [BETA] page title, so a test deployment can never be mistaken for production." },
+    ],
+  },
+  {
     build: 212, date: "2026-08-04", title: "146 roles, and only one of them showing",
     items: [
       { kind: "fixed", tool: "List Policies", text: "A policy scoped to many things showed only the first of them. The list row and the card summary printed users.inc[0] and nothing else — no count, no ellipsis — so a policy assigned a group plus 145 directory roles read exactly like one assigned a single group, and an assignment that had just been written looked like it had not been. Both now say “+N more”. The applications column already did this; the user column never did." },

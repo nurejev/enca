@@ -302,6 +302,60 @@ const GapCheck = (() => {
         `Even policies targeting "All resources" never apply to: ${CA_IMMUNE.map(([n]) => n).join(", ")}. These always show notApplied in sign-in logs. Notably, ${CA_IMMUNE[0][0]} and the ${CA_IMMUNE[3][0]} can be used to verify passwords (password spraying) without triggering CA or MFA failure logs.`,
         "By design — cannot be changed. Monitor sign-in logs for these resource IDs, as they allow password verification without CA evaluation.");
     }
+
+    // 6. Risk-based policies (Entra ID P2)
+    (function checkRisk() {
+      const usesSignInRisk = (p) => ((p.conditions?.signInRiskLevels) || []).length > 0;
+      const usesUserRisk = (p) => ((p.conditions?.userRiskLevels) || []).length > 0;
+      if (!raws.filter(isActive).some(usesSignInRisk)) {
+        F(out, "medium", "Risk-Based Access", "No policy uses sign-in risk as a condition", null,
+          "No enabled or report-only policy conditions on SIGN-IN risk (anomalous travel, token anomalies, password spray detections). Identity Protection signals are computed but nothing acts on them in real time.",
+          "Create a policy requiring MFA (or blocking) on medium+ sign-in risk. Needs Entra ID P2. Start report-only; exclude break-glass accounts.");
+      }
+      if (!raws.filter(isActive).some(usesUserRisk)) {
+        F(out, "medium", "Risk-Based Access", "No policy uses user risk as a condition", null,
+          "No enabled or report-only policy conditions on USER risk (leaked credentials, confirmed compromise). A user Microsoft has flagged as likely compromised authenticates like anyone else.",
+          "Create a policy requiring a secure password change (or block for passwordless accounts) on high user risk. Needs Entra ID P2. Start report-only.");
+      }
+    })();
+
+    // 7. Microsoft-managed policies
+    (function checkManaged() {
+      const managed = raws.filter((p) => /^microsoft[- ]managed/i.test(p.displayName || ""));
+      if (!managed.length) return;
+      const phantom = managed.filter((p) => p.state === "disabled");
+      F(out, phantom.length ? "low" : "info", "Microsoft-Managed Policies",
+        `${managed.length} Microsoft-managed policy(ies) in the tenant${phantom.length ? ` — ${phantom.length} disabled` : ""}`, null,
+        `Microsoft-managed policies present: ${managed.map((p) => `"${p.displayName}" (${p.state})`).join(", ")}. Microsoft creates these automatically and can move them from report-only to On after a notice period.` +
+        (phantom.length ? " Disabled managed policies can be Baseline Security Mode phantom drafts (message center MC1246002) — they may reappear or activate when Microsoft advances the rollout." : ""),
+        "Review each managed policy against your own baseline — if your equivalent policy is stronger, the managed one is redundant but harmless; if you disabled one, make sure your own policy actually covers the same gap, because Microsoft disables theirs on the assumption that it does.");
+    })();
+
+    // 8. Platform conditions without an unknown-platform block (user-agent spoofing)
+    (function checkPlatformBypass() {
+      const plat = (p) => p.conditions?.platforms || {};
+      const platformScoped = enabled.filter((p) => {
+        const inc = plat(p).includePlatforms || [];
+        return inc.length && !inc.includes("all") && (hasMfa(p) || hasBlock(p) || hasCompliance(p));
+      });
+      if (!platformScoped.length) return;
+      // The documented mitigation: a companion policy that includes ALL
+      // platforms, excludes the known ones, and blocks — catching the
+      // "unknown platform" a spoofed user agent lands on.
+      const companion = enabled.find((p) => {
+        const pl = plat(p);
+        return hasBlock(p) && (pl.includePlatforms || []).includes("all") && (pl.excludePlatforms || []).length > 0;
+      });
+      if (companion) {
+        F(out, "info", "Platform Bypass", `Platform-scoped policies covered by an unknown-platform block ✓`, null,
+          `${platformScoped.length} policy(ies) scope controls to specific device platforms: ${platformScoped.slice(0, 6).map((p) => p.displayName).join(", ")}${platformScoped.length > 6 ? "…" : ""}. The platform condition comes from the USER AGENT, which any client can spoof — but "${companion.displayName}" blocks all platforms except the excluded known ones, so a spoofed/unknown user agent is caught.`,
+          "No change required — keep the block-unknown-platforms companion in place when adding new platform-scoped policies.");
+      } else {
+        F(out, "high", "Platform Bypass", `${platformScoped.length} platform-scoped policy(ies) with no unknown-platform block`, null,
+          `${platformScoped.length} policy(ies) apply controls only to specific device platforms: ${platformScoped.slice(0, 6).map((p) => p.displayName).join(", ")}${platformScoped.length > 6 ? "…" : ""}. The platform condition is derived from the USER AGENT string, which any attacker can spoof — sending an unrecognised user agent makes the sign-in match no platform and skip these policies entirely.`,
+          'Add a companion policy: include All platforms, exclude the platforms you actually support, grant Block. A spoofed or unknown user agent then lands in the block instead of escaping the platform-scoped controls.');
+      }
+    })();
   }
 
   // ─── Per-policy checks ────────────────────────────────────────────
@@ -397,6 +451,93 @@ const GapCheck = (() => {
         (pr ? " Very few tenants have phishing-resistant methods (FIDO2, Windows Hello for Business, certificates) deployed, so most guests will be unable to comply and will be blocked." : " Without inbound MFA trust configured, guests are blocked (or forced to register MFA in your tenant)."),
         "Entra admin center → External Identities → Cross-tenant access settings → Inbound → Trust settings: enable 'Trust multi-factor authentication from Entra tenants' (default or per-organization). " +
         (pr ? "Consider a separate guest policy accepting standard Entra MFA, and scope phishing-resistant requirements to internal users or specific partners that support it." : "Test with a guest from a partner tenant in report-only mode before enforcing."));
+    })();
+
+    // Named-location hygiene (data: ctx.namedLocations)
+    (function checkLocations() {
+      const loc = p.conditions?.locations;
+      if (!loc) return;
+      const locs = ctx.namedLocations || [];
+      const byId = new Map(locs.map((l) => [String(l.id).toLowerCase(), l]));
+      const refs = [...(loc.includeLocations || []), ...(loc.excludeLocations || [])]
+        .filter((id) => id !== "All" && id !== "AllTrusted");
+      // deleted / missing named locations — the policy silently matches nothing there
+      if (locs.length) {
+        const missing = refs.filter((id) => !byId.has(String(id).toLowerCase()));
+        if (missing.length) {
+          F(out, "high", "Named Locations", `Policy references ${missing.length} deleted or missing named location(s)`, p,
+            `${missing.length} location id(s) on this policy no longer exist in the tenant: ${missing.map((id) => String(id).slice(0, 8) + "…").join(", ")}. Entra keeps the GUID and the condition silently matches nothing — the policy's scope is not what it appears to be.`,
+            "Remove the dangling reference or recreate the named location. Check whether the policy's intent still holds without it.");
+        }
+        // "All trusted locations" while locations exist that are not marked trusted
+        const usesAllTrusted = (loc.includeLocations || []).includes("AllTrusted") || (loc.excludeLocations || []).includes("AllTrusted");
+        if (usesAllTrusted) {
+          const untrusted = locs.filter((l) => l.isTrusted === false && (l["@odata.type"] || "").includes("ipNamedLocation"));
+          if (untrusted.length) {
+            F(out, "medium", "Named Locations", `Policy uses "All trusted locations" but ${untrusted.length} IP location(s) are not marked trusted`, p,
+              `This policy conditions on "All trusted locations", yet ${untrusted.length} IP named location(s) in the tenant are NOT flagged as trusted: ${untrusted.slice(0, 5).map((l) => l.displayName).join(", ")}${untrusted.length > 5 ? "…" : ""}. If any of those ranges are actually corporate networks, sign-ins from them do not count as trusted here.`,
+              "Review each unmarked location: tick 'Mark as trusted location' for genuine corporate ranges, or leave untrusted deliberately — but make that an explicit decision, not an oversight.");
+          }
+        }
+        // country locations with no countries defined
+        for (const id of refs) {
+          const l = byId.get(String(id).toLowerCase());
+          if (l && (l["@odata.type"] || "").includes("countryNamedLocation") && !((l.countriesAndRegions || []).length)) {
+            F(out, "medium", "Named Locations", `Country location "${l.displayName}" has no countries defined`, p,
+              `The referenced country named location "${l.displayName}" contains an empty country list — the condition matches nothing, so this policy's location scoping is inert.`,
+              "Add the intended countries to the named location, or remove the reference.");
+          }
+        }
+      }
+    })();
+
+    // MFA client-app-type coverage
+    (function checkClientApps() {
+      if (!hasMfa(p) || !allUsers(p)) return;
+      const types = p.conditions?.clientAppTypes || [];
+      if (!types.length || types.includes("all")) return;
+      const missing = ["browser", "mobileAppsAndDesktopClients"].filter((t) => !types.includes(t));
+      if (!missing.length) return;
+      const LABEL = { browser: "Browser", mobileAppsAndDesktopClients: "Mobile apps and desktop clients" };
+      F(out, "medium", "Client App Coverage", `MFA policy does not cover client app type(s): ${missing.map((t) => LABEL[t]).join(", ")}`, p,
+        `This broad MFA policy only applies to the ${types.map((t) => LABEL[t] || t).join(", ")} client type(s). Sign-ins from ${missing.map((t) => LABEL[t]).join(" and ")} are not covered by it — an attacker simply uses the uncovered client type.`,
+        'Set Client apps to cover Browser AND Mobile apps and desktop clients (legacy protocols belong in a separate block policy). A modern-auth MFA policy with a client-type hole is a bypass, not a policy.');
+    })();
+
+    // Resilience defaults disabled
+    (function checkResilience() {
+      if (p.sessionControls?.disableResilienceDefaults === true) {
+        F(out, "medium", "Resilience Defaults", "Resilience defaults are disabled", p,
+          "This policy disables resilience defaults. During an Entra outage, existing sessions covered by this policy cannot be extended using previously-seen claims — users are locked out for the duration instead of coasting on recent successful authentications.",
+          "Re-enable resilience defaults (Session → Disable resilience defaults → off) unless a compliance requirement explicitly forbids extending sessions during an outage.");
+      }
+    })();
+
+    // Protected Actions / authentication context policies
+    (function checkAuthContext() {
+      const ctxRefs = A(p).includeAuthenticationContextClassReferences || [];
+      if (!ctxRefs.length) return;
+      const strength = G(p).authenticationStrength;
+      if (hasMfa(p) && !strength) {
+        F(out, "medium", "Protected Actions", "Authentication-context policy uses basic MFA instead of an authentication strength", p,
+          "This policy protects an authentication context (Protected Actions / step-up), but grants on plain 'Require MFA'. A user who already satisfied MFA at sign-in re-satisfies this without any step-up — claims are reused, so the protected action gets no extra protection.",
+          "Grant an AUTHENTICATION STRENGTH instead — ideally phishing-resistant — so the step-up genuinely demands something stronger than the session already has.");
+      }
+      if ((U(p).includeUsers || []).includes("All") && !(U(p).includeRoles || []).length) {
+        F(out, "low", "Protected Actions", 'Authentication-context policy targets "All users"', p,
+          "This step-up policy applies to All users. Protected Actions and auth-context steps are usually admin-only operations — targeting everyone widens the prompt surface without adding protection for the people who matter.",
+          "Scope the policy to the admin roles that actually perform the protected action, keeping All-users policies for the baseline controls.");
+      }
+      if (isReportOnly(p)) {
+        F(out, "info", "Protected Actions", "Authentication-context policy is report-only — the step-up is not enforced", p,
+          "In report-only, an authentication-context policy logs what WOULD have been demanded, but the protected action itself proceeds without the step-up.",
+          "Once telemetry looks right, switch the policy On — report-only step-up protects nothing.");
+      }
+      if (!((U(p).excludeUsers || []).length || (U(p).excludeGroups || []).length)) {
+        F(out, "medium", "Protected Actions", "Authentication-context policy has no exclusions — break-glass can be locked out of protected actions", p,
+          "No users or groups are excluded. If the required strength becomes unsatisfiable (method outage, misconfigured strength), nobody — including emergency access — can perform the protected action.",
+          "Exclude the break-glass accounts, exactly as on every other policy.");
+      }
     })();
   }
 
@@ -558,6 +699,90 @@ const GapCheck = (() => {
     return rows;
   }
 
+  // ─── Zero Trust scorecard ─────────────────────────────────────────
+  // Three pillars, each a weighted average of 0–100 signals derived from the
+  // policies and the findings above. Modeled on the scorecard in
+  // github.com/Jhope188/ca-policy-analyzer (independent reimplementation).
+  function zeroTrust(raws, ctx, findings) {
+    const active = raws.filter(isActive);
+    const enabled = raws.filter(isEnabled);
+    const pct = (a, b) => b ? Math.round((a / b) * 100) : 0;
+    const has = (cat, sevs) => findings.some((f) => f.category === cat && (!sevs || sevs.includes(f.severity)));
+    const nOf = (cat, sevs) => findings.filter((f) => f.category === cat && (!sevs || sevs.includes(f.severity))).length;
+    const cap = (n) => Math.max(0, Math.min(100, n));
+
+    const userPolicies = enabled.filter((p) => targetsUsers(p));
+    const mfaPct = pct(userPolicies.filter((p) => hasMfa(p) || hasBlock(p)).length, userPolicies.length);
+    const anyPR = active.some((p) => usesPhishingResistant(p, ctx.strengths));
+    const anyCompliant = active.some(hasCompliance);
+    const anyRisk = active.some((p) => ((p.conditions?.signInRiskLevels) || []).length || ((p.conditions?.userRiskLevels) || []).length);
+    const adminMfa = active.some((p) => hasMfa(p) && ((U(p).includeRoles || []).length || /admin/i.test(p.displayName || "")));
+
+    const verify = [
+      ["MFA or block on enabled user policies", 3, mfaPct],
+      ["Phishing-resistant strength in use", 2, anyPR ? 100 : 0],
+      ["Compliant/hybrid device required somewhere", 2, anyCompliant ? 100 : 0],
+      ["Risk signals used as conditions", 2, anyRisk ? 100 : 0],
+      ["Admin-scoped MFA policy", 3, adminMfa ? 100 : 0],
+    ];
+
+    const roleExcl = nOf("Privileged Role Exclusions") + nOf("Known CA Bypass Apps") + nOf("FOCI Token Sharing");
+    const guestCovered = active.some((p) => targetsGuests(p) && (hasMfa(p) || hasBlock(p)));
+    const stepUp = active.some((p) => (A(p).includeAuthenticationContextClassReferences || []).length);
+    const avgExc = active.length
+      ? active.reduce((n, p) => n + (U(p).excludeUsers || []).length + (U(p).excludeGroups || []).length, 0) / active.length : 0;
+
+    const least = [
+      ["No privileged/bypass exclusions flagged", 3, cap(100 - roleExcl * 25)],
+      ["Guests covered by MFA or block", 2, guestCovered ? 100 : 0],
+      ["Step-up (authentication context) in use", 1, stepUp ? 100 : 0],
+      ["Exclusion volume per policy", 2, cap(100 - Math.max(0, avgExc - 2) * 20)],
+    ];
+
+    const bgOk = has("Break-Glass Coverage", ["info"]);
+    const bgMissing = has("Break-Glass Coverage", ["critical"]);
+    const legacyBlocked = !has("Legacy Authentication", ["critical", "high"]);
+    const anySif = active.some((p) => p.sessionControls?.signInFrequency?.isEnabled);
+    const resilienceOk = !has("Resilience Defaults");
+    const anyBlock = enabled.some(hasBlock);
+
+    const assume = [
+      ["Break-glass identified and excluded everywhere", 3, bgOk ? 100 : bgMissing ? 0 : 50],
+      ["Legacy authentication blocked", 3, legacyBlocked ? 100 : 0],
+      ["Sign-in frequency in use", 1, anySif ? 100 : 0],
+      ["Resilience defaults intact", 1, resilienceOk ? 100 : 0],
+      ["Block policies deployed", 1, anyBlock ? 100 : 0],
+    ];
+
+    const pillar = (label, icon, signals) => {
+      const w = signals.reduce((n, [, wt]) => n + wt, 0);
+      const score = Math.round(signals.reduce((n, [, wt, sc]) => n + wt * sc, 0) / (w || 1));
+      return { label, icon, score, signals: signals.map(([l, wt, sc]) => ({ label: l, weight: wt, score: Math.round(sc) })) };
+    };
+    const pillars = [
+      pillar("Verify explicitly", "\u{1F50E}", verify),
+      pillar("Least privilege", "\u{1F511}", least),
+      pillar("Assume breach", "\u{1F6E1}", assume),
+    ];
+    return { pillars, overall: Math.round(pillars.reduce((n, p) => n + p.score, 0) / pillars.length) };
+  }
+
+  const ztColor = (n) => n >= 80 ? "var(--on)" : n >= 55 ? "var(--report)" : "var(--off)";
+  function renderScorecard(zt) {
+    if (!zt) return "";
+    return `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;margin-top:14px">
+      <div style="flex:0 0 auto;display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:110px;border:1px solid var(--border);border-radius:12px;padding:10px 16px">
+        <div style="font-size:30px;font-weight:800;color:${ztColor(zt.overall)}">${zt.overall}</div>
+        <div class="mini muted">Zero Trust posture</div>
+      </div>
+      ${zt.pillars.map((p) => `<div style="flex:1;min-width:190px;border:1px solid var(--border);border-radius:12px;padding:10px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><b>${p.icon} ${esc(p.label)}</b><span style="font-weight:800;color:${ztColor(p.score)}">${p.score}</span></div>
+        ${p.signals.map((sg) => `<div class="mini" style="display:flex;justify-content:space-between;gap:8px;margin-top:3px"><span class="muted">${esc(sg.label)}</span><span style="color:${ztColor(sg.score)}">${sg.score}</span></div>`).join("")}
+      </div>`).join("")}
+    </div>
+    <p class="mini muted" style="margin:8px 0 0">Weighted signals per Zero Trust pillar, 0–100 — derived from the findings and policy set above. A number, not a verdict: read it with the findings.</p>`;
+  }
+
   // ─── Run everything ───────────────────────────────────────────────
   // raws: raw Graph policies. ctx: { strengths: Map<id, authStrengthPolicy>,
   // namedLocations: [], names: {id: displayName} }
@@ -572,7 +797,9 @@ const GapCheck = (() => {
     }
     let personas = [];
     try { personas = personaCoverage(raws, ctx, findings); } catch (e) { console.warn("GapCheck persona coverage failed:", e); }
-    return { findings, personas, breakGlass: ctx.breakGlass };
+    let zt = null;
+    try { zt = zeroTrust(raws, ctx, findings); } catch (e) { console.warn("GapCheck scorecard failed:", e); }
+    return { findings, personas, breakGlass: ctx.breakGlass, zt };
   }
 
   // ─── Rendering ────────────────────────────────────────────────────
@@ -597,7 +824,7 @@ const GapCheck = (() => {
         <div style="font-size:26px;font-weight:700">${f.length}<span class="mini" style="font-weight:400"> finding${f.length === 1 ? "" : "s"}</span></div>
         <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;max-width:280px">${chips}</div>
       </div>
-    </div>`;
+    </div>${renderScorecard(result.zt)}`;
   }
 
   const CELL = {
@@ -679,6 +906,9 @@ const GapCheck = (() => {
     L.push(`- Findings: **${f.length}**` + (f.length
       ? ` — ${["critical", "high", "medium", "low", "info"].filter((s) => n(s)).map((s) => `${n(s)} ${SEV_LABEL[s].toLowerCase()}`).join(", ")}`
       : ""));
+    if (result.zt) {
+      L.push(`- Zero Trust posture: **${result.zt.overall}/100** — ${result.zt.pillars.map((p) => `${p.label} ${p.score}`).join(" · ")}`);
+    }
     if (result.breakGlass) {
       L.push(`- Break-glass candidate detected: \`${mdEsc(result.breakGlass.id)}\` (${result.breakGlass.type}), excluded from ${result.breakGlass.count} all-users policies.`);
     }

@@ -116,6 +116,13 @@ const DEMO_DATA = {
     "HR-Department": ["u-emp1", "u-emp2"],
   },
 
+  // Named locations for the best-practice location checks.
+  namedLocations: [
+    { "@odata.type": "#microsoft.graph.ipNamedLocation", id: "loc-hq", displayName: "HQ egress", isTrusted: true, ipRanges: [{ cidrAddress: "203.0.113.0/24" }] },
+    { "@odata.type": "#microsoft.graph.ipNamedLocation", id: "loc-branch", displayName: "Branch office (unmarked)", isTrusted: false, ipRanges: [{ cidrAddress: "198.51.100.0/24" }] },
+    { "@odata.type": "#microsoft.graph.countryNamedLocation", id: "loc-empty", displayName: "Blocked countries (empty)", countriesAndRegions: [] },
+  ],
+
   // Sample sign-in records (raw Graph shape) for the Sign-in failures tool.
   signIns: [
     {
