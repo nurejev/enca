@@ -29,8 +29,15 @@ const MSLearn = (() => {
   // none of them. The rest are accepted aliases.
   const CONVENTION = {
     breakGlass: ["CAB-SEC-U-BreakGlass"],
-    sharedDevices: ["CAB-SEC-U-SharedDevices", "CAB-SEC-U-Persona-SharedDevices",
-                    "CAB-SEC-U-TeamsDevices", "CAB-SEC-U-Persona-Microsoft365ServiceAccounts"],
+    // CAB-SEC-U-TeamsSharedDevices is canonical because it is the name this app
+    // already ships: it is the displayName in js/groupTemplates.js and the one
+    // every exclusion in the R26.6 catalog (CA000, CA004, CA007, CA008, CA014,
+    // CA015, CA016) actually names. It was missing from this list, so the tool
+    // asked people to create a group it already had a template for, under a
+    // name the baseline never references. Keep the others as aliases.
+    sharedDevices: ["CAB-SEC-U-TeamsSharedDevices", "CAB-SEC-U-SharedDevices",
+                    "CAB-SEC-U-Persona-SharedDevices", "CAB-SEC-U-TeamsDevices",
+                    "CAB-SEC-U-Persona-Microsoft365ServiceAccounts"],
   };
   const GROUP_PURPOSE = {
     sharedDevices: "Teams Rooms, Teams panels, Teams phones and Surface Hub resource accounts — excluded from controls these devices cannot satisfy",
@@ -972,7 +979,7 @@ const MSLearn = (() => {
           <h5 class="ml-blue">${res.skipped.length} finding${res.skipped.length === 1 ? "" : "s"} need a group that does not exist yet</h5>
           <p class="mini">${esc(titles)}</p>
           ${needs.map((k) => `<p class="mini" style="margin-top:8px">These fixes exclude <b>${esc(CONVENTION[k][0])}</b> — ${esc(GROUP_PURPOSE[k] || "")}. The tenant has no group by that name (or an accepted alias: ${esc(CONVENTION[k].slice(1).join(", ") || "none")}), so the exclusion cannot be guessed.</p>`).join("")}
-          ${create ? `<p style="margin-top:10px">${create} <span class="mini">creates an empty role-assignable security group, then re-runs the fixes — add the resource accounts to it yourself</span></p>` : ""}
+          ${create ? `<p style="margin-top:10px">${create} <span class="mini">created from the bundled group template where there is one — the shared-devices group is <b>dynamic</b>, so it populates itself from the Teams Rooms service plans rather than needing the accounts added by hand</span></p>` : ""}
         </div></div>`;
       })()
       : "";

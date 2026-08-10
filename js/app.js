@@ -6241,13 +6241,22 @@ max@contoso.com,"Global, DevOps"</pre>
     if (isDemo) { toast("Demo mode — <span>no group created</span>"); return; }
     b.disabled = true; b.textContent = `Creating ${name}…`;
     try {
-      const g = await Graph.gpostGroupCreate("/groups", {
-        displayName: name,
-        mailNickname: name.replace(/[^\w-]+/g, ""),
-        description: MSLearn.GROUP_PURPOSE[key] || `Created by ${Brand.title}`,
-        securityEnabled: true, mailEnabled: false, isAssignableToRole: true,
-      });
-      toast(`Role-assignable group <span>${esc(g.displayName || name)}</span> created — add the resource accounts, then re-run the fixes`);
+      // Prefer the bundled template: the shared-devices group is dynamic, with
+      // a rule that picks up the Teams Rooms resource accounts on its own. The
+      // old code always built a bare role-assignable group, which left an empty
+      // group to populate by hand — and role-assignable + dynamic is a
+      // combination Entra refuses anyway, so the template has to win.
+      const tpl = Assign.templates().find((t) => t.displayName === name);
+      const g = tpl
+        ? await Assign.createGroup(tpl)
+        : await Assign.createGroup({
+            displayName: name,
+            description: MSLearn.GROUP_PURPOSE[key] || `Created by ${Brand.title}`,
+            roleAssignable: true,
+          });
+      toast(g.dynamic
+        ? `<span>${esc(g.name || name)}</span> created — dynamic, it fills itself from the Teams Rooms plans`
+        : `<span>${esc(g.name || name)}</span> created — add the resource accounts, then re-run the fixes`);
       await runMsLearn();
     } catch (err) {
       b.disabled = false; b.innerHTML = `➕ Create ${esc(name)} <span class="tag block">writes</span>`;

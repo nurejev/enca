@@ -8,7 +8,7 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 219,
+  build: 220,
   date: "2026-08-10",
   get label() { return `v${this.version}.${this.build}`; },
   get full() { return `${this.label} · ${this.date}`; },

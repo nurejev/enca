@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 220, date: "2026-08-10", title: "The shared-devices group it already had",
+    items: [
+      { kind: "fixed", tool: "MS Learn checks", text: "The shared-devices fixes asked for a group ENCA already ships. CAB-SEC-U-TeamsSharedDevices is the displayName in the bundled group templates and the name every exclusion in the R26.6 catalog actually uses — CA000, CA004, CA007, CA008, CA014, CA015, CA016 — but it was missing from the list of names these fixes accept, so a tenant that had done exactly the right thing was told six findings needed a group that did not exist. It is now the canonical name; the four older spellings stay as aliases." },
+      { kind: "fixed", tool: "MS Learn checks", text: "Create now builds from the bundled template when there is one. It always made a bare, empty role-assignable group — but the shared-devices template is dynamic, with a membership rule that picks up the Teams Rooms resource accounts by their service plans, so it fills itself. The old path left an empty group to populate by hand and named it something the baseline never references. (Role-assignable and dynamic are mutually exclusive in Entra, so the template has to win.)" },
+    ],
+  },
+  {
     build: 219, date: "2026-08-10", title: "Recreates: bring the members, then clean up after",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "Disable nesting is no longer offered on a role-assignable group. Entra already refuses to put a group inside one — “Group nesting isn't supported. A group can't be added as a member of a role-assignable group” — so the property would have changed nothing, and the recreate it may have led to would have been a new object id for no gain at all. The row says why instead." },
