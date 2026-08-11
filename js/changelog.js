@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 248, date: "2026-08-11", title: "Restricted AUs joins the roadmap",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The roadmap's Next era now names 🛡 Restricted AUs alongside the CIS Benchmark — in beta today, opening the beta site in a new tab, graduating here once proven against enough real tenants." },
+    ],
+  },
+  {
     build: 247, date: "2026-08-11", title: "The beta site grows a vault manager; revoke marked partially done",
     items: [
       { kind: "improved", tool: "All tools", text: "The 🧪 On-the-beta-site card now also names 🛡 Restricted AUs — a new beta-only tool managing the restricted management administrative units that shield CA exclusion groups: members with CA-reference badges, scoped role grants, create and delete. And the roadmap's 🔓 Revoke-permissions-when-done idea is marked partially done, pointing at the shipped How-to-revoke guide in the Permissions panel." },
