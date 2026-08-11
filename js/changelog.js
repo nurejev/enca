@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 22905, date: "2026-08-11", title: "Counting visits, not visitors",
+    items: [
+      { kind: "new", tool: "All tools", text: "ENCA now measures its own use — and only that. GoatCounter (a privacy-first, cookie-less counter) records page views and one event per tool-screen open: the tool's name and the channel (production or beta), nothing else. No identifiers, no tenant names, nothing from the Graph session; a blocked script changes nothing about how ENCA works. The README's privacy paragraph says exactly this. It answers one question the roadmap needs answered: which of these tools do people actually use." },
+    ],
+  },
+  {
     build: 22904, date: "2026-08-11", title: "Recreate carries everyone, and says so",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "Recreate as role-assignable: the member move (added in build 219) only carried USER members — service principals and devices were left behind silently, which for a service-account persona group means an empty include. All member types now come across; the one thing that cannot is a nested group, because Entra forbids groups as members of a role-assignable group — those are named in the change report instead of failing quietly. And the confirm dialog no longer claims the new group starts empty (a leftover from before the member move existed): copying the members is now step ③ of the plan it shows." },

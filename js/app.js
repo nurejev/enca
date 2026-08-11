@@ -75,8 +75,21 @@
   // you come back; a screen you have not visited yet starts at the top.
   const screenScroll = {};
   let shownScreen = null;
+  // Anonymous usage counting: one event per tool-screen open (GoatCounter,
+  // loaded in index.html). Only the tool name and channel — never who, never
+  // which tenant, never any policy data. Must never break the app.
+  function trackTool(id) {
+    try {
+      if (!window.goatcounter || !window.goatcounter.count) return;
+      const key = String(id).replace(/^screen-/, "");
+      if (key === "home") return;
+      const beta = typeof BRANDING !== "undefined" && location.hostname && location.hostname !== BRANDING.host;
+      window.goatcounter.count({ path: (beta ? "beta/tool/" : "tool/") + key, title: key, event: true });
+    } catch { /* counting is best-effort */ }
+  }
   function show(id) {
     if (shownScreen && shownScreen !== id) screenScroll[shownScreen] = window.scrollY;
+    if (shownScreen !== id) trackTool(id);
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     $(id).classList.add("active");
     (window.requestAnimationFrame || setTimeout)(syncStickyTops);
