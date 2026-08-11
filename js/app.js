@@ -67,7 +67,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-audit", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -883,8 +883,8 @@
     { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
-    { scope: "AdministrativeUnit.ReadWrite.All", use: "Create a restricted management administrative unit and place the CA exclusion groups in it", tools: "CA groups (protect)", onDemand: true },
-    { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable", tools: "CA groups (create)", onDemand: true },
+    { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
+    { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable; grant scoped directory roles", tools: "CA groups (create), Restricted AUs", onDemand: true },
     { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
     { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting on a group so no group can be added as a member (beta)", tools: "CA groups (disable nesting)", onDemand: true },
     { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "Group Analyzer", onDemand: true },
@@ -1089,6 +1089,7 @@
     ["toolAuthStr", "💪 Authentication strengths"],
     ["toolTou", "📜 Terms of use"],
     ["toolRecycle", "♻ Recycle bin"],
+    ["toolRmau", "🛡 Restricted AUs"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
@@ -4374,6 +4375,268 @@ max@contoso.com,"Global, DevOps"</pre>
   function vaClearTarget() { vaTargetObj = null; $("vaTarget").value = ""; runValidatorScan(); }
   $("vaTargetClear").addEventListener("click", vaClearTarget);
   $("vaHead").addEventListener("click", (e) => { if (e.target.closest("[data-vacleartarget]")) vaClearTarget(); });
+
+  // ---------- Restricted AUs (BETA — list / edit / members / scoped roles) ----------
+  // The vaults ⑥ Protect creates, manageable afterwards: members and scoped
+  // role grants per AU, edit and create and delete — with the two truths the
+  // portal buries stated up front: the restricted flag is immutable, and an
+  // RMAU's members answer only to roles scoped to that AU (a tenant-wide
+  // admin's 403 here is by design, not a bug).
+  const RU_WRITE = ["AdministrativeUnit.ReadWrite.All"];
+  const RU_ROLE_WRITE = ["RoleManagement.ReadWrite.Directory"];
+  let ruList = null, ruDetails = {}, ruFilter = "restricted", ruQuery = "", ruEditing = null, ruDeleting = null;
+  const ruOpen = new Set();
+  let ruRoleNames = null;   // activated directory-role id → displayName
+
+  async function openRmauTool(force) {
+    crumb("🛡 Restricted AUs");
+    show("screen-rmau");
+    if (ruList && !force) { renderRmau(); return; }
+    $("ruHead").innerHTML = '<h3>🛡 Restricted AUs <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading administrative units…</p>';
+    $("ruBody").innerHTML = ""; $("ruChips").innerHTML = "";
+    try {
+      ruList = isDemo
+        ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.adminUnits) || [])
+        : await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,visibility,isMemberManagementRestricted");
+      ruDetails = {}; ruOpen.clear();
+      renderRmau();
+    } catch (e) {
+      console.error("Restricted AUs failed:", e);
+      $("ruHead").innerHTML = `<h3>🛡 Restricted AUs</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+    }
+  }
+  $("toolRmau").addEventListener("click", () => openRmauTool());
+  $("ruRefresh").addEventListener("click", () => openRmauTool(true));
+
+  async function ruLoadDetail(id) {
+    if (ruDetails[id] && !ruDetails[id].error) return ruDetails[id];
+    const d = { members: null, scoped: null, error: null };
+    try {
+      if (isDemo) {
+        const demo = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.adminUnitDetails) || {};
+        Object.assign(d, demo[id] || { members: [], scoped: [] });
+      } else {
+        d.members = await Graph.ggetAll(`/administrativeUnits/${id}/members?$select=id,displayName,userPrincipalName`);
+        try {
+          d.scoped = await Graph.ggetAll(`/administrativeUnits/${id}/scopedRoleMembers`);
+          if (!ruRoleNames) {
+            ruRoleNames = {};
+            (await Graph.ggetAll("/directoryRoles?$select=id,displayName")).forEach((r) => ruRoleNames[r.id] = r.displayName);
+          }
+          d.scoped.forEach((r) => { r._roleName = ruRoleNames[r.roleId] || r.roleId; r._principal = r.roleMemberInfo?.displayName || r.roleMemberInfo?.id; });
+        } catch (e) { d.scoped = []; d.scopedError = e.message || String(e); }
+      }
+      const raws = policies.map((p) => p.raw);
+      (d.members || []).forEach((m) => { if (Rmau.memberType(m) === "group") m._caRefs = Rmau.caRefs(m.id, raws); });
+    } catch (e) { d.error = e.message || String(e); }
+    ruDetails[id] = d;
+    return d;
+  }
+
+  function renderRmau() {
+    const su = Rmau.summarize(ruList);
+    $("ruHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">
+        <h3>🛡 Restricted AUs <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <p style="margin-bottom:4px">Restricted management administrative units — the vaults that shield objects (here: CA exclusion groups) from tenant-wide administration. Members of a restricted AU answer <b>only</b> to roles scoped to that AU.</p>
+        <p class="mini muted" style="margin:0">The <code>isMemberManagementRestricted</code> flag is <b>immutable</b> — set at creation, never changeable. Creating one needs <b>Privileged Role Administrator</b>; touching members of one needs a role <b>scoped to it</b> — a 403 there is the shield working, not a fault. Every write asks for its permission on the click.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${su.restricted}<span class="mini" style="font-weight:400"> restricted</span></div>
+        <div class="mini">${su.standard} standard AU${su.standard === 1 ? "" : "s"} in the tenant</div>
+      </div></div>`;
+    $("ruChips").innerHTML = [["restricted", `🔒 Restricted (${su.restricted})`], ["all", `All AUs (${su.total})`]]
+      .map(([k, l]) => `<button class="fchip ${ruFilter === k ? "active" : ""}" data-ruf="${k}">${esc(l)}</button>`).join("");
+    const q = ruQuery.toLowerCase();
+    const rows = (ruList || []).filter((a) => (ruFilter === "all" || Rmau.isRestricted(a))
+      && (!q || `${a.displayName} ${a.description || ""}`.toLowerCase().includes(q)))
+      .sort((a, b) => (Rmau.isRestricted(b) ? 1 : 0) - (Rmau.isRestricted(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
+    if (!rows.length) { $("ruBody").innerHTML = '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
+    $("ruBody").innerHTML = `<div class="lo-grid">` + rows.map((au) => {
+      const open = ruOpen.has(au.id);
+      const d = ruDetails[au.id];
+      let detail = "";
+      if (open) {
+        if (!d) { detail = '<div class="mini muted" style="margin-top:8px"><div class="spinner" style="width:18px;height:18px"></div> Reading members and scoped roles…</div>'; }
+        else if (d.error) { detail = `<div class="mini" style="color:var(--off);margin-top:8px">✗ ${esc(d.error)}</div>`; }
+        else {
+          const mems = (d.members || []).map((m) => `<li><div class="wi-pn">${esc(m.displayName || m.userPrincipalName || m.id)} <span class="tag">${Rmau.memberType(m)}</span>
+              ${(m._caRefs || []).length ? `<span class="tag grant" title="${esc(m._caRefs.map((r) => `${r.how} by ${r.name}`).join("\n"))}">${m._caRefs.length} CA ref${m._caRefs.length === 1 ? "" : "s"}</span>` : ""}
+              <button class="fchip" data-rumrm="${esc(m.id)}" data-ruau="${esc(au.id)}" title="Remove from this AU">✕</button></div></li>`).join("");
+          const scoped = (d.scoped || []).map((r) => `<li><div class="wi-pn">${esc(r._principal || "(principal)")} <span class="tag">${esc(r._roleName || r.roleId)}</span>
+              <button class="fchip" data-rusrm="${esc(r.id)}" data-ruau="${esc(au.id)}" title="Remove this scoped role grant">✕</button></div></li>`).join("");
+          detail = `<div style="margin-top:8px">
+            <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Members (${(d.members || []).length})</div>
+            <ul class="wi-list" style="margin:4px 0 6px">${mems || '<li><div class="wi-why">No members.</div></li>'}</ul>
+            <div style="display:flex;gap:6px;margin:0 0 10px"><input data-ruaddbox="${esc(au.id)}" placeholder="Add member — group name or user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
+            <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Scoped role members (${(d.scoped || []).length})${d.scopedError ? ` <span class="muted" style="font-weight:400;text-transform:none">— ${esc(d.scopedError)}</span>` : ""}</div>
+            <ul class="wi-list" style="margin:4px 0 6px">${scoped || '<li><div class="wi-why">No scoped role grants — nobody can manage the members except by tenant-unscoped rules. Grant one below.</div></li>'}</ul>
+            <div style="display:flex;gap:6px;flex-wrap:wrap"><select data-rurole="${esc(au.id)}" class="btn" style="cursor:pointer">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select>
+              <input data-ruadminbox="${esc(au.id)}" placeholder="UPN of the scoped administrator" spellcheck="false" autocomplete="off" style="flex:1;min-width:180px"><button class="btn sm" data-ruadmin="${esc(au.id)}">+ Grant</button></div>
+          </div>`;
+        }
+      }
+      return `<div class="list-card lo-card">
+        <div class="lo-h" data-ruopen="${esc(au.id)}" style="cursor:pointer">
+          <span class="lo-ic">${Rmau.isRestricted(au) ? "🔒" : "📁"}</span>
+          <b>${esc(au.displayName || "(unnamed)")}</b>
+          ${Rmau.isRestricted(au) ? '<span class="tag grant">restricted</span>' : '<span class="tag">standard</span>'}
+          ${au.visibility === "HiddenMembership" ? '<span class="tag">hidden membership</span>' : ""}
+        </div>
+        ${au.description ? `<div class="mini lo-d">${esc(au.description)}</div>` : ""}
+        ${detail}
+        <div class="lo-act">
+          <button class="btn sm" data-ruedit="${esc(au.id)}">✎ Edit</button>
+          <button class="btn sm danger" data-rudel="${esc(au.id)}">🗑 Delete</button>
+        </div>
+      </div>`;
+    }).join("") + `</div>
+    <p class="mini muted" style="margin-top:8px">Click a card header for members and scoped role grants. Member changes on a restricted AU need a role scoped to it — the error Graph returns otherwise is the protection doing its job.</p>`;
+  }
+  $("ruChips").addEventListener("click", (e) => { const b = e.target.closest("[data-ruf]"); if (!b) return; ruFilter = b.dataset.ruf; renderRmau(); });
+  $("ruSearch").addEventListener("input", (e) => { ruQuery = e.target.value; renderRmau(); });
+
+  async function ruAddMember(auId, term) {
+    const t = term.trim();
+    if (!t) { toast("Type a group name or a user UPN"); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE])) return;
+    try {
+      let obj = null, kind = "group";
+      if (isDemo) { obj = { id: "demo-" + t, displayName: t }; }
+      else if (t.includes("@")) {
+        kind = "user";
+        obj = await Graph.gget(`/users/${encodeURIComponent(t)}?$select=id,displayName`);
+      } else {
+        const f = t.replace(/'/g, "''");
+        const r = await Graph.gget(`/groups?$filter=displayName eq '${f}'&$select=id,displayName`);
+        obj = (r.value || [])[0];
+        if (!obj) { const r2 = await Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=id,displayName&$top=2`); obj = (r2.value || [])[0]; }
+      }
+      if (!obj) { toast(`No group or user found for <span>${esc(t)}</span>`); return; }
+      if (!isDemo) await Graph.gpost(`/administrativeUnits/${auId}/members/$ref`,
+        { "@odata.id": `https://graph.microsoft.com/beta/${kind === "user" ? "users" : "groups"}/${obj.id}` });
+      toast(`<span>${esc(obj.displayName || t)}</span> added${isDemo ? " (simulated)" : ""}`);
+      delete ruDetails[auId]; await ruLoadDetail(auId); renderRmau();
+    } catch (e) { toast(`Add failed: <span>${esc(e.message || e)}</span>`); }
+  }
+  async function ruGrantAdmin(auId, roleTemplateId, upn) {
+    const t = upn.trim();
+    if (!t) { toast("Type the administrator's UPN"); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE, ...RU_ROLE_WRITE])) return;
+    try {
+      if (!isDemo) {
+        let role = (await Graph.gget(`/directoryRoles?$filter=roleTemplateId eq '${roleTemplateId}'`)).value?.[0];
+        if (!role) role = await Graph.gpost("/directoryRoles", { roleTemplateId });
+        const u = await Graph.gget(`/users/${encodeURIComponent(t)}?$select=id`);
+        await Graph.gpost(`/administrativeUnits/${auId}/scopedRoleMembers`, { roleId: role.id, roleMemberInfo: { id: u.id } });
+        ruRoleNames = null;
+      }
+      toast(`<span>${esc(t)}</span> granted${isDemo ? " (simulated)" : ""}`);
+      delete ruDetails[auId]; await ruLoadDetail(auId); renderRmau();
+    } catch (e) { toast(`Grant failed: <span>${esc(e.message || e)}</span>`); }
+  }
+
+  $("ruBody").addEventListener("click", async (e) => {
+    const op = e.target.closest("[data-ruopen]");
+    if (op && !e.target.closest("button")) {
+      const id = op.dataset.ruopen;
+      ruOpen.has(id) ? ruOpen.delete(id) : ruOpen.add(id);
+      renderRmau();
+      if (ruOpen.has(id)) { await ruLoadDetail(id); renderRmau(); }
+      return;
+    }
+    const ed = e.target.closest("[data-ruedit]"); if (ed) { openRuEditor(ruList.find((x) => x.id === ed.dataset.ruedit)); return; }
+    const dl = e.target.closest("[data-rudel]"); if (dl) { openRuDelete(ruList.find((x) => x.id === dl.dataset.rudel)); return; }
+    const ad = e.target.closest("[data-ruadd]");
+    if (ad) { const box = document.querySelector(`[data-ruaddbox="${ad.dataset.ruadd}"]`); await ruAddMember(ad.dataset.ruadd, box ? box.value : ""); return; }
+    const ga = e.target.closest("[data-ruadmin]");
+    if (ga) {
+      const id = ga.dataset.ruadmin;
+      const role = document.querySelector(`[data-rurole="${id}"]`);
+      const box = document.querySelector(`[data-ruadminbox="${id}"]`);
+      await ruGrantAdmin(id, role ? role.value : Rmau.ROLE_TEMPLATES[0].id, box ? box.value : "");
+      return;
+    }
+    const mr = e.target.closest("[data-rumrm]");
+    if (mr) {
+      if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE])) return;
+      try {
+        if (!isDemo) await Graph.gdelete(`/administrativeUnits/${mr.dataset.ruau}/members/${mr.dataset.rumrm}/$ref`);
+        toast(`Member removed${isDemo ? " (simulated)" : ""}`);
+        delete ruDetails[mr.dataset.ruau]; await ruLoadDetail(mr.dataset.ruau); renderRmau();
+      } catch (err) { toast(`Remove failed: <span>${esc(err.message || err)}</span>`); }
+      return;
+    }
+    const sr = e.target.closest("[data-rusrm]");
+    if (sr) {
+      if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE, ...RU_ROLE_WRITE])) return;
+      try {
+        if (!isDemo) await Graph.gdelete(`/administrativeUnits/${sr.dataset.ruau}/scopedRoleMembers/${sr.dataset.rusrm}`);
+        toast(`Scoped grant removed${isDemo ? " (simulated)" : ""}`);
+        delete ruDetails[sr.dataset.ruau]; await ruLoadDetail(sr.dataset.ruau); renderRmau();
+      } catch (err) { toast(`Remove failed: <span>${esc(err.message || err)}</span>`); }
+      return;
+    }
+  });
+
+  function openRuEditor(au) {
+    ruEditing = au || null;
+    $("ruEditTitle").textContent = au ? `Edit ${au.displayName}` : "New restricted administrative unit";
+    $("ruEditSub").innerHTML = au
+      ? "Name and description are a PATCH. The restricted flag cannot be changed."
+      : "Created with <code>isMemberManagementRestricted: true</code> — needs the <b>Privileged Role Administrator</b> role.";
+    $("ruName").value = au ? (au.displayName || "") : "";
+    $("ruDesc").value = au ? (au.description || "") : "";
+    $("ruEditFlag").innerHTML = au
+      ? `<p class="mini muted" style="margin:0">Restricted: <b>${Rmau.isRestricted(au) ? "yes" : "no"}</b> — immutable. Converting means creating a new AU and moving the members.</p>`
+      : `<label class="chk" style="display:block"><input type="checkbox" id="ruNewRestricted" checked> Restricted management (immutable after creation)</label>`;
+    $("ruEditWarn").innerHTML = "";
+    $("ruEditModal").classList.add("open");
+  }
+  $("ruNew").addEventListener("click", () => openRuEditor(null));
+  $("ruEditCancel").addEventListener("click", () => $("ruEditModal").classList.remove("open"));
+  $("ruEditSave").addEventListener("click", async () => {
+    const built = Rmau.buildPayload({ name: $("ruName").value, description: $("ruDesc").value,
+      creating: !ruEditing, restricted: !ruEditing && $("ruNewRestricted") ? $("ruNewRestricted").checked : false });
+    if (!built.ok) { $("ruEditWarn").innerHTML = built.errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join(""); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE])) return;
+    const btn = $("ruEditSave"); btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      if (isDemo) toast("Demo — <span>save simulated</span>");
+      else if (ruEditing) await Graph.gpatch(`/administrativeUnits/${ruEditing.id}`, { displayName: built.payload.displayName, description: built.payload.description });
+      else await Graph.gpost("/administrativeUnits", built.payload);
+      $("ruEditModal").classList.remove("open");
+      await openRmauTool(true);
+      toast(`<span>${esc(built.payload.displayName)}</span> ${ruEditing ? "updated" : "created"}${isDemo ? " (simulated)" : ""}`);
+    } catch (e) {
+      $("ruEditWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(e.message || e)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = "Save"; }
+  });
+
+  function openRuDelete(au) {
+    if (!au) return;
+    ruDeleting = au;
+    $("ruDelDesc").innerHTML = `<b>${esc(au.displayName)}</b>${Rmau.isRestricted(au) ? " — a <b>restricted</b> management AU; whatever it shields becomes tenant-manageable again." : ""}`;
+    $("ruDelConfirm").value = ""; $("ruDelGo").disabled = true;
+    $("ruDelModal").classList.add("open");
+  }
+  $("ruDelConfirm").addEventListener("input", (e) => { $("ruDelGo").disabled = e.target.value.trim().toUpperCase() !== "DELETE"; });
+  $("ruDelCancel").addEventListener("click", () => $("ruDelModal").classList.remove("open"));
+  $("ruDelGo").addEventListener("click", async () => {
+    if (!ruDeleting) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE])) return;
+    const btn = $("ruDelGo"); btn.disabled = true;
+    try {
+      if (!isDemo) await Graph.gdelete(`/administrativeUnits/${ruDeleting.id}`);
+      $("ruDelModal").classList.remove("open");
+      toast(`<span>${esc(ruDeleting.displayName)}</span> deleted${isDemo ? " (simulated)" : ""}`);
+      await openRmauTool(true);
+    } catch (e) { toast(`Delete failed: <span>${esc(e.message || e)}</span>`); btn.disabled = false; }
+  });
+  $("ruMd").addEventListener("click", () => {
+    if (!ruList) return;
+    showReport("🛡 Restricted AUs", "CA-RestrictedAUs", Rmau.toMd(ruList, ruDetails, { tenantName }));
+  });
 
   // ---------- shared fetch-progress visual ----------
   // ONE busy visual for every long read: spinner, message, count-up bar,
@@ -8561,7 +8824,7 @@ max@contoso.com,"Global, DevOps"</pre>
     blHead: "toolBaseline", gcHead: "toolGapCheck", vaHead: "toolValidator", wiHead: "toolWhatIf",
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
     siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
-    rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact",
+    rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=23018"></script>
+<script src="js/popup-guard.js?v=24801"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=23018">
+<link rel="stylesheet" href="css/app.css?v=24801">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=23018"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=23018"></script>
+<script src="js/counter.js?v=24801"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=24801"></script>
 </head>
 <body>
 
@@ -193,6 +193,10 @@
       <div class="tool" id="toolRecycle">
         <div class="tool-ic">♻</div><h3>Recycle bin</h3>
         <p>Recently deleted Conditional Access policies and named locations — everything still inside the 30-day restore window, with what it did, when it went, and one-click restore. A policy that was On comes back enforcing. <span class="tag block">writes to tenant</span></p>
+      </div>
+      <div class="tool" id="toolRmau">
+        <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag new">BETA</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
+        <p>Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
       </div>
       <div class="tool" id="toolState">
         <div class="tool-ic">🎚</div><h3>Set Policy state</h3>
@@ -891,6 +895,24 @@
     <div id="rcBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ RESTRICTED AUs (BETA) ============ -->
+  <section id="screen-rmau" class="screen">
+    <div class="list-card readme" id="ruHead" style="margin-top:0"></div>
+    <div class="toolbar" id="ruToolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="ruSearch" placeholder="Search administrative units…" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="chip-filter" id="ruChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="ruRefresh" title="Re-read the administrative units">⟳ Refresh</button>
+        <button class="btn primary" id="ruNew">＋ New restricted AU</button>
+        <button class="btn" id="ruMd">Export MD</button>
+      </div>
+    </div>
+    <div id="ruBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ CHANGE AUDIT ============ -->
   <section id="screen-audit" class="screen">
     <div class="list-card readme" id="auHead" style="margin-top:0"></div>
@@ -1017,8 +1039,8 @@
             <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🔓 Revoke permissions when done <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses.</p>
+            <h4 style="margin:0 0 4px">🔓 Revoke permissions when done <span class="tag ok">partially done</span></h4>
+            <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses. <b>First step shipped:</b> the Permissions panel's <i>🔒 How to revoke</i> guide documents the three revocation routes with ready-to-run PowerShell and their consequences — what remains is doing it in one click, which needs careful design (see the guide for why the app deliberately holds no revoke rights itself).</p>
           </div>
         </div>
         <div class="rm-era future far">
@@ -1760,6 +1782,38 @@
   </div>
 </div>
 
+<!-- ============ RESTRICTED AU EDITOR ============ -->
+<div class="modal-bg" id="ruEditModal">
+  <div class="modal" style="max-width:560px">
+    <h3 id="ruEditTitle">New restricted administrative unit</h3>
+    <p class="mini" id="ruEditSub" style="margin-bottom:12px"></p>
+    <label class="wi-f" style="margin-bottom:10px"><span>Display name</span>
+      <input id="ruName" maxlength="256" autocomplete="off" spellcheck="false"></label>
+    <label class="wi-f" style="margin-bottom:10px"><span>Description</span>
+      <textarea id="ruDesc" rows="2" spellcheck="false"></textarea></label>
+    <div id="ruEditFlag"></div>
+    <div id="ruEditWarn" style="margin-top:12px"></div>
+    <div class="row">
+      <button class="btn" id="ruEditCancel">Cancel</button>
+      <button class="btn primary" id="ruEditSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ RESTRICTED AU DELETE ============ -->
+<div class="modal-bg" id="ruDelModal">
+  <div class="modal" style="max-width:520px">
+    <h3>Delete administrative unit</h3>
+    <p class="mini" id="ruDelDesc"></p>
+    <p class="mini muted">Deleting the AU does <b>not</b> delete its members — they simply lose the restricted shield and become manageable tenant-wide again. Type <b>DELETE</b> to confirm.</p>
+    <input id="ruDelConfirm" autocomplete="off" spellcheck="false" placeholder="DELETE">
+    <div class="row">
+      <button class="btn" id="ruDelCancel">Cancel</button>
+      <button class="btn danger" id="ruDelGo" disabled>Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ EXCLUSION GROUP MEMBERS ============ -->
 <div class="modal-bg" id="exMemModal">
   <div class="modal" style="max-width:620px">
@@ -1879,42 +1933,43 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=23018"></script>
-<script src="js/version.js?v=23018"></script>
-<script src="js/authConfig.js?v=23018"></script>
-<script src="js/labels.js?v=23018"></script>
-<script src="js/graph.js?v=23018"></script>
-<script src="js/model.js?v=23018"></script>
-<script src="js/render.js?v=23018"></script>
-<script src="js/analyze.js?v=23018"></script>
-<script src="js/whatif.js?v=23018"></script>
-<script src="js/mslearn.js?v=23018"></script>
-<script src="js/gapcheck.js?v=23018"></script>
-<script src="js/cisdata.js?v=23018"></script>
-<script src="js/cischeck.js?v=23018"></script>
-<script src="js/exclusions.js?v=23018"></script>
-<script src="js/validator.js?v=23018"></script>
-<script src="js/whatifeval.js?v=23018"></script>
-<script src="js/compare.js?v=23018"></script>
-<script src="js/groupuse.js?v=23018"></script>
-<script src="js/locations.js?v=23018"></script>
-<script src="js/authcontexts.js?v=23018"></script>
-<script src="js/authstrengths.js?v=23018"></script>
-<script src="js/recycle.js?v=23018"></script>
-<script src="js/termsofuse.js?v=23018"></script>
-<script src="js/audit.js?v=23018"></script>
-<script src="js/signins.js?v=23018"></script>
-<script src="js/reportimpact.js?v=23018"></script>
-<script src="js/changelog.js?v=23018"></script>
-<script src="js/baselineData.js?v=23018"></script>
-<script src="js/baselineJoeyData.js?v=23018"></script>
-<script src="js/baseline.js?v=23018"></script>
-<script src="js/groupTemplates.js?v=23018"></script>
-<script src="js/assign.js?v=23018"></script>
-<script src="js/cagroups.js?v=23018"></script>
-<script src="js/import.js?v=23018"></script>
-<script src="js/export.js?v=23018"></script>
-<script src="js/demo.js?v=23018"></script>
-<script src="js/app.js?v=23018"></script>
+<script src="js/branding.js?v=24801"></script>
+<script src="js/version.js?v=24801"></script>
+<script src="js/authConfig.js?v=24801"></script>
+<script src="js/labels.js?v=24801"></script>
+<script src="js/graph.js?v=24801"></script>
+<script src="js/model.js?v=24801"></script>
+<script src="js/render.js?v=24801"></script>
+<script src="js/analyze.js?v=24801"></script>
+<script src="js/whatif.js?v=24801"></script>
+<script src="js/mslearn.js?v=24801"></script>
+<script src="js/gapcheck.js?v=24801"></script>
+<script src="js/cisdata.js?v=24801"></script>
+<script src="js/cischeck.js?v=24801"></script>
+<script src="js/exclusions.js?v=24801"></script>
+<script src="js/validator.js?v=24801"></script>
+<script src="js/whatifeval.js?v=24801"></script>
+<script src="js/compare.js?v=24801"></script>
+<script src="js/groupuse.js?v=24801"></script>
+<script src="js/locations.js?v=24801"></script>
+<script src="js/authcontexts.js?v=24801"></script>
+<script src="js/authstrengths.js?v=24801"></script>
+<script src="js/recycle.js?v=24801"></script>
+<script src="js/rmau.js?v=24801"></script>
+<script src="js/termsofuse.js?v=24801"></script>
+<script src="js/audit.js?v=24801"></script>
+<script src="js/signins.js?v=24801"></script>
+<script src="js/reportimpact.js?v=24801"></script>
+<script src="js/changelog.js?v=24801"></script>
+<script src="js/baselineData.js?v=24801"></script>
+<script src="js/baselineJoeyData.js?v=24801"></script>
+<script src="js/baseline.js?v=24801"></script>
+<script src="js/groupTemplates.js?v=24801"></script>
+<script src="js/assign.js?v=24801"></script>
+<script src="js/cagroups.js?v=24801"></script>
+<script src="js/import.js?v=24801"></script>
+<script src="js/export.js?v=24801"></script>
+<script src="js/demo.js?v=24801"></script>
+<script src="js/app.js?v=24801"></script>
 </body>
 </html>
