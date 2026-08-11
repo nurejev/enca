@@ -2,7 +2,7 @@
 
 A browser-based toolset for a Microsoft Entra Conditional Access baseline: **document it, analyse it, check it against best practice, back it up and redeploy it** — from one page, with an interactive Entra sign-in and nothing to install.
 
-It started as a web successor to the idPowerToys CA documenter and grew into twelve tools. Everything runs **100% in the browser** as a static site: no backend, no database, no telemetry, and no policy data ever leaves the user's session. All Microsoft Graph calls go straight from the browser to `graph.microsoft.com` with a delegated token.
+It started as a web successor to the idPowerToys CA documenter and grew into twelve tools. Everything runs **100% in the browser** as a static site: no backend, no database, and **no policy data ever leaves the user's session**. All Microsoft Graph calls go straight from the browser to `graph.microsoft.com` with a delegated token. The one measurement is anonymous, aggregate **usage counting** via [GoatCounter](https://www.goatcounter.com) — page views and tool-open counts only: no cookies, no identifiers, no tenant names, nothing from the Graph session. Block the script and nothing breaks.
 
 **Live:** https://enca.limon-it.nl · **Demo without sign-in:** https://enca.limon-it.nl/?demo=1
 
@@ -175,6 +175,30 @@ git push                       # GitHub Pages deploys enca.limon-it.nl
 git checkout beta
 git merge main
 ```
+
+**Build numbering per channel.** Production builds on `main` are plain integers
+(`…, 226, 227`). Beta builds are five digits, `NNNII` — `NNN` is the production
+build the cycle will become, `II` the beta iteration — so build `22701` renders
+as `v1.0.227-beta.1` and can never collide with a production number. The
+"promote to production" step is therefore slightly more than a merge: set
+`APP_BUILD.build` to `NNN`, consolidate the cycle's beta changelog entries into
+one entry with `build: NNN`, and bump every `?v=` in `index.html` to match. The
+What's-new overlay compares build numbers per origin (production and the beta
+site have separate localStorage), and both series are monotone on their own
+origin, so the overlay logic needs no changes.
+
+## Privacy & usage counting
+
+ENCA uses [GoatCounter](https://www.goatcounter.com) — a privacy-first,
+cookie-less, open-source counter — to measure **usage of the site itself**:
+page views and one anonymous event per tool-screen open (the tool's name and
+the channel, production or beta). That is the complete list. It never records
+identities, tenant names, IP-based fingerprints or anything from the Graph
+session; there are no cookies and no consent banner is needed. The counter
+script (`vendor/count.js`, ISC licensed) is self-hosted, the only external
+call is the count ping itself, and blocking it changes nothing about how ENCA
+works. Everything else remains as it always was: no backend, no database, and
+no policy data ever leaves the user's session.
 
 ## Rebranding a fork
 
