@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=246"></script>
+<script src="js/popup-guard.js?v=247"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=246">
+<link rel="stylesheet" href="css/app.css?v=247">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=246"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=246"></script>
+<script src="js/counter.js?v=247"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=247"></script>
 </head>
 <body>
 
@@ -207,7 +207,7 @@
       </div>
       <div class="tool tool-help" id="toolBetaSite">
         <div class="tool-ic">🧪</div><h3>On the beta site <span class="tag new">BETA</span></h3>
-        <p>Tools proving themselves before they land here — today: 📐 <b>CIS Benchmark alignment</b> (score the tenant against CIS M365 Foundations v7.0.0, section 5.2.2). Runs at the beta site with a permanent beta ribbon — same sign-in, nothing installed.</p>
+        <p>Tools proving themselves before they land here — today: 📐 <b>CIS Benchmark alignment</b> (score the tenant against CIS M365 Foundations v7.0.0, section 5.2.2) and 🛡 <b>Restricted AUs</b> (manage the restricted management administrative units that shield CA exclusion groups — members, scoped role grants, create and delete). Runs at the beta site with a permanent beta ribbon — same sign-in, nothing installed.</p>
       </div>
       <div class="tool tool-help" id="toolRoadmap">
         <div class="tool-ic">🗺</div><h3>Roadmap</h3>
@@ -997,8 +997,8 @@
             <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🔓 Revoke permissions when done <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses.</p>
+            <h4 style="margin:0 0 4px">🔓 Revoke permissions when done <span class="tag ok">partially done</span></h4>
+            <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses. <b>First step shipped:</b> the Permissions panel's <i>🔒 How to revoke</i> guide documents the three revocation routes with ready-to-run PowerShell and their consequences — what remains is doing it in one click, which needs careful design (see the guide for why the app deliberately holds no revoke rights itself).</p>
           </div>
         </div>
         <div class="rm-era future far">
@@ -1859,40 +1859,40 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=246"></script>
-<script src="js/version.js?v=246"></script>
-<script src="js/authConfig.js?v=246"></script>
-<script src="js/labels.js?v=246"></script>
-<script src="js/graph.js?v=246"></script>
-<script src="js/model.js?v=246"></script>
-<script src="js/render.js?v=246"></script>
-<script src="js/analyze.js?v=246"></script>
-<script src="js/whatif.js?v=246"></script>
-<script src="js/mslearn.js?v=246"></script>
-<script src="js/gapcheck.js?v=246"></script>
-<script src="js/exclusions.js?v=246"></script>
-<script src="js/validator.js?v=246"></script>
-<script src="js/whatifeval.js?v=246"></script>
-<script src="js/compare.js?v=246"></script>
-<script src="js/groupuse.js?v=246"></script>
-<script src="js/locations.js?v=246"></script>
-<script src="js/authcontexts.js?v=246"></script>
-<script src="js/authstrengths.js?v=246"></script>
-<script src="js/recycle.js?v=246"></script>
-<script src="js/termsofuse.js?v=246"></script>
-<script src="js/audit.js?v=246"></script>
-<script src="js/signins.js?v=246"></script>
-<script src="js/reportimpact.js?v=246"></script>
-<script src="js/changelog.js?v=246"></script>
-<script src="js/baselineData.js?v=246"></script>
-<script src="js/baselineJoeyData.js?v=246"></script>
-<script src="js/baseline.js?v=246"></script>
-<script src="js/groupTemplates.js?v=246"></script>
-<script src="js/assign.js?v=246"></script>
-<script src="js/cagroups.js?v=246"></script>
-<script src="js/import.js?v=246"></script>
-<script src="js/export.js?v=246"></script>
-<script src="js/demo.js?v=246"></script>
-<script src="js/app.js?v=246"></script>
+<script src="js/branding.js?v=247"></script>
+<script src="js/version.js?v=247"></script>
+<script src="js/authConfig.js?v=247"></script>
+<script src="js/labels.js?v=247"></script>
+<script src="js/graph.js?v=247"></script>
+<script src="js/model.js?v=247"></script>
+<script src="js/render.js?v=247"></script>
+<script src="js/analyze.js?v=247"></script>
+<script src="js/whatif.js?v=247"></script>
+<script src="js/mslearn.js?v=247"></script>
+<script src="js/gapcheck.js?v=247"></script>
+<script src="js/exclusions.js?v=247"></script>
+<script src="js/validator.js?v=247"></script>
+<script src="js/whatifeval.js?v=247"></script>
+<script src="js/compare.js?v=247"></script>
+<script src="js/groupuse.js?v=247"></script>
+<script src="js/locations.js?v=247"></script>
+<script src="js/authcontexts.js?v=247"></script>
+<script src="js/authstrengths.js?v=247"></script>
+<script src="js/recycle.js?v=247"></script>
+<script src="js/termsofuse.js?v=247"></script>
+<script src="js/audit.js?v=247"></script>
+<script src="js/signins.js?v=247"></script>
+<script src="js/reportimpact.js?v=247"></script>
+<script src="js/changelog.js?v=247"></script>
+<script src="js/baselineData.js?v=247"></script>
+<script src="js/baselineJoeyData.js?v=247"></script>
+<script src="js/baseline.js?v=247"></script>
+<script src="js/groupTemplates.js?v=247"></script>
+<script src="js/assign.js?v=247"></script>
+<script src="js/cagroups.js?v=247"></script>
+<script src="js/import.js?v=247"></script>
+<script src="js/export.js?v=247"></script>
+<script src="js/demo.js?v=247"></script>
+<script src="js/app.js?v=247"></script>
 </body>
 </html>

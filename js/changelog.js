@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 247, date: "2026-08-11", title: "The beta site grows a vault manager; revoke marked partially done",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The 🧪 On-the-beta-site card now also names 🛡 Restricted AUs — a new beta-only tool managing the restricted management administrative units that shield CA exclusion groups: members with CA-reference badges, scoped role grants, create and delete. And the roadmap's 🔓 Revoke-permissions-when-done idea is marked partially done, pointing at the shipped How-to-revoke guide in the Permissions panel." },
+    ],
+  },
+  {
     build: 246, date: "2026-08-11", title: "The inline bar centres like everything else",
     items: [
       { kind: "fixed", tool: "All tools", text: "The inline progress bar (RMAU scan, CSV import, CA groups scan) hugged the left edge while the spinner and status text sat centred — it now centres with them." },
