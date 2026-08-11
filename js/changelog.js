@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 239, date: "2026-08-11", title: "The roadmap, in the open",
+    items: [
+      { kind: "new", tool: "All tools", text: "A 🗺 Roadmap card sits next to What's new and Help: where ENCA is heading, stated in the open — 🔐 implementing the security documentation's own hardening advice as defaults, ✏️ editing a policy's conditions and controls from its card with a field-level diff before the PATCH, 🏗 a guided policy builder that preflights in What-If and creates in report-only by default, and 🔓 one click to drop the consented write scopes when the work is done, so sessions end least-privileged. Order and scope follow real-tenant feedback." },
+    ],
+  },
+  {
+    build: 23010, date: "2026-08-11", title: "The security document reads like a document",
     build: 238, date: "2026-08-11", title: "The security document reads like a document",
     items: [
       { kind: "fixed", tool: "All tools", text: "The in-app security documentation rendered every hard-wrapped source line as its own paragraph — huge gaps, broken bold, numbered lists as loose sentences — and used barely half the screen. Wrapped lines are now joined back into their paragraphs and list items before rendering, the Markdown viewer learned ordered lists, and the report viewer grew to use the whole canvas (up to 94% of the viewport, taller reading area) — which benefits every tool report, not just this document. And the dimmed backdrop behind every dialog was hardcoded to the neutral brand's deep green — on a branded tenant, opening any dialog tinted the page the wrong colour; it now derives from the active brand's own deep tone." },

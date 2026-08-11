@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=238"></script>
+<script src="js/popup-guard.js?v=239"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=238">
+<link rel="stylesheet" href="css/app.css?v=239">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=238"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=238"></script>
+<script src="js/counter.js?v=239"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=239"></script>
 </head>
 <body>
 
@@ -204,6 +204,10 @@
       <div class="tool tool-help" id="toolChangelog">
         <div class="tool-ic">📋</div><h3>What's new</h3>
         <p>Everything added or changed in ENCA, newest first — the full changelog behind the overlay you get after signing in.</p>
+      </div>
+      <div class="tool tool-help" id="toolRoadmap">
+        <div class="tool-ic">🗺</div><h3>Roadmap</h3>
+        <p>Where ENCA is heading next — the ideas being worked toward, in the open, so you know what to expect and can say what matters most.</p>
       </div>
       <div class="tool tool-help" id="toolHelp">
         <div class="tool-ic">❓</div><h3>Help</h3>
@@ -962,6 +966,30 @@
       <h2 class="home-title" style="margin:0 0 8px">📋 What's new</h2>
       <p class="mini muted" style="margin:0 0 16px">Everything added or changed in ENCA, newest first. The overlay after sign-in shows you only what landed since your last visit — this is the full record.</p>
       <div id="clBody"></div>
+    </div>
+  </section>
+
+  <!-- ============ ROADMAP — where ENCA is heading ============ -->
+  <section id="screen-roadmap" class="screen">
+    <div class="help-page">
+      <h2 class="home-title" style="margin:0 0 8px">🗺 Roadmap</h2>
+      <p class="mini muted" style="margin:0 0 16px">The ideas being worked toward, in the open. Order and scope may change — real-tenant feedback decides what lands first. Suggestions are welcome as GitHub issues.</p>
+      <div class="list-card" style="margin-bottom:12px">
+        <h3 style="margin:0 0 6px">🔐 Improve security <span class="tag">planned</span></h3>
+        <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the <a href="#" id="rmSecLink">security documentation</a> turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
+      </div>
+      <div class="list-card" style="margin-bottom:12px">
+        <h3 style="margin:0 0 6px">✏️ Editable Conditional Access policies <span class="tag">planned</span></h3>
+        <p class="mini" style="margin:0">Edit an existing policy from its card — not just state and group assignments but the conditions, grant and session controls themselves, with a field-level diff of exactly what will change and validation before the PATCH. The Change audit tool then shows the same diff after the fact, so intent and record match.</p>
+      </div>
+      <div class="list-card" style="margin-bottom:12px">
+        <h3 style="margin:0 0 6px">🏗 Policy builder <span class="tag">planned</span></h3>
+        <p class="mini" style="margin:0">Build a new policy from scratch, guided: pick the persona, the resources, the conditions and the controls with best-practice hints along the way, preflight the result in What-If, and create it in report-only by default — so every new policy is born with the evidence trail the Report-only impact tool needs before go-live.</p>
+      </div>
+      <div class="list-card" style="margin-bottom:12px">
+        <h3 style="margin:0 0 6px">🔓 Revoke permissions when done <span class="tag">planned</span></h3>
+        <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses.</p>
+      </div>
     </div>
   </section>
 
@@ -1804,40 +1832,40 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=238"></script>
-<script src="js/version.js?v=238"></script>
-<script src="js/authConfig.js?v=238"></script>
-<script src="js/labels.js?v=238"></script>
-<script src="js/graph.js?v=238"></script>
-<script src="js/model.js?v=238"></script>
-<script src="js/render.js?v=238"></script>
-<script src="js/analyze.js?v=238"></script>
-<script src="js/whatif.js?v=238"></script>
-<script src="js/mslearn.js?v=238"></script>
-<script src="js/gapcheck.js?v=238"></script>
-<script src="js/exclusions.js?v=238"></script>
-<script src="js/validator.js?v=238"></script>
-<script src="js/whatifeval.js?v=238"></script>
-<script src="js/compare.js?v=238"></script>
-<script src="js/groupuse.js?v=238"></script>
-<script src="js/locations.js?v=238"></script>
-<script src="js/authcontexts.js?v=238"></script>
-<script src="js/authstrengths.js?v=238"></script>
-<script src="js/recycle.js?v=238"></script>
-<script src="js/termsofuse.js?v=238"></script>
-<script src="js/audit.js?v=238"></script>
-<script src="js/signins.js?v=238"></script>
-<script src="js/reportimpact.js?v=238"></script>
-<script src="js/changelog.js?v=238"></script>
-<script src="js/baselineData.js?v=238"></script>
-<script src="js/baselineJoeyData.js?v=238"></script>
-<script src="js/baseline.js?v=238"></script>
-<script src="js/groupTemplates.js?v=238"></script>
-<script src="js/assign.js?v=238"></script>
-<script src="js/cagroups.js?v=238"></script>
-<script src="js/import.js?v=238"></script>
-<script src="js/export.js?v=238"></script>
-<script src="js/demo.js?v=238"></script>
-<script src="js/app.js?v=238"></script>
+<script src="js/branding.js?v=239"></script>
+<script src="js/version.js?v=239"></script>
+<script src="js/authConfig.js?v=239"></script>
+<script src="js/labels.js?v=239"></script>
+<script src="js/graph.js?v=239"></script>
+<script src="js/model.js?v=239"></script>
+<script src="js/render.js?v=239"></script>
+<script src="js/analyze.js?v=239"></script>
+<script src="js/whatif.js?v=239"></script>
+<script src="js/mslearn.js?v=239"></script>
+<script src="js/gapcheck.js?v=239"></script>
+<script src="js/exclusions.js?v=239"></script>
+<script src="js/validator.js?v=239"></script>
+<script src="js/whatifeval.js?v=239"></script>
+<script src="js/compare.js?v=239"></script>
+<script src="js/groupuse.js?v=239"></script>
+<script src="js/locations.js?v=239"></script>
+<script src="js/authcontexts.js?v=239"></script>
+<script src="js/authstrengths.js?v=239"></script>
+<script src="js/recycle.js?v=239"></script>
+<script src="js/termsofuse.js?v=239"></script>
+<script src="js/audit.js?v=239"></script>
+<script src="js/signins.js?v=239"></script>
+<script src="js/reportimpact.js?v=239"></script>
+<script src="js/changelog.js?v=239"></script>
+<script src="js/baselineData.js?v=239"></script>
+<script src="js/baselineJoeyData.js?v=239"></script>
+<script src="js/baseline.js?v=239"></script>
+<script src="js/groupTemplates.js?v=239"></script>
+<script src="js/assign.js?v=239"></script>
+<script src="js/cagroups.js?v=239"></script>
+<script src="js/import.js?v=239"></script>
+<script src="js/export.js?v=239"></script>
+<script src="js/demo.js?v=239"></script>
+<script src="js/app.js?v=239"></script>
 </body>
 </html>
