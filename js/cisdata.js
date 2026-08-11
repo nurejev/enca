@@ -27,7 +27,7 @@ const CIS_BENCHMARK = {
   // of the app build and of the other tools' versions. Shown in the tool
   // header and in the Markdown report so a reviewer can tell which catalog
   // produced a given assessment.
-  revision: "2026-08-10 r3",
+  revision: "2026-08-11 r4",
   section: "5.2.2 Conditional Access",
   copyright: "Recommendation numbers and titles referenced from the CIS Microsoft 365 Foundations Benchmark v7.0.0, © Center for Internet Security, Inc. Assessment logic is ENCA's own implementation of the benchmark's Graph audit procedures.",
 

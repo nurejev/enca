@@ -175,8 +175,15 @@ const CisCheck = (() => {
             if (!id) return "no authentication strength granted";
             const st = ctx.strengths?.get?.(id);
             if (!st) return `strength ${id} not found among the tenant's strength policies — combinations could not be verified`;
-            const bad = (st.allowedCombinations || []).filter((c) => !PR_COMBOS.has(String(c).toLowerCase().replace(/[^a-z0-9]/g, "")));
-            return bad.length ? `strength '${st.displayName || id}' also allows non-phishing-resistant combinations: ${bad.slice(0, 4).join(", ")}${bad.length > 4 ? "…" : ""}` : null;
+            const norm2 = (c) => String(c).toLowerCase().replace(/[^a-z0-9]/g, "");
+            const bad = (st.allowedCombinations || []).filter((c) => !PR_COMBOS.has(norm2(c)));
+            const good = (st.allowedCombinations || []).filter((c) => PR_COMBOS.has(norm2(c)));
+            if (!bad.length) return null;
+            // The common near-pass: a strength built on the PR methods that
+            // also opens a weaker door (typically TAP for onboarding).
+            return good.length
+              ? `close — strength '${st.displayName || id}' includes the phishing-resistant methods (${good.join(", ")}) but ALSO allows: ${bad.slice(0, 4).join(", ")}${bad.length > 4 ? "…" : ""}. The benchmark accepts only the three phishing-resistant combinations — remove the extras, or document them as a deviation (e.g. TAP for onboarding)`
+              : `strength '${st.displayName || id}' allows only non-phishing-resistant combinations: ${bad.slice(0, 4).join(", ")}${bad.length > 4 ? "…" : ""}`;
           }],
       ],
     },
@@ -324,7 +331,10 @@ const CisCheck = (() => {
     }
     const logic = CONTROL_LOGIC[ctl.id];
     if (!logic) return { status: "manual", policies: [], near: [] };
-    const pool = raws.filter((p) => isEnabled(p) || isRO(p));
+    // ALL states are evaluated — a disabled policy that meets every criterion
+    // is its own tier ("configured"), not an invisible fail. Staged-rollout
+    // baselines live in that state for weeks.
+    const pool = raws;
     const judged = pool.map((p) => ({
       p,
       missing: logic.crit.filter(([, fn]) => !fn(p, ctx)).map(([label, , why]) => (why && why(p, ctx)) ? `${label} (${why(p, ctx)})` : label),
@@ -344,7 +354,14 @@ const CisCheck = (() => {
       return r;
     };
     if (passers.length) return mk("pass", passers);
-    if (full.length) return mk("reportonly", full);
+    const roFull = full.filter((j) => isRO(j.p));
+    if (roFull.length) return mk("reportonly", roFull);
+    if (full.length) {
+      // full match, but every matching policy is Off
+      const r = mk("configured", full);
+      r.note = ((r.note ? r.note + " " : "")) + "Meets every criterion but the policy is Off — the benchmark's audit requires state = enabled, so an auditor scores this as fail until it is switched On. Staged-rollout policies land here.";
+      return r;
+    }
     // Nearest misses: prefer policies that attempt the control, fewest gaps first.
     const attempts = judged.filter((j) => logic.cand(j.p, ctx));
     const ranked = (attempts.length ? attempts : judged).sort((a, b) => a.missing.length - b.missing.length).slice(0, 3);
@@ -375,6 +392,7 @@ const CisCheck = (() => {
         l2: pct(scored.filter((r) => r.level === 2)),
         pass: scored.filter((r) => r.status === "pass").length,
         reportonly: scored.filter((r) => r.status === "reportonly").length,
+        configured: scored.filter((r) => r.status === "configured").length,
         fail: scored.filter((r) => r.status === "fail").length,
         na: results.filter((r) => r.status === "unlicensed").length,
         total: scored.length,
@@ -386,6 +404,7 @@ const CisCheck = (() => {
   const scoreColor = (n) => n >= 80 ? "var(--on)" : n >= 55 ? "var(--report)" : "var(--off)";
   const STATUS = {
     pass: ["✓ Pass", "on"], reportonly: ["◐ Report-only", "report"],
+    configured: ["⏸ Configured (Off)", "report"],
     fail: ["✗ Fail", "off"], unlicensed: ["— Not licensed", ""], error: ["! Error", "off"],
   };
   const statusBadge = (s) => { const [label, cls] = STATUS[s] || [s, ""]; return `<span class="tag ${cls === "on" ? "grant" : cls === "report" ? "new" : cls === "off" ? "block" : ""}" style="white-space:nowrap">${label}</span>`; };
@@ -400,7 +419,8 @@ const CisCheck = (() => {
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:stretch;margin-top:12px">
         ${card("Overall", s.overall)}${card("Level 1", s.l1)}${card("Level 2", s.l2)}
         <div style="flex:1;min-width:200px;display:flex;flex-direction:column;justify-content:center;border:1px solid var(--border);border-radius:12px;padding:10px 16px">
-          <div class="mini"><b style="color:var(--on)">${s.pass}</b> pass · <b style="color:var(--report)">${s.reportonly}</b> report-only · <b style="color:var(--off)">${s.fail}</b> fail${s.na ? ` · ${s.na} not licensed` : ""} — of ${s.total} assessed</div>
+          <div class="mini"><b style="color:var(--on)">${s.pass}</b> pass · <b style="color:var(--report)">${s.reportonly}</b> report-only · <b style="color:var(--report)">${s.configured || 0}</b> configured (Off) · <b style="color:var(--off)">${s.fail}</b> fail${s.na ? ` · ${s.na} not licensed` : ""} — of ${s.total} assessed</div>
+          ${(s.reportonly || s.configured) ? `<div class="mini muted" style="margin-top:2px">Report-only and configured are one state switch from passing — the benchmark counts them as fail until enforced.</div>` : ""}
           <div class="mini muted" style="margin-top:4px">Every control also expects exclusions to be documented and reviewed annually — that part is manual and not scored here.</div>
         </div>
       </div>
@@ -430,6 +450,7 @@ const CisCheck = (() => {
           <h5>What ENCA checks</h5><ul class="mini" style="margin:4px 0 0;padding-left:18px">${r.checks.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>
           ${r.status === "pass" ? `<h5 class="ml-green" style="margin-top:12px">Satisfied by</h5><p>${r.policies.map((n) => esc(n)).join("<br>")}</p>` : ""}
           ${r.status === "reportonly" ? `<h5 style="margin-top:12px">Report-only</h5><p>${r.policies.map((n) => esc(n)).join("<br>")}<br><span class="mini muted">Meets every criterion but is not enforced — switch it On to pass.</span></p>` : ""}
+          ${r.status === "configured" ? `<h5 style="margin-top:12px">Configured — Off</h5><p>${r.policies.map((n) => esc(n)).join("<br>")}<br><span class="mini muted">Meets every criterion but the policy is Off — switch it On to pass.</span></p>` : ""}
           ${r.note ? `<p class="mini" style="margin-top:10px">${esc(r.note)}</p>` : ""}
           ${r.near && r.near.length ? `<h5 style="margin-top:12px">Nearest policies and what they miss</h5>${r.near.map((n) => `
             <p style="margin:6px 0 0"><span class="pol-link" data-polid="${esc(n.id || "")}">${esc(n.name)}</span> <span class="mini muted">(${n.state === "enabledForReportingButNotEnforced" ? "report-only" : n.state})</span></p>
@@ -441,7 +462,7 @@ const CisCheck = (() => {
 
   // ─── Markdown export ──────────────────────────────────────────────
   const mdEsc = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
-  const MD_STATUS = { pass: "✅ Pass", reportonly: "◐ Report-only", fail: "❌ Fail", unlicensed: "— Not licensed (no P2)", error: "⚠ Error" };
+  const MD_STATUS = { pass: "✅ Pass", reportonly: "◐ Report-only", configured: "⏸ Configured (Off)", fail: "❌ Fail", unlicensed: "— Not licensed (no P2)", error: "⚠ Error" };
 
   function toMd(result, meta = {}) {
     const s = result.score;
@@ -465,7 +486,7 @@ const CisCheck = (() => {
       L.push(`| ${r.id} | L${r.level}${r.e5Only ? " (E5)" : ""} | ${mdEsc(r.title)} | ${MD_STATUS[r.status] || r.status} | ${mdEsc(r.policies.join(", ")) || "—"} |`);
     }
     L.push("");
-    for (const r of result.results.filter((x) => x.status === "fail" || x.status === "reportonly")) {
+    for (const r of result.results.filter((x) => x.status === "fail" || x.status === "reportonly" || x.status === "configured")) {
       L.push(`## ${r.id} — ${mdEsc(r.title)} (${MD_STATUS[r.status]})`);
       L.push("");
       L.push(r.what);
@@ -473,6 +494,7 @@ const CisCheck = (() => {
       L.push("Criteria: " + r.checks.join("; ") + ".");
       if (r.note) { L.push(""); L.push(`> ${r.note}`); }
       if (r.status === "reportonly") { L.push(""); L.push(`Report-only match: ${r.policies.map(mdEsc).join(", ")} — meets every criterion but is not enforced; switch it On to pass.`); }
+      if (r.status === "configured") { L.push(""); L.push(`Configured (Off) match: ${r.policies.map(mdEsc).join(", ")} — meets every criterion but the policy is Off; switch it On to pass.`); }
       if (r.near && r.near.length) {
         L.push("");
         L.push("Nearest policies and what they miss:");

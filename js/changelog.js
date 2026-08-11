@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 22903, date: "2026-08-11", title: "CIS: staged policies get their own tier",
+    items: [
+      { kind: "improved", tool: "CIS Benchmark", text: "Catalog r4, after reviewing the engine in Jhope188's CA Policy Analyzer. Disabled policies are now evaluated too: a policy that meets every criterion while Off lands in its own ⏸ Configured (Off) tier — own chip, own count, one state switch from passing — instead of disappearing into fail. It is deliberately NOT scored as pass: the benchmark's audit requires state = enabled, and the control says so (their analyzer shows such matches green with a state tag; an auditor would not). Staged-rollout baselines finally look like what they are." },
+      { kind: "improved", tool: "CIS Benchmark", text: "5.2.2.5 tells you when you are close: a strength that carries the phishing-resistant methods but also allows extras — the classic PR + TAP onboarding strength — now reads 'close: includes the PR methods but also allows temporaryAccessPass…; remove the extras or document the deviation' instead of a flat combination miss. Their analyzer passes ANY admin auth-strength policy with a verify-yourself note; that reports compliance the benchmark letter does not support, so it was reviewed and deliberately not adopted." },
+    ],
+  },
+  {
     build: 22902, date: "2026-08-11", title: "The what-if flow says how it ends",
     items: [
       { kind: "improved", tool: "List Policies", text: "The per-policy what-if flow now closes with a 🎯 CA result card: the actual sign-in verdict — denied, succeeds only after which controls (one-of or all-of, with the session shaping), or succeeds unconditionally — plus the tenant reality on a second line: Enforced (On, this is the real outcome today), Report-only (recorded but not enforced), or Off (becomes the outcome the moment the policy is switched On). The flow above stays the policy's logic; the result card is what the user at the door actually experiences." },

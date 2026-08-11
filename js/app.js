@@ -7511,7 +7511,7 @@ max@contoso.com,"Global, DevOps"</pre>
     document.querySelectorAll("#ciLevelSeg button").forEach(b =>
       b.classList.toggle("active", String(ciFilter.level) === b.dataset.cilvl));
     const n = (s) => s === "all" ? ciResult.results.length : ciResult.results.filter(r => r.status === s).length;
-    $("ciChips").innerHTML = [["all", "All"], ["pass", "✓ Pass"], ["reportonly", "◐ Report-only"], ["fail", "✗ Fail"], ["unlicensed", "Not licensed"]]
+    $("ciChips").innerHTML = [["all", "All"], ["pass", "✓ Pass"], ["reportonly", "◐ Report-only"], ["configured", "⏸ Configured (Off)"], ["fail", "✗ Fail"], ["unlicensed", "Not licensed"]]
       .filter(([k]) => n(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${ciFilter.status === k ? "active" : ""}" data-cist="${k}">${l} (${n(k)})</button>`).join("");
     $("ciBody").innerHTML = CisCheck.renderTable(ciResult, ciFilter, ciExpanded);
