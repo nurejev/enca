@@ -56,6 +56,10 @@ const BRANDING = {
   // identity are enough for most forks; css/app.css has the full set.
   colors: {
     // "--green": "#1e4729",
+    // NOTE --green-deep is load-bearing beyond text: the dimmed backdrop
+    // behind every dialog is color-mix(--green-deep 55%, transparent), so a
+    // brand that overrides --green should override --green-deep too or its
+    // dialogs will dim in the neutral brand's deep green.
     // "--accent2": "#3f7a24",
     // "--lemon": "#f7d65a",
   },
