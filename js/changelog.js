@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 243, date: "2026-08-11", title: "Roadmap mentions are doors",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Tool names on the roadmap timeline are now clickable — 🎚 Report-only impact, 💪 Authentication strengths and 📋 What's new open the tool itself, and 📐 CIS Benchmark opens where it lives: the beta site, in a new tab." },
+    ],
+  },
+  {
     build: 242, date: "2026-08-11", title: "Consent, and the way back out",
     items: [
       { kind: "new", tool: "All tools", text: "The Permissions panel gains a 🔒 How to revoke button: an expandable guide to taking consent away again — self-service via myaccount.microsoft.com, the Enterprise-applications route for admins, and the surgical Graph PowerShell (with this deployment's real client ID, copy button included) that strips the write scopes while keeping the read base. With the consequences stated honestly: nothing breaks (tools simply re-prompt on the click, the same model that granted them), it is not instant (issued tokens live ~1 hour — pair with Revoke-MgUserSignInSession), an AllPrincipals grant re-prompts every user while a Principal grant hits one account, and the deletion lands in the audit log. Doing this from inside the app would need DelegatedPermissionGrant.ReadWrite.All — a bigger permission than the ones being cleaned up — which is exactly why it is a documented procedure here and a careful roadmap item, not a button that writes." },
