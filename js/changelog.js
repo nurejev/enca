@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 241, date: "2026-08-11", title: "Beta exclusives, visible from production",
+    items: [
+      { kind: "improved", tool: "All tools", text: "A 🧪 'On the beta site' card next to the Roadmap names the tools that run only on the beta channel today (📐 CIS Benchmark alignment) and opens the beta site in a new tab — and over there, beta-exclusive tiles wear an 'only here' chip. On either channel it is now visible which tools are beta-only and where to find them." },
+    ],
+  },
+  {
     build: 240, date: "2026-08-11", title: "The roadmap becomes a timeline",
     items: [
       { kind: "improved", tool: "All tools", text: "The roadmap now reads as a timeline running from Now into the future: what shipped recently anchors the top, then Next (📐 CIS Benchmark alignment — in beta today, graduating once proven against enough real tenants — 🔐 improving security, 🔓 revoking permissions when done), Later (✏️ editable policies) and On the horizon (🏗 the policy builder, which builds on editing). The line literally fades toward the future, because that part is steered by what users ask for." },

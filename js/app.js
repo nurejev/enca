@@ -497,6 +497,11 @@
   $("toolChangelog").addEventListener("click", openChangelog);
   function openRoadmap() { crumb("🗺 Roadmap"); show("screen-roadmap"); }
   $("toolRoadmap").addEventListener("click", openRoadmap);
+  // Beta-exclusive tools: the tile is a pointer, not a screen — it opens the
+  // beta site in a new tab (kept out of TOOL_TABS for the same reason).
+  const BETA_SITE = "https://nurejev.github.io/enca-beta/";
+  const bs = $("toolBetaSite");
+  if (bs) bs.addEventListener("click", () => window.open(BETA_SITE, "_blank", "noopener"));
 
   // Called once the tenant has loaded, so it never covers the sign-in screen.
   function maybeShowWhatsNew() {
