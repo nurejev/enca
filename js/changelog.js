@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 24901, date: "2026-08-11", title: "Restricted AUs joins the roadmap",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The roadmap's Next era now names 🛡 Restricted AUs alongside the CIS Benchmark — in beta today, clickable straight into the tool here (and to the beta site when read from production). Production took release 248 for its side of this change, so the beta cycle now targets 249 — this build is 24901 (v1.0.249-beta.1)." },
+    ],
+  },
+  {
     build: 24801, date: "2026-08-11", title: "Restricted AUs: the vaults get a face",
     items: [
       { kind: "new", tool: "Restricted AUs", text: "New beta-only tool managing restricted management administrative units — the vaults the ⑥ Protect flow creates around CA exclusion groups. Every AU listed (restricted first, standard for context), each expandable to its members — group members carry badges showing which CA policies include or exclude them — and its scoped role grants. Add a member by group name or user UPN, remove one, grant or revoke a scoped administrator (Groups, User, Helpdesk or License Administrator), edit name and description, create new (the restricted flag is set at creation and immutable — the tool says so instead of letting you find out), delete with typed confirmation and the honest warning that members merely lose their shield. A 403 on member changes is explained for what it is: the protection working. Markdown export for the review file. Note the version: production overtook the old cycle number, so beta now targets release 248 — this build is 24801 (v1.0.248-beta.1)." },
