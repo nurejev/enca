@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 234, date: "2026-08-11", title: "One progress visual for every long read; impact says who a policy aims at",
+    items: [
+      { kind: "improved", tool: "Report-only impact", text: "A 🔴 verdict said WHO gets hit but not WHY they are in scope. Each policy card now shows the assignment it targets — include and exclude entries by name, straight from the policy in memory, with a link to the full policy card — and every affected user gets a why? button that resolves their directory membership against the policy's includes: 'member of included group X', 'holds included role Y', 'targeted directly', or 'the policy targets All users' (plus the reminder that no exclude entry caught them — that is why the sign-in applied)." },
+      { kind: "improved", tool: "All tools", text: "The count-up progress bar the Report-only impact tool introduced is now the one busy visual for everything that reads at length: Sign-in failures (both modes) and the Change audit show the same bar, running count, page number and elapsed time — and Gap analyse drives it through its group-expansion and role-resolution loops, inline next to the status text. Each tool owns its own instance, so two reads running in background tabs never write into each other's panel, and every read survives switching tabs. The audit read is now also capped at 10,000 entries (with a notice when the window truncates) instead of unbounded." },
+    ],
+  },
+  {
+    build: 23005, date: "2026-08-11", title: "The progress bar wears the brand",
     build: 233, date: "2026-08-11", title: "The progress bar wears the brand",
     items: [
       { kind: "fixed", tool: "Report-only impact", text: "The busy-state progress bar now fills in the brand's own dark colours — its gradient ended in a colour the brand overrides never touched, so on a branded tenant a stray green leaked into the bar. It now runs deep-to-primary of whatever brand is active (navy under a navy brand, green on the neutral look). Production also picks up the width fix the bar already had in beta — there it could still collapse to a sliver." },

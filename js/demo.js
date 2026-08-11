@@ -55,7 +55,7 @@ const DEMO_DATA = {
     {
       id: "d7", displayName: "Require MFA for all users — staged", state: "enabledForReportingButNotEnforced", modifiedDateTime: "2026-07-15T09:00:00Z",
       conditions: {
-        users: { includeUsers: ["All"], excludeUsers: ["u-break1", "u-break2", "u-svc"] },
+        users: { includeUsers: ["All"], excludeUsers: ["u-break1", "u-break2"] },
         applications: { includeApplications: ["All"] },
         clientAppTypes: ["all"],
       },
