@@ -418,6 +418,25 @@
   }
   $("rptClose").addEventListener("click", () => $("reportModal").classList.remove("open"));
 
+  // ---------- security documentation, one click away ----------
+  // SECURITY.md deploys with the site, so it is fetched same-origin and
+  // rendered in the report viewer — readable BEFORE signing in (login-screen
+  // link) and any time after (footer link on every screen).
+  async function showSecurityDoc() {
+    try {
+      const r = await fetch("SECURITY.md?v=" + APP_BUILD.build);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      showReport("🔒 Security & risk documentation", "ENCA-Security", await r.text());
+    } catch (e) {
+      console.error("SECURITY.md load failed:", e);
+      toast(`Could not load the security documentation: <span>${esc(e.message || e)}</span>`);
+    }
+  }
+  for (const id of ["secLinkLogin", "secLinkFoot"]) {
+    const el = $(id);
+    if (el) el.addEventListener("click", (e) => { e.preventDefault(); showSecurityDoc(); });
+  }
+
   // An in-app link inside any rendered report or confirmation: close whatever
   // is open and land on the tool, rather than telling someone to go find it.
   document.addEventListener("click", (e) => {

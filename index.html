@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=23008"></script>
+<script src="js/popup-guard.js?v=23009"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=23008">
+<link rel="stylesheet" href="css/app.css?v=23009">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=23008"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=23008"></script>
+<script src="js/counter.js?v=23009"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=23009"></script>
 </head>
 <body>
 
@@ -70,6 +70,7 @@
         Runs entirely in your browser — no policy data leaves your session.
       </div>
       <div class="login-note"><a href="?demo=1">View a demo with sample policies →</a></div>
+      <div class="login-note"><a href="#" id="secLinkLogin">🔒 How secure is this? Read the security &amp; risk documentation →</a></div>
       <div class="build-stamp" id="buildStamp" title="Build number matches the asset version — if this is not the version you pushed, hard-refresh"></div>
     </div>
   </section>
@@ -1262,6 +1263,7 @@
   <div class="fwrap">
     <span><span id="brandFoot">© 2026 Limon-IT · ENCA</span> <span id="buildStampFoot"></span></span>
     <div class="spacer"></div>
+    <a href="#" id="secLinkFoot" title="Architecture, permissions, residual risks and recommendations — the full security documentation">🔒 Security</a>
     <a id="brandOrgLink" href="https://limon-it.nl">limon-it.nl</a>
   </div>
 </footer>
@@ -1826,42 +1828,42 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=23008"></script>
-<script src="js/version.js?v=23008"></script>
-<script src="js/authConfig.js?v=23008"></script>
-<script src="js/labels.js?v=23008"></script>
-<script src="js/graph.js?v=23008"></script>
-<script src="js/model.js?v=23008"></script>
-<script src="js/render.js?v=23008"></script>
-<script src="js/analyze.js?v=23008"></script>
-<script src="js/whatif.js?v=23008"></script>
-<script src="js/mslearn.js?v=23008"></script>
-<script src="js/gapcheck.js?v=23008"></script>
-<script src="js/cisdata.js?v=23008"></script>
-<script src="js/cischeck.js?v=23008"></script>
-<script src="js/exclusions.js?v=23008"></script>
-<script src="js/validator.js?v=23008"></script>
-<script src="js/whatifeval.js?v=23008"></script>
-<script src="js/compare.js?v=23008"></script>
-<script src="js/groupuse.js?v=23008"></script>
-<script src="js/locations.js?v=23008"></script>
-<script src="js/authcontexts.js?v=23008"></script>
-<script src="js/authstrengths.js?v=23008"></script>
-<script src="js/recycle.js?v=23008"></script>
-<script src="js/termsofuse.js?v=23008"></script>
-<script src="js/audit.js?v=23008"></script>
-<script src="js/signins.js?v=23008"></script>
-<script src="js/reportimpact.js?v=23008"></script>
-<script src="js/changelog.js?v=23008"></script>
-<script src="js/baselineData.js?v=23008"></script>
-<script src="js/baselineJoeyData.js?v=23008"></script>
-<script src="js/baseline.js?v=23008"></script>
-<script src="js/groupTemplates.js?v=23008"></script>
-<script src="js/assign.js?v=23008"></script>
-<script src="js/cagroups.js?v=23008"></script>
-<script src="js/import.js?v=23008"></script>
-<script src="js/export.js?v=23008"></script>
-<script src="js/demo.js?v=23008"></script>
-<script src="js/app.js?v=23008"></script>
+<script src="js/branding.js?v=23009"></script>
+<script src="js/version.js?v=23009"></script>
+<script src="js/authConfig.js?v=23009"></script>
+<script src="js/labels.js?v=23009"></script>
+<script src="js/graph.js?v=23009"></script>
+<script src="js/model.js?v=23009"></script>
+<script src="js/render.js?v=23009"></script>
+<script src="js/analyze.js?v=23009"></script>
+<script src="js/whatif.js?v=23009"></script>
+<script src="js/mslearn.js?v=23009"></script>
+<script src="js/gapcheck.js?v=23009"></script>
+<script src="js/cisdata.js?v=23009"></script>
+<script src="js/cischeck.js?v=23009"></script>
+<script src="js/exclusions.js?v=23009"></script>
+<script src="js/validator.js?v=23009"></script>
+<script src="js/whatifeval.js?v=23009"></script>
+<script src="js/compare.js?v=23009"></script>
+<script src="js/groupuse.js?v=23009"></script>
+<script src="js/locations.js?v=23009"></script>
+<script src="js/authcontexts.js?v=23009"></script>
+<script src="js/authstrengths.js?v=23009"></script>
+<script src="js/recycle.js?v=23009"></script>
+<script src="js/termsofuse.js?v=23009"></script>
+<script src="js/audit.js?v=23009"></script>
+<script src="js/signins.js?v=23009"></script>
+<script src="js/reportimpact.js?v=23009"></script>
+<script src="js/changelog.js?v=23009"></script>
+<script src="js/baselineData.js?v=23009"></script>
+<script src="js/baselineJoeyData.js?v=23009"></script>
+<script src="js/baseline.js?v=23009"></script>
+<script src="js/groupTemplates.js?v=23009"></script>
+<script src="js/assign.js?v=23009"></script>
+<script src="js/cagroups.js?v=23009"></script>
+<script src="js/import.js?v=23009"></script>
+<script src="js/export.js?v=23009"></script>
+<script src="js/demo.js?v=23009"></script>
+<script src="js/app.js?v=23009"></script>
 </body>
 </html>

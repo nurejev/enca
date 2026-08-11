@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 23009, date: "2026-08-11", title: "Read the security story before you sign in",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The security & risk documentation (SECURITY.md) is now one click away inside the app: a link on the sign-in screen — readable BEFORE trusting the tool with a session — and a 🔒 Security link in the footer of every signed-in screen. It fetches the document that deploys with the site and renders it in the report viewer, so what you read is exactly the revision you are running." },
+    ],
+  },
+  {
     build: 23008, date: "2026-08-11", title: "The security story, written down",
     items: [
       { kind: "new", tool: "All tools", text: "SECURITY.md ships with the repository: how ENCA is built (static, no backend, nothing stored anywhere), the delegated-only permission model and why it cannot exceed the signed-in admin, what leaves the browser (Graph calls and anonymous counts — the complete list), the in-app hardening, and an honest reckoning of residual risks for tenants and for the operator — delegated-write blast radius, supply chain, extensions, lookalikes, local exports — each with its mitigation, plus recommendations for security teams (consent policies, PIM just-in-time, fork-review-pin) and a private vulnerability-reporting channel. Linked from the README's Security section." },
