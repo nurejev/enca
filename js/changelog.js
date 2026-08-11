@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 232, date: "2026-08-11", title: "Strengths grow their advanced options; three tools graduate",
+    items: [
+      { kind: "new", tool: "Authentication strengths", text: "Advanced options, as in the portal: restrict Passkeys (FIDO2) to specific AAGUIDs — with one-click presets for Microsoft Authenticator (Android + iOS) and Windows Hello (hardware, VBS, software), or any custom AAGUID — and restrict certificate-based authentication to specific issuer SKIs and policy OIDs (max 5 each, per Graph). Existing restrictions load with the strength ($expand), show on the cards and in the Markdown report, and edits apply only the difference: create, update or remove per configuration. A new strength carries its restrictions in the create call itself." },
+      { kind: "fixed", tool: "All tools", text: "With many tabs open, the tab bar could not be scrolled back to its start — the home button and first tabs were unreachable. A centred flex strip that overflows hides its left side from scrolling entirely (a CSS classic); the strip is now centred with auto-margins instead, which scrolls normally, and switching tools keeps the active tab in view. Tall dialogs (like the grown strength editor) now scroll internally instead of pushing Save off screen." },
+      { kind: "improved", tool: "All tools", text: "Out of BETA: 🎫 Authentication contexts, ♻ Recycle bin and 🔗 Group Analyzer — all three at v1.0 after tenant-side use." },
+    ],
+  },
+  {
+    build: 23003, date: "2026-08-11", title: "Shorter windows for fresh questions",
     build: 231, date: "2026-08-11", title: "Shorter windows for fresh questions",
     items: [
       { kind: "improved", tool: "Report-only impact", text: "1-hour and 4-hour ranges join 1/7/30 days — flip a policy to report-only, drive some traffic, and check the impact of the last hour without paging in a whole day of a large tenant's log." },

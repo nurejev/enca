@@ -1045,6 +1045,9 @@
     $("toolNav").innerHTML = `<div class="toolnav-inner">${home}${tabs}${add}${closeAll}${help}</div>`;
     // the bar only appears once a tool is open (empty at the tools home)
     $("toolNav").style.display = openTabs.length ? "block" : "none";
+    // keep the tab you're on visible when the strip overflows
+    const act = $("toolNav").querySelector(".toolnav-tab.active, .toolnav-btn.home.active");
+    if (act && act.scrollIntoView) act.scrollIntoView({ inline: "nearest", block: "nearest" });
   }
   function buildToolNav() { openTabs = []; activeTab = null; renderTabs(); }
 
@@ -5450,7 +5453,7 @@ max@contoso.com,"Global, DevOps"</pre>
     crumb("🎫 Authentication contexts");
     show("screen-authctx");
     if (acList && !force) { renderAuthCtx(); return; }   // cached
-    $("acHead").innerHTML = '<h3>🎫 Authentication contexts <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading authentication contexts…</p>';
+    $("acHead").innerHTML = '<h3>🎫 Authentication contexts</h3><p class="mini" style="margin:6px 0 0">Reading authentication contexts…</p>';
     $("acBody").innerHTML = ""; $("acChips").innerHTML = "";
     try {
       acList = isDemo
@@ -5470,7 +5473,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const s = AuthContexts.summarize(acList, raws);
     $("acHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🎫 Authentication contexts <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <h3>🎫 Authentication contexts <span class="tag block">writes to tenant</span></h3>
         <p style="margin-bottom:4px">The step-up requirements apps, Protected Actions and sensitivity labels can ask for. The <b>id</b> (c1–c${AuthContexts.SLOT_MAX}) is the contract — it is what callers request and what the token's ACRS claim carries — so it can be renamed and republished, but never changed. Each card shows which Conditional Access policies enforce it.</p>
         <p class="mini muted" style="margin:0">Unpublished contexts are hidden from app and label selection but stay usable in CA policy authoring. Only an unpublished context that no policy references can be deleted.</p>
       </div>
@@ -5641,7 +5644,14 @@ max@contoso.com,"Global, DevOps"</pre>
         for (const bi of demoBuiltins) if (!asList.some((p) => (p.id || "").toLowerCase() === bi.id || (p.displayName || "").toLowerCase() === bi.displayName.toLowerCase())) asList.push(bi);
         asCombos = AuthStrengths.FALLBACK_COMBINATIONS;
       } else {
-        asList = await Graph.ggetAll("/policies/authenticationStrengthPolicies");
+        // $expand brings each policy's combinationConfigurations (AAGUID and
+        // certificate restrictions) in one read; fall back to the plain list
+        // if a cloud rejects the expand.
+        try {
+          asList = await Graph.ggetAll("/policies/authenticationStrengthPolicies?$expand=combinationConfigurations");
+        } catch {
+          asList = await Graph.ggetAll("/policies/authenticationStrengthPolicies");
+        }
         // Live combination catalog — new modes appear without a code change.
         try {
           const root = await Graph.gget("/identity/conditionalAccess/authenticationStrength");
@@ -5701,6 +5711,7 @@ max@contoso.com,"Global, DevOps"</pre>
         </div>
         ${p.description ? `<div class="mini lo-d">${esc(p.description)}</div>` : ""}
         <div class="mini" style="margin:6px 0 0">${combos.slice(0, 6).map((c) => `<span class="tag" title="${esc(AuthStrengths.CLASS_LABEL[AuthStrengths.classify(c)])}">${esc(AuthStrengths.comboLabel(c))}</span>`).join(" ")}${combos.length > 6 ? ` <span class="mini muted">+${combos.length - 6} more</span>` : ""}</div>
+        ${AuthStrengths.ccSummary(p.combinationConfigurations).map((x) => `<div class="mini" style="margin:4px 0 0">🔧 ${esc(x)}</div>`).join("")}
         <div class="lo-u">${used.length
           ? `Granted by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
           : '<span class="mini muted">Not granted by any policy</span>'}</div>
@@ -5736,18 +5747,85 @@ max@contoso.com,"Global, DevOps"</pre>
       group("Phishing-resistant", cat.pr) +
       group("MFA", cat.mfa) +
       group("Single-factor", cat.single, "— including any of these makes the whole strength satisfiable without MFA");
+    // Advanced options: seed from the policy's existing configurations
+    // (present via $expand; a stale cache without them just starts empty).
+    const cfgs = (p && p.combinationConfigurations) || [];
+    const fidoCfg = cfgs.find(AuthStrengths.isFidoCfg);
+    const x509Cfg = cfgs.find(AuthStrengths.isX509Cfg);
+    asAdvA = (fidoCfg?.allowedAAGUIDs || []).map((a) => a.toLowerCase());
+    renderAsAdv({
+      skis: (x509Cfg?.allowedIssuerSkis || []).join("\n"),
+      oids: (x509Cfg?.allowedPolicyOIDs || []).join("\n"),
+      applies: x509Cfg?.appliesToCombinations || null,
+    });
     $("asEditWarn").innerHTML = "";
     $("asEditModal").classList.add("open");
   }
+
+  // ---- Advanced options panel (AAGUIDs + certificate restrictions) -----
+  // asAdvA holds the AAGUID allow-list; the text fields are read at save.
+  let asAdvA = [];
+  function renderAsAdv(seed) {
+    const keepSkis = seed ? seed.skis : ($("asAdvSkis") ? $("asAdvSkis").value : "");
+    const keepOids = seed ? seed.oids : ($("asAdvOids") ? $("asAdvOids").value : "");
+    const applies = seed && seed.applies
+      ? seed.applies
+      : [...document.querySelectorAll("#asAdv [data-asx509]")].filter((x) => x.checked).map((x) => x.dataset.asx509);
+    const provChecked = (key) => Object.keys(AuthStrengths.PROVIDER_AAGUIDS[key].aaguids).every((a) => asAdvA.includes(a));
+    $("asAdv").innerHTML = `
+      <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin:2px 0 2px">Passkey (FIDO2) — allowed AAGUIDs</div>
+      <p class="mini muted" style="margin:0 0 4px">Only passkeys whose Authenticator Attestation GUID is on this list can satisfy the strength. Empty list = any passkey. Applies only when the Passkey (FIDO2) combination is selected above.</p>
+      ${Object.entries(AuthStrengths.PROVIDER_AAGUIDS).map(([k, v]) =>
+        `<label class="chk" style="display:inline-block;margin:2px 14px 2px 0"><input type="checkbox" data-asprov="${k}" ${provChecked(k) ? "checked" : ""}> ${esc(v.label)}</label>`).join("")}
+      <div style="margin:4px 0 2px">${asAdvA.map((a) => `<span class="tag" title="${esc(AuthStrengths.AAGUID_NAME[a] || "custom AAGUID")}">${esc(AuthStrengths.AAGUID_NAME[a] || a)} <a href="#" data-asaagrm="${esc(a)}" style="text-decoration:none">✕</a></span>`).join(" ") || '<span class="mini muted">No restriction — any passkey satisfies it.</span>'}</div>
+      <div style="display:flex;gap:6px;margin:4px 0 10px"><input id="asAdvGuid" placeholder="Add AAGUID, e.g. 90a3ccdf-635c-4729-a248-9b709135078f" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-asaagadd>+ Add</button></div>
+      <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin:6px 0 2px">Certificate-based authentication — issuer and OID restrictions</div>
+      <p class="mini muted" style="margin:0 0 4px">The certificate must carry at least one listed issuer SKI <i>and</i> (when both are set) one listed policy OID. Graph allows at most 5 of each. Applies to the selected certificate combination(s):</p>
+      <label class="chk" style="display:inline-block;margin:2px 14px 2px 0"><input type="checkbox" data-asx509="x509CertificateSingleFactor" ${applies && applies.includes("x509CertificateSingleFactor") ? "checked" : ""}> Certificate (single-factor)</label>
+      <label class="chk" style="display:inline-block;margin:2px 0"><input type="checkbox" data-asx509="x509CertificateMultiFactor" ${applies && applies.includes("x509CertificateMultiFactor") ? "checked" : ""}> Certificate (multifactor)</label>
+      <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
+        <label class="wi-f" style="flex:1;min-width:200px"><span>Allowed issuer SKIs (one per line, hex)</span><textarea id="asAdvSkis" rows="2" spellcheck="false" placeholder="9A4248C6AC8C2931AB2A86537818E92E7B6C97B6"></textarea></label>
+        <label class="wi-f" style="flex:1;min-width:200px"><span>Allowed policy OIDs (one per line)</span><textarea id="asAdvOids" rows="2" spellcheck="false" placeholder="1.2.3.4.6"></textarea></label>
+      </div>`;
+    $("asAdvSkis").value = keepSkis || "";
+    $("asAdvOids").value = keepOids || "";
+  }
+  $("asAdv").addEventListener("click", (e) => {
+    const add = e.target.closest("[data-asaagadd]");
+    if (add) {
+      const v = $("asAdvGuid").value.trim().toLowerCase();
+      if (!AuthStrengths.AAGUID_RE.test(v)) { toast("Not a valid AAGUID — expected 8-4-4-4-12 hex"); return; }
+      if (!asAdvA.includes(v)) asAdvA.push(v);
+      renderAsAdv(); return;
+    }
+    const rm = e.target.closest("[data-asaagrm]");
+    if (rm) { e.preventDefault(); asAdvA = asAdvA.filter((a) => a !== rm.dataset.asaagrm); renderAsAdv(); return; }
+  });
+  $("asAdv").addEventListener("change", (e) => {
+    const prov = e.target.closest("[data-asprov]");
+    if (prov) {
+      const set = Object.keys(AuthStrengths.PROVIDER_AAGUIDS[prov.dataset.asprov].aaguids);
+      asAdvA = prov.checked ? [...new Set([...asAdvA, ...set])] : asAdvA.filter((a) => !set.includes(a));
+      renderAsAdv();
+    }
+  });
   $("asNew").addEventListener("click", () => openAsEditor(null));
   $("asEditCancel").addEventListener("click", () => $("asEditModal").classList.remove("open"));
   $("asEditSave").addEventListener("click", async () => {
     const combos = [...document.querySelectorAll("#asCombos [data-ascombo]")].filter((x) => x.checked).map((x) => x.dataset.ascombo);
     const built = AuthStrengths.buildPayload({ name: $("asName").value, description: $("asDesc").value, combinations: combos });
-    if (!built.ok) { $("asEditWarn").innerHTML = built.errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join(""); return; }
+    const adv = AuthStrengths.buildAdvanced({
+      aaguids: asAdvA,
+      skis: ($("asAdvSkis") ? $("asAdvSkis").value : "").split(/[\n,;]+/),
+      oids: ($("asAdvOids") ? $("asAdvOids").value : "").split(/[\n,;]+/),
+      x509Applies: [...document.querySelectorAll("#asAdv [data-asx509]")].filter((x) => x.checked).map((x) => x.dataset.asx509),
+    }, combos);
+    const errors = [...(built.ok ? [] : built.errors), ...(adv.ok ? [] : adv.errors)];
+    if (errors.length) { $("asEditWarn").innerHTML = errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join(""); return; }
     if (!await preConsent([...AUTH_CONFIG.scopes, ...AS_WRITE])) return;
     const btn = $("asEditSave"); btn.disabled = true; btn.textContent = "Saving…";
     try {
+      const wanted = [adv.fido2, adv.x509].filter(Boolean);
       if (isDemo) {
         toast("Demo — <span>save simulated</span>");
       } else if (asEditing) {
@@ -5760,9 +5838,19 @@ max@contoso.com,"Global, DevOps"</pre>
         if (a !== built.payload.allowedCombinations.slice().sort().join("|")) {
           await Graph.gpost(`/policies/authenticationStrengthPolicies/${asEditing.id}/updateAllowedCombinations`, { allowedCombinations: built.payload.allowedCombinations }, scopes);
         }
+        // Advanced restrictions: diff against what the policy had and apply
+        // only the changes — create, update or remove per configuration type.
+        const base = `/policies/authenticationStrengthPolicies/${asEditing.id}/combinationConfigurations`;
+        for (const op of AuthStrengths.ccPlan(asEditing.combinationConfigurations || [], adv)) {
+          if (op.method === "post") await Graph.gpost(base, op.body, scopes);
+          else if (op.method === "patch") await Graph.gpatch(`${base}/${op.id}`, op.body, scopes);
+          else await Graph.gdelete(`${base}/${op.id}`, scopes);
+        }
         toast(`<span>${esc(built.payload.displayName)}</span> updated`);
       } else {
-        await Graph.gpost("/policies/authenticationStrengthPolicies", built.payload, [...AUTH_CONFIG.scopes, ...AS_WRITE]);
+        // A create carries the restrictions inline — one POST, no follow-ups.
+        const body = wanted.length ? { ...built.payload, combinationConfigurations: wanted } : built.payload;
+        await Graph.gpost("/policies/authenticationStrengthPolicies", body, [...AUTH_CONFIG.scopes, ...AS_WRITE]);
         toast(`<span>${esc(built.payload.displayName)}</span> created`);
       }
       $("asEditModal").classList.remove("open");
@@ -6087,7 +6175,7 @@ max@contoso.com,"Global, DevOps"</pre>
     crumb("♻ Recycle bin");
     show("screen-recycle");
     if (rcPols && !force) { renderRecycle(); return; }   // cached
-    $("rcHead").innerHTML = '<h3>♻ Recycle bin <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading recently deleted policies and named locations…</p>';
+    $("rcHead").innerHTML = '<h3>♻ Recycle bin</h3><p class="mini" style="margin:6px 0 0">Reading recently deleted policies and named locations…</p>';
     $("rcBody").innerHTML = ""; $("rcChips").innerHTML = "";
     try {
       if (isDemo) {
@@ -6111,7 +6199,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const s = Recycle.summarize(rcPols, rcLocs);
     $("rcHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>♻ Recycle bin <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <h3>♻ Recycle bin <span class="tag block">writes to tenant</span></h3>
         <p style="margin-bottom:4px">Deleted Conditional Access policies and named locations stay restorable for <b>${Recycle.RETENTION_DAYS} days</b>, then they are permanently gone. Each card shows what the item did, when it was deleted and how long it has left.</p>
         <p class="mini muted" style="margin:0">A restored policy returns <b>in the state it was deleted in</b> — a policy that was On enforces again the moment it comes back, so that restore asks for an extra confirmation.</p>
       </div>
@@ -6554,7 +6642,7 @@ max@contoso.com,"Global, DevOps"</pre>
   function openGroupUse() {
     crumb("🔗 Group Analyzer");
     show("screen-groupuse");
-    $("guHead").innerHTML = `<h3>🔗 Group Analyzer <span class="tag new">BETA</span></h3>
+    $("guHead").innerHTML = `<h3>🔗 Group Analyzer</h3>
       <p style="margin-bottom:6px">A group is a shared handle: one admin scopes a Conditional Access policy to it, another targets an Intune profile at it, a third grants it a role on a subscription. Paste a <b>group or user</b> and see every place it is referenced — or sweep the tenant and find the groups <b>nothing</b> references.</p>
       <p class="mini muted" style="margin:0">Read-only. Hits inherited from a <b>parent group</b> are marked as such — anything targeting the parent reaches these members too. After Jasper Baes' <i>Microsoft Cloud Group Analyzer</i>.</p>`;
 

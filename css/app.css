@@ -33,7 +33,13 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
    aligned to the card width, so tabs open outward from the middle. */
 .toolnav{position:sticky;top:var(--sticky-header,58px);z-index:45;background:var(--surface);border-bottom:1px solid var(--border);padding:6px 0}
 .toolnav-inner{max-width:1180px;margin:0 auto;padding:0 24px;display:flex;gap:4px;align-items:center;
-  justify-content:center;overflow-x:auto;scrollbar-width:thin}
+  overflow-x:auto;scrollbar-width:thin}
+/* Centred WITHOUT justify-content:center — a centered flex strip that
+   overflows becomes unscrollable past its left edge (the home button was
+   unreachable with many tabs open). Auto-margins on the ends center the
+   group when there is room and behave like normal overflow when not. */
+.toolnav-inner > :first-child{margin-left:auto}
+.toolnav-inner > :last-child{margin-right:auto}
 .toolnav-inner::-webkit-scrollbar{height:6px}
 .toolnav-btn{flex:none;border:1px solid transparent;background:none;color:var(--muted);font-weight:600;font-size:12.5px;
   padding:6px 12px;border-radius:8px;white-space:nowrap;cursor:pointer;transition:.12s}
@@ -736,7 +742,7 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
    inspector 320 (opened FROM a modal) < toast 400 */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(18,51,31,.55);z-index:300;align-items:center;justify-content:center;padding:24px}
 .modal-bg.open{display:flex}
-.modal{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);max-width:520px;width:100%;padding:30px}
+.modal{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);max-width:520px;width:100%;padding:30px;max-height:calc(100vh - 40px);overflow-y:auto}
 .modal h3{margin-bottom:6px}
 .modal p{color:var(--muted);margin-bottom:20px;line-height:1.5}
 .exp-opt{display:flex;gap:14px;border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;align-items:center}

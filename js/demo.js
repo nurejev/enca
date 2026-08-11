@@ -105,6 +105,19 @@ const DEMO_DATA = {
       description: "Include authentication methods that are phishing-resistant",
       allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor"],
     },
+    "authStrength:s2": {
+      id: "s2", displayName: "Company keys only", policyType: "custom",
+      description: "Passkeys restricted to Microsoft Authenticator — company-issued only.",
+      allowedCombinations: ["fido2", "x509CertificateMultiFactor"],
+      combinationConfigurations: [
+        { "@odata.type": "#microsoft.graph.fido2CombinationConfiguration", id: "cc-1",
+          appliesToCombinations: ["fido2"],
+          allowedAAGUIDs: ["de1e552d-db1d-4423-a619-566b625cdc84", "90a3ccdf-635c-4729-a248-9b709135078f"] },
+        { "@odata.type": "#microsoft.graph.x509CertificateCombinationConfiguration", id: "cc-2",
+          appliesToCombinations: ["x509CertificateMultiFactor"],
+          allowedIssuerSkis: ["9A4248C6AC8C2931AB2A86537818E92E7B6C97B6"], allowedPolicyOIDs: ["1.2.3.4.6"] },
+      ],
+    },
     "group:g-hr": {
       id: "g-hr", displayName: "HR-Department", description: "All HR staff",
       securityEnabled: true, isAssignableToRole: false,
