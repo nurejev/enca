@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 23008, date: "2026-08-11", title: "The security story, written down",
+    items: [
+      { kind: "new", tool: "All tools", text: "SECURITY.md ships with the repository: how ENCA is built (static, no backend, nothing stored anywhere), the delegated-only permission model and why it cannot exceed the signed-in admin, what leaves the browser (Graph calls and anonymous counts — the complete list), the in-app hardening, and an honest reckoning of residual risks for tenants and for the operator — delegated-write blast radius, supply chain, extensions, lookalikes, local exports — each with its mitigation, plus recommendations for security teams (consent policies, PIM just-in-time, fork-review-pin) and a private vulnerability-reporting channel. Linked from the README's Security section." },
+    ],
+  },
+  {
     build: 23007, date: "2026-08-11", title: "The progress bar reaches every counted loop",
     items: [
       { kind: "improved", tool: "All tools", text: "The shared count-up bar now also runs wherever a tool walks a counted list: the Exclusion analyzer's group expansion ('Expanding group 4/112' now moves a bar, not just a sentence), the Conditional Access groups scan (group lookups and member reads), the CSV import's user resolution and member reads, the RMAU protection scan, and the Group Analyzer's source-by-source sweep. One visual, same brand colours, everywhere something is fetched at length." },
