@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 22902, date: "2026-08-11", title: "The what-if flow says how it ends",
+    items: [
+      { kind: "improved", tool: "List Policies", text: "The per-policy what-if flow now closes with a 🎯 CA result card: the actual sign-in verdict — denied, succeeds only after which controls (one-of or all-of, with the session shaping), or succeeds unconditionally — plus the tenant reality on a second line: Enforced (On, this is the real outcome today), Report-only (recorded but not enforced), or Off (becomes the outcome the moment the policy is switched On). The flow above stays the policy's logic; the result card is what the user at the door actually experiences." },
+    ],
+  },
+  {
     build: 22901, date: "2026-08-11", title: "Beta catches up with production",
     items: [
       { kind: "new", tool: "All tools", text: "Production's builds 227 and 228 merged into the beta channel: the four new manage tools (\ud83c\udfab Authentication contexts, \ud83d\udcaa Authentication strengths, \ud83d\udcdc Terms of use, \u267b Recycle bin), the dependency-popup Manage-in-tool jump, and the terms-of-use PDF fixes now run here too \u2014 alongside the beta-only CIS Benchmark tool. This cycle now targets release 229, so this build is 22901 (v1.0.229-beta.1)." },

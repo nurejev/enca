@@ -16,7 +16,7 @@ const APP_BUILD = {
   // and consolidate the cycle's changelog entries into one entry (build NNN).
   // The What's-new overlay compares numerically per origin, and both series
   // are monotone on their own origin, so nothing else changes.
-  build: 22901,
+  build: 22902,
   date: "2026-08-11",
   get isBeta() { return this.build >= 10000; },
   get label() {
@@ -31,7 +31,7 @@ const APP_BUILD = {
 // its own pace, so a tenant-side reviewer can tell which one changed since
 // they last looked without diffing the whole app. Bump the tool you touched.
 const TOOL_VERSIONS = {
-  toolPolicies:     { v: "2.3", note: "list and summary say how many more include entries there are instead of showing only the first;usable on a phone — non-sticky toolbar, single-column policy cards, scrolling state filters, scrolling list table, two-row action bar;cards / list / settings matrix, persona grouping, dependency inspector, full-screen matrix, selection actions, delete with typed confirmation, per-policy what-if flow, per-persona apply flow, housekeeping (delete superseded Off versions)" },
+  toolPolicies:     { v: "2.4", note: "the per-policy what-if flow closes with a 🎯 CA result card: the actual sign-in verdict (denied / succeeds after which controls / session shaping) plus the tenant reality — Enforced today, report-only (recorded, not enforced) or Off (becomes real when switched On);list and summary say how many more include entries there are instead of showing only the first;usable on a phone — non-sticky toolbar, single-column policy cards, scrolling state filters, scrolling list table, two-row action bar;cards / list / settings matrix, persona grouping, dependency inspector, full-screen matrix, selection actions, delete with typed confirmation, per-policy what-if flow, per-persona apply flow, housekeeping (delete superseded Off versions)" },
   toolDocument:     { v: "1.4", note: "Word, PDF, PNG and PNG-bundle export with tenant branding" },
   toolAnalyze:      { v: "1.6", note: "users × policies impact matrix, group filters, standalone HTML report, scoped matrix columns" },
   toolGapCheck:     { v: "1.7", note: "scorecard pillars and signals are clickable and filter the findings list to their related categories (severity chips count the filtered view, ✕ chip or All clears);legacy-auth per-policy finding correlates with the tenant's dedicated block — LOW when an enabled tenant-wide block covers it, MEDIUM when the block is narrower, HIGH when there is none — and the scorecard signal mirrors it (100 full / 70 partial / 50 report-only / 0);Zero Trust scorecard (3 pillars, weighted 0-100 signals) on the summary and in the Markdown export; 7 new checks: risk-based-policy gaps, Microsoft-managed policy detection (incl. disabled phantom drafts), platform-scoping without an unknown-platform block, named-location hygiene, MFA client-app-type coverage, disabled resilience defaults, authentication-context / Protected Actions validation; bypass checks, persona × control matrix, deployed-but-Off state, Markdown export" },

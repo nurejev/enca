@@ -53,6 +53,29 @@ const WhatIf = (() => {
         ? `<div class="wf-outcome allow">✅ Access granted${vm.session.length ? " (with session controls)" : ""}</div>`
         : `<div class="wf-outcome grant">✅ Access granted only if the ${vm.grant.op === "OR" ? "user satisfies one" : "user satisfies all"} of the controls above</div>`;
 
+    // The concluding CA RESULT: the flow above is the policy's logic — this is
+    // what the sign-in actually experiences in the tenant, which also depends
+    // on the policy STATE (a report-only or Off policy changes nothing today).
+    const ctl = (vm.grant.controls || []).filter((x) => !/^no controls/i.test(x));
+    const sess = (vm.session || []).map((s) => s.t);
+    const verdict = isBlock
+      ? `<b>Sign-in denied.</b> No control can satisfy a block — the user does not get in under these conditions.`
+      : ctl.length
+        ? `<b>Sign-in succeeds only after ${vm.grant.op === "OR" && ctl.length > 1 ? "one of" : "all of"}:</b> ${ctl.map(esc).join(" · ")}.${sess.length ? ` Session shaped by: ${sess.map(esc).join(", ")}.` : ""}`
+        : sess.length
+          ? `<b>Sign-in succeeds.</b> No grant controls — the session is shaped by: ${sess.map(esc).join(", ")}.`
+          : `<b>Sign-in succeeds.</b> The policy applies but imposes no controls.`;
+    const reality = vm.state === "on"
+      ? `<span class="wf-res-state on">Enforced (On)</span> — this is the real outcome in the tenant today.`
+      : vm.state === "report"
+        ? `<span class="wf-res-state ro">Report-only</span> — the sign-in is <b>not</b> affected today; Entra only records that this <i>would</i> have been the outcome.`
+        : `<span class="wf-res-state off">Off</span> — the sign-in is <b>not</b> affected today; this becomes the outcome the moment the policy is switched On.`;
+    const caResult = `<div class="wf-result ${isBlock ? "block" : "grant"}">
+      <div class="wf-result-t">🎯 CA result</div>
+      <div>${verdict}</div>
+      <div class="wf-mut" style="margin-top:6px">${reality}</div>
+    </div>`;
+
     return `<div class="wf-flow">
       ${disabled ? `<div class="wf-note">This policy is <b>Off</b> — it is evaluated here as if enabled, but in the tenant it does not apply.</div>` : ""}
       ${stage("start", "① A user signs in", `to <b>${esc(vm.apps.inc.join(", "))}</b>${vm.apps.exc.length ? ` <span class="wf-mut">(except ${esc(vm.apps.exc.join(", "))})</span>` : ""}`)}
@@ -71,6 +94,7 @@ const WhatIf = (() => {
       ${vm.session.length ? arrow("") + stage("session", "⏱ Session controls", vm.session.map((s) => `<div class="wf-ctrl">${esc(s.t)}</div>`).join("")) : ""}
       ${arrow("")}
       ${outcome}
+      ${caResult}
     </div>`;
   }
 
