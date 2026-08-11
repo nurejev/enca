@@ -1,2 +1,6 @@
 .DS_Store
 node_modules/
+
+# Git lock files and temp objects that the Cowork device bridge cannot delete
+# get moved here after each bridge-side commit; safe to empty at any time.
+_to_delete/
