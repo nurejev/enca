@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 245, date: "2026-08-11", title: "Gap analyse gets the full busy panel",
+    items: [
+      { kind: "improved", tool: "Gap analyse", text: "The matrix build showed only a status sentence with a small inline bar — easy to miss and visibly not the same component every other long read uses. It now shows the full shared busy panel in place of the results: spinner, wide brand-coloured bar driven by the counted phases (group expansion, role resolution), and the current phase with elapsed time. The one-line status next to the Run button stays for a glance." },
+    ],
+  },
+  {
+    build: 23016, date: "2026-08-11", title: "Assign groups works again",
     build: 244, date: "2026-08-11", title: "Assign groups works again",
     items: [
       { kind: "fixed", tool: "List Policies", text: "The Assign groups or roles wizard opened to an empty dialog — just Cancel and Next. Cause: a duplicate element id. The Authentication strengths tool (added in build 227) reused the wizard's asBody id for its own screen, and the browser hands back whichever comes first in the document — so the wizard had been writing its steps into a hidden screen ever since. The strengths screen's element is renamed and every step renders in the dialog again. Lesson absorbed: new tools get prefix-checked against existing ids." },

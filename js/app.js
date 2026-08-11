@@ -8233,14 +8233,24 @@ max@contoso.com,"Global, DevOps"</pre>
     const vms = policies.filter(p => p.raw.state === "enabled" || (includeRO && p.raw.state === "enabledForReportingButNotEnforced"));
     if (!vms.length) { $("anStatus").textContent = "No enabled policies to analyse."; return; }
     $("anRun").disabled = true;
+    // The full shared busy panel, same as every other long read: spinner,
+    // message, wide bar and the current phase — shown in place of the
+    // results while the matrix is being built.
+    const anProg = makeProgress("an");
+    anProg.start(0);
+    $("anResults").style.display = "none";
+    $("anBusy").style.display = "";
+    $("anBusy").innerHTML = anProg.panel(
+      "Building the users × policies matrix — fetching users, then expanding every group and role the policies reference. A large tenant takes a few minutes; this keeps running if you switch tabs.",
+      "The bar runs during the counted phases: group expansion and role resolution.");
+    const anT0 = Date.now();
     const status = (m, done, total) => {
       $("anStatus").textContent = m;
-      // the shared progress visual, inline: shown while a counted loop runs
-      const w = $("anPgWrap"), bar = $("anPgBar");
-      if (w && bar) {
-        if (total) { w.style.display = ""; bar.style.width = Math.min(100, done / total * 100) + "%"; }
-        else w.style.display = "none";
-      }
+      const t = $("anPgTxt"), bar = $("anPgBar");
+      const sec = Math.round((Date.now() - anT0) / 1000);
+      const el = sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m ${sec % 60}s`;
+      if (t) t.textContent = `${m} · ${el}`;
+      if (bar && total) bar.style.width = Math.min(100, done / total * 100) + "%";
     };
     try {
       const { lookup, users, scopeGroups, ctx } = isDemo
@@ -8259,7 +8269,7 @@ max@contoso.com,"Global, DevOps"</pre>
     } catch (e) {
       console.error("Analysis failed:", e);
       status("Analysis failed — see browser console.");
-    } finally { $("anRun").disabled = false; }
+    } finally { $("anRun").disabled = false; $("anBusy").style.display = "none"; $("anBusy").innerHTML = ""; }
   });
 
   function refreshGroupSelect() {
