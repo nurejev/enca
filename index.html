@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=22905"></script>
+<script src="js/popup-guard.js?v=23001"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=22905">
+<link rel="stylesheet" href="css/app.css?v=23001">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=22905"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=22905"></script>
+<script src="js/counter.js?v=23001"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=23001"></script>
 </head>
 <body>
 
@@ -138,6 +138,10 @@
       <div class="tool" id="toolSignins">
         <div class="tool-ic">🚦</div><h3>Sign-in failures <span class="tag new">NEW</span></h3>
         <p>Which sign-ins Conditional Access failed and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. Enforced and report-only, with CSV export and a one-click replay in What-If.</p>
+      </div>
+      <div class="tool" id="toolImpact">
+        <div class="tool-ic">🎚</div><h3>Report-only impact <span class="tag new">BETA</span></h3>
+        <p>What happens the day a report-only policy goes live — per policy: who would be denied, who just gets an extra prompt, who passes unchanged; per user: the combined effect of everything in report-only. The evidence for the go-live decision, from the sign-in log.</p>
       </div>
     </div>
     <div class="tool-sec"><h3>🧬 Compare against a baseline</h3><p>Measure this tenant against a reference set of policies.</p></div>
@@ -941,6 +945,33 @@
       </div>
     </div>
     <div id="siBody" style="margin-top:14px"></div>
+  </section>
+
+  <!-- ============ REPORT-ONLY IMPACT (BETA) ============ -->
+  <section id="screen-impact" class="screen">
+    <div class="list-card readme" id="riHead" style="margin-top:0"></div>
+    <div class="toolbar" id="riToolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="riSearch" placeholder="Search policy, user or app…" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="chip-filter" id="riChips"></div>
+      <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px"><span>Range</span>
+        <select id="riDays" style="width:auto">
+          <option value="1">Last 24 hours</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select></label>
+      <div class="seg" id="riViewSeg">
+        <button class="active" data-riview="policies" title="Per report-only policy: is it safe to enable?">Per policy</button>
+        <button data-riview="users" title="Per user: what changes for this person when everything goes live?">Per user</button>
+      </div>
+      <div class="tb-actions">
+        <button class="btn" id="riRescan" style="display:none" title="Re-read the sign-in log">⟳ Rescan</button>
+        <button class="btn" id="riMd" title="Go-live forecast as Markdown — per policy and per user">Export MD</button>
+      </div>
+    </div>
+    <div id="riBody" style="margin-top:14px"></div>
   </section>
 
   <!-- ============ CHANGELOG — the full history, as a page ============ -->
@@ -1788,41 +1819,42 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=22905"></script>
-<script src="js/version.js?v=22905"></script>
-<script src="js/authConfig.js?v=22905"></script>
-<script src="js/labels.js?v=22905"></script>
-<script src="js/graph.js?v=22905"></script>
-<script src="js/model.js?v=22905"></script>
-<script src="js/render.js?v=22905"></script>
-<script src="js/analyze.js?v=22905"></script>
-<script src="js/whatif.js?v=22905"></script>
-<script src="js/mslearn.js?v=22905"></script>
-<script src="js/gapcheck.js?v=22905"></script>
-<script src="js/cisdata.js?v=22905"></script>
-<script src="js/cischeck.js?v=22905"></script>
-<script src="js/exclusions.js?v=22905"></script>
-<script src="js/validator.js?v=22905"></script>
-<script src="js/whatifeval.js?v=22905"></script>
-<script src="js/compare.js?v=22905"></script>
-<script src="js/groupuse.js?v=22905"></script>
-<script src="js/locations.js?v=22905"></script>
-<script src="js/authcontexts.js?v=22905"></script>
-<script src="js/authstrengths.js?v=22905"></script>
-<script src="js/recycle.js?v=22905"></script>
-<script src="js/termsofuse.js?v=22905"></script>
-<script src="js/audit.js?v=22905"></script>
-<script src="js/signins.js?v=22905"></script>
-<script src="js/changelog.js?v=22905"></script>
-<script src="js/baselineData.js?v=22905"></script>
-<script src="js/baselineJoeyData.js?v=22905"></script>
-<script src="js/baseline.js?v=22905"></script>
-<script src="js/groupTemplates.js?v=22905"></script>
-<script src="js/assign.js?v=22905"></script>
-<script src="js/cagroups.js?v=22905"></script>
-<script src="js/import.js?v=22905"></script>
-<script src="js/export.js?v=22905"></script>
-<script src="js/demo.js?v=22905"></script>
-<script src="js/app.js?v=22905"></script>
+<script src="js/branding.js?v=23001"></script>
+<script src="js/version.js?v=23001"></script>
+<script src="js/authConfig.js?v=23001"></script>
+<script src="js/labels.js?v=23001"></script>
+<script src="js/graph.js?v=23001"></script>
+<script src="js/model.js?v=23001"></script>
+<script src="js/render.js?v=23001"></script>
+<script src="js/analyze.js?v=23001"></script>
+<script src="js/whatif.js?v=23001"></script>
+<script src="js/mslearn.js?v=23001"></script>
+<script src="js/gapcheck.js?v=23001"></script>
+<script src="js/cisdata.js?v=23001"></script>
+<script src="js/cischeck.js?v=23001"></script>
+<script src="js/exclusions.js?v=23001"></script>
+<script src="js/validator.js?v=23001"></script>
+<script src="js/whatifeval.js?v=23001"></script>
+<script src="js/compare.js?v=23001"></script>
+<script src="js/groupuse.js?v=23001"></script>
+<script src="js/locations.js?v=23001"></script>
+<script src="js/authcontexts.js?v=23001"></script>
+<script src="js/authstrengths.js?v=23001"></script>
+<script src="js/recycle.js?v=23001"></script>
+<script src="js/termsofuse.js?v=23001"></script>
+<script src="js/audit.js?v=23001"></script>
+<script src="js/signins.js?v=23001"></script>
+<script src="js/reportimpact.js?v=23001"></script>
+<script src="js/changelog.js?v=23001"></script>
+<script src="js/baselineData.js?v=23001"></script>
+<script src="js/baselineJoeyData.js?v=23001"></script>
+<script src="js/baseline.js?v=23001"></script>
+<script src="js/groupTemplates.js?v=23001"></script>
+<script src="js/assign.js?v=23001"></script>
+<script src="js/cagroups.js?v=23001"></script>
+<script src="js/import.js?v=23001"></script>
+<script src="js/export.js?v=23001"></script>
+<script src="js/demo.js?v=23001"></script>
+<script src="js/app.js?v=23001"></script>
 </body>
 </html>

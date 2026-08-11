@@ -53,6 +53,15 @@ const DEMO_DATA = {
       grantControls: { operator: "OR", builtInControls: ["block"] },
     },
     {
+      id: "d7", displayName: "Require MFA for all users — staged", state: "enabledForReportingButNotEnforced", modifiedDateTime: "2026-07-15T09:00:00Z",
+      conditions: {
+        users: { includeUsers: ["All"], excludeUsers: ["u-break1", "u-break2", "u-svc"] },
+        applications: { includeApplications: ["All"] },
+        clientAppTypes: ["all"],
+      },
+      grantControls: { operator: "OR", builtInControls: ["mfa"] },
+    },
+    {
       id: "d6", displayName: "Unmanaged devices — limited web session", state: "disabled", modifiedDateTime: "2026-03-19T09:00:00Z",
       conditions: {
         users: { includeUsers: ["All"], excludeGroups: ["g-hr"] },
@@ -194,6 +203,82 @@ const DEMO_DATA = {
       conditionalAccessStatus: "success", riskLevelDuringSignIn: "low",
       appliedConditionalAccessPolicies: [
         { id: "d5", displayName: "Block elevated insider risk", result: "reportOnlyFailure", enforcedGrantControls: ["Block"], enforcedSessionControls: [] },
+      ],
+    },
+    // ---- report-only richness for the Report-only impact tool ----------
+    // d7 (Require MFA — staged): Eva satisfies MFA already, Milan would be
+    // interrupted, the legacy IMAP service account would be DENIED (cannot
+    // do MFA), the guest is out of scope on this app.
+    {
+      id: "si-6", createdDateTime: "2026-07-21T10:02:11Z",
+      userDisplayName: "Eva Employee", userPrincipalName: "eva@contoso.com", userId: "u-emp1",
+      appDisplayName: "Microsoft Teams", appId: "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe",
+      resourceDisplayName: "Microsoft Teams",
+      ipAddress: "203.0.113.24", location: { city: "Amsterdam", countryOrRegion: "NL" },
+      clientAppUsed: "Browser",
+      deviceDetail: { operatingSystem: "Windows 11", browser: "Edge 126", isCompliant: true, isManaged: true, trustType: "AzureAd" },
+      status: { errorCode: 0, failureReason: "" },
+      conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      appliedConditionalAccessPolicies: [
+        { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlySuccess", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
+        { id: "d5", displayName: "Block elevated insider risk", result: "reportOnlyNotApplied", enforcedGrantControls: [], enforcedSessionControls: [] },
+      ],
+    },
+    {
+      id: "si-7", createdDateTime: "2026-07-21T08:15:44Z",
+      userDisplayName: "Milan Medewerker", userPrincipalName: "milan@contoso.com", userId: "u-emp2",
+      appDisplayName: "Office 365 SharePoint Online", appId: "00000003-0000-0ff1-ce00-000000000000",
+      resourceDisplayName: "Office 365 SharePoint Online",
+      ipAddress: "198.51.100.31", location: { city: "Utrecht", countryOrRegion: "NL" },
+      clientAppUsed: "Browser",
+      deviceDetail: { operatingSystem: "Windows 10", browser: "Chrome 127", isCompliant: false, isManaged: false, trustType: "" },
+      status: { errorCode: 0, failureReason: "" },
+      conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      appliedConditionalAccessPolicies: [
+        { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlyInterrupted", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
+      ],
+    },
+    {
+      id: "si-8", createdDateTime: "2026-07-20T22:40:09Z",
+      userDisplayName: "Milan Medewerker", userPrincipalName: "milan@contoso.com", userId: "u-emp2",
+      appDisplayName: "Microsoft Teams", appId: "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe",
+      resourceDisplayName: "Microsoft Teams",
+      ipAddress: "198.51.100.31", location: { city: "Utrecht", countryOrRegion: "NL" },
+      clientAppUsed: "Mobile Apps and Desktop clients",
+      deviceDetail: { operatingSystem: "Android 15", browser: "", isCompliant: false, isManaged: false, trustType: "" },
+      status: { errorCode: 0, failureReason: "" },
+      conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      appliedConditionalAccessPolicies: [
+        { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlyInterrupted", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
+      ],
+    },
+    {
+      id: "si-9", createdDateTime: "2026-07-21T03:12:58Z",
+      userDisplayName: "svc-legacyapp", userPrincipalName: "svc-legacyapp@contoso.com", userId: "u-svc",
+      appDisplayName: "Office 365 Exchange Online", appId: "00000002-0000-0ff1-ce00-000000000000",
+      resourceDisplayName: "Office 365 Exchange Online",
+      ipAddress: "198.51.100.7", location: { city: "Rotterdam", countryOrRegion: "NL" },
+      clientAppUsed: "IMAP4",
+      deviceDetail: { operatingSystem: "", browser: "", isCompliant: false, isManaged: false, trustType: "" },
+      status: { errorCode: 0, failureReason: "" },
+      conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      appliedConditionalAccessPolicies: [
+        { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlyFailure", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
+      ],
+    },
+    {
+      id: "si-10", createdDateTime: "2026-07-19T16:55:37Z",
+      userDisplayName: "Eva Employee", userPrincipalName: "eva@contoso.com", userId: "u-emp1",
+      appDisplayName: "Office 365 Exchange Online", appId: "00000002-0000-0ff1-ce00-000000000000",
+      resourceDisplayName: "Office 365 Exchange Online",
+      ipAddress: "203.0.113.24", location: { city: "Amsterdam", countryOrRegion: "NL" },
+      clientAppUsed: "Browser",
+      deviceDetail: { operatingSystem: "Windows 11", browser: "Edge 126", isCompliant: true, isManaged: true, trustType: "AzureAd" },
+      status: { errorCode: 0, failureReason: "" },
+      conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      appliedConditionalAccessPolicies: [
+        { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlySuccess", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
+        { id: "d5", displayName: "Block elevated insider risk", result: "reportOnlyNotApplied", enforcedGrantControls: [], enforcedSessionControls: [] },
       ],
     },
   ],
