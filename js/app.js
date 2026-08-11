@@ -67,7 +67,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-audit", "screen-signins", "screen-protect", "screen-changelog", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-audit", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Per-screen scroll memory: switching tabs used to jump to the top and lose
@@ -1000,6 +1000,7 @@
     ["toolCompare", "⚖ Compare users"],
     ["toolAudit", "🕓 Change audit"],
     ["toolSignins", "🚦 Sign-in failures"],
+    ["toolImpact", "🎚 Report-only impact"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolBaseline", "🧬 Baseline Policies"],
     ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
@@ -4827,6 +4828,215 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("🚦 Sign-in failures", "CA-SignInFailures", L.join("\n"));
   });
 
+  // ---------- Report-only impact (BETA) ----------
+  // The go-live question, answered from the sign-in log: for every policy in
+  // report-only, who would be denied, who just gets a prompt, who passes
+  // unchanged — and per user, the combined effect of everything staged.
+  // Reads the same log as Sign-in failures but keeps ALL report-only
+  // verdicts (success/interrupted/failure/notApplied), because the safe
+  // answer needs the denominator, not just the failures.
+  let riRes = null, riDays = 7, riView = "policies", riQuery = "", riFilter = "all";
+  let riBusy = false, riCapped = false;
+  const riOpen = new Set();
+  // Live progress while the window is read. Graph gives no total up front,
+  // so the honest bar is progress toward the record cap — plus a running
+  // count, page number and elapsed time, updated per page. The state lives
+  // outside the DOM so switching tabs and back re-renders mid-flight.
+  let riProg = { n: 0, page: 0, t0: 0 };
+  const riElapsed = () => { const s = Math.round((Date.now() - riProg.t0) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
+  const riBusyPanel = () => `<div class="run-prompt"><div class="spinner"></div>
+    <p class="mini muted">Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.</p>
+    <div class="ri-progwrap"><div class="ri-progbar" id="riProgBar" style="width:${Math.min(100, riProg.n / SI_MAX * 100)}%"></div></div>
+    <p class="mini" id="riProgTxt">${riProg.page ? `${riProg.n.toLocaleString()} sign-ins read · page ${riProg.page} · ${riElapsed()}` : "Waiting for the first page from Microsoft Graph…"}</p>
+    <p class="mini muted" style="margin-top:2px">The bar runs to the ${SI_MAX.toLocaleString()}-sign-in cap — most tenants finish well before the end of it.</p></div>`;
+
+  // The capped pager again, but narrating: siFetch stays silent, this one
+  // updates the busy panel after every page so a long read visibly moves.
+  async function riFetch(url, cap) {
+    let out = [], next = url;
+    riProg = { n: 0, page: 0, t0: Date.now() };
+    while (next && out.length < cap) {
+      const j = await Graph.gget(next);
+      out = out.concat(j.value || []);
+      riProg.n = out.length; riProg.page++;
+      const t = $("riProgTxt"), b = $("riProgBar");
+      if (t) t.textContent = `${out.length.toLocaleString()} sign-ins read · page ${riProg.page} · ${riElapsed()}`;
+      if (b) b.style.width = Math.min(100, out.length / cap * 100) + "%";
+      next = j["@odata.nextLink"] || null;
+    }
+    riCapped = !!next;
+    return out.slice(0, cap);
+  }
+
+  // The tenant's report-only policies from the list already in memory — so a
+  // staged policy with zero traffic still shows up, as "no data".
+  const riTenantRo = () => (policies || [])
+    .filter((p) => p.state === "enabledForReportingButNotEnforced")
+    .map((p) => ({ id: p.id, name: p.name }));
+
+  function openImpact() {
+    crumb("🎚 Report-only impact");
+    show("screen-impact");
+    $("riRescan").style.display = riRes && !riBusy ? "" : "none";
+    if (riBusy) { $("riBody").innerHTML = riBusyPanel(); return; }
+    if (riRes) { renderImpact(); return; }
+    const ro = riTenantRo();
+    $("riHead").innerHTML = `<h3>🎚 Report-only impact <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:4px">What happens the day a report-only policy goes live. Per policy: who would be <b>denied</b>, who is <b>interrupted</b> for an extra step (MFA, compliant device, terms of use…), who <b>passes unchanged</b>. Per user: the combined effect of everything in report-only at once.</p>
+      <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
+    $("riChips").innerHTML = "";
+    $("riBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-rirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
+  }
+  $("toolImpact").addEventListener("click", () => openImpact());
+  $("riRescan").addEventListener("click", () => runImpact());
+  $("riDays").addEventListener("change", (e) => { riDays = +e.target.value; if (riRes) runImpact(); });
+
+  async function runImpact() {
+    if (riBusy) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
+    riBusy = true; riCapped = false;
+    $("riRescan").style.display = "none";
+    $("riBody").innerHTML = riBusyPanel();
+    try {
+      const records = isDemo
+        ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [])
+        : await riFetch(ReportImpact.query(riDays), SI_MAX);
+      riRes = ReportImpact.build(records, riTenantRo());
+      riOpen.clear(); riFilter = "all";
+      riBusy = false;
+      $("riRescan").style.display = "";
+      renderImpact();
+      if (!riRes.policies.length) toast("No report-only policy was evaluated in this window");
+    } catch (e) {
+      console.error("Report-only impact read failed:", e);
+      riBusy = false;
+      $("riBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read the sign-in log: ${esc(e.message || e)}<br>
+        <span class="muted">This needs AuditLog.Read.All and a reader role such as Reports Reader, Security Reader or Security Administrator. The sign-in log also needs an Entra ID P1/P2 licence.</span></p>
+        <div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-rirun>Try again</button></div>`;
+    } finally { riBusy = false; }
+  }
+
+  const RI_V = {
+    block:  ["🔴", "would block users", "At least one sign-in would have been denied"],
+    prompt: ["🟡", "prompts only", "Nobody denied — users interrupted for a control they can satisfy"],
+    clean:  ["🟢", "no change", "Every applying sign-in already satisfies it"],
+    scoped: ["⚪", "never in scope", "Evaluated, but no sign-in fell inside its assignments"],
+    nodata: ["⚪", "no data", "No evaluation in this window — no evidence either way"],
+  };
+  const riBar = (p) => {
+    const t = p.evaluated + p.notApplied || 1;
+    const seg = (n, cls, lab) => n ? `<span class="ri-seg ${cls}" style="flex:${n}" title="${esc(lab)}: ${n.toLocaleString()}"></span>` : "";
+    return `<div class="ri-bar">${seg(p.failure, "bad", "would deny")}${seg(p.interrupted, "warn", "interrupted")}${seg(p.success, "ok", "pass unchanged")}${seg(p.notApplied, "na", "out of scope")}<span style="flex:${t ? 0 : 1}"></span></div>`;
+  };
+
+  function renderImpact() {
+    const r = riRes; if (!r) return;
+    $("riHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:280px">
+        <h3>🎚 Report-only impact <span class="tag new">BETA</span></h3>
+        <p style="margin-bottom:4px">The go-live forecast for the last ${riDays} day${riDays === 1 ? "" : "s"}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
+        <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read${riCapped ? `, <span style="color:var(--off)">truncated at ${SI_MAX.toLocaleString()}</span>` : ""}.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${r.policies.length}<span class="mini" style="font-weight:400"> report-only polic${r.policies.length === 1 ? "y" : "ies"}</span></div>
+        <div class="mini">${r.users.length} user${r.users.length === 1 ? "" : "s"} evaluated</div>
+      </div></div>`;
+
+    const C = r.counts;
+    const chips = [["all", `All (${r.policies.length})`],
+      ["block", `🔴 would block (${C.block})`], ["prompt", `🟡 prompts (${C.prompt})`],
+      ["clean", `🟢 no change (${C.clean})`], ["scoped", `⚪ never in scope (${C.scoped})`], ["nodata", `⚪ no data (${C.nodata})`]]
+      .filter(([k]) => k === "all" || C[k]);
+    $("riChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${riFilter === k ? "active" : ""}" data-rif="${k}">${l}</button>`).join("");
+    [...$("riViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.riview === riView));
+    const q = riQuery.toLowerCase();
+
+    // ---- Per policy: is flipping THIS one on safe? -----------------------
+    if (riView === "policies") {
+      const pols = r.policies.filter((p) => (riFilter === "all" || p.verdict === riFilter)
+        && (!q || `${p.name} ${p.users.map((u) => u.upn + " " + u.name).join(" ")} ${p.apps.map(([a]) => a).join(" ")}`.toLowerCase().includes(q)));
+      if (!pols.length) { $("riBody").innerHTML = '<p class="mini" style="padding:20px">No report-only policy matches the current filter.</p>'; return; }
+      $("riBody").innerHTML = pols.map((p) => {
+        const [ic, vlab] = RI_V[p.verdict];
+        const open = riOpen.has("p:" + p.key);
+        const users = p.users.filter((u) => u.failure || u.interrupted);
+        const detail = open ? `<div class="au-diff">
+            ${users.length ? `<table class="plist au-sum" style="margin:6px 0"><thead><tr><th>User</th><th style="width:110px">Would deny</th><th style="width:110px">Interrupted</th><th style="width:90px">Pass</th><th>Apps</th><th style="width:110px">Last seen</th></tr></thead>
+            <tbody>${users.slice(0, 60).map((u) => `<tr>
+              <td><b>${esc(u.name)}</b>${u.upn !== u.name ? ` <span class="mini muted">${esc(u.upn)}</span>` : ""}</td>
+              <td>${u.failure ? `<span class="au-n rem">${u.failure}</span>` : '<span class="mini muted">—</span>'}</td>
+              <td>${u.interrupted ? `<span class="au-n upd">${u.interrupted}</span>` : '<span class="mini muted">—</span>'}</td>
+              <td class="mini">${u.success || "—"}</td>
+              <td class="mini">${esc([...u.apps].slice(0, 3).join(", "))}${u.apps.size > 3 ? ` +${u.apps.size - 3}` : ""}</td>
+              <td class="mini">${esc(auAgo(u.last))}</td></tr>`).join("")}</tbody></table>
+            ${users.length > 60 ? `<p class="mini muted">Showing 60 of ${users.length} affected users — the Markdown export has them all.</p>` : ""}`
+            : '<p class="mini muted" style="margin:6px 0">No user would notice this policy going live in this window.</p>'}
+            ${p.apps.length ? `<p class="mini muted" style="margin:4px 0 0">Apps in scope: ${esc(p.apps.slice(0, 6).map(([a, c]) => `${a} (${c})`).join(", "))}${p.apps.length > 6 ? ` +${p.apps.length - 6}` : ""}</p>` : ""}
+          </div>` : "";
+        return `<div class="list-card au-card">
+          <div class="au-h" data-risum="${esc(p.key)}">
+            <span title="${esc(RI_V[p.verdict][2])}">${ic}</span>
+            <b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b>
+            <span class="tag">report-only</span>
+            <span class="ri-v ri-${p.verdict}">${vlab}</span>
+            ${p.controls.length ? `<span class="mini muted">${esc(p.controls.slice(0, 3).join(", "))}</span>` : ""}
+            <span class="au-when">${p.last ? esc(auAgo(p.last)) : ""}</span>
+          </div>
+          ${riBar(p)}
+          <div class="au-sub">${esc(ReportImpact.verdictLine(p))}${p.notApplied ? ` Out of scope for ${p.notApplied.toLocaleString()} evaluation${p.notApplied === 1 ? "" : "s"}.` : ""}</div>
+          ${detail}
+        </div>`;
+      }).join("") + `<p class="mini muted" style="margin-top:8px">Click a policy for the per-user breakdown; the policy name opens its card. 🔴/🟡 verdicts come from real sign-ins — a 🟢 only says nothing was observed to break <i>in this window</i>.</p>`;
+      return;
+    }
+
+    // ---- Per user: what changes for this person? -------------------------
+    const users = r.users.filter((u) => (riFilter === "all" || u.worst === riFilter)
+      && (!q || `${u.name} ${u.upn} ${u.policies.map((x) => x.name).join(" ")} ${u.apps.join(" ")}`.toLowerCase().includes(q)));
+    if (!users.length) { $("riBody").innerHTML = '<p class="mini" style="padding:20px">No user matches the current filter.</p>'; return; }
+    const W = { block: ["🔴", "locked out of something"], prompt: ["🟡", "new prompts"], clean: ["🟢", "unaffected"] };
+    $("riBody").innerHTML = `<div class="list-card"><table class="plist au-sum">
+      <thead><tr><th>User</th><th style="width:140px">Going live means</th><th style="width:100px">Would deny</th><th style="width:100px">Interrupted</th><th>Policies involved</th><th style="width:110px">Last seen</th></tr></thead>
+      <tbody>${users.slice(0, 200).map((u) => {
+        const [ic, lab] = W[u.worst];
+        const open = riOpen.has("u:" + u.upn);
+        const detail = open ? `<tr class="au-sumdet"><td colspan="6"><ul class="wi-list" style="margin:6px 0">
+          ${u.policies.map((x) => `<li><div class="wi-pn"><span class="pol-link" data-polid="${esc(x.id || "")}" title="Open the policy card">${esc(x.name)}</span></div>
+            <div class="wi-why">${[x.failure ? `${x.failure} would deny` : "", x.interrupted ? `${x.interrupted} interrupted` : "", x.success ? `${x.success} pass` : ""].filter(Boolean).join(" · ")}</div></li>`).join("")}
+        </ul></td></tr>` : "";
+        return `<tr class="au-sumrow" data-riuser="${esc(u.upn)}">
+          <td><b>${esc(u.name)}</b>${u.upn !== u.name ? ` <span class="mini muted">${esc(u.upn)}</span>` : ""}</td>
+          <td>${ic} ${lab}</td>
+          <td>${u.failure ? `<span class="au-n rem">${u.failure}</span>` : '<span class="mini muted">—</span>'}</td>
+          <td>${u.interrupted ? `<span class="au-n upd">${u.interrupted}</span>` : '<span class="mini muted">—</span>'}</td>
+          <td class="mini">${esc(u.policies.map((x) => x.name).slice(0, 2).join(", "))}${u.policies.length > 2 ? ` +${u.policies.length - 2}` : ""}</td>
+          <td class="mini">${esc(auAgo(u.last))}</td>
+        </tr>${detail}`;
+      }).join("")}</tbody></table></div>
+      ${users.length > 200 ? `<p class="mini muted" style="margin-top:8px">Showing 200 of ${users.length} users — the Markdown export has them all.</p>` : ""}
+      <p class="mini muted" style="margin-top:8px">Worst case first: a user is 🔴 if any staged policy would deny any of their sign-ins. Click a row for the per-policy split.</p>`;
+  }
+
+  $("riBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-rirun]")) { runImpact(); return; }
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const s = e.target.closest("[data-risum]");
+    if (s) { const k = "p:" + s.dataset.risum; riOpen.has(k) ? riOpen.delete(k) : riOpen.add(k); renderImpact(); return; }
+    const u = e.target.closest("[data-riuser]");
+    if (u) { const k = "u:" + u.dataset.riuser; riOpen.has(k) ? riOpen.delete(k) : riOpen.add(k); renderImpact(); }
+  });
+  $("riViewSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-riview]"); if (!b) return;
+    riView = b.dataset.riview; renderImpact();
+  });
+  $("riChips").addEventListener("click", (e) => { const b = e.target.closest("[data-rif]"); if (!b) return; riFilter = b.dataset.rif; renderImpact(); });
+  $("riSearch").addEventListener("input", (e) => { riQuery = e.target.value; renderImpact(); });
+  $("riMd").addEventListener("click", () => {
+    if (!riRes) return;
+    showReport("🎚 Report-only impact", "CA-ReportOnlyImpact", ReportImpact.toMd(riRes, riDays));
+  });
+
   // ---------- Named locations (view / create / edit / delete) ----------
   const LO_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
   let loList = null, loFilter = "all", loQuery = "", loEditing = null, loDeleting = null;
@@ -7977,7 +8187,7 @@ max@contoso.com,"Global, DevOps"</pre>
     blHead: "toolBaseline", gcHead: "toolGapCheck", vaHead: "toolValidator", wiHead: "toolWhatIf",
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
     siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr", rcHead: "toolRecycle",
-    tuHead: "toolTou",
+    tuHead: "toolTou", riHead: "toolImpact",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

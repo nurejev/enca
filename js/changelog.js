@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 230, date: "2026-08-11", title: "Report-only impact: the go-live forecast",
+    items: [
+      { kind: "new", tool: "Report-only impact", text: "New tool (BETA): what happens the day a report-only policy goes live, answered from the sign-in log. Where Sign-in failures keeps only the failures, this keeps every report-only verdict — so each staged policy gets a denominator and a verdict: 🔴 would block users (who, on which app, how often), 🟡 prompts only (interrupted for MFA or another control they can satisfy), 🟢 no change, or ⚪ no evidence — a staged policy with zero traffic is listed too, because 'no data' is the answer that should stop a go-live. The per-user view flips the question: for this person, the combined effect of everything in report-only at once, worst case first. Distribution bar per policy, per-user drill-down with apps and last-seen, policy names open the policy card, 1/7/30-day window, Markdown export for the change advisory board." },
+      { kind: "improved", tool: "Report-only impact", text: "The read shows its work: report-only verdicts cannot be server-filtered, so the whole window is paged in — minutes, not seconds, in a large tenant. The busy state narrates with a running sign-in count, page number and elapsed time, plus a progress bar toward the record cap; switch tabs and back and it picks up mid-flight." },
+    ],
+  },
+  {
     build: 229, date: "2026-08-11", title: "Counting visits, not visitors",
     items: [
       { kind: "new", tool: "All tools", text: "ENCA now measures its own use — and only that. GoatCounter (a privacy-first, cookie-less counter) records page views and one event per tool-screen open: the tool's name and the channel (production or beta), nothing else. No identifiers, no tenant names, nothing from the Graph session; a blocked script changes nothing about how ENCA works. The README's privacy paragraph says exactly this. It answers one question the roadmap needs answered: which of these tools do people actually use." },
