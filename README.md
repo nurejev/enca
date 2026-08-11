@@ -216,6 +216,10 @@ const BRANDING = {
   favicon: "assets/favicon.svg",
   loginTitle: "", loginBlurb: "…",               // "" → `${name} — ${longName}`
   colors: { "--green": "#1e4729" },              // optional; written onto :root, beats the stylesheet
+  // The palette drives more than text and buttons: --green is the identity
+  // colour, --green-deep is the DEEP tone the UI leans on for contrast —
+  // including the dimmed backdrop behind every dialog, which is derived from
+  // it (color-mix at 55%), so dialogs dim in the brand's own colour. Set both.
 };
 ```
 
