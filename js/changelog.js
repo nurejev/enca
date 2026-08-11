@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 22904, date: "2026-08-11", title: "Recreate carries everyone, and says so",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "Recreate as role-assignable: the member move (added in build 219) only carried USER members — service principals and devices were left behind silently, which for a service-account persona group means an empty include. All member types now come across; the one thing that cannot is a nested group, because Entra forbids groups as members of a role-assignable group — those are named in the change report instead of failing quietly. And the confirm dialog no longer claims the new group starts empty (a leftover from before the member move existed): copying the members is now step ③ of the plan it shows." },
+    ],
+  },
+  {
     build: 22903, date: "2026-08-11", title: "CIS: staged policies get their own tier",
     items: [
       { kind: "improved", tool: "CIS Benchmark", text: "Catalog r4, after reviewing the engine in Jhope188's CA Policy Analyzer. Disabled policies are now evaluated too: a policy that meets every criterion while Off lands in its own ⏸ Configured (Off) tier — own chip, own count, one state switch from passing — instead of disappearing into fail. It is deliberately NOT scored as pass: the benchmark's audit requires state = enabled, and the control says so (their analyzer shows such matches green with a state tag; an auditor would not). Staged-rollout baselines finally look like what they are." },

@@ -2365,20 +2365,30 @@ max@contoso.com,"Global, DevOps"</pre>
   // on every call rather than guessing which the target turned out to be.
   const MEMBER_MOVE_SCOPES = ["Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"];
   async function moveGroupMembers(fromId, toId, onStatus) {
-    const log = { moved: 0, total: 0, failed: [] };
-    const users = await Graph.ggetAll(`/groups/${fromId}/members/microsoft.graph.user?$select=id,displayName`).catch(() => []);
-    log.total = users.length;
-    for (let i = 0; i < users.length; i++) {
-      onStatus?.(`Moving member ${i + 1}/${users.length}…`);
+    // ALL member types come across, not just users — a persona group can hold
+    // service principals (service-account personas) and the old code left
+    // those behind silently. The one hard limit is Entra's, not ours: a
+    // role-assignable group cannot contain GROUPS as members, so nested
+    // groups are reported as skipped with that reason instead of failing.
+    const log = { moved: 0, total: 0, failed: [], skippedGroups: [] };
+    const members = await Graph.ggetAll(`/groups/${fromId}/members?$select=id,displayName`).catch(() => []);
+    const movable = [];
+    for (const m of members) {
+      if (String(m["@odata.type"] || "").toLowerCase().includes("group")) log.skippedGroups.push(m.displayName || m.id);
+      else movable.push(m);
+    }
+    log.total = members.length;
+    for (let i = 0; i < movable.length; i++) {
+      onStatus?.(`Moving member ${i + 1}/${movable.length}…`);
       try {
         await Graph.gpost(`/groups/${toId}/members/$ref`,
-          { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${users[i].id}` },
+          { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${movable[i].id}` },
           [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
         log.moved++;
       } catch (e) {
         const already = /already exist/i.test(e.message || "");
         if (already) log.moved++;
-        else log.failed.push({ name: users[i].displayName || users[i].id, error: e.message || String(e) });
+        else log.failed.push({ name: movable[i].displayName || movable[i].id, error: e.message || String(e) });
       }
     }
     return log;
@@ -2688,15 +2698,16 @@ max@contoso.com,"Global, DevOps"</pre>
     const md = [];
     md.push(`**${r.name}** is not role-assignable, and \`isAssignableToRole\` cannot be changed on an existing group. This will:`);
     md.push("");
-    md.push(`1. Rename the current group to **${legacy}** (kept, not deleted — members and history preserved).`);
+    md.push(`1. Rename the current group to **${legacy}** (kept, not deleted — a fallback until you delete it).`);
     md.push(`2. Create a new **role-assignable** security group named **${r.name}**.`);
-    md.push(`3. Move the **${r.refCount}** referencing polic${r.refCount === 1 ? "y" : "ies"} from the old group to the new one:`);
+    md.push(`3. **Copy the members across** — users, service principals and devices. Nested groups cannot be members of a role-assignable group (an Entra rule) and are listed in the report instead.`);
+    md.push(`4. Move the **${r.refCount}** referencing polic${r.refCount === 1 ? "y" : "ies"} from the old group to the new one:`);
     md.push("");
     if (inc.length) { md.push("_Included in:_"); inc.forEach((p) => md.push(`- ${p.name}`)); md.push(""); }
     if (exc.length) { md.push("_Excluded from:_"); exc.forEach((p) => md.push(`- ${p.name}`)); md.push(""); }
-    if (!r.refCount) md.push("_No policy references this group, so only the group is recreated._");
+    if (!r.refCount) md.push("_No policy references this group, so only the group is recreated (members still come across)._");
     md.push("");
-    md.push(isDemo ? "_Demo mode — simulated, nothing is written._" : "The new group has **no members** — add them (or set a membership rule) afterwards. This **writes to your tenant**.");
+    md.push(isDemo ? "_Demo mode — simulated, nothing is written._" : "This **writes to your tenant**.");
     $("recreateBody").innerHTML = mdToHtml(md.join("\n"));
     $("recreateOk").value = ""; $("recreateGo").disabled = true;
     $("recreateModal").classList.add("open");
@@ -2724,7 +2735,7 @@ max@contoso.com,"Global, DevOps"</pre>
         // empty — an include group that applies to nobody, an exclude group
         // that excludes nobody — until someone noticed and did it by hand.
         const mm = await moveGroupMembers(r.id, g.id, (m) => toast(m));
-        log.membersMoved = mm.moved; log.memberTotal = mm.total;
+        log.membersMoved = mm.moved; log.memberTotal = mm.total; log.skippedGroups = mm.skippedGroups;
         mm.failed.forEach((f) => log.failed.push({ name: `member ${f.name}`, error: f.error }));
         // swap old id -> new id in every referencing policy
         const refs = [...r.refs.include.map((p) => ({ ...p, how: "include" })), ...r.refs.exclude.map((p) => ({ ...p, how: "exclude" }))];
@@ -2749,7 +2760,7 @@ max@contoso.com,"Global, DevOps"</pre>
       md.push(`- **Group:** ${r.name}`);
       md.push(`- **Old group renamed to:** ${legacy} (id \`${r.id}\`)`);
       md.push(`- **New role-assignable group id:** \`${log.newId}\``);
-      md.push(`- **Members moved:** ${log.membersMoved || 0}${log.memberTotal ? `/${log.memberTotal}` : ""}`);
+      md.push(`- **Members moved:** ${log.membersMoved || 0}${log.memberTotal ? `/${log.memberTotal}` : ""}${log.skippedGroups?.length ? ` · **${log.skippedGroups.length} nested group${log.skippedGroups.length === 1 ? "" : "s"} not movable** (role-assignable groups cannot contain groups): ${log.skippedGroups.join(", ")}` : ""}`);
       md.push(`- **Policies moved:** ${log.moved.length}${log.failed.length ? ` · **failed:** ${log.failed.length}` : ""}`);
       if (isDemo) md.push(`- _Demo mode — simulated._`);
       md.push("");
