@@ -277,6 +277,10 @@ No extra app-registration permission is needed for Named locations: Graph asks f
 - **All JavaScript libraries are self-hosted** in `vendor/` — nothing loads from a third-party CDN at runtime.
 - **Exports are generated locally** and carry the connected tenant's branding, not Limon-IT's.
 
+The full assessment — architecture, permission model, residual risks for tenants
+and for the operator, and recommendations for security teams — lives in
+[SECURITY.md](SECURITY.md).
+
 ## Popups and consent
 
 Every write action asks for its Graph scopes **on the click that starts it**, before doing any work. That is not politeness — it is the only way the sign-in window opens reliably.
