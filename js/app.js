@@ -380,7 +380,7 @@
     const lines = String(md || "").split("\n");
     const out = [];
     let list = null, table = null;
-    const closeList = () => { if (list) { out.push("</ul>"); list = null; } };
+    const closeList = () => { if (list) { out.push(list === "ol" ? "</ol>" : "</ul>"); list = null; } };
     const closeTable = () => { if (table) { out.push("</tbody></table>"); table = null; } };
     for (let i = 0; i < lines.length; i++) {
       const ln = lines[i];
@@ -398,7 +398,9 @@
       if (h) { closeList(); out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); continue; }
       if (/^\s*(-{3,}|\*{3,})\s*$/.test(ln)) { closeList(); out.push("<hr>"); continue; }
       const li = /^\s*[-*]\s+(.*)$/.exec(ln);
-      if (li) { if (!list) { out.push("<ul>"); list = true; } out.push(`<li>${inline(li[1])}</li>`); continue; }
+      if (li) { if (list !== "ul") { closeList(); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(li[1])}</li>`); continue; }
+      const oli = /^\s*\d+\.\s+(.*)$/.exec(ln);
+      if (oli) { if (list !== "ol") { closeList(); out.push("<ol>"); list = "ol"; } out.push(`<li>${inline(oli[1])}</li>`); continue; }
       closeList();
       if (ln.trim()) out.push(`<p>${inline(ln)}</p>`);
     }
@@ -422,11 +424,26 @@
   // SECURITY.md deploys with the site, so it is fetched same-origin and
   // rendered in the report viewer — readable BEFORE signing in (login-screen
   // link) and any time after (footer link on every screen).
+  // A repo Markdown file is hard-wrapped at ~76 columns; the line-based
+  // renderer would show every source line as its own paragraph. Join
+  // continuation lines into their paragraph or list item first — anything
+  // that starts a block (blank, heading, list, table, rule, quote) stays.
+  function mdUnwrap(md) {
+    const startsBlock = (l) => /^\s*$/.test(l) || /^#{1,6}\s/.test(l) || /^\s*[-*]\s/.test(l)
+      || /^\s*\d+\.\s/.test(l) || /^\s*\|/.test(l) || /^\s*(-{3,}|\*{3,})\s*$/.test(l) || /^\s*>/.test(l);
+    const out = [];
+    for (const l of String(md || "").split("\n")) {
+      const prev = out.length ? out[out.length - 1] : null;
+      if (prev !== null && prev.trim() && !startsBlock(l)) out[out.length - 1] = prev.replace(/\s+$/, "") + " " + l.trim();
+      else out.push(l);
+    }
+    return out.join("\n");
+  }
   async function showSecurityDoc() {
     try {
       const r = await fetch("SECURITY.md?v=" + APP_BUILD.build);
       if (!r.ok) throw new Error("HTTP " + r.status);
-      showReport("🔒 Security & risk documentation", "ENCA-Security", await r.text());
+      showReport("🔒 Security & risk documentation", "ENCA-Security", mdUnwrap(await r.text()));
     } catch (e) {
       console.error("SECURITY.md load failed:", e);
       toast(`Could not load the security documentation: <span>${esc(e.message || e)}</span>`);

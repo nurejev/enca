@@ -296,7 +296,7 @@ table.plist tr:hover td{background:var(--hover)}
 @media(max-width:520px){.wf-conds{grid-template-columns:1fr}}
 
 /* rendered Markdown report inside the viewer overlay */
-.md-view{max-height:62vh;overflow:auto;padding-right:6px;font-size:13px;line-height:1.6}
+.md-view{max-height:72vh;overflow:auto;padding-right:6px;font-size:13.5px;line-height:1.65}
 .md-view h1{font-size:18px;margin:0 0 10px}
 .md-view h2{font-size:15px;margin:18px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border);color:var(--green)}
 .md-view h3{font-size:13.5px;margin:14px 0 6px}
@@ -749,7 +749,7 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 /* ---------- modal / toast ---------- */
 /* stacking order: full-screen matrix panel 200 < modals 300 < dependency
    inspector 320 (opened FROM a modal) < toast 400 */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(18,51,31,.55);z-index:300;align-items:center;justify-content:center;padding:24px}
+.modal-bg{display:none;position:fixed;inset:0;background:color-mix(in srgb, var(--green-deep) 55%, transparent);z-index:300;align-items:center;justify-content:center;padding:24px}
 .modal-bg.open{display:flex}
 .modal{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);max-width:520px;width:100%;padding:30px;max-height:calc(100vh - 40px);overflow-y:auto}
 .modal h3{margin-bottom:6px}
