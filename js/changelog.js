@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 231, date: "2026-08-11", title: "Shorter windows for fresh questions",
+    items: [
+      { kind: "improved", tool: "Report-only impact", text: "1-hour and 4-hour ranges join 1/7/30 days — flip a policy to report-only, drive some traffic, and check the impact of the last hour without paging in a whole day of a large tenant's log." },
+      { kind: "improved", tool: "Sign-in failures", text: "The same 1-hour and 4-hour ranges — when the helpdesk phone rings, the failure is minutes old, not days." },
+    ],
+  },
+  {
+    build: 23002, date: "2026-08-11", title: "The long read shows its work",
     build: 230, date: "2026-08-11", title: "Report-only impact: the go-live forecast",
     items: [
       { kind: "new", tool: "Report-only impact", text: "New tool (BETA): what happens the day a report-only policy goes live, answered from the sign-in log. Where Sign-in failures keeps only the failures, this keeps every report-only verdict — so each staged policy gets a denominator and a verdict: 🔴 would block users (who, on which app, how often), 🟡 prompts only (interrupted for MFA or another control they can satisfy), 🟢 no change, or ⚪ no evidence — a staged policy with zero traffic is listed too, because 'no data' is the answer that should stop a go-live. The per-user view flips the question: for this person, the combined effect of everything in report-only at once, worst case first. Distribution bar per policy, per-user drill-down with apps and last-seen, policy names open the policy card, 1/7/30-day window, Markdown export for the change advisory board." },
