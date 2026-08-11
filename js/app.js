@@ -896,14 +896,39 @@
   // Azure Resource Manager is a different resource, not a Graph scope, so it is
   // listed on its own rather than mixed into the Graph consent request.
   const ARM_SCOPE_INFO = { scope: "management.azure.com/user_impersonation", use: "Read Azure role assignments across subscriptions and management groups", tools: "Group Analyzer (Azure area)" };
+  // Revoking is the mirror image of consenting, and it belongs where the
+  // permissions are listed. The panel explains the three routes and their
+  // consequences; the PowerShell carries this deployment's real client ID.
+  let permRevOpen = false;
+  const permRevokeHtml = () => {
+    const ps = [
+      `$sp = Get-MgServicePrincipal -Filter "appId eq '${AUTH_CONFIG.clientId}'"`,
+      `$grant = Get-MgOauth2PermissionGrant -Filter "clientId eq '$($sp.Id)'"`,
+      `# keep the read base, drop every write scope:`,
+      `Update-MgOauth2PermissionGrant -OAuth2PermissionGrantId $grant.Id -Scope "Policy.Read.All Directory.Read.All"`,
+      `# or remove the consent completely:`,
+      `Remove-MgOauth2PermissionGrant -OAuth2PermissionGrantId $grant.Id`,
+    ].join("\n");
+    return `<div id="permRevoke" style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin:0 0 12px">
+      <p class="mini" style="margin:0 0 8px">Consent is an <code>oAuth2PermissionGrant</code> in <b>your</b> tenant — revoking it is deleting or trimming that object. Three routes:</p>
+      <p class="mini" style="margin:0 0 6px"><b>1 · Yourself:</b> <a href="https://myaccount.microsoft.com/" target="_blank" rel="noopener noreferrer">myaccount.microsoft.com</a> → App permissions → this app → <i>Revoke permissions</i>. Removes your own grant entirely.</p>
+      <p class="mini" style="margin:0 0 6px"><b>2 · As admin, in the portal:</b> Entra admin center → Enterprise applications → this app → Permissions (tenant-wide admin consents live there).</p>
+      <p class="mini" style="margin:0 0 4px"><b>3 · Surgically, via Graph PowerShell</b> — a grant's <code>scope</code> is one space-separated string, so the write scopes can be stripped while the read base stays:</p>
+      <pre style="margin:4px 0 8px;padding:10px 12px;border-radius:8px;background:var(--soft);overflow:auto;font-size:12px;line-height:1.5"><code>${ps}</code></pre>
+      <button class="btn sm" id="permRevCopy">Copy PowerShell</button>
+      <p class="mini muted" style="margin:10px 0 0"><b>Consequences:</b> almost nothing breaks — on the next sign-in the token simply carries fewer scopes, and the moment a tool needs a missing one the consent prompt reappears (the same on-the-click model that granted it). Nothing is lost: this app stores no data. It is <b>not instant</b> — tokens already issued keep their scopes until they expire (about an hour); pair with <code>Revoke-MgUserSignInSession</code> and close the tab for immediacy. Mind the blast radius: deleting an <code>AllPrincipals</code> (admin-consented) grant re-prompts <b>every</b> user of the app in the tenant, a <code>Principal</code> grant only that account. The deletion lands in the directory audit log. And do not revoke from inside this app — that would need <code>DelegatedPermissionGrant.ReadWrite.All</code>, a far bigger permission than the ones being cleaned up (see the roadmap).</p>
+    </div>`;
+  };
   async function renderPermissions() {
     const el = $("permOverview");
     const granted = isDemo ? ["Policy.Read.All", "Directory.Read.All"] : await Graph.grantedScopes();
     const missing = SCOPE_INFO.map(s => s.scope).filter(s => !granted.includes(s));
     el.innerHTML = `<h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">🔑 Permissions in this session
         <button class="btn" id="permRefresh" style="font-size:12px;padding:5px 12px">⟳ Refresh</button>
-        ${missing.length && !isDemo ? `<button class="btn primary" id="permConsent" style="font-size:12px;padding:5px 12px">🔓 Request consent for ${missing.length} missing permission(s)</button>` : ""}</h3>
+        ${missing.length && !isDemo ? `<button class="btn primary" id="permConsent" style="font-size:12px;padding:5px 12px">🔓 Request consent for ${missing.length} missing permission(s)</button>` : ""}
+        <button class="btn" id="permRevToggle" style="font-size:12px;padding:5px 12px" title="How to take consent away again, and what happens when you do">🔒 How to revoke ${permRevOpen ? "▴" : "▾"}</button></h3>
       <p class="mini" style="margin-bottom:10px">Granted scopes come from your current sign-in${isDemo ? " (demo — simulated)" : ""}. On-demand scopes are only requested when the matching tool is used — refresh after consenting to see them turn green.</p>
+      ${permRevOpen ? permRevokeHtml() : ""}
       <table class="plist" style="font-size:13px">
         <thead><tr><th>Permission</th><th>Used for</th><th>Tools</th><th>Status</th></tr></thead>
         <tbody>${SCOPE_INFO.map(s => {
@@ -919,6 +944,12 @@
   }
   $("permOverview").addEventListener("click", async (e) => {
     if (e.target.id === "permRefresh") { renderPermissions(); toast("Permission status <span>refreshed</span>"); return; }
+    if (e.target.id === "permRevToggle") { permRevOpen = !permRevOpen; renderPermissions(); return; }
+    if (e.target.id === "permRevCopy") {
+      const code = document.querySelector("#permRevoke pre code");
+      if (code) navigator.clipboard.writeText(code.textContent).then(() => toast("PowerShell <span>copied</span>"), () => toast("Copy failed — select the text manually"));
+      return;
+    }
     if (e.target.id === "permConsent") {
       e.target.disabled = true;
       try {
