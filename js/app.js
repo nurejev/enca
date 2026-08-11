@@ -7608,7 +7608,26 @@ max@contoso.com,"Global, DevOps"</pre>
   const DEP_TYPE_MAP = { authStrength: "authStrengths", termsOfUse: "termsOfUse", namedLocation: "namedLocations", authContext: "authContexts", group: "groups" };
   const DEP_TITLES = { authStrength: "Authentication strength", termsOfUse: "Terms of use", namedLocation: "Named location", authContext: "Authentication context", group: "Group" };
   const depCache = new Map();
-  let currentDepObj = null;
+  let currentDepObj = null, currentDepType = null;
+  // The dependency popup doubles as the junction into the manage tools: an
+  // auth strength seen on a policy card is one click from being edited.
+  const DEP_MANAGE = {
+    authStrength: { label: "Manage in 💪 Authentication strengths →" },
+    termsOfUse: { label: "Manage in 📜 Terms of use →" },
+    namedLocation: { label: "Manage in 🌐 Named locations →" },
+    authContext: { label: "Manage in 🎫 Authentication contexts →" },
+  };
+  function depManageJump() {
+    if (!currentDepObj || !currentDepType) return;
+    const name = currentDepObj.displayName || "";
+    $("depModal").classList.remove("open");
+    $("detailModal").classList.remove("open");
+    // open the matching tool pre-filtered to this item
+    if (currentDepType === "authStrength") { asQuery = name; $("asSearch").value = name; asFilter = "all"; openAuthStr(); }
+    else if (currentDepType === "termsOfUse") { tuQuery = name; $("tuSearch").value = name; tuFilter = "all"; openTou(); }
+    else if (currentDepType === "authContext") { acQuery = name; $("acSearch").value = name; acFilter = "all"; openAuthCtx(); }
+    else if (currentDepType === "namedLocation") { loQuery = name; $("loSearch").value = name; loFilter = "all"; openLocations(); }
+  }
   function stripFileData(o) {
     const c = JSON.parse(JSON.stringify(o));
     (c.files || []).forEach(f => { if (f.fileData?.data) f.fileData.data = `(base64 PDF, ${f.fileData.data.length} chars)`; });
@@ -7648,8 +7667,12 @@ max@contoso.com,"Global, DevOps"</pre>
     return depKv(rows) + `<details class="dep-raw"><summary class="mini">Raw JSON</summary><pre>${esc(JSON.stringify(stripFileData(o), null, 2))}</pre></details>`;
   }
   async function openDepView(type, id, label) {
+    currentDepType = type;
     $("depTitle").textContent = `${DEP_TITLES[type] || type} — ${label}`;
     $("depBody").innerHTML = '<p class="mini">Loading settings…</p>';
+    const mg = DEP_MANAGE[type];
+    $("depManage").style.display = mg ? "" : "none";
+    if (mg) $("depManage").textContent = mg.label;
     $("depModal").classList.add("open");
     try {
       const key = type + ":" + id;
@@ -7675,6 +7698,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
   }
   $("depClose").addEventListener("click", () => $("depModal").classList.remove("open"));
+  $("depManage").addEventListener("click", depManageJump);
   $("depModal").addEventListener("click", (e) => {
     if (e.target.id === "depModal") { $("depModal").classList.remove("open"); return; }
     const b = e.target.closest("[data-toupdf]"); if (!b) return;
