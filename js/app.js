@@ -4851,7 +4851,35 @@ max@contoso.com,"Global, DevOps"</pre>
   let riRes = null, riDays = 7, riView = "policies", riQuery = "", riFilter = "all";
   let riBusy = false, riCapped = false;
   const riOpen = new Set();
-  const riBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted">Reading the sign-in log… report-only verdicts cannot be server-filtered, so the whole window is read. This keeps running if you switch tabs.</p></div>';
+  // Live progress while the window is read. Graph gives no total up front,
+  // so the honest bar is progress toward the record cap — plus a running
+  // count, page number and elapsed time, updated per page. The state lives
+  // outside the DOM so switching tabs and back re-renders mid-flight.
+  let riProg = { n: 0, page: 0, t0: 0 };
+  const riElapsed = () => { const s = Math.round((Date.now() - riProg.t0) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
+  const riBusyPanel = () => `<div class="run-prompt"><div class="spinner"></div>
+    <p class="mini muted">Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.</p>
+    <div class="ri-progwrap"><div class="ri-progbar" id="riProgBar" style="width:${Math.min(100, riProg.n / SI_MAX * 100)}%"></div></div>
+    <p class="mini" id="riProgTxt">${riProg.page ? `${riProg.n.toLocaleString()} sign-ins read · page ${riProg.page} · ${riElapsed()}` : "Waiting for the first page from Microsoft Graph…"}</p>
+    <p class="mini muted" style="margin-top:2px">The bar runs to the ${SI_MAX.toLocaleString()}-sign-in cap — most tenants finish well before the end of it.</p></div>`;
+
+  // The capped pager again, but narrating: siFetch stays silent, this one
+  // updates the busy panel after every page so a long read visibly moves.
+  async function riFetch(url, cap) {
+    let out = [], next = url;
+    riProg = { n: 0, page: 0, t0: Date.now() };
+    while (next && out.length < cap) {
+      const j = await Graph.gget(next);
+      out = out.concat(j.value || []);
+      riProg.n = out.length; riProg.page++;
+      const t = $("riProgTxt"), b = $("riProgBar");
+      if (t) t.textContent = `${out.length.toLocaleString()} sign-ins read · page ${riProg.page} · ${riElapsed()}`;
+      if (b) b.style.width = Math.min(100, out.length / cap * 100) + "%";
+      next = j["@odata.nextLink"] || null;
+    }
+    riCapped = !!next;
+    return out.slice(0, cap);
+  }
 
   // The tenant's report-only policies from the list already in memory — so a
   // staged policy with zero traffic still shows up, as "no data".
@@ -4885,8 +4913,7 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       const records = isDemo
         ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [])
-        : await siFetch(ReportImpact.query(riDays), SI_MAX);
-      if (!isDemo) riCapped = siCapped;
+        : await riFetch(ReportImpact.query(riDays), SI_MAX);
       riRes = ReportImpact.build(records, riTenantRo());
       riOpen.clear(); riFilter = "all";
       riBusy = false;

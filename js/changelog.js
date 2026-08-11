@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 23002, date: "2026-08-11", title: "The long read shows its work",
+    items: [
+      { kind: "improved", tool: "Report-only impact", text: "Reading the sign-in window can take minutes in a large tenant — report-only verdicts cannot be server-filtered, so every page is fetched. The busy state now narrates: a running sign-in count, the page number and elapsed time, plus a progress bar toward the record cap, updated as each page lands. Switch tabs and back and it picks up mid-flight instead of showing a mute spinner." },
+    ],
+  },
+  {
     build: 23001, date: "2026-08-11", title: "Report-only impact: the go-live forecast",
     items: [
       { kind: "new", tool: "Report-only impact", text: "New tool (BETA): what happens the day a report-only policy goes live, answered from the sign-in log. Where Sign-in failures keeps only the failures, this keeps every report-only verdict — so each staged policy gets a denominator and a verdict: 🔴 would block users (who, on which app, how often), 🟡 prompts only (interrupted for MFA or another control they can satisfy), 🟢 no change, or ⚪ no evidence — a staged policy with zero traffic is listed too, because 'no data' is the answer that should stop a go-live. The per-user view flips the question: for this person, the combined effect of everything in report-only at once, worst case first. Distribution bar per policy, per-user drill-down with apps and last-seen, policy names open the policy card, 1/7/30-day window, Markdown export for the change advisory board. Production released 229 (the usage counting that was beta 22905), so the beta cycle now targets release 230 — this build is 23001 (v1.0.230-beta.1)." },

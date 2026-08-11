@@ -1217,3 +1217,7 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .ri-v.ri-prompt{background:var(--warn-bg2);color:var(--report)}
 .ri-v.ri-clean{background:var(--ok-bg2);color:var(--on)}
 .ri-v.ri-scoped,.ri-v.ri-nodata{background:var(--soft);color:var(--muted)}
+/* Busy-state progress: count-up bar toward the record cap while the
+   sign-in window is paged in — large tenants take minutes, not seconds. */
+.ri-progwrap{height:10px;border-radius:6px;background:var(--soft);border:1px solid var(--border);overflow:hidden;width:min(420px,80%);align-self:center;margin:12px auto 6px}
+.ri-progbar{height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--green),var(--on));transition:width .4s ease}
