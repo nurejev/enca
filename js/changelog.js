@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 238, date: "2026-08-11", title: "The security document reads like a document",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The in-app security documentation rendered every hard-wrapped source line as its own paragraph — huge gaps, broken bold, numbered lists as loose sentences — and used barely half the screen. Wrapped lines are now joined back into their paragraphs and list items before rendering, the Markdown viewer learned ordered lists, and the report viewer grew to use the whole canvas (up to 94% of the viewport, taller reading area) — which benefits every tool report, not just this document. And the dimmed backdrop behind every dialog was hardcoded to the neutral brand's deep green — on a branded tenant, opening any dialog tinted the page the wrong colour; it now derives from the active brand's own deep tone." },
+    ],
+  },
+  {
+    build: 23009, date: "2026-08-11", title: "Read the security story before you sign in",
     build: 237, date: "2026-08-11", title: "Read the security story before you sign in",
     items: [
       { kind: "improved", tool: "All tools", text: "The security & risk documentation (SECURITY.md) is now one click away inside the app: a link on the sign-in screen — readable BEFORE trusting the tool with a session — and a 🔒 Security link in the footer of every signed-in screen. It fetches the document that deploys with the site and renders it in the report viewer, so what you read is exactly the revision you are running." },
