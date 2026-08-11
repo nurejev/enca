@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 244, date: "2026-08-11", title: "Assign groups works again",
+    items: [
+      { kind: "fixed", tool: "List Policies", text: "The Assign groups or roles wizard opened to an empty dialog — just Cancel and Next. Cause: a duplicate element id. The Authentication strengths tool (added in build 227) reused the wizard's asBody id for its own screen, and the browser hands back whichever comes first in the document — so the wizard had been writing its steps into a hidden screen ever since. The strengths screen's element is renamed and every step renders in the dialog again. Lesson absorbed: new tools get prefix-checked against existing ids." },
+    ],
+  },
+  {
+    build: 23015, date: "2026-08-11", title: "Roadmap mentions are doors",
     build: 243, date: "2026-08-11", title: "Roadmap mentions are doors",
     items: [
       { kind: "improved", tool: "All tools", text: "Tool names on the roadmap timeline are now clickable — 🎚 Report-only impact, 💪 Authentication strengths and 📋 What's new open the tool itself, and 📐 CIS Benchmark opens where it lives: the beta site, in a new tab." },
