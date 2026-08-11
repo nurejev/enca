@@ -148,7 +148,7 @@ const Analyzer = (() => {
 
     const groups = new Map(); let i = 0;
     for (const g of gids) {
-      onStatus(`Expanding group ${++i}/${gids.size}…`);
+      onStatus(`Expanding group ${++i}/${gids.size}…`, i, gids.size);
       try {
         const m = await Graph.ggetAll(`/groups/${g}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`);
         groups.set(g, new Set(m.map(x => x.id)));
@@ -163,7 +163,7 @@ const Analyzer = (() => {
         const byTemplate = Object.fromEntries(dirRoles.map(r => [r.roleTemplateId, r]));
         let j = 0;
         for (const rid of rids) {
-          onStatus(`Role members ${++j}/${rids.size}…`);
+          onStatus(`Role members ${++j}/${rids.size}…`, j, rids.size);
           const role = byTemplate[rid]; const set = new Set();
           if (role) {
             try {

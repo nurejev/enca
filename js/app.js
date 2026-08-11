@@ -4299,12 +4299,57 @@ max@contoso.com,"Global, DevOps"</pre>
   $("vaTargetClear").addEventListener("click", vaClearTarget);
   $("vaHead").addEventListener("click", (e) => { if (e.target.closest("[data-vacleartarget]")) vaClearTarget(); });
 
+  // ---------- shared fetch-progress visual ----------
+  // ONE busy visual for every long read: spinner, message, count-up bar,
+  // running count with step and elapsed time. Each tool gets its own instance
+  // (prefix scopes the element ids), so two reads running in background tabs
+  // never write into each other's panel; the state lives outside the DOM so
+  // switching tabs and back re-renders mid-flight.
+  function makeProgress(prefix) {
+    const st = { n: 0, step: 0, t0: 0, cap: 0, label: "records", stepLabel: "page", capped: false };
+    const elapsed = () => { const s = Math.round((Date.now() - st.t0) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
+    const line = () => st.step
+      ? `${st.n.toLocaleString()} ${st.label} · ${st.stepLabel} ${st.step}${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""} · ${elapsed()}`
+      : "Waiting for the first page from Microsoft Graph…";
+    const width = () => st.cap ? Math.min(100, (st.stepLabel === "page" ? st.n : st.step) / st.cap * 100) : 0;
+    const panel = (msg, note) => `<div class="run-prompt"><div class="spinner"></div>
+      <p class="mini muted">${msg}</p>
+      <div class="ri-progwrap"><div class="ri-progbar" id="${prefix}PgBar" style="width:${width()}%"></div></div>
+      <p class="mini" id="${prefix}PgTxt">${line()}</p>
+      ${note ? `<p class="mini muted" style="margin-top:2px">${note}</p>` : ""}</div>`;
+    const start = (cap, label, stepLabel) => { st.n = 0; st.step = 0; st.t0 = Date.now(); st.cap = cap || 0; st.label = label || "records"; st.stepLabel = stepLabel || "page"; st.capped = false; };
+    const tick = (n, step) => {
+      st.n = n; st.step = step != null ? step : st.step + 1;
+      const t = $(prefix + "PgTxt"), b = $(prefix + "PgBar");
+      if (t) t.textContent = line();
+      if (b) b.style.width = width() + "%";
+    };
+    // Capped, narrated pager — the record cap is also the bar's 100%.
+    const fetchAll = async (url, cap, label) => {
+      start(cap, label, "page");
+      let out = [], next = url;
+      while (next && out.length < cap) {
+        const j = await Graph.gget(next);
+        out = out.concat(j.value || []);
+        tick(out.length);
+        next = j["@odata.nextLink"] || null;
+      }
+      st.capped = !!next;
+      return out.slice(0, cap);
+    };
+    return { st, panel, start, tick, fetchAll };
+  }
+
   // ---------- Change audit (directory audit log) ----------
   const AU_READ = ["AuditLog.Read.All"];
+  const AU_MAX = 10000;
   let auRes = null, auFilter = "all", auQuery = "", auDays = 7, auWatch = null, auBusy = false, auView = "summary";
   let auSnap = null;   // { meta, cmp } once a previous export is loaded for comparison
   const auOpen = new Set();
-  const auBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted">Reading the audit log… this keeps running if you switch tabs.</p></div>';
+  const auProg = makeProgress("au");
+  const auBusyPanel = () => auProg.panel(
+    "Reading the audit log… this keeps running if you switch tabs.",
+    `The bar runs to the ${AU_MAX.toLocaleString()}-entry cap — Conditional Access changes rarely get near it.`);
 
   function openAudit() {
     crumb("🕓 Change audit");
@@ -4339,10 +4384,11 @@ max@contoso.com,"Global, DevOps"</pre>
       const [pol, mem] = isDemo
         ? [((typeof DEMO_DATA !== "undefined" && DEMO_DATA.auditRecords) || []), []]
         : await Promise.all([
-            Graph.ggetAll(Audit.queryPolicy(auDays), scopes),
+            auProg.fetchAll(Audit.queryPolicy(auDays), AU_MAX, "audit entries"),
             // only worth asking if any policy actually points at a group
             watch.size ? Graph.ggetAll(Audit.queryMembership(auDays), scopes).catch(() => []) : [],
           ]);
+      if (auProg.st.capped) toast(`Audit window truncated at ${AU_MAX.toLocaleString()} entries`);
       auRes = Audit.build([...pol, ...mem], { watch });
       auWatch = watch;
       auOpen.clear();
@@ -4600,7 +4646,12 @@ max@contoso.com,"Global, DevOps"</pre>
   });
   let siBusy = false, siCapped = false;
   const siOpen = new Set();
-  const siBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted">Reading the sign-in log… this keeps running if you switch tabs.</p></div>';
+  const siProg = makeProgress("si");
+  const siBusyPanel = () => siProg.panel(
+    "Reading the sign-in log… this keeps running if you switch tabs.",
+    siMode === "reportonly"
+      ? `The bar runs to the ${SI_MAX.toLocaleString()}-sign-in cap — report-only failures cannot be server-filtered, so the whole window is read.`
+      : "Enforced failures are server-filtered, so this read is usually quick.");
   const siModeLabel = () => siMode === "reportonly" ? "report-only failures" : "enforced failures";
 
   function openSignins() {
@@ -4626,17 +4677,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (siRes || siBusy) runSignins(); else openSignins();
   });
 
-  // Capped pager: ggetAll but with a ceiling, for the report-only read.
-  async function siFetch(url, cap) {
-    let out = [], next = url;
-    while (next && out.length < cap) {
-      const j = await Graph.gget(next);
-      out = out.concat(j.value || []);
-      next = j["@odata.nextLink"] || null;
-    }
-    siCapped = !!next;
-    return out.slice(0, cap);
-  }
+  // The capped pager lives in siProg (shared fetch-progress visual).
 
   async function runSignins() {
     if (siBusy) return;                       // already reading — don't start a second pass
@@ -4647,7 +4688,8 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       const records = isDemo
         ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [])
-        : await siFetch(Signins.query(siDays, siMode), SI_MAX);
+        : await siProg.fetchAll(Signins.query(siDays, siMode), SI_MAX, "sign-ins");
+      if (!isDemo) siCapped = siProg.st.capped;
       siRes = Signins.build(records, siMode);
       siOpen.clear(); siFilter = "all";
       siBusy = false;
@@ -4859,35 +4901,11 @@ max@contoso.com,"Global, DevOps"</pre>
   let riRes = null, riDays = 7, riView = "policies", riQuery = "", riFilter = "all";
   let riBusy = false, riCapped = false;
   const riOpen = new Set();
-  // Live progress while the window is read. Graph gives no total up front,
-  // so the honest bar is progress toward the record cap — plus a running
-  // count, page number and elapsed time, updated per page. The state lives
-  // outside the DOM so switching tabs and back re-renders mid-flight.
-  let riProg = { n: 0, page: 0, t0: 0 };
-  const riElapsed = () => { const s = Math.round((Date.now() - riProg.t0) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
-  const riBusyPanel = () => `<div class="run-prompt"><div class="spinner"></div>
-    <p class="mini muted">Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.</p>
-    <div class="ri-progwrap"><div class="ri-progbar" id="riProgBar" style="width:${Math.min(100, riProg.n / SI_MAX * 100)}%"></div></div>
-    <p class="mini" id="riProgTxt">${riProg.page ? `${riProg.n.toLocaleString()} sign-ins read · page ${riProg.page} · ${riElapsed()}` : "Waiting for the first page from Microsoft Graph…"}</p>
-    <p class="mini muted" style="margin-top:2px">The bar runs to the ${SI_MAX.toLocaleString()}-sign-in cap — most tenants finish well before the end of it.</p></div>`;
-
-  // The capped pager again, but narrating: siFetch stays silent, this one
-  // updates the busy panel after every page so a long read visibly moves.
-  async function riFetch(url, cap) {
-    let out = [], next = url;
-    riProg = { n: 0, page: 0, t0: Date.now() };
-    while (next && out.length < cap) {
-      const j = await Graph.gget(next);
-      out = out.concat(j.value || []);
-      riProg.n = out.length; riProg.page++;
-      const t = $("riProgTxt"), b = $("riProgBar");
-      if (t) t.textContent = `${out.length.toLocaleString()} sign-ins read · page ${riProg.page} · ${riElapsed()}`;
-      if (b) b.style.width = Math.min(100, out.length / cap * 100) + "%";
-      next = j["@odata.nextLink"] || null;
-    }
-    riCapped = !!next;
-    return out.slice(0, cap);
-  }
+  // Same shared fetch-progress visual as Sign-in failures and Change audit.
+  const riProg = makeProgress("ri");
+  const riBusyPanel = () => riProg.panel(
+    "Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.",
+    `The bar runs to the ${SI_MAX.toLocaleString()}-sign-in cap — most tenants finish well before the end of it.`);
 
   // The tenant's report-only policies from the list already in memory — so a
   // staged policy with zero traffic still shows up, as "no data".
@@ -4921,7 +4939,8 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       const records = isDemo
         ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [])
-        : await riFetch(ReportImpact.query(riDays), SI_MAX);
+        : await riProg.fetchAll(ReportImpact.query(riDays), SI_MAX, "sign-ins");
+      if (!isDemo) riCapped = riProg.st.capped;
       riRes = ReportImpact.build(records, riTenantRo());
       riOpen.clear(); riFilter = "all";
       riBusy = false;
@@ -4984,7 +5003,7 @@ max@contoso.com,"Global, DevOps"</pre>
         const detail = open ? `<div class="au-diff">
             ${users.length ? `<table class="plist au-sum" style="margin:6px 0"><thead><tr><th>User</th><th style="width:110px">Would deny</th><th style="width:110px">Interrupted</th><th style="width:90px">Pass</th><th>Apps</th><th style="width:110px">Last seen</th></tr></thead>
             <tbody>${users.slice(0, 60).map((u) => `<tr>
-              <td><b>${esc(u.name)}</b>${u.upn !== u.name ? ` <span class="mini muted">${esc(u.upn)}</span>` : ""}</td>
+              <td><b>${esc(u.name)}</b>${u.upn !== u.name ? ` <span class="mini muted">${esc(u.upn)}</span>` : ""} <button class="fchip" data-riwhy="${esc(u.upn)}" data-ripol="${esc(p.id || "")}" title="Why is this user in the policy's scope?">why?</button></td>
               <td>${u.failure ? `<span class="au-n rem">${u.failure}</span>` : '<span class="mini muted">—</span>'}</td>
               <td>${u.interrupted ? `<span class="au-n upd">${u.interrupted}</span>` : '<span class="mini muted">—</span>'}</td>
               <td class="mini">${u.success || "—"}</td>
@@ -5005,6 +5024,7 @@ max@contoso.com,"Global, DevOps"</pre>
           </div>
           ${riBar(p)}
           <div class="au-sub">${esc(ReportImpact.verdictLine(p))}${p.notApplied ? ` Out of scope for ${p.notApplied.toLocaleString()} evaluation${p.notApplied === 1 ? "" : "s"}.` : ""}</div>
+          ${riTargets(p.id)}
           ${detail}
         </div>`;
       }).join("") + `<p class="mini muted" style="margin-top:8px">Click a policy for the per-user breakdown; the policy name opens its card. 🔴/🟡 verdicts come from real sign-ins — a 🟢 only says nothing was observed to break <i>in this window</i>.</p>`;
@@ -5038,8 +5058,54 @@ max@contoso.com,"Global, DevOps"</pre>
       <p class="mini muted" style="margin-top:8px">Worst case first: a user is 🔴 if any staged policy would deny any of their sign-ins. Click a row for the per-policy split.</p>`;
   }
 
+  // ---- targeting context: what the policy aims at, and why a user is hit --
+  // The verdicts come from the log; the SCOPE comes from the policy already
+  // in memory. The card shows the assignment (who is targeted / excluded);
+  // the per-user "why?" resolves the person's membership against the
+  // policy's include entries, so "in scope" gets a concrete reason.
+  const riVm = (polId) => policies.find((x) => x.id === polId) || null;
+  function riTargets(polId) {
+    const vm = riVm(polId);
+    if (!vm) return "";
+    const inc = vm.users.inc || [], exc = vm.users.exc || [];
+    return `<div class="au-sub">🎯 Targets: <b>${esc(inc.slice(0, 4).join(", "))}</b>${inc.length > 4 ? ` +${inc.length - 4} more` : ""}${exc.length ? ` · excludes: ${esc(exc.slice(0, 3).join(", "))}${exc.length > 3 ? ` +${exc.length - 3} more` : ""}` : ""} — <span class="pol-link" data-polid="${esc(polId)}">open the policy</span> for the full assignment</div>`;
+  }
+  async function riWhy(upn, polId, btn) {
+    const vm = riVm(polId);
+    if (!vm) { toast("Policy not in the loaded set — reload the policy list"); return; }
+    const u = (vm.raw.conditions || {}).users || {};
+    btn.disabled = true; btn.textContent = "…";
+    const reasons = [];
+    try {
+      if ((u.includeUsers || []).some((x) => String(x).toLowerCase() === "all")) reasons.push("the policy targets All users");
+      if (!isDemo && ((u.includeUsers || []).length || (u.includeGroups || []).length || (u.includeRoles || []).length)) {
+        const ue = encodeURIComponent(upn);
+        const me = await Graph.gget(`/users/${ue}?$select=id`).catch(() => null);
+        if (me && (u.includeUsers || []).includes(me.id)) reasons.push("targeted directly (include users)");
+        if ((u.includeGroups || []).length || (u.includeRoles || []).length) {
+          const mem = await Graph.ggetAll(`/users/${ue}/transitiveMemberOf?$select=id,displayName,roleTemplateId`).catch(() => []);
+          const gHit = mem.filter((m) => (u.includeGroups || []).includes(m.id));
+          const rHit = mem.filter((m) => m.roleTemplateId && (u.includeRoles || []).includes(m.roleTemplateId));
+          gHit.forEach((g) => reasons.push(`member of included group “${g.displayName || g.id}”`));
+          rHit.forEach((r) => reasons.push(`holds included role “${r.displayName || r.roleTemplateId}”`));
+        }
+      }
+      if (!reasons.length) reasons.push(isDemo
+        ? "demo — membership is not resolved here; the policy's include entries are shown on the card"
+        : "no include entry matched the current directory state — the membership may have changed since the sign-in, or the match came via a nested/dynamic path Graph does not expand here");
+      const note = (u.excludeGroups || []).length || (u.excludeUsers || []).length || (u.excludeRoles || []).length
+        ? " (and no exclude entry caught this account — that is why the sign-in applied)" : "";
+      btn.outerHTML = `<span class="mini" style="color:var(--muted)">— in scope: ${esc(reasons.join("; "))}${esc(note)}</span>`;
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "why?";
+      toast(`Could not resolve: <span>${esc(e.message || e)}</span>`);
+    }
+  }
+
   $("riBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-rirun]")) { runImpact(); return; }
+    const wy = e.target.closest("[data-riwhy]");
+    if (wy) { riWhy(wy.dataset.riwhy, wy.dataset.ripol, wy); return; }
     const pl = e.target.closest(".pol-link");
     if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const s = e.target.closest("[data-risum]");
@@ -8207,7 +8273,15 @@ max@contoso.com,"Global, DevOps"</pre>
     const vms = policies.filter(p => p.raw.state === "enabled" || (includeRO && p.raw.state === "enabledForReportingButNotEnforced"));
     if (!vms.length) { $("anStatus").textContent = "No enabled policies to analyse."; return; }
     $("anRun").disabled = true;
-    const status = (m) => $("anStatus").textContent = m;
+    const status = (m, done, total) => {
+      $("anStatus").textContent = m;
+      // the shared progress visual, inline: shown while a counted loop runs
+      const w = $("anPgWrap"), bar = $("anPgBar");
+      if (w && bar) {
+        if (total) { w.style.display = ""; bar.style.width = Math.min(100, done / total * 100) + "%"; }
+        else w.style.display = "none";
+      }
+    };
     try {
       const { lookup, users, scopeGroups, ctx } = isDemo
         ? Analyzer.collectDemo(vms)
