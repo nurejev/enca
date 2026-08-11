@@ -5783,7 +5783,7 @@ max@contoso.com,"Global, DevOps"</pre>
     show("screen-authstr");
     if (asList && !force) { renderAuthStr(); return; }   // cached
     $("asHead").innerHTML = '<h3>💪 Authentication strengths <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading authentication strengths…</p>';
-    $("asBody").innerHTML = ""; $("asChips").innerHTML = "";
+    $("astBody").innerHTML = ""; $("asChips").innerHTML = "";
     try {
       if (isDemo) {
         asList = Object.entries((typeof DEMO_DATA !== "undefined" && DEMO_DATA.depSettings) || {})
@@ -5849,10 +5849,10 @@ max@contoso.com,"Global, DevOps"</pre>
       return !q || `${p.displayName} ${p.description} ${(p.allowedCombinations || []).join(" ")}`.toLowerCase().includes(q);
     }).sort((a, b) => (AuthStrengths.isBuiltIn(b) ? 1 : 0) - (AuthStrengths.isBuiltIn(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
 
-    if (!rows.length) { $("asBody").innerHTML = '<p class="mini" style="padding:20px">No authentication strength matches the current filter.</p>'; return; }
+    if (!rows.length) { $("astBody").innerHTML = '<p class="mini" style="padding:20px">No authentication strength matches the current filter.</p>'; return; }
     const list = (arr) => arr.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>`).join(", ");
     const classTag = (c) => c === "pr" ? '<span class="tag grant">phishing-resistant</span>' : c === "mfa" ? '<span class="tag">MFA</span>' : '<span class="tag block">allows single-factor</span>';
-    $("asBody").innerHTML = `<div class="lo-grid">` + rows.map((p) => {
+    $("astBody").innerHTML = `<div class="lo-grid">` + rows.map((p) => {
       const used = AuthStrengths.usedBy(p.id, raws);
       const del = AuthStrengths.deletable(p, raws);
       const combos = p.allowedCombinations || [];
@@ -5879,7 +5879,7 @@ max@contoso.com,"Global, DevOps"</pre>
   }
   $("asChips").addEventListener("click", (e) => { const b = e.target.closest("[data-asf]"); if (!b) return; asFilter = b.dataset.asf; renderAuthStr(); });
   $("asSearch").addEventListener("input", (e) => { asQuery = e.target.value; renderAuthStr(); });
-  $("asBody").addEventListener("click", (e) => {
+  $("astBody").addEventListener("click", (e) => {
     const ed = e.target.closest("[data-asedit]"); if (ed) { openAsEditor(asList.find((x) => x.id === ed.dataset.asedit)); return; }
     const dl = e.target.closest("[data-asdel]"); if (dl && !dl.disabled) { openAsDelete(asList.find((x) => x.id === dl.dataset.asdel)); return; }
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
