@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 233, date: "2026-08-11", title: "The progress bar wears the brand",
+    items: [
+      { kind: "fixed", tool: "Report-only impact", text: "The busy-state progress bar now fills in the brand's own dark colours — its gradient ended in a colour the brand overrides never touched, so on a branded tenant a stray green leaked into the bar. It now runs deep-to-primary of whatever brand is active (navy under a navy brand, green on the neutral look). Production also picks up the width fix the bar already had in beta — there it could still collapse to a sliver." },
+    ],
+  },
+  {
+    build: 23004, date: "2026-08-11", title: "Strengths grow their advanced options; three tools graduate",
     build: 232, date: "2026-08-11", title: "Strengths grow their advanced options; three tools graduate",
     items: [
       { kind: "new", tool: "Authentication strengths", text: "Advanced options, as in the portal: restrict Passkeys (FIDO2) to specific AAGUIDs — with one-click presets for Microsoft Authenticator (Android + iOS) and Windows Hello (hardware, VBS, software), or any custom AAGUID — and restrict certificate-based authentication to specific issuer SKIs and policy OIDs (max 5 each, per Graph). Existing restrictions load with the strength ($expand), show on the cards and in the Markdown report, and edits apply only the difference: create, update or remove per configuration. A new strength carries its restrictions in the create call itself." },
