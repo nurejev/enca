@@ -19,6 +19,34 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 22901, date: "2026-08-11", title: "Beta catches up with production",
+    items: [
+      { kind: "new", tool: "All tools", text: "Production's builds 227 and 228 merged into the beta channel: the four new manage tools (\ud83c\udfab Authentication contexts, \ud83d\udcaa Authentication strengths, \ud83d\udcdc Terms of use, \u267b Recycle bin), the dependency-popup Manage-in-tool jump, and the terms-of-use PDF fixes now run here too \u2014 alongside the beta-only CIS Benchmark tool. This cycle now targets release 229, so this build is 22901 (v1.0.229-beta.1)." },
+    ],
+  },
+  {
+    build: 228, date: "2026-08-11", title: "Terms of use: the PDFs arrive",
+    items: [
+      { kind: "fixed", tool: "Terms of use", text: "PDFs and languages were invisible and uploads failed — three bugs, one release after shipping. The Graph LIST endpoint never returns the agreement files' content, so every agreement is now fetched individually with $expand=files: languages and the ⭳ PDF download appear on the cards, and the edit dialog lists the current PDFs per language (with the default marker and a view/download button). Creating an agreement failed because the POST included update-only properties — it now sends exactly what the create API accepts (name, view-before-accepting, the PDF) and applies per-device acceptance and the re-accept schedule in a follow-up PATCH. And Save awaits the file reader, so saving immediately after picking a PDF can no longer race the upload." },
+    ],
+  },
+  {
+    build: 227, date: "2026-08-10", title: "Two new tools: contexts and strengths",
+    items: [
+      { kind: "new", tool: "Authentication contexts", text: "A new manage tool (BETA): the Conditional Access authentication contexts — the step-up requirements apps, Protected Actions and sensitivity labels can ask for (c1-c99). Every defined context is a card with its publish state and the policies that enforce it (a published context no policy enforces is called out: callers requesting it get no step-up). Create in a free slot, rename, publish or unpublish with one click, and delete exactly where Graph allows it — unpublished and unreferenced only, behind a typed confirmation. The id is treated as what it is: the contract apps request and the ACRS claim carries, never changeable." },
+      { kind: "improved", tool: "List Policies", text: "The dependency popup is now a junction into the manage tools: open an authentication strength, terms-of-use agreement, named location or authentication context from any policy card and a Manage-in-tool button takes you straight to the matching tool, pre-filtered to that item. See it on a policy, fix it in its tool, one click apart." },
+      { kind: "new", tool: "Terms of use", text: "A new manage tool (BETA): the terms-of-use agreements Conditional Access can require. Every agreement as a card with its behaviour (view-before-accepting, per-device acceptance, re-accept schedule, expiration), its PDFs per language with direct download, and the policies requiring it. Create an agreement with a PDF upload, edit the behaviour settings, and check acceptances on demand — accepted and declined counts with the latest record, requesting AgreementAcceptance.Read.All only at that moment. Deleting is blocked while any policy still requires the agreement, because that delete would leave the policy with a dangling terms-of-use grant. Replacing a PDF or adding languages stays in the portal for now — the tool says so rather than pretending." },
+      { kind: "new", tool: "Recycle bin", text: "A new manage tool (BETA): the Conditional Access recycle bin. Deleted policies and named locations stay restorable for 30 days — this tool lists everything still inside the window with what it did, its state at deletion, when it went and how many days it has left (expiring-soon filter included), and restores with the right guard rails: a policy that was On at deletion enforces again the moment it comes back, so that restore demands a typed confirmation; a name now taken again is flagged before you create a duplicate; a trusted location warns that every All-trusted policy follows it again immediately. After a policy restore the live policy set reloads, so every other tool sees it. (Yes — the delete flows used to say Conditional Access has no recycle bin. It does now, and so does ENCA.)" },
+      { kind: "new", tool: "Authentication strengths", text: "A new manage tool (BETA): the Conditional Access authentication strengths. The three built-in strengths appear read-only with their full combination lists; custom strengths can be created, renamed, re-combined and — when no policy grants them — deleted behind a typed confirmation. Each strength is classified by its weakest allowed combination (phishing-resistant / MFA / allows single-factor), each card shows the policies granting it, and the combination picker groups the catalog by class — with the live catalog read from Graph so new methods appear without a code change. Edits use Graph's split model correctly: PATCH for name and description, the dedicated updateAllowedCombinations action for the combinations." },
+    ],
+  },
+  {
+    build: 226, date: "2026-08-10", title: "Tabs keep your place",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Switching tool tabs no longer jumps to the top of the page \u2014 each screen's scroll position is remembered and restored when you come back. And reopening List Policies (or Create documentation) keeps the cards / list / matrix view you last chose instead of resetting to cards; only Gap analyse still resets, since it shares the screen with a different view. (Production hotfix \u2014 builds 222\u2013225 are on the beta channel.)" },
+    ],
+  },
+  {
     build: 22701, date: "2026-08-10", title: "Beta gets its own numbers",
     items: [
       { kind: "improved", tool: "All tools", text: "The beta channel now has its own build series: five-digit numbers NNNII, where NNN is the production build this beta cycle will become and II the iteration — this build is 22701, shown as v1.0.227-beta.1. Production stays on plain integers (build 226 is the tabs-keep-your-place hotfix). No more shared number line between the channels: a beta build can never collide with a production build, and the label says at a glance which channel you are looking at. On release, the cycle's beta entries are consolidated into one production changelog entry." },

@@ -67,7 +67,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-audit", "screen-signins", "screen-protect", "screen-changelog", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-audit", "screen-signins", "screen-protect", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Per-screen scroll memory: switching tabs used to jump to the top and lose
@@ -996,6 +996,10 @@
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
     ["toolLocations", "🌐 Named locations"],
+    ["toolAuthCtx", "🎫 Authentication contexts"],
+    ["toolAuthStr", "💪 Authentication strengths"],
+    ["toolTou", "📜 Terms of use"],
+    ["toolRecycle", "♻ Recycle bin"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
@@ -1146,11 +1150,12 @@
   });
 
   // ---------- delete policies ----------
-  // Entra has no recycle bin for Conditional Access, so a delete is final. The
-  // guards are deliberately heavier than for any other action here: the raw
-  // JSON is offered as a download first (that backup IS the only undo), the
-  // word DELETE must be typed, and enforced policies need a second tick because
-  // removing one silently drops a control that is live right now.
+  // A deleted policy sits in the CA recycle bin for 30 days (♻ Recycle bin
+  // tool restores it), but it stops applying the moment it is deleted. The
+  // guards therefore stay deliberately heavy: the raw JSON is offered as a
+  // download first (the only undo after the 30-day window), the word DELETE
+  // must be typed, and enforced policies need a second tick because removing
+  // one silently drops a control that is live right now.
   function delSelection() {
     return exportOrder([...selected].map(id => policies.find(p => p.id === id))).filter(Boolean);
   }
@@ -5204,6 +5209,785 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("🌐 Named locations", "CA-NamedLocations", L.join("\n"));
   });
 
+  // ---------- Authentication contexts (BETA — view / create / edit / publish / delete) ----------
+  const AC_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let acList = null, acFilter = "all", acQuery = "", acEditing = null, acDeleting = null;
+  // Demo tenants rarely define contexts — a small sample keeps the tool
+  // explorable at ?demo=1 without touching demo.js.
+  const AC_DEMO = [
+    { id: "c1", displayName: "Sensitive actions", description: "Step-up for Protected Actions and admin portals", isAvailable: true },
+    { id: "c2", displayName: "Confidential documents", description: "Requested by the Highly Confidential sensitivity label", isAvailable: true },
+    { id: "c3", displayName: "Draft — legal hold", description: "", isAvailable: false },
+  ];
+
+  async function openAuthCtx(force) {
+    crumb("🎫 Authentication contexts");
+    show("screen-authctx");
+    if (acList && !force) { renderAuthCtx(); return; }   // cached
+    $("acHead").innerHTML = '<h3>🎫 Authentication contexts <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading authentication contexts…</p>';
+    $("acBody").innerHTML = ""; $("acChips").innerHTML = "";
+    try {
+      acList = isDemo
+        ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.authContexts) || AC_DEMO)
+        : await Graph.ggetAll("/identity/conditionalAccess/authenticationContextClassReferences");
+      renderAuthCtx();
+    } catch (e) {
+      console.error("Authentication contexts failed:", e);
+      $("acHead").innerHTML = `<h3>🎫 Authentication contexts</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+    }
+  }
+  $("toolAuthCtx").addEventListener("click", () => openAuthCtx());
+  $("acRefresh").addEventListener("click", () => openAuthCtx(true));
+
+  function renderAuthCtx() {
+    const raws = policies.map((p) => p.raw);
+    const s = AuthContexts.summarize(acList, raws);
+    $("acHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">
+        <h3>🎫 Authentication contexts <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <p style="margin-bottom:4px">The step-up requirements apps, Protected Actions and sensitivity labels can ask for. The <b>id</b> (c1–c${AuthContexts.SLOT_MAX}) is the contract — it is what callers request and what the token's ACRS claim carries — so it can be renamed and republished, but never changed. Each card shows which Conditional Access policies enforce it.</p>
+        <p class="mini muted" style="margin:0">Unpublished contexts are hidden from app and label selection but stay usable in CA policy authoring. Only an unpublished context that no policy references can be deleted.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> of ${AuthContexts.SLOT_MAX} slots</span></div>
+        <div class="mini">${s.published} published · ${s.unpublished} unpublished</div>
+        <div class="mini">${s.inUse} enforced by a policy${s.unused ? ` · ${s.unused} unreferenced` : ""}</div>
+      </div></div>`;
+    $("acChips").innerHTML = [["all", `All (${s.total})`], ["published", `✓ Published (${s.published})`],
+      ["unpublished", `Unpublished (${s.unpublished})`], ["inuse", `Enforced (${s.inUse})`], ["unused", `Unreferenced (${s.unused})`]]
+      .map(([k, l]) => `<button class="fchip ${acFilter === k ? "active" : ""}" data-acf="${k}">${esc(l)}</button>`).join("");
+
+    const q = acQuery.toLowerCase();
+    const rows = (acList || []).filter((c) => {
+      const used = AuthContexts.usedBy(c.id, raws).length;
+      if (acFilter === "published" && !c.isAvailable) return false;
+      if (acFilter === "unpublished" && c.isAvailable) return false;
+      if (acFilter === "inuse" && !used) return false;
+      if (acFilter === "unused" && used) return false;
+      return !q || `${c.id} ${c.displayName} ${c.description}`.toLowerCase().includes(q);
+    }).sort(AuthContexts.sortById);
+
+    if (!rows.length) { $("acBody").innerHTML = '<p class="mini" style="padding:20px">No authentication context matches the current filter.</p>'; return; }
+    const list = (arr) => arr.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>`).join(", ");
+    $("acBody").innerHTML = `<div class="lo-grid">` + rows.map((c) => {
+      const used = AuthContexts.usedBy(c.id, raws);
+      const del = AuthContexts.deletable(c, raws);
+      return `<div class="list-card lo-card">
+        <div class="lo-h">
+          <span class="lo-ic">🎫</span>
+          <b>${esc(c.id)}</b> <b>${esc(c.displayName || "(unnamed)")}</b>
+          ${c.isAvailable ? '<span class="tag ok">published</span>' : '<span class="tag">unpublished</span>'}
+        </div>
+        ${c.description ? `<div class="mini lo-d">${esc(c.description)}</div>` : ""}
+        <div class="lo-u">${used.length
+          ? `Enforced by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          : '<span class="mini muted">No Conditional Access policy enforces this context — callers requesting it get no step-up</span>'}</div>
+        <div class="lo-act">
+          <button class="btn sm" data-acedit="${esc(c.id)}">✎ Edit</button>
+          <button class="btn sm" data-acpub="${esc(c.id)}">${c.isAvailable ? "⏸ Unpublish" : "▶ Publish"}</button>
+          <button class="btn sm danger" data-acdel="${esc(c.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>
+        </div>
+      </div>`;
+    }).join("") + `</div>
+    <p class="mini muted" style="margin-top:10px">${s.free} free slot${s.free === 1 ? "" : "s"} (of c1–c${AuthContexts.SLOT_MAX}).</p>`;
+  }
+  $("acChips").addEventListener("click", (e) => { const b = e.target.closest("[data-acf]"); if (!b) return; acFilter = b.dataset.acf; renderAuthCtx(); });
+  $("acSearch").addEventListener("input", (e) => { acQuery = e.target.value; renderAuthCtx(); });
+  $("acBody").addEventListener("click", async (e) => {
+    const ed = e.target.closest("[data-acedit]"); if (ed) { openAcEditor(acList.find((x) => x.id === ed.dataset.acedit)); return; }
+    const pb = e.target.closest("[data-acpub]"); if (pb) { await acTogglePublish(acList.find((x) => x.id === pb.dataset.acpub), pb); return; }
+    const dl = e.target.closest("[data-acdel]"); if (dl && !dl.disabled) { openAcDelete(acList.find((x) => x.id === dl.dataset.acdel)); return; }
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+
+  async function acTogglePublish(c, btn) {
+    if (!c) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...AC_WRITE])) return;
+    btn.disabled = true;
+    try {
+      if (isDemo) { c.isAvailable = !c.isAvailable; toast("Demo — <span>publish state simulated</span>"); renderAuthCtx(); return; }
+      await Graph.gpatch(`/identity/conditionalAccess/authenticationContextClassReferences/${c.id}`, { isAvailable: !c.isAvailable }, [...AUTH_CONFIG.scopes, ...AC_WRITE]);
+      toast(`<span>${esc(c.id)} ${esc(c.displayName || "")}</span> ${c.isAvailable ? "unpublished" : "published"}`);
+      await openAuthCtx(true);
+    } catch (e2) {
+      console.error("Publish toggle failed:", e2);
+      toast(`Failed: <span>${esc(e2.message || e2)}</span>`);
+      btn.disabled = false;
+    }
+  }
+
+  function openAcEditor(ctx) {
+    acEditing = ctx || null;
+    const f = AuthContexts.toForm(ctx);
+    const free = AuthContexts.freeSlots(acList || []);
+    $("acEditTitle").textContent = ctx ? `Edit ${ctx.id}` : "New authentication context";
+    $("acEditSub").innerHTML = ctx
+      ? `<b>${esc(ctx.displayName || ctx.id)}</b> — the id cannot be changed; rename and republish instead.`
+      : `Creates a new context in a free slot. ${free.length} of ${AuthContexts.SLOT_MAX} slots free.`;
+    $("acId").innerHTML = ctx
+      ? `<option value="${esc(ctx.id)}">${esc(ctx.id)}</option>`
+      : free.map((id) => `<option value="${esc(id)}">${esc(id)}</option>`).join("");
+    $("acId").disabled = !!ctx;
+    $("acName").value = f.name; $("acDesc").value = f.description; $("acAvail").checked = f.isAvailable;
+    $("acEditWarn").innerHTML = "";
+    $("acEditModal").classList.add("open");
+  }
+  $("acNew").addEventListener("click", () => openAcEditor(null));
+  $("acEditCancel").addEventListener("click", () => $("acEditModal").classList.remove("open"));
+  $("acEditSave").addEventListener("click", async () => {
+    const built = AuthContexts.buildPayload({ id: acEditing ? acEditing.id : $("acId").value, name: $("acName").value, description: $("acDesc").value, isAvailable: $("acAvail").checked });
+    if (!built.ok) { $("acEditWarn").innerHTML = built.errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join(""); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...AC_WRITE])) return;
+    const btn = $("acEditSave"); btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      if (isDemo) {
+        toast("Demo — <span>save simulated</span>");
+      } else {
+        // Create-or-update by design: PATCH on the id upserts.
+        await Graph.gpatch(`/identity/conditionalAccess/authenticationContextClassReferences/${built.id}`, built.payload, [...AUTH_CONFIG.scopes, ...AC_WRITE]);
+        toast(`<span>${esc(built.id)} ${esc(built.payload.displayName)}</span> ${acEditing ? "updated" : "created"}`);
+      }
+      $("acEditModal").classList.remove("open");
+      await openAuthCtx(true);
+    } catch (e) {
+      console.error("Save authentication context failed:", e);
+      $("acEditWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(e.message || e)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = "Save"; }
+  });
+
+  function openAcDelete(c) {
+    if (!c) return;
+    acDeleting = c;
+    const used = AuthContexts.usedBy(c.id, policies.map((p) => p.raw));
+    $("acDelDesc").innerHTML = `<b>${esc(c.id)} ${esc(c.displayName || "")}</b>${c.description ? ` — ${esc(c.description)}` : ""}`;
+    $("acDelRefs").innerHTML = used.length
+      ? `<div class="mini" style="color:var(--off)">Still referenced by ${used.length} polic${used.length === 1 ? "y" : "ies"} — Graph will refuse this delete.</div>`
+      : '<p class="mini muted">Unpublished and unreferenced — Graph allows this delete.</p>';
+    $("acDelConfirm").value = ""; $("acDelGo").disabled = true;
+    $("acDelModal").classList.add("open");
+  }
+  $("acDelConfirm").addEventListener("input", (e) => { $("acDelGo").disabled = e.target.value.trim().toUpperCase() !== "DELETE"; });
+  $("acDelCancel").addEventListener("click", () => $("acDelModal").classList.remove("open"));
+  $("acDelGo").addEventListener("click", async () => {
+    if (!acDeleting) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...AC_WRITE])) return;
+    const btn = $("acDelGo"); btn.disabled = true; btn.textContent = "Deleting…";
+    try {
+      if (isDemo) toast("Demo — <span>delete simulated</span>");
+      else {
+        await Graph.gdelete(`/identity/conditionalAccess/authenticationContextClassReferences/${acDeleting.id}`, [...AUTH_CONFIG.scopes, ...AC_WRITE]);
+        toast(`<span>${esc(acDeleting.id)}</span> deleted`);
+      }
+      $("acDelModal").classList.remove("open");
+      await openAuthCtx(true);
+    } catch (e) {
+      console.error("Delete authentication context failed:", e);
+      toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; btn.textContent = "Delete permanently"; }
+  });
+  $("acMd").addEventListener("click", () => {
+    if (!acList) return;
+    showReport("🎫 Authentication contexts", "CA-AuthenticationContexts", AuthContexts.toMd(acList, policies.map((p) => p.raw), { tenantName }));
+  });
+
+  // ---------- Authentication strengths (BETA — view / create / edit / delete) ----------
+  const AS_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let asList = null, asCombos = null, asFilter = "all", asQuery = "", asEditing = null, asDeleting = null;
+
+  async function openAuthStr(force) {
+    crumb("💪 Authentication strengths");
+    show("screen-authstr");
+    if (asList && !force) { renderAuthStr(); return; }   // cached
+    $("asHead").innerHTML = '<h3>💪 Authentication strengths <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading authentication strengths…</p>';
+    $("asBody").innerHTML = ""; $("asChips").innerHTML = "";
+    try {
+      if (isDemo) {
+        asList = Object.entries((typeof DEMO_DATA !== "undefined" && DEMO_DATA.depSettings) || {})
+          .filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v);
+        // The demo data only carries the strengths its policies reference —
+        // add whichever of the three built-ins are missing so the screen
+        // shows the real shape of a tenant.
+        const demoBuiltins = [
+          { id: "00000000-0000-0000-0000-000000000002", displayName: "Multifactor authentication", policyType: "builtIn", description: "Combinations of methods that satisfy strong authentication, such as a password + SMS.", allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor", "deviceBasedPush", "temporaryAccessPassOneTime", "temporaryAccessPassMultiUse", "password,microsoftAuthenticatorPush", "password,softwareOath", "password,hardwareOath", "password,sms", "password,voice", "federatedMultiFactor"] },
+          { id: "00000000-0000-0000-0000-000000000003", displayName: "Passwordless MFA", policyType: "builtIn", description: "Passwordless methods that satisfy strong authentication.", allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor", "deviceBasedPush"] },
+          { id: "00000000-0000-0000-0000-000000000004", displayName: "Phishing-resistant MFA", policyType: "builtIn", description: "Phishing-resistant, passwordless methods for the strongest authentication.", allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor"] },
+        ];
+        for (const bi of demoBuiltins) if (!asList.some((p) => (p.id || "").toLowerCase() === bi.id || (p.displayName || "").toLowerCase() === bi.displayName.toLowerCase())) asList.push(bi);
+        asCombos = AuthStrengths.FALLBACK_COMBINATIONS;
+      } else {
+        asList = await Graph.ggetAll("/policies/authenticationStrengthPolicies");
+        // Live combination catalog — new modes appear without a code change.
+        try {
+          const root = await Graph.gget("/identity/conditionalAccess/authenticationStrength");
+          asCombos = (root.authenticationCombinations || []).length ? root.authenticationCombinations : AuthStrengths.FALLBACK_COMBINATIONS;
+        } catch { asCombos = AuthStrengths.FALLBACK_COMBINATIONS; }
+      }
+      renderAuthStr();
+    } catch (e) {
+      console.error("Authentication strengths failed:", e);
+      $("asHead").innerHTML = `<h3>💪 Authentication strengths</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+    }
+  }
+  $("toolAuthStr").addEventListener("click", () => openAuthStr());
+  $("asRefresh").addEventListener("click", () => openAuthStr(true));
+
+  function renderAuthStr() {
+    const raws = policies.map((p) => p.raw);
+    const s = AuthStrengths.summarize(asList, raws);
+    $("asHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">
+        <h3>💪 Authentication strengths <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <p style="margin-bottom:4px">The method combinations a Conditional Access policy can require through <b>Require authentication strength</b>. A sign-in satisfies a strength with <b>any one</b> of its allowed combinations — so every combination on the list is a door, and the weakest door defines the strength.</p>
+        <p class="mini muted" style="margin:0">The three built-in strengths are Microsoft-managed and immutable. Custom strengths can be created, renamed, re-combined and — when no policy grants them — deleted.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> strengths</span></div>
+        <div class="mini">${s.builtin} built-in · ${s.custom} custom</div>
+        <div class="mini">${s.inUse} granted by a policy · ${s.pr} fully phishing-resistant</div>
+      </div></div>`;
+    $("asChips").innerHTML = [["all", `All (${s.total})`], ["builtin", `Built-in (${s.builtin})`],
+      ["custom", `Custom (${s.custom})`], ["inuse", `Granted (${s.inUse})`]]
+      .map(([k, l]) => `<button class="fchip ${asFilter === k ? "active" : ""}" data-asf="${k}">${esc(l)}</button>`).join("");
+
+    const q = asQuery.toLowerCase();
+    const rows = (asList || []).filter((p) => {
+      const used = AuthStrengths.usedBy(p.id, raws).length;
+      if (asFilter === "builtin" && !AuthStrengths.isBuiltIn(p)) return false;
+      if (asFilter === "custom" && AuthStrengths.isBuiltIn(p)) return false;
+      if (asFilter === "inuse" && !used) return false;
+      return !q || `${p.displayName} ${p.description} ${(p.allowedCombinations || []).join(" ")}`.toLowerCase().includes(q);
+    }).sort((a, b) => (AuthStrengths.isBuiltIn(b) ? 1 : 0) - (AuthStrengths.isBuiltIn(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
+
+    if (!rows.length) { $("asBody").innerHTML = '<p class="mini" style="padding:20px">No authentication strength matches the current filter.</p>'; return; }
+    const list = (arr) => arr.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>`).join(", ");
+    const classTag = (c) => c === "pr" ? '<span class="tag grant">phishing-resistant</span>' : c === "mfa" ? '<span class="tag">MFA</span>' : '<span class="tag block">allows single-factor</span>';
+    $("asBody").innerHTML = `<div class="lo-grid">` + rows.map((p) => {
+      const used = AuthStrengths.usedBy(p.id, raws);
+      const del = AuthStrengths.deletable(p, raws);
+      const combos = p.allowedCombinations || [];
+      const builtin = AuthStrengths.isBuiltIn(p);
+      return `<div class="list-card lo-card">
+        <div class="lo-h">
+          <span class="lo-ic">💪</span>
+          <b>${esc(p.displayName || "(unnamed)")}</b>
+          ${builtin ? '<span class="tag">built-in</span>' : '<span class="tag ok">custom</span>'}
+          ${classTag(AuthStrengths.strengthClass(p))}
+        </div>
+        ${p.description ? `<div class="mini lo-d">${esc(p.description)}</div>` : ""}
+        <div class="mini" style="margin:6px 0 0">${combos.slice(0, 6).map((c) => `<span class="tag" title="${esc(AuthStrengths.CLASS_LABEL[AuthStrengths.classify(c)])}">${esc(AuthStrengths.comboLabel(c))}</span>`).join(" ")}${combos.length > 6 ? ` <span class="mini muted">+${combos.length - 6} more</span>` : ""}</div>
+        <div class="lo-u">${used.length
+          ? `Granted by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          : '<span class="mini muted">Not granted by any policy</span>'}</div>
+        <div class="lo-act">${builtin
+          ? '<span class="mini muted">Microsoft-managed</span>'
+          : `<button class="btn sm" data-asedit="${esc(p.id)}">✎ Edit</button>
+             <button class="btn sm danger" data-asdel="${esc(p.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>`}</div>
+      </div>`;
+    }).join("") + `</div>`;
+  }
+  $("asChips").addEventListener("click", (e) => { const b = e.target.closest("[data-asf]"); if (!b) return; asFilter = b.dataset.asf; renderAuthStr(); });
+  $("asSearch").addEventListener("input", (e) => { asQuery = e.target.value; renderAuthStr(); });
+  $("asBody").addEventListener("click", (e) => {
+    const ed = e.target.closest("[data-asedit]"); if (ed) { openAsEditor(asList.find((x) => x.id === ed.dataset.asedit)); return; }
+    const dl = e.target.closest("[data-asdel]"); if (dl && !dl.disabled) { openAsDelete(asList.find((x) => x.id === dl.dataset.asdel)); return; }
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+
+  function openAsEditor(p) {
+    asEditing = p || null;
+    $("asEditTitle").textContent = p ? `Edit ${p.displayName}` : "New custom authentication strength";
+    $("asEditSub").innerHTML = p
+      ? "Renames are a PATCH; the combinations go through Graph's dedicated <b>updateAllowedCombinations</b> action."
+      : "Creates a custom strength any Conditional Access policy can then require.";
+    $("asName").value = p ? (p.displayName || "") : "";
+    $("asDesc").value = p ? (p.description || "") : "";
+    const selected = new Set(p ? (p.allowedCombinations || []) : []);
+    const cat = { pr: [], mfa: [], single: [] };
+    for (const c of (asCombos || AuthStrengths.FALLBACK_COMBINATIONS)) cat[AuthStrengths.classify(c)].push(c);
+    const group = (label, arr, warn) => arr.length ? `<div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin:8px 0 2px">${label}${warn ? ` <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">${warn}</span>` : ""}</div>`
+      + arr.map((c) => `<label class="chk" style="display:block;margin:2px 0"><input type="checkbox" data-ascombo="${esc(c)}" ${selected.has(c) ? "checked" : ""}> ${esc(AuthStrengths.comboLabel(c))}</label>`).join("") : "";
+    $("asCombos").innerHTML =
+      group("Phishing-resistant", cat.pr) +
+      group("MFA", cat.mfa) +
+      group("Single-factor", cat.single, "— including any of these makes the whole strength satisfiable without MFA");
+    $("asEditWarn").innerHTML = "";
+    $("asEditModal").classList.add("open");
+  }
+  $("asNew").addEventListener("click", () => openAsEditor(null));
+  $("asEditCancel").addEventListener("click", () => $("asEditModal").classList.remove("open"));
+  $("asEditSave").addEventListener("click", async () => {
+    const combos = [...document.querySelectorAll("#asCombos [data-ascombo]")].filter((x) => x.checked).map((x) => x.dataset.ascombo);
+    const built = AuthStrengths.buildPayload({ name: $("asName").value, description: $("asDesc").value, combinations: combos });
+    if (!built.ok) { $("asEditWarn").innerHTML = built.errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join(""); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...AS_WRITE])) return;
+    const btn = $("asEditSave"); btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      if (isDemo) {
+        toast("Demo — <span>save simulated</span>");
+      } else if (asEditing) {
+        // name/description and combinations travel on different endpoints
+        const scopes = [...AUTH_CONFIG.scopes, ...AS_WRITE];
+        if ((asEditing.displayName || "") !== built.payload.displayName || (asEditing.description || "") !== built.payload.description) {
+          await Graph.gpatch(`/policies/authenticationStrengthPolicies/${asEditing.id}`, { displayName: built.payload.displayName, description: built.payload.description }, scopes);
+        }
+        const a = (asEditing.allowedCombinations || []).slice().sort().join("|");
+        if (a !== built.payload.allowedCombinations.slice().sort().join("|")) {
+          await Graph.gpost(`/policies/authenticationStrengthPolicies/${asEditing.id}/updateAllowedCombinations`, { allowedCombinations: built.payload.allowedCombinations }, scopes);
+        }
+        toast(`<span>${esc(built.payload.displayName)}</span> updated`);
+      } else {
+        await Graph.gpost("/policies/authenticationStrengthPolicies", built.payload, [...AUTH_CONFIG.scopes, ...AS_WRITE]);
+        toast(`<span>${esc(built.payload.displayName)}</span> created`);
+      }
+      $("asEditModal").classList.remove("open");
+      await openAuthStr(true);
+    } catch (e) {
+      console.error("Save authentication strength failed:", e);
+      $("asEditWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(e.message || e)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = "Save"; }
+  });
+
+  function openAsDelete(p) {
+    if (!p) return;
+    asDeleting = p;
+    const used = AuthStrengths.usedBy(p.id, policies.map((x) => x.raw));
+    $("asDelDesc").innerHTML = `<b>${esc(p.displayName)}</b> — ${(p.allowedCombinations || []).length} combination${(p.allowedCombinations || []).length === 1 ? "" : "s"}`;
+    $("asDelRefs").innerHTML = used.length
+      ? `<div class="mini" style="color:var(--off)">Granted by ${used.length} polic${used.length === 1 ? "y" : "ies"} — Graph will refuse this delete.</div>`
+      : '<p class="mini muted">Not granted by any policy — Graph allows this delete.</p>';
+    $("asDelConfirm").value = ""; $("asDelGo").disabled = true;
+    $("asDelModal").classList.add("open");
+  }
+  $("asDelConfirm").addEventListener("input", (e) => { $("asDelGo").disabled = e.target.value.trim().toUpperCase() !== "DELETE"; });
+  $("asDelCancel").addEventListener("click", () => $("asDelModal").classList.remove("open"));
+  $("asDelGo").addEventListener("click", async () => {
+    if (!asDeleting) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...AS_WRITE])) return;
+    const btn = $("asDelGo"); btn.disabled = true; btn.textContent = "Deleting…";
+    try {
+      if (isDemo) toast("Demo — <span>delete simulated</span>");
+      else {
+        await Graph.gdelete(`/policies/authenticationStrengthPolicies/${asDeleting.id}`, [...AUTH_CONFIG.scopes, ...AS_WRITE]);
+        toast(`<span>${esc(asDeleting.displayName)}</span> deleted`);
+      }
+      $("asDelModal").classList.remove("open");
+      await openAuthStr(true);
+    } catch (e) {
+      console.error("Delete authentication strength failed:", e);
+      toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; btn.textContent = "Delete permanently"; }
+  });
+  $("asMd").addEventListener("click", () => {
+    if (!asList) return;
+    showReport("💪 Authentication strengths", "CA-AuthenticationStrengths", AuthStrengths.toMd(asList, policies.map((p) => p.raw), { tenantName }));
+  });
+
+  // ---------- Terms of use (BETA — view / create / edit / delete agreements) ----------
+  const TU_READ = ["Agreement.Read.All"];
+  const TU_WRITE = ["Agreement.ReadWrite.All"];
+  const TU_ACCEPT = ["AgreementAcceptance.Read.All"];
+  let tuList = null, tuFilter = "all", tuQuery = "", tuEditing = null, tuDeleting = null;
+  let tuPdfB64 = null, tuPdfName = null;
+  const TU_DEMO = [
+    { id: "tou-demo-1", displayName: "Employee acceptable use 2026", isViewingBeforeAcceptanceRequired: true, isPerDeviceAcceptanceRequired: false,
+      userReacceptRequiredFrequency: "P365D", files: [{ fileName: "AUP-2026.pdf", language: "en", isDefault: true, fileData: { data: "JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iagozIDAgb2JqPDwvVHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgNjEyIDc5Ml0vQ29udGVudHMgNCAwIFIvUmVzb3VyY2VzPDwvRm9udDw8L0YxIDUgMCBSPj4+Pj4+ZW5kb2JqCjQgMCBvYmo8PC9MZW5ndGggNjA+PnN0cmVhbQpCVCAvRjEgMTggVGYgNzIgNzIwIFRkIChFTkNBIGRlbW8gdGVybXMgb2YgdXNlKSBUaiBFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmo8PC9UeXBlL0ZvbnQvU3VidHlwZS9UeXBlMS9CYXNlRm9udC9IZWx2ZXRpY2E+PmVuZG9iagp0cmFpbGVyPDwvUm9vdCAxIDAgUj4+" } }, { fileName: "AUP-2026-nl.pdf", language: "nl" }] },
+    { id: "tou-demo-2", displayName: "Guest collaboration terms", isViewingBeforeAcceptanceRequired: true, isPerDeviceAcceptanceRequired: true,
+      userReacceptRequiredFrequency: null, files: [{ fileName: "GuestTerms.pdf", language: "en", isDefault: true }] },
+  ];
+
+  async function openTou(force) {
+    crumb("📜 Terms of use");
+    show("screen-tou");
+    if (tuList && !force) { renderTou(); return; }   // cached
+    $("tuHead").innerHTML = '<h3>📜 Terms of use <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading terms-of-use agreements…</p>';
+    $("tuBody").innerHTML = ""; $("tuChips").innerHTML = "";
+    try {
+      if (isDemo) tuList = TU_DEMO;
+      else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_READ])) { $("tuHead").innerHTML = '<h3>📜 Terms of use</h3><p class="mini">Reading agreements needs Agreement.Read.All.</p>'; return; }
+        // The LIST endpoint does not return the file localizations' fileData
+        // (and on some tenants not the files at all) — only a per-agreement
+        // GET with $expand=files carries the PDFs. Tenants hold a handful of
+        // agreements, so fetch each one fully.
+        const ids = await Graph.ggetAll("/identityGovernance/termsOfUse/agreements");
+        tuList = await Promise.all(ids.map((a) =>
+          Graph.gget(`/identityGovernance/termsOfUse/agreements/${a.id}?$expand=files`, [...AUTH_CONFIG.scopes, ...TU_READ]).catch(() => a)));
+      }
+      renderTou();
+    } catch (e) {
+      console.error("Terms of use failed:", e);
+      $("tuHead").innerHTML = `<h3>📜 Terms of use</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+    }
+  }
+  $("toolTou").addEventListener("click", () => openTou());
+  $("tuRefresh").addEventListener("click", () => openTou(true));
+
+  function renderTou() {
+    const raws = policies.map((p) => p.raw);
+    const s = TermsOfUse.summarize(tuList, raws);
+    $("tuHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">
+        <h3>📜 Terms of use <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <p style="margin-bottom:4px">The agreements a Conditional Access policy can require through its <b>terms of use</b> grant control. Each card shows the agreement's behaviour, its PDFs per language, and the policies requiring it.</p>
+        <p class="mini muted" style="margin:0">The display name is internal — end users see the PDF, not the name. Deleting an agreement a policy still requires would leave a dangling grant, so that delete is blocked. Replacing a PDF (new version / extra language) is not in this tool yet — use the portal for that.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> agreement${s.total === 1 ? "" : "s"}</span></div>
+        <div class="mini">${s.files} PDF file${s.files === 1 ? "" : "s"} · ${s.inUse} required by a policy</div>
+        <div class="mini">${s.perDevice} per-device · ${s.reaccept} with a re-accept schedule</div>
+      </div></div>`;
+    $("tuChips").innerHTML = [["all", `All (${s.total})`], ["inuse", `Required (${s.inUse})`],
+      ["unused", `Unreferenced (${s.total - s.inUse})`], ["reaccept", `↻ Re-accept (${s.reaccept})`]]
+      .map(([k, l]) => `<button class="fchip ${tuFilter === k ? "active" : ""}" data-tuf="${k}">${esc(l)}</button>`).join("");
+
+    const q = tuQuery.toLowerCase();
+    const rows = (tuList || []).filter((a) => {
+      const used = TermsOfUse.usedBy(a.id, raws).length;
+      if (tuFilter === "inuse" && !used) return false;
+      if (tuFilter === "unused" && used) return false;
+      if (tuFilter === "reaccept" && !a.userReacceptRequiredFrequency) return false;
+      return !q || (a.displayName || "").toLowerCase().includes(q);
+    }).sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
+
+    if (!rows.length) {
+      $("tuBody").innerHTML = s.total
+        ? '<p class="mini" style="padding:20px">No agreement matches the current filter.</p>'
+        : '<p class="mini" style="padding:20px">No terms-of-use agreements exist in this tenant yet.</p>';
+      return;
+    }
+    const list = (arr) => arr.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>`).join(", ");
+    $("tuBody").innerHTML = `<div class="lo-grid">` + rows.map((a) => {
+      const used = TermsOfUse.usedBy(a.id, raws);
+      const del = TermsOfUse.deletable(a, raws);
+      const files = TermsOfUse.fileList(a);
+      return `<div class="list-card lo-card">
+        <div class="lo-h">
+          <span class="lo-ic">📜</span>
+          <b>${esc(a.displayName || "(unnamed)")}</b>
+          ${TermsOfUse.settingTags(a).map((t) => `<span class="tag">${esc(t)}</span>`).join(" ") || '<span class="tag">accept only</span>'}
+        </div>
+        <div class="mini lo-d">${files.length ? files.map((f, i) => `${esc(f.language || "?")}: ${esc(f.fileName || "file")}${f.fileData?.data ? ` <button class="btn sm" data-tupdf="${esc(a.id)}:${i}" style="font-size:11px;padding:1px 8px">⭳ PDF</button>` : ""}`).join(" · ") : "no files"}</div>
+        <div class="lo-u">${used.length
+          ? `Required by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          : '<span class="mini muted">Not required by any policy</span>'}</div>
+        <div class="lo-act">
+          <button class="btn sm" data-tuedit="${esc(a.id)}">✎ Edit</button>
+          <button class="btn sm" data-tuacc="${esc(a.id)}">👥 Acceptances</button>
+          <button class="btn sm danger" data-tudel="${esc(a.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>
+        </div>
+        <div class="mini" id="tuAcc-${esc(a.id)}" style="margin-top:6px"></div>
+      </div>`;
+    }).join("") + `</div>`;
+  }
+  $("tuChips").addEventListener("click", (e) => { const b = e.target.closest("[data-tuf]"); if (!b) return; tuFilter = b.dataset.tuf; renderTou(); });
+  $("tuSearch").addEventListener("input", (e) => { tuQuery = e.target.value; renderTou(); });
+  $("tuBody").addEventListener("click", async (e) => {
+    const ed = e.target.closest("[data-tuedit]"); if (ed) { openTuEditor(tuList.find((x) => x.id === ed.dataset.tuedit)); return; }
+    const dl = e.target.closest("[data-tudel]"); if (dl && !dl.disabled) { openTuDelete(tuList.find((x) => x.id === dl.dataset.tudel)); return; }
+    const ac = e.target.closest("[data-tuacc]"); if (ac) { await tuLoadAcceptances(ac.dataset.tuacc, ac); return; }
+    const pf = e.target.closest("[data-tupdf]"); if (pf) { tuDownloadPdf(pf.dataset.tupdf); return; }
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+
+  function tuDownloadPdf(key) {
+    const [id, idx] = key.split(":");
+    const a = tuList.find((x) => x.id === id); if (!a) return;
+    const f = TermsOfUse.fileList(a)[+idx]; if (!f?.fileData?.data) return;
+    const bytes = Uint8Array.from(atob(f.fileData.data), (c) => c.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const link = document.createElement("a"); link.href = url; link.download = f.fileName || "TermsOfUse.pdf"; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  // Acceptance summary, on demand per agreement — needs its own permission,
+  // so a refusal degrades to a clear message rather than blocking the tool.
+  async function tuLoadAcceptances(id, btn) {
+    const out = $(`tuAcc-${id}`); if (!out) return;
+    if (isDemo) {
+      out.innerHTML = '<b style="color:var(--on)">14 accepted</b> · <b style="color:var(--off)">1 declined</b> — latest: demo.user@contoso.com, yesterday <span class="muted">(demo)</span>';
+      return;
+    }
+    btn.disabled = true; btn.textContent = "Loading…";
+    try {
+      if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_ACCEPT])) { btn.disabled = false; btn.textContent = "👥 Acceptances"; return; }
+      const acc = await Graph.ggetAll(`/identityGovernance/termsOfUse/agreements/${id}/acceptances`);
+      const ok = acc.filter((x) => (x.state || "").toLowerCase() === "accepted");
+      const no = acc.filter((x) => (x.state || "").toLowerCase() !== "accepted");
+      const latest = acc.slice().sort((a, b) => (b.recordedDateTime || "").localeCompare(a.recordedDateTime || ""))[0];
+      out.innerHTML = acc.length
+        ? `<b style="color:var(--on)">${ok.length} accepted</b>${no.length ? ` · <b style="color:var(--off)">${no.length} declined/other</b>` : ""}${latest ? ` — latest: ${esc(latest.userPrincipalName || latest.userEmail || "?")}, ${esc((latest.recordedDateTime || "").slice(0, 10))}` : ""}`
+        : "No acceptance records yet.";
+    } catch (e) {
+      out.innerHTML = `<span style="color:var(--off)">Acceptances not readable: ${esc(e.message || e)} — needs AgreementAcceptance.Read.All.</span>`;
+    } finally { btn.disabled = false; btn.textContent = "👥 Acceptances"; }
+  }
+
+  function openTuEditor(a) {
+    tuEditing = a || null; tuPdfB64 = null; tuPdfName = null;
+    $("tuEditTitle").textContent = a ? `Edit ${a.displayName}` : "New terms-of-use agreement";
+    $("tuEditSub").innerHTML = a
+      ? "Behaviour settings and the name — replacing the PDF is not in this tool yet."
+      : "Creates the agreement with one PDF; more languages can be added in the portal later.";
+    $("tuPdfWrap").style.display = a ? "none" : "";
+    // When editing, the current PDFs are shown read-only — language, default
+    // marker and a download per file — so the document is viewable from here.
+    const files = a ? TermsOfUse.fileList(a) : [];
+    $("tuFilesList").style.display = a && files.length ? "" : "none";
+    $("tuFilesList").innerHTML = a && files.length
+      ? `<div class="mini" style="font-weight:700;margin-bottom:2px">Current PDFs</div>` + files.map((f, i) =>
+          `<div class="mini" style="margin:2px 0">🌐 <b>${esc(f.language || "?")}</b>${f.isDefault ? ' <span class="tag ok">default</span>' : ""} — ${esc(f.fileName || "file")}
+           ${f.fileData?.data ? `<button class="btn sm" data-tupdf="${esc(a.id)}:${i}" style="font-size:11px;padding:1px 8px">⭳ View PDF</button>` : ' <span class="muted">(content not returned by Graph)</span>'}</div>`).join("")
+      : "";
+    $("tuName").value = a ? (a.displayName || "") : "";
+    $("tuPdf").value = ""; $("tuLang").value = "en"; tuPdfB64 = null; tuPdfName = null; tuPdfReady = null;
+    $("tuView").checked = a ? !!a.isViewingBeforeAcceptanceRequired : true;
+    $("tuDevice").checked = a ? !!a.isPerDeviceAcceptanceRequired : false;
+    $("tuReaccept").innerHTML = TermsOfUse.FREQ_OPTIONS.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
+    $("tuReaccept").value = a ? (a.userReacceptRequiredFrequency || "") : "";
+    $("tuEditWarn").innerHTML = "";
+    $("tuEditModal").classList.add("open");
+  }
+  // The file is read asynchronously — Save awaits tuPdfReady so a quick
+  // Save right after picking the file cannot race the reader.
+  let tuPdfReady = null;
+  $("tuPdf").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    tuPdfB64 = null; tuPdfName = null; tuPdfReady = null;
+    if (!f) return;
+    tuPdfName = f.name;
+    tuPdfReady = new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => { tuPdfB64 = String(r.result).split(",")[1] || null; resolve(); };
+      r.onerror = () => resolve();
+      r.readAsDataURL(f);
+    });
+  });
+  $("tuNew").addEventListener("click", () => openTuEditor(null));
+  $("tuEditCancel").addEventListener("click", () => $("tuEditModal").classList.remove("open"));
+  $("tuFilesList").addEventListener("click", (e) => {
+    const pf = e.target.closest("[data-tupdf]"); if (pf) tuDownloadPdf(pf.dataset.tupdf);
+  });
+  $("tuEditSave").addEventListener("click", async () => {
+    if (tuPdfReady) await tuPdfReady;   // finish reading a just-picked PDF
+    const built = TermsOfUse.buildPayload({
+      name: $("tuName").value, viewRequired: $("tuView").checked, perDevice: $("tuDevice").checked,
+      reaccept: $("tuReaccept").value || null, pdfBase64: tuPdfB64, pdfName: tuPdfName, language: $("tuLang").value,
+    }, tuEditing ? "edit" : "create");
+    if (!built.ok) { $("tuEditWarn").innerHTML = built.errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join(""); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_WRITE])) return;
+    const btn = $("tuEditSave"); btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      if (isDemo) {
+        toast("Demo — <span>save simulated</span>");
+      } else if (tuEditing) {
+        await Graph.gpatch(`/identityGovernance/termsOfUse/agreements/${tuEditing.id}`, built.payload, [...AUTH_CONFIG.scopes, ...TU_WRITE]);
+        toast(`<span>${esc(built.payload.displayName)}</span> updated`);
+      } else {
+        // The create API accepts only displayName + isViewingBeforeAcceptanceRequired
+        // + files — the behaviour extras (per-device, re-accept) go in a
+        // follow-up PATCH, or the POST is rejected outright.
+        const { createBody, extras } = TermsOfUse.splitCreate(built.payload);
+        const made = await Graph.gpost("/identityGovernance/termsOfUse/agreements", createBody, [...AUTH_CONFIG.scopes, ...TU_WRITE]);
+        if (extras) {
+          try { await Graph.gpatch(`/identityGovernance/termsOfUse/agreements/${made.id}`, extras, [...AUTH_CONFIG.scopes, ...TU_WRITE]); }
+          catch (e2) { console.warn("Behaviour settings after create failed:", e2.message); toast(`Created, but the behaviour settings failed: <span>${esc(e2.message || e2)}</span> — edit the agreement to retry`); }
+        }
+        toast(`<span>${esc(built.payload.displayName)}</span> created`);
+      }
+      $("tuEditModal").classList.remove("open");
+      await openTou(true);
+    } catch (e) {
+      console.error("Save agreement failed:", e);
+      $("tuEditWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(e.message || e)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = "Save"; }
+  });
+
+  function openTuDelete(a) {
+    if (!a) return;
+    tuDeleting = a;
+    const used = TermsOfUse.usedBy(a.id, policies.map((p) => p.raw));
+    $("tuDelDesc").innerHTML = `<b>${esc(a.displayName)}</b> — ${TermsOfUse.fileList(a).length} PDF file${TermsOfUse.fileList(a).length === 1 ? "" : "s"}`;
+    $("tuDelRefs").innerHTML = used.length
+      ? `<div class="mini" style="color:var(--off)">Required by ${used.length} polic${used.length === 1 ? "y" : "ies"} — remove it from the grant first.</div>`
+      : '<p class="mini muted">Not required by any policy.</p>';
+    $("tuDelConfirm").value = ""; $("tuDelGo").disabled = true;
+    $("tuDelModal").classList.add("open");
+  }
+  $("tuDelConfirm").addEventListener("input", (e) => { $("tuDelGo").disabled = e.target.value.trim().toUpperCase() !== "DELETE"; });
+  $("tuDelCancel").addEventListener("click", () => $("tuDelModal").classList.remove("open"));
+  $("tuDelGo").addEventListener("click", async () => {
+    if (!tuDeleting) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_WRITE])) return;
+    const btn = $("tuDelGo"); btn.disabled = true; btn.textContent = "Deleting…";
+    try {
+      if (isDemo) toast("Demo — <span>delete simulated</span>");
+      else {
+        await Graph.gdelete(`/identityGovernance/termsOfUse/agreements/${tuDeleting.id}`, [...AUTH_CONFIG.scopes, ...TU_WRITE]);
+        toast(`<span>${esc(tuDeleting.displayName)}</span> deleted`);
+      }
+      $("tuDelModal").classList.remove("open");
+      await openTou(true);
+    } catch (e) {
+      console.error("Delete agreement failed:", e);
+      toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
+    } finally { btn.disabled = false; btn.textContent = "Delete permanently"; }
+  });
+  $("tuMd").addEventListener("click", () => {
+    if (!tuList) return;
+    showReport("📜 Terms of use", "CA-TermsOfUse", TermsOfUse.toMd(tuList, policies.map((p) => p.raw), { tenantName }));
+  });
+
+  // ---------- Recycle bin (BETA — view / restore deleted CA policies & locations) ----------
+  const RC_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let rcPols = null, rcLocs = null, rcFilter = "all", rcQuery = "", rcRestoring = null;
+  // Demo data: two deleted policies (one was On — the dangerous restore) and
+  // a deleted location, with believable deletion timestamps.
+  const RC_DEMO = () => {
+    const ago = (d) => new Date(Date.now() - d * 864e5).toISOString();
+    return {
+      pols: [
+        { id: "del-pol-1", displayName: "CA004-GRANT-Global-MFA-AllApps-AnyPlatform-v2.9 (superseded)", state: "disabled", deletedDateTime: ago(3),
+          conditions: { users: { includeUsers: ["All"] }, applications: { includeApplications: ["All"] } }, grantControls: { builtInControls: ["mfa"] } },
+        { id: "del-pol-2", displayName: "CA210-BLOCK-Internals-LegacyAuth-v1.0", state: "enabled", deletedDateTime: ago(26),
+          conditions: { users: { includeGroups: ["g1"] }, applications: { includeApplications: ["All"] }, clientAppTypes: ["exchangeActiveSync", "other"] }, grantControls: { builtInControls: ["block"] } },
+      ],
+      locs: [
+        { id: "del-loc-1", displayName: "Old branch office", "@odata.type": "#microsoft.graph.ipNamedLocation", isTrusted: true, deletedDateTime: ago(12), ipRanges: [{ cidrAddress: "198.51.100.0/24" }] },
+      ],
+    };
+  };
+
+  async function openRecycle(force) {
+    crumb("♻ Recycle bin");
+    show("screen-recycle");
+    if (rcPols && !force) { renderRecycle(); return; }   // cached
+    $("rcHead").innerHTML = '<h3>♻ Recycle bin <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading recently deleted policies and named locations…</p>';
+    $("rcBody").innerHTML = ""; $("rcChips").innerHTML = "";
+    try {
+      if (isDemo) {
+        const d = RC_DEMO(); rcPols = d.pols; rcLocs = d.locs;
+      } else {
+        [rcPols, rcLocs] = await Promise.all([
+          Graph.ggetAll("/identity/conditionalAccess/deletedItems/policies"),
+          Graph.ggetAll("/identity/conditionalAccess/deletedItems/namedLocations").catch(() => []),
+        ]);
+      }
+      renderRecycle();
+    } catch (e) {
+      console.error("Recycle bin failed:", e);
+      $("rcHead").innerHTML = `<h3>♻ Recycle bin</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}${/403|Authorization/i.test(String(e.message || e)) ? " — reading the recycle bin needs the Security Administrator or Conditional Access Administrator role." : ""}</p>`;
+    }
+  }
+  $("toolRecycle").addEventListener("click", () => openRecycle());
+  $("rcRefresh").addEventListener("click", () => openRecycle(true));
+
+  function renderRecycle() {
+    const s = Recycle.summarize(rcPols, rcLocs);
+    $("rcHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">
+        <h3>♻ Recycle bin <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <p style="margin-bottom:4px">Deleted Conditional Access policies and named locations stay restorable for <b>${Recycle.RETENTION_DAYS} days</b>, then they are permanently gone. Each card shows what the item did, when it was deleted and how long it has left.</p>
+        <p class="mini muted" style="margin:0">A restored policy returns <b>in the state it was deleted in</b> — a policy that was On enforces again the moment it comes back, so that restore asks for an extra confirmation.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> deleted item${s.total === 1 ? "" : "s"}</span></div>
+        <div class="mini">${s.policies} polic${s.policies === 1 ? "y" : "ies"} · ${s.locations} location${s.locations === 1 ? "" : "s"}</div>
+        <div class="mini">${s.wereOn ? `${s.wereOn} ${s.wereOn === 1 ? "was" : "were"} On at deletion` : "none were On at deletion"}${s.expiringSoon ? ` · <b style="color:var(--off)">${s.expiringSoon} expiring ≤ 7 days</b>` : ""}</div>
+      </div></div>`;
+    $("rcChips").innerHTML = [["all", `All (${s.total})`], ["policies", `Policies (${s.policies})`],
+      ["locations", `Locations (${s.locations})`], ["expiring", `⏳ Expiring ≤ 7 days (${s.expiringSoon})`]]
+      .map(([k, l]) => `<button class="fchip ${rcFilter === k ? "active" : ""}" data-rcf="${k}">${esc(l)}</button>`).join("");
+
+    const liveNames = policies.map((p) => p.raw.displayName);
+    const q = rcQuery.toLowerCase();
+    const items = [
+      ...(rcPols || []).map((p) => ({ kind: "policy", it: p })),
+      ...(rcLocs || []).map((l) => ({ kind: "location", it: l })),
+    ].filter(({ kind, it }) => {
+      if (rcFilter === "policies" && kind !== "policy") return false;
+      if (rcFilter === "locations" && kind !== "location") return false;
+      if (rcFilter === "expiring") { const d = Recycle.daysLeft(it); if (d === null || d > 7) return false; }
+      return !q || (it.displayName || "").toLowerCase().includes(q);
+    }).sort((a, b) => (Recycle.daysLeft(a.it) ?? 99) - (Recycle.daysLeft(b.it) ?? 99));
+
+    if (!items.length) {
+      $("rcBody").innerHTML = s.total
+        ? '<p class="mini" style="padding:20px">No deleted item matches the current filter.</p>'
+        : '<p class="mini" style="padding:20px">The recycle bin is empty — nothing has been deleted in the last 30 days.</p>';
+      return;
+    }
+    $("rcBody").innerHTML = `<div class="lo-grid">` + items.map(({ kind, it }) => {
+      const d = Recycle.daysLeft(it);
+      const clash = Recycle.nameClash(it, liveNames);
+      const wasOn = kind === "policy" && Recycle.restoresEnforcing(it);
+      return `<div class="list-card lo-card">
+        <div class="lo-h">
+          <span class="lo-ic">${kind === "policy" ? "🗂" : "🌐"}</span>
+          <b>${esc(it.displayName || "(unnamed)")}</b>
+          ${kind === "policy" ? `<span class="tag ${wasOn ? "block" : ""}">${esc(Recycle.stateLabel(it.state))} at deletion</span>` : '<span class="tag">named location</span>'}
+        </div>
+        <div class="mini lo-d">${esc(kind === "policy" ? Recycle.policyBrief(it) : Recycle.locationBrief(it))}</div>
+        <div class="lo-u mini">Deleted ${esc(Recycle.deletedAgo(it))} · ${d === null ? "retention unknown" : d <= 7 ? `<b style="color:var(--off)">${d} day${d === 1 ? "" : "s"} left</b>` : `${d} days left`}
+          ${clash ? '<br><span style="color:var(--off)">⚠ an item with this name exists again — restoring creates a duplicate name</span>' : ""}</div>
+        <div class="lo-act"><button class="btn sm lemon" data-rcres="${esc(it.id)}" data-rckind="${kind}">♻ Restore</button></div>
+      </div>`;
+    }).join("") + `</div>`;
+  }
+  $("rcChips").addEventListener("click", (e) => { const b = e.target.closest("[data-rcf]"); if (!b) return; rcFilter = b.dataset.rcf; renderRecycle(); });
+  $("rcSearch").addEventListener("input", (e) => { rcQuery = e.target.value; renderRecycle(); });
+  $("rcBody").addEventListener("click", (e) => {
+    const r = e.target.closest("[data-rcres]"); if (!r) return;
+    const kind = r.dataset.rckind;
+    const it = (kind === "policy" ? rcPols : rcLocs).find((x) => x.id === r.dataset.rcres);
+    if (it) openRcRestore(kind, it);
+  });
+
+  function openRcRestore(kind, it) {
+    rcRestoring = { kind, it };
+    const wasOn = kind === "policy" && Recycle.restoresEnforcing(it);
+    const clash = Recycle.nameClash(it, policies.map((p) => p.raw.displayName));
+    $("rcResDesc").innerHTML = `<b>${esc(it.displayName || "(unnamed)")}</b> — ${esc(kind === "policy" ? `${Recycle.stateLabel(it.state)} at deletion · ${Recycle.policyBrief(it)}` : Recycle.locationBrief(it))}<br>Deleted ${esc(Recycle.deletedAgo(it))}, ${Recycle.daysLeft(it) ?? "?"} days left in the bin.`;
+    $("rcResWarn").innerHTML = [
+      wasOn ? "" : `<div class="mini muted">Restores ${kind === "policy" ? `as <b>${esc(Recycle.stateLabel(it.state))}</b> — it will not enforce until you switch it On` : "with its previous definition"}.</div>`,
+      clash ? '<div class="mini" style="color:var(--off)">⚠ An item with this display name exists again — after the restore there will be two with the same name.</div>' : "",
+      kind === "location" && it.isTrusted ? '<div class="mini" style="color:var(--off)">⚠ This location was <b>trusted</b> — policies using “All trusted locations” will follow it again immediately.</div>' : "",
+    ].filter(Boolean).join("");
+    $("rcResConfirmWrap").style.display = wasOn ? "" : "none";
+    $("rcResConfirm").value = "";
+    $("rcResGo").disabled = wasOn;
+    $("rcResModal").classList.add("open");
+  }
+  $("rcResConfirm").addEventListener("input", (e) => { $("rcResGo").disabled = e.target.value.trim().toUpperCase() !== "RESTORE"; });
+  $("rcResCancel").addEventListener("click", () => $("rcResModal").classList.remove("open"));
+  $("rcResGo").addEventListener("click", async () => {
+    if (!rcRestoring) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...RC_WRITE])) return;
+    const { kind, it } = rcRestoring;
+    const btn = $("rcResGo"); btn.disabled = true; btn.textContent = "Restoring…";
+    try {
+      if (isDemo) {
+        toast("Demo — <span>restore simulated</span>");
+        if (kind === "policy") rcPols = rcPols.filter((x) => x.id !== it.id); else rcLocs = rcLocs.filter((x) => x.id !== it.id);
+        $("rcResModal").classList.remove("open");
+        renderRecycle();
+        return;
+      }
+      await Graph.gpost(`/identity/conditionalAccess/deletedItems/${kind === "policy" ? "policies" : "namedLocations"}/${it.id}/restore`, {}, [...AUTH_CONFIG.scopes, ...RC_WRITE]);
+      toast(`<span>${esc(it.displayName || it.id)}</span> restored`);
+      $("rcResModal").classList.remove("open");
+      // the live policy set changed — reload it so every tool sees the restore
+      if (kind === "policy") { try { await loadFromGraph(true); } catch (e2) { console.warn("Reload after restore failed:", e2.message); } }
+      await openRecycle(true);
+    } catch (e) {
+      console.error("Restore failed:", e);
+      $("rcResWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(e.message || e)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = "Restore"; }
+  });
+  $("rcMd").addEventListener("click", () => {
+    if (!rcPols && !rcLocs) return;
+    showReport("♻ Recycle bin", "CA-RecycleBin", Recycle.toMd(rcPols, rcLocs, { tenantName }));
+  });
+
   // ---------- What-If (Entra Conditional Access What If tool) ----------
   let wiResult = null, wiScenario = null, wiLocations = null, wiNames = {};
   function openWhatIf() {
@@ -6967,7 +7751,26 @@ max@contoso.com,"Global, DevOps"</pre>
   const DEP_TYPE_MAP = { authStrength: "authStrengths", termsOfUse: "termsOfUse", namedLocation: "namedLocations", authContext: "authContexts", group: "groups" };
   const DEP_TITLES = { authStrength: "Authentication strength", termsOfUse: "Terms of use", namedLocation: "Named location", authContext: "Authentication context", group: "Group" };
   const depCache = new Map();
-  let currentDepObj = null;
+  let currentDepObj = null, currentDepType = null;
+  // The dependency popup doubles as the junction into the manage tools: an
+  // auth strength seen on a policy card is one click from being edited.
+  const DEP_MANAGE = {
+    authStrength: { label: "Manage in 💪 Authentication strengths →" },
+    termsOfUse: { label: "Manage in 📜 Terms of use →" },
+    namedLocation: { label: "Manage in 🌐 Named locations →" },
+    authContext: { label: "Manage in 🎫 Authentication contexts →" },
+  };
+  function depManageJump() {
+    if (!currentDepObj || !currentDepType) return;
+    const name = currentDepObj.displayName || "";
+    $("depModal").classList.remove("open");
+    $("detailModal").classList.remove("open");
+    // open the matching tool pre-filtered to this item
+    if (currentDepType === "authStrength") { asQuery = name; $("asSearch").value = name; asFilter = "all"; openAuthStr(); }
+    else if (currentDepType === "termsOfUse") { tuQuery = name; $("tuSearch").value = name; tuFilter = "all"; openTou(); }
+    else if (currentDepType === "authContext") { acQuery = name; $("acSearch").value = name; acFilter = "all"; openAuthCtx(); }
+    else if (currentDepType === "namedLocation") { loQuery = name; $("loSearch").value = name; loFilter = "all"; openLocations(); }
+  }
   function stripFileData(o) {
     const c = JSON.parse(JSON.stringify(o));
     (c.files || []).forEach(f => { if (f.fileData?.data) f.fileData.data = `(base64 PDF, ${f.fileData.data.length} chars)`; });
@@ -7007,8 +7810,12 @@ max@contoso.com,"Global, DevOps"</pre>
     return depKv(rows) + `<details class="dep-raw"><summary class="mini">Raw JSON</summary><pre>${esc(JSON.stringify(stripFileData(o), null, 2))}</pre></details>`;
   }
   async function openDepView(type, id, label) {
+    currentDepType = type;
     $("depTitle").textContent = `${DEP_TITLES[type] || type} — ${label}`;
     $("depBody").innerHTML = '<p class="mini">Loading settings…</p>';
+    const mg = DEP_MANAGE[type];
+    $("depManage").style.display = mg ? "" : "none";
+    if (mg) $("depManage").textContent = mg.label;
     $("depModal").classList.add("open");
     try {
       const key = type + ":" + id;
@@ -7034,6 +7841,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
   }
   $("depClose").addEventListener("click", () => $("depModal").classList.remove("open"));
+  $("depManage").addEventListener("click", depManageJump);
   $("depModal").addEventListener("click", (e) => {
     if (e.target.id === "depModal") { $("depModal").classList.remove("open"); return; }
     const b = e.target.closest("[data-toupdf]"); if (!b) return;
@@ -7265,7 +8073,8 @@ max@contoso.com,"Global, DevOps"</pre>
     mlHead: "toolMsLearn", exHead: "toolExclusions", cgHead: "toolCaGroups", prHead: "toolProtect",
     blHead: "toolBaseline", gcHead: "toolGapCheck", vaHead: "toolValidator", wiHead: "toolWhatIf",
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
-    siHead: "toolSignins", ciHead: "toolCis",
+    siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
+    rcHead: "toolRecycle", tuHead: "toolTou",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
