@@ -67,7 +67,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-audit", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-audit", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -449,7 +449,7 @@
       toast(`Could not load the security documentation: <span>${esc(e.message || e)}</span>`);
     }
   }
-  for (const id of ["secLinkLogin", "secLinkFoot"]) {
+  for (const id of ["secLinkLogin", "secLinkFoot", "rmSecLink"]) {
     const el = $(id);
     if (el) el.addEventListener("click", (e) => { e.preventDefault(); showSecurityDoc(); });
   }
@@ -495,6 +495,8 @@
     clMarkSeen();
   }
   $("toolChangelog").addEventListener("click", openChangelog);
+  function openRoadmap() { crumb("🗺 Roadmap"); show("screen-roadmap"); }
+  $("toolRoadmap").addEventListener("click", openRoadmap);
 
   // Called once the tenant has loaded, so it never covers the sign-in screen.
   function maybeShowWhatsNew() {
@@ -1061,6 +1063,7 @@
   ];
   // Help is a tool too, but always sits last (after the + in the tab bar).
   TOOL_TABS.push(["toolChangelog", "📋 What's new"]);
+  TOOL_TABS.push(["toolRoadmap", "🗺 Roadmap"]);
   TOOL_TABS.push(["toolHelp", "❓ Help"]);
   // Browser-style tabs: a tab exists only for a tool you have opened. Home shows
   // no tabs; opening a tool (from the grid or the + menu) adds one; the + opens
