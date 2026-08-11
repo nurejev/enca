@@ -775,7 +775,9 @@ const GroupUse = (() => {
     const batchIds = opts.batchIds || [...ids].filter(isGuid);
     const rows = [], ran = [], failed = [], skipped = [], partial = [];
 
+    let srcDone = 0;
     for (const id of sourceIds) {
+      srcDone++;
       const src = sourceById(id);
       if (!src) continue;
       if (src.userOnly && !isUser) { skipped.push({ id, label: src.label, area: src.area, why: "user input only" }); continue; }
@@ -785,11 +787,11 @@ const GroupUse = (() => {
       const ctx = {
         ids, principal, isUser, policies, batchIds,
         note: (m) => notes.push(m),
-        status: (s) => onStatus?.(`${src.label} — ${s}`),
-        progress: (a, b) => onStatus?.(`${src.label} — ${a}/${b}`),
+        status: (s) => onStatus?.(`${src.label} — ${s}`, srcDone, sourceIds.length),
+        progress: (a, b) => onStatus?.(`${src.label} — ${a}/${b}`, srcDone, sourceIds.length),
       };
       try {
-        onStatus?.(src.label);
+        onStatus?.(src.label, srcDone, sourceIds.length);
         const hits = (await src.run(ctx)) || [];
         hits.forEach((h) => rows.push({ ...h, source: src.id, area: src.area, sourceLabel: src.label }));
         ran.push({ id, label: src.label, area: src.area, count: hits.length, ms: Date.now() - t0 });

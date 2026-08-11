@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 235, date: "2026-08-11", title: "The progress bar reaches every counted loop",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The shared count-up bar now also runs wherever a tool walks a counted list: the Exclusion analyzer's group expansion ('Expanding group 4/112' now moves a bar, not just a sentence), the Conditional Access groups scan (group lookups and member reads), the CSV import's user resolution and member reads, the RMAU protection scan, and the Group Analyzer's source-by-source sweep. One visual, same brand colours, everywhere something is fetched at length." },
+    ],
+  },
+  {
+    build: 23006, date: "2026-08-11", title: "One progress visual for every long read; impact says who a policy aims at",
     build: 234, date: "2026-08-11", title: "One progress visual for every long read; impact says who a policy aims at",
     items: [
       { kind: "improved", tool: "Report-only impact", text: "A 🔴 verdict said WHO gets hit but not WHY they are in scope. Each policy card now shows the assignment it targets — include and exclude entries by name, straight from the policy in memory, with a link to the full policy card — and every affected user gets a why? button that resolves their directory membership against the policy's includes: 'member of included group X', 'holds included role Y', 'targeted directly', or 'the policy targets All users' (plus the reminder that no exclude entry caught them — that is why the sign-in applied)." },

@@ -70,6 +70,12 @@
     "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-audit", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
+  // Inline variant of the shared fetch-progress visual: a status line that
+  // reports (done, total) gets the same count-up bar dropped under the text.
+  const progInline = (done, total) => total
+    ? `<div class="ri-progwrap" style="width:min(420px,100%);margin:8px 0 2px"><div class="ri-progbar" style="width:${Math.min(100, done / total * 100)}%"></div></div>`
+    : "";
+
   // Per-screen scroll memory: switching tabs used to jump to the top and lose
   // your place. The position of the screen you leave is saved and restored when
   // you come back; a screen you have not visited yet starts at the top.
@@ -1489,7 +1495,7 @@
       try {
         cgRes = isDemo ? demoGroupScan() : await CaGroups.scan(policies, {
           scope: cgScope,
-          onStatus: (m) => { const el = $("cgHead").querySelector("p"); if (el) el.textContent = m; },
+          onStatus: (m, done, total) => { const h = $("cgHead"); if (h) h.innerHTML = `<p class="mini">${esc(m)}</p>` + progInline(done, total); },
         });
       } catch (e) {
         console.error(e);
@@ -1815,15 +1821,15 @@ max@contoso.com,"Global, DevOps"</pre>
       }
     }
     t.busy = true;
-    $("cgBody").innerHTML = '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgCsvStatus">Resolving users…</p></div>';
-    const status = (m) => { const el = $("cgCsvStatus"); if (el) el.textContent = m; };
+    $("cgBody").innerHTML = '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgCsvStatus">Resolving users…</p><div id="cgCsvBar" style="width:100%"></div></div>';
+    const status = (m, done, total) => { const el = $("cgCsvStatus"); if (el) el.textContent = m; const bar = $("cgCsvBar"); if (bar) bar.innerHTML = progInline(done, total); };
     try {
       // users
       const ids = {};
       const uniqueUpns = [...new Set(wanted.filter((w) => w.group).map((w) => w.upn))];
       for (let i = 0; i < uniqueUpns.length; i++) {
         const upn = uniqueUpns[i];
-        status(`Resolving users… ${i + 1}/${uniqueUpns.length}`);
+        status(`Resolving users… ${i + 1}/${uniqueUpns.length}`, i + 1, uniqueUpns.length);
         if (isDemo) { ids[upn] = "u-" + upn; continue; }
         try {
           const f = upn.replace(/'/g, "''");
@@ -1836,7 +1842,7 @@ max@contoso.com,"Global, DevOps"</pre>
       const groups = [...new Set(wanted.filter((w) => w.group).map((w) => w.group))];
       for (let i = 0; i < groups.length; i++) {
         const g = groups[i];
-        status(`Reading members of ${g}… ${i + 1}/${groups.length}`);
+        status(`Reading members of ${g}… ${i + 1}/${groups.length}`, i + 1, groups.length);
         const row = groupByName.get(g);
         if (!row) { memberSets[g] = null; continue; }
         if (isDemo) { memberSets[g] = new Set(t.users.filter((_, j) => j % 4 === 0).map((u) => "u-" + u.upn)); continue; }
@@ -1982,7 +1988,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (rmauBusy) return;                     // already scanning — don't start a second pass
     rmauBusy = true;
     rmauBody().innerHTML = rmauBusyPanel();
-    const status = (m) => { const el = $("cgRmauStatus"); if (el) el.textContent = m; };
+    const status = (m, done, total) => { const el = $("cgRmauStatus"); if (el) el.textContent = m; const bar = $("cgRmauBar"); if (bar) bar.innerHTML = progInline(done, total); };
     try {
       // The candidates come from the shared group scan; load it here (not on
       // open) so simply visiting the tool costs nothing.
@@ -2010,7 +2016,7 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       for (let i = 0; i < cands.length; i++) {
         const g = cands[i];
-        status(`Checking ${g.name}… ${i + 1}/${cands.length}`);
+        status(`Checking ${g.name}… ${i + 1}/${cands.length}`, i + 1, cands.length);
         if (isDemo) { st.status.set(g.id, null); continue; }
         try {
           const r = await Graph.gget(`/groups/${g.id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
@@ -2037,7 +2043,7 @@ max@contoso.com,"Global, DevOps"</pre>
   }
 
   let rmauBusy = false;
-  const rmauBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgRmauStatus">Scanning… this keeps running if you switch tabs.</p></div>';
+  const rmauBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgRmauStatus">Scanning… this keeps running if you switch tabs.</p><div id="cgRmauBar" style="width:100%"></div></div>';
   function renderCgRmau() {
     // Same manners as Sign-in failures: nothing scans until asked, a scan in
     // flight survives navigating away and back, and the result stays until
@@ -3647,7 +3653,7 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       // the whole tenant's policies — exclusions are a tenant-wide question
       exModel = Exclusions.collect(policies.map(p => p.raw));
-      await Exclusions.resolve(exModel, { demo: isDemo, onStatus: (m) => { $("exHead").innerHTML = `<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">${esc(m)}</p>`; } });
+      await Exclusions.resolve(exModel, { demo: isDemo, onStatus: (m, done, total) => { $("exHead").innerHTML = `<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">${esc(m)}</p>` + progInline(done, total); } });
       exUsers = Exclusions.effectiveUsers(exModel);
       renderExclusions();
     } catch (e) {
@@ -6874,7 +6880,7 @@ max@contoso.com,"Global, DevOps"</pre>
     } else if (guMode === "all") guStash = null;
     guRes = guMeta = guTotals = guGroups = null;
     $("guBody").innerHTML = ""; ["guMd", "guHtml", "guCsv"].forEach((id) => $(id).style.display = "none");
-    const st = (m) => { $("guProg").textContent = m; };
+    const st = (m, done, total) => { $("guProg").innerHTML = esc(m) + progInline(done, total); };
     try {
       if (guMode === "all") await sweepGroupUse(st);
       else await analyzeOneGroup($("guTerm").value, st);

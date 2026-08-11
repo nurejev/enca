@@ -171,7 +171,7 @@ const CaGroups = (() => {
     const found = new Map();  // lowercased name -> {id,name,...}
     let done = 0;
     for (const part of chunk(names, 15)) {
-      o.onStatus?.(`Looking up groups… ${done}/${names.length}`);
+      o.onStatus?.(`Looking up groups… ${done}/${names.length}`, done, names.length);
       const flt = part.map((n) => `displayName eq '${String(n).replace(/'/g, "''")}'`).join(" or ");
       try {
         const gs = await Graph.ggetAll(`/groups?$filter=${encodeURIComponent(flt)}`
@@ -187,7 +187,7 @@ const CaGroups = (() => {
     const refIds = [...refs.keys()];
     done = 0;
     for (const part of chunk(refIds, 15)) {
-      o.onStatus?.(`Resolving referenced groups… ${done}/${refIds.length}`);
+      o.onStatus?.(`Resolving referenced groups… ${done}/${refIds.length}`, done, refIds.length);
       const flt = part.map((i) => `id eq '${i}'`).join(" or ");
       try {
         const gs = await Graph.ggetAll(`/groups?$filter=${encodeURIComponent(flt)}`
