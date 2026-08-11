@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 246, date: "2026-08-11", title: "The inline bar centres like everything else",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The inline progress bar (RMAU scan, CSV import, CA groups scan) hugged the left edge while the spinner and status text sat centred — it now centres with them." },
+    ],
+  },
+  {
+    build: 23017, date: "2026-08-11", title: "Gap analyse gets the full busy panel",
     build: 245, date: "2026-08-11", title: "Gap analyse gets the full busy panel",
     items: [
       { kind: "improved", tool: "Gap analyse", text: "The matrix build showed only a status sentence with a small inline bar — easy to miss and visibly not the same component every other long read uses. It now shows the full shared busy panel in place of the results: spinner, wide brand-coloured bar driven by the counted phases (group expansion, role resolution), and the current phase with elapsed time. The one-line status next to the Run button stays for a glance." },

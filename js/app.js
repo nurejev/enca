@@ -73,7 +73,7 @@
   // Inline variant of the shared fetch-progress visual: a status line that
   // reports (done, total) gets the same count-up bar dropped under the text.
   const progInline = (done, total) => total
-    ? `<div class="ri-progwrap" style="width:min(420px,100%);margin:8px 0 2px"><div class="ri-progbar" style="width:${Math.min(100, done / total * 100)}%"></div></div>`
+    ? `<div class="ri-progwrap" style="width:min(420px,100%);margin:8px auto 2px"><div class="ri-progbar" style="width:${Math.min(100, done / total * 100)}%"></div></div>`
     : "";
 
   // Per-screen scroll memory: switching tabs used to jump to the top and lose
