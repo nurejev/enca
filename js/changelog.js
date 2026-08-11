@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 23003, date: "2026-08-11", title: "Shorter windows for fresh questions",
+    items: [
+      { kind: "improved", tool: "Report-only impact", text: "1-hour and 4-hour ranges join 1/7/30 days — flip a policy to report-only, drive some traffic, and check the impact of the last hour without paging in a whole day of a large tenant's log." },
+      { kind: "improved", tool: "Sign-in failures", text: "The same 1-hour and 4-hour ranges — when the helpdesk phone rings, the failure is minutes old, not days." },
+    ],
+  },
+  {
     build: 23002, date: "2026-08-11", title: "The long read shows its work",
     items: [
       { kind: "improved", tool: "Report-only impact", text: "Reading the sign-in window can take minutes in a large tenant — report-only verdicts cannot be server-filtered, so every page is fetched. The busy state now narrates: a running sign-in count, the page number and elapsed time, plus a progress bar toward the record cap, updated as each page lands. Switch tabs and back and it picks up mid-flight instead of showing a mute spinner." },

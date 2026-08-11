@@ -4552,6 +4552,11 @@ max@contoso.com,"Global, DevOps"</pre>
   // tenant from turning the read into a half-hour of paging.
   const SI_MAX = 10000;
   let siRes = null, siFilter = "all", siQuery = "", siDays = 7, siMode = "enforced", siView = "signins";
+  // The range selects carry days; sub-day ranges are fractions (1h = 1/24).
+  // One label helper for every place the window is written out.
+  const rangeLabel = (d) => d >= 1
+    ? `${d} day${d === 1 ? "" : "s"}`
+    : `${Math.round(d * 24)} hour${Math.round(d * 24) === 1 ? "" : "s"}`;
 
   // Type-ahead for the search box. Two sources, because both are useful at
   // different moments: once a scan has run, the users and apps that actually
@@ -4824,7 +4829,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const r = siRes; if (!r) return;
     const L = [`# Conditional Access sign-in failures — ${tenantName || "tenant"}`, "",
       Brand.generatedBy("Generated"), "",
-      `- Window: last ${siDays} days${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""} — ${siModeLabel()}${siCapped ? `, truncated at ${SI_MAX} sign-ins` : ""}`,
+      `- Window: last ${rangeLabel(siDays)}${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""} — ${siModeLabel()}${siCapped ? `, truncated at ${SI_MAX} sign-ins` : ""}`,
       `- Sign-ins: **${r.total}** across ${r.policies.length} policies`,
       `- Most affected users: ${r.users.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`,
       `- Most affected apps: ${r.apps.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`, ""];
@@ -4947,7 +4952,7 @@ max@contoso.com,"Global, DevOps"</pre>
     $("riHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
         <h3>🎚 Report-only impact <span class="tag new">BETA</span></h3>
-        <p style="margin-bottom:4px">The go-live forecast for the last ${riDays} day${riDays === 1 ? "" : "s"}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
+        <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read${riCapped ? `, <span style="color:var(--off)">truncated at ${SI_MAX.toLocaleString()}</span>` : ""}.</p>
       </div>
       <div style="text-align:right">

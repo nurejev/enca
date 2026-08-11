@@ -159,8 +159,11 @@ const ReportImpact = (() => {
 
   // ---- Markdown: the go-live evidence, per policy then per user ---------
   function toMd(res, days) {
+    const range = days >= 1
+      ? `${days} day${days === 1 ? "" : "s"}`
+      : `${Math.round(days * 24)} hour${Math.round(days * 24) === 1 ? "" : "s"}`;
     const L = ["# Report-only impact — go-live forecast", "",
-      `Window: last ${days} day${days === 1 ? "" : "s"} · ${res.records.toLocaleString()} sign-ins read · generated ${new Date().toISOString().slice(0, 10)}`, "",
+      `Window: last ${range} · ${res.records.toLocaleString()} sign-ins read · generated ${new Date().toISOString().slice(0, 10)}`, "",
       `**${res.counts.block}** would block users · **${res.counts.prompt}** add prompts only · **${res.counts.clean}** change nothing · **${res.counts.scoped + res.counts.nodata}** without evidence`, "",
       "Verdicts come from the sign-in log's report-only results: `reportOnlyFailure` = the sign-in would have been denied, `reportOnlyInterrupted` = the user would have been stopped for an extra step, `reportOnlySuccess` = already satisfied.", ""];
     L.push("## Per policy", "");
