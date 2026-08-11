@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=23003"></script>
+<script src="js/popup-guard.js?v=23004"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=23003">
+<link rel="stylesheet" href="css/app.css?v=23004">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=23003"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=23003"></script>
+<script src="js/counter.js?v=23004"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=23004"></script>
 </head>
 <body>
 
@@ -124,7 +124,7 @@
         <p>Two or more users side by side: which policies include, exclude or ignore each of them, the group and role memberships behind the differences, and optionally one What-If sign-in run for every user.</p>
       </div>
       <div class="tool" id="toolGroupUse">
-        <div class="tool-ic">🔗</div><h3>Group Analyzer <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">🔗</div><h3>Group Analyzer</h3>
         <p>Where is a group actually used? One group or user checked against Conditional Access, Entra roles, apps and licensing, Intune, Microsoft 365 and Azure RBAC — or sweep every group and find the ones nothing references. <span class="tag grant">extra permissions</span></p>
       </div>
       <div class="tool" id="toolExclusions">
@@ -178,7 +178,7 @@
         <p>View, create, edit and delete Conditional Access named locations — IP ranges and countries — and see which policies use each one. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolAuthCtx">
-        <div class="tool-ic">🎫</div><h3>Authentication contexts <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">🎫</div><h3>Authentication contexts</h3>
         <p>The step-up requirements apps and Protected Actions can ask for (c1–c99): create, rename, publish or unpublish each context and see which Conditional Access policies enforce it. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolAuthStr">
@@ -190,7 +190,7 @@
         <p>The terms-of-use agreements Conditional Access can require: every agreement with its behaviour settings, PDFs and the policies that require it — create with a PDF upload, edit behaviour, check acceptances, delete when unreferenced. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolRecycle">
-        <div class="tool-ic">♻</div><h3>Recycle bin <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">♻</div><h3>Recycle bin</h3>
         <p>Recently deleted Conditional Access policies and named locations — everything still inside the 30-day restore window, with what it did, when it went, and one-click restore. A policy that was On comes back enforcing. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolState">
@@ -1071,7 +1071,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>🔗 Group Analyzer <span class="tag new">BETA</span></h4>
+      <h4>🔗 Group Analyzer</h4>
       <p>An Entra group is a shared handle. One admin scopes a Conditional Access policy to it, another targets an Intune compliance policy at it, a third grants it Contributor on a subscription — and nobody sees the whole picture, so adding a member has consequences that are invisible at the moment of the change. This tool reads that picture back out of the tenant. After Jasper Baes' <i>Microsoft Cloud Group Analyzer</i>, re-implemented here against delegated permissions.</p>
       <ul>
         <li><b>One group or user</b> — paste a group name, a UPN or an object ID. For a user, every group they are a member of is taken along, so you see what the person is actually subject to.</li>
@@ -1620,7 +1620,9 @@
     <label class="wi-f" style="margin-bottom:10px"><span>Description</span>
       <textarea id="asDesc" rows="2" spellcheck="false"></textarea></label>
     <div class="wi-f"><span>Allowed combinations — a sign-in satisfies the strength with ANY selected combination</span>
-      <div id="asCombos" style="max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-top:4px"></div></div>
+      <div id="asCombos" style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-top:4px"></div></div>
+    <div class="wi-f" style="margin-top:10px"><span>Advanced options — restrict specific methods (as in the portal's "Advanced options")</span>
+      <div id="asAdv" style="border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-top:4px"></div></div>
     <div id="asEditWarn" style="margin-top:12px"></div>
     <div class="row">
       <button class="btn" id="asEditCancel">Cancel</button>
@@ -1823,42 +1825,42 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=23003"></script>
-<script src="js/version.js?v=23003"></script>
-<script src="js/authConfig.js?v=23003"></script>
-<script src="js/labels.js?v=23003"></script>
-<script src="js/graph.js?v=23003"></script>
-<script src="js/model.js?v=23003"></script>
-<script src="js/render.js?v=23003"></script>
-<script src="js/analyze.js?v=23003"></script>
-<script src="js/whatif.js?v=23003"></script>
-<script src="js/mslearn.js?v=23003"></script>
-<script src="js/gapcheck.js?v=23003"></script>
-<script src="js/cisdata.js?v=23003"></script>
-<script src="js/cischeck.js?v=23003"></script>
-<script src="js/exclusions.js?v=23003"></script>
-<script src="js/validator.js?v=23003"></script>
-<script src="js/whatifeval.js?v=23003"></script>
-<script src="js/compare.js?v=23003"></script>
-<script src="js/groupuse.js?v=23003"></script>
-<script src="js/locations.js?v=23003"></script>
-<script src="js/authcontexts.js?v=23003"></script>
-<script src="js/authstrengths.js?v=23003"></script>
-<script src="js/recycle.js?v=23003"></script>
-<script src="js/termsofuse.js?v=23003"></script>
-<script src="js/audit.js?v=23003"></script>
-<script src="js/signins.js?v=23003"></script>
-<script src="js/reportimpact.js?v=23003"></script>
-<script src="js/changelog.js?v=23003"></script>
-<script src="js/baselineData.js?v=23003"></script>
-<script src="js/baselineJoeyData.js?v=23003"></script>
-<script src="js/baseline.js?v=23003"></script>
-<script src="js/groupTemplates.js?v=23003"></script>
-<script src="js/assign.js?v=23003"></script>
-<script src="js/cagroups.js?v=23003"></script>
-<script src="js/import.js?v=23003"></script>
-<script src="js/export.js?v=23003"></script>
-<script src="js/demo.js?v=23003"></script>
-<script src="js/app.js?v=23003"></script>
+<script src="js/branding.js?v=23004"></script>
+<script src="js/version.js?v=23004"></script>
+<script src="js/authConfig.js?v=23004"></script>
+<script src="js/labels.js?v=23004"></script>
+<script src="js/graph.js?v=23004"></script>
+<script src="js/model.js?v=23004"></script>
+<script src="js/render.js?v=23004"></script>
+<script src="js/analyze.js?v=23004"></script>
+<script src="js/whatif.js?v=23004"></script>
+<script src="js/mslearn.js?v=23004"></script>
+<script src="js/gapcheck.js?v=23004"></script>
+<script src="js/cisdata.js?v=23004"></script>
+<script src="js/cischeck.js?v=23004"></script>
+<script src="js/exclusions.js?v=23004"></script>
+<script src="js/validator.js?v=23004"></script>
+<script src="js/whatifeval.js?v=23004"></script>
+<script src="js/compare.js?v=23004"></script>
+<script src="js/groupuse.js?v=23004"></script>
+<script src="js/locations.js?v=23004"></script>
+<script src="js/authcontexts.js?v=23004"></script>
+<script src="js/authstrengths.js?v=23004"></script>
+<script src="js/recycle.js?v=23004"></script>
+<script src="js/termsofuse.js?v=23004"></script>
+<script src="js/audit.js?v=23004"></script>
+<script src="js/signins.js?v=23004"></script>
+<script src="js/reportimpact.js?v=23004"></script>
+<script src="js/changelog.js?v=23004"></script>
+<script src="js/baselineData.js?v=23004"></script>
+<script src="js/baselineJoeyData.js?v=23004"></script>
+<script src="js/baseline.js?v=23004"></script>
+<script src="js/groupTemplates.js?v=23004"></script>
+<script src="js/assign.js?v=23004"></script>
+<script src="js/cagroups.js?v=23004"></script>
+<script src="js/import.js?v=23004"></script>
+<script src="js/export.js?v=23004"></script>
+<script src="js/demo.js?v=23004"></script>
+<script src="js/app.js?v=23004"></script>
 </body>
 </html>
