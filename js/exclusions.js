@@ -145,7 +145,7 @@ const Exclusions = (() => {
     const groups = byKind("group");
     for (let i = 0; i < groups.length; i++) {
       const g = groups[i];
-      onStatus?.(`Expanding group ${i + 1}/${groups.length}…`);
+      onStatus?.(`Expanding group ${i + 1}/${groups.length}…`, i + 1, groups.length);
       try {
         const members = await Graph.ggetAll(`/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id,displayName,userPrincipalName,accountEnabled&$top=999`);
         g.memberTotal = members.length;
