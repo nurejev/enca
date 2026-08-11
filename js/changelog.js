@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 242, date: "2026-08-11", title: "Consent, and the way back out",
+    items: [
+      { kind: "new", tool: "All tools", text: "The Permissions panel gains a 🔒 How to revoke button: an expandable guide to taking consent away again — self-service via myaccount.microsoft.com, the Enterprise-applications route for admins, and the surgical Graph PowerShell (with this deployment's real client ID, copy button included) that strips the write scopes while keeping the read base. With the consequences stated honestly: nothing breaks (tools simply re-prompt on the click, the same model that granted them), it is not instant (issued tokens live ~1 hour — pair with Revoke-MgUserSignInSession), an AllPrincipals grant re-prompts every user while a Principal grant hits one account, and the deletion lands in the audit log. Doing this from inside the app would need DelegatedPermissionGrant.ReadWrite.All — a bigger permission than the ones being cleaned up — which is exactly why it is a documented procedure here and a careful roadmap item, not a button that writes." },
+    ],
+  },
+  {
+    build: 23013, date: "2026-08-11", title: "Beta exclusives say so",
     build: 241, date: "2026-08-11", title: "Beta exclusives, visible from production",
     items: [
       { kind: "improved", tool: "All tools", text: "A 🧪 'On the beta site' card next to the Roadmap names the tools that run only on the beta channel today (📐 CIS Benchmark alignment) and opens the beta site in a new tab — and over there, beta-exclusive tiles wear an 'only here' chip. On either channel it is now visible which tools are beta-only and where to find them." },
