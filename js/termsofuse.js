@@ -106,6 +106,21 @@ const TermsOfUse = (() => {
     return { ok: true, errors, payload: base };
   }
 
+  // The create API accepts ONLY displayName, isViewingBeforeAcceptanceRequired
+  // and files — per-device and re-accept frequency are update-only properties
+  // and get a follow-up PATCH after the 201.
+  function splitCreate(payload) {
+    const createBody = {
+      displayName: payload.displayName,
+      isViewingBeforeAcceptanceRequired: payload.isViewingBeforeAcceptanceRequired,
+      files: payload.files,
+    };
+    const extras = {};
+    if (payload.isPerDeviceAcceptanceRequired) extras.isPerDeviceAcceptanceRequired = true;
+    if (payload.userReacceptRequiredFrequency) extras.userReacceptRequiredFrequency = payload.userReacceptRequiredFrequency;
+    return { createBody, extras: Object.keys(extras).length ? extras : null };
+  }
+
   function diff(orig, payload) {
     if (!orig) return ["created"];
     const out = [];
@@ -135,5 +150,5 @@ const TermsOfUse = (() => {
     return L.join("\n");
   }
 
-  return { usedBy, summarize, deletable, freqLabel, FREQ_OPTIONS, expirationLabel, settingTags, fileList, buildPayload, diff, toMd };
+  return { usedBy, summarize, deletable, freqLabel, FREQ_OPTIONS, expirationLabel, settingTags, fileList, buildPayload, splitCreate, diff, toMd };
 })();

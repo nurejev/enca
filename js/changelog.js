@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 228, date: "2026-08-11", title: "Terms of use: the PDFs arrive",
+    items: [
+      { kind: "fixed", tool: "Terms of use", text: "PDFs and languages were invisible and uploads failed — three bugs, one release after shipping. The Graph LIST endpoint never returns the agreement files' content, so every agreement is now fetched individually with $expand=files: languages and the ⭳ PDF download appear on the cards, and the edit dialog lists the current PDFs per language (with the default marker and a view/download button). Creating an agreement failed because the POST included update-only properties — it now sends exactly what the create API accepts (name, view-before-accepting, the PDF) and applies per-device acceptance and the re-accept schedule in a follow-up PATCH. And Save awaits the file reader, so saving immediately after picking a PDF can no longer race the upload." },
+    ],
+  },
+  {
     build: 227, date: "2026-08-10", title: "Two new tools: contexts and strengths",
     items: [
       { kind: "new", tool: "Authentication contexts", text: "A new manage tool (BETA): the Conditional Access authentication contexts — the step-up requirements apps, Protected Actions and sensitivity labels can ask for (c1-c99). Every defined context is a card with its publish state and the policies that enforce it (a published context no policy enforces is called out: callers requesting it get no step-up). Create in a free slot, rename, publish or unpublish with one click, and delete exactly where Graph allows it — unpublished and unreferenced only, behind a typed confirmation. The id is treated as what it is: the contract apps request and the ACRS claim carries, never changeable." },

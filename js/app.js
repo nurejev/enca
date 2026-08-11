@@ -5588,7 +5588,7 @@ max@contoso.com,"Global, DevOps"</pre>
   let tuPdfB64 = null, tuPdfName = null;
   const TU_DEMO = [
     { id: "tou-demo-1", displayName: "Employee acceptable use 2026", isViewingBeforeAcceptanceRequired: true, isPerDeviceAcceptanceRequired: false,
-      userReacceptRequiredFrequency: "P365D", files: [{ fileName: "AUP-2026.pdf", language: "en", isDefault: true }, { fileName: "AUP-2026-nl.pdf", language: "nl" }] },
+      userReacceptRequiredFrequency: "P365D", files: [{ fileName: "AUP-2026.pdf", language: "en", isDefault: true, fileData: { data: "JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iagozIDAgb2JqPDwvVHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgNjEyIDc5Ml0vQ29udGVudHMgNCAwIFIvUmVzb3VyY2VzPDwvRm9udDw8L0YxIDUgMCBSPj4+Pj4+ZW5kb2JqCjQgMCBvYmo8PC9MZW5ndGggNjA+PnN0cmVhbQpCVCAvRjEgMTggVGYgNzIgNzIwIFRkIChFTkNBIGRlbW8gdGVybXMgb2YgdXNlKSBUaiBFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmo8PC9UeXBlL0ZvbnQvU3VidHlwZS9UeXBlMS9CYXNlRm9udC9IZWx2ZXRpY2E+PmVuZG9iagp0cmFpbGVyPDwvUm9vdCAxIDAgUj4+" } }, { fileName: "AUP-2026-nl.pdf", language: "nl" }] },
     { id: "tou-demo-2", displayName: "Guest collaboration terms", isViewingBeforeAcceptanceRequired: true, isPerDeviceAcceptanceRequired: true,
       userReacceptRequiredFrequency: null, files: [{ fileName: "GuestTerms.pdf", language: "en", isDefault: true }] },
   ];
@@ -5603,7 +5603,13 @@ max@contoso.com,"Global, DevOps"</pre>
       if (isDemo) tuList = TU_DEMO;
       else {
         if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_READ])) { $("tuHead").innerHTML = '<h3>📜 Terms of use</h3><p class="mini">Reading agreements needs Agreement.Read.All.</p>'; return; }
-        tuList = await Graph.ggetAll("/identityGovernance/termsOfUse/agreements?$expand=files");
+        // The LIST endpoint does not return the file localizations' fileData
+        // (and on some tenants not the files at all) — only a per-agreement
+        // GET with $expand=files carries the PDFs. Tenants hold a handful of
+        // agreements, so fetch each one fully.
+        const ids = await Graph.ggetAll("/identityGovernance/termsOfUse/agreements");
+        tuList = await Promise.all(ids.map((a) =>
+          Graph.gget(`/identityGovernance/termsOfUse/agreements/${a.id}?$expand=files`, [...AUTH_CONFIG.scopes, ...TU_READ]).catch(() => a)));
       }
       renderTou();
     } catch (e) {
@@ -5721,8 +5727,17 @@ max@contoso.com,"Global, DevOps"</pre>
       ? "Behaviour settings and the name — replacing the PDF is not in this tool yet."
       : "Creates the agreement with one PDF; more languages can be added in the portal later.";
     $("tuPdfWrap").style.display = a ? "none" : "";
+    // When editing, the current PDFs are shown read-only — language, default
+    // marker and a download per file — so the document is viewable from here.
+    const files = a ? TermsOfUse.fileList(a) : [];
+    $("tuFilesList").style.display = a && files.length ? "" : "none";
+    $("tuFilesList").innerHTML = a && files.length
+      ? `<div class="mini" style="font-weight:700;margin-bottom:2px">Current PDFs</div>` + files.map((f, i) =>
+          `<div class="mini" style="margin:2px 0">🌐 <b>${esc(f.language || "?")}</b>${f.isDefault ? ' <span class="tag ok">default</span>' : ""} — ${esc(f.fileName || "file")}
+           ${f.fileData?.data ? `<button class="btn sm" data-tupdf="${esc(a.id)}:${i}" style="font-size:11px;padding:1px 8px">⭳ View PDF</button>` : ' <span class="muted">(content not returned by Graph)</span>'}</div>`).join("")
+      : "";
     $("tuName").value = a ? (a.displayName || "") : "";
-    $("tuPdf").value = ""; $("tuLang").value = "en";
+    $("tuPdf").value = ""; $("tuLang").value = "en"; tuPdfB64 = null; tuPdfName = null; tuPdfReady = null;
     $("tuView").checked = a ? !!a.isViewingBeforeAcceptanceRequired : true;
     $("tuDevice").checked = a ? !!a.isPerDeviceAcceptanceRequired : false;
     $("tuReaccept").innerHTML = TermsOfUse.FREQ_OPTIONS.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
@@ -5730,18 +5745,28 @@ max@contoso.com,"Global, DevOps"</pre>
     $("tuEditWarn").innerHTML = "";
     $("tuEditModal").classList.add("open");
   }
+  // The file is read asynchronously — Save awaits tuPdfReady so a quick
+  // Save right after picking the file cannot race the reader.
+  let tuPdfReady = null;
   $("tuPdf").addEventListener("change", (e) => {
     const f = e.target.files[0];
-    tuPdfB64 = null; tuPdfName = null;
+    tuPdfB64 = null; tuPdfName = null; tuPdfReady = null;
     if (!f) return;
     tuPdfName = f.name;
-    const r = new FileReader();
-    r.onload = () => { tuPdfB64 = String(r.result).split(",")[1] || null; };
-    r.readAsDataURL(f);
+    tuPdfReady = new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => { tuPdfB64 = String(r.result).split(",")[1] || null; resolve(); };
+      r.onerror = () => resolve();
+      r.readAsDataURL(f);
+    });
   });
   $("tuNew").addEventListener("click", () => openTuEditor(null));
   $("tuEditCancel").addEventListener("click", () => $("tuEditModal").classList.remove("open"));
+  $("tuFilesList").addEventListener("click", (e) => {
+    const pf = e.target.closest("[data-tupdf]"); if (pf) tuDownloadPdf(pf.dataset.tupdf);
+  });
   $("tuEditSave").addEventListener("click", async () => {
+    if (tuPdfReady) await tuPdfReady;   // finish reading a just-picked PDF
     const built = TermsOfUse.buildPayload({
       name: $("tuName").value, viewRequired: $("tuView").checked, perDevice: $("tuDevice").checked,
       reaccept: $("tuReaccept").value || null, pdfBase64: tuPdfB64, pdfName: tuPdfName, language: $("tuLang").value,
@@ -5756,7 +5781,15 @@ max@contoso.com,"Global, DevOps"</pre>
         await Graph.gpatch(`/identityGovernance/termsOfUse/agreements/${tuEditing.id}`, built.payload, [...AUTH_CONFIG.scopes, ...TU_WRITE]);
         toast(`<span>${esc(built.payload.displayName)}</span> updated`);
       } else {
-        await Graph.gpost("/identityGovernance/termsOfUse/agreements", built.payload, [...AUTH_CONFIG.scopes, ...TU_WRITE]);
+        // The create API accepts only displayName + isViewingBeforeAcceptanceRequired
+        // + files — the behaviour extras (per-device, re-accept) go in a
+        // follow-up PATCH, or the POST is rejected outright.
+        const { createBody, extras } = TermsOfUse.splitCreate(built.payload);
+        const made = await Graph.gpost("/identityGovernance/termsOfUse/agreements", createBody, [...AUTH_CONFIG.scopes, ...TU_WRITE]);
+        if (extras) {
+          try { await Graph.gpatch(`/identityGovernance/termsOfUse/agreements/${made.id}`, extras, [...AUTH_CONFIG.scopes, ...TU_WRITE]); }
+          catch (e2) { console.warn("Behaviour settings after create failed:", e2.message); toast(`Created, but the behaviour settings failed: <span>${esc(e2.message || e2)}</span> — edit the agreement to retry`); }
+        }
         toast(`<span>${esc(built.payload.displayName)}</span> created`);
       }
       $("tuEditModal").classList.remove("open");

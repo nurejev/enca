@@ -10,10 +10,10 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=227"></script>
+<script src="js/popup-guard.js?v=228"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=227">
+<link rel="stylesheet" href="css/app.css?v=228">
 </head>
 <body>
 
@@ -1577,6 +1577,7 @@
       <label class="wi-f" style="margin-bottom:10px"><span>Language of this PDF (BCP-47, e.g. en, nl, en-US)</span>
         <input id="tuLang" value="en" maxlength="12" autocomplete="off" spellcheck="false"></label>
     </div>
+    <div id="tuFilesList" style="display:none;margin:0 0 10px"></div>
     <label class="chk" style="display:block;margin:4px 0"><input type="checkbox" id="tuView"> Require users to expand and view the terms before accepting</label>
     <label class="chk" style="display:block;margin:4px 0"><input type="checkbox" id="tuDevice"> Require acceptance on every device <span class="mini muted">— devices must be registered in Entra</span></label>
     <label class="wi-f" style="margin-top:8px"><span>Require re-acceptance</span>
@@ -1757,39 +1758,39 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=227"></script>
-<script src="js/version.js?v=227"></script>
-<script src="js/authConfig.js?v=227"></script>
-<script src="js/labels.js?v=227"></script>
-<script src="js/graph.js?v=227"></script>
-<script src="js/model.js?v=227"></script>
-<script src="js/render.js?v=227"></script>
-<script src="js/analyze.js?v=227"></script>
-<script src="js/whatif.js?v=227"></script>
-<script src="js/mslearn.js?v=227"></script>
-<script src="js/gapcheck.js?v=227"></script>
-<script src="js/exclusions.js?v=227"></script>
-<script src="js/validator.js?v=227"></script>
-<script src="js/whatifeval.js?v=227"></script>
-<script src="js/compare.js?v=227"></script>
-<script src="js/groupuse.js?v=227"></script>
-<script src="js/locations.js?v=227"></script>
-<script src="js/authcontexts.js?v=227"></script>
-<script src="js/authstrengths.js?v=227"></script>
-<script src="js/recycle.js?v=227"></script>
-<script src="js/termsofuse.js?v=227"></script>
-<script src="js/audit.js?v=227"></script>
-<script src="js/signins.js?v=227"></script>
-<script src="js/changelog.js?v=227"></script>
-<script src="js/baselineData.js?v=227"></script>
-<script src="js/baselineJoeyData.js?v=227"></script>
-<script src="js/baseline.js?v=227"></script>
-<script src="js/groupTemplates.js?v=227"></script>
-<script src="js/assign.js?v=227"></script>
-<script src="js/cagroups.js?v=227"></script>
-<script src="js/import.js?v=227"></script>
-<script src="js/export.js?v=227"></script>
-<script src="js/demo.js?v=227"></script>
-<script src="js/app.js?v=227"></script>
+<script src="js/branding.js?v=228"></script>
+<script src="js/version.js?v=228"></script>
+<script src="js/authConfig.js?v=228"></script>
+<script src="js/labels.js?v=228"></script>
+<script src="js/graph.js?v=228"></script>
+<script src="js/model.js?v=228"></script>
+<script src="js/render.js?v=228"></script>
+<script src="js/analyze.js?v=228"></script>
+<script src="js/whatif.js?v=228"></script>
+<script src="js/mslearn.js?v=228"></script>
+<script src="js/gapcheck.js?v=228"></script>
+<script src="js/exclusions.js?v=228"></script>
+<script src="js/validator.js?v=228"></script>
+<script src="js/whatifeval.js?v=228"></script>
+<script src="js/compare.js?v=228"></script>
+<script src="js/groupuse.js?v=228"></script>
+<script src="js/locations.js?v=228"></script>
+<script src="js/authcontexts.js?v=228"></script>
+<script src="js/authstrengths.js?v=228"></script>
+<script src="js/recycle.js?v=228"></script>
+<script src="js/termsofuse.js?v=228"></script>
+<script src="js/audit.js?v=228"></script>
+<script src="js/signins.js?v=228"></script>
+<script src="js/changelog.js?v=228"></script>
+<script src="js/baselineData.js?v=228"></script>
+<script src="js/baselineJoeyData.js?v=228"></script>
+<script src="js/baseline.js?v=228"></script>
+<script src="js/groupTemplates.js?v=228"></script>
+<script src="js/assign.js?v=228"></script>
+<script src="js/cagroups.js?v=228"></script>
+<script src="js/import.js?v=228"></script>
+<script src="js/export.js?v=228"></script>
+<script src="js/demo.js?v=228"></script>
+<script src="js/app.js?v=228"></script>
 </body>
 </html>
