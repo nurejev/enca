@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=23011"></script>
+<script src="js/popup-guard.js?v=23012"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=23011">
+<link rel="stylesheet" href="css/app.css?v=23012">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=23011"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=23011"></script>
+<script src="js/counter.js?v=23012"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=23012"></script>
 </head>
 <body>
 
@@ -993,26 +993,48 @@
     </div>
   </section>
 
-  <!-- ============ ROADMAP — where ENCA is heading ============ -->
+  <!-- ============ ROADMAP — where ENCA is heading, as a timeline ============ -->
   <section id="screen-roadmap" class="screen">
     <div class="help-page">
       <h2 class="home-title" style="margin:0 0 8px">🗺 Roadmap</h2>
-      <p class="mini muted" style="margin:0 0 16px">The ideas being worked toward, in the open. Order and scope may change — real-tenant feedback decides what lands first. Suggestions are welcome as GitHub issues.</p>
-      <div class="list-card" style="margin-bottom:12px">
-        <h3 style="margin:0 0 6px">🔐 Improve security <span class="tag">planned</span></h3>
-        <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the <a href="#" id="rmSecLink">security documentation</a> turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
-      </div>
-      <div class="list-card" style="margin-bottom:12px">
-        <h3 style="margin:0 0 6px">✏️ Editable Conditional Access policies <span class="tag">planned</span></h3>
-        <p class="mini" style="margin:0">Edit an existing policy from its card — not just state and group assignments but the conditions, grant and session controls themselves, with a field-level diff of exactly what will change and validation before the PATCH. The Change audit tool then shows the same diff after the fact, so intent and record match.</p>
-      </div>
-      <div class="list-card" style="margin-bottom:12px">
-        <h3 style="margin:0 0 6px">🏗 Policy builder <span class="tag">planned</span></h3>
-        <p class="mini" style="margin:0">Build a new policy from scratch, guided: pick the persona, the resources, the conditions and the controls with best-practice hints along the way, preflight the result in What-If, and create it in report-only by default — so every new policy is born with the evidence trail the Report-only impact tool needs before go-live.</p>
-      </div>
-      <div class="list-card" style="margin-bottom:12px">
-        <h3 style="margin:0 0 6px">🔓 Revoke permissions when done <span class="tag">planned</span></h3>
-        <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses.</p>
+      <p class="mini muted" style="margin:0 0 18px">Where ENCA is heading, laid out in time. Order and scope may change — real-tenant feedback decides what lands first. Suggestions are welcome as GitHub issues.</p>
+      <div class="rm-tl">
+        <div class="rm-era now">
+          <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+          <div class="list-card rm-card">
+            <p class="mini" style="margin:0">🎚 Report-only impact (the go-live forecast) · 💪 Authentication strength advanced options (AAGUIDs, certificate restrictions) · 🔒 the <a href="#" id="rmSecLink">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in 📋 What's new.</p>
+          </div>
+        </div>
+        <div class="rm-era future">
+          <h3>Next <span class="rm-when">being worked toward</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">📐 CIS Benchmark alignment <span class="tag ok">in beta today</span></h4>
+            <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🔐 Improve security <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🔓 Revoke permissions when done <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses.</p>
+          </div>
+        </div>
+        <div class="rm-era future far">
+          <h3>Later <span class="rm-when">after the above</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">✏️ Editable Conditional Access policies <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Edit an existing policy from its card — not just state and group assignments but the conditions, grant and session controls themselves, with a field-level diff of exactly what will change and validation before the PATCH. The Change audit tool then shows the same diff after the fact, so intent and record match.</p>
+          </div>
+        </div>
+        <div class="rm-era future far">
+          <h3>On the horizon <span class="rm-when">builds on policy editing</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🏗 Policy builder <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Build a new policy from scratch, guided: pick the persona, the resources, the conditions and the controls with best-practice hints along the way, preflight the result in What-If, and create it in report-only by default — so every new policy is born with the evidence trail the Report-only impact tool needs before go-live.</p>
+          </div>
+        </div>
+        <div class="rm-more">→ and further, steered by what you ask for</div>
       </div>
     </div>
   </section>
@@ -1856,42 +1878,42 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=23011"></script>
-<script src="js/version.js?v=23011"></script>
-<script src="js/authConfig.js?v=23011"></script>
-<script src="js/labels.js?v=23011"></script>
-<script src="js/graph.js?v=23011"></script>
-<script src="js/model.js?v=23011"></script>
-<script src="js/render.js?v=23011"></script>
-<script src="js/analyze.js?v=23011"></script>
-<script src="js/whatif.js?v=23011"></script>
-<script src="js/mslearn.js?v=23011"></script>
-<script src="js/gapcheck.js?v=23011"></script>
-<script src="js/cisdata.js?v=23011"></script>
-<script src="js/cischeck.js?v=23011"></script>
-<script src="js/exclusions.js?v=23011"></script>
-<script src="js/validator.js?v=23011"></script>
-<script src="js/whatifeval.js?v=23011"></script>
-<script src="js/compare.js?v=23011"></script>
-<script src="js/groupuse.js?v=23011"></script>
-<script src="js/locations.js?v=23011"></script>
-<script src="js/authcontexts.js?v=23011"></script>
-<script src="js/authstrengths.js?v=23011"></script>
-<script src="js/recycle.js?v=23011"></script>
-<script src="js/termsofuse.js?v=23011"></script>
-<script src="js/audit.js?v=23011"></script>
-<script src="js/signins.js?v=23011"></script>
-<script src="js/reportimpact.js?v=23011"></script>
-<script src="js/changelog.js?v=23011"></script>
-<script src="js/baselineData.js?v=23011"></script>
-<script src="js/baselineJoeyData.js?v=23011"></script>
-<script src="js/baseline.js?v=23011"></script>
-<script src="js/groupTemplates.js?v=23011"></script>
-<script src="js/assign.js?v=23011"></script>
-<script src="js/cagroups.js?v=23011"></script>
-<script src="js/import.js?v=23011"></script>
-<script src="js/export.js?v=23011"></script>
-<script src="js/demo.js?v=23011"></script>
-<script src="js/app.js?v=23011"></script>
+<script src="js/branding.js?v=23012"></script>
+<script src="js/version.js?v=23012"></script>
+<script src="js/authConfig.js?v=23012"></script>
+<script src="js/labels.js?v=23012"></script>
+<script src="js/graph.js?v=23012"></script>
+<script src="js/model.js?v=23012"></script>
+<script src="js/render.js?v=23012"></script>
+<script src="js/analyze.js?v=23012"></script>
+<script src="js/whatif.js?v=23012"></script>
+<script src="js/mslearn.js?v=23012"></script>
+<script src="js/gapcheck.js?v=23012"></script>
+<script src="js/cisdata.js?v=23012"></script>
+<script src="js/cischeck.js?v=23012"></script>
+<script src="js/exclusions.js?v=23012"></script>
+<script src="js/validator.js?v=23012"></script>
+<script src="js/whatifeval.js?v=23012"></script>
+<script src="js/compare.js?v=23012"></script>
+<script src="js/groupuse.js?v=23012"></script>
+<script src="js/locations.js?v=23012"></script>
+<script src="js/authcontexts.js?v=23012"></script>
+<script src="js/authstrengths.js?v=23012"></script>
+<script src="js/recycle.js?v=23012"></script>
+<script src="js/termsofuse.js?v=23012"></script>
+<script src="js/audit.js?v=23012"></script>
+<script src="js/signins.js?v=23012"></script>
+<script src="js/reportimpact.js?v=23012"></script>
+<script src="js/changelog.js?v=23012"></script>
+<script src="js/baselineData.js?v=23012"></script>
+<script src="js/baselineJoeyData.js?v=23012"></script>
+<script src="js/baseline.js?v=23012"></script>
+<script src="js/groupTemplates.js?v=23012"></script>
+<script src="js/assign.js?v=23012"></script>
+<script src="js/cagroups.js?v=23012"></script>
+<script src="js/import.js?v=23012"></script>
+<script src="js/export.js?v=23012"></script>
+<script src="js/demo.js?v=23012"></script>
+<script src="js/app.js?v=23012"></script>
 </body>
 </html>

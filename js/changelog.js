@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 23012, date: "2026-08-11", title: "The roadmap becomes a timeline",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The roadmap now reads as a timeline running from Now into the future: what shipped recently anchors the top, then Next (📐 CIS Benchmark alignment — in beta today, graduating once proven against enough real tenants — 🔐 improving security, 🔓 revoking permissions when done), Later (✏️ editable policies) and On the horizon (🏗 the policy builder, which builds on editing). The line literally fades toward the future, because that part is steered by what users ask for." },
+    ],
+  },
+  {
     build: 23011, date: "2026-08-11", title: "The roadmap, in the open",
     items: [
       { kind: "new", tool: "All tools", text: "A 🗺 Roadmap card sits next to What's new and Help: where ENCA is heading, stated in the open — 🔐 implementing the security documentation's own hardening advice as defaults, ✏️ editing a policy's conditions and controls from its card with a field-level diff before the PATCH, 🏗 a guided policy builder that preflights in What-If and creates in report-only by default, and 🔓 one click to drop the consented write scopes when the work is done, so sessions end least-privileged. Order and scope follow real-tenant feedback." },
