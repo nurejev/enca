@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 250, date: "2026-08-11", onlyBrand: "pvm", title: "The house look follows the account",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Signing in with an @perfettivanmelle.onmicrosoft.com account now applies the Perfetti Van Melle look automatically, exactly as @pvmict.com already did — no need for the branded front door. (This entry is visible only on branded sessions.)" },
+    ],
+  },
+  {
+    build: 25001, date: "2026-08-11", title: "Baseline tenants say so",
     build: 249, date: "2026-08-11", title: "Baseline tenants say so; the beta pointer leaves production",
     items: [
       { kind: "improved", tool: "All tools", text: "Signing in from a baseline tenant now shows a 🧪 badge next to the tenant name: this session has more options than a regular tenant — the Gap and MS Learn checks review the persona baseline including policies deployed Off, and MS Learn's Apply-fixes can write here. The behaviour existed; now it announces itself." },
