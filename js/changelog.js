@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25003, date: "2026-08-12", onlyBrand: "pvm", title: "The house look follows the account",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Signing in with an @perfettivanmelle.onmicrosoft.com account now applies the Perfetti Van Melle look automatically, exactly as @pvmict.com already did — no need for the branded front door. (This entry is visible only on branded sessions.)" },
+    ],
+  },
+  {
     build: 25002, date: "2026-08-12", title: "Bring your own app registration — on the map",
     items: [
       { kind: "improved", tool: "All tools", text: "The roadmap's Next era gains 🏢 Your own single-tenant app registration. Today every tenant consents to one multi-tenant application owned by Limon-IT; the plan is to let a tenant register ENCA as a single-tenant SPA (AzureADMyOrg) of its own — own client ID, own consent record, own redirect URIs, own audit trail — so no application outside the directory holds a delegated grant. The sign-in platform is unchanged either way (SPA, authorization code + PKCE, no client secret); what moves is ownership of the registration. Security & risk has recommended this for high-assurance tenants all along — the work is making it a supported path (a -SingleTenant switch on the registration script, a client ID read from configuration, and a guide to the trade-off) instead of a manual fork-and-edit. The card links straight into the security document. Build 25002 (v1.0.250-beta.2)." },

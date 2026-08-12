@@ -86,7 +86,7 @@ const BRAND_OVERRIDES = [
   {
     key: "pvm",
     label: "Perfetti Van Melle",
-    match: /@pvmict\.com$/i,               // UPN domain(s) that get this look on sign-in
+    match: /@(pvmict\.com|perfettivanmelle\.onmicrosoft\.com)$/i, // UPN domain(s) that get this look on sign-in
     brand: {
       org: "Perfetti Van Melle",
       orgSplit: "",

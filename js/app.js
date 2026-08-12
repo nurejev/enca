@@ -490,7 +490,7 @@
   function openChangelog() {
     crumb("📋 What's new");
     show("screen-changelog");
-    $("clBody").innerHTML = (typeof CHANGELOG !== "undefined" ? CHANGELOG : []).map(clRelease).join("")
+    $("clBody").innerHTML = clVisible().map(clRelease).join("")
       || '<p class="mini">No changelog entries yet.</p>';
     clMarkSeen();
   }
@@ -499,6 +499,11 @@
   $("toolRoadmap").addEventListener("click", openRoadmap);
 
   // Called once the tenant has loaded, so it never covers the sign-in screen.
+  // A release can carry onlyBrand: "<key>" — it then exists only for sessions
+  // wearing that brand override (sign-in match or ?brand=). Everyone else's
+  // changelog and What's-new never mention it.
+  const clVisible = () => (typeof CHANGELOG === "undefined" ? [] : CHANGELOG)
+    .filter((r) => !r.onlyBrand || r.onlyBrand === activeOverrideKey());
   function maybeShowWhatsNew() {
     if (typeof CHANGELOG === "undefined" || !CHANGELOG.length) return;
     const seen = clSeen();
@@ -506,8 +511,10 @@
     // First visit (no key — which is also everyone's state right after the move
     // to enca.limon-it.nl, since localStorage is per-origin): show only the
     // newest release, not the entire history.
-    const fresh = seen ? CHANGELOG.filter((r) => r.build > seen) : [];
-    const rels = fresh.length ? fresh : [CHANGELOG[0]];
+    const vis = clVisible();
+    if (!vis.length) return;
+    const fresh = seen ? vis.filter((r) => r.build > seen) : [];
+    const rels = fresh.length ? fresh : [vis[0]];
     const n = rels.reduce((s, r) => s + r.items.length, 0);
     $("newSub").innerHTML = seen
       ? `${n} change${n === 1 ? "" : "s"} since you were last here (build ${seen} → ${CHANGELOG_LATEST}).`
