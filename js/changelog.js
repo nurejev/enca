@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 249, date: "2026-08-11", title: "Baseline tenants say so; the beta pointer leaves production",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Signing in from a baseline tenant now shows a 🧪 badge next to the tenant name: this session has more options than a regular tenant — the Gap and MS Learn checks review the persona baseline including policies deployed Off, and MS Learn's Apply-fixes can write here. The behaviour existed; now it announces itself." },
+      { kind: "improved", tool: "All tools", text: "The 🧪 On-the-beta-site card and the roadmap's outbound beta links are removed from production — beta-exclusive tools are still named on the roadmap (with their 'in beta today' chips), but production no longer links off-site." },
+    ],
+  },
+  {
     build: 248, date: "2026-08-11", title: "Restricted AUs joins the roadmap",
     items: [
       { kind: "improved", tool: "All tools", text: "The roadmap's Next era now names 🛡 Restricted AUs alongside the CIS Benchmark — in beta today, opening the beta site in a new tab, graduating here once proven against enough real tenants." },

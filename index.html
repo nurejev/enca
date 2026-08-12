@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=248"></script>
+<script src="js/popup-guard.js?v=249"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=248">
+<link rel="stylesheet" href="css/app.css?v=249">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=248"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=248"></script>
+<script src="js/counter.js?v=249"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=249"></script>
 </head>
 <body>
 
@@ -38,7 +38,8 @@
     <div class="spacer"></div>
     <button class="btn" id="themeBtn" title="Theme: Auto (follows your device)"><span class="tico">🌗</span></button>
     <div class="tenant" id="tenantBox">
-      <div><div id="tenantName" style="font-weight:600"></div><div class="mini" id="tenantUser"></div></div>
+      <div><div id="tenantName" style="font-weight:600"></div><div class="mini" id="tenantUser"></div>
+        <span class="tag ok" id="baselineBadge" style="display:none;cursor:help" title="Baseline tenant detected — this session has more options than a regular tenant: the Gap and MS Learn checks review the persona baseline policies including the ones deployed Off (non-persona policies are skipped), and MS Learn's Apply-fixes can write recommended policies here. On a regular tenant those checks are read-only and scoped to enabled policies.">🧪 baseline tenant — extended options</span></div>
       <div class="avatar" id="avatar"></div>
       <button class="btn" id="signOutBtn">Sign out</button>
     </div>
@@ -204,10 +205,6 @@
       <div class="tool tool-help" id="toolChangelog">
         <div class="tool-ic">📋</div><h3>What's new</h3>
         <p>Everything added or changed in ENCA, newest first — the full changelog behind the overlay you get after signing in.</p>
-      </div>
-      <div class="tool tool-help" id="toolBetaSite">
-        <div class="tool-ic">🧪</div><h3>On the beta site <span class="tag new">BETA</span></h3>
-        <p>Tools proving themselves before they land here — today: 📐 <b>CIS Benchmark alignment</b> (score the tenant against CIS M365 Foundations v7.0.0, section 5.2.2) and 🛡 <b>Restricted AUs</b> (manage the restricted management administrative units that shield CA exclusion groups — members, scoped role grants, create and delete). Runs at the beta site with a permanent beta ribbon — same sign-in, nothing installed.</p>
       </div>
       <div class="tool tool-help" id="toolRoadmap">
         <div class="tool-ic">🗺</div><h3>Roadmap</h3>
@@ -989,11 +986,11 @@
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><a href="https://nurejev.github.io/enca-beta/" target="_blank" rel="noopener noreferrer">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span></h4>
+            <h4 style="margin:0 0 4px">📐 CIS Benchmark alignment <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><a href="https://nurejev.github.io/enca-beta/" target="_blank" rel="noopener noreferrer">🛡 Restricted AUs</a> <span class="tag ok">in beta today</span></h4>
+            <h4 style="margin:0 0 4px">🛡 Restricted AUs <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Manage the restricted management administrative units that shield CA exclusion groups — members with CA-reference badges, scoped role grants, create and delete, with the immutable-flag truth stated up front. Running on the beta channel now; graduates once proven against enough real tenants.</p>
           </div>
           <div class="list-card rm-card">
@@ -1863,40 +1860,40 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=248"></script>
-<script src="js/version.js?v=248"></script>
-<script src="js/authConfig.js?v=248"></script>
-<script src="js/labels.js?v=248"></script>
-<script src="js/graph.js?v=248"></script>
-<script src="js/model.js?v=248"></script>
-<script src="js/render.js?v=248"></script>
-<script src="js/analyze.js?v=248"></script>
-<script src="js/whatif.js?v=248"></script>
-<script src="js/mslearn.js?v=248"></script>
-<script src="js/gapcheck.js?v=248"></script>
-<script src="js/exclusions.js?v=248"></script>
-<script src="js/validator.js?v=248"></script>
-<script src="js/whatifeval.js?v=248"></script>
-<script src="js/compare.js?v=248"></script>
-<script src="js/groupuse.js?v=248"></script>
-<script src="js/locations.js?v=248"></script>
-<script src="js/authcontexts.js?v=248"></script>
-<script src="js/authstrengths.js?v=248"></script>
-<script src="js/recycle.js?v=248"></script>
-<script src="js/termsofuse.js?v=248"></script>
-<script src="js/audit.js?v=248"></script>
-<script src="js/signins.js?v=248"></script>
-<script src="js/reportimpact.js?v=248"></script>
-<script src="js/changelog.js?v=248"></script>
-<script src="js/baselineData.js?v=248"></script>
-<script src="js/baselineJoeyData.js?v=248"></script>
-<script src="js/baseline.js?v=248"></script>
-<script src="js/groupTemplates.js?v=248"></script>
-<script src="js/assign.js?v=248"></script>
-<script src="js/cagroups.js?v=248"></script>
-<script src="js/import.js?v=248"></script>
-<script src="js/export.js?v=248"></script>
-<script src="js/demo.js?v=248"></script>
-<script src="js/app.js?v=248"></script>
+<script src="js/branding.js?v=249"></script>
+<script src="js/version.js?v=249"></script>
+<script src="js/authConfig.js?v=249"></script>
+<script src="js/labels.js?v=249"></script>
+<script src="js/graph.js?v=249"></script>
+<script src="js/model.js?v=249"></script>
+<script src="js/render.js?v=249"></script>
+<script src="js/analyze.js?v=249"></script>
+<script src="js/whatif.js?v=249"></script>
+<script src="js/mslearn.js?v=249"></script>
+<script src="js/gapcheck.js?v=249"></script>
+<script src="js/exclusions.js?v=249"></script>
+<script src="js/validator.js?v=249"></script>
+<script src="js/whatifeval.js?v=249"></script>
+<script src="js/compare.js?v=249"></script>
+<script src="js/groupuse.js?v=249"></script>
+<script src="js/locations.js?v=249"></script>
+<script src="js/authcontexts.js?v=249"></script>
+<script src="js/authstrengths.js?v=249"></script>
+<script src="js/recycle.js?v=249"></script>
+<script src="js/termsofuse.js?v=249"></script>
+<script src="js/audit.js?v=249"></script>
+<script src="js/signins.js?v=249"></script>
+<script src="js/reportimpact.js?v=249"></script>
+<script src="js/changelog.js?v=249"></script>
+<script src="js/baselineData.js?v=249"></script>
+<script src="js/baselineJoeyData.js?v=249"></script>
+<script src="js/baseline.js?v=249"></script>
+<script src="js/groupTemplates.js?v=249"></script>
+<script src="js/assign.js?v=249"></script>
+<script src="js/cagroups.js?v=249"></script>
+<script src="js/import.js?v=249"></script>
+<script src="js/export.js?v=249"></script>
+<script src="js/demo.js?v=249"></script>
+<script src="js/app.js?v=249"></script>
 </body>
 </html>

@@ -497,11 +497,7 @@
   $("toolChangelog").addEventListener("click", openChangelog);
   function openRoadmap() { crumb("🗺 Roadmap"); show("screen-roadmap"); }
   $("toolRoadmap").addEventListener("click", openRoadmap);
-  // Beta-exclusive tools: the tile is a pointer, not a screen — it opens the
-  // beta site in a new tab (kept out of TOOL_TABS for the same reason).
-  const BETA_SITE = "https://nurejev.github.io/enca-beta/";
-  const bs = $("toolBetaSite");
-  if (bs) bs.addEventListener("click", () => window.open(BETA_SITE, "_blank", "noopener"));
+
 
   // Called once the tenant has loaded, so it never covers the sign-in screen.
   function maybeShowWhatsNew() {
@@ -835,6 +831,9 @@
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
       $("tenantName").textContent = tenantName;
+      // Baseline tenants (see BASELINE_TENANTS) get extended behaviour — say so
+      // where the tenant identity lives, instead of it being a hidden mode.
+      $("baselineBadge").style.display = isBaselineTenant() ? "inline-block" : "none";
       $("tenantUser").textContent = account?.username || "";
       $("avatar").textContent = (account?.name || account?.username || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
       $("tenantBox").style.display = "flex";
