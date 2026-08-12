@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=252"></script>
+<script src="js/popup-guard.js?v=253"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=252">
+<link rel="stylesheet" href="css/app.css?v=253">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=252"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=252"></script>
+<script src="js/counter.js?v=253"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=253"></script>
 </head>
 <body>
 
@@ -190,6 +190,10 @@
       <div class="tool" id="toolRecycle">
         <div class="tool-ic">♻</div><h3>Recycle bin</h3>
         <p>Recently deleted Conditional Access policies and named locations — everything still inside the 30-day restore window, with what it did, when it went, and one-click restore. A policy that was On comes back enforcing. <span class="tag block">writes to tenant</span></p>
+      </div>
+      <div class="tool" id="toolRmau">
+        <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag new">BETA</span></h3>
+        <p>Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
       </div>
       <div class="tool" id="toolDrift">
         <div class="tool-ic">📉</div><h3>Drift watch <span class="tag new">BETA</span></h3>
@@ -975,6 +979,28 @@
     </div>
   </section>
 
+  <!-- ============ RESTRICTED AUs (BETA) ============ -->
+  <section id="screen-rmau" class="screen">
+    <div class="list-card readme" id="ruHead" style="margin-top:0"></div>
+    <div class="toolbar" id="ruToolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="ruSearch" placeholder="Search administrative units…" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="chip-filter" id="ruChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="ruRefresh" title="Re-read the administrative units">⟳ Refresh</button>
+        <button class="btn primary" id="ruNew">＋ New restricted AU</button>
+        <button class="btn" id="ruMd">Export MD</button>
+      </div>
+    </div>
+    <div id="ruBody" style="margin-top:14px"></div>
+    <!-- Shared by every AU card's add/grant boxes. One datalist each rather than
+         one per card: repeated ids are what broke the assign wizard in 23016. -->
+    <datalist id="ruGroupSug"></datalist>
+    <datalist id="ruUserSug"></datalist>
+  </section>
+
   <!-- ============ DRIFT WATCH (BETA) ============ -->
   <section id="screen-drift" class="screen">
     <div class="list-card readme" id="drHead" style="margin-top:0"></div>
@@ -1009,14 +1035,34 @@
             <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🛡 Restricted AUs <span class="tag ok">in beta today</span></h4>
-            <p class="mini" style="margin:0">Manage the restricted management administrative units that shield CA exclusion groups — members with CA-reference badges, scoped role grants, create and delete, with the immutable-flag truth stated up front. Running on the beta channel now; graduates once proven against enough real tenants.</p>
+            <h4 style="margin:0 0 4px"><a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a> <span class="tag new">BETA — here now</span></h4>
+            <p class="mini" style="margin:0">Manage the restricted management administrative units that shield CA exclusion groups — members with CA-reference badges, scoped role grants, create and delete, with the immutable-flag truth stated up front. <b>Shipped here in build 253, still marked BETA</b> while it proves itself against more tenants.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> <span class="tag new">BETA — here now</span></h4>
             <p class="mini" style="margin:0">Does the tenant still look like it did when we signed it off? Snapshot the Conditional Access configuration to a file you keep, and compare a later run against it — added, removed, changed, ranked so a widened exclusion or a policy switched Off outranks a rename. No server and no 30-day limit, because the history is the file rather than Microsoft's audit log. <b>Shipped here in build 252, still marked BETA</b> while it earns its keep against real tenants. <b>Next for it:</b> exclusion-group <i>membership</i> drift, and comparing two snapshots without re-reading the tenant.</p>
           </div>
+<div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">⌨️ Command palette <span class="tag new">BETA — here now</span></h4>
+            <p class="mini" style="margin:0">Past twenty-odd tools, a tile grid stops being the fastest way in. <b>Ctrl/Cmd&nbsp;+&nbsp;K</b> anywhere opens a search box: type a few letters and land in the tool, or type a CA number or policy name and land on the policy card. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bbc</code> finds Best-practice &amp; bypass checks. Shipped here in build 253, still marked BETA.</p>
+          </div>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🖥 Compliant-device reality check <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — and nothing checks the other half today. Read the compliance policies and their assignments, then flag every Conditional Access policy whose protection rests on a persona that no compliance policy actually covers. The same blind spot exists for app-protection policies behind “require approved client app”.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">↩️ Undo for writes <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Every write tool already produces a change report of exactly what it did. Make it replayable in reverse: one action that puts back the state before the run, with the same typed-confirmation discipline as the original write. It lowers the cost of every write tool already shipped, and it is the natural safety net under <i>Editable Conditional Access policies</i> further down this map.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🏢 Your own single-tenant app registration <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Today every tenant signs in through <b>one multi-tenant</b> app registration owned by Limon-IT — the same application ID, and therefore an application outside your directory holding a delegated grant on your data. The option on the map: register ENCA as a <b>single-tenant</b> SPA (<code>AzureADMyOrg</code>) inside your own tenant, with your own client ID, your own consent record, your own redirect URIs and your own audit trail — nothing to trust but the code you reviewed. The sign-in <i>platform</i> does not change (it is already a SPA using authorization code + PKCE with no client secret); what changes is who owns the registration, and so who can review, audit and revoke it. <a href="#" id="rmSecLink2">Security &amp; risk</a> already recommends this for high-assurance environments — the work is to make it a supported path rather than a manual one: a <code>-SingleTenant</code> switch on the registration script, a client ID read from configuration, and a guide to the trade-off (you own the trust, you also own keeping the registration current).</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🍴 Fork detection and update-from-upstream <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">A high-assurance tenant is encouraged to fork, review and serve its own pinned copy — and the moment it does, it stops hearing about fixes. The plan: the app notices it is running as a fork (its origin is not <code>BRANDING.host</code> and the build it carries is older than upstream), says so plainly, and shows what has changed since the pinned build — the What's-new entries between here and there — with the commands to pull <code>main</code> in and re-review the diff. The point is not auto-updating, which would defeat the reason for forking; it is making <b>“you are 14 builds behind, and here is what those builds changed”</b> impossible to miss. Pairs with <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a> and the security document's fork-review-pin guidance.</p>
+          </div>
+                    <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">🔐 Improve security <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
           </div>
@@ -1031,12 +1077,44 @@
             <h4 style="margin:0 0 4px">✏️ Editable Conditional Access policies <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Edit an existing policy from its card — not just state and group assignments but the conditions, grant and session controls themselves, with a field-level diff of exactly what will change and validation before the PATCH. The Change audit tool then shows the same diff after the fact, so intent and record match.</p>
           </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🏢 Several tenants at once <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">For anyone who looks after more than one tenant: sign into each in turn and hold the results side by side — baseline coverage, CIS score, gap count, drift since last visit, one row per customer. One screen that answers “which of my tenants is worst off this month” without opening thirteen browser tabs. Pairs with Drift watch: a snapshot per tenant, reviewed on a schedule you keep rather than infrastructure you run.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🌐 Named locations vs. the sign-in log <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The trusted IP ranges in a tenant are usually older than the offices they describe. Cross the named locations with the sign-in log already read for Report-only impact and Sign-in failures: ranges nobody has signed in from for months, sign-ins from countries no location names, and trusted ranges that no longer match reality — the quiet way a location-based exception outlives its reason.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🤝 Cross-tenant access settings <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Inbound and outbound B2B collaboration, and whether the tenant accepts a partner's MFA and device claims. It sits directly next to Conditional Access — accepting a partner's MFA claim decides whether your own MFA requirement is satisfied by someone else's authentication — and it is invisible in every tool here today.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🎫 CAE and token protection coverage <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Continuous access evaluation and token protection are the newer session controls, and both are easy to leave half-configured: which policies opt in, which silently do not, and which resources support it. The same treatment the persona × control matrix gives the classic grant controls.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">📋 Change plan export <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Export what a write <i>would</i> do as a reviewable file, hand it to a colleague, then apply it. The obvious companion to a toolset whose whole pitch is that nothing changes until you say so — and the practical form of a two-person rule for tenants that need one.</p>
+          </div>
         </div>
         <div class="rm-era future far">
           <h3>On the horizon <span class="rm-when">builds on policy editing</span></h3>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">🏗 Policy builder <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Build a new policy from scratch, guided: pick the persona, the resources, the conditions and the controls with best-practice hints along the way, preflight the result in What-If, and create it in report-only by default — so every new policy is born with the evidence trail the Report-only impact tool needs before go-live.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🚀 Go-live checklist <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Report-only impact forecasts one policy at a time; a checklist tracks the whole report-only backlog toward enforcement — what is staged, what has enough traffic to judge, what is ready to switch on, with the forecast attached to each. The paperwork of a go-live, kept in the tool that produced the evidence.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">📏 Naming-convention linter <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The CA-number persona ranges are a convention every tool here assumes and none of them validates: numbers out of range for their persona, duplicates, gaps, policies whose name says one persona while their assignment says another. Cheap to check, and it keeps the convention that makes everything else legible from quietly rotting.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🇳🇱 Dutch interface <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The exported documentation is the part non-administrators actually read, and for a Dutch organisation that reads better in Dutch. The tool is built for it — one labels file, no build step — so the work is translation and keeping it honest, not plumbing.</p>
           </div>
         </div>
         <div class="rm-more">→ and further, steered by what you ask for</div>
@@ -1172,6 +1250,30 @@
         <li><b>Export MD</b> — the whole change set with per-entry diff tables, for a review or a ticket.</li>
       </ul>
       <p class="help-x">Read-only. Needs <code>AuditLog.Read.All</code> (requested when you run it) and a reader role such as Reports Reader, Security Reader or Security Administrator. Audit retention is licence-bound — roughly 30 days on Entra ID P1/P2, 7 days otherwise — so this is a rolling window, not full history.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🛡 Restricted AUs <span class="tag new">BETA</span></h4>
+      <p>Restricted management administrative units — the vaults that shield your Conditional Access exclusion groups from tenant-wide administrators. Members of a restricted AU answer <b>only</b> to roles scoped to that AU; a Global Administrator can read them but not change their membership.</p>
+      <ul>
+        <li><b>Open a card</b> — click its header, or the <b>👤 Scoped admins</b> button, to see members and scoped role grants. The ✎ Edit dialog is only the AU's own name and description; roles are not granted there.</li>
+        <li><b>Add a member</b> — the box suggests your <b>baseline group names</b> before you type anything, since those are what the AU exists to protect, and folds in live directory results for any other group or user as you type.</li>
+        <li><b>Grant a scoped administrator</b> — pick the role, then start typing a name: users are suggested from the directory. Without at least one scoped grant, nobody can manage these members at all.</li>
+        <li><b>The restricted flag is immutable</b> — set at creation, never changeable. Converting an existing AU means creating a new one and moving the members, and the tool says so rather than letting you discover it.</li>
+        <li><b>A 403 is the shield working</b> — if a member change is refused, that is the restriction doing its job, not a fault. You need a role scoped to that AU.</li>
+      </ul>
+      <p class="help-x">Writes to the tenant, and asks for each permission on the click. Creating one needs <b>Privileged Role Administrator</b>; granting a scoped role also needs <code>RoleManagement.ReadWrite.Directory</code>.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>⌨️ Command palette <span class="tag new">BETA</span></h4>
+      <p>Press <b>Ctrl + K</b> (<b>⌘ + K</b> on a Mac) anywhere in the app. Type a few letters, press <b>Enter</b>.</p>
+      <ul>
+        <li><b>Tools</b> — always searchable, signed in or not. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bpbc</code> finds Best-practice &amp; bypass checks.</li>
+        <li><b>Policies</b> — once a tenant is loaded, type a CA number (<code>203</code>) or any part of the policy name to open its card directly, without going through List Policies first.</li>
+        <li><b>Keys</b> — <b>↑ ↓</b> move, <b>Enter</b> opens, <b>Esc</b> closes, <b>Ctrl/⌘ + K</b> again closes. Clicking outside closes it too.</li>
+      </ul>
+      <p class="help-x">Navigation only — it opens things, it never changes anything.</p>
     </section>
 
     <section class="help-sec">
@@ -1894,45 +1996,87 @@
 <div class="toast" id="toast"></div>
 
 <!-- self-hosted, audited library copies (supply-chain hardening) -->
+<!-- ============ COMMAND PALETTE (BETA) — Ctrl/Cmd+K ============ -->
+<div class="modal-bg" id="cpModal">
+  <div class="modal cp-modal">
+    <input id="cpInput" placeholder="Jump to a tool, or a policy by CA number or name…" autocomplete="off" spellcheck="false" aria-label="Command palette">
+    <div id="cpList" class="cp-list"></div>
+    <div class="cp-foot mini muted">
+      <span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span>
+      <span style="margin-left:auto" id="cpScopeNote"></span>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="ruEditModal">
+  <div class="modal" style="max-width:560px">
+    <h3 id="ruEditTitle">New restricted administrative unit</h3>
+    <p class="mini" id="ruEditSub" style="margin-bottom:12px"></p>
+    <label class="wi-f" style="margin-bottom:10px"><span>Display name</span>
+      <input id="ruName" maxlength="256" autocomplete="off" spellcheck="false"></label>
+    <label class="wi-f" style="margin-bottom:10px"><span>Description</span>
+      <textarea id="ruDesc" rows="2" spellcheck="false"></textarea></label>
+    <div id="ruEditFlag"></div>
+    <div id="ruEditWarn" style="margin-top:12px"></div>
+    <div class="row">
+      <button class="btn" id="ruEditCancel">Cancel</button>
+      <button class="btn primary" id="ruEditSave">Save</button>
+    </div>
+  </div>
+</div>
+<!-- ============ RESTRICTED AU DELETE ============ -->
+<div class="modal-bg" id="ruDelModal">
+  <div class="modal" style="max-width:520px">
+    <h3>Delete administrative unit</h3>
+    <p class="mini" id="ruDelDesc"></p>
+    <p class="mini muted">Deleting the AU does <b>not</b> delete its members — they simply lose the restricted shield and become manageable tenant-wide again. Type <b>DELETE</b> to confirm.</p>
+    <input id="ruDelConfirm" autocomplete="off" spellcheck="false" placeholder="DELETE">
+    <div class="row">
+      <button class="btn" id="ruDelCancel">Cancel</button>
+      <button class="btn danger" id="ruDelGo" disabled>Delete</button>
+    </div>
+  </div>
+</div>
+
 <script src="vendor/msal-browser.min.js"></script>
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=252"></script>
-<script src="js/version.js?v=252"></script>
-<script src="js/authConfig.js?v=252"></script>
-<script src="js/labels.js?v=252"></script>
-<script src="js/graph.js?v=252"></script>
-<script src="js/model.js?v=252"></script>
-<script src="js/render.js?v=252"></script>
-<script src="js/analyze.js?v=252"></script>
-<script src="js/whatif.js?v=252"></script>
-<script src="js/mslearn.js?v=252"></script>
-<script src="js/gapcheck.js?v=252"></script>
-<script src="js/exclusions.js?v=252"></script>
-<script src="js/validator.js?v=252"></script>
-<script src="js/whatifeval.js?v=252"></script>
-<script src="js/compare.js?v=252"></script>
-<script src="js/groupuse.js?v=252"></script>
-<script src="js/locations.js?v=252"></script>
-<script src="js/authcontexts.js?v=252"></script>
-<script src="js/authstrengths.js?v=252"></script>
-<script src="js/recycle.js?v=252"></script>
-<script src="js/termsofuse.js?v=252"></script>
-<script src="js/audit.js?v=252"></script>
-<script src="js/drift.js?v=252"></script>
-<script src="js/signins.js?v=252"></script>
-<script src="js/reportimpact.js?v=252"></script>
-<script src="js/changelog.js?v=252"></script>
-<script src="js/baselineData.js?v=252"></script>
-<script src="js/baselineJoeyData.js?v=252"></script>
-<script src="js/baseline.js?v=252"></script>
-<script src="js/groupTemplates.js?v=252"></script>
-<script src="js/assign.js?v=252"></script>
-<script src="js/cagroups.js?v=252"></script>
-<script src="js/import.js?v=252"></script>
-<script src="js/export.js?v=252"></script>
-<script src="js/demo.js?v=252"></script>
-<script src="js/app.js?v=252"></script>
+<script src="js/branding.js?v=253"></script>
+<script src="js/version.js?v=253"></script>
+<script src="js/authConfig.js?v=253"></script>
+<script src="js/labels.js?v=253"></script>
+<script src="js/graph.js?v=253"></script>
+<script src="js/model.js?v=253"></script>
+<script src="js/render.js?v=253"></script>
+<script src="js/analyze.js?v=253"></script>
+<script src="js/whatif.js?v=253"></script>
+<script src="js/mslearn.js?v=253"></script>
+<script src="js/gapcheck.js?v=253"></script>
+<script src="js/exclusions.js?v=253"></script>
+<script src="js/validator.js?v=253"></script>
+<script src="js/whatifeval.js?v=253"></script>
+<script src="js/compare.js?v=253"></script>
+<script src="js/groupuse.js?v=253"></script>
+<script src="js/locations.js?v=253"></script>
+<script src="js/authcontexts.js?v=253"></script>
+<script src="js/authstrengths.js?v=253"></script>
+<script src="js/recycle.js?v=253"></script>
+<script src="js/termsofuse.js?v=253"></script>
+<script src="js/rmau.js?v=253"></script>
+<script src="js/audit.js?v=253"></script>
+<script src="js/drift.js?v=253"></script>
+<script src="js/signins.js?v=253"></script>
+<script src="js/reportimpact.js?v=253"></script>
+<script src="js/changelog.js?v=253"></script>
+<script src="js/baselineData.js?v=253"></script>
+<script src="js/baselineJoeyData.js?v=253"></script>
+<script src="js/baseline.js?v=253"></script>
+<script src="js/groupTemplates.js?v=253"></script>
+<script src="js/assign.js?v=253"></script>
+<script src="js/cagroups.js?v=253"></script>
+<script src="js/import.js?v=253"></script>
+<script src="js/export.js?v=253"></script>
+<script src="js/demo.js?v=253"></script>
+<script src="js/app.js?v=253"></script>
 </body>
 </html>

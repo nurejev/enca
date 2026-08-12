@@ -757,6 +757,26 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 /* "Show N more" under a collapsed tool section. Sits outside the grid so it is
    not laid out as a tile. */
 .home-more{margin:14px 0 0;font-size:13px}
+/* Brief highlight when 👤 Scoped admins jumps you to the grant box, so the
+   button visibly does something even when the card was already open. */
+.ru-flash{animation:ruFlash 1.2s ease-out}
+@keyframes ruFlash{0%{box-shadow:0 0 0 3px var(--accent2)}100%{box-shadow:0 0 0 0 transparent}}
+/* Command palette. Sits high rather than centred: the list grows downward and
+   a centred box would jump around as results change. */
+.modal-bg.cp-open{align-items:flex-start;padding-top:12vh}
+.cp-modal{max-width:620px;padding:0;overflow:hidden}
+#cpInput{width:100%;border:0;border-bottom:1px solid var(--border);border-radius:0;
+  padding:16px 18px;font-size:15px;background:transparent;color:var(--ink);outline:none}
+.cp-list{max-height:46vh;overflow-y:auto}
+.cp-item{display:flex;gap:10px;align-items:center;padding:10px 18px;cursor:pointer;border-bottom:1px solid var(--border)}
+.cp-item:last-child{border-bottom:0}
+.cp-item.sel,.cp-item:hover{background:var(--soft)}
+.cp-item .cp-k{font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap}
+.cp-item b{font-weight:600}
+.cp-empty{padding:18px;color:var(--muted);font-size:13px}
+.cp-foot{display:flex;gap:14px;align-items:center;padding:10px 18px;border-top:1px solid var(--border);background:var(--soft)}
+.cp-foot kbd{font:inherit;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:1px 5px;margin-right:3px}
+
 /* Drift watch. These cards hold prose, not a table — and .list-card
    deliberately carries no padding of its own (it sets overflow:hidden and
    lets whatever it wraps own the spacing, which for every other tool is a

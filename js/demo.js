@@ -139,6 +139,22 @@ const DEMO_DATA = {
   },
 
   // Named locations for the best-practice location checks.
+  adminUnits: [
+    { id: "au-1", displayName: "RMAU — CA exclusion groups", description: "Restricted management administrative unit protecting Conditional Access exclusion groups.", isMemberManagementRestricted: true, visibility: null },
+    { id: "au-2", displayName: "Helpdesk NL", description: "Standard administrative unit for the Dutch helpdesk scope.", isMemberManagementRestricted: false, visibility: null },
+  ],
+  adminUnitDetails: {
+    "au-1": {
+      members: [
+        { id: "g-hr", displayName: "HR-Department", "@odata.type": "#microsoft.graph.group" },
+        { id: "u-break1", displayName: "breakglass-01", userPrincipalName: "breakglass-01@contoso.com", "@odata.type": "#microsoft.graph.user" },
+      ],
+      scoped: [
+        { id: "srm-1", roleId: "role-ga", _roleName: "Groups Administrator", _principal: "Alex Admin", roleMemberInfo: { id: "u-admin", displayName: "Alex Admin" } },
+      ],
+    },
+    "au-2": { members: [], scoped: [] },
+  },
   namedLocations: [
     { "@odata.type": "#microsoft.graph.ipNamedLocation", id: "loc-hq", displayName: "HQ egress", isTrusted: true, ipRanges: [{ cidrAddress: "203.0.113.0/24" }] },
     { "@odata.type": "#microsoft.graph.ipNamedLocation", id: "loc-branch", displayName: "Branch office (unmarked)", isTrusted: false, ipRanges: [{ cidrAddress: "198.51.100.0/24" }] },
