@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25009, date: "2026-08-12", title: "The home page stops being a wall",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Each section on the home page now shows its first four tools, with the rest behind a ▼ Show N more toggle — Analyse & simulate had grown to ten tiles and Manage the tenant to eleven, which is a lot to scroll past to reach the section you wanted. Sections of four or fewer are untouched, so no button appears where there is nothing to hide. Your choice per section is remembered between visits. Two things kept honest: a tool that just shipped cannot vanish silently, so the button counts the hidden NEW and BETA tiles (\"Show 7 more · 4 new or beta\"), and hidden tiles stay fully reachable — the tab bar, the + menu, roadmap links and Ctrl+K all open them exactly as before, because collapsing the grid must not amputate navigation. Sections are keyed by their heading, not their position, so adding a section later does not re-collapse a different one." },
+    ],
+  },
+  {
     build: 25008, date: "2026-08-12", title: "Drift watch says which side failed",
     items: [
       { kind: "fixed", tool: "Drift watch", text: "A snapshot taken before build 25005 recorded Authentication strengths as unreadable (the $expand 400 fixed in that build), and every later comparison against that file kept reporting it — in red, as though the tenant were refusing the read right now. The area now says which side failed. A snapshot that lacks an area is marked 'stale snapshot' in muted type and tells you the fix: take a fresh snapshot and it is covered from then on. A failure in the current run stays red, because that one is real. When both sides failed, both reasons are given — before, only the snapshot's was, which hid a live problem behind an old one. The summary line makes the same split instead of counting them together." },

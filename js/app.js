@@ -276,6 +276,58 @@
     } catch { /* cosmetic only */ }
   })();
 
+  // ---------- home: show the first few tools per section ----------
+  // Two sections carry ten and eleven tiles, which is a wall to scroll past
+  // before reaching the section you wanted. Each grid shows its first four and
+  // hides the rest behind a toggle. Done here rather than in the markup so a
+  // new tool never has to remember to be counted.
+  //
+  // Hidden tiles stay in the DOM and stay clickable: every "open this tool"
+  // path in the app (tabs, the + menu, roadmap links, the command palette)
+  // works by calling .click() on the tile, and a display:none element still
+  // takes a synthetic click. Collapsing the grid must not amputate navigation.
+  const HOME_VISIBLE = 4;
+  const HOME_KEY = "enca-home-expanded";
+  const homeExpanded = (() => {
+    try { return new Set(JSON.parse(localStorage.getItem(HOME_KEY) || "[]")); }
+    catch { return new Set(); }
+  })();
+  const homeSave = () => { try { localStorage.setItem(HOME_KEY, JSON.stringify([...homeExpanded])); } catch { /* private mode */ } };
+
+  function initHomeSections() {
+    const grids = [...document.querySelectorAll("#screen-home .tools")];
+    grids.forEach((grid, gi) => {
+      const tiles = [...grid.children].filter((el) => el.classList.contains("tool"));
+      if (tiles.length <= HOME_VISIBLE) return;               // nothing worth hiding
+      // A section is keyed by the heading above it, not its index, so adding a
+      // section later does not silently re-collapse a different one.
+      const head = grid.previousElementSibling;
+      const key = (head && head.querySelector("h3") ? head.querySelector("h3").textContent : `sec${gi}`).trim();
+      const btn = document.createElement("button");
+      btn.className = "btn home-more";
+      const paint = () => {
+        const open = homeExpanded.has(key);
+        tiles.forEach((t, i) => { t.style.display = i < HOME_VISIBLE || open ? "" : "none"; });
+        // A tool that just shipped should not vanish behind the fold without
+        // saying so — otherwise collapsing the grid quietly buries the thing
+        // most worth finding. Count the BETA/NEW tiles that are hidden and name
+        // them on the button.
+        const buried = tiles.slice(HOME_VISIBLE).filter((t) => t.querySelector(".tag.new")).length;
+        btn.textContent = open
+          ? "▲ Show fewer"
+          : `▼ Show ${tiles.length - HOME_VISIBLE} more${buried ? ` · ${buried} new or beta` : ""}`;
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+      };
+      btn.addEventListener("click", () => {
+        homeExpanded.has(key) ? homeExpanded.delete(key) : homeExpanded.add(key);
+        homeSave(); paint();
+      });
+      grid.insertAdjacentElement("afterend", btn);            // outside the grid, not a grid cell
+      paint();
+    });
+  }
+  initHomeSections();
+
   // ---------- theme: Auto (device) → Light → Dark ----------
   // Auto leaves data-theme off so the CSS prefers-color-scheme block decides;
   // the logo swaps to the dark-background variant through a CSS content: rule.
