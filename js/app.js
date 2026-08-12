@@ -4681,6 +4681,31 @@ max@contoso.com,"Global, DevOps"</pre>
   }
   $("ruBody").addEventListener("input", ruSuggest);
 
+  // Entra directory writes are not read-your-writes consistent. A DELETE on
+  // /members/{id}/$ref returns 204 and the very next GET of the same collection
+  // can still list the object — so "delete the cache and re-read", which is what
+  // this tool did, faithfully re-renders the row that was just removed.
+  //
+  // So: apply the change to the cached detail immediately, so the card shows
+  // what the user actually did, then re-read a few times with backoff and only
+  // accept the directory's answer once it agrees. If it never catches up we keep
+  // the optimistic view rather than resurrecting a deleted row, and say so.
+  async function ruSettle(auId, apply, settled) {
+    if (ruDetails[auId]) apply(ruDetails[auId]);
+    renderRmau();
+    if (isDemo) return true;
+    for (const wait of [500, 1200, 2500]) {
+      await new Promise((r) => setTimeout(r, wait));
+      const optimistic = ruDetails[auId];
+      delete ruDetails[auId];
+      const fresh = await ruLoadDetail(auId);
+      if (fresh.error || settled(fresh)) { renderRmau(); return true; }
+      ruDetails[auId] = optimistic;      // directory still lagging — keep our view
+    }
+    renderRmau();
+    return false;
+  }
+
   async function ruAddMember(auId, term) {
     const t = term.trim();
     if (!t) { toast("Type a group name or a user UPN"); return; }
@@ -4701,22 +4726,37 @@ max@contoso.com,"Global, DevOps"</pre>
       if (!isDemo) await Graph.gpost(`/administrativeUnits/${auId}/members/$ref`,
         { "@odata.id": `https://graph.microsoft.com/beta/${kind === "user" ? "users" : "groups"}/${obj.id}` });
       toast(`<span>${esc(obj.displayName || t)}</span> added${isDemo ? " (simulated)" : ""}`);
-      delete ruDetails[auId]; await ruLoadDetail(auId); renderRmau();
+      // Same lag in the other direction: the new member can be missing from the
+      // very next read. Show it straight away, then let the directory confirm.
+      const added = { id: obj.id, displayName: obj.displayName || t,
+        ...(kind === "user" ? { userPrincipalName: t } : {}) };
+      if (kind === "group") added._caRefs = Rmau.caRefs(obj.id, policies.map((p) => p.raw));
+      await ruSettle(auId,
+        (d) => { if (!(d.members || []).some((m) => m.id === obj.id)) d.members = [...(d.members || []), added]; },
+        (d) => (d.members || []).some((m) => m.id === obj.id));
+      const box = document.querySelector(`[data-ruaddbox="${auId}"]`);
+      if (box) box.value = "";                       // the entry is on the list now
     } catch (e) { toast(`Add failed: <span>${esc(e.message || e)}</span>`); }
   }
   async function ruGrantAdmin(auId, roleTemplateId, upn) {
     const t = upn.trim();
     if (!t) { toast("Type the administrator's UPN"); return; }
     if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE, ...RU_ROLE_WRITE])) return;
+    let granted = null;
     try {
       if (!isDemo) {
         const role = await ensureDirectoryRole(roleTemplateId);
         const u = await Graph.gget(`/users/${encodeURIComponent(t)}?$select=id`);
         await Graph.gpost(`/administrativeUnits/${auId}/scopedRoleMembers`, { roleId: role.id, roleMemberInfo: { id: u.id } });
         ruRoleNames = null;
+        granted = u.id;
       }
       toast(`<span>${esc(t)}</span> granted${isDemo ? " (simulated)" : ""}`);
-      delete ruDetails[auId]; await ruLoadDetail(auId); renderRmau();
+      await ruSettle(auId,
+        () => { /* the grant id is server-assigned, so wait for the read */ },
+        (d) => !granted || (d.scoped || []).some((r) => (r.roleMemberInfo || {}).id === granted));
+      const gbox = document.querySelector(`[data-ruadminbox="${auId}"]`);
+      if (gbox) gbox.value = "";
     } catch (e) {
       // A conflict on the grant itself means this person already holds this role
       // on this AU — say that, rather than handing back Graph's wording, which
@@ -4774,9 +4814,13 @@ max@contoso.com,"Global, DevOps"</pre>
     if (mr) {
       if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE])) return;
       try {
-        if (!isDemo) await Graph.gdelete(`/administrativeUnits/${mr.dataset.ruau}/members/${mr.dataset.rumrm}/$ref`);
+        const auId = mr.dataset.ruau, memId = mr.dataset.rumrm;
+        if (!isDemo) await Graph.gdelete(`/administrativeUnits/${auId}/members/${memId}/$ref`);
         toast(`Member removed${isDemo ? " (simulated)" : ""}`);
-        delete ruDetails[mr.dataset.ruau]; await ruLoadDetail(mr.dataset.ruau); renderRmau();
+        const agreed = await ruSettle(auId,
+          (d) => { d.members = (d.members || []).filter((m) => m.id !== memId); },
+          (d) => !(d.members || []).some((m) => m.id === memId));
+        if (!agreed) toast("Removed — the directory is still catching up, so a refresh may briefly show it again.");
       } catch (err) { toast(`Remove failed: <span>${esc(err.message || err)}</span>`); }
       return;
     }
@@ -4784,9 +4828,13 @@ max@contoso.com,"Global, DevOps"</pre>
     if (sr) {
       if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE, ...RU_ROLE_WRITE])) return;
       try {
-        if (!isDemo) await Graph.gdelete(`/administrativeUnits/${sr.dataset.ruau}/scopedRoleMembers/${sr.dataset.rusrm}`);
+        const auId = sr.dataset.ruau, grantId = sr.dataset.rusrm;
+        if (!isDemo) await Graph.gdelete(`/administrativeUnits/${auId}/scopedRoleMembers/${grantId}`);
         toast(`Scoped grant removed${isDemo ? " (simulated)" : ""}`);
-        delete ruDetails[sr.dataset.ruau]; await ruLoadDetail(sr.dataset.ruau); renderRmau();
+        const agreed = await ruSettle(auId,
+          (d) => { d.scoped = (d.scoped || []).filter((r) => r.id !== grantId); },
+          (d) => !(d.scoped || []).some((r) => r.id === grantId));
+        if (!agreed) toast("Removed — the directory is still catching up, so a refresh may briefly show it again.");
       } catch (err) { toast(`Remove failed: <span>${esc(err.message || err)}</span>`); }
       return;
     }

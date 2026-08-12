@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25012, date: "2026-08-12", title: "A removed member actually leaves the card",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "Removing a member (or a scoped role grant) left the row on the card. The tool was already discarding its cache and re-reading after the write — the problem is that Entra directory writes are not read-your-writes consistent: the DELETE returns 204 and the very next GET of the same collection still lists the object, so the honest re-read faithfully restored the row that had just been deleted. Changes now apply to the card immediately and are then confirmed against the directory with backoff (three tries over about four seconds). If the directory has not caught up by then the card keeps showing what you did rather than resurrecting a deleted row, and a second toast says the directory is still catching up. Adding a member has the same lag in the other direction and gets the same treatment, and both boxes clear once the entry is on the list." },
+    ],
+  },
+  {
     build: 25011, date: "2026-08-12", title: "Granting a scoped administrator stops fighting the directory role",
     items: [
       { kind: "fixed", tool: "Restricted AUs", text: "Granting a scoped administrator could fail with 400 \"A conflicting object with one or more of the specified property values is present in the directory\". Cause: GET /directoryRoles only returns roles that are ACTIVATED in the tenant, so a role that exists but is not returned by the lookup looks absent — and the obvious next step, activating it, conflicts with the role that was there all along. Resolution is now a ladder: the documented alternate-key GET /directoryRoles(roleTemplateId='…'), then $filter, then activation, and if activation conflicts, an unfiltered list matched client-side (case-insensitively) that no declined filter can defeat. A conflict is read as evidence the role exists, not as a failure. A genuine 403 still surfaces, and if the role really is absent the message says so rather than silently grabbing the wrong role." },
