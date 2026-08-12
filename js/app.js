@@ -2103,6 +2103,43 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "cgRmauAdmin" && cgRmau) { cgRmau.admin = e.target.value; return true; }
     return false;
   }
+  // Resolve a directory-role TEMPLATE id to the ACTIVATED role object, which is
+  // what scopedRoleMembers wants. This needs a ladder, not one call:
+  //
+  //   GET /directoryRoles only returns roles that are ACTIVATED in the tenant.
+  //   A role that exists but is not returned by the $filter therefore looks
+  //   absent, so the obvious next step — POST /directoryRoles to activate it —
+  //   comes back 400 "A conflicting object with one or more of the specified
+  //   property values is present in the directory". That error means the role
+  //   was already there, so it is a reason to re-read, not to fail.
+  //
+  // Order: alternate-key GET (documented, exact), then $filter, then activate,
+  // then — if activation conflicts — an unfiltered list matched client-side,
+  // which cannot be defeated by a filter the tenant declines to honour.
+  async function ensureDirectoryRole(roleTemplateId) {
+    const byList = async () => (await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId"))
+      .find((r) => String(r.roleTemplateId).toLowerCase() === String(roleTemplateId).toLowerCase()) || null;
+    try {
+      const r = await Graph.gget(`/directoryRoles(roleTemplateId='${roleTemplateId}')`);
+      if (r && r.id) return r;
+    } catch { /* alternate key unsupported or not activated — keep going */ }
+    try {
+      const r = (await Graph.gget(`/directoryRoles?$filter=roleTemplateId eq '${roleTemplateId}'`)).value?.[0];
+      if (r) return r;
+    } catch { /* filter declined — keep going */ }
+    try {
+      const created = await Graph.gpost("/directoryRoles", { roleTemplateId });
+      if (created && created.id) return created;
+    } catch (e) {
+      // "conflicting object" = already activated, and the reads above simply
+      // did not see it. Anything else is a real failure worth reporting.
+      if (!/conflicting object|already exist/i.test(e.message || "")) throw e;
+    }
+    const found = await byList();
+    if (found) return found;
+    throw new Error(`The directory role ${roleTemplateId} could not be resolved or activated.`);
+  }
+
   // Scoped-administrator type-ahead, same shape as the What-If user field.
   let rmauSugTimer = null;
   function rmauInput(e) {
@@ -2333,9 +2370,11 @@ max@contoso.com,"Global, DevOps"</pre>
         let role = null, roleErr = null;
         if (!isDemo) {
           try {
-            // scopedRoleMembers wants the ACTIVATED directory-role object id, not the template id
-            role = (await Graph.gget(`/directoryRoles?$filter=roleTemplateId eq '${GROUPS_ADMIN_TEMPLATE}'`)).value?.[0];
-            if (!role) role = await Graph.gpost("/directoryRoles", { roleTemplateId: GROUPS_ADMIN_TEMPLATE });
+            // scopedRoleMembers wants the ACTIVATED directory-role object id, not
+            // the template id. Shared ladder — a plain filter-then-activate fails
+            // with a 400 conflict on tenants where the role exists but the filter
+            // does not see it.
+            role = await ensureDirectoryRole(GROUPS_ADMIN_TEMPLATE);
           } catch (err) { roleErr = err.message || String(err); }
         }
         for (const upn of admins) {
@@ -4671,15 +4710,23 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE, ...RU_ROLE_WRITE])) return;
     try {
       if (!isDemo) {
-        let role = (await Graph.gget(`/directoryRoles?$filter=roleTemplateId eq '${roleTemplateId}'`)).value?.[0];
-        if (!role) role = await Graph.gpost("/directoryRoles", { roleTemplateId });
+        const role = await ensureDirectoryRole(roleTemplateId);
         const u = await Graph.gget(`/users/${encodeURIComponent(t)}?$select=id`);
         await Graph.gpost(`/administrativeUnits/${auId}/scopedRoleMembers`, { roleId: role.id, roleMemberInfo: { id: u.id } });
         ruRoleNames = null;
       }
       toast(`<span>${esc(t)}</span> granted${isDemo ? " (simulated)" : ""}`);
       delete ruDetails[auId]; await ruLoadDetail(auId); renderRmau();
-    } catch (e) { toast(`Grant failed: <span>${esc(e.message || e)}</span>`); }
+    } catch (e) {
+      // A conflict on the grant itself means this person already holds this role
+      // on this AU — say that, rather than handing back Graph's wording, which
+      // reads like a fault when it is really "nothing to do".
+      const dup = /conflicting object|already exist/i.test(e.message || "");
+      toast(dup
+        ? `<span>${esc(t)}</span> already holds that role on this administrative unit — nothing to change.`
+        : `Grant failed: <span>${esc(e.message || e)}</span>`);
+      if (dup) { delete ruDetails[auId]; await ruLoadDetail(auId); renderRmau(); }
+    }
   }
 
   $("ruBody").addEventListener("click", async (e) => {

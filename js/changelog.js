@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25011, date: "2026-08-12", title: "Granting a scoped administrator stops fighting the directory role",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "Granting a scoped administrator could fail with 400 \"A conflicting object with one or more of the specified property values is present in the directory\". Cause: GET /directoryRoles only returns roles that are ACTIVATED in the tenant, so a role that exists but is not returned by the lookup looks absent — and the obvious next step, activating it, conflicts with the role that was there all along. Resolution is now a ladder: the documented alternate-key GET /directoryRoles(roleTemplateId='…'), then $filter, then activation, and if activation conflicts, an unfiltered list matched client-side (case-insensitively) that no declined filter can defeat. A conflict is read as evidence the role exists, not as a failure. A genuine 403 still surfaces, and if the role really is absent the message says so rather than silently grabbing the wrong role." },
+      { kind: "fixed", tool: "Restricted AUs", text: "Granting someone who already holds that role on that administrative unit now says exactly that — \"already holds that role on this administrative unit, nothing to change\" — and refreshes the card, instead of relaying Graph's conflict wording as though something had broken." },
+      { kind: "fixed", tool: "Protect exclusions", text: "The ⑥ Protect flow's scoped-administrator grant activated the Groups Administrator role the same fragile way and could fail identically. Both now share the one resilient resolver." },
+    ],
+  },
+  {
     build: 25010, date: "2026-08-12", title: "The baseline reconciles; demo stops lying about it",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "The baseline catalog referenced CAB-SEC-U-CA1009-Exclusion — the exclusion for CA1009, which blocks non-DevOps personas from Azure DevOps — but no group template defined it. The Check tab therefore expected a group it could never offer to create, and the ✎ Create action had no template to build from. The template is added, and catalog and templates now reconcile exactly: every one of the 98 group names the baseline references has a template, and no template is orphaned." },
