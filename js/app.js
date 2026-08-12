@@ -4734,7 +4734,7 @@ max@contoso.com,"Global, DevOps"</pre>
     $("siRescan").style.display = siRes && !siBusy ? "" : "none";
     if (siBusy) { $("siBody").innerHTML = siBusyPanel(); return; }
     if (siRes) { renderSignins(); return; }
-    $("siHead").innerHTML = `<h3>🚦 Sign-in failures <span class="tag new">NEW</span></h3>
+    $("siHead").innerHTML = `<h3>🚦 Sign-in failures</h3>
       <p style="margin-bottom:4px">Which sign-ins Conditional Access failed, and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. The log-side counterpart of What-If.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> failures are filtered by Graph; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins.</p>`;
     $("siChips").innerHTML = "";
@@ -4857,7 +4857,7 @@ max@contoso.com,"Global, DevOps"</pre>
     (window.requestAnimationFrame || setTimeout)(syncSiDetheadTop);
     $("siHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🚦 Sign-in failures <span class="tag new">NEW</span></h3>
+        <h3>🚦 Sign-in failures</h3>
         <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
         <p class="mini muted" style="margin:0">${siMode === "reportonly"
           ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the numbers to check before flipping a policy on."
@@ -4965,7 +4965,7 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("🚦 Sign-in failures", "CA-SignInFailures", L.join("\n"));
   });
 
-  // ---------- Report-only impact (BETA) ----------
+  // ---------- Report-only impact ----------
   // The go-live question, answered from the sign-in log: for every policy in
   // report-only, who would be denied, who just gets a prompt, who passes
   // unchanged — and per user, the combined effect of everything staged.
@@ -4994,7 +4994,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (riBusy) { $("riBody").innerHTML = riBusyPanel(); return; }
     if (riRes) { renderImpact(); return; }
     const ro = riTenantRo();
-    $("riHead").innerHTML = `<h3>🎚 Report-only impact <span class="tag new">BETA</span></h3>
+    $("riHead").innerHTML = `<h3>🎚 Report-only impact</h3>
       <p style="margin-bottom:4px">What happens the day a report-only policy goes live. Per policy: who would be <b>denied</b>, who is <b>interrupted</b> for an extra step (MFA, compliant device, terms of use…), who <b>passes unchanged</b>. Per user: the combined effect of everything in report-only at once.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
     $("riChips").innerHTML = "";
@@ -5047,7 +5047,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const r = riRes; if (!r) return;
     $("riHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🎚 Report-only impact <span class="tag new">BETA</span></h3>
+        <h3>🎚 Report-only impact</h3>
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read${riCapped ? `, <span style="color:var(--off)">truncated at ${SI_MAX.toLocaleString()}</span>` : ""}.</p>
       </div>

@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 251, date: "2026-08-12", title: "Two tools grow up",
+    items: [
+      { kind: "improved", tool: "Report-only impact", text: "Out of BETA. The go-live forecast has held up: per-policy would-be-denied / interrupted / unchanged read from the sign-in log, per-user worst case, verdict chips including the staged policy with no traffic at all — the answer that should stop a go-live — 1-hour to 30-day windows and a Markdown export." },
+      { kind: "improved", tool: "Sign-in failures", text: "The NEW badge is retired — it has been in production long enough that the label had stopped meaning anything." },
+    ],
+  },
+  {
     build: 250, date: "2026-08-11", onlyBrand: "pvm", title: "The house look follows the account",
     items: [
       { kind: "improved", tool: "All tools", text: "Signing in with an @perfettivanmelle.onmicrosoft.com account now applies the Perfetti Van Melle look automatically, exactly as @pvmict.com already did — no need for the branded front door. (This entry is visible only on branded sessions.)" },

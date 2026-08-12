@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=250"></script>
+<script src="js/popup-guard.js?v=251"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=250">
+<link rel="stylesheet" href="css/app.css?v=251">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=250"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=250"></script>
+<script src="js/counter.js?v=251"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=251"></script>
 </head>
 <body>
 
@@ -138,11 +138,11 @@
         <p>Who changed which Conditional Access resource, when, and exactly what changed — a field-level diff of every policy, named location and authentication strength edit from the Entra audit log.</p>
       </div>
       <div class="tool" id="toolSignins">
-        <div class="tool-ic">🚦</div><h3>Sign-in failures <span class="tag new">NEW</span></h3>
+        <div class="tool-ic">🚦</div><h3>Sign-in failures</h3>
         <p>Which sign-ins Conditional Access failed and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. Enforced and report-only, with CSV export and a one-click replay in What-If.</p>
       </div>
       <div class="tool" id="toolImpact">
-        <div class="tool-ic">🎚</div><h3>Report-only impact <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">🎚</div><h3>Report-only impact</h3>
         <p>What happens the day a report-only policy goes live — per policy: who would be denied, who just gets an extra prompt, who passes unchanged; per user: the combined effect of everything in report-only. The evidence for the go-live decision, from the sign-in log.</p>
       </div>
     </div>
@@ -1152,7 +1152,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>🚦 Sign-in failures <span class="tag new">NEW</span></h4>
+      <h4>🚦 Sign-in failures</h4>
       <p>Which sign-ins Conditional Access failed and which policy did it — read from the Entra sign-in log, grouped per policy.</p>
       <ul>
         <li><b>Enforced</b> — sign-ins with <code>conditionalAccessStatus = failure</code>: a policy's controls were not satisfied and the sign-in was blocked or interrupted. Filtered by Graph, so the read is cheap. An abandoned MFA prompt lands here too — a failure is a prompt to look, not proof the policy is wrong.</li>
@@ -1860,40 +1860,40 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=250"></script>
-<script src="js/version.js?v=250"></script>
-<script src="js/authConfig.js?v=250"></script>
-<script src="js/labels.js?v=250"></script>
-<script src="js/graph.js?v=250"></script>
-<script src="js/model.js?v=250"></script>
-<script src="js/render.js?v=250"></script>
-<script src="js/analyze.js?v=250"></script>
-<script src="js/whatif.js?v=250"></script>
-<script src="js/mslearn.js?v=250"></script>
-<script src="js/gapcheck.js?v=250"></script>
-<script src="js/exclusions.js?v=250"></script>
-<script src="js/validator.js?v=250"></script>
-<script src="js/whatifeval.js?v=250"></script>
-<script src="js/compare.js?v=250"></script>
-<script src="js/groupuse.js?v=250"></script>
-<script src="js/locations.js?v=250"></script>
-<script src="js/authcontexts.js?v=250"></script>
-<script src="js/authstrengths.js?v=250"></script>
-<script src="js/recycle.js?v=250"></script>
-<script src="js/termsofuse.js?v=250"></script>
-<script src="js/audit.js?v=250"></script>
-<script src="js/signins.js?v=250"></script>
-<script src="js/reportimpact.js?v=250"></script>
-<script src="js/changelog.js?v=250"></script>
-<script src="js/baselineData.js?v=250"></script>
-<script src="js/baselineJoeyData.js?v=250"></script>
-<script src="js/baseline.js?v=250"></script>
-<script src="js/groupTemplates.js?v=250"></script>
-<script src="js/assign.js?v=250"></script>
-<script src="js/cagroups.js?v=250"></script>
-<script src="js/import.js?v=250"></script>
-<script src="js/export.js?v=250"></script>
-<script src="js/demo.js?v=250"></script>
-<script src="js/app.js?v=250"></script>
+<script src="js/branding.js?v=251"></script>
+<script src="js/version.js?v=251"></script>
+<script src="js/authConfig.js?v=251"></script>
+<script src="js/labels.js?v=251"></script>
+<script src="js/graph.js?v=251"></script>
+<script src="js/model.js?v=251"></script>
+<script src="js/render.js?v=251"></script>
+<script src="js/analyze.js?v=251"></script>
+<script src="js/whatif.js?v=251"></script>
+<script src="js/mslearn.js?v=251"></script>
+<script src="js/gapcheck.js?v=251"></script>
+<script src="js/exclusions.js?v=251"></script>
+<script src="js/validator.js?v=251"></script>
+<script src="js/whatifeval.js?v=251"></script>
+<script src="js/compare.js?v=251"></script>
+<script src="js/groupuse.js?v=251"></script>
+<script src="js/locations.js?v=251"></script>
+<script src="js/authcontexts.js?v=251"></script>
+<script src="js/authstrengths.js?v=251"></script>
+<script src="js/recycle.js?v=251"></script>
+<script src="js/termsofuse.js?v=251"></script>
+<script src="js/audit.js?v=251"></script>
+<script src="js/signins.js?v=251"></script>
+<script src="js/reportimpact.js?v=251"></script>
+<script src="js/changelog.js?v=251"></script>
+<script src="js/baselineData.js?v=251"></script>
+<script src="js/baselineJoeyData.js?v=251"></script>
+<script src="js/baseline.js?v=251"></script>
+<script src="js/groupTemplates.js?v=251"></script>
+<script src="js/assign.js?v=251"></script>
+<script src="js/cagroups.js?v=251"></script>
+<script src="js/import.js?v=251"></script>
+<script src="js/export.js?v=251"></script>
+<script src="js/demo.js?v=251"></script>
+<script src="js/app.js?v=251"></script>
 </body>
 </html>
