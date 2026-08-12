@@ -1091,6 +1091,22 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .gu-bar .chk{display:inline-flex;align-items:center;gap:8px;margin:0;white-space:nowrap}
 /* the table scrolls, not the card */
 .gu-tw{overflow-x:auto;border:1px solid var(--border);border-radius:12px}
+/* Drift watch. These cards hold prose, not a table — and .list-card
+   deliberately carries no padding of its own (it sets overflow:hidden and
+   lets whatever it wraps own the spacing, which for every other tool is a
+   table with its own cell padding). Without this the text sits flush against
+   the card border. */
+.dr-card{padding:16px 18px}
+.dr-card h4{margin:0 0 6px}
+/* Graph error text carries long unbroken ids and query-option names that would
+   otherwise push the card wider than the viewport. */
+.dr-card p{overflow-wrap:anywhere}
+.dr-card ol{margin:0 0 10px 20px;padding:0}
+.dr-card li{margin:0 0 4px}
+.dr-row{padding:8px 0;border-top:1px solid var(--border)}
+.dr-row:first-of-type{border-top:0}
+.dr-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
 .gu-tw table.plist{min-width:620px}
 .gu-tw table.plist tr:last-child td{border-bottom:0}
 

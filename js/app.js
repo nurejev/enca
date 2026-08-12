@@ -5040,9 +5040,9 @@ max@contoso.com,"Global, DevOps"</pre>
       <p class="mini" style="margin:6px 0 0">Snapshot the Conditional Access configuration now, compare a later run against it. The history is a file you keep — no server, no 30-day limit. Take a snapshot today; come back next month and load it.</p>`;
 
     if (!drCmp) {
-      $("drBody").innerHTML = `<div class="list-card">
+      $("drBody").innerHTML = `<div class="list-card dr-card">
         <h4 style="margin:0 0 6px">How this works</h4>
-        <ol class="mini" style="margin:0 0 10px 18px;padding:0">
+        <ol class="mini">
           <li><b>📸 Take snapshot</b> — reads policies, named locations, authentication strengths and contexts, and downloads them as one JSON file. Store it wherever your review files live.</li>
           <li>Later — days, months, a year — come back and <b>📂 Load snapshot &amp; compare</b>. ${BRANDING.name} re-reads the tenant and reports what moved.</li>
         </ol>
@@ -5061,12 +5061,12 @@ max@contoso.com,"Global, DevOps"</pre>
       ? `<p class="mini" style="color:var(--off);margin:6px 0 0">Covers only what was read — ${c.skipped.length} area${c.skipped.length === 1 ? "" : "s"} could not be compared: ${c.skipped.map((s) => esc(s.label)).join(", ")}.</p>`
       : "";
     const head = !c.verified
-      ? `<div class="list-card"><h4 style="margin:0 0 4px">⚠️ Nothing was compared</h4>
+      ? `<div class="list-card dr-card"><h4 style="margin:0 0 4px">⚠️ Nothing was compared</h4>
           <p class="mini" style="margin:0">No area could be read, so this run proves nothing — it is not a clean bill of health, it is the absence of one. ${c.skipped.map((s) => `<br>${s.icon} <b>${esc(s.label)}</b> — ${esc(s.why)}`).join("")}</p></div>`
       : c.clean
-      ? `<div class="list-card"><h4 style="margin:0 0 4px">✅ No drift</h4>
+      ? `<div class="list-card dr-card"><h4 style="margin:0 0 4px">✅ No drift</h4>
           <p class="mini" style="margin:0">Every compared object is identical to the snapshot from <b>${when(c.from)}</b>${c.days != null ? ` — ${c.days} day${c.days === 1 ? "" : "s"} ago` : ""}. ${c.totals.unchanged} object${c.totals.unchanged === 1 ? "" : "s"} checked across ${c.comparedAreas} area${c.comparedAreas === 1 ? "" : "s"}.</p>${caveat}</div>`
-      : `<div class="list-card"><h4 style="margin:0 0 4px">Drift since ${when(c.from)} ${drSevChip(c.severity)}</h4>
+      : `<div class="list-card dr-card"><h4 style="margin:0 0 4px">Drift since ${when(c.from)} ${drSevChip(c.severity)}</h4>
           <p class="mini" style="margin:0">Compared with the tenant as read just now${c.days != null ? `, ${c.days} day${c.days === 1 ? "" : "s"} apart` : ""} —
           <b>${c.totals.added} added</b>, <b>${c.totals.removed} removed</b>, <b>${c.totals.changed} changed</b>, ${c.totals.unchanged} unchanged.</p>${caveat}
           ${c.attributed ? "" : `<p class="mini muted" style="margin:6px 0 0">Run 🕓 Change audit first and the drift below will name who made each change that is still inside Entra's ~30-day log retention.</p>`}</div>`;
@@ -5074,7 +5074,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const rows = [];
     for (const a of c.areas) {
       if (!a.comparable) {
-        rows.push(`<div class="list-card"><h4 style="margin:0 0 4px">${a.icon} ${esc(a.label)}</h4>
+        rows.push(`<div class="list-card dr-card"><h4 style="margin:0 0 4px">${a.icon} ${esc(a.label)}</h4>
           <p class="mini" style="color:var(--off);margin:0">Not compared — ${esc(a.why)}.</p></div>`);
         continue;
       }
@@ -5090,8 +5090,8 @@ max@contoso.com,"Global, DevOps"</pre>
                 return `<tr><td>${drSevChip(ch.severity)}</td><td>${esc(d.what)}</td><td>${esc(d.how)}: ${esc(d.detail)}</td></tr>`; }).join("")}
               </tbody></table></div>`
           : "";
-        return `<div style="padding:8px 0;border-top:1px solid var(--border)">
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        return `<div class="dr-row">
+          <div class="dr-head">
             ${drSevChip(x.severity)}
             <b>${kind === "added" ? "ADDED" : kind === "removed" ? "REMOVED" : "CHANGED"}</b>
             <span>${esc(x.name)}</span>
@@ -5100,7 +5100,8 @@ max@contoso.com,"Global, DevOps"</pre>
             ${actor}
           </div>${body}</div>`;
       };
-      rows.push(`<div class="list-card"><h4 style="margin:0 0 2px">${a.icon} ${esc(a.label)} ${drSevChip(a.severity)}</h4>
+      rows.push(`<div class="list-card dr-card"><h4 style="margin:0 0 2px">${a.icon} ${esc(a.label)} ${drSevChip(a.severity)}</h4>
+        ${a.shapeNote ? `<p class="mini" style="color:var(--off);margin:0 0 6px">⚠️ ${esc(a.shapeNote)}</p>` : ""}
         ${a.removed.map((x) => item(x, "removed")).join("")}
         ${a.added.map((x) => item(x, "added")).join("")}
         ${a.changed.map((x) => item(x, "changed")).join("")}

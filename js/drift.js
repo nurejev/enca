@@ -27,15 +27,24 @@ const Drift = (() => {
   // in one never voids the rest — a tenant that will not hand over named
   // locations should still get policy drift. `scopes` documents what the
   // read needs beyond the session's baseline Policy.Read.All.
+  // `urls` is a candidate ladder, tried in order, first success wins — the same
+  // pattern the group analyzer uses. It exists because $expand is not accepted
+  // on every tenant: /policies/authenticationStrengthPolicies?$expand=... comes
+  // back 400 "Query option 'Expand' is not allowed" in some directories, which
+  // is exactly why the Authentication strengths tool already retries without
+  // it. A richer read is attempted first and a thinner one still counts as a
+  // successful capture, because half the fields is worth more than an area
+  // marked "not captured".
   const AREAS = [
     { key: "policies",  label: "Conditional Access policies", icon: "🗂",
-      url: "/identity/conditionalAccess/policies" },
+      urls: ["/identity/conditionalAccess/policies"] },
     { key: "locations", label: "Named locations",             icon: "🌐",
-      url: "/identity/conditionalAccess/namedLocations" },
+      urls: ["/identity/conditionalAccess/namedLocations"] },
     { key: "strengths", label: "Authentication strengths",    icon: "🔑",
-      url: "/policies/authenticationStrengthPolicies?$expand=combinationConfigurations" },
+      urls: ["/policies/authenticationStrengthPolicies?$expand=combinationConfigurations",
+             "/policies/authenticationStrengthPolicies"] },
     { key: "contexts",  label: "Authentication contexts",     icon: "🏷",
-      url: "/identity/conditionalAccess/authenticationContextClassReferences" },
+      urls: ["/identity/conditionalAccess/authenticationContextClassReferences"] },
   ];
   const areaByKey = (k) => AREAS.find((a) => a.key === k) || { key: k, label: k, icon: "•" };
 
@@ -63,18 +72,25 @@ const Drift = (() => {
     for (const a of AREAS) {
       if (meta.only && !meta.only.includes(a.key)) continue;
       if (onArea) onArea(a);
-      try {
-        const items = await read(a.url, a.key);
-        areas[a.key] = {
-          ok: true,
-          items: (items || []).map((o) => ({ id: o.id, name: nameOf(o), body: strip(o) }))
-            .sort((x, y) => String(x.id).localeCompare(String(y.id))),
-        };
-      } catch (e) {
-        // Recorded, not swallowed: a compare against an area that failed to
-        // read must say "not captured" rather than silently report "no drift".
-        areas[a.key] = { ok: false, error: e && e.message ? e.message : String(e), items: [] };
+      const tried = [];
+      let done = false;
+      for (const url of a.urls) {
+        try {
+          const items = await read(url, a.key);
+          areas[a.key] = {
+            ok: true,
+            url,
+            reduced: url !== a.urls[0],   // a fallback shape: fewer fields captured
+            items: (items || []).map((o) => ({ id: o.id, name: nameOf(o), body: strip(o) }))
+              .sort((x, y) => String(x.id).localeCompare(String(y.id))),
+          };
+          done = true;
+          break;
+        } catch (e) { tried.push(`${url.split("?")[0].split("/").pop()}: ${e && e.message ? e.message : e}`); }
       }
+      // Recorded, not swallowed: a compare against an area that failed to
+      // read must say "not captured" rather than silently report "no drift".
+      if (!done) areas[a.key] = { ok: false, error: tried.join(" · "), items: [] };
     }
     return {
       schema: EXPORT_SCHEMA,
@@ -224,7 +240,15 @@ const Drift = (() => {
       for (const [id, item] of B) if (!N.has(id)) removed.push({ id, name: item.name, severity: "critical" });
 
       const sevAll = [...added, ...removed, ...changed].map((x) => x.severity);
-      areas.push({ ...a, comparable: true, added, removed,
+      // If one side was captured with the richer URL and the other fell back to
+      // the thinner one, fields present in only one snapshot are an artefact of
+      // the read, not a change somebody made. Say so on the area rather than
+      // letting it read as drift the tenant caused.
+      const shapeChanged = !!b.reduced !== !!n.reduced;
+      areas.push({ ...a, comparable: true, added, removed, shapeChanged,
+        shapeNote: shapeChanged
+          ? "The two snapshots captured different field sets for this area (one read fell back to a simpler query), so some differences below may be an artefact of the read rather than a real change."
+          : "",
         changed: changed.sort((x, y) => SEV[y.severity] - SEV[x.severity] || x.name.localeCompare(y.name)),
         unchanged, severity: sevAll.length ? worst(sevAll) : "low" });
       totals.added += added.length; totals.removed += removed.length;
@@ -323,6 +347,7 @@ const Drift = (() => {
       if (!a.added.length && !a.removed.length && !a.changed.length) continue;
       L.push(`## ${a.icon} ${a.label}`);
       L.push("");
+      if (a.shapeNote) { L.push(`> ⚠️ ${a.shapeNote}`); L.push(""); }
       for (const x of a.removed) L.push(`- **REMOVED** — ${x.name}${x.actor ? ` _(${x.actor.who}, ${when(x.actor.when)})_` : ""}`);
       for (const x of a.added)   L.push(`- **ADDED** — ${x.name}${x.actor ? ` _(${x.actor.who}, ${when(x.actor.when)})_` : ""}`);
       for (const x of a.changed) {
