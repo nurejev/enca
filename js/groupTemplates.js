@@ -146,6 +146,11 @@ const GROUP_TEMPLATES = [
     "mailNickname": "CABSECUCA1006Exclusion"
   },
   {
+    "displayName": "CAB-SEC-U-CA1009-Exclusion",
+    "description": "CA Baseline group - exclusion for CA1009 (Block non-DevOps personas from Azure DevOps)",
+    "mailNickname": "CABSECUCA1009Exclusion"
+  },
+  {
     "displayName": "CAB-SEC-U-CA1007-Exclusion",
     "description": "",
     "mailNickname": "9f73fb05e"

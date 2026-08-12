@@ -1645,7 +1645,24 @@
   // Demo mode has no directory, so synthesise a scan that still exercises every
   // status — otherwise the demo silently shows an empty tool.
   function demoGroupScan() {
-    const names = (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []).slice(0, 24);
+    // A representative sample, not the first 24 in file order. The old slice(0,24)
+    // happened to take BreakGlass plus twenty-odd numbered exclusions, so the
+    // persona groups and the Emergency_Access pair — the ones a reviewer looks
+    // for first — never appeared, and demo mode read as though the baseline had
+    // forgotten them. Named groups first, then a spread of exclusions.
+    const all = (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []);
+    const named = all.filter((t) => !/-(Exclusion|Inclusion)$/.test(t.displayName));
+    const excl = all.filter((t) => /-(Exclusion|Inclusion)$/.test(t.displayName));
+    // one exclusion per persona band (CA0xx global, CA1xx admins, CA2xx …) so the
+    // demo shows the numbering scheme rather than twenty consecutive neighbours
+    const band = new Set();
+    const spread = excl.filter((t) => {
+      const m = t.displayName.match(/CA(\d+)-/);
+      const b = m ? String(m[1]).padStart(4, "0").slice(0, 2) : "??";
+      if (band.has(b)) return false;
+      band.add(b); return true;
+    });
+    const names = [...named, ...spread, ...excl].filter((t, i, a) => a.indexOf(t) === i).slice(0, 24);
     const rows = names.map((t, i) => ({
       name: t.displayName, status: i % 5 === 0 ? "missing" : "present",
       sources: ["template"], template: t, id: i % 5 === 0 ? null : "g-demo-" + i,
@@ -4677,11 +4694,21 @@ max@contoso.com,"Global, DevOps"</pre>
     const sc = e.target.closest("[data-ruscope]");
     if (sc) {
       const id = sc.dataset.ruscope;
+      const wasOpen = ruOpen.has(id);
       ruOpen.add(id);                       // always open, never toggle shut
-      renderRmau();
+      if (!wasOpen) renderRmau();
       if (!ruDetails[id]) { await ruLoadDetail(id); renderRmau(); }
-      const card = document.querySelector(`[data-ruscope="${id}"]`);
-      if (card) card.scrollIntoView({ block: "center", behavior: "smooth" });
+      // Land on the grant box itself, not the button that was pressed. When the
+      // card is ALREADY open the button is on screen and scrolling to it does
+      // nothing visible — which reads as a dead button. Focusing the input is
+      // feedback in both cases, and it is where the next keystroke belongs.
+      const box = document.querySelector(`[data-ruadminbox="${id}"]`);
+      if (box) {
+        box.scrollIntoView({ block: "center", behavior: "smooth" });
+        box.focus({ preventScroll: true });
+        box.classList.add("ru-flash");
+        setTimeout(() => box.classList.remove("ru-flash"), 1200);
+      }
       return;
     }
     const ed = e.target.closest("[data-ruedit]"); if (ed) { openRuEditor(ruList.find((x) => x.id === ed.dataset.ruedit)); return; }

@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25010, date: "2026-08-12", title: "The baseline reconciles; demo stops lying about it",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "The baseline catalog referenced CAB-SEC-U-CA1009-Exclusion — the exclusion for CA1009, which blocks non-DevOps personas from Azure DevOps — but no group template defined it. The Check tab therefore expected a group it could never offer to create, and the ✎ Create action had no template to build from. The template is added, and catalog and templates now reconcile exactly: every one of the 98 group names the baseline references has a template, and no template is orphaned." },
+      { kind: "fixed", tool: "Conditional Access groups", text: "Demo mode showed the first 24 group templates in file order, which happened to be BreakGlass plus twenty-odd consecutive numbered exclusions — so the persona groups and the Emergency_Access pair never appeared, and demo mode read as though the baseline had forgotten them. It now shows a representative sample: every named group (personas, break-glass, Teams shared devices, deployment groups, Emergency_Access1 and 2) followed by one exclusion per persona band, so the numbering scheme is visible instead of twenty neighbours from the same range." },
+      { kind: "fixed", tool: "Restricted AUs", text: "👤 Scoped admins did nothing when the card was already expanded — it re-opened an open card and scrolled to the button you had just pressed. It now lands on the grant box, focuses it and flashes it briefly, so it gives feedback whether the card was open or closed." },
+    ],
+  },
+  {
     build: 25009, date: "2026-08-12", title: "The home page stops being a wall",
     items: [
       { kind: "improved", tool: "All tools", text: "Each section on the home page now shows its first four tools, with the rest behind a ▼ Show N more toggle — Analyse & simulate had grown to ten tiles and Manage the tenant to eleven, which is a lot to scroll past to reach the section you wanted. Sections of four or fewer are untouched, so no button appears where there is nothing to hide. Your choice per section is remembered between visits. Two things kept honest: a tool that just shipped cannot vanish silently, so the button counts the hidden NEW and BETA tiles (\"Show 7 more · 4 new or beta\"), and hidden tiles stay fully reachable — the tab bar, the + menu, roadmap links and Ctrl+K all open them exactly as before, because collapsing the grid must not amputate navigation. Sections are keyed by their heading, not their position, so adding a section later does not re-collapse a different one." },
