@@ -830,6 +830,9 @@
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
       $("tenantName").textContent = tenantName;
+      // Baseline tenants (see BASELINE_TENANTS) get extended behaviour — say so
+      // where the tenant identity lives, instead of it being a hidden mode.
+      $("baselineBadge").style.display = isBaselineTenant() ? "inline-block" : "none";
       $("tenantUser").textContent = account?.username || "";
       $("avatar").textContent = (account?.name || account?.username || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
       $("tenantBox").style.display = "flex";

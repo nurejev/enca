@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25001, date: "2026-08-11", title: "Baseline tenants say so",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Signing in from a baseline tenant now shows a 🧪 badge next to the tenant name: this session has more options than a regular tenant — the Gap and MS Learn checks review the persona baseline including policies deployed Off, and MS Learn's Apply-fixes can write here. The behaviour existed; now it announces itself instead of being a hidden mode. (Production took 249 for its own change, so this cycle targets 250 — build 25001, v1.0.250-beta.1.)" },
+    ],
+  },
+  {
     build: 24901, date: "2026-08-11", title: "Restricted AUs joins the roadmap",
     items: [
       { kind: "improved", tool: "All tools", text: "The roadmap's Next era now names 🛡 Restricted AUs alongside the CIS Benchmark — in beta today, clickable straight into the tool here (and to the beta site when read from production). Production took release 248 for its side of this change, so the beta cycle now targets 249 — this build is 24901 (v1.0.249-beta.1)." },
