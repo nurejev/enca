@@ -67,7 +67,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -1100,6 +1100,7 @@
     ["toolTou", "📜 Terms of use"],
     ["toolRecycle", "♻ Recycle bin"],
     ["toolRmau", "🛡 Restricted AUs"],
+    ["toolDrift", "📉 Drift watch"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
@@ -4941,6 +4942,179 @@ max@contoso.com,"Global, DevOps"</pre>
       }
     }
     showReport("🕓 Change audit", "CA-ChangeAudit", L.join("\n"));
+  });
+
+  // ---------- Drift watch (configuration state vs a snapshot file) ----------
+  // Deliberately infrastructure-free: the snapshot is a file the tenant keeps.
+  // That is the whole trick — it gives drift history with no database, no
+  // scheduled job and no data leaving the browser, and unlike the audit log it
+  // never ages out.
+  let drNow = null;      // the snapshot just taken from the live tenant
+  let drBase = null;     // the snapshot loaded from disk (the "before")
+  let drCmp = null;      // the comparison, once both exist
+  let drBusy = false;
+  const drProg = makeProgress("dr");
+  const drOpen = new Set();
+
+  // GUIDs in a diff are unreadable. The policy view models already carry
+  // resolved labels for every dependency they reference, so harvest those
+  // rather than issuing another round of directory lookups.
+  function drNames() {
+    const out = {};
+    for (const p of policies) for (const d of (p.deps || [])) if (d.id && d.label) out[d.id] = d.label;
+    return out;
+  }
+  async function drRead(url, key) {
+    if (isDemo) {
+      if (key === "policies") return (typeof DEMO_DATA !== "undefined" && DEMO_DATA.policies) || [];
+      if (key === "locations") return (typeof DEMO_DATA !== "undefined" && DEMO_DATA.namedLocations) || [];
+      return [];
+    }
+    return Graph.ggetAll(url);
+  }
+
+  function openDrift() { crumb("📉 Drift watch"); show("screen-drift"); renderDrift(); }
+  $("toolDrift").addEventListener("click", openDrift);
+
+  async function drTake(thenCompare) {
+    if (drBusy) return;
+    drBusy = true;
+    drProg.start(Drift.AREAS.length, "objects", "area");
+    let done = 0;
+    $("drBody").innerHTML = drProg.panel("Reading the Conditional Access configuration…");
+    try {
+      const snap = await Drift.snapshot(drRead,
+        { tenant: tenantName, build: APP_BUILD.label, names: drNames() },
+        (a) => { drProg.tick(done, ++done); const t = $("drPgTxt"); if (t) t.textContent = `${a.icon} ${a.label}…`; });
+      drNow = snap;
+      if (thenCompare && drBase) drCmp = Drift.attribute(Drift.compare(drBase, drNow), auRes ? auRes.rows : null);
+      return snap;
+    } catch (e) {
+      $("drBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the configuration failed: ${esc(e.message || e)}</p></div>`;
+      return null;
+    } finally { drBusy = false; }
+  }
+
+  $("drSnap").addEventListener("click", async () => {
+    const snap = await drTake(false);
+    if (!snap) return;
+    const failed = Object.entries(snap.areas).filter(([, v]) => !v.ok);
+    downloadText("CA-DriftSnapshot", "json", "application/json", JSON.stringify(snap, null, 2));
+    toast(failed.length
+      ? `Snapshot saved — ${failed.length} area${failed.length === 1 ? "" : "s"} could not be read and ${failed.length === 1 ? "is" : "are"} marked as not captured.`
+      : "Snapshot saved. Keep the file — a later run compares against it.");
+    renderDrift();
+  });
+
+  $("drLoadBtn").addEventListener("click", () => $("drFile").click());
+  $("drFile").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    try {
+      drBase = Drift.fromExport(JSON.parse(await f.text()));
+    } catch (err) {
+      toast(`That snapshot could not be read: ${esc(err.message || err)}`);
+      return;
+    }
+    if (!await drTake(false)) return;
+    drCmp = Drift.attribute(Drift.compare(drBase, drNow), auRes ? auRes.rows : null);
+    renderDrift();
+  });
+
+  $("drClear").addEventListener("click", () => { drBase = null; drNow = null; drCmp = null; drOpen.clear(); renderDrift(); });
+
+  $("drMd").addEventListener("click", () => {
+    if (!drCmp) { toast("Load a snapshot first — the report is the comparison."); return; }
+    showReport("📉 Drift watch", "CA-DriftReport", Drift.markdown(drCmp, { tenant: tenantName, build: APP_BUILD.label }));
+  });
+
+  const DR_SEV_CLASS = { critical: "off", high: "warn", medium: "", low: "muted" };
+  function drSevChip(sev) {
+    const cls = DR_SEV_CLASS[sev] === "off" ? "block" : DR_SEV_CLASS[sev] === "warn" ? "new" : "";
+    return `<span class="tag ${cls}">${Drift.SEV_LABEL[sev]}</span>`;
+  }
+
+  function renderDrift() {
+    $("drHead").innerHTML = `<h3>📉 Drift watch <span class="tag new">BETA</span></h3>
+      <p class="mini" style="margin:6px 0 0">Snapshot the Conditional Access configuration now, compare a later run against it. The history is a file you keep — no server, no 30-day limit. Take a snapshot today; come back next month and load it.</p>`;
+
+    if (!drCmp) {
+      $("drBody").innerHTML = `<div class="list-card">
+        <h4 style="margin:0 0 6px">How this works</h4>
+        <ol class="mini" style="margin:0 0 10px 18px;padding:0">
+          <li><b>📸 Take snapshot</b> — reads policies, named locations, authentication strengths and contexts, and downloads them as one JSON file. Store it wherever your review files live.</li>
+          <li>Later — days, months, a year — come back and <b>📂 Load snapshot &amp; compare</b>. ${BRANDING.name} re-reads the tenant and reports what moved.</li>
+        </ol>
+        <p class="mini muted" style="margin:0">Nothing is uploaded and nothing is stored server-side; the file never leaves your machine except where you put it. Changes are ranked by severity — a widened exclusion or a policy switched Off outranks a rename, because that is how protection disappears quietly.</p>
+        ${drNow ? `<p class="mini" style="margin:10px 0 0">✅ Snapshot taken ${esc(String(drNow.generated).slice(0, 16).replace("T", " "))} — ${Object.values(drNow.areas).reduce((n, a) => n + a.items.length, 0)} objects captured.</p>` : ""}
+      </div>`;
+      return;
+    }
+
+    const c = drCmp;
+    const when = (s) => esc(String(s || "").slice(0, 16).replace("T", " "));
+    // Three outcomes, never two: nothing verified, verified-and-clean, drift.
+    // Collapsing the first into the second would show a green tick for a run
+    // that read nothing — the one lie this tool must not tell.
+    const caveat = c.skipped && c.skipped.length
+      ? `<p class="mini" style="color:var(--off);margin:6px 0 0">Covers only what was read — ${c.skipped.length} area${c.skipped.length === 1 ? "" : "s"} could not be compared: ${c.skipped.map((s) => esc(s.label)).join(", ")}.</p>`
+      : "";
+    const head = !c.verified
+      ? `<div class="list-card"><h4 style="margin:0 0 4px">⚠️ Nothing was compared</h4>
+          <p class="mini" style="margin:0">No area could be read, so this run proves nothing — it is not a clean bill of health, it is the absence of one. ${c.skipped.map((s) => `<br>${s.icon} <b>${esc(s.label)}</b> — ${esc(s.why)}`).join("")}</p></div>`
+      : c.clean
+      ? `<div class="list-card"><h4 style="margin:0 0 4px">✅ No drift</h4>
+          <p class="mini" style="margin:0">Every compared object is identical to the snapshot from <b>${when(c.from)}</b>${c.days != null ? ` — ${c.days} day${c.days === 1 ? "" : "s"} ago` : ""}. ${c.totals.unchanged} object${c.totals.unchanged === 1 ? "" : "s"} checked across ${c.comparedAreas} area${c.comparedAreas === 1 ? "" : "s"}.</p>${caveat}</div>`
+      : `<div class="list-card"><h4 style="margin:0 0 4px">Drift since ${when(c.from)} ${drSevChip(c.severity)}</h4>
+          <p class="mini" style="margin:0">Compared with the tenant as read just now${c.days != null ? `, ${c.days} day${c.days === 1 ? "" : "s"} apart` : ""} —
+          <b>${c.totals.added} added</b>, <b>${c.totals.removed} removed</b>, <b>${c.totals.changed} changed</b>, ${c.totals.unchanged} unchanged.</p>${caveat}
+          ${c.attributed ? "" : `<p class="mini muted" style="margin:6px 0 0">Run 🕓 Change audit first and the drift below will name who made each change that is still inside Entra's ~30-day log retention.</p>`}</div>`;
+
+    const rows = [];
+    for (const a of c.areas) {
+      if (!a.comparable) {
+        rows.push(`<div class="list-card"><h4 style="margin:0 0 4px">${a.icon} ${esc(a.label)}</h4>
+          <p class="mini" style="color:var(--off);margin:0">Not compared — ${esc(a.why)}.</p></div>`);
+        continue;
+      }
+      if (!a.added.length && !a.removed.length && !a.changed.length) continue;
+      const item = (x, kind) => {
+        const key = a.key + ":" + x.id;
+        const opened = drOpen.has(key);
+        const actor = x.actor ? `<span class="mini muted"> · ${esc(x.actor.who && x.actor.who.name ? x.actor.who.name : x.actor.who)} ${when(x.actor.when)}</span>` : "";
+        const body = kind === "changed"
+          ? `<div class="gu-tw" style="${opened ? "" : "display:none"}"><table class="mini" style="width:100%">
+              <thead><tr><th>Severity</th><th>What</th><th>Change</th></tr></thead><tbody>
+              ${x.changes.map((ch) => { const d = Drift.describe(ch, c.names);
+                return `<tr><td>${drSevChip(ch.severity)}</td><td>${esc(d.what)}</td><td>${esc(d.how)}: ${esc(d.detail)}</td></tr>`; }).join("")}
+              </tbody></table></div>`
+          : "";
+        return `<div style="padding:8px 0;border-top:1px solid var(--border)">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            ${drSevChip(x.severity)}
+            <b>${kind === "added" ? "ADDED" : kind === "removed" ? "REMOVED" : "CHANGED"}</b>
+            <span>${esc(x.name)}</span>
+            ${x.renamed ? `<span class="mini muted">was “${esc(x.was)}”</span>` : ""}
+            ${kind === "changed" ? `<button class="btn mini" data-drtog="${esc(key)}">${opened ? "Hide" : `${x.changes.length} change${x.changes.length === 1 ? "" : "s"}`}</button>` : ""}
+            ${actor}
+          </div>${body}</div>`;
+      };
+      rows.push(`<div class="list-card"><h4 style="margin:0 0 2px">${a.icon} ${esc(a.label)} ${drSevChip(a.severity)}</h4>
+        ${a.removed.map((x) => item(x, "removed")).join("")}
+        ${a.added.map((x) => item(x, "added")).join("")}
+        ${a.changed.map((x) => item(x, "changed")).join("")}
+        <p class="mini muted" style="margin:8px 0 0">${a.unchanged} unchanged.</p></div>`);
+    }
+    $("drBody").innerHTML = head + rows.join("");
+  }
+
+  $("drBody").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-drtog]");
+    if (!b) return;
+    const k = b.dataset.drtog;
+    if (drOpen.has(k)) drOpen.delete(k); else drOpen.add(k);
+    renderDrift();
   });
 
   // ---------- Sign-in failures (sign-in log × CA verdicts) ----------
@@ -8835,6 +9009,7 @@ max@contoso.com,"Global, DevOps"</pre>
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
     siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
+    drHead: "toolDrift",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
