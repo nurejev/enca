@@ -5229,8 +5229,13 @@ max@contoso.com,"Global, DevOps"</pre>
     // Three outcomes, never two: nothing verified, verified-and-clean, drift.
     // Collapsing the first into the second would show a green tick for a run
     // that read nothing — the one lie this tool must not tell.
-    const caveat = c.skipped && c.skipped.length
-      ? `<p class="mini" style="color:var(--off);margin:6px 0 0">Covers only what was read — ${c.skipped.length} area${c.skipped.length === 1 ? "" : "s"} could not be compared: ${c.skipped.map((s) => esc(s.label)).join(", ")}.</p>`
+    // Separate "your old snapshot lacks this" from "the tenant would not give it
+    // to us now" — only the second is a problem with the current run.
+    const stale = (c.skipped || []).filter((s) => s.staleSnapshot);
+    const live = (c.skipped || []).filter((s) => !s.staleSnapshot);
+    const caveat = (c.skipped && c.skipped.length)
+      ? `${live.length ? `<p class="mini" style="color:var(--off);margin:6px 0 0">Covers only what was read — ${live.length} area${live.length === 1 ? "" : "s"} could not be read now: ${live.map((s) => esc(s.label)).join(", ")}.</p>` : ""}
+         ${stale.length ? `<p class="mini muted" style="margin:6px 0 0">${stale.length} area${stale.length === 1 ? " was" : "s were"} missing from the <b>snapshot</b>, not from this run (${stale.map((s) => esc(s.label)).join(", ")}) — take a fresh snapshot and they will be covered from then on.</p>` : ""}`
       : "";
     const head = !c.verified
       ? `<div class="list-card dr-card"><h4 style="margin:0 0 4px">⚠️ Nothing was compared</h4>
@@ -5246,8 +5251,11 @@ max@contoso.com,"Global, DevOps"</pre>
     const rows = [];
     for (const a of c.areas) {
       if (!a.comparable) {
-        rows.push(`<div class="list-card dr-card"><h4 style="margin:0 0 4px">${a.icon} ${esc(a.label)}</h4>
-          <p class="mini" style="color:var(--off);margin:0">Not compared — ${esc(a.why)}.</p></div>`);
+        // A stale snapshot is fixable by the reader; a live failure is not.
+        // Colour and wording follow that difference instead of painting both red.
+        rows.push(`<div class="list-card dr-card"><h4 style="margin:0 0 4px">${a.icon} ${esc(a.label)} ${a.staleSnapshot ? '<span class="tag">stale snapshot</span>' : '<span class="tag block">not read</span>'}</h4>
+          <p class="mini" style="color:var(--${a.staleSnapshot ? "muted" : "off"});margin:0">Not compared — ${esc(a.why)}.</p>
+          ${a.staleSnapshot ? `<p class="mini" style="margin:8px 0 0">📸 <b>Take snapshot</b> now and store the new file — comparisons against it will include this area.</p>` : ""}</div>`);
         continue;
       }
       if (!a.added.length && !a.removed.length && !a.changed.length) continue;

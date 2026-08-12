@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25008, date: "2026-08-12", title: "Drift watch says which side failed",
+    items: [
+      { kind: "fixed", tool: "Drift watch", text: "A snapshot taken before build 25005 recorded Authentication strengths as unreadable (the $expand 400 fixed in that build), and every later comparison against that file kept reporting it — in red, as though the tenant were refusing the read right now. The area now says which side failed. A snapshot that lacks an area is marked 'stale snapshot' in muted type and tells you the fix: take a fresh snapshot and it is covered from then on. A failure in the current run stays red, because that one is real. When both sides failed, both reasons are given — before, only the snapshot's was, which hid a live problem behind an old one. The summary line makes the same split instead of counting them together." },
+    ],
+  },
+  {
     build: 25007, date: "2026-08-12", title: "Restricted AUs stop making you type from memory",
     items: [
       { kind: "improved", tool: "Restricted AUs", text: "Both boxes on an AU card now suggest. Add member is pre-seeded with your baseline group names before you type a character — those are the groups the administrative unit exists to protect, so the common case is now a pick rather than a recall — and folds in live directory results for any other group or user as you type. The scoped-administrator box suggests users from Entra by display name or UPN, the same type-ahead the Protect flow has always had. Restricted AUs also gains a help section covering the parts that surprise people: roles are not granted in the Edit dialog, the restricted flag is immutable, and a 403 on a member change is the shield working." },

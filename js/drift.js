@@ -215,10 +215,21 @@ const Drift = (() => {
       // An area missing or failed on either side cannot be compared. Say so
       // instead of reporting a clean bill of health nobody verified.
       if (!b || !n || b.ok === false || n.ok === false) {
-        areas.push({ ...a, comparable: false,
-          why: !b ? "not captured in the snapshot" : !n ? "not read in this run"
-             : b.ok === false ? `snapshot read failed: ${b.error}` : `this run failed: ${n.error}`,
-          added: [], removed: [], changed: [], unchanged: 0, severity: "low" });
+        // Which SIDE failed decides what the reader should do, so name it and
+        // say whether the problem is behind them or in front of them. A stale
+        // snapshot that recorded a failure keeps reporting it against every
+        // future run — that reads like a live fault unless we say otherwise.
+        const bBad = !b || b.ok === false, nBad = !n || n.ok === false;
+        let why;
+        if (bBad && nBad) {
+          why = `neither side could read it — snapshot: ${!b ? "area not captured" : b.error}; this run: ${!n ? "area not read" : n.error}`;
+        } else if (bBad) {
+          why = `${!b ? "not captured in the snapshot" : `the snapshot could not read it (${b.error})`} — this run read it fine, so it becomes comparable from your next snapshot onward`;
+        } else {
+          why = `this run could not read it (${n.error}) — the snapshot has it, so the problem is now, not then`;
+        }
+        areas.push({ ...a, comparable: false, staleSnapshot: bBad && !nBad, liveFailure: nBad,
+          why, added: [], removed: [], changed: [], unchanged: 0, severity: "low" });
         continue;
       }
       const B = new Map(b.items.map((x) => [x.id, x]));
@@ -266,7 +277,8 @@ const Drift = (() => {
     const skipped = areas.filter((a) => !a.comparable);
     return { areas, totals, names, from, to, days,
       comparedAreas: compared.length,
-      skipped: skipped.map((a) => ({ key: a.key, label: a.label, icon: a.icon, why: a.why })),
+      skipped: skipped.map((a) => ({ key: a.key, label: a.label, icon: a.icon, why: a.why,
+        staleSnapshot: !!a.staleSnapshot, liveFailure: !!a.liveFailure })),
       verified: compared.length > 0,
       clean: compared.length > 0 && totals.added + totals.removed + totals.changed === 0,
       severity: worst(compared.map((a) => a.severity).concat("low")) };
