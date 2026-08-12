@@ -449,7 +449,7 @@
       toast(`Could not load the security documentation: <span>${esc(e.message || e)}</span>`);
     }
   }
-  for (const id of ["secLinkLogin", "secLinkFoot", "rmSecLink"]) {
+  for (const id of ["secLinkLogin", "secLinkFoot", "rmSecLink", "rmSecLink2"]) {
     const el = $(id);
     if (el) el.addEventListener("click", (e) => { e.preventDefault(); showSecurityDoc(); });
   }

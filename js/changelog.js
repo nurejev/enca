@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25002, date: "2026-08-12", title: "Bring your own app registration — on the map",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The roadmap's Next era gains 🏢 Your own single-tenant app registration. Today every tenant consents to one multi-tenant application owned by Limon-IT; the plan is to let a tenant register ENCA as a single-tenant SPA (AzureADMyOrg) of its own — own client ID, own consent record, own redirect URIs, own audit trail — so no application outside the directory holds a delegated grant. The sign-in platform is unchanged either way (SPA, authorization code + PKCE, no client secret); what moves is ownership of the registration. Security & risk has recommended this for high-assurance tenants all along — the work is making it a supported path (a -SingleTenant switch on the registration script, a client ID read from configuration, and a guide to the trade-off) instead of a manual fork-and-edit. The card links straight into the security document. Build 25002 (v1.0.250-beta.2)." },
+    ],
+  },
+  {
     build: 25001, date: "2026-08-11", title: "Baseline tenants say so",
     items: [
       { kind: "improved", tool: "All tools", text: "Signing in from a baseline tenant now shows a 🧪 badge next to the tenant name: this session has more options than a regular tenant — the Gap and MS Learn checks review the persona baseline including policies deployed Off, and MS Learn's Apply-fixes can write here. The behaviour existed; now it announces itself instead of being a hidden mode. (Production took 249 for its own change, so this cycle targets 250 — build 25001, v1.0.250-beta.1.)" },
