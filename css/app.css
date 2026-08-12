@@ -1106,6 +1106,22 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .dr-row{padding:8px 0;border-top:1px solid var(--border)}
 .dr-row:first-of-type{border-top:0}
 .dr-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* Command palette. Sits high rather than centred: the list grows downward and
+   a centred box would jump around as results change. */
+.modal-bg.cp-open{align-items:flex-start;padding-top:12vh}
+.cp-modal{max-width:620px;padding:0;overflow:hidden}
+#cpInput{width:100%;border:0;border-bottom:1px solid var(--border);border-radius:0;
+  padding:16px 18px;font-size:15px;background:transparent;color:var(--ink);outline:none}
+.cp-list{max-height:46vh;overflow-y:auto}
+.cp-item{display:flex;gap:10px;align-items:center;padding:10px 18px;cursor:pointer;border-bottom:1px solid var(--border)}
+.cp-item:last-child{border-bottom:0}
+.cp-item.sel,.cp-item:hover{background:var(--soft)}
+.cp-item .cp-k{font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap}
+.cp-item b{font-weight:600}
+.cp-empty{padding:18px;color:var(--muted);font-size:13px}
+.cp-foot{display:flex;gap:14px;align-items:center;padding:10px 18px;border-top:1px solid var(--border);background:var(--soft)}
+.cp-foot kbd{font:inherit;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:1px 5px;margin-right:3px}
+
 
 .gu-tw table.plist{min-width:620px}
 .gu-tw table.plist tr:last-child td{border-bottom:0}

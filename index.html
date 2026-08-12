@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25005"></script>
+<script src="js/popup-guard.js?v=25006"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25005">
+<link rel="stylesheet" href="css/app.css?v=25006">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25005"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25005"></script>
+<script src="js/counter.js?v=25006"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25006"></script>
 </head>
 <body>
 
@@ -138,11 +138,11 @@
         <p>Who changed which Conditional Access resource, when, and exactly what changed — a field-level diff of every policy, named location and authentication strength edit from the Entra audit log.</p>
       </div>
       <div class="tool" id="toolSignins">
-        <div class="tool-ic">🚦</div><h3>Sign-in failures <span class="tag new">NEW</span></h3>
+        <div class="tool-ic">🚦</div><h3>Sign-in failures</h3>
         <p>Which sign-ins Conditional Access failed and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. Enforced and report-only, with CSV export and a one-click replay in What-If.</p>
       </div>
       <div class="tool" id="toolImpact">
-        <div class="tool-ic">🎚</div><h3>Report-only impact <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">🎚</div><h3>Report-only impact</h3>
         <p>What happens the day a report-only policy goes live — per policy: who would be denied, who just gets an extra prompt, who passes unchanged; per user: the combined effect of everything in report-only. The evidence for the go-live decision, from the sign-in log.</p>
       </div>
     </div>
@@ -1063,6 +1063,10 @@
             <p class="mini" style="margin:0">Does the tenant still look like it did when we signed it off? Snapshot the Conditional Access configuration to a file you keep, and compare a later run against it — added, removed, changed, ranked so a widened exclusion or a policy switched Off outranks a rename. No server and no 30-day limit, because the history is the file rather than Microsoft's audit log. Running on the beta channel now. <b>Next for it:</b> exclusion-group <i>membership</i> drift (an exclusion group quietly gaining members is the same risk as widening the exclusion itself) and comparing two snapshots to each other without re-reading the tenant.</p>
           </div>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">⌨️ Command palette <span class="tag ok">in beta today</span></h4>
+            <p class="mini" style="margin:0">Past twenty-odd tools, a tile grid stops being the fastest way in. <b>Ctrl/Cmd&nbsp;+&nbsp;K</b> anywhere opens a search box: type a few letters and land in the tool, or type a CA number or policy name and land on the policy card. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bbc</code> finds Best-practice &amp; bypass checks. Running on the beta channel now.</p>
+          </div>
+          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">🖥 Compliant-device reality check <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — and nothing checks the other half today. Read the compliance policies and their assignments, then flag every Conditional Access policy whose protection rests on a persona that no compliance policy actually covers. The same blind spot exists for app-protection policies behind “require approved client app”.</p>
           </div>
@@ -1127,10 +1131,6 @@
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">🇳🇱 Dutch interface <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">The exported documentation is the part non-administrators actually read, and for a Dutch organisation that reads better in Dutch. The tool is built for it — one labels file, no build step — so the work is translation and keeping it honest, not plumbing.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">⌨️ Command palette <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Past twenty-odd tools, a tile grid stops being the fastest way in. One keystroke, type three letters, land in the tool — and the same box jumps to a policy by CA number or name.</p>
           </div>
         </div>
         <div class="rm-more">→ and further, steered by what you ask for</div>
@@ -1269,6 +1269,17 @@
     </section>
 
     <section class="help-sec">
+      <h4>⌨️ Command palette <span class="tag new">BETA</span></h4>
+      <p>Press <b>Ctrl + K</b> (<b>⌘ + K</b> on a Mac) anywhere in the app. Type a few letters, press <b>Enter</b>.</p>
+      <ul>
+        <li><b>Tools</b> — always searchable, signed in or not. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bpbc</code> finds Best-practice &amp; bypass checks.</li>
+        <li><b>Policies</b> — once a tenant is loaded, type a CA number (<code>203</code>) or any part of the policy name to open its card directly, without going through List Policies first.</li>
+        <li><b>Keys</b> — <b>↑ ↓</b> move, <b>Enter</b> opens, <b>Esc</b> closes, <b>Ctrl/⌘ + K</b> again closes. Clicking outside closes it too.</li>
+      </ul>
+      <p class="help-x">Navigation only — it opens things, it never changes anything.</p>
+    </section>
+
+    <section class="help-sec">
       <h4>📉 Drift watch <span class="tag new">BETA</span></h4>
       <p>What moved in the Conditional Access configuration since a snapshot you took earlier. Change audit answers <i>who changed this in the last 30 days</i>; Drift watch answers <i>does the tenant still look like it did when we signed it off</i> — with no time limit, because the history is a file you keep rather than a log Microsoft ages out.</p>
       <ul>
@@ -1284,7 +1295,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>🚦 Sign-in failures <span class="tag new">NEW</span></h4>
+      <h4>🚦 Sign-in failures</h4>
       <p>Which sign-ins Conditional Access failed and which policy did it — read from the Entra sign-in log, grouped per policy.</p>
       <ul>
         <li><b>Enforced</b> — sign-ins with <code>conditionalAccessStatus = failure</code>: a policy's controls were not satisfied and the sign-in was blocked or interrupted. Filtered by Graph, so the read is cheap. An abandoned MFA prompt lands here too — a failure is a prompt to look, not proof the policy is wrong.</li>
@@ -1874,6 +1885,18 @@
 </div>
 
 <!-- ============ RESTRICTED AU EDITOR ============ -->
+<!-- ============ COMMAND PALETTE (BETA) — Ctrl/Cmd+K ============ -->
+<div class="modal-bg" id="cpModal">
+  <div class="modal cp-modal">
+    <input id="cpInput" placeholder="Jump to a tool, or a policy by CA number or name…" autocomplete="off" spellcheck="false" aria-label="Command palette">
+    <div id="cpList" class="cp-list"></div>
+    <div class="cp-foot mini muted">
+      <span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span>
+      <span style="margin-left:auto" id="cpScopeNote"></span>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="ruEditModal">
   <div class="modal" style="max-width:560px">
     <h3 id="ruEditTitle">New restricted administrative unit</h3>
@@ -2024,44 +2047,44 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25005"></script>
-<script src="js/version.js?v=25005"></script>
-<script src="js/authConfig.js?v=25005"></script>
-<script src="js/labels.js?v=25005"></script>
-<script src="js/graph.js?v=25005"></script>
-<script src="js/model.js?v=25005"></script>
-<script src="js/render.js?v=25005"></script>
-<script src="js/analyze.js?v=25005"></script>
-<script src="js/whatif.js?v=25005"></script>
-<script src="js/mslearn.js?v=25005"></script>
-<script src="js/gapcheck.js?v=25005"></script>
-<script src="js/cisdata.js?v=25005"></script>
-<script src="js/cischeck.js?v=25005"></script>
-<script src="js/exclusions.js?v=25005"></script>
-<script src="js/validator.js?v=25005"></script>
-<script src="js/whatifeval.js?v=25005"></script>
-<script src="js/compare.js?v=25005"></script>
-<script src="js/groupuse.js?v=25005"></script>
-<script src="js/locations.js?v=25005"></script>
-<script src="js/authcontexts.js?v=25005"></script>
-<script src="js/authstrengths.js?v=25005"></script>
-<script src="js/recycle.js?v=25005"></script>
-<script src="js/rmau.js?v=25005"></script>
-<script src="js/termsofuse.js?v=25005"></script>
-<script src="js/audit.js?v=25005"></script>
-<script src="js/drift.js?v=25005"></script>
-<script src="js/signins.js?v=25005"></script>
-<script src="js/reportimpact.js?v=25005"></script>
-<script src="js/changelog.js?v=25005"></script>
-<script src="js/baselineData.js?v=25005"></script>
-<script src="js/baselineJoeyData.js?v=25005"></script>
-<script src="js/baseline.js?v=25005"></script>
-<script src="js/groupTemplates.js?v=25005"></script>
-<script src="js/assign.js?v=25005"></script>
-<script src="js/cagroups.js?v=25005"></script>
-<script src="js/import.js?v=25005"></script>
-<script src="js/export.js?v=25005"></script>
-<script src="js/demo.js?v=25005"></script>
-<script src="js/app.js?v=25005"></script>
+<script src="js/branding.js?v=25006"></script>
+<script src="js/version.js?v=25006"></script>
+<script src="js/authConfig.js?v=25006"></script>
+<script src="js/labels.js?v=25006"></script>
+<script src="js/graph.js?v=25006"></script>
+<script src="js/model.js?v=25006"></script>
+<script src="js/render.js?v=25006"></script>
+<script src="js/analyze.js?v=25006"></script>
+<script src="js/whatif.js?v=25006"></script>
+<script src="js/mslearn.js?v=25006"></script>
+<script src="js/gapcheck.js?v=25006"></script>
+<script src="js/cisdata.js?v=25006"></script>
+<script src="js/cischeck.js?v=25006"></script>
+<script src="js/exclusions.js?v=25006"></script>
+<script src="js/validator.js?v=25006"></script>
+<script src="js/whatifeval.js?v=25006"></script>
+<script src="js/compare.js?v=25006"></script>
+<script src="js/groupuse.js?v=25006"></script>
+<script src="js/locations.js?v=25006"></script>
+<script src="js/authcontexts.js?v=25006"></script>
+<script src="js/authstrengths.js?v=25006"></script>
+<script src="js/recycle.js?v=25006"></script>
+<script src="js/rmau.js?v=25006"></script>
+<script src="js/termsofuse.js?v=25006"></script>
+<script src="js/audit.js?v=25006"></script>
+<script src="js/drift.js?v=25006"></script>
+<script src="js/signins.js?v=25006"></script>
+<script src="js/reportimpact.js?v=25006"></script>
+<script src="js/changelog.js?v=25006"></script>
+<script src="js/baselineData.js?v=25006"></script>
+<script src="js/baselineJoeyData.js?v=25006"></script>
+<script src="js/baseline.js?v=25006"></script>
+<script src="js/groupTemplates.js?v=25006"></script>
+<script src="js/assign.js?v=25006"></script>
+<script src="js/cagroups.js?v=25006"></script>
+<script src="js/import.js?v=25006"></script>
+<script src="js/export.js?v=25006"></script>
+<script src="js/demo.js?v=25006"></script>
+<script src="js/app.js?v=25006"></script>
 </body>
 </html>

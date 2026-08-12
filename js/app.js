@@ -4498,11 +4498,16 @@ max@contoso.com,"Global, DevOps"</pre>
         ${detail}
         <div class="lo-act">
           <button class="btn sm" data-ruedit="${esc(au.id)}">✎ Edit</button>
+          ${/* Granting a scoped administrator lives inside the expanded card, which
+                is not discoverable from a row whose only buttons are Edit and Delete
+                — people reasonably look for it under Edit. This button names the
+                thing and opens the place it lives. */ ""}
+          <button class="btn sm" data-ruscope="${esc(au.id)}">👤 Scoped admins${ruDetails[au.id] && ruDetails[au.id].scoped ? ` (${ruDetails[au.id].scoped.length})` : ""}</button>
           <button class="btn sm danger" data-rudel="${esc(au.id)}">🗑 Delete</button>
         </div>
       </div>`;
     }).join("") + `</div>
-    <p class="mini muted" style="margin-top:8px">Click a card header for members and scoped role grants. Member changes on a restricted AU need a role scoped to it — the error Graph returns otherwise is the protection doing its job.</p>`;
+    <p class="mini muted" style="margin-top:8px">Click a card header — or <b>👤 Scoped admins</b> — for members and scoped role grants. Member changes on a restricted AU need a role scoped to it — the error Graph returns otherwise is the protection doing its job.</p>`;
   }
   $("ruChips").addEventListener("click", (e) => { const b = e.target.closest("[data-ruf]"); if (!b) return; ruFilter = b.dataset.ruf; renderRmau(); });
   $("ruSearch").addEventListener("input", (e) => { ruQuery = e.target.value; renderRmau(); });
@@ -4556,6 +4561,16 @@ max@contoso.com,"Global, DevOps"</pre>
       if (ruOpen.has(id)) { await ruLoadDetail(id); renderRmau(); }
       return;
     }
+    const sc = e.target.closest("[data-ruscope]");
+    if (sc) {
+      const id = sc.dataset.ruscope;
+      ruOpen.add(id);                       // always open, never toggle shut
+      renderRmau();
+      if (!ruDetails[id]) { await ruLoadDetail(id); renderRmau(); }
+      const card = document.querySelector(`[data-ruscope="${id}"]`);
+      if (card) card.scrollIntoView({ block: "center", behavior: "smooth" });
+      return;
+    }
     const ed = e.target.closest("[data-ruedit]"); if (ed) { openRuEditor(ruList.find((x) => x.id === ed.dataset.ruedit)); return; }
     const dl = e.target.closest("[data-rudel]"); if (dl) { openRuDelete(ruList.find((x) => x.id === dl.dataset.rudel)); return; }
     const ad = e.target.closest("[data-ruadd]");
@@ -4599,7 +4614,8 @@ max@contoso.com,"Global, DevOps"</pre>
     $("ruName").value = au ? (au.displayName || "") : "";
     $("ruDesc").value = au ? (au.description || "") : "";
     $("ruEditFlag").innerHTML = au
-      ? `<p class="mini muted" style="margin:0">Restricted: <b>${Rmau.isRestricted(au) ? "yes" : "no"}</b> — immutable. Converting means creating a new AU and moving the members.</p>`
+      ? `<p class="mini muted" style="margin:0">Restricted: <b>${Rmau.isRestricted(au) ? "yes" : "no"}</b> — immutable. Converting means creating a new AU and moving the members.</p>
+         <p class="mini" style="margin:8px 0 0">Looking for <b>scoped administrators</b>? They are not edited here — this dialog is a PATCH of the AU's own name and description. Close this and use <b>👤 Scoped admins</b> on the card to grant or revoke a role scoped to this administrative unit.</p>`
       : `<label class="chk" style="display:block"><input type="checkbox" id="ruNewRestricted" checked> Restricted management (immutable after creation)</label>`;
     $("ruEditWarn").innerHTML = "";
     $("ruEditModal").classList.add("open");
@@ -4944,6 +4960,101 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("🕓 Change audit", "CA-ChangeAudit", L.join("\n"));
   });
 
+  // ---------- Command palette (BETA) ----------
+  // Past twenty-odd tools a tile grid stops being the fastest way in. Ctrl/Cmd+K
+  // anywhere, type, Enter. Two sources: every tool in TOOL_TABS, and — once a
+  // tenant is loaded — every policy by CA number or name, so "203" lands on the
+  // policy card without going through List Policies first.
+  let cpItems = [], cpSel = 0;
+
+  // Substring first, then initials ("gap" → "Gap analyse", "boc" → "Best-practice
+  // & bypass checks"), so short muscle-memory strings work without a fuzzy
+  // library. Score sorts exact-prefix above mid-word above initials.
+  function cpScore(hay, q) {
+    // Every tool label starts with an emoji, so score against the text after it
+    // too — otherwise the start-of-string bonus can never fire and "list" would
+    // not rank List Policies above a mid-word match elsewhere.
+    const h = String(hay).toLowerCase().replace(/^[^a-z0-9]+/, ""), s = q.toLowerCase();
+    if (!s) return 1;
+    if (h.startsWith(s)) return 100;
+    const i = h.indexOf(s);
+    if (i > -1) return 60 - Math.min(i, 30);
+    const initials = h.replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean).map((w) => w[0]).join("");
+    if (initials.startsWith(s)) return 40;
+    if (initials.includes(s)) return 25;
+    return 0;
+  }
+
+  function cpBuild(q) {
+    const out = [];
+    for (const [id, label] of TOOL_TABS) {
+      const el = $(id);
+      if (!el) continue;                                  // tool not on this build
+      const sc = cpScore(label, q);
+      if (sc) out.push({ kind: "tool", id, label, hint: "Tool", score: sc });
+    }
+    // Policies only exist after sign-in; before that the palette is tools only,
+    // and the footer says why rather than looking broken.
+    for (const p of policies) {
+      const sc = Math.max(cpScore(p.name, q), cpScore(p.seq, q));
+      if (sc) out.push({ kind: "policy", id: p.id, label: p.name,
+        hint: `${p.seq} · ${p.state}`, score: sc });
+    }
+    return out.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label)).slice(0, 40);
+  }
+
+  function cpRender() {
+    $("cpList").innerHTML = cpItems.length
+      ? cpItems.map((it, i) => `<div class="cp-item${i === cpSel ? " sel" : ""}" data-cpi="${i}">
+          <b>${esc(it.label)}</b><span class="cp-k">${esc(it.hint)}</span></div>`).join("")
+      : `<div class="cp-empty">Nothing matches. Tools are always searchable; policies appear once a tenant is loaded.</div>`;
+    const sel = $("cpList").querySelector(".cp-item.sel");
+    if (sel) sel.scrollIntoView({ block: "nearest" });
+  }
+
+  function cpOpen() {
+    cpSel = 0; cpItems = cpBuild("");
+    $("cpInput").value = "";
+    // Say what is searchable right now rather than always promising policies.
+    $("cpScopeNote").textContent = policies.length
+      ? `${policies.length} policies searchable`
+      : "Sign in to search policies";
+    $("cpModal").classList.add("open", "cp-open");
+    cpRender();
+    $("cpInput").focus();
+  }
+  function cpClose() { $("cpModal").classList.remove("open", "cp-open"); }
+  function cpRun(it) {
+    if (!it) return;
+    cpClose();
+    if (it.kind === "tool") { const el = $(it.id); if (el) el.click(); return; }
+    showDetail(it.id);
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      $("cpModal").classList.contains("open") ? cpClose() : cpOpen();
+      return;
+    }
+    if (!$("cpModal").classList.contains("open")) return;
+    if (e.key === "Escape") { e.preventDefault(); cpClose(); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!cpItems.length) return;
+      cpSel = (cpSel + (e.key === "ArrowDown" ? 1 : -1) + cpItems.length) % cpItems.length;
+      cpRender();
+      return;
+    }
+    if (e.key === "Enter") { e.preventDefault(); cpRun(cpItems[cpSel]); }
+  });
+  $("cpInput").addEventListener("input", (e) => { cpItems = cpBuild(e.target.value.trim()); cpSel = 0; cpRender(); });
+  $("cpList").addEventListener("click", (e) => {
+    const it = e.target.closest("[data-cpi]");
+    if (it) cpRun(cpItems[+it.dataset.cpi]);
+  });
+  $("cpModal").addEventListener("click", (e) => { if (e.target.id === "cpModal") cpClose(); });
+
   // ---------- Drift watch (configuration state vs a snapshot file) ----------
   // Deliberately infrastructure-free: the snapshot is a file the tenant keeps.
   // That is the whole trick — it gives drift history with no database, no
@@ -5184,7 +5295,7 @@ max@contoso.com,"Global, DevOps"</pre>
     $("siRescan").style.display = siRes && !siBusy ? "" : "none";
     if (siBusy) { $("siBody").innerHTML = siBusyPanel(); return; }
     if (siRes) { renderSignins(); return; }
-    $("siHead").innerHTML = `<h3>🚦 Sign-in failures <span class="tag new">NEW</span></h3>
+    $("siHead").innerHTML = `<h3>🚦 Sign-in failures</h3>
       <p style="margin-bottom:4px">Which sign-ins Conditional Access failed, and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. The log-side counterpart of What-If.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> failures are filtered by Graph; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins.</p>`;
     $("siChips").innerHTML = "";
@@ -5307,7 +5418,7 @@ max@contoso.com,"Global, DevOps"</pre>
     (window.requestAnimationFrame || setTimeout)(syncSiDetheadTop);
     $("siHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🚦 Sign-in failures <span class="tag new">NEW</span></h3>
+        <h3>🚦 Sign-in failures</h3>
         <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
         <p class="mini muted" style="margin:0">${siMode === "reportonly"
           ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the numbers to check before flipping a policy on."
@@ -5415,7 +5526,7 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("🚦 Sign-in failures", "CA-SignInFailures", L.join("\n"));
   });
 
-  // ---------- Report-only impact (BETA) ----------
+  // ---------- Report-only impact ----------
   // The go-live question, answered from the sign-in log: for every policy in
   // report-only, who would be denied, who just gets a prompt, who passes
   // unchanged — and per user, the combined effect of everything staged.
@@ -5444,7 +5555,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (riBusy) { $("riBody").innerHTML = riBusyPanel(); return; }
     if (riRes) { renderImpact(); return; }
     const ro = riTenantRo();
-    $("riHead").innerHTML = `<h3>🎚 Report-only impact <span class="tag new">BETA</span></h3>
+    $("riHead").innerHTML = `<h3>🎚 Report-only impact</h3>
       <p style="margin-bottom:4px">What happens the day a report-only policy goes live. Per policy: who would be <b>denied</b>, who is <b>interrupted</b> for an extra step (MFA, compliant device, terms of use…), who <b>passes unchanged</b>. Per user: the combined effect of everything in report-only at once.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
     $("riChips").innerHTML = "";
@@ -5497,7 +5608,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const r = riRes; if (!r) return;
     $("riHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🎚 Report-only impact <span class="tag new">BETA</span></h3>
+        <h3>🎚 Report-only impact</h3>
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read${riCapped ? `, <span style="color:var(--off)">truncated at ${SI_MAX.toLocaleString()}</span>` : ""}.</p>
       </div>

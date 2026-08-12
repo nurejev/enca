@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25006, date: "2026-08-12", title: "Ctrl+K, and two tools grow up",
+    items: [
+      { kind: "new", tool: "All tools", text: "⌨️ Command palette (BETA): Ctrl+K — ⌘+K on a Mac — anywhere in the app opens a search box. Type a few letters and Enter lands you in the tool; type a CA number or part of a policy name and it opens that policy card directly, without going through List Policies first. Matching takes initials as well as substrings, so 'gap' finds Gap analyse and 'bpbc' finds Best-practice & bypass checks. Arrows move, Enter opens, Esc or Ctrl+K closes, clicking outside closes. Tools are searchable before sign-in, and the footer says how many policies are searchable rather than promising some that are not loaded yet. Straight off the roadmap: past twenty-odd tools a tile grid stops being the fastest way in." },
+      { kind: "improved", tool: "Restricted AUs", text: "Granting a scoped administrator was only reachable by clicking a card header — so people looked under ✎ Edit, which is a PATCH of the AU's own name and description and says nothing about roles. Each card now carries a 👤 Scoped admins button, with the current count, that opens the panel where roles are granted and revoked; the Edit dialog points at it instead of leaving the question hanging." },
+      { kind: "improved", tool: "Report-only impact", text: "Out of BETA. The go-live forecast has held up: per-policy would-be-denied / interrupted / unchanged read from the sign-in log, per-user worst case, verdict chips including the staged policy with no traffic at all, 1-hour to 30-day windows and a Markdown export." },
+      { kind: "improved", tool: "Sign-in failures", text: "The NEW badge is retired — it has been in production long enough that the label had stopped meaning anything." },
+    ],
+  },
+  {
     build: 25005, date: "2026-08-12", title: "Drift watch: readable cards, and strengths that actually read",
     items: [
       { kind: "fixed", tool: "Drift watch", text: "The result cards had no padding — text sat flush against the card border and the longest lines ran into it. Cause: the shared .list-card sets overflow:hidden and deliberately leaves spacing to whatever it wraps, which for every other tool is a table carrying its own cell padding. Drift watch wraps plain prose, so it needed its own. Long Graph error text now wraps instead of widening the card." },
