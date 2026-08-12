@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25007, date: "2026-08-12", title: "Restricted AUs stop making you type from memory",
+    items: [
+      { kind: "improved", tool: "Restricted AUs", text: "Both boxes on an AU card now suggest. Add member is pre-seeded with your baseline group names before you type a character — those are the groups the administrative unit exists to protect, so the common case is now a pick rather than a recall — and folds in live directory results for any other group or user as you type. The scoped-administrator box suggests users from Entra by display name or UPN, the same type-ahead the Protect flow has always had. Restricted AUs also gains a help section covering the parts that surprise people: roles are not granted in the Edit dialog, the restricted flag is immutable, and a 403 on a member change is the shield working." },
+      { kind: "new", tool: "All tools", text: "Roadmap: 🍴 Fork detection and update-from-upstream. A tenant that forks, reviews and pins its own copy — which the security document recommends for high-assurance environments — stops hearing about fixes the moment it does. The plan is for a forked deployment to notice it is one, say how many builds behind it is, show the What's-new entries between its pinned build and upstream, and give the commands to pull main in and re-review the diff. Deliberately not auto-updating: that would defeat the reason for forking." },
+    ],
+  },
+  {
     build: 25006, date: "2026-08-12", title: "Ctrl+K, and two tools grow up",
     items: [
       { kind: "new", tool: "All tools", text: "⌨️ Command palette (BETA): Ctrl+K — ⌘+K on a Mac — anywhere in the app opens a search box. Type a few letters and Enter lands you in the tool; type a CA number or part of a policy name and it opens that policy card directly, without going through List Policies first. Matching takes initials as well as substrings, so 'gap' finds Gap analyse and 'bpbc' finds Best-practice & bypass checks. Arrows move, Enter opens, Esc or Ctrl+K closes, clicking outside closes. Tools are searchable before sign-in, and the footer says how many policies are searchable rather than promising some that are not loaded yet. Straight off the roadmap: past twenty-odd tools a tile grid stops being the fastest way in." },

@@ -4445,6 +4445,7 @@ max@contoso.com,"Global, DevOps"</pre>
   }
 
   function renderRmau() {
+    ruSeedGroupSug();       // baseline group names are available before any typing
     const su = Rmau.summarize(ruList);
     $("ruHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
@@ -4479,11 +4480,11 @@ max@contoso.com,"Global, DevOps"</pre>
           detail = `<div style="margin-top:8px">
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Members (${(d.members || []).length})</div>
             <ul class="wi-list" style="margin:4px 0 6px">${mems || '<li><div class="wi-why">No members.</div></li>'}</ul>
-            <div style="display:flex;gap:6px;margin:0 0 10px"><input data-ruaddbox="${esc(au.id)}" placeholder="Add member — group name or user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
+            <div style="display:flex;gap:6px;margin:0 0 10px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="Add member — baseline group name, any group, or user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Scoped role members (${(d.scoped || []).length})${d.scopedError ? ` <span class="muted" style="font-weight:400;text-transform:none">— ${esc(d.scopedError)}</span>` : ""}</div>
             <ul class="wi-list" style="margin:4px 0 6px">${scoped || '<li><div class="wi-why">No scoped role grants — nobody can manage the members except by tenant-unscoped rules. Grant one below.</div></li>'}</ul>
             <div style="display:flex;gap:6px;flex-wrap:wrap"><select data-rurole="${esc(au.id)}" class="btn" style="cursor:pointer">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select>
-              <input data-ruadminbox="${esc(au.id)}" placeholder="UPN of the scoped administrator" spellcheck="false" autocomplete="off" style="flex:1;min-width:180px"><button class="btn sm" data-ruadmin="${esc(au.id)}">+ Grant</button></div>
+              <input data-ruadminbox="${esc(au.id)}" list="ruUserSug" placeholder="UPN of the scoped administrator — start typing a name" spellcheck="false" autocomplete="off" style="flex:1;min-width:180px"><button class="btn sm" data-ruadmin="${esc(au.id)}">+ Grant</button></div>
           </div>`;
         }
       }
@@ -4511,6 +4512,66 @@ max@contoso.com,"Global, DevOps"</pre>
   }
   $("ruChips").addEventListener("click", (e) => { const b = e.target.closest("[data-ruf]"); if (!b) return; ruFilter = b.dataset.ruf; renderRmau(); });
   $("ruSearch").addEventListener("input", (e) => { ruQuery = e.target.value; renderRmau(); });
+
+  // ---- type-ahead for the two boxes on an AU card ----
+  // The member box is pre-seeded with the BASELINE group names — the groups this
+  // AU exists to protect — so the common case needs no typing at all, and a live
+  // directory search folds in anything else. Same debounce shape as the
+  // scoped-administrator field in the Protect flow.
+  function ruBaselineGroups() {
+    const out = new Set();
+    try { CaGroups.templateNames().forEach((_, n) => out.add(n)); } catch {}
+    try { CaGroups.catalogGroupNames(policies.map((p) => p.raw)).forEach((n) => out.add(n)); } catch {}
+    // Groups the CA-groups scan already resolved in this tenant rank first —
+    // they are the ones that actually exist and can be added.
+    const present = new Set();
+    try { for (const r of (cgRes ? cgRes.rows : [])) if (r.id && r.name) present.add(r.name); } catch {}
+    return [...new Set([...present, ...out])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }
+  function ruSeedGroupSug() {
+    const dl = $("ruGroupSug");
+    if (!dl) return;
+    dl.innerHTML = ruBaselineGroups().slice(0, 200)
+      .map((n) => `<option value="${esc(n)}"></option>`).join("");
+  }
+  let ruSugTimer = null;
+  function ruSuggest(e) {
+    const isGroup = e.target.matches("[data-ruaddbox]");
+    const isUser = e.target.matches("[data-ruadminbox]");
+    if (!isGroup && !isUser) return;
+    const term = String(e.target.value || "").trim();
+    clearTimeout(ruSugTimer);
+    if (term.length < 2 || isDemo) return;
+    ruSugTimer = setTimeout(async () => {
+      const f = term.replace(/'/g, "''");
+      try {
+        if (isUser) {
+          const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
+          const dl = $("ruUserSug");
+          if (dl) dl.innerHTML = ((r && r.value) || [])
+            .map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+        } else {
+          // A member can be a group OR a user, so search both and keep the
+          // baseline names that still match rather than replacing them.
+          const [gr, ur] = await Promise.all([
+            Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=displayName&$top=10`).catch(() => null),
+            Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=5`).catch(() => null),
+          ]);
+          const hits = [
+            ...((gr && gr.value) || []).map((g) => ({ v: g.displayName, l: "group" })),
+            ...((ur && ur.value) || []).map((u) => ({ v: u.userPrincipalName, l: u.displayName || "user" })),
+          ];
+          const kept = ruBaselineGroups().filter((n) => n.toLowerCase().includes(term.toLowerCase()))
+            .map((n) => ({ v: n, l: "baseline group" }));
+          const seen = new Set();
+          const dl = $("ruGroupSug");
+          if (dl) dl.innerHTML = [...kept, ...hits].filter((x) => x.v && !seen.has(x.v) && seen.add(x.v))
+            .map((x) => `<option value="${esc(x.v)}" label="${esc(x.l)}"></option>`).join("");
+        }
+      } catch (err) { console.warn("Restricted AUs: suggest failed", err.message); }
+    }, 250);
+  }
+  $("ruBody").addEventListener("input", ruSuggest);
 
   async function ruAddMember(auId, term) {
     const t = term.trim();
