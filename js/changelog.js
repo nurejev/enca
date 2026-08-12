@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25013, date: "2026-08-12", title: "Where beta and production stand",
+    items: [
+      { kind: "improved", tool: "All tools", text: "PRODUCTION PARITY, as of production build 253. Everything on this channel has now been carried to enca.limon-it.nl except the CIS Benchmark. Landed in 253: 🛡 Restricted AUs and ⌨️ the command palette (both keeping their BETA tag), the ⑥ Protect 400 'conflicting object' fix, the missing CAB-SEC-U-CA1009-Exclusion group template, the representative demo group sample, the 🎯 CA result card in the per-policy What-If, and thirteen roadmap entries. Landed earlier, in 252: 📉 Drift watch (BETA) and the collapsed home-page sections; in 251: Report-only impact out of BETA and the NEW badge off Sign-in failures." },
+      { kind: "improved", tool: "All tools", text: "STILL BETA-ONLY: 📐 CIS Benchmark (v0.5) — the tenant's CA policies scored against CIS Microsoft 365 Foundations Benchmark v7.0.0 section 5.2.2. It stays here until it has been run against enough real tenants to trust its verdicts in production. Everything else on this site also exists on production; where a tool differs, this channel is the newer one." },
+      { kind: "improved", tool: "All tools", text: "HOW TO READ THIS: builds here are five digits (NNNII — 25013 renders as v1.0.250-beta.13), production builds are plain integers (253). The two series never collide, and each is monotone on its own site, so the What's-new overlay behaves the same on either. A change lands here first, then as its own production build — the two branches are not merged, so a feature exists twice in the history under two numbers." },
+    ],
+  },
+  {
     build: 25012, date: "2026-08-12", title: "A removed member actually leaves the card",
     items: [
       { kind: "fixed", tool: "Restricted AUs", text: "Removing a member (or a scoped role grant) left the row on the card. The tool was already discarding its cache and re-reading after the write — the problem is that Entra directory writes are not read-your-writes consistent: the DELETE returns 204 and the very next GET of the same collection still lists the object, so the honest re-read faithfully restored the row that had just been deleted. Changes now apply to the card immediately and are then confirmed against the directory with backoff (three tries over about four seconds). If the directory has not caught up by then the card keeps showing what you did rather than resurrecting a deleted row, and a second toast says the directory is still catching up. Adding a member has the same lag in the other direction and gets the same treatment, and both boxes clear once the entry is on the list." },
