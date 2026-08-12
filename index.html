@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=251"></script>
+<script src="js/popup-guard.js?v=252"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=251">
+<link rel="stylesheet" href="css/app.css?v=252">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=251"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=251"></script>
+<script src="js/counter.js?v=252"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=252"></script>
 </head>
 <body>
 
@@ -190,6 +190,10 @@
       <div class="tool" id="toolRecycle">
         <div class="tool-ic">♻</div><h3>Recycle bin</h3>
         <p>Recently deleted Conditional Access policies and named locations — everything still inside the 30-day restore window, with what it did, when it went, and one-click restore. A policy that was On comes back enforcing. <span class="tag block">writes to tenant</span></p>
+      </div>
+      <div class="tool" id="toolDrift">
+        <div class="tool-ic">📉</div><h3>Drift watch <span class="tag new">BETA</span></h3>
+        <p>Take a snapshot of the Conditional Access configuration today, compare a later run against it, and see exactly what moved — policies added, removed, switched Off, exclusions widened, locations retrusted. The history is a file you keep, so it has no 30-day limit, and no infrastructure is needed. Ranked by severity, because a widened exclusion matters more than a rename.</p>
       </div>
       <div class="tool" id="toolState">
         <div class="tool-ic">🎚</div><h3>Set Policy state</h3>
@@ -971,6 +975,21 @@
     </div>
   </section>
 
+  <!-- ============ DRIFT WATCH (BETA) ============ -->
+  <section id="screen-drift" class="screen">
+    <div class="list-card readme" id="drHead" style="margin-top:0"></div>
+    <div class="toolbar" id="drToolbar" style="margin-top:14px">
+      <div class="tb-actions">
+        <button class="btn primary" id="drSnap">📸 Take snapshot</button>
+        <button class="btn" id="drLoadBtn">📂 Load snapshot &amp; compare</button>
+        <input type="file" id="drFile" accept="application/json,.json" style="display:none">
+        <button class="btn" id="drMd">Export MD</button>
+        <button class="btn" id="drClear">Clear</button>
+      </div>
+    </div>
+    <div id="drBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ ROADMAP — where ENCA is heading, as a timeline ============ -->
   <section id="screen-roadmap" class="screen">
     <div class="help-page">
@@ -992,6 +1011,10 @@
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">🛡 Restricted AUs <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Manage the restricted management administrative units that shield CA exclusion groups — members with CA-reference badges, scoped role grants, create and delete, with the immutable-flag truth stated up front. Running on the beta channel now; graduates once proven against enough real tenants.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> <span class="tag new">BETA — here now</span></h4>
+            <p class="mini" style="margin:0">Does the tenant still look like it did when we signed it off? Snapshot the Conditional Access configuration to a file you keep, and compare a later run against it — added, removed, changed, ranked so a widened exclusion or a policy switched Off outranks a rename. No server and no 30-day limit, because the history is the file rather than Microsoft's audit log. <b>Shipped here in build 252, still marked BETA</b> while it earns its keep against real tenants. <b>Next for it:</b> exclusion-group <i>membership</i> drift, and comparing two snapshots without re-reading the tenant.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">🔐 Improve security <span class="tag">planned</span></h4>
@@ -1149,6 +1172,21 @@
         <li><b>Export MD</b> — the whole change set with per-entry diff tables, for a review or a ticket.</li>
       </ul>
       <p class="help-x">Read-only. Needs <code>AuditLog.Read.All</code> (requested when you run it) and a reader role such as Reports Reader, Security Reader or Security Administrator. Audit retention is licence-bound — roughly 30 days on Entra ID P1/P2, 7 days otherwise — so this is a rolling window, not full history.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>📉 Drift watch <span class="tag new">BETA</span></h4>
+      <p>What moved in the Conditional Access configuration since a snapshot you took earlier. Change audit answers <i>who changed this in the last 30 days</i>; Drift watch answers <i>does the tenant still look like it did when we signed it off</i> — with no time limit, because the history is a file you keep rather than a log Microsoft ages out.</p>
+      <ul>
+        <li><b>📸 Take snapshot</b> — reads the policies, named locations, authentication strengths and authentication contexts and downloads them as one JSON file. Store it with your review files. Nothing is uploaded and nothing is kept server-side.</li>
+        <li><b>📂 Load snapshot &amp; compare</b> — pick that file back up days, months or a year later. The tenant is re-read and the two are compared object by object.</li>
+        <li><b>Ranked by severity</b> — a policy switched Off or to report-only, an exclusion widened, a location turned trusted rank <b>Critical</b>, because that is how protection disappears without anyone deleting a policy. A rename ranks Low. The highest severity present is shown up front.</li>
+        <li><b>Readable diffs</b> — GUIDs resolve to group and location names, and fields that move on their own (<code>modifiedDateTime</code>) are ignored, so a policy nobody touched reads as unchanged rather than as noise.</li>
+        <li><b>Honest gaps</b> — an area that could not be read is reported as <i>not captured</i>, never as “no drift”. A clean bill of health is only given for what was actually compared.</li>
+        <li><b>Who, where known</b> — run 🕓 Change audit first and each drifted object also names the person who changed it, for changes still inside Entra's audit retention. Older drift is shown without attribution rather than with a guess.</li>
+        <li><b>Export MD</b> — the drift report for a review, a ticket or a customer's change file.</li>
+      </ul>
+      <p class="help-x">Read-only, and uses the permissions the session already has. The snapshot contains your Conditional Access configuration — treat the file with the same care as any policy export.</p>
     </section>
 
     <section class="help-sec">
@@ -1860,40 +1898,41 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=251"></script>
-<script src="js/version.js?v=251"></script>
-<script src="js/authConfig.js?v=251"></script>
-<script src="js/labels.js?v=251"></script>
-<script src="js/graph.js?v=251"></script>
-<script src="js/model.js?v=251"></script>
-<script src="js/render.js?v=251"></script>
-<script src="js/analyze.js?v=251"></script>
-<script src="js/whatif.js?v=251"></script>
-<script src="js/mslearn.js?v=251"></script>
-<script src="js/gapcheck.js?v=251"></script>
-<script src="js/exclusions.js?v=251"></script>
-<script src="js/validator.js?v=251"></script>
-<script src="js/whatifeval.js?v=251"></script>
-<script src="js/compare.js?v=251"></script>
-<script src="js/groupuse.js?v=251"></script>
-<script src="js/locations.js?v=251"></script>
-<script src="js/authcontexts.js?v=251"></script>
-<script src="js/authstrengths.js?v=251"></script>
-<script src="js/recycle.js?v=251"></script>
-<script src="js/termsofuse.js?v=251"></script>
-<script src="js/audit.js?v=251"></script>
-<script src="js/signins.js?v=251"></script>
-<script src="js/reportimpact.js?v=251"></script>
-<script src="js/changelog.js?v=251"></script>
-<script src="js/baselineData.js?v=251"></script>
-<script src="js/baselineJoeyData.js?v=251"></script>
-<script src="js/baseline.js?v=251"></script>
-<script src="js/groupTemplates.js?v=251"></script>
-<script src="js/assign.js?v=251"></script>
-<script src="js/cagroups.js?v=251"></script>
-<script src="js/import.js?v=251"></script>
-<script src="js/export.js?v=251"></script>
-<script src="js/demo.js?v=251"></script>
-<script src="js/app.js?v=251"></script>
+<script src="js/branding.js?v=252"></script>
+<script src="js/version.js?v=252"></script>
+<script src="js/authConfig.js?v=252"></script>
+<script src="js/labels.js?v=252"></script>
+<script src="js/graph.js?v=252"></script>
+<script src="js/model.js?v=252"></script>
+<script src="js/render.js?v=252"></script>
+<script src="js/analyze.js?v=252"></script>
+<script src="js/whatif.js?v=252"></script>
+<script src="js/mslearn.js?v=252"></script>
+<script src="js/gapcheck.js?v=252"></script>
+<script src="js/exclusions.js?v=252"></script>
+<script src="js/validator.js?v=252"></script>
+<script src="js/whatifeval.js?v=252"></script>
+<script src="js/compare.js?v=252"></script>
+<script src="js/groupuse.js?v=252"></script>
+<script src="js/locations.js?v=252"></script>
+<script src="js/authcontexts.js?v=252"></script>
+<script src="js/authstrengths.js?v=252"></script>
+<script src="js/recycle.js?v=252"></script>
+<script src="js/termsofuse.js?v=252"></script>
+<script src="js/audit.js?v=252"></script>
+<script src="js/drift.js?v=252"></script>
+<script src="js/signins.js?v=252"></script>
+<script src="js/reportimpact.js?v=252"></script>
+<script src="js/changelog.js?v=252"></script>
+<script src="js/baselineData.js?v=252"></script>
+<script src="js/baselineJoeyData.js?v=252"></script>
+<script src="js/baseline.js?v=252"></script>
+<script src="js/groupTemplates.js?v=252"></script>
+<script src="js/assign.js?v=252"></script>
+<script src="js/cagroups.js?v=252"></script>
+<script src="js/import.js?v=252"></script>
+<script src="js/export.js?v=252"></script>
+<script src="js/demo.js?v=252"></script>
+<script src="js/app.js?v=252"></script>
 </body>
 </html>

@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 252, date: "2026-08-12", title: "Drift watch arrives, and the home page stops being a wall",
+    items: [
+      { kind: "new", tool: "Drift watch", text: "📉 Drift watch (BETA) answers the question the Change audit tool cannot: does the Conditional Access configuration still look like it did when we signed it off? Take a snapshot — policies, named locations, authentication strengths and authentication contexts, downloaded as one JSON file you keep — then load it back days, months or a year later and the tenant is re-read and compared object by object. No server, nothing uploaded, and no 30-day limit, because the history is your file rather than Microsoft's audit log (which keeps ~30 days on P1/P2 and 7 otherwise). Findings are ranked the way the risk actually runs: a policy switched Off or down to report-only, an exclusion widened, a named location turned trusted are Critical; a rename is Low. GUIDs resolve to group and location names, and fields that move on their own (modifiedDateTime) are ignored, so a policy nobody touched reads as unchanged instead of as noise. An area that failed to read is reported as 'not captured' — never as 'no drift' — and the report says which SIDE failed, so a snapshot taken before a read was fixed is marked 'stale snapshot' with the remedy rather than shown in red as a live fault. Run 🕓 Change audit first and each drifted object also names who changed it, for changes still inside audit retention. Markdown report. Arrives from the beta channel carrying its BETA tag: proven enough to ship, new enough to say so." },
+      { kind: "improved", tool: "All tools", text: "Each section on the home page now shows its first four tools, with the rest behind a ▼ Show N more toggle — Analyse & simulate had grown to ten tiles and Manage the tenant to eleven, which is a lot to scroll past to reach the section you wanted. Sections of four or fewer are untouched. Your choice per section is remembered between visits. A tool that just shipped cannot vanish silently, so the button counts the hidden NEW and BETA tiles, and hidden tiles stay fully reachable — the tab bar, the + menu and roadmap links open them exactly as before." },
+    ],
+  },
+  {
     build: 251, date: "2026-08-12", title: "Two tools grow up",
     items: [
       { kind: "improved", tool: "Report-only impact", text: "Out of BETA. The go-live forecast has held up: per-policy would-be-denied / interrupted / unchanged read from the sign-in log, per-user worst case, verdict chips including the staged policy with no traffic at all — the answer that should stop a go-live — 1-hour to 30-day windows and a Markdown export." },

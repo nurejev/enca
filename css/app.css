@@ -754,6 +754,25 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 /* ---------- tools home ---------- */
 .home-title{font-size:22px;letter-spacing:-.02em;margin:18px 0 22px}
 .tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;max-width:1180px}
+/* "Show N more" under a collapsed tool section. Sits outside the grid so it is
+   not laid out as a tile. */
+.home-more{margin:14px 0 0;font-size:13px}
+/* Drift watch. These cards hold prose, not a table — and .list-card
+   deliberately carries no padding of its own (it sets overflow:hidden and
+   lets whatever it wraps own the spacing, which for every other tool is a
+   table with its own cell padding). Without this the text sits flush against
+   the card border. */
+.dr-card{padding:16px 18px}
+.dr-card h4{margin:0 0 6px}
+/* Graph error text carries long unbroken ids and query-option names that would
+   otherwise push the card wider than the viewport. */
+.dr-card p{overflow-wrap:anywhere}
+.dr-card ol{margin:0 0 10px 20px;padding:0}
+.dr-card li{margin:0 0 4px}
+.dr-row{padding:8px 0;border-top:1px solid var(--border)}
+.dr-row:first-of-type{border-top:0}
+.dr-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
 .tool{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;cursor:pointer;transition:.15s;
   background-image:radial-gradient(300px 160px at 90% -40px,var(--glow) 0%,transparent 60%)}
 .tool:hover{border-color:var(--accent2);transform:translateY(-2px)}
