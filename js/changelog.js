@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25061, date: "2026-08-13", title: "The queue lists changes, not descriptions of changes",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "🚚 Waiting for production had grown five rows that were roadmap cards and one that was this table's own styling — documentation about the work rather than the work — and they buried the three rows anybody actually has to decide about. Roadmap cards, changelog entries and the queue itself are no longer listed at all: they describe changes rather than being them, and they travel with whatever promotion happens next, which is why a port copies the roadmap and Help along with the code. The gap is now 6, 21 and 23, which is what it always really was." },
+    ],
+  },
+  {
     build: 25060, date: "2026-08-13", title: "The roadmap keeps what it delivered",
     items: [
       { kind: "fixed", tool: "Roadmap", text: "An item that shipped was being DELETED from the roadmap. It should move from “Next — being worked toward” into “Now”, keeping its reference: a roadmap that forgets what it delivered is only a wish list, and the reference is what lets an older note about R02 still resolve to something. 📉 Drift watch (R02), ⌨️ the command palette (R03) and flagged tiles first (R09) are restored into Now, each carrying the build it went live in. The rule is now stated in the roadmap intro so it is not left to whoever ships the next one." },

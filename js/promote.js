@@ -19,6 +19,13 @@
 // "push number 3 to main". Numbers are NOT reused after an item ships;
 // the next new item takes the next free number.
 //
+// WHAT DOES NOT BELONG HERE. Roadmap cards, changelog entries and this file
+// itself are documentation, not promotable changes: they describe the work
+// rather than being it, and a row saying "one roadmap card" buries the rows
+// that matter under things nobody decides about separately. They are never
+// queued — they simply travel with whatever promotion happens next, which is
+// why a port copies index.html's roadmap and Help along with the code.
+//
 // ONE ITEM PER CHANGE. Only things that must ship together share a number —
 // a fix and the feature it fixes, or two edits that are meaningless apart.
 // Unrelated work bundled under one number cannot be promoted separately, which
@@ -27,19 +34,9 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.267",
-  betaBuild: "v1.0.250-beta.60",
+  betaBuild: "v1.0.250-beta.61",
 
   items: [
-    {
-      n: 24,
-      title: "Shipped roadmap items move to Now instead of being deleted",
-      tools: ["Roadmap"],
-      builds: [25060],
-      risk: "low",
-      what: "R02, R03 and R09 restored into the Now era with their references and the build each went live in, plus a line in the intro saying a shipped item moves rather than disappears.",
-      why: "Production's roadmap has the same shape and the same three items missing from Now — it currently reads as though they were never planned.",
-      files: ["index.html"],
-    },
     {
       n: 23,
       title: "Flagged tiles sort first in a collapsed section (R09)",
@@ -51,16 +48,6 @@ const PROMOTE = {
       files: ["js/app.js"],
     },
     {
-      n: 22,
-      title: "Roadmap items carry a reference (R01–R26)",
-      tools: ["Roadmap"],
-      builds: [25057],
-      risk: "low",
-      what: "A stable reference chip on every roadmap item, plus the .rm-ref style and a line in the intro saying the references are permanent and not a priority order.",
-      why: "Labelling only. Production's roadmap has the same items and no way to name one out loud.",
-      files: ["index.html", "css/app.css"],
-    },
-    {
       n: 21,
       title: "Break-glass groups matched by local naming",
       tools: ["Restricted AUs", "Protect exclusions", "Import"],
@@ -69,36 +56,6 @@ const PROMOTE = {
       what: "＋ Bulk add finds break-glass groups named Emergency_Access1, EmergencyAccess, Break-Glass, BG-… and not only the baseline's own name — the query looks under those prefixes too, since such a group was never being read at all. The CA number now wins over a name match in every tool that routes.",
       why: "Depends on bulk add, which is already in production. Without it the break-glass unit stays empty on any tenant that does not use the baseline's spelling — which is most of them, since break-glass groups predate the baseline.",
       files: ["js/rmau.js", "js/app.js", "index.html"],
-    },
-    {
-      n: 20,
-      title: "Roadmap card: self-hosting with Docker",
-      tools: ["Roadmap"],
-      builds: [25053, 25056],
-      risk: "low",
-      what: "One roadmap card describing a published nginx image and a compose example, pairing with the single-tenant app registration, leading with the redirect-URI step that cannot be automated, and an optional SQLite store for keeping snapshots and reports between sessions.",
-      why: "Roadmap text only. It can ride along with the next promotion.",
-      files: ["index.html"],
-    },
-    {
-      n: 19,
-      title: "Roadmap card: baseline usage guide",
-      tools: ["Roadmap"],
-      builds: [25053],
-      risk: "low",
-      what: "One roadmap card describing an in-app guide to what the baseline contains and the dependency order to deploy it in, with a readiness check per step.",
-      why: "Roadmap text only. It can ride along with the next promotion.",
-      files: ["index.html"],
-    },
-    {
-      n: 17,
-      title: "Roadmap card: bulk grant scoped administrators",
-      tools: ["Roadmap"],
-      builds: [25050],
-      risk: "low",
-      what: "One roadmap card describing granting scoped administrators across several restricted units at once, and showing the current grants across all units in one view.",
-      why: "Roadmap text only. It can ride along with the next promotion.",
-      files: ["index.html"],
     },
     {
       n: 6,

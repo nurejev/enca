@@ -378,8 +378,10 @@
         <h4>🚚 Waiting for production <span class="tag new">BETA CHANNEL</span></h4>
         <p>Production is <b>${esc2(PROMOTE.productionBuild)}</b>; this site is <b>${esc2(PROMOTE.betaBuild)}</b>.
           <b>This is the gap, and only the gap</b> — what exists here and not there. Nothing that has already
-          shipped appears below; for that, read <b>📋 What's new</b>. Each row is one promotable change with a
-          <b>stable number</b>, so <i>“push number 3 to main”</i> means exactly one thing.</p>
+          shipped appears below; for that, read <b>📋 What's new</b>. Each row is one promotable <b>change to the
+          tools</b> with a <b>stable number</b>, so <i>“push number 3 to main”</i> means exactly one thing.
+          Roadmap cards, changelog entries and this table itself are not listed: they describe the work rather
+          than being it, and they travel with whatever promotion happens next.</p>
         <div class="cg-tablewrap"><table class="cg-table">
           <thead><tr><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:120px">Beta builds</th></tr></thead>
           <tbody>${items.map((it) => {
