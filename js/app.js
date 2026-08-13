@@ -2242,8 +2242,9 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       // Pre-select the groups the protection is FOR: the assigned exclusion
       // groups someone maintains by hand. Dynamic groups stay opt-in (their
-      // membership follows a rule), and role-assignable groups are already
-      // privileged-only.
+      // membership follows a rule). Role-assignable groups are EXCLUDED, and
+      // their checkbox is disabled — combining the two protections deadlocks
+      // the membership (see the note rendered on the row).
       cands.forEach((g) => { if (!st.status.get(g.id) && !g.roleAssignable && !g.dynamic) st.sel.add(g.id); });
       if (st.rmaus.length) { st.auChoice = st.rmaus[0].id; }
       cgRmau = st;
@@ -2292,10 +2293,17 @@ max@contoso.com,"Global, DevOps"</pre>
 
     const rows = cands.map((g) => {
       const prot = t.status.get(g.id);
-      const disabled = !!prot;
+      // A ROLE-ASSIGNABLE group must not go into a restricted management AU.
+      // The two protections deadlock: membership of a role-assignable group can
+      // only be changed by Global Administrator or Privileged Role Administrator
+      // (owners aside), and an RMAU blocks exactly those two — neither can be
+      // assigned at AU scope. The result is a group nobody can edit, which for a
+      // break-glass exclusion group is the worst possible day to discover it.
+      // So the checkbox is disabled rather than merely unticked.
+      const disabled = !!prot || !!g.roleAssignable;
       return `<tr>
         <td><label class="chk" style="margin:0"><input type="checkbox" data-cgrmau="${esc(g.id)}"${t.sel.has(g.id) ? " checked" : ""}${disabled ? " disabled" : ""}> <b>${esc(g.name)}</b></label>
-          ${g.roleAssignable ? '<div class="mini muted">role-assignable — already modifiable only by privileged roles; adding it is optional</div>' : ""}
+          ${g.roleAssignable ? '<div class="mini" style="color:var(--off)"><b>role-assignable — cannot be protected this way.</b> Its membership is already restricted to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two roles. Putting it in one would leave <b>nobody</b> able to change the members. Pick one protection or the other: for a CA exclusion group, a restricted AU is usually the better one, because it lets you name who may manage it.</div>' : ""}
           ${g.dynamic ? '<div class="mini" style="color:var(--report)">dynamic group — not pre-selected: members come and go with its membership rule, not by hand. Adding it still helps (the restriction covers the group object, so editing the <b>rule</b> also needs an AU-scoped role) — but protect the hand-managed exclusion groups first.</div>' : ""}</td>
         <td class="mini">${g.refs.exclude.length} polic${g.refs.exclude.length === 1 ? "y" : "ies"}</td>
         <td class="mini">${prot ? `🔒 in <b>${esc(prot.auName)}</b>` : '<span style="color:var(--report)">unprotected</span>'}</td>
@@ -2342,7 +2350,14 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!rmauBody().querySelector("#cgRmauAck")?.checked) { toast("Tick the <span>confirmation</span> first — this restricts who can manage these groups"); return; }
     t.admin = (rmauBody().querySelector("#cgRmauAdmin")?.value || "").trim();
     const cands = CaGroups.rmauCandidates(cgRes);
-    const picked = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id));
+    // Guard the WRITE, not just the checkbox — a selection can survive a rescan,
+    // and adding a role-assignable group to a restricted AU freezes its members
+    // for everybody (GA/PRA are blocked by the AU; nobody else was ever allowed).
+    const picked = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id) && !g.roleAssignable);
+    const refused = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id) && g.roleAssignable);
+    if (refused.length) {
+      toast(`Skipped ${refused.length} role-assignable group${refused.length === 1 ? "" : "s"} — a restricted AU would leave nobody able to change their members.`);
+    }
     if (!picked.length) return;
     const scopes = [...AUTH_CONFIG.scopes, ...RMAU_WRITE, ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
     if (!isDemo && !await preConsent(scopes)) return;
