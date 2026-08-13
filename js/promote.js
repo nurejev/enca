@@ -21,9 +21,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.265",
-  betaBuild: "v1.0.250-beta.50",
+  betaBuild: "v1.0.250-beta.51",
 
   items: [
+    {
+      n: 18,
+      title: "Restricted AUs out of BETA",
+      tools: ["Restricted AUs"],
+      builds: [25051],
+      risk: "low",
+      what: "Drops the BETA chip from the tile, the tool header, the Help heading and the baseline panel, and moves the roadmap card from Next to Now. Also removes the stale “only here” chip, which claimed the tool was beta-only long after it shipped.",
+      why: "Labelling only — no behaviour changes. Production carries the same stale BETA chip and should lose it in the same breath.",
+      files: ["index.html", "js/app.js"],
+    },
     {
       n: 17,
       title: "Roadmap card: bulk grant scoped administrators",

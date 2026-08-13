@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25051, date: "2026-08-13", title: "Restricted AUs is out of BETA",
+    items: [
+      { kind: "improved", tool: "Restricted AUs", text: "The BETA chip comes off the tile, the tool header, the Help heading and the baseline panel. It shipped to production in build 253 and has since gained the per-persona baseline, bulk add, frozen-group detection and routing that the rest of the toolset now depends on — a tool other tools rely on should not still be labelled provisional." },
+      { kind: "fixed", tool: "Restricted AUs", text: "The beta tile also carried an “only here” chip claiming the tool runs on the beta channel and not in production. That stopped being true at build 253, twelve production releases ago; the chip was simply never removed. Only 📐 CIS Benchmark and 📉 Drift watch carry it now, and for both of them it is accurate." },
+      { kind: "improved", tool: "Roadmap", text: "Restricted AUs moves out of “Next — being worked toward” and into “Now”, where it belongs." },
+    ],
+  },
+  {
     build: 25050, date: "2026-08-13", title: "Roadmap: bulk grant scoped administrators",
     items: [
       { kind: "improved", tool: "Roadmap", text: "Added 👤 Bulk grant scoped administrators. Members can be bulk-added to a persona vault since build 25047, but the people who may manage them still cannot: a scoped role is granted one administrator, on one unit, at a time — four people across eleven units is 44 separate grants. The risk is not the tedium but the gap, because a restricted unit with no scoped administrator is one whose members NOBODY can change. The card also records that the tool should show current grants across all units together, since “who can manage the Externals exclusions?” currently means opening eleven cards." },
