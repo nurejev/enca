@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 262, date: "2026-08-13", title: "The Protect search box actually searches",
+    items: [
+      { kind: "fixed", tool: "Protect exclusions", text: "The search box shipped in build 261 did nothing while you typed. Its handler was attached to the CHANGE event rather than INPUT, and a text field fires change only when it loses focus — so the list stayed exactly as it was, however much you typed, until you clicked elsewhere. Moved to the input event, where filtering-as-you-type belongs. The type-ahead suggestions worked throughout, which made this worse rather than better: the box looked alive while the list underneath it ignored every keystroke." },
+      { kind: "fixed", tool: "Protect exclusions", text: "The test that was supposed to catch the above set the search term in memory and re-rendered, so it exercised the filter but never the event that reaches it. It now types into the real field and dispatches a real input event — and fails against build 261, which is the only way to know a regression test tests anything." },
+    ],
+  },
+  {
     build: 261, date: "2026-08-13", title: "Every exclusion group to its own vault",
     items: [
       { kind: "fixed", tool: "Protect exclusions", text: "⑥ Protect filed every selected group into ONE administrative unit chosen from a dropdown, which quietly undid the point of having a unit per persona. Protect CA001 and CA101 in the same run and the Admins exclusion group landed in the Global vault, handing the Global vault's scoped administrators control of policies they have nothing to do with. Each group is now routed by the CA number in its name — CA001 to GLO, CA101 to ADM, CA1001 to DevOps — and the destination is shown per row before anything is written. The four-digit numbers were checked in every place that parses one: CA1001 resolves to DevOps, never to CA001." },
