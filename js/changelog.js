@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 255, date: "2026-08-12", title: "Hotfix: the stylesheet was cut in half",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Build 254 shipped an unclosed CSS rule — .cg-actionbar opened a block and never closed it — and a browser discards everything after an unterminated rule, so roughly two thirds of the stylesheet never applied. The site rendered as unstyled HTML with every screen visible at once. The rule is closed. Cause: the rule was copied across from the beta branch by taking text up to the first newline, but it spans two lines, so the closing brace was left behind." },
+      { kind: "fixed", tool: "What-If", text: "The 🎯 CA result card has been unstyled since build 253 for the same class of reason — whatif.js was brought over but its .wf-result / .wf-res-state rules were not. Added, so the verdict card has its border, its state chip and its colours." },
+    ],
+  },
+  {
     build: 254, date: "2026-08-12", title: "The baseline moves off role-assignable groups",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "ENCA no longer creates role-assignable groups. The default changed at the source: Assign.createGroup made every ASSIGNED group role-assignable unless told otherwise, which is why whole estates ended up that way — it now creates an ordinary security group, and only an explicit request still asks for one. Why: that flag was only ever used for a side effect, keeping membership out of reach of tenant-wide group administrators. A restricted management administrative unit does that better — it lets you NAME who may manage the group — and it drops the role-assignable costs: the 500-per-tenant cap, no dynamic membership, no control over nesting. The two also cannot be combined, because a restricted AU blocks Global Administrator and Privileged Role Administrator, the only roles that can edit a role-assignable group's members." },
