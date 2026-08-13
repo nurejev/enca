@@ -2096,6 +2096,20 @@ max@contoso.com,"Global, DevOps"</pre>
 
   // Shared by both hosts (CA groups ⑥ tab and the standalone tool tile).
   async function rmauClick(e) {
+    // Select / deselect every SELECTABLE candidate. Role-assignable groups and
+    // already-protected ones have disabled checkboxes, so they are not counted
+    // and not toggled — an "all" that includes rows you cannot tick is a lie.
+    if (e.target.id === "cgRmauAll") {
+      const t = cgRmau;
+      if (t) {
+        const pick = CaGroups.rmauCandidates(cgRes).filter((g) => !t.status.get(g.id) && !g.roleAssignable);
+        const on = pick.filter((g) => t.sel.has(g.id)).length;
+        if (on === pick.length) pick.forEach((g) => t.sel.delete(g.id));
+        else pick.forEach((g) => t.sel.add(g.id));
+        renderCgRmau();
+      }
+      return true;
+    }
     if (e.target.closest("[data-rmaurun]")) { await cgRmauScan(); return true; }
     if (e.target.id === "cgRmauGo") { await cgRmauApply(e.target); return true; }
     if (e.target.id === "cgRmauAgain") { cgRmau = null; await cgRmauScan(); return true; }
@@ -2676,7 +2690,19 @@ max@contoso.com,"Global, DevOps"</pre>
       <h5 class="mini" style="margin:18px 0 4px">THE GROUPS</h5>
       <p class="mini muted" style="margin:0 0 8px">Pre-selected: the unprotected <b>assigned exclusion groups</b> — the ones whose membership is maintained by hand, which is exactly the membership this protection locks down.
         <b>Dynamic</b> groups are listed but not pre-selected: their members come and go with a membership rule, not by hand — the restriction still guards the group object (so changing the <b>rule</b> would also need an AU-scoped role), but the hand-managed exclusion groups are the priority.
-        <b>Role-assignable</b> groups are already modifiable only by privileged roles.</p>
+        <b>Role-assignable</b> groups cannot be added at all: a restricted AU blocks Global Administrator and Privileged Role Administrator, the only roles that can edit a role-assignable group's members, so a group with both protections has nobody who can change them. Convert them first with <b>⑦ Migrate</b>.</p>
+      ${(() => {
+        // "All" means all SELECTABLE — a role-assignable group or one already
+        // protected has a disabled checkbox, and counting those would show a
+        // total the button can never reach.
+        const pick = cands.filter((g) => !t.status.get(g.id) && !g.roleAssignable);
+        if (pick.length < 2) return "";
+        const on = pick.filter((g) => t.sel.has(g.id)).length;
+        return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
+          <button class="btn sm" id="cgRmauAll">${on === pick.length ? "☐ Deselect all" : "☑ Select all"}</button>
+          <span class="mini muted">${on} of ${pick.length} selectable group${pick.length === 1 ? "" : "s"} selected${cands.length - pick.length ? ` · ${cands.length - pick.length} cannot be added` : ""}</span>
+        </div>`;
+      })()}
       <div class="cg-tablewrap"><table class="cg-table">
         <thead><tr><th>Exclusion group</th><th style="width:110px">Excluded on</th><th style="width:220px">Protection</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="3" class="mini muted" style="padding:14px">No groups are used as exclusions by the tenant\'s policies.</td></tr>'}</tbody></table></div>

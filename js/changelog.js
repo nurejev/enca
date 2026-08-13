@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25023, date: "2026-08-12", title: "Select all in Protect, and honest wording about role-assignable groups",
+    items: [
+      { kind: "improved", tool: "Protect exclusions", text: "Select-all / deselect-all above the exclusion-group list. \u201cAll\u201d means all SELECTABLE: a role-assignable group or one already inside a restricted AU has a disabled checkbox, so they are neither counted nor toggled \u2014 an \u2018all\u2019 that includes rows you cannot tick is a lie, and the counter says how many cannot be added." },
+      { kind: "fixed", tool: "Protect exclusions", text: "The list header still read \u201crole-assignable groups are already modifiable only by privileged roles\u201d, which implied adding them was merely unnecessary. It is not: a restricted AU blocks Global Administrator and Privileged Role Administrator, the only roles that can edit a role-assignable group\u2019s members, so a group carrying both protections has nobody who can change them. The header now says they cannot be added and points at \u2466 Migrate to convert them first." },
+    ],
+  },
+  {
     build: 25022, date: "2026-08-12", title: "Add a member without leaving the matrix",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "\u2462 Members gains an \u002b Add bar. Type two letters and the directory suggests users by display name or UPN; the group side offers the groups whose members are already loaded, so the matrix can show the result immediately instead of asking you to re-read. The new member appears straight away and the group is then re-read to confirm it \u2014 directory writes are not read-your-writes consistent, so the optimistic row stands if the read has not caught up. Adding someone already in the group says so rather than failing, and an unknown group or an empty field is refused before any write." },
