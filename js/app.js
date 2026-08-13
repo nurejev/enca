@@ -5825,7 +5825,9 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!t) {
       return `<div style="margin:10px 0 12px">
         <button class="btn sm" data-rubulk="${esc(au.id)}">＋ Bulk add ${esc(entry.label || code)} groups</button>
-        <span class="mini muted"> — finds this tenant's security groups whose CA number falls in ${esc(entry.caRange || "this persona's range")} and adds them in one go.</span>
+        <span class="mini muted"> — finds this tenant's security groups ${code === "BreakGlass"
+          ? "named like break-glass groups (BreakGlass, Break-Glass, Emergency_Access1, BG-…)"
+          : `whose CA number falls in ${esc(entry.caRange || "this persona's range")}`} and adds them in one go.</span>
       </div>`;
     }
     if (t.busy && !t.rows.length) return '<div class="mini muted" style="margin:10px 0"><div class="spinner" style="width:16px;height:16px"></div> Looking for this persona\'s groups…</div>';
@@ -5865,7 +5867,12 @@ max@contoso.com,"Global, DevOps"</pre>
   // can, because those are the rows that need a different action, not a retry.
   let ruBulk = null;   // { auId, busy, rows, sel, results, error }
 
+  // The baseline family, plus — for the break-glass unit only — the names
+  // tenants actually give those groups. Graph cannot match a displayName by
+  // pattern without $search, so the shortlist is a few startswith reads and the
+  // real filter happens on the results.
   const RU_BULK_PREFIXES = ["CAB-SEC", "CAD-SEC"];
+  const RU_BULK_EXTRA = { BreakGlass: ["Emergency", "BreakGlass", "Break-Glass", "BG-"] };
 
   async function ruBulkScan(auId) {
     const au = (ruList || []).find((a) => a.id === auId);
@@ -5881,9 +5888,14 @@ max@contoso.com,"Global, DevOps"</pre>
         // Bounded on purpose: the baseline family, not every group in the
         // tenant. A displayName cannot be matched by pattern in Graph, so the
         // CA-number filter happens here.
-        for (const p of RU_BULK_PREFIXES) {
-          const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
-          groups = groups.concat(r);
+        const seen = new Set();
+        for (const p of [...RU_BULK_PREFIXES, ...(RU_BULK_EXTRA[code] || [])]) {
+          // One prefix failing must not cost the others — a tenant with an odd
+          // group estate should still get the ones that did come back.
+          try {
+            const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
+            for (const g of r) if (!seen.has(g.id)) { seen.add(g.id); groups.push(g); }
+          } catch (e) { console.warn("bulk add: prefix", p, "failed:", e.message || e); }
         }
       }
       const already = new Set(((ruDetails[auId] || {}).members || []).map((m) => m.id));

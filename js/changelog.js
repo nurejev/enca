@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25054, date: "2026-08-13", title: "Break-glass groups by whatever they are called",
+    items: [
+      { kind: "improved", tool: "Restricted AUs", text: "＋ Bulk add on the break-glass unit now finds groups named the way tenants actually name them — Emergency_Access1, Emergency_Access2, EmergencyAccess, Break-Glass, BG-… — rather than only the baseline's own CAB-SEC-U-BreakGlass. Two changes were needed: the name rule matches on intent, and the group query looks under those prefixes too, since a group called Emergency_Access1 was not being READ at all, only unmatched. Anything holding the accounts that bypass every policy belongs in the same vault whatever it has been called." },
+      { kind: "fixed", tool: "Protect exclusions", text: "The CA NUMBER now wins over a name match, in every tool that routes. CAB-SEC-U-CA101-EmergencyAccess is an Admins exclusion group that somebody filed deliberately, and a coincidence of wording should not send it to the break-glass vault — the break-glass and frontline name rules are the fallback for groups carrying no number at all. “Emergency Response Team” is still not offered: it is neither." },
+      { kind: "improved", tool: "Restricted AUs", text: "Help now says plainly that bulk add offers GROUPS, and warns against adding the break-glass user accounts themselves — a Global Administrator inside a restricted unit cannot have their password reset by anybody, which is precisely what has to work during the incident those accounts exist for." },
+    ],
+  },
+  {
     build: 25053, date: "2026-08-13", title: "Roadmap: a baseline guide, and self-hosting",
     items: [
       { kind: "improved", tool: "Roadmap", text: "Added 📖 Baseline usage guide. The toolset can build the baseline but cannot say what it IS or what order to do it in, so that knowledge lives in whoever has done it before — the least durable place to keep it. The card records an in-app guide that reads the tenant while it explains: what each persona covers and its CA range, the dependency order with the reason for each step rather than just the sequence, and a readiness check per step that says what is missing BEFORE you run it." },

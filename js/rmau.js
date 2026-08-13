@@ -142,13 +142,24 @@ const Rmau = (() => {
     1100: "ADM",   // E-Admins file with the admins
     1200: "FW",
   };
+  // Break-glass groups are named by local convention, not by the baseline —
+  // BreakGlass, Break-Glass, Emergency_Access1, EmergencyAccess, BG-Admins.
+  // Anything holding the accounts that bypass every policy belongs in the same
+  // vault whatever it is called, so the match is by intent rather than by our
+  // preferred spelling.
+  const BREAKGLASS_NAME = /break[-_ ]?glass|emergency[-_ ]?access|^bg[-_]/i;
+
   function codeForGroup(name) {
     const n = String(name || "");
-    if (/break[-_]?glass/i.test(n)) return "BreakGlass";
-    if (/\bfrontline\b|[-_]FW[-_]|[-_]FW$/i.test(n)) return "FW";
+    // The CA NUMBER WINS. A group that carries one has been filed deliberately,
+    // and a name that also happens to say "emergency" should not overrule it —
+    // CAB-SEC-U-CA101-EmergencyAccess is an Admins exclusion group, not a
+    // break-glass one.
     const m = /CA(\d{3,4})/i.exec(n);
-    if (!m) return null;
-    return CA_BASE_CODE[Math.floor(+m[1] / 100) * 100] || null;
+    if (m) return CA_BASE_CODE[Math.floor(+m[1] / 100) * 100] || null;
+    if (BREAKGLASS_NAME.test(n)) return "BreakGlass";
+    if (/\bfrontline\b|[-_]FW[-_]|[-_]FW$/i.test(n)) return "FW";
+    return null;
   }
 
   // A catalog entry may carry its own `name` — break-glass does, because it
@@ -225,5 +236,5 @@ const Rmau = (() => {
   }
 
   return { ROLE_TEMPLATES, isRestricted, memberType, caRefs, summarize, buildPayload, toMd,
-    BASELINE_AUS, auName, auDescription, baselineCheck, baselineReport, codeForGroup, codeForAu };
+    BASELINE_AUS, auName, auDescription, baselineCheck, baselineReport, codeForGroup, codeForAu, BREAKGLASS_NAME };
 })();
