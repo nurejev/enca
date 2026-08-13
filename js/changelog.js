@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25060, date: "2026-08-13", title: "The roadmap keeps what it delivered",
+    items: [
+      { kind: "fixed", tool: "Roadmap", text: "An item that shipped was being DELETED from the roadmap. It should move from “Next — being worked toward” into “Now”, keeping its reference: a roadmap that forgets what it delivered is only a wish list, and the reference is what lets an older note about R02 still resolve to something. 📉 Drift watch (R02), ⌨️ the command palette (R03) and flagged tiles first (R09) are restored into Now, each carrying the build it went live in. The rule is now stated in the roadmap intro so it is not left to whoever ships the next one." },
+    ],
+  },
+  {
     build: 25059, date: "2026-08-13", title: "What changed comes first, and the queue shows only the gap",
     items: [
       { kind: "improved", tool: "All tools", text: "R09 — in a COLLAPSED home section the NEW / BETA / UPDATED tiles now sort to the front. They already claimed one of the four visible slots, but kept their position in page order, so a flagged tile sitting ninth was on screen and still read as an afterthought. Done with CSS order rather than by moving anything: nothing is reparented, expanding restores the authored order exactly, and the grid's grouping — which is meaningful — survives untouched." },

@@ -27,9 +27,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.267",
-  betaBuild: "v1.0.250-beta.59",
+  betaBuild: "v1.0.250-beta.60",
 
   items: [
+    {
+      n: 24,
+      title: "Shipped roadmap items move to Now instead of being deleted",
+      tools: ["Roadmap"],
+      builds: [25060],
+      risk: "low",
+      what: "R02, R03 and R09 restored into the Now era with their references and the build each went live in, plus a line in the intro saying a shipped item moves rather than disappears.",
+      why: "Production's roadmap has the same shape and the same three items missing from Now — it currently reads as though they were never planned.",
+      files: ["index.html"],
+    },
     {
       n: 23,
       title: "Flagged tiles sort first in a collapsed section (R09)",

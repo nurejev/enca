@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25059"></script>
+<script src="js/popup-guard.js?v=25060"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25059">
+<link rel="stylesheet" href="css/app.css?v=25060">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25059"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25059"></script>
+<script src="js/counter.js?v=25060"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25060"></script>
 </head>
 <body>
 
@@ -1057,12 +1057,24 @@
   <section id="screen-roadmap" class="screen">
     <div class="help-page">
       <h2 class="home-title" style="margin:0 0 8px">🗺 Roadmap</h2>
-      <p class="mini muted" style="margin:0 0 18px">Where ENCA is heading, laid out in time. Order and scope may change — real-tenant feedback decides what lands first. Suggestions are welcome as GitHub issues.<br><b>Each item carries a reference</b> (<span class="rm-ref">Rnn</span>) so it can be pointed at without quoting the title. A reference belongs to that item permanently: it is never reused once the item ships, and the numbers are not a priority order.</p>
+      <p class="mini muted" style="margin:0 0 18px">Where ENCA is heading, laid out in time. Order and scope may change — real-tenant feedback decides what lands first. Suggestions are welcome as GitHub issues.<br><b>Each item carries a reference</b> (<span class="rm-ref">Rnn</span>) so it can be pointed at without quoting the title. A reference belongs to that item permanently: it is never reused once the item ships, and the numbers are not a priority order. An item that ships <b>moves from Next to Now</b> with its reference intact — it is not deleted, because a roadmap that forgets what it delivered is only a wish list.</p>
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
           <div class="list-card rm-card">
             <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · <a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a>, <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> and the <b>⌨️ command palette</b> (all out of BETA) · 🔒 the <a href="#" id="rmSecLink">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R02</span> <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> <span class="tag grant">live · build 267</span></h4>
+            <p class="mini" style="margin:0">Does the tenant still look like it did when we signed it off? Snapshot the Conditional Access configuration to a file you keep, and compare a later run against it — added, removed, changed, ranked so a widened exclusion or a policy switched Off outranks a rename. No server and no 30-day limit, because the history is the file rather than Microsoft's audit log. Now watches the <b>restricted administrative units</b> too — a group leaving one widens the bypass surface as much as editing the policy would. <b>Next for it:</b> exclusion-group <i>membership</i> drift (an exclusion group quietly gaining members is the same risk as widening the exclusion itself) and comparing two snapshots to each other without re-reading the tenant.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R03</span> ⌨️ Command palette <span class="tag grant">live · build 267</span></h4>
+            <p class="mini" style="margin:0">Past twenty-odd tools, a tile grid stops being the fastest way in. <b>Ctrl/Cmd&nbsp;+&nbsp;K</b> anywhere opens a search box: type a few letters and land in the tool, or type a CA number or policy name and land on the policy card. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bbc</code> finds Best-practice &amp; bypass checks.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R09</span> 🔝 Flagged tiles first in a collapsed section <span class="tag grant">live · beta 25059</span></h4>
+            <p class="mini" style="margin:0">A collapsed home section shows four tiles, and anything flagged <b>NEW</b>, <b>BETA</b> or <b>UPDATED</b> claims those slots ahead of the rest — but it claims them <i>in page order</i>, so a flagged tile that sits ninth is visible while still appearing after unflagged ones, and with five flagged tiles in a section one of them drops below the fold. Flagged tiles now lift to the <b>top</b> of the collapsed view, newest first, so what changed is the first thing read rather than merely somewhere on screen. Expanding restores the normal order, because the grid's grouping is meaningful and shuffling it permanently would cost more than it gains.</p>
           </div>
         </div>
         <div class="rm-era future">
@@ -2126,45 +2138,45 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25059"></script>
-<script src="js/version.js?v=25059"></script>
-<script src="js/promote.js?v=25059"></script>
-<script src="js/authConfig.js?v=25059"></script>
-<script src="js/labels.js?v=25059"></script>
-<script src="js/graph.js?v=25059"></script>
-<script src="js/model.js?v=25059"></script>
-<script src="js/render.js?v=25059"></script>
-<script src="js/analyze.js?v=25059"></script>
-<script src="js/whatif.js?v=25059"></script>
-<script src="js/mslearn.js?v=25059"></script>
-<script src="js/gapcheck.js?v=25059"></script>
-<script src="js/cisdata.js?v=25059"></script>
-<script src="js/cischeck.js?v=25059"></script>
-<script src="js/exclusions.js?v=25059"></script>
-<script src="js/validator.js?v=25059"></script>
-<script src="js/whatifeval.js?v=25059"></script>
-<script src="js/compare.js?v=25059"></script>
-<script src="js/groupuse.js?v=25059"></script>
-<script src="js/locations.js?v=25059"></script>
-<script src="js/authcontexts.js?v=25059"></script>
-<script src="js/authstrengths.js?v=25059"></script>
-<script src="js/recycle.js?v=25059"></script>
-<script src="js/rmau.js?v=25059"></script>
-<script src="js/termsofuse.js?v=25059"></script>
-<script src="js/audit.js?v=25059"></script>
-<script src="js/drift.js?v=25059"></script>
-<script src="js/signins.js?v=25059"></script>
-<script src="js/reportimpact.js?v=25059"></script>
-<script src="js/changelog.js?v=25059"></script>
-<script src="js/baselineData.js?v=25059"></script>
-<script src="js/baselineJoeyData.js?v=25059"></script>
-<script src="js/baseline.js?v=25059"></script>
-<script src="js/groupTemplates.js?v=25059"></script>
-<script src="js/assign.js?v=25059"></script>
-<script src="js/cagroups.js?v=25059"></script>
-<script src="js/import.js?v=25059"></script>
-<script src="js/export.js?v=25059"></script>
-<script src="js/demo.js?v=25059"></script>
-<script src="js/app.js?v=25059"></script>
+<script src="js/branding.js?v=25060"></script>
+<script src="js/version.js?v=25060"></script>
+<script src="js/promote.js?v=25060"></script>
+<script src="js/authConfig.js?v=25060"></script>
+<script src="js/labels.js?v=25060"></script>
+<script src="js/graph.js?v=25060"></script>
+<script src="js/model.js?v=25060"></script>
+<script src="js/render.js?v=25060"></script>
+<script src="js/analyze.js?v=25060"></script>
+<script src="js/whatif.js?v=25060"></script>
+<script src="js/mslearn.js?v=25060"></script>
+<script src="js/gapcheck.js?v=25060"></script>
+<script src="js/cisdata.js?v=25060"></script>
+<script src="js/cischeck.js?v=25060"></script>
+<script src="js/exclusions.js?v=25060"></script>
+<script src="js/validator.js?v=25060"></script>
+<script src="js/whatifeval.js?v=25060"></script>
+<script src="js/compare.js?v=25060"></script>
+<script src="js/groupuse.js?v=25060"></script>
+<script src="js/locations.js?v=25060"></script>
+<script src="js/authcontexts.js?v=25060"></script>
+<script src="js/authstrengths.js?v=25060"></script>
+<script src="js/recycle.js?v=25060"></script>
+<script src="js/rmau.js?v=25060"></script>
+<script src="js/termsofuse.js?v=25060"></script>
+<script src="js/audit.js?v=25060"></script>
+<script src="js/drift.js?v=25060"></script>
+<script src="js/signins.js?v=25060"></script>
+<script src="js/reportimpact.js?v=25060"></script>
+<script src="js/changelog.js?v=25060"></script>
+<script src="js/baselineData.js?v=25060"></script>
+<script src="js/baselineJoeyData.js?v=25060"></script>
+<script src="js/baseline.js?v=25060"></script>
+<script src="js/groupTemplates.js?v=25060"></script>
+<script src="js/assign.js?v=25060"></script>
+<script src="js/cagroups.js?v=25060"></script>
+<script src="js/import.js?v=25060"></script>
+<script src="js/export.js?v=25060"></script>
+<script src="js/demo.js?v=25060"></script>
+<script src="js/app.js?v=25060"></script>
 </body>
 </html>
