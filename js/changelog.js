@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25058, date: "2026-08-13", title: "R02 and R03 went live",
+    items: [
+      { kind: "improved", tool: "All tools", text: "📉 Drift watch (R02) and the ⌨️ command palette (R03) are out of BETA and in production as build 267 — Drift watch taking the administrative-unit snapshot area with it. Their roadmap cards leave “Next”, and their references retire with them: R02 and R03 are not reused, so the remaining numbers keep their gaps rather than shuffling up. A reference that moved would make every older note about it wrong." },
+    ],
+  },
+  {
     build: 25057, date: "2026-08-13", title: "Roadmap items have references now",
     items: [
       { kind: "improved", tool: "Roadmap", text: "Every roadmap item carries a reference — R01 to R26 — so one can be pointed at without quoting its title, the same way the promotion queue is worked by number. A reference belongs to its item permanently: it is never reused once the item ships, because a number that gets recycled makes every older note about it wrong. The numbers are deliberately NOT a priority order; the eras above them are what says when, and the intro says so rather than leaving it to be assumed from the sequence." },

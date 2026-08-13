@@ -26,8 +26,8 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.266",
-  betaBuild: "v1.0.250-beta.57",
+  productionBuild: "v1.0.267",
+  betaBuild: "v1.0.250-beta.58",
 
   items: [
     {
@@ -95,6 +95,10 @@ const PROMOTE = {
   // Deliberately NOT promoted. Listed so the absence is a decision on the
   // record rather than something that looks forgotten.
   staying: [
+    {
+      title: "📉 Drift watch and ⌨️ the command palette",
+      why: "Both graduated to production in build 267 (roadmap R02 and R03). Listed here only so their absence from the queue reads as a decision; they will drop off the next time this file is edited.",
+    },
     {
       title: "🚚 This promotion queue",
       why: "Beta-only by design — js/promote.js and the Help section that renders it exist to describe the gap, so they have no meaning in production.",

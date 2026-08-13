@@ -6482,7 +6482,7 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("🕓 Change audit", "CA-ChangeAudit", L.join("\n"));
   });
 
-  // ---------- Command palette (BETA) ----------
+  // ---------- Command palette ----------
   // Past twenty-odd tools a tile grid stops being the fastest way in. Ctrl/Cmd+K
   // anywhere, type, Enter. Two sources: every tool in TOOL_TABS, and — once a
   // tenant is loaded — every policy by CA number or name, so "203" lands on the
@@ -6687,7 +6687,7 @@ max@contoso.com,"Global, DevOps"</pre>
   }
 
   function renderDrift() {
-    $("drHead").innerHTML = `<h3>📉 Drift watch <span class="tag new">BETA</span></h3>
+    $("drHead").innerHTML = `<h3>📉 Drift watch</h3>
       <p class="mini" style="margin:6px 0 0">Snapshot the Conditional Access configuration now, compare a later run against it. The history is a file you keep — no server, no 30-day limit. Take a snapshot today; come back next month and load it.</p>`;
 
     if (!drCmp) {
