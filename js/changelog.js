@@ -6,6 +6,10 @@
 // object here for that build, in the same commit as the code, and bump
 // APP_BUILD.build in version.js to match.
 //
+// AND js/promote.js — the beta-channel promotion queue shown in Help. Same
+// commit, same discipline: a change that reaches beta without an entry there
+// becomes invisible when deciding what to push to production.
+//
 // One release object per build, holding ONLY what changed in that build.
 // Do not bump an existing release's number to cover new work — the overlay
 // shows every release newer than the build the person last acknowledged, so
@@ -18,6 +22,12 @@
 // Newest release first.
 // ======================================================================
 const CHANGELOG = [
+  {
+    build: 25027, date: "2026-08-12", title: "A list of what is waiting for production",
+    items: [
+      { kind: "new", tool: "All tools", text: "Help gains 🚚 Waiting for production, visible ONLY on the beta channel — the same non-production host test the BETA ribbon uses, so nobody on enca.limon-it.nl sees a list of things they do not have. It shows both build numbers and every promotable change as a NUMBERED row with what it is, why it matters, the beta builds it spans, the files it touches, and a risk rating: high means a real problem in production until it lands, medium a missing capability with nothing broken, low convenience or documentation. The numbers are stable and hand-assigned so a change can be named out loud — \u201cpush number 3 to main\u201d. A second list records what is deliberately NOT promoted (today the CIS Benchmark) so the absence reads as a decision rather than an oversight. It is hand-maintained in js/promote.js, because the app is static files in a browser and cannot read git or diff two branches \u2014 the section says so itself, and tells you to trust the changelog and the build numbers over the table if they ever disagree." },
+    ],
+  },
   {
     build: 25026, date: "2026-08-12", title: "Stop creating role-assignable groups",
     items: [

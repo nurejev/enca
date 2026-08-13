@@ -338,6 +338,56 @@
   }
   initHomeSections();
 
+  // ---------- promotion queue (beta channel only) ----------
+  // What is on this channel and not yet in production, numbered so it can be
+  // referred to out loud: "push number 3 to main". Rendered only on a
+  // non-production host — the same test the BETA ribbon uses — so a customer
+  // on the production site never sees a list of things they do not have.
+  (function renderPromotionQueue() {
+    try {
+      const host = (location.hostname || "").toLowerCase();
+      const prod = ((typeof BRANDING !== "undefined" && BRANDING.host) || "").toLowerCase();
+      if (!prod || host === prod) return;                 // production: stay hidden
+      if (typeof PROMOTE === "undefined") return;
+      const el = document.getElementById("helpPromote");
+      if (!el) return;
+
+      const RISK = {
+        high:   { label: "high",   cls: "block", note: "a real problem in production until it lands" },
+        medium: { label: "medium", cls: "new",   note: "missing capability, nothing broken" },
+        low:    { label: "low",    cls: "",      note: "convenience or documentation" },
+      };
+      const esc2 = (x) => String(x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const items = (PROMOTE.items || []).slice().sort((a, b) => a.n - b.n);
+
+      el.innerHTML = `
+        <h4>🚚 Waiting for production <span class="tag new">BETA CHANNEL</span></h4>
+        <p>Production is <b>${esc2(PROMOTE.productionBuild)}</b>; this site is <b>${esc2(PROMOTE.betaBuild)}</b>.
+          Each item below is one promotable change. They carry <b>stable numbers</b>, so you can say
+          <i>“push number 3 to main”</i> and mean exactly one thing.</p>
+        <div class="cg-tablewrap"><table class="cg-table">
+          <thead><tr><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:120px">Beta builds</th></tr></thead>
+          <tbody>${items.map((it) => {
+            const r = RISK[it.risk] || RISK.low;
+            return `<tr>
+              <td><b style="font-size:15px">${it.n}</b></td>
+              <td><b>${esc2(it.title)}</b>
+                <div class="mini muted">${(it.tools || []).join(" · ")}</div>
+                <div class="mini" style="margin-top:4px">${esc2(it.what)}</div>
+                <div class="mini" style="margin-top:4px;color:var(--report)"><b>Why:</b> ${esc2(it.why)}</div>
+                <div class="mini muted" style="margin-top:4px">${(it.files || []).map((f) => `<code>${esc2(f)}</code>`).join(" ")}</div></td>
+              <td><span class="tag ${r.cls}">${r.label}</span><div class="mini muted" style="margin-top:4px">${r.note}</div></td>
+              <td class="mini">${(it.builds || []).join(", ")}</td>
+            </tr>`;
+          }).join("")}</tbody></table></div>
+        ${(PROMOTE.staying || []).length ? `
+          <h4 style="margin-top:18px">Staying on this channel</h4>
+          <ul>${PROMOTE.staying.map((sv) => `<li><b>${esc2(sv.title)}</b> — ${esc2(sv.why)}</li>`).join("")}</ul>` : ""}
+        <p class="help-x">This list is written by hand — the app is static files in a browser and cannot read git or diff two branches. It is maintained alongside <b>📋 What's new</b>; if an entry looks stale, trust the changelog and the build numbers over this table.</p>`;
+      el.style.display = "";
+    } catch (e) { console.warn("promotion queue not rendered:", e.message); }
+  })();
+
   // ---------- theme: Auto (device) → Light → Dark ----------
   // Auto leaves data-theme off so the CSS prefers-color-scheme block decides;
   // the logo swaps to the dark-background variant through a CSS content: rule.
