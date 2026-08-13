@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 266, date: "2026-08-13", title: "Restricted AUs is out of BETA",
+    items: [
+      { kind: "improved", tool: "Restricted AUs", text: "The BETA chip comes off the tile, the tool header, the Help heading and the baseline panel. It shipped here in build 253 and has since gained the per-persona baseline, bulk add, frozen-group detection and the routing that ⑥ Protect and 📥 Import both depend on — a tool other tools rely on should not still be labelled provisional. Its roadmap card moves out of “Next — being worked toward” and into “Now”, where it belongs." },
+    ],
+  },
+  {
     build: 265, date: "2026-08-13", title: "Import protects what it creates, and a persona vault fills in one go",
     items: [
       { kind: "new", tool: "Import", text: "A protection preflight sits above the policy list. It checks that a restricted administrative unit exists for each persona your selection actually touches — usually two or three, not all eleven — and offers to create the missing ones, restricted, with you scoped as Groups Administrator. Creating them is a separate click from Import on purpose: creating administrative units and granting yourself a role is a different kind of act from restoring policies. It never blocks the import — skip it and everything still lands, just unprotected, with each group named in the report." },

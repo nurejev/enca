@@ -5352,7 +5352,7 @@ max@contoso.com,"Global, DevOps"</pre>
     crumb("🛡 Restricted AUs");
     show("screen-rmau");
     if (ruList && !force) { renderRmau(); return; }
-    $("ruHead").innerHTML = '<h3>🛡 Restricted AUs <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading administrative units…</p>';
+    $("ruHead").innerHTML = '<h3>🛡 Restricted AUs</h3><p class="mini" style="margin:6px 0 0">Reading administrative units…</p>';
     $("ruBody").innerHTML = ""; $("ruChips").innerHTML = "";
     try {
       ruList = isDemo
@@ -5544,7 +5544,7 @@ max@contoso.com,"Global, DevOps"</pre>
       </div></div>` : "";
 
     return `<div class="cg-panel" id="ruBasePanel">
-      <h4>BASELINE — ONE RESTRICTED AU PER PERSONA <span class="tag new">BETA</span></h4>
+      <h4>BASELINE — ONE RESTRICTED AU PER PERSONA</h4>
       <p class="mini" style="margin:0 0 8px">The baseline expects a restricted management administrative unit per persona, so a scoped administrator for one persona's exclusion groups cannot edit another's. Names mirror the deployment groups (<code>CAD-SEC-U-DG-&lt;CODE&gt;</code>).</p>
       <p class="mini" style="margin:0 0 8px"><b>${c.present.length} present</b> · ${c.missing.length} missing${c.unrestricted.length ? ` · <span style="color:var(--off)">${c.unrestricted.length} name clash</span>` : ""}</p>
       <div class="cg-pick">${rows}</div>
@@ -5567,7 +5567,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const su = Rmau.summarize(ruList);
     $("ruHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🛡 Restricted AUs <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        <h3>🛡 Restricted AUs <span class="tag block">writes to tenant</span></h3>
         <p style="margin-bottom:4px">Restricted management administrative units — the vaults that shield objects (here: CA exclusion groups) from tenant-wide administration. Members of a restricted AU answer <b>only</b> to roles scoped to that AU.</p>
         <p class="mini muted" style="margin:0">The <code>isMemberManagementRestricted</code> flag is <b>immutable</b> — set at creation, never changeable. Creating one needs <b>Privileged Role Administrator</b>; touching members of one needs a role <b>scoped to it</b> — a 403 there is the shield working, not a fault. Every write asks for its permission on the click.</p>
       </div>

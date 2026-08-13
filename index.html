@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=265"></script>
+<script src="js/popup-guard.js?v=266"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=265">
+<link rel="stylesheet" href="css/app.css?v=266">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=265"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=265"></script>
+<script src="js/counter.js?v=266"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=266"></script>
 </head>
 <body>
 
@@ -200,7 +200,7 @@
         <p>Recently deleted Conditional Access policies and named locations — everything still inside the 30-day restore window, with what it did, when it went, and one-click restore. A policy that was On comes back enforcing. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolRmau">
-        <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
+        <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag upd">UPDATED</span></h3>
         <p>Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
       </div>
       <div class="tool" id="toolDrift">
@@ -1038,7 +1038,7 @@
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
           <div class="list-card rm-card">
-            <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · 🔒 the <a href="#" id="rmSecLink">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
+            <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · <a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a> (out of BETA — persona vaults, bulk add, frozen-group detection) · 🔒 the <a href="#" id="rmSecLink">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
           </div>
         </div>
         <div class="rm-era future">
@@ -1046,10 +1046,6 @@
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">📐 CIS Benchmark alignment <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a> <span class="tag new">BETA — here now</span></h4>
-            <p class="mini" style="margin:0">Manage the restricted management administrative units that shield CA exclusion groups — members with CA-reference badges, scoped role grants, create and delete, with the immutable-flag truth stated up front. <b>Shipped here in build 253, still marked BETA</b> while it proves itself against more tenants.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> <span class="tag new">BETA — here now</span></h4>
@@ -1286,7 +1282,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>🛡 Restricted AUs <span class="tag new">BETA</span></h4>
+      <h4>🛡 Restricted AUs</h4>
       <p>Restricted management administrative units — the vaults that shield your Conditional Access exclusion groups from tenant-wide administrators. Members of a restricted AU answer <b>only</b> to roles scoped to that AU; a Global Administrator can read them but not change their membership.</p>
       <ul>
         <li><b>The baseline check comes first.</b> The tool opens with a panel that looks for the nine units the baseline expects — <code>CAB-SEC-RMAU-GLO / ADM / INT / EXT / GUESTUSERS / GUESTAdmins / SA / WLI / DevOps / FW-Exclusions</code> plus <code>CAB-SEC-RMAU-BreakGlass</code> — and marks each one <i>present</i>, <i>missing</i>, or a name clash. <b>One unit per persona</b> is the whole point: with a single shared vault, whoever may manage the Admins exclusions may equally manage the Externals exclusions, and the separation you built the personas for stops at the AU boundary.</li>
@@ -2087,42 +2083,42 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=265"></script>
-<script src="js/version.js?v=265"></script>
-<script src="js/authConfig.js?v=265"></script>
-<script src="js/labels.js?v=265"></script>
-<script src="js/graph.js?v=265"></script>
-<script src="js/model.js?v=265"></script>
-<script src="js/render.js?v=265"></script>
-<script src="js/analyze.js?v=265"></script>
-<script src="js/whatif.js?v=265"></script>
-<script src="js/mslearn.js?v=265"></script>
-<script src="js/gapcheck.js?v=265"></script>
-<script src="js/exclusions.js?v=265"></script>
-<script src="js/validator.js?v=265"></script>
-<script src="js/whatifeval.js?v=265"></script>
-<script src="js/compare.js?v=265"></script>
-<script src="js/groupuse.js?v=265"></script>
-<script src="js/locations.js?v=265"></script>
-<script src="js/authcontexts.js?v=265"></script>
-<script src="js/authstrengths.js?v=265"></script>
-<script src="js/recycle.js?v=265"></script>
-<script src="js/termsofuse.js?v=265"></script>
-<script src="js/rmau.js?v=265"></script>
-<script src="js/audit.js?v=265"></script>
-<script src="js/drift.js?v=265"></script>
-<script src="js/signins.js?v=265"></script>
-<script src="js/reportimpact.js?v=265"></script>
-<script src="js/changelog.js?v=265"></script>
-<script src="js/baselineData.js?v=265"></script>
-<script src="js/baselineJoeyData.js?v=265"></script>
-<script src="js/baseline.js?v=265"></script>
-<script src="js/groupTemplates.js?v=265"></script>
-<script src="js/assign.js?v=265"></script>
-<script src="js/cagroups.js?v=265"></script>
-<script src="js/import.js?v=265"></script>
-<script src="js/export.js?v=265"></script>
-<script src="js/demo.js?v=265"></script>
-<script src="js/app.js?v=265"></script>
+<script src="js/branding.js?v=266"></script>
+<script src="js/version.js?v=266"></script>
+<script src="js/authConfig.js?v=266"></script>
+<script src="js/labels.js?v=266"></script>
+<script src="js/graph.js?v=266"></script>
+<script src="js/model.js?v=266"></script>
+<script src="js/render.js?v=266"></script>
+<script src="js/analyze.js?v=266"></script>
+<script src="js/whatif.js?v=266"></script>
+<script src="js/mslearn.js?v=266"></script>
+<script src="js/gapcheck.js?v=266"></script>
+<script src="js/exclusions.js?v=266"></script>
+<script src="js/validator.js?v=266"></script>
+<script src="js/whatifeval.js?v=266"></script>
+<script src="js/compare.js?v=266"></script>
+<script src="js/groupuse.js?v=266"></script>
+<script src="js/locations.js?v=266"></script>
+<script src="js/authcontexts.js?v=266"></script>
+<script src="js/authstrengths.js?v=266"></script>
+<script src="js/recycle.js?v=266"></script>
+<script src="js/termsofuse.js?v=266"></script>
+<script src="js/rmau.js?v=266"></script>
+<script src="js/audit.js?v=266"></script>
+<script src="js/drift.js?v=266"></script>
+<script src="js/signins.js?v=266"></script>
+<script src="js/reportimpact.js?v=266"></script>
+<script src="js/changelog.js?v=266"></script>
+<script src="js/baselineData.js?v=266"></script>
+<script src="js/baselineJoeyData.js?v=266"></script>
+<script src="js/baseline.js?v=266"></script>
+<script src="js/groupTemplates.js?v=266"></script>
+<script src="js/assign.js?v=266"></script>
+<script src="js/cagroups.js?v=266"></script>
+<script src="js/import.js?v=266"></script>
+<script src="js/export.js?v=266"></script>
+<script src="js/demo.js?v=266"></script>
+<script src="js/app.js?v=266"></script>
 </body>
 </html>
