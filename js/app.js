@@ -67,7 +67,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -1286,6 +1286,7 @@
     ["toolRecycle", "♻ Recycle bin"],
     ["toolRmau", "🛡 Restricted AUs"],
     ["toolDrift", "📉 Drift watch"],
+    ["toolGuide", "📖 Baseline guide"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
@@ -6804,6 +6805,167 @@ max@contoso.com,"Global, DevOps"</pre>
     renderDrift();
   });
 
+  // ---------- Baseline usage guide (roadmap R05) ----------
+  // The deployment knowledge written down where it can be checked: the steps
+  // with their reasons live in js/guide.js as content plus pure check
+  // functions; this wiring reads the tenant once on demand, hands the reads
+  // to Guide.evaluate, and turns each step's readiness into chips. Reads
+  // only — the guide never writes, it points at the tools that do.
+  let ugRes = null, ugCtx = null, ugBusy = false;
+  const ugOpen = new Set();          // expanded missing-lists, by check key
+  const ugProg = makeProgress("ug");
+  // Agreement.Read.All is the one read outside the base scopes — asked for on
+  // the click like everywhere else; declined, that step reads as "not read"
+  // rather than blocking the rest of the guide.
+  const UG_TOU_READ = ["Agreement.Read.All"];
+  const UG_AREAS = [
+    { key: "groups",     icon: "👥", label: "baseline groups" },
+    { key: "aus",        icon: "🛡", label: "administrative units" },
+    { key: "locations",  icon: "🌐", label: "named locations" },
+    { key: "strengths",  icon: "💪", label: "authentication strengths" },
+    { key: "contexts",   icon: "🎫", label: "authentication contexts" },
+    { key: "agreements", icon: "📜", label: "terms of use" },
+    { key: "policies",   icon: "🗂", label: "policies" },
+  ];
+
+  async function ugRead(key) {
+    if (isDemo) {
+      const D = (typeof DEMO_DATA !== "undefined" && DEMO_DATA) || {};
+      if (key === "groups")     return Object.keys(D.scopeGroups || {});
+      if (key === "aus")        return D.adminUnits || [];
+      if (key === "locations")  return D.namedLocations || [];
+      if (key === "strengths")  return [];
+      if (key === "contexts")   return D.authContexts || [];
+      if (key === "agreements") return [];
+      if (key === "policies")   return (D.policies || []).map((p) => ({ name: p.displayName, raw: p }));
+      return [];
+    }
+    if (key === "groups")
+      return (await Graph.ggetAll("/groups?$filter=startswith(displayName,'CAB-SEC-')&$select=displayName&$top=999")).map((g) => g.displayName);
+    if (key === "aus")
+      return Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
+    if (key === "locations")
+      return Graph.ggetAll("/identity/conditionalAccess/namedLocations");
+    if (key === "strengths")
+      return Graph.ggetAll("/policies/authenticationStrengthPolicies");
+    if (key === "contexts")
+      return Graph.ggetAll("/identity/conditionalAccess/authenticationContextClassReferences");
+    if (key === "agreements") {
+      // null = not read (no consent / read refused) → the check says "unknown"
+      // honestly instead of pretending an empty tenant.
+      try {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...UG_TOU_READ])) return null;
+        return await Graph.ggetAll("/identityGovernance/termsOfUse/agreements");
+      } catch { return null; }
+    }
+    if (key === "policies")
+      return (await Graph.ggetAll("/identity/conditionalAccess/policies")).map((p) => ({ name: p.displayName, raw: p }));
+    return [];
+  }
+
+  async function ugRun() {
+    if (ugBusy) return;
+    ugBusy = true;
+    ugProg.start(UG_AREAS.length, "objects", "area");
+    let done = 0, count = 0;
+    $("ugBody").innerHTML = ugProg.panel("Reading the tenant against the baseline…",
+      "Groups, restricted units, locations, strengths, contexts, terms of use and policies — reads only, nothing is written.");
+    try {
+      const ctx = {};
+      for (const a of UG_AREAS) {
+        const t = $("ugPgTxt"); if (t) t.textContent = `${a.icon} ${a.label}…`;
+        try { ctx[a.key] = await ugRead(a.key); }
+        catch { ctx[a.key] = a.key === "agreements" ? null : []; }
+        count += Array.isArray(ctx[a.key]) ? ctx[a.key].length : 0;
+        ugProg.tick(count, ++done);
+      }
+      ugCtx = ctx;
+      ugRes = Guide.evaluate(ctx);
+      ugOpen.clear();
+    } catch (e) {
+      $("ugBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p></div>`;
+      ugBusy = false;
+      return;
+    }
+    ugBusy = false;
+    renderGuide();
+  }
+
+  const UG_STATE = {
+    ok:      { cls: "ok",    icon: "✅", word: "ready" },
+    warn:    { cls: "new",   icon: "⚠️", word: "gaps" },
+    missing: { cls: "block", icon: "❌", word: "missing" },
+    unknown: { cls: "",      icon: "❔", word: "not read" },
+  };
+  const ugChip = (r) => {
+    const s = UG_STATE[r.state] || UG_STATE.unknown;
+    return `<span class="tag ${s.cls}" style="vertical-align:middle">${s.icon} ${esc(r.summary)}</span>`;
+  };
+
+  function ugMissingList(key, r) {
+    const list = r.missing || [];
+    if (!list.length) return "";
+    const open = ugOpen.has(key);
+    const shown = open ? list : list.slice(0, 8);
+    return `<ul class="mini" style="margin:6px 0 0 2px;padding-left:18px">${shown.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>
+      ${list.length > 8 ? `<a href="#" class="mini" data-ugtog="${key}">${open ? "Show fewer" : `Show all ${list.length}`}</a>` : ""}`;
+  }
+
+  function renderGuide() {
+    $("ugHead").innerHTML = `<h3>📖 Baseline usage guide <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:4px">The deployment order with the <b>reason</b> for each step, not just the sequence — and, once the tenant has been read, a readiness check per step that says what is missing <b>before</b> you run it instead of after.</p>
+      <p class="mini muted" style="margin:0">Reads only — nothing is written. Every step links the tool that does the work. The guide ends where <a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> begins.</p>`;
+    if (ugBusy) return;   // the run panel owns ugBody until the read finishes
+
+    if (!ugRes) {
+      $("ugBody").innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-ugrun>🔎 Read the tenant</button>
+        <p class="mini muted">Compares what exists against the baseline catalog — ${Guide.expectedGroups().length} groups, ${Guide.expectedAus().length} restricted units, the dependency objects and the numbered policies. You can also read the steps first; the checks fill in after the read.</p>
+      </div>` + ugSteps(false);
+      return;
+    }
+    $("ugBody").innerHTML = ugSteps(true);
+  }
+
+  function ugSteps(withChecks) {
+    return Guide.STEPS.map((s, i) => {
+      const checks = withChecks ? (s.check || []).map((k) => {
+        const r = (ugRes || {})[k];
+        return r ? `<div style="margin:8px 0 0">${ugChip(r)}${ugMissingList(k, r)}</div>` : "";
+      }).join("") : "";
+      // Step content that renders from the catalog alone (the persona table)
+      // shows before any read — the reading matter is useful without consent.
+      const extra = s.render ? (() => {
+        try { const rows = s.render(ugCtx || {}); return rows && rows.length ? `<ul class="mini muted" style="margin:8px 0 0 2px;padding-left:18px">${rows.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""; } catch { return ""; }
+      })() : "";
+      const links = (s.links || []).map(([tool, label]) =>
+        `<a href="#" class="md-tool" data-tool="${tool}">${esc(label)}</a>`).join(" · ");
+      return `<div class="list-card" style="padding:14px 16px;margin-top:${i ? 12 : 0}px">
+        <h4 style="margin:0 0 6px"><span class="rm-ref">Step ${i + 1}</span> ${s.icon} ${esc(s.title)}</h4>
+        <p class="mini" style="margin:0">${esc(s.why)}</p>
+        ${extra}${checks}
+        ${links ? `<p class="mini muted" style="margin:8px 0 0">Do it here: ${links}</p>` : ""}
+      </div>`;
+    }).join("");
+  }
+
+  function openGuide() { crumb("📖 Baseline guide"); show("screen-guide"); renderGuide(); }
+  $("toolGuide").addEventListener("click", openGuide);
+  $("ugRun").addEventListener("click", ugRun);
+  $("ugBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-ugrun]")) { ugRun(); return; }
+    const t = e.target.closest("[data-ugtog]");
+    if (!t) return;
+    e.preventDefault();
+    const k = t.dataset.ugtog;
+    if (ugOpen.has(k)) ugOpen.delete(k); else ugOpen.add(k);
+    renderGuide();
+  });
+  $("ugMd").addEventListener("click", () => {
+    if (!ugRes) { toast("Read the tenant first — the report is the readiness check."); return; }
+    showReport("📖 Baseline usage guide", "CA-BaselineReadiness", Guide.toMd(ugRes, { tenantName }));
+  });
+
   // ---------- Sign-in failures (sign-in log × CA verdicts) ----------
   const SI_READ = ["AuditLog.Read.All"];
   // Report-only failures cannot be filtered server-side (the sign-in itself
@@ -10695,7 +10857,7 @@ max@contoso.com,"Global, DevOps"</pre>
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
     siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
-    drHead: "toolDrift",
+    drHead: "toolDrift", ugHead: "toolGuide",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

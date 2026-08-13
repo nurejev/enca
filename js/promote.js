@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.267",
-  betaBuild: "v1.0.250-beta.62",
+  betaBuild: "v1.0.250-beta.63",
 
   items: [
+    {
+      n: 24,
+      title: "📖 Baseline usage guide (R05)",
+      tools: ["Baseline guide"],
+      builds: [25063],
+      risk: "low",
+      what: "New beta-only tool: the deployment order as six steps with the reason for each, and a 🔎 Read-the-tenant readiness check per step (baseline groups, restricted units, locations, strengths, contexts, terms of use, per-persona policy coverage, state tally). Pure reads plus one on-demand scope (Agreement.Read.All). New js/guide.js plus tile, screen and wiring.",
+      why: "Reads only and self-contained, but it EXPLAINS the baseline — wrong prose is worse than no prose, so it graduates once the step texts have survived a few real deployments.",
+      files: ["js/guide.js", "js/app.js", "index.html", "js/version.js"],
+    },
     {
       n: 23,
       title: "Flagged tiles sort first in a collapsed section (R09)",

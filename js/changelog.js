@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25063, date: "2026-08-13", title: "The baseline guide reads your tenant (R05)",
+    items: [
+      { kind: "new", tool: "Baseline guide", text: "📖 Baseline usage guide — roadmap item R05, beta-site only. The deployment knowledge that lived in whoever has done it before, written down as six steps that each carry the REASON they sit where they do: the persona model and its CA ranges first (read live from the catalog), groups and their restricted-AU vaults before the policies that make them worth attacking, named locations / authentication strengths / contexts before the policies that reference them by id, Terms of use before import — the one dependency with no create API — then policies imported Off on purpose, then Off → report-only → 🎚 forecast → enforced, Global last, break-glass excluded from every single one first. 🔎 Read the tenant turns each step into a readiness check that names what is missing BEFORE the step is run: n of m baseline groups and restricted units by name, the trusted-location flag, published contexts, agreements (Agreement.Read.All asked on the click; declined reads as “not read”, never as an empty tenant), per-persona coverage against the 99-policy catalog, and the Off / report-only / enforced tally. Every step links the tool that does the work. Reads only, Markdown readiness report, demo mode." },
+    ],
+  },
+  {
     build: 25062, date: "2026-08-13", title: "An expanded section no longer outlives the release",
     items: [
       { kind: "fixed", tool: "All tools", text: "Manage the tenant opened expanded even on a fresh visit. Nothing was broken — the section was expanded because it had been expanded, once, and the choice was remembered forever. That was wrong in two ways. A release that adds or changes tools has changed what the section CONTAINS, so “show me all eleven”, decided against a different eleven, is no longer an answer to the question being asked; and an expanded section has no top, which silently defeats R09 putting what changed at the top of a collapsed one. The choice is now remembered within a build and reset by the next one." },
