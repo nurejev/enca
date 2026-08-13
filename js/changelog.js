@@ -22,7 +22,7 @@ const CHANGELOG = [
     build: 255, date: "2026-08-12", title: "Hotfix: the stylesheet was cut in half",
     items: [
       { kind: "fixed", tool: "All tools", text: "Build 254 shipped an unclosed CSS rule — .cg-actionbar opened a block and never closed it — and a browser discards everything after an unterminated rule, so roughly two thirds of the stylesheet never applied. The site rendered as unstyled HTML with every screen visible at once. The rule is closed. Cause: the rule was copied across from the beta branch by taking text up to the first newline, but it spans two lines, so the closing brace was left behind." },
-      { kind: "fixed", tool: "What-If", text: "The 🎯 CA result card has been unstyled since build 253 for the same class of reason — whatif.js was brought over but its .wf-result / .wf-res-state rules were not. Added, so the verdict card has its border, its state chip and its colours." },
+      { kind: "fixed", tool: "List Policies", text: "The 🎯 CA result card — the verdict at the end of the ⑃ What-if flow you open from a policy card — has been unstyled since build 253, for the same class of reason: whatif.js was brought over but its .wf-result / .wf-res-state rules were not. Added, so the card has its border, its state chip and its colours again. (The flow is rendered by js/whatif.js, which serves both this and the standalone 🧪 What-If tool — the card itself belongs to List Policies.)" },
     ],
   },
   {
