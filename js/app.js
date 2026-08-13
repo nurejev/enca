@@ -305,11 +305,11 @@
       const key = (head && head.querySelector("h3") ? head.querySelector("h3").textContent : `sec${gi}`).trim();
       const btn = document.createElement("button");
       btn.className = "btn home-more";
-      // A tool that just shipped or just changed must never be behind the fold.
-      // Announcing it in the changelog and then hiding it on the home page is
-      // the opposite of a release. NEW, BETA and UPDATED tiles are therefore
-      // exempt from collapsing entirely — not merely counted on the button —
-      // and they keep their place in the grid rather than being reordered.
+      // A tool that just shipped or just changed should not be behind the fold.
+      // NEW, BETA and UPDATED tiles therefore claim the visible slots FIRST —
+      // but they do not enlarge the section, because when a release touches six
+      // tools that stopped the section collapsing at all. Order never changes;
+      // only which tiles are shown.
       const flagged = (t) => !!t.querySelector(".tag.new, .tag.upd");
       const paint = () => {
         const open = homeExpanded.has(key);
