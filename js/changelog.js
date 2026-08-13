@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25044, date: "2026-08-13", title: "The Protect search box actually searches",
+    items: [
+      { kind: "fixed", tool: "Protect exclusions", text: "The search box did nothing while you typed. Its handler was attached to the CHANGE event rather than INPUT, and a text field fires change only when it loses focus — so the list stayed exactly as it was, however much you typed, until you clicked elsewhere. The type-ahead suggestions worked throughout, which made it look alive while the list underneath ignored every keystroke. Also shipped to production as build 262." },
+      { kind: "fixed", tool: "Protect exclusions", text: "The test meant to cover this set the search term in memory and re-rendered, so it exercised the filter but never the event that reaches it. It now types into the real field and dispatches a real input event — and fails against the previous build, which is the only way to know a regression test tests anything." },
+    ],
+  },
+  {
     build: 25043, date: "2026-08-13", title: "Roadmap: type the country, get the code",
     items: [
       { kind: "improved", tool: "Roadmap", text: "Added 🌐 Type the country, get the code. A country named location takes two-letter ISO 3166-1 codes typed by hand, and a wrong code is still a VALID code — the policy saves, looks right, and covers the wrong country until somebody is blocked or, worse, is not. Ireland is IE; IR is Iran. The plan is a type-ahead over the full ISO list that matches on country name and fills the code in, rejecting anything that is not a real code at entry rather than after the fact." },

@@ -2403,16 +2403,6 @@ max@contoso.com,"Global, DevOps"</pre>
       return true;
     }
     if (e.target.id === "cgRmauAdmin" && cgRmau) { cgRmau.admin = e.target.value; return true; }
-    if (e.target.id === "cgRmauQ" && cgRmau) {
-      cgRmau.q = e.target.value;
-      const pos = e.target.selectionStart;
-      renderCgRmau();
-      // renderCgRmau rebuilds the panel, so the field the user is typing in is
-      // a different element by the time this returns. Put the caret back.
-      const box = rmauBody().querySelector("#cgRmauQ");
-      if (box) { box.focus(); try { box.setSelectionRange(pos, pos); } catch {} }
-      return true;
-    }
     return false;
   }
   // Resolve a directory-role TEMPLATE id to the ACTIVATED role object, which is
@@ -2455,6 +2445,20 @@ max@contoso.com,"Global, DevOps"</pre>
   // Scoped-administrator type-ahead, same shape as the What-If user field.
   let rmauSugTimer = null;
   function rmauInput(e) {
+    // The search box lives on the INPUT event, not change: a text input fires
+    // `change` only on blur, so filtering-as-you-type has to be handled here.
+    // It was in rmauChange, which meant typing did nothing at all until the
+    // field lost focus.
+    if (e.target.id === "cgRmauQ" && cgRmau) {
+      cgRmau.q = e.target.value;
+      const pos = e.target.selectionStart;
+      renderCgRmau();
+      // renderCgRmau rebuilds the panel, so the field being typed into is a
+      // different element by the time this returns. Put the caret back.
+      const box = rmauBody().querySelector("#cgRmauQ");
+      if (box) { box.focus(); try { box.setSelectionRange(pos, pos); } catch {} }
+      return;
+    }
     if (e.target.id !== "cgRmauAdmin") return;
     if (cgRmau) cgRmau.admin = e.target.value;
     clearTimeout(rmauSugTimer);
