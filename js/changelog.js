@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25038, date: "2026-08-13", title: "Break-glass gets a vault of its own",
+    items: [
+      { kind: "new", tool: "Restricted AUs", text: "A tenth unit joins the baseline: CAB-SEC-RMAU-BreakGlass. CAB-SEC-U-BreakGlass is excluded from very nearly every policy in the baseline, so it belongs to no single persona — and that is precisely the argument for giving it its own unit rather than filing it under Global. Whoever can edit that group can walk through every policy at once, so it deserves a shorter list of scoped administrators than anything else. The name deliberately carries no -Exclusions suffix, because the unit holds the emergency access group itself rather than a persona's exclusions." },
+      { kind: "improved", tool: "Import", text: "The break-glass group is now placed by NAME rather than by inferring a persona from the policies that reference it. Inference could only ever call it ambiguous — correctly, since every persona excludes it — which meant the one group most worth protecting was the one guaranteed to be left unplaced. The preflight also offers the break-glass unit whenever the backup contains that group, even though no policy name mentions a break-glass persona." },
+      { kind: "improved", tool: "Restricted AUs", text: "Help now warns against adding the break-glass USER ACCOUNTS to a restricted unit. A Global Administrator inside one cannot have their password reset by anybody, because no role that can reset a Global Administrator's password can be assigned at administrative-unit scope — recovery means removing the account from the unit first, which is the opposite of what you want during an incident. Protect the group's membership; leave the accounts out." },
+    ],
+  },
+  {
     build: 25037, date: "2026-08-13", title: "Three more items reached production",
     items: [
       { kind: "improved", tool: "All tools", text: "Production is now build 258. Items 8 (pickers above their lists on an administrative unit card) and 10 (one restricted administrative unit per persona, with the derived-check fix from build 25036) have shipped, and item 9 turned out to have gone to production back in build 256 without the queue being told — the exact failure this list warns about in its own header, so the numbers were reconciled against what main actually contains rather than against what the queue claimed. Item 11 (the Import protection preflight) now stands alone, since its dependency is live." },

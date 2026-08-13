@@ -119,6 +119,13 @@ const Importer = (() => {
   const PERSONA_CODE = Object.fromEntries(
     Object.entries(PERSONA_GROUPS).map(([k, g]) => [k, g.replace(/^CAD-SEC-U-DG-/, "")]));
 
+  // Groups filed by NAME rather than by the personas that reference them.
+  // CAB-SEC-U-BreakGlass is excluded from nearly every policy in the baseline,
+  // so persona inference can only ever call it ambiguous — correctly, since no
+  // single persona owns it. It has a unit of its own, so name it directly.
+  const BY_NAME_CODE = { "cab-sec-u-breakglass": "BreakGlass" };
+  const fixedCode = (name) => BY_NAME_CODE[String(name || "").toLowerCase()] || null;
+
   // Which persona's vault does an imported group belong in? A group has no
   // persona of its own — it inherits from the policies that reference it. One
   // persona is an answer; two is NOT, and the difference matters:
@@ -131,6 +138,8 @@ const Importer = (() => {
   function groupPersonas(bundle, chosenRaws) {
     const out = new Map();
     for (const g of bundle.groups || []) {
+      const fixed = fixedCode(g.displayName);
+      if (fixed) { out.set(g.id, { name: g.displayName, personas: [], persona: null, code: fixed, why: null }); continue; }
       const seen = new Set();
       for (const raw of chosenRaws) {
         const blob = JSON.stringify(raw);
@@ -142,6 +151,7 @@ const Importer = (() => {
         name: g.displayName,
         personas: [...seen],
         persona: seen.size === 1 ? [...seen][0] : null,
+        code: seen.size === 1 ? PERSONA_CODE[[...seen][0]] : null,
         why: seen.size === 0 ? "no persona could be read from the policies that use it"
            : seen.size > 1 ? `used by ${seen.size} personas (${[...seen].join(", ")}) — a shared group placed in one persona's unit would be editable by that persona's admin alone, and placing it in both would let either edit it`
            : null,
@@ -157,6 +167,12 @@ const Importer = (() => {
     for (const raw of chosenRaws) {
       const p = personaOf(raw.displayName);
       if (p && PERSONA_CODE[p]) codes.add(PERSONA_CODE[p]);
+    }
+    // Break-glass is not a persona, so it is added by the presence of the group
+    // itself rather than by any policy name.
+    for (const g of bundle.groups || []) {
+      const c = fixedCode(g.displayName);
+      if (c) codes.add(c);
     }
     return [...codes];
   }
@@ -436,14 +452,14 @@ const Importer = (() => {
 
       if (!created || !auByCode) continue;
       const info = personas.get(raw.id);
-      const code = info && info.persona ? PERSONA_CODE[info.persona] : null;
+      const code = info ? info.code : null;
       const auId = code ? auByCode[code] : null;
       if (!auId) {
         // Not placing is a decision, so it is recorded as one. An unplaced
         // group is unprotected, and silence would read as "protected".
         log.unplaced.push({ name: raw.displayName, code,
-          why: !info || !info.persona ? (info && info.why) || "no persona could be read from the policies that use it"
-             : `no restricted unit for persona ${code} — it was missing at preflight and not created` });
+          why: !code ? (info && info.why) || "no persona could be read from the policies that use it"
+             : `no restricted unit for ${code} — it was missing at preflight and not created` });
         continue;
       }
       onStatus?.(`Protecting ${raw.displayName}…`);
@@ -869,5 +885,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, PERSONA_CODE, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, PERSONA_CODE, BY_NAME_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();

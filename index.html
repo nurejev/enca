@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25037"></script>
+<script src="js/popup-guard.js?v=25038"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25037">
+<link rel="stylesheet" href="css/app.css?v=25038">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25037"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25037"></script>
+<script src="js/counter.js?v=25038"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25038"></script>
 </head>
 <body>
 
@@ -1311,16 +1311,18 @@
       <h4>🛡 Restricted AUs <span class="tag new">BETA</span></h4>
       <p>Restricted management administrative units — the vaults that shield your Conditional Access exclusion groups from tenant-wide administrators. Members of a restricted AU answer <b>only</b> to roles scoped to that AU; a Global Administrator can read them but not change their membership.</p>
       <ul>
-        <li><b>The baseline check comes first.</b> The tool opens with a panel that looks for the nine units the baseline expects — <code>CAB-SEC-RMAU-GLO / ADM / INT / EXT / GUESTUSERS / GUESTAdmins / SA / DevOps / FW-Exclusions</code> — and marks each one <i>present</i>, <i>missing</i>, or a name clash. <b>One unit per persona</b> is the whole point: with a single shared vault, whoever may manage the Admins exclusions may equally manage the Externals exclusions, and the separation you built the personas for stops at the AU boundary.</li>
+        <li><b>The baseline check comes first.</b> The tool opens with a panel that looks for the nine units the baseline expects — <code>CAB-SEC-RMAU-GLO / ADM / INT / EXT / GUESTUSERS / GUESTAdmins / SA / DevOps / FW-Exclusions</code> plus <code>CAB-SEC-RMAU-BreakGlass</code> — and marks each one <i>present</i>, <i>missing</i>, or a name clash. <b>One unit per persona</b> is the whole point: with a single shared vault, whoever may manage the Admins exclusions may equally manage the Externals exclusions, and the separation you built the personas for stops at the AU boundary.</li>
         <li><b>Create the missing ones</b> — tick them, or take all. Each is created with the restricted flag set, and <b>you are granted Groups Administrator scoped to it in the same step</b>. That second half is not a convenience: an administrative unit with no scoped administrator is a vault nobody can open, because the restricted flag is precisely what shuts out the tenant-wide roles. Creation and the role grant are reported separately, so a unit that exists but has no administrator is visible as the half-outcome it is rather than counted as a success.</li>
         <li><b>A name clash is refused, not skipped</b> — if an AU already carries an expected name but is <b>not</b> restricted, it is shown as <i>name taken — not restricted</i> and is left alone. The flag is immutable, so that unit cannot be upgraded into the one you want; rename it and create a restricted replacement, or give the persona a different name.</li>
-        <li><b>📄 Report</b> — the nine rows, their status and their scoped administrator as Markdown, for the design document or the hand-over.</li>
-        <li><b>Ceilings worth knowing</b> — a tenant may hold at most <b>100</b> restricted management administrative units, so nine is comfortable. Only <b>security</b> groups can be members: Microsoft 365, mail-enabled security and distribution groups cannot. Deleting a unit can take up to 30 minutes to lift the protection from its former members.</li>
+        <li><b>Break-glass gets its own vault.</b> <code>CAB-SEC-U-BreakGlass</code> is excluded from very nearly every policy in the baseline, so it belongs to no single persona — whoever can edit it can walk through every policy at once. It gets <code>CAB-SEC-RMAU-BreakGlass</code>, deliberately without an <code>-Exclusions</code> suffix because it holds the emergency access group itself rather than a persona's exclusions. Keep its list of scoped administrators shorter than any other unit's.</li>
+        <li><b>📄 Report</b> — the ten rows, their status and their scoped administrator as Markdown, for the design document or the hand-over.</li>
+        <li><b>Ceilings worth knowing</b> — a tenant may hold at most <b>100</b> restricted management administrative units, so ten is comfortable. Only <b>security</b> groups can be members: Microsoft 365, mail-enabled security and distribution groups cannot. Deleting a unit can take up to 30 minutes to lift the protection from its former members.</li>
         <li><b>Open a card</b> — click its header, or the <b>👤 Scoped admins</b> button, to see members and scoped role grants. The ✎ Edit dialog is only the AU's own name and description; roles are not granted there.</li>
         <li><b>Add a member</b> — the box suggests your <b>baseline group names</b> before you type anything, since those are what the AU exists to protect, and folds in live directory results for any other group or user as you type.</li>
         <li><b>Grant a scoped administrator</b> — pick the role, then start typing a name: users are suggested from the directory. Without at least one scoped grant, nobody can manage these members at all.</li>
         <li><b>Do not combine with role-assignable groups.</b> A role-assignable group's membership can only be changed by Global Administrator or Privileged Role Administrator, and a restricted AU blocks exactly those two — neither can be assigned at AU scope. A group with both protections has <b>nobody</b> who can edit its members. The tool refuses to add role-assignable groups to a restricted AU for that reason. Pick one: for a CA exclusion group the restricted AU is usually better, because it lets you name who may manage it.</li>
         <li><b>The restricted flag is immutable</b> — set at creation, never changeable. Converting an existing AU means creating a new one and moving the members, and the tool says so rather than letting you discover it.</li>
+        <li><b>Put the group in, not the accounts.</b> A restricted unit holding a group protects the group's membership. Adding the break-glass <i>user accounts</i> themselves is a different and much sharper act: a Global Administrator inside a restricted unit cannot have their password reset by anyone, because no role that resets a Global Administrator's password can be assigned at administrative-unit scope. Recovering one means removing the account from the unit first — which is the opposite of what you want at 3am.</li>
         <li><b>A 403 is the shield working</b> — if a member change is refused, that is the restriction doing its job, not a fault. You need a role scoped to that AU.</li>
       </ul>
       <p class="help-x">Writes to the tenant, and asks for each permission on the click. Creating one needs <b>Privileged Role Administrator</b>; granting a scoped role also needs <code>RoleManagement.ReadWrite.Directory</code>. Directory writes are not read-your-writes consistent, so a unit you just created may take a moment to appear in the list below — the creation log above it is the record of what actually happened.</p>
@@ -2101,45 +2103,45 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25037"></script>
-<script src="js/version.js?v=25037"></script>
-<script src="js/promote.js?v=25037"></script>
-<script src="js/authConfig.js?v=25037"></script>
-<script src="js/labels.js?v=25037"></script>
-<script src="js/graph.js?v=25037"></script>
-<script src="js/model.js?v=25037"></script>
-<script src="js/render.js?v=25037"></script>
-<script src="js/analyze.js?v=25037"></script>
-<script src="js/whatif.js?v=25037"></script>
-<script src="js/mslearn.js?v=25037"></script>
-<script src="js/gapcheck.js?v=25037"></script>
-<script src="js/cisdata.js?v=25037"></script>
-<script src="js/cischeck.js?v=25037"></script>
-<script src="js/exclusions.js?v=25037"></script>
-<script src="js/validator.js?v=25037"></script>
-<script src="js/whatifeval.js?v=25037"></script>
-<script src="js/compare.js?v=25037"></script>
-<script src="js/groupuse.js?v=25037"></script>
-<script src="js/locations.js?v=25037"></script>
-<script src="js/authcontexts.js?v=25037"></script>
-<script src="js/authstrengths.js?v=25037"></script>
-<script src="js/recycle.js?v=25037"></script>
-<script src="js/rmau.js?v=25037"></script>
-<script src="js/termsofuse.js?v=25037"></script>
-<script src="js/audit.js?v=25037"></script>
-<script src="js/drift.js?v=25037"></script>
-<script src="js/signins.js?v=25037"></script>
-<script src="js/reportimpact.js?v=25037"></script>
-<script src="js/changelog.js?v=25037"></script>
-<script src="js/baselineData.js?v=25037"></script>
-<script src="js/baselineJoeyData.js?v=25037"></script>
-<script src="js/baseline.js?v=25037"></script>
-<script src="js/groupTemplates.js?v=25037"></script>
-<script src="js/assign.js?v=25037"></script>
-<script src="js/cagroups.js?v=25037"></script>
-<script src="js/import.js?v=25037"></script>
-<script src="js/export.js?v=25037"></script>
-<script src="js/demo.js?v=25037"></script>
-<script src="js/app.js?v=25037"></script>
+<script src="js/branding.js?v=25038"></script>
+<script src="js/version.js?v=25038"></script>
+<script src="js/promote.js?v=25038"></script>
+<script src="js/authConfig.js?v=25038"></script>
+<script src="js/labels.js?v=25038"></script>
+<script src="js/graph.js?v=25038"></script>
+<script src="js/model.js?v=25038"></script>
+<script src="js/render.js?v=25038"></script>
+<script src="js/analyze.js?v=25038"></script>
+<script src="js/whatif.js?v=25038"></script>
+<script src="js/mslearn.js?v=25038"></script>
+<script src="js/gapcheck.js?v=25038"></script>
+<script src="js/cisdata.js?v=25038"></script>
+<script src="js/cischeck.js?v=25038"></script>
+<script src="js/exclusions.js?v=25038"></script>
+<script src="js/validator.js?v=25038"></script>
+<script src="js/whatifeval.js?v=25038"></script>
+<script src="js/compare.js?v=25038"></script>
+<script src="js/groupuse.js?v=25038"></script>
+<script src="js/locations.js?v=25038"></script>
+<script src="js/authcontexts.js?v=25038"></script>
+<script src="js/authstrengths.js?v=25038"></script>
+<script src="js/recycle.js?v=25038"></script>
+<script src="js/rmau.js?v=25038"></script>
+<script src="js/termsofuse.js?v=25038"></script>
+<script src="js/audit.js?v=25038"></script>
+<script src="js/drift.js?v=25038"></script>
+<script src="js/signins.js?v=25038"></script>
+<script src="js/reportimpact.js?v=25038"></script>
+<script src="js/changelog.js?v=25038"></script>
+<script src="js/baselineData.js?v=25038"></script>
+<script src="js/baselineJoeyData.js?v=25038"></script>
+<script src="js/baseline.js?v=25038"></script>
+<script src="js/groupTemplates.js?v=25038"></script>
+<script src="js/assign.js?v=25038"></script>
+<script src="js/cagroups.js?v=25038"></script>
+<script src="js/import.js?v=25038"></script>
+<script src="js/export.js?v=25038"></script>
+<script src="js/demo.js?v=25038"></script>
+<script src="js/app.js?v=25038"></script>
 </body>
 </html>

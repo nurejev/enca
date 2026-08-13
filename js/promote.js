@@ -21,14 +21,24 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.258",
-  betaBuild: "v1.0.250-beta.37",
+  betaBuild: "v1.0.250-beta.38",
 
   items: [
+    {
+      n: 12,
+      title: "Break-glass restricted administrative unit",
+      tools: ["Restricted AUs"],
+      builds: [25038],
+      risk: "medium",
+      what: "A tenth baseline unit, CAB-SEC-RMAU-BreakGlass, for the group excluded from nearly every policy. Production shipped the nine persona units in build 258 without it.",
+      why: "Production's baseline is incomplete without it — it reports nine units as the full set and a tenant that follows it leaves the single most sensitive exclusion group in whatever unit somebody guessed. Low mechanical risk (one more row in the same catalog), but it changes what the baseline claims is complete, which is why it is not filed as low.",
+      files: ["js/rmau.js", "index.html"],
+    },
     {
       n: 11,
       title: "Import: protection preflight and group placement",
       tools: ["Import"],
-      builds: [25035],
+      builds: [25035, 25038],
       risk: "medium",
       what: "Import checks the restricted units for the personas the selection touches, offers to create the missing ones, and adds every group it creates to its persona's unit. Shared and pre-existing groups are deliberately not placed and are named in the report.",
       why: "Its dependency (the persona units) went to production in build 258, so this can now promote on its own. It writes to the directory on an import run, which is the moment you least want a surprise, so it is worth a couple of real restores on beta first. The role-assignable label fix it used to carry shipped separately as build 257.",
