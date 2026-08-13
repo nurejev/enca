@@ -603,8 +603,31 @@
   // The overlay appears once per release: we remember the build the person
   // acknowledged and show everything newer than that. Anyone arriving for the
   // first time just gets the newest release, not the whole history.
-  const CL_KEY = "enca-seen-build";
-  const clSeen = () => { try { return +localStorage.getItem(CL_KEY) || 0; } catch { return 0; } };
+  // The seen-marker is PER CHANNEL. Both channels used one key while their
+  // build numbers come from two incompatible series — production counts 259,
+  // beta counts 25040 — so `seen >= latest` compared 25040 with 259, returned
+  // true, and production stopped showing release notes on that browser. Not for
+  // one build: permanently, for every future release, because a production
+  // number can never overtake a beta one.
+  //
+  // A value from the other series reads as "not seen" rather than being
+  // trusted, so a browser already stuck on the wrong number heals itself on the
+  // next visit instead of needing its storage cleared.
+  const CL_BETA_SERIES = (typeof APP_BUILD !== "undefined" ? APP_BUILD.build : 0) >= 10000;
+  const CL_KEY = CL_BETA_SERIES ? "enca-seen-build-beta" : "enca-seen-build";
+  const clSeen = () => {
+    try {
+      let v = +localStorage.getItem(CL_KEY) || 0;
+      // Beta moved to its own key. Adopt the old shared one when it happens to
+      // hold a beta number, so an existing beta user is not shown the whole
+      // "here is everything" note again for a release they have already read.
+      if (!v && CL_BETA_SERIES) {
+        const legacy = +localStorage.getItem("enca-seen-build") || 0;
+        if (legacy >= 10000) v = legacy;
+      }
+      return (v >= 10000) === CL_BETA_SERIES ? v : 0;
+    } catch { return 0; }
+  };
   const clMarkSeen = () => { try { localStorage.setItem(CL_KEY, String(CHANGELOG_LATEST)); } catch { /* private mode */ } };
   const CL_KIND = { new: "New", improved: "Improved", fixed: "Fixed" };
 

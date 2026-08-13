@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25041, date: "2026-08-13", title: "Release notes stopped appearing in production",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The What's-new popup had gone permanently silent in production on any browser that had also opened the beta site. Both channels wrote the “last seen build” to one localStorage key while their build numbers come from two incompatible series — production counts 259, beta counts 25040 — so the check “have you already seen this?” compared 25040 against 259, decided yes, and returned. Not for one release: for every future one, because a production build number can never overtake a beta number. The marker is now per channel, and a value from the wrong series reads as “not seen”, so a browser already stuck heals itself on the next visit rather than needing its storage cleared. Beta additionally adopts the old value when it was a beta number, so nobody is shown a release note twice." },
+    ],
+  },
+  {
     build: 25040, date: "2026-08-13", title: "Every exclusion group to its own vault",
     items: [
       { kind: "fixed", tool: "Protect exclusions", text: "⑥ Protect filed every selected group into ONE administrative unit chosen from a dropdown, which quietly undid the point of having a unit per persona. Protect CA001 and CA101 in the same run and the Admins exclusion group landed in the Global vault, handing the Global vault's scoped administrators control of policies they have nothing to do with. Each group is now routed by the CA number in its name — CA001 to GLO, CA101 to ADM, CA1001 to DevOps — and the destination is shown per row before anything is written. The four-digit numbers were checked: CA1001 resolves to DevOps, not to CA001." },
