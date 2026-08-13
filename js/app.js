@@ -4066,6 +4066,44 @@ max@contoso.com,"Global, DevOps"</pre>
     }
   });
 
+  // R10 — the actions available for one group, offered on the group itself.
+  // Every one of these was already reachable: open the right tab, find the row
+  // again, tick it. That is three steps of re-finding something you already had
+  // selected, and the tab strip gives no clue which of the seven apply to the
+  // group in front of you. What is offered here is only what makes sense for
+  // this group's actual state — a missing group cannot have members read, a
+  // role-assignable one cannot be protected, one already in a vault does not
+  // need protecting again.
+  function cgRowActions(r) {
+    const acts = [];
+    const prot = r.id ? ((cgProt && cgProt.get(r.id)) || (cgRmau && cgRmau.status ? cgRmau.status.get(r.id) : null)) : null;
+
+    if (!r.id && r.template) acts.push({ tab: "create", label: "② Create it", why: "it does not exist in this tenant yet" });
+    if (r.id) {
+      acts.push({ tab: "members", label: "③ Read members", why: "who is in it right now" });
+      acts.push({ tab: "assign", label: "④ Assign to policies", why: "put it on a policy's include or exclude" });
+      // ⑤ takes a whole CSV rather than one group, so it is offered as a
+      // destination but nothing is pre-selected there — saying otherwise would
+      // promise a carry-over that cannot happen.
+      acts.push({ tab: "csv", label: "⑤ Import members", why: "add people from a CSV (the file picks the groups)" });
+    }
+    if (r.id && !prot && !r.roleAssignable) {
+      acts.push({ tab: "rmau", label: "⑥ Protect it", why: "file it in its persona's restricted unit" });
+    }
+    if (r.id && r.roleAssignable) {
+      acts.push({ tab: "migrate", label: "⑦ Migrate off role-assignable", why: prot
+        ? "it is FROZEN — remove it from the unit first, then convert it"
+        : "role-assignable groups cannot be protected; convert it first" });
+    }
+    if (!acts.length) return "";
+    return `<h5 class="mini" style="margin:14px 0 6px">WHAT YOU CAN DO WITH IT</h5>
+      <div class="cg-pick" style="padding:0">${acts.map((a) => `<div class="dr-row"><div class="dr-head">
+          <button class="btn sm" data-cgact="${esc(a.tab)}" data-cgactname="${esc(r.name)}">${esc(a.label)}</button>
+          <span class="mini muted">${esc(a.why)}</span>
+        </div></div>`).join("")}</div>
+      ${prot ? `<p class="mini muted" style="margin:6px 0 0">🔒 Currently in <b>${esc(prot.auName)}</b> — its members can only be changed by a role scoped to that unit.</p>` : ""}`;
+  }
+
   // Detail of one group row — the policies that use it and its members.
   function showGroupRow(name) {
     const r = cgRes.rows.find(x => x.name === name); if (!r) return;
@@ -4090,6 +4128,7 @@ max@contoso.com,"Global, DevOps"</pre>
         if (!prot) return "";
         return `<p class="mini" style="color:var(--off)">🧊 <b>frozen — its members cannot be changed by anyone.</b> It is role-assignable <i>and</i> already in the restricted unit <b>${esc(prot.auName)}</b>. Only Global Administrator and Privileged Role Administrator may edit a role-assignable group's members, and that unit blocks both; neither flag can be undone. Remove it from the unit first (🛡 Restricted AUs), then convert it with ⑦ Migrate.</p>`;
       })()}
+      ${cgRowActions(r)}
       ${list(r.refs.include, "Included in")}
       ${list(r.refs.exclude, "Excluded from")}
       ${!r.refCount ? '<p class="mini muted" style="margin-top:10px">No policy references this group.</p>' : ""}
@@ -4103,7 +4142,20 @@ max@contoso.com,"Global, DevOps"</pre>
   // the same per-group scan, from inside the group's detail overlay
   $("depBody").addEventListener("click", (e) => {
     const b = e.target.closest("[data-cgone]");
-    if (b) scanOneGroup(b.dataset.cgone, b);
+    if (b) { scanOneGroup(b.dataset.cgone, b); return; }
+    const a = e.target.closest("[data-cgact]");
+    if (!a) return;
+    // Carry the group across rather than dropping the reader back into a tab
+    // with nothing selected — the whole point is not having to find it again.
+    const name = a.dataset.cgactname;
+    const row = (cgRes && cgRes.rows || []).find((x) => x.name === name);
+    $("depModal").classList.remove("open");
+    cgTab = a.dataset.cgact; cgQuery = ""; $("cgSearch").value = "";
+    if (cgTab === "members") { cgMemberSel.clear(); cgMemberSel.add(name); cgMemberPick = true; }
+    if (cgTab === "rmau" && row && row.id && cgRmau) { cgRmau.sel = new Set([row.id]); cgRmau.q = name; }
+    if (cgTab === "migrate" && row && row.id && cgMig) { cgMig.sel = new Set([row.id]); }
+    renderCaGroups();
+    toast(`<span>${esc(name)}</span> carried over to ${esc(a.textContent.trim())}`);
   });
 
   // Changing the scope means a different set of groups to look up → re-scan.
@@ -5582,7 +5634,7 @@ max@contoso.com,"Global, DevOps"</pre>
         </div>` : `<div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="ruBaseMd">📄 Report</button></div>`}
       ${results}
       <div id="ruBaseLog" class="mini" style="margin-top:8px">${(t.log || []).join("")}</div>
-    </div>`;
+    </div>` + ruBulkAdminPanel();
   }
 
   function renderRmau() {
@@ -5686,6 +5738,11 @@ max@contoso.com,"Global, DevOps"</pre>
   }
   let ruSugTimer = null;
   function ruSuggest(e) {
+    // The bulk-grant fields live in this tool, so they are handled by THIS
+    // listener. rmauInput is bound to the CA-groups and Protect panels and
+    // would never see them — a mistake worth naming, because the field would
+    // look alive and simply never record anything.
+    if (e.target.id === "ruBAUpns" && ruBulkAdmin) { ruBulkAdmin.upns = e.target.value; return; }
     const isGroup = e.target.matches("[data-ruaddbox]");
     const isUser = e.target.matches("[data-ruadminbox]");
     if (!isGroup && !isUser) return;
@@ -5730,6 +5787,14 @@ max@contoso.com,"Global, DevOps"</pre>
     }, 250);
   }
   $("ruBody").addEventListener("input", ruSuggest);
+  $("ruBody").addEventListener("change", (e) => {
+    if (e.target.id === "ruBARole" && ruBulkAdmin) { ruBulkAdmin.role = e.target.value; return; }
+    const bau = e.target.closest("[data-ruba]");
+    if (bau && ruBulkAdmin) {
+      bau.checked ? ruBulkAdmin.sel.add(bau.dataset.ruba) : ruBulkAdmin.sel.delete(bau.dataset.ruba);
+      renderRmau();
+    }
+  });
 
   // Entra directory writes are not read-your-writes consistent. A DELETE on
   // /members/{id}/$ref returns 204 and the very next GET of the same collection
@@ -5798,6 +5863,126 @@ max@contoso.com,"Global, DevOps"</pre>
           </div>` : ""}`}
       ${t.results ? `<p class="mini" style="margin:8px 0 0"><b>${t.results.filter((r) => r.ok).length}/${t.results.length} added.</b>${t.results.some((r) => !r.ok) ? ` <span style="color:var(--off)">${t.results.filter((r) => !r.ok).map((r) => `${esc(r.name)} — ${esc(r.error)}`).join("; ")}</span>` : ""}</p>` : ""}
     </div>`;
+  }
+
+  // ---------- R07: grant scoped administrators across several units ----------
+  // A restricted unit with no scoped administrator is one whose members nobody
+  // can change, so the grants are not optional paperwork — they are what makes
+  // the unit usable. Granted one administrator on one unit at a time, a
+  // four-person team across eleven baseline units is 44 separate acts, and the
+  // risk is not the tedium but the omission: miss one unit and that persona is
+  // unmanageable, which nothing announces.
+  //
+  // Deliberately a grid rather than "apply to all": who may reach the Admins
+  // exclusions is not automatically who may reach the Externals ones, and a
+  // tool that assumed otherwise would quietly undo the per-persona split.
+  let ruBulkAdmin = null;   // { open, sel:Set(auId), upns, role, busy, results }
+
+  function ruBulkAdminPanel() {
+    const restricted = (ruList || []).filter(Rmau.isRestricted);
+    if (restricted.length < 2) return "";      // nothing to do in bulk
+    const t = ruBulkAdmin;
+    if (!t || !t.open) {
+      return `<div style="margin:10px 0 0"><button class="btn" id="ruBAOpen">👤 Grant scoped administrators across units…</button>
+        <span class="mini muted"> — one set of people, several units, each grant reported on its own.</span></div>`;
+    }
+    const rows = restricted.map((au) => {
+      const d = ruDetails[au.id];
+      const who = d && d.scoped ? d.scoped.map((r) => r._principal).filter(Boolean) : null;
+      return `<div class="dr-row"><div class="dr-head">
+        <label class="chk" style="margin:0"><input type="checkbox" data-ruba="${esc(au.id)}"${t.sel.has(au.id) ? " checked" : ""}> <b>${esc(au.displayName)}</b></label>
+        ${who ? (who.length
+            ? `<span class="mini muted">${who.length} now: ${esc(who.slice(0, 3).join(", "))}${who.length > 3 ? "…" : ""}</span>`
+            : '<span class="tag block">nobody can manage this unit</span>')
+          : '<span class="mini muted">open the card to see who has it today</span>'}
+      </div></div>`;
+    }).join("");
+
+    const res = t.results ? (() => {
+      const ok = t.results.filter((r) => r.ok).length;
+      const byUnit = new Map();
+      for (const r of t.results) if (!r.ok) byUnit.set(r.au, [...(byUnit.get(r.au) || []), `${r.upn} — ${r.error}`]);
+      return `<p class="mini" style="margin:8px 0 0"><b>${ok}/${t.results.length} grants made.</b></p>
+        ${byUnit.size ? `<ul class="wi-list" style="margin:6px 0 0">${[...byUnit].map(([u, xs]) =>
+          `<li><div class="wi-why" style="color:var(--off)">✗ <b>${esc(u)}</b> — ${esc(xs.join("; "))}</div></li>`).join("")}</ul>` : ""}`;
+    })() : "";
+
+    return `<div class="cg-panel" id="ruBAPanel">
+      <h4>GRANT SCOPED ADMINISTRATORS ACROSS UNITS</h4>
+      <p class="mini" style="margin:0 0 8px">Each unit × each administrator is a separate grant and a separate outcome — a partial success has to be readable rather than rounded to “done”.</p>
+      <label class="mini" style="display:block;margin:0 0 4px">Administrators <span class="muted">— UPNs, separated by commas</span></label>
+      <input id="ruBAUpns" class="txt" value="${esc(t.upns)}" placeholder="someone@contoso.com, someone.else@contoso.com" autocomplete="off" spellcheck="false" style="max-width:560px;letter-spacing:normal;font-weight:400">
+      <label class="mini" style="display:block;margin:10px 0 4px">Role</label>
+      <select id="ruBARole" class="btn" style="cursor:pointer;width:auto">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}"${t.role === r.id ? " selected" : ""}>${esc(r.name)}</option>`).join("")}</select>
+      <h5 class="mini" style="margin:14px 0 6px">UNITS</h5>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
+        <button class="btn sm" id="ruBAAll">${t.sel.size === restricted.length ? "☐ Deselect all" : "☑ Select all"}</button>
+        <span class="mini muted">${t.sel.size} of ${restricted.length} selected</span>
+      </div>
+      <div class="cg-pick">${rows}</div>
+      <div class="row" style="justify-content:flex-start;margin-top:12px">
+        <button class="btn primary" id="ruBAGo"${t.busy ? " disabled" : ""}>Grant ${t.sel.size * Math.max(1, CaGroups.adminList(t.upns).length)} ×${isDemo ? " (simulated)" : ""}</button>
+        <button class="btn" id="ruBAClose">Close</button>
+      </div>
+      <div id="ruBALog" class="mini" style="margin-top:8px">${(t.log || []).join("")}</div>
+      ${res}
+    </div>`;
+  }
+
+  async function ruBulkAdminRun(btn) {
+    const t = ruBulkAdmin; if (!t || t.busy) return;
+    const upns = CaGroups.adminList(t.upns);
+    const units = (ruList || []).filter((a) => t.sel.has(a.id));
+    if (!upns.length) { toast("Name at least one administrator"); return; }
+    if (!units.length) { toast("Pick at least one unit"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE, ...RU_ROLE_WRITE])) return;
+
+    t.busy = true; btn.disabled = true;
+    const lines = []; t.log = lines;
+    const say = (h) => { lines.push(h); const el = $("ruBALog"); if (el) el.innerHTML = lines.join(""); };
+
+    // The role is activated once, and each UPN resolved once — not once per
+    // unit. Eleven units times four people is 44 grants but only four lookups.
+    let role = null, roleErr = null;
+    if (!isDemo) {
+      try { role = await ensureDirectoryRole(t.role); }
+      catch (e) { roleErr = e.message || String(e); }
+    }
+    const ids = new Map();
+    for (const upn of upns) {
+      if (isDemo) { ids.set(upn, "demo-" + upn); continue; }
+      try { ids.set(upn, (await Graph.gget(`/users/${encodeURIComponent(upn)}?$select=id`)).id); }
+      catch (e) { say(`<div style="color:var(--off)">✗ ${esc(upn)} — could not be found: ${esc(e.message || e)}</div>`); }
+    }
+
+    const results = [];
+    for (const au of units) {
+      for (const upn of upns) {
+        const r = { au: au.displayName, upn, ok: false };
+        try {
+          if (roleErr) throw new Error(`the role could not be activated: ${roleErr}`);
+          if (!ids.has(upn)) throw new Error("user not found");
+          if (!isDemo) {
+            await Graph.gpost(`/administrativeUnits/${au.id}/scopedRoleMembers`,
+              { roleId: role.id, roleMemberInfo: { id: ids.get(upn) } });
+          }
+          r.ok = true;
+          say(`<div>✓ ${esc(upn)} → <b>${esc(au.displayName)}</b></div>`);
+        } catch (e) {
+          const already = /already exist|conflicting object/i.test(e.message || "");
+          r.ok = already; r.error = already ? "" : (e.message || String(e));
+          say(already
+            ? `<div>• ${esc(upn)} — already scoped to ${esc(au.displayName)}</div>`
+            : `<div style="color:var(--off)">✗ ${esc(upn)} on ${esc(au.displayName)} — ${esc(r.error)}</div>`);
+        }
+        results.push(r);
+      }
+      delete ruDetails[au.id];      // its scoped list is stale now
+    }
+    t.results = results; t.busy = false;
+    const ok = results.filter((r) => r.ok).length;
+    toast(`${ok}/${results.length} grant${results.length === 1 ? "" : "s"} made${isDemo ? " (simulated)" : ""}`);
+    renderRmau();
   }
 
   // ---------- bulk add: the whole persona at once ----------
@@ -5996,6 +6181,20 @@ max@contoso.com,"Global, DevOps"</pre>
       renderRmau();
       return;
     }
+    if (e.target.id === "ruBAOpen") {
+      ruBulkAdmin = { open: true, sel: new Set((ruList || []).filter(Rmau.isRestricted).map((a) => a.id)),
+        upns: "", role: Rmau.ROLE_TEMPLATES[0].id, busy: false, results: null, log: null };
+      renderRmau();
+      return;
+    }
+    if (e.target.id === "ruBAClose" && ruBulkAdmin) { ruBulkAdmin.open = false; renderRmau(); return; }
+    if (e.target.id === "ruBAAll" && ruBulkAdmin) {
+      const all = (ruList || []).filter(Rmau.isRestricted).map((a) => a.id);
+      ruBulkAdmin.sel = ruBulkAdmin.sel.size === all.length ? new Set() : new Set(all);
+      renderRmau();
+      return;
+    }
+    if (e.target.id === "ruBAGo") { await ruBulkAdminRun(e.target); return; }
     const bk = e.target.closest("[data-rubulk]");
     if (bk) { await ruBulkScan(bk.dataset.rubulk); return; }
     const bka = e.target.closest("[data-rubulkall]");
@@ -6124,8 +6323,26 @@ max@contoso.com,"Global, DevOps"</pre>
       await openRmauTool(true);
     } catch (e) { toast(`Delete failed: <span>${esc(e.message || e)}</span>`); btn.disabled = false; }
   });
-  $("ruMd").addEventListener("click", () => {
+  $("ruMd").addEventListener("click", async (e) => {
     if (!ruList) return;
+    // Read every unit's members and scoped administrators FIRST. The report used
+    // to print whatever happened to be cached, which meant a document produced
+    // without opening each card was a list of names and GUIDs — the two facts
+    // that matter least. What the document is for is who is protected and who
+    // may manage them.
+    const missing = ruList.filter((au) => !ruDetails[au.id]);
+    if (missing.length && !isDemo) {
+      const btn = e.target; const label = btn.textContent;
+      btn.disabled = true;
+      try {
+        for (let i = 0; i < missing.length; i++) {
+          btn.textContent = `Reading ${i + 1}/${missing.length}…`;
+          // Failures are left to ruLoadDetail, which records them on the detail
+          // object; one unreadable unit must not cost the whole document.
+          await ruLoadDetail(missing[i].id);
+        }
+      } finally { btn.disabled = false; btn.textContent = label; }
+    }
     showReport("🛡 Restricted AUs", "CA-RestrictedAUs", Rmau.toMd(ruList, ruDetails, { tenantName }));
   });
 
@@ -7554,6 +7771,8 @@ max@contoso.com,"Global, DevOps"</pre>
     $("loKind").value = f.kind; $("loKind").disabled = !!loc;
     $("loName").value = f.name; $("loRanges").value = f.ranges; $("loTrusted").checked = f.isTrusted;
     $("loCountries").value = f.countries; $("loUnknown").checked = f.includeUnknown; $("loLookup").value = f.lookupMethod;
+    $("loCountrySearch").value = ""; $("loCountryList").innerHTML = "";
+    loCountryRender([]);           // a fresh dialog starts with no complaints
     loSyncKind();
     // changing isTrusted moves every policy that uses "All trusted locations"
     const at = Locations.trustedConsumers(policies.map((p) => p.raw));
@@ -7561,6 +7780,80 @@ max@contoso.com,"Global, DevOps"</pre>
       ? `<div class="mini muted">⚠ ${at.length} polic${at.length === 1 ? "y uses" : "ies use"} <b>All trusted locations</b> — changing the trusted flag changes ${at.length === 1 ? "it" : "them"} too.</div>` : "";
     $("loEditModal").classList.add("open");
   }
+  // ---------- country picker (R08) ----------
+  // The hidden textarea stays the single source of truth: buildPayload already
+  // reads it, and every other path (paste, an existing location being edited)
+  // still works. The picker writes to it; the chips read from it. One place to
+  // be wrong beats two places to keep in step.
+  // Unknowns survive normalisation. Rewriting the field to clean codes is what
+  // makes the chips and the payload agree — but if the message were rebuilt
+  // from the rewritten value there would be nothing left to complain about, and
+  // the junk would have been dropped in silence. Which is the failure this
+  // feature exists to prevent, arrived at from the other direction.
+  let loCountryRejected = [];
+  function loCountryRender(rejected) {
+    const box = $("loCountries");
+    const parsed = ISO3166.parse(box.value);
+    const codes = parsed.codes;
+    if (rejected !== undefined) loCountryRejected = rejected;
+    const unknown = [...new Set([...parsed.unknown, ...loCountryRejected])];
+    $("loCountryPicks").innerHTML = codes.map((c) => `<span class="lo-chip"><b>${esc(c)}</b> ${esc(ISO3166.nameOf(c))}
+        <button type="button" data-locountry-rm="${esc(c)}" title="Remove">✕</button></span>`).join("")
+      || '<span class="mini muted">No countries selected yet.</span>';
+    // Anything unrecognised is NAMED, not dropped. A code silently discarded is
+    // a country silently not covered, which is the failure this whole feature
+    // exists to prevent.
+    $("loCountryMsg").innerHTML = unknown.length
+      ? `<span style="color:var(--off)">✗ not an ISO 3166-1 code: ${unknown.map((u) => `<b>${esc(u)}</b>`).join(", ")}
+         — these are <b>ignored</b>. UK is not a code (the United Kingdom is <b>GB</b>); EU is not one either.</span>`
+      : (codes.length ? `<span class="muted">${codes.length} countr${codes.length === 1 ? "y" : "ies"}.</span>` : "");
+    return codes;
+  }
+  function loCountryAdd(code) {
+    const box = $("loCountries");
+    const { codes } = ISO3166.parse(box.value);
+    if (!codes.includes(code)) codes.push(code);
+    box.value = codes.join(", ");
+    loCountryRender([]);
+  }
+
+  // Suggestions come from the local ISO list — no network, and it is the same
+  // list the codes are validated against, so what is offered is exactly what is
+  // accepted.
+  $("loCountrySearch").addEventListener("input", (e) => {
+    const hits = ISO3166.search(e.target.value, 8);
+    $("loCountryList").innerHTML = hits.map((h) => `<option value="${esc(h.name)} (${esc(h.code)})"></option>`).join("");
+    // Picking from the datalist fires `input` with the full option text; that
+    // is the confirmation, so it is added straight away rather than waiting for
+    // a second gesture nobody knows to make.
+    const m = /\(([A-Z]{2})\)\s*$/.exec(e.target.value.trim());
+    if (m && ISO3166.isCode(m[1])) { loCountryAdd(m[1]); e.target.value = ""; $("loCountryList").innerHTML = ""; }
+  });
+  $("loCountrySearch").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();          // this field must never submit the dialog
+    const hit = ISO3166.search(e.target.value, 1)[0];
+    if (hit) { loCountryAdd(hit.code); e.target.value = ""; $("loCountryList").innerHTML = ""; }
+    else if (e.target.value.trim()) {
+      $("loCountryMsg").innerHTML = `<span style="color:var(--off)">✗ no country matches <b>${esc(e.target.value.trim())}</b> — nothing was added.</span>`;
+    }
+  });
+  $("loCountryPicks").addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-locountry-rm]");
+    if (!rm) return;
+    const box = $("loCountries");
+    box.value = ISO3166.parse(box.value).codes.filter((c) => c !== rm.dataset.locountryRm).join(", ");
+    loCountryRender([]);
+  });
+  // Typed or pasted directly: normalise to codes so the chips and the payload
+  // agree with each other.
+  $("loCountries").addEventListener("input", () => loCountryRender());
+  $("loCountries").addEventListener("change", () => {
+    const { codes, unknown } = ISO3166.parse($("loCountries").value);
+    $("loCountries").value = codes.join(", ");
+    loCountryRender(unknown);      // keep saying what was thrown away
+  });
+
   $("loNew").addEventListener("click", () => openLoEditor(null));
   $("loEditCancel").addEventListener("click", () => $("loEditModal").classList.remove("open"));
   $("loEditSave").addEventListener("click", async () => {
