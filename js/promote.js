@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.268",
-  betaBuild: "v1.0.250-beta.67",
+  betaBuild: "v1.0.250-beta.68",
 
   items: [
+    {
+      n: 28,
+      title: "Grant scoped administrators across units (R07)",
+      tools: ["Restricted AUs"],
+      builds: [25068],
+      risk: "medium",
+      what: "Name the administrators once, tick the units once, apply the grid. Each unit x administrator is its own outcome; the role is activated once and each user resolved once. Units with nobody scoped are flagged.",
+      why: "It writes role assignments, which is why it is not low. Production grants one administrator on one unit at a time, so a team across eleven baseline units is 44 acts and a missed unit is a persona nobody can manage — with nothing to announce it.",
+      files: ["js/app.js", "index.html"],
+    },
     {
       n: 27,
       title: "Group actions where you are already looking (R10)",

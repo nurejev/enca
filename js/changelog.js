@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25068, date: "2026-08-13", title: "Grant scoped administrators across units",
+    items: [
+      { kind: "new", tool: "Restricted AUs", text: "R07 — 👤 Grant scoped administrators across units. Name the people once, tick the units once, and the grid is applied. A restricted unit with no scoped administrator is one whose members NOBODY can change, so these grants are not paperwork; and granted one person on one unit at a time, four people across eleven baseline units is 44 separate acts where the risk is not the tedium but the omission — miss one and that persona is unmanageable, which nothing announces. Units that currently have nobody scoped are flagged in the list for exactly that reason." },
+      { kind: "improved", tool: "Restricted AUs", text: "Deliberately a grid rather than an “apply to all”: who may reach the Admins exclusions is not automatically who may reach the Externals ones, and a button that assumed otherwise would quietly undo the per-persona split the units exist to create. Every unit × administrator pair is its own outcome — a run where one unit refuses reports 2 of 4 rather than rounding to done, and names which unit and why." },
+      { kind: "improved", tool: "Restricted AUs", text: "The directory role is activated once and each administrator resolved once, not once per grant: eleven units by four people is 44 grants but four lookups. Each unit's cached scoped-role list is dropped afterwards so the card cannot show a stale answer." },
+    ],
+  },
+  {
     build: 25067, date: "2026-08-13", title: "The actions come to the group",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "R10 — click a group in ① Check and the overlay now lists what you can do with THAT group, each button carrying it across: ③ read its members, ④ assign it to policies, ⑥ protect it, ⑦ convert it, or ② create it if it does not exist. All of this was reachable before by opening the right tab and finding the row a second time — three steps of re-finding something already selected, with a tab strip that gave no clue which of the seven applied." },

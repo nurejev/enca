@@ -5721,7 +5721,7 @@ max@contoso.com,"Global, DevOps"</pre>
         </div>` : `<div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="ruBaseMd">📄 Report</button></div>`}
       ${results}
       <div id="ruBaseLog" class="mini" style="margin-top:8px">${(t.log || []).join("")}</div>
-    </div>`;
+    </div>` + ruBulkAdminPanel();
   }
 
   function renderRmau() {
@@ -5825,6 +5825,11 @@ max@contoso.com,"Global, DevOps"</pre>
   }
   let ruSugTimer = null;
   function ruSuggest(e) {
+    // The bulk-grant fields live in this tool, so they are handled by THIS
+    // listener. rmauInput is bound to the CA-groups and Protect panels and
+    // would never see them — a mistake worth naming, because the field would
+    // look alive and simply never record anything.
+    if (e.target.id === "ruBAUpns" && ruBulkAdmin) { ruBulkAdmin.upns = e.target.value; return; }
     const isGroup = e.target.matches("[data-ruaddbox]");
     const isUser = e.target.matches("[data-ruadminbox]");
     if (!isGroup && !isUser) return;
@@ -5868,6 +5873,14 @@ max@contoso.com,"Global, DevOps"</pre>
     }, 250);
   }
   $("ruBody").addEventListener("input", ruSuggest);
+  $("ruBody").addEventListener("change", (e) => {
+    if (e.target.id === "ruBARole" && ruBulkAdmin) { ruBulkAdmin.role = e.target.value; return; }
+    const bau = e.target.closest("[data-ruba]");
+    if (bau && ruBulkAdmin) {
+      bau.checked ? ruBulkAdmin.sel.add(bau.dataset.ruba) : ruBulkAdmin.sel.delete(bau.dataset.ruba);
+      renderRmau();
+    }
+  });
 
   // Entra directory writes are not read-your-writes consistent. A DELETE on
   // /members/{id}/$ref returns 204 and the very next GET of the same collection
@@ -5936,6 +5949,126 @@ max@contoso.com,"Global, DevOps"</pre>
           </div>` : ""}`}
       ${t.results ? `<p class="mini" style="margin:8px 0 0"><b>${t.results.filter((r) => r.ok).length}/${t.results.length} added.</b>${t.results.some((r) => !r.ok) ? ` <span style="color:var(--off)">${t.results.filter((r) => !r.ok).map((r) => `${esc(r.name)} — ${esc(r.error)}`).join("; ")}</span>` : ""}</p>` : ""}
     </div>`;
+  }
+
+  // ---------- R07: grant scoped administrators across several units ----------
+  // A restricted unit with no scoped administrator is one whose members nobody
+  // can change, so the grants are not optional paperwork — they are what makes
+  // the unit usable. Granted one administrator on one unit at a time, a
+  // four-person team across eleven baseline units is 44 separate acts, and the
+  // risk is not the tedium but the omission: miss one unit and that persona is
+  // unmanageable, which nothing announces.
+  //
+  // Deliberately a grid rather than "apply to all": who may reach the Admins
+  // exclusions is not automatically who may reach the Externals ones, and a
+  // tool that assumed otherwise would quietly undo the per-persona split.
+  let ruBulkAdmin = null;   // { open, sel:Set(auId), upns, role, busy, results }
+
+  function ruBulkAdminPanel() {
+    const restricted = (ruList || []).filter(Rmau.isRestricted);
+    if (restricted.length < 2) return "";      // nothing to do in bulk
+    const t = ruBulkAdmin;
+    if (!t || !t.open) {
+      return `<div style="margin:10px 0 0"><button class="btn" id="ruBAOpen">👤 Grant scoped administrators across units…</button>
+        <span class="mini muted"> — one set of people, several units, each grant reported on its own.</span></div>`;
+    }
+    const rows = restricted.map((au) => {
+      const d = ruDetails[au.id];
+      const who = d && d.scoped ? d.scoped.map((r) => r._principal).filter(Boolean) : null;
+      return `<div class="dr-row"><div class="dr-head">
+        <label class="chk" style="margin:0"><input type="checkbox" data-ruba="${esc(au.id)}"${t.sel.has(au.id) ? " checked" : ""}> <b>${esc(au.displayName)}</b></label>
+        ${who ? (who.length
+            ? `<span class="mini muted">${who.length} now: ${esc(who.slice(0, 3).join(", "))}${who.length > 3 ? "…" : ""}</span>`
+            : '<span class="tag block">nobody can manage this unit</span>')
+          : '<span class="mini muted">open the card to see who has it today</span>'}
+      </div></div>`;
+    }).join("");
+
+    const res = t.results ? (() => {
+      const ok = t.results.filter((r) => r.ok).length;
+      const byUnit = new Map();
+      for (const r of t.results) if (!r.ok) byUnit.set(r.au, [...(byUnit.get(r.au) || []), `${r.upn} — ${r.error}`]);
+      return `<p class="mini" style="margin:8px 0 0"><b>${ok}/${t.results.length} grants made.</b></p>
+        ${byUnit.size ? `<ul class="wi-list" style="margin:6px 0 0">${[...byUnit].map(([u, xs]) =>
+          `<li><div class="wi-why" style="color:var(--off)">✗ <b>${esc(u)}</b> — ${esc(xs.join("; "))}</div></li>`).join("")}</ul>` : ""}`;
+    })() : "";
+
+    return `<div class="cg-panel" id="ruBAPanel">
+      <h4>GRANT SCOPED ADMINISTRATORS ACROSS UNITS</h4>
+      <p class="mini" style="margin:0 0 8px">Each unit × each administrator is a separate grant and a separate outcome — a partial success has to be readable rather than rounded to “done”.</p>
+      <label class="mini" style="display:block;margin:0 0 4px">Administrators <span class="muted">— UPNs, separated by commas</span></label>
+      <input id="ruBAUpns" class="txt" value="${esc(t.upns)}" placeholder="someone@contoso.com, someone.else@contoso.com" autocomplete="off" spellcheck="false" style="max-width:560px;letter-spacing:normal;font-weight:400">
+      <label class="mini" style="display:block;margin:10px 0 4px">Role</label>
+      <select id="ruBARole" class="btn" style="cursor:pointer;width:auto">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}"${t.role === r.id ? " selected" : ""}>${esc(r.name)}</option>`).join("")}</select>
+      <h5 class="mini" style="margin:14px 0 6px">UNITS</h5>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
+        <button class="btn sm" id="ruBAAll">${t.sel.size === restricted.length ? "☐ Deselect all" : "☑ Select all"}</button>
+        <span class="mini muted">${t.sel.size} of ${restricted.length} selected</span>
+      </div>
+      <div class="cg-pick">${rows}</div>
+      <div class="row" style="justify-content:flex-start;margin-top:12px">
+        <button class="btn primary" id="ruBAGo"${t.busy ? " disabled" : ""}>Grant ${t.sel.size * Math.max(1, CaGroups.adminList(t.upns).length)} ×${isDemo ? " (simulated)" : ""}</button>
+        <button class="btn" id="ruBAClose">Close</button>
+      </div>
+      <div id="ruBALog" class="mini" style="margin-top:8px">${(t.log || []).join("")}</div>
+      ${res}
+    </div>`;
+  }
+
+  async function ruBulkAdminRun(btn) {
+    const t = ruBulkAdmin; if (!t || t.busy) return;
+    const upns = CaGroups.adminList(t.upns);
+    const units = (ruList || []).filter((a) => t.sel.has(a.id));
+    if (!upns.length) { toast("Name at least one administrator"); return; }
+    if (!units.length) { toast("Pick at least one unit"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE, ...RU_ROLE_WRITE])) return;
+
+    t.busy = true; btn.disabled = true;
+    const lines = []; t.log = lines;
+    const say = (h) => { lines.push(h); const el = $("ruBALog"); if (el) el.innerHTML = lines.join(""); };
+
+    // The role is activated once, and each UPN resolved once — not once per
+    // unit. Eleven units times four people is 44 grants but only four lookups.
+    let role = null, roleErr = null;
+    if (!isDemo) {
+      try { role = await ensureDirectoryRole(t.role); }
+      catch (e) { roleErr = e.message || String(e); }
+    }
+    const ids = new Map();
+    for (const upn of upns) {
+      if (isDemo) { ids.set(upn, "demo-" + upn); continue; }
+      try { ids.set(upn, (await Graph.gget(`/users/${encodeURIComponent(upn)}?$select=id`)).id); }
+      catch (e) { say(`<div style="color:var(--off)">✗ ${esc(upn)} — could not be found: ${esc(e.message || e)}</div>`); }
+    }
+
+    const results = [];
+    for (const au of units) {
+      for (const upn of upns) {
+        const r = { au: au.displayName, upn, ok: false };
+        try {
+          if (roleErr) throw new Error(`the role could not be activated: ${roleErr}`);
+          if (!ids.has(upn)) throw new Error("user not found");
+          if (!isDemo) {
+            await Graph.gpost(`/administrativeUnits/${au.id}/scopedRoleMembers`,
+              { roleId: role.id, roleMemberInfo: { id: ids.get(upn) } });
+          }
+          r.ok = true;
+          say(`<div>✓ ${esc(upn)} → <b>${esc(au.displayName)}</b></div>`);
+        } catch (e) {
+          const already = /already exist|conflicting object/i.test(e.message || "");
+          r.ok = already; r.error = already ? "" : (e.message || String(e));
+          say(already
+            ? `<div>• ${esc(upn)} — already scoped to ${esc(au.displayName)}</div>`
+            : `<div style="color:var(--off)">✗ ${esc(upn)} on ${esc(au.displayName)} — ${esc(r.error)}</div>`);
+        }
+        results.push(r);
+      }
+      delete ruDetails[au.id];      // its scoped list is stale now
+    }
+    t.results = results; t.busy = false;
+    const ok = results.filter((r) => r.ok).length;
+    toast(`${ok}/${results.length} grant${results.length === 1 ? "" : "s"} made${isDemo ? " (simulated)" : ""}`);
+    renderRmau();
   }
 
   // ---------- bulk add: the whole persona at once ----------
@@ -6134,6 +6267,20 @@ max@contoso.com,"Global, DevOps"</pre>
       renderRmau();
       return;
     }
+    if (e.target.id === "ruBAOpen") {
+      ruBulkAdmin = { open: true, sel: new Set((ruList || []).filter(Rmau.isRestricted).map((a) => a.id)),
+        upns: "", role: Rmau.ROLE_TEMPLATES[0].id, busy: false, results: null, log: null };
+      renderRmau();
+      return;
+    }
+    if (e.target.id === "ruBAClose" && ruBulkAdmin) { ruBulkAdmin.open = false; renderRmau(); return; }
+    if (e.target.id === "ruBAAll" && ruBulkAdmin) {
+      const all = (ruList || []).filter(Rmau.isRestricted).map((a) => a.id);
+      ruBulkAdmin.sel = ruBulkAdmin.sel.size === all.length ? new Set() : new Set(all);
+      renderRmau();
+      return;
+    }
+    if (e.target.id === "ruBAGo") { await ruBulkAdminRun(e.target); return; }
     const bk = e.target.closest("[data-rubulk]");
     if (bk) { await ruBulkScan(bk.dataset.rubulk); return; }
     const bka = e.target.closest("[data-rubulkall]");
