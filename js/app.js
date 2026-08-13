@@ -5468,6 +5468,20 @@ max@contoso.com,"Global, DevOps"</pre>
             ruRoleNames = {};
             (await Graph.ggetAll("/directoryRoles?$select=id,displayName")).forEach((r) => ruRoleNames[r.id] = r.displayName);
           }
+          // The map is cached for the session, and /directoryRoles only lists
+          // ACTIVATED roles — so a role activated after the cache was built (by
+          // this very tool, granting a scoped administrator on a unit created
+          // minutes ago) is absent from it, and the card fell back to printing
+          // the raw GUID. One targeted read per unknown id fixes it; the id is
+          // still shown if even that fails, because a wrong name would be worse
+          // than an ugly one.
+          const unknown = [...new Set(d.scoped.map((r) => r.roleId).filter((id) => id && !ruRoleNames[id]))];
+          for (const id of unknown) {
+            try {
+              const role = await Graph.gget(`/directoryRoles/${id}?$select=id,displayName`);
+              if (role && role.displayName) ruRoleNames[id] = role.displayName;
+            } catch { /* leave the id visible rather than inventing a name */ }
+          }
           d.scoped.forEach((r) => { r._roleName = ruRoleNames[r.roleId] || r.roleId; r._principal = r.roleMemberInfo?.displayName || r.roleMemberInfo?.id; });
         } catch (e) { d.scoped = []; d.scopedError = e.message || String(e); }
       }

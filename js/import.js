@@ -119,12 +119,17 @@ const Importer = (() => {
   const PERSONA_CODE = Object.fromEntries(
     Object.entries(PERSONA_GROUPS).map(([k, g]) => [k, g.replace(/^CAD-SEC-U-DG-/, "")]));
 
-  // Groups filed by NAME rather than by the personas that reference them.
-  // CAB-SEC-U-BreakGlass is excluded from nearly every policy in the baseline,
-  // so persona inference can only ever call it ambiguous — correctly, since no
-  // single persona owns it. It has a unit of its own, so name it directly.
-  const BY_NAME_CODE = { "cab-sec-u-breakglass": "BreakGlass" };
-  const fixedCode = (name) => BY_NAME_CODE[String(name || "").toLowerCase()] || null;
+  // A group's vault is decided by ONE rule, shared with ⑥ Protect:
+  // Rmau.codeForGroup reads the CA number out of the group's own name. Import
+  // used to infer it from the personas of the policies that reference the
+  // group, which cannot answer for CAB-SEC-U-BreakGlass (every persona excludes
+  // it) and gets no answer at all for a group whose policies were not selected.
+  // Persona inference is kept only as the fallback for a group whose name
+  // carries no CA number.
+  const fixedCode = (name) => {
+    try { return (typeof Rmau !== "undefined" && Rmau.codeForGroup) ? Rmau.codeForGroup(name) : null; }
+    catch { return null; }
+  };
 
   // Which persona's vault does an imported group belong in? A group has no
   // persona of its own — it inherits from the policies that reference it. One
@@ -885,5 +890,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, PERSONA_CODE, BY_NAME_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();

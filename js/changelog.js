@@ -23,6 +23,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25046, date: "2026-08-13", title: "Two personas the numbering knew about and the baseline did not",
+    items: [
+      { kind: "fixed", tool: "List Policies", text: "CA1200–CA1299 is the FACTORY WORKERS persona, but the persona table stopped at CA1100, so those policies grouped under a heading that read “CA1200+” — a range with no name, which is how a persona becomes invisible in a review. Named now, and the FW vault gains its CA range: it was matched only by group name before, so a CA1250 exclusion group routed nowhere." },
+      { kind: "new", tool: "Restricted AUs", text: "CAB-SEC-RMAU-WLI-Exclusions joins the baseline for workload identities (CA900–CA999), which had no vault at all. It will often be empty and that is correct rather than a mistake: those policies target SERVICE PRINCIPALS, and a service principal cannot be a member of an administrative unit — only users, groups and devices can. The unit holds whatever exclusion GROUPS the range uses, which is worth separating because they gate the automation that runs with nobody behind it." },
+      { kind: "improved", tool: "Restricted AUs", text: "E-Admins (CA1100–CA1199) now file into the break-glass vault instead of the Admins one. The E-Admins ARE the break-glass accounts, so pairing them with the everyday admins handed the ordinary admin team the keys to the emergency ones — the exact separation the per-persona split exists to make. Eleven units in the baseline now, still comfortable against the 100-unit tenant limit." },
+      { kind: "improved", tool: "Import", text: "Import now decides a group's vault with the same single rule ⑥ Protect uses — the CA number in the group's own name — instead of inferring it from the personas of the policies that reference it. Inference could not answer for the break-glass group (every persona excludes it) and had no answer at all when the referencing policies were not part of the selection. Persona inference survives only as the fallback for a name carrying no CA number." },
+      { kind: "fixed", tool: "Restricted AUs", text: "A scoped role member could show a raw GUID where the role name belongs. The id→name map is read once per session from /directoryRoles, which lists only ACTIVATED roles — so a role activated after that read, by this very tool granting an administrator on a unit created minutes earlier, was missing from it and the card printed the id. Unknown ids are now looked up individually; if even that fails the id is still shown, because a wrong name would be worse than an ugly one." },
+    ],
+  },
+  {
     build: 25045, date: "2026-08-13", title: "Where a group actually lives, without hunting for it",
     items: [
       { kind: "fixed", tool: "Protect exclusions", text: "A baseline exclusion group that no policy currently references was not listed at all, so its protection state was unreachable — CAB-SEC-U-CA001-Exclusion could be sitting frozen inside the Global unit and nothing anywhere in the app would say so. The candidate list now also includes groups the baseline expects and that are named like exclusion groups, marked “not referenced”. They are never pre-selected and select-all skips them: they are there to be seen, not acted on by default." },
