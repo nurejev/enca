@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25013"></script>
+<script src="js/popup-guard.js?v=25014"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25013">
+<link rel="stylesheet" href="css/app.css?v=25014">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25013"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25013"></script>
+<script src="js/counter.js?v=25014"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25014"></script>
 </head>
 <body>
 
@@ -87,11 +87,19 @@
 
   <!-- ============ TOOLS HOME ============ -->
   <section id="screen-home" class="screen">
+    <!-- TILE TAGS — these are not decoration. A tile carrying NEW, BETA or
+         UPDATED is exempt from the home-page collapse (see initHomeSections in
+         app.js), so it is always on screen without expanding a section.
+           NEW      a tool that did not exist in the previous release
+           BETA     shipped, still proving itself; may change or be withdrawn
+           UPDATED  an existing tool that changed in this release
+         Clear UPDATED at the start of the next cycle, or the exemption stops
+         meaning anything and the collapse stops working. -->
     <h2 class="home-title">What do you want to do?</h2>
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
     <div class="tools">
       <div class="tool" id="toolPolicies">
-        <div class="tool-ic">🗂</div><h3>List Policies</h3>
+        <div class="tool-ic">🗂</div><h3>List Policies <span class="tag upd">UPDATED</span></h3>
         <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona.</p>
       </div>
       <div class="tool" id="toolDocument">
@@ -168,11 +176,11 @@
     <div class="tool-sec"><h3>✍️ Manage the tenant</h3><p>The tools that write. Each one confirms before it changes anything.</p></div>
     <div class="tools">
       <div class="tool" id="toolCaGroups">
-        <div class="tool-ic">👥</div><h3>Conditional Access groups</h3>
+        <div class="tool-ic">👥</div><h3>Conditional Access groups <span class="tag upd">UPDATED</span></h3>
         <p>Check the baseline groups against this tenant, create the missing ones, analyze their members in a matrix, and assign them to policies. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolProtect">
-        <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag new">NEW</span></h3>
+        <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag upd">UPDATED</span></h3>
         <p>Place the CA exclusion groups in a restricted management administrative unit, so only AU-scoped roles can change their membership — closing the "an admin adds themselves to an exclusion group" bypass. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolLocations">
@@ -1083,8 +1091,10 @@
             <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🏢 Your own single-tenant app registration <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Today every tenant signs in through <b>one multi-tenant</b> app registration owned by Limon-IT — the same application ID, and therefore an application outside your directory holding a delegated grant on your data. The option on the map: register ENCA as a <b>single-tenant</b> SPA (<code>AzureADMyOrg</code>) inside your own tenant, with your own client ID, your own consent record, your own redirect URIs and your own audit trail — nothing to trust but the code you reviewed. The sign-in <i>platform</i> does not change (it is already a SPA using authorization code + PKCE with no client secret); what changes is who owns the registration, and so who can review, audit and revoke it. <a href="#" id="rmSecLink2">Security &amp; risk</a> already recommends this for high-assurance environments — the work is to make it a supported path rather than a manual one: a <code>-SingleTenant</code> switch on the registration script, a client ID read from configuration, and a guide to the trade-off (you own the trust, you also own keeping the registration current).</p>
+            <h4 style="margin:0 0 4px">🏢 Your own single-tenant app registration <span class="tag ok">available now</span></h4>
+            <p class="mini" style="margin:0">Every tenant signs in through <b>one multi-tenant</b> app registration owned by Limon-IT by default — the same application ID, and therefore an application outside your directory holding a delegated grant on your data. <b>You can now run ENCA on your own instead:</b> a <b>single-tenant</b> SPA (<code>AzureADMyOrg</code>) registered inside your tenant, with your own client ID, consent record, redirect URIs and audit trail — nothing to trust but the code you reviewed. The sign-in <i>mechanism</i> is unchanged (a SPA using authorization code + PKCE, no client secret); what changes is who owns the registration, and so who can review, audit and revoke it.
+              <br><br><b>Shipped:</b> <code>./New-EncaAppRegistration.ps1 -SingleTenant</code> creates the registration and prints what to paste; <code>js/authConfig.local.js</code> points your copy at it without editing a file upstream also changes, so later releases still merge cleanly.
+              <br>📖 <b><a href="#" id="stLink">Read the setup manual</a></b> — prerequisites, the five steps, verification, and the part people skip: keeping a pinned copy current. Also in <a href="#" id="rmSecLink2">Security &amp; risk</a>.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">🍴 Fork detection and update-from-upstream <span class="tag">planned</span></h4>
@@ -2068,44 +2078,44 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25013"></script>
-<script src="js/version.js?v=25013"></script>
-<script src="js/authConfig.js?v=25013"></script>
-<script src="js/labels.js?v=25013"></script>
-<script src="js/graph.js?v=25013"></script>
-<script src="js/model.js?v=25013"></script>
-<script src="js/render.js?v=25013"></script>
-<script src="js/analyze.js?v=25013"></script>
-<script src="js/whatif.js?v=25013"></script>
-<script src="js/mslearn.js?v=25013"></script>
-<script src="js/gapcheck.js?v=25013"></script>
-<script src="js/cisdata.js?v=25013"></script>
-<script src="js/cischeck.js?v=25013"></script>
-<script src="js/exclusions.js?v=25013"></script>
-<script src="js/validator.js?v=25013"></script>
-<script src="js/whatifeval.js?v=25013"></script>
-<script src="js/compare.js?v=25013"></script>
-<script src="js/groupuse.js?v=25013"></script>
-<script src="js/locations.js?v=25013"></script>
-<script src="js/authcontexts.js?v=25013"></script>
-<script src="js/authstrengths.js?v=25013"></script>
-<script src="js/recycle.js?v=25013"></script>
-<script src="js/rmau.js?v=25013"></script>
-<script src="js/termsofuse.js?v=25013"></script>
-<script src="js/audit.js?v=25013"></script>
-<script src="js/drift.js?v=25013"></script>
-<script src="js/signins.js?v=25013"></script>
-<script src="js/reportimpact.js?v=25013"></script>
-<script src="js/changelog.js?v=25013"></script>
-<script src="js/baselineData.js?v=25013"></script>
-<script src="js/baselineJoeyData.js?v=25013"></script>
-<script src="js/baseline.js?v=25013"></script>
-<script src="js/groupTemplates.js?v=25013"></script>
-<script src="js/assign.js?v=25013"></script>
-<script src="js/cagroups.js?v=25013"></script>
-<script src="js/import.js?v=25013"></script>
-<script src="js/export.js?v=25013"></script>
-<script src="js/demo.js?v=25013"></script>
-<script src="js/app.js?v=25013"></script>
+<script src="js/branding.js?v=25014"></script>
+<script src="js/version.js?v=25014"></script>
+<script src="js/authConfig.js?v=25014"></script>
+<script src="js/labels.js?v=25014"></script>
+<script src="js/graph.js?v=25014"></script>
+<script src="js/model.js?v=25014"></script>
+<script src="js/render.js?v=25014"></script>
+<script src="js/analyze.js?v=25014"></script>
+<script src="js/whatif.js?v=25014"></script>
+<script src="js/mslearn.js?v=25014"></script>
+<script src="js/gapcheck.js?v=25014"></script>
+<script src="js/cisdata.js?v=25014"></script>
+<script src="js/cischeck.js?v=25014"></script>
+<script src="js/exclusions.js?v=25014"></script>
+<script src="js/validator.js?v=25014"></script>
+<script src="js/whatifeval.js?v=25014"></script>
+<script src="js/compare.js?v=25014"></script>
+<script src="js/groupuse.js?v=25014"></script>
+<script src="js/locations.js?v=25014"></script>
+<script src="js/authcontexts.js?v=25014"></script>
+<script src="js/authstrengths.js?v=25014"></script>
+<script src="js/recycle.js?v=25014"></script>
+<script src="js/rmau.js?v=25014"></script>
+<script src="js/termsofuse.js?v=25014"></script>
+<script src="js/audit.js?v=25014"></script>
+<script src="js/drift.js?v=25014"></script>
+<script src="js/signins.js?v=25014"></script>
+<script src="js/reportimpact.js?v=25014"></script>
+<script src="js/changelog.js?v=25014"></script>
+<script src="js/baselineData.js?v=25014"></script>
+<script src="js/baselineJoeyData.js?v=25014"></script>
+<script src="js/baseline.js?v=25014"></script>
+<script src="js/groupTemplates.js?v=25014"></script>
+<script src="js/assign.js?v=25014"></script>
+<script src="js/cagroups.js?v=25014"></script>
+<script src="js/import.js?v=25014"></script>
+<script src="js/export.js?v=25014"></script>
+<script src="js/demo.js?v=25014"></script>
+<script src="js/app.js?v=25014"></script>
 </body>
 </html>

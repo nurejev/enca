@@ -197,8 +197,12 @@ For transparency, the risks on the publishing side and their handling:
 - Require **PIM just-in-time activation** for the roles that make the write
   scopes effective; ENCA cannot act above the role that is active.
 - For high-assurance environments: **fork this repository**, review the code,
-  register your own application, replace the `clientId`, and serve the pinned
-  copy from your own origin. Everything about the app is built to survive
+  register your own application, and serve the pinned copy from your own
+  origin. **[SINGLE-TENANT.md](SINGLE-TENANT.md) is the step-by-step** —
+  `./New-EncaAppRegistration.ps1 -SingleTenant` creates an `AzureADMyOrg`
+  registration in your own tenant, and `js/authConfig.local.js` points your
+  copy at it without editing a file upstream also changes, so pulling later
+  releases stays a clean merge. Everything about the app is built to survive
   that (no build step, one config file, one branding file).
 - Keep break-glass accounts excluded from all policies, and use the
   Report-only impact tool before enabling anything — that is what it is for.

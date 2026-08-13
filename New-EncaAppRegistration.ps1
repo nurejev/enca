@@ -18,6 +18,12 @@
 .EXAMPLE
   ./New-EncaAppRegistration.ps1
 
+.EXAMPLE
+  # High-assurance: register ENCA in YOUR tenant only, for your own hosted copy.
+  ./New-EncaAppRegistration.ps1 -SingleTenant -SingleTenantRedirectUris "https://enca.contoso.example"
+  # Prints the clientId + authority to paste into js/authConfig.local.js.
+  # Full walkthrough: SINGLE-TENANT.md
+
 .NOTES
   Requires: Microsoft.Graph.Applications module, and a role that can create
   app registrations + grant tenant-wide consent (e.g. Global Administrator or
@@ -36,6 +42,14 @@ param(
   # cadoc.limon-it.nl stays listed while the old domain still redirects - drop
   # it once nobody reaches the app on the old host any more.
   [string[]]$RedirectUris = @("https://enca.limon-it.nl", "https://cadoc.limon-it.nl", "http://localhost:8080"),
+  # Register the app for THIS TENANT ONLY (AzureADMyOrg) instead of multi-tenant.
+  # This is the high-assurance route: you own the registration, its consent
+  # record and its audit trail, and no directory but yours can use it. Pair it
+  # with your own hosted copy of the app and set the client ID + authority it
+  # prints into js/authConfig.local.js. See SINGLE-TENANT.md.
+  [switch]$SingleTenant,
+  # Where your own copy is served from. Ignored unless -SingleTenant.
+  [string[]]$SingleTenantRedirectUris = @("http://localhost:8080"),
   # Policy.ReadWrite.ConditionalAccess is only used by the Assign-groups tool;
   # Group.ReadWrite.All + RoleManagement.ReadWrite.Directory only when creating
   # role-assignable persona groups. All are requested on demand in the app but
@@ -99,9 +113,17 @@ $resourceAccess = foreach ($name in $DelegatedScopes) {
 $requiredResourceAccess = @(@{ ResourceAppId = $GraphAppId; ResourceAccess = $resourceAccess })
 
 #--- 3. Create or update the app registration ---------------------------
+if ($SingleTenant) {
+  # Your own tenant only. The redirect URIs must point at YOUR copy of the app;
+  # the Limon-IT hosts are meaningless in a registration you own.
+  $RedirectUris = $SingleTenantRedirectUris
+  if ($AppName -eq "ENCA (Limon-IT)") { $AppName = "ENCA" }
+}
+$audience = if ($SingleTenant) { "AzureADMyOrg" } else { "AzureADMultipleOrgs" }
+
 $appParams = @{
   DisplayName            = $AppName
-  SignInAudience         = "AzureADMultipleOrgs"                  # multi-tenant
+  SignInAudience         = $audience
   Spa                    = @{ RedirectUris = $RedirectUris }       # SPA = auth code + PKCE, no secret
   RequiredResourceAccess = $requiredResourceAccess
   Web                    = @{ ImplicitGrantSettings = @{ EnableAccessTokenIssuance = $false; EnableIdTokenIssuance = $false } }
@@ -160,10 +182,28 @@ Write-Host "==================== ENCA app registration ====================" -Fo
 Write-Host "  Display name : $($app.DisplayName)"
 Write-Host "  Client ID    : $($app.AppId)"
 Write-Host "  Object ID    : $($app.Id)"
-Write-Host "  Audience     : multi-tenant (AzureADMultipleOrgs)"
+Write-Host "  Audience     : $(if ($SingleTenant) { 'THIS TENANT ONLY (AzureADMyOrg)' } else { 'multi-tenant (AzureADMultipleOrgs)' })"
 Write-Host "  SPA redirects: $($RedirectUris -join ', ')"
 Write-Host "  Permissions  : $($DelegatedScopes -join ', ') (delegated)"
 Write-Host ""
-Write-Host "  Customer tenant admin-consent URL:" -ForegroundColor Cyan
-Write-Host "  https://login.microsoftonline.com/organizations/adminconsent?client_id=$($app.AppId)&redirect_uri=$([uri]::EscapeDataString($RedirectUris[0]))"
+if ($SingleTenant) {
+  $tenantId = (Get-MgContext).TenantId
+  Write-Host "  Paste this into js/authConfig.local.js of your copy:" -ForegroundColor Cyan
+  Write-Host ""
+  Write-Host "    window.ENCA_AUTH = {"
+  Write-Host "      clientId:  `"$($app.AppId)`","
+  Write-Host "      authority: `"https://login.microsoftonline.com/$tenantId`","
+  Write-Host "    };"
+  Write-Host ""
+  Write-Host "  ...and reference it in index.html just before js/authConfig.js:" -ForegroundColor Cyan
+  Write-Host "    <script src=`"js/authConfig.local.js`"></script>"
+  Write-Host ""
+  Write-Host "  Admin-consent URL (this tenant):" -ForegroundColor Cyan
+  Write-Host "  https://login.microsoftonline.com/$tenantId/adminconsent?client_id=$($app.AppId)&redirect_uri=$([uri]::EscapeDataString($RedirectUris[0]))"
+  Write-Host ""
+  Write-Host "  Full walkthrough: SINGLE-TENANT.md" -ForegroundColor Cyan
+} else {
+  Write-Host "  Customer tenant admin-consent URL:" -ForegroundColor Cyan
+  Write-Host "  https://login.microsoftonline.com/organizations/adminconsent?client_id=$($app.AppId)&redirect_uri=$([uri]::EscapeDataString($RedirectUris[0]))"
+}
 Write-Host "=================================================================="

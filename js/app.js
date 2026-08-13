@@ -305,17 +305,27 @@
       const key = (head && head.querySelector("h3") ? head.querySelector("h3").textContent : `sec${gi}`).trim();
       const btn = document.createElement("button");
       btn.className = "btn home-more";
+      // A tool that just shipped or just changed must never be behind the fold.
+      // Announcing it in the changelog and then hiding it on the home page is
+      // the opposite of a release. NEW, BETA and UPDATED tiles are therefore
+      // exempt from collapsing entirely — not merely counted on the button —
+      // and they keep their place in the grid rather than being reordered.
+      const flagged = (t) => !!t.querySelector(".tag.new, .tag.upd");
       const paint = () => {
         const open = homeExpanded.has(key);
-        tiles.forEach((t, i) => { t.style.display = i < HOME_VISIBLE || open ? "" : "none"; });
-        // A tool that just shipped should not vanish behind the fold without
-        // saying so — otherwise collapsing the grid quietly buries the thing
-        // most worth finding. Count the BETA/NEW tiles that are hidden and name
-        // them on the button.
-        const buried = tiles.slice(HOME_VISIBLE).filter((t) => t.querySelector(".tag.new")).length;
-        btn.textContent = open
-          ? "▲ Show fewer"
-          : `▼ Show ${tiles.length - HOME_VISIBLE} more${buried ? ` · ${buried} new or beta` : ""}`;
+        // Flagged tiles are shown on top of the budget, not out of it — four
+        // ordinary tools stay visible however many are flagged, so a release
+        // never pushes the everyday tools out of sight either.
+        let ordinary = 0;
+        const hidden = [];
+        tiles.forEach((t) => {
+          const keep = open || flagged(t) || ordinary < HOME_VISIBLE;
+          t.style.display = keep ? "" : "none";
+          if (keep && !flagged(t)) ordinary++;
+          if (!keep) hidden.push(t);
+        });
+        btn.style.display = hidden.length || open ? "" : "none";   // nothing left to reveal
+        btn.textContent = open ? "▲ Show fewer" : `▼ Show ${hidden.length} more`;
         btn.setAttribute("aria-expanded", open ? "true" : "false");
       };
       btn.addEventListener("click", () => {
@@ -500,6 +510,22 @@
       console.error("SECURITY.md load failed:", e);
       toast(`Could not load the security documentation: <span>${esc(e.message || e)}</span>`);
     }
+  }
+  // The single-tenant setup guide, rendered the same way as the security doc so
+  // it is readable without leaving the app (or trusting a link to GitHub).
+  async function showSingleTenantDoc() {
+    try {
+      const r = await fetch("SINGLE-TENANT.md?v=" + APP_BUILD.build);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      showReport("🏢 Your own single-tenant app registration", "ENCA-SingleTenant", mdUnwrap(await r.text()));
+    } catch (e) {
+      console.error("SINGLE-TENANT.md load failed:", e);
+      toast(`Could not load the setup guide: <span>${esc(e.message || e)}</span>`);
+    }
+  }
+  for (const id of ["stLink"]) {
+    const el = $(id);
+    if (el) el.addEventListener("click", (e) => { e.preventDefault(); showSingleTenantDoc(); });
   }
   for (const id of ["secLinkLogin", "secLinkFoot", "rmSecLink", "rmSecLink2"]) {
     const el = $(id);
