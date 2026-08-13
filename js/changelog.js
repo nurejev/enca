@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25071, date: "2026-08-13", title: "Roadmap: custom groups in the persona vaults",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Added R28 🏷 Custom groups in the persona vaults. Everything that routes a group to a vault reads the CA number in its name, which works for the baseline and nothing else — a tenant's own exclusion group matches no persona, so ⑥ Protect skips it without a fallback chosen by hand, ＋ Bulk add never offers it, and break-glass had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them their naming is wrong is not a feature. The card records a per-tenant mapping, kept with the tenant rather than in the code, and the two things it must not do: guess, and hide the unmapped." },
+    ],
+  },
+  {
     build: 25070, date: "2026-08-13", title: "The roadmap retires what it delivered",
     items: [
       { kind: "new", tool: "Roadmap", text: "A SHIPPED BEFORE section at the foot of the page, outside the timeline. An item moves there on its own once it is more than 15 builds old, so “Now” stays what is actually current rather than everything ever delivered. Nothing is deleted — a roadmap that forgets what it delivered is only a wish list, and a retired reference still has to resolve for older notes about it to mean anything." },
