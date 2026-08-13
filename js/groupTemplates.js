@@ -1,11 +1,18 @@
 // ======================================================================
 // Persona group templates — extracted from the reference group export
 // (EXAMPLE_Export_groups). Used by the Assign-groups tool to create
-// missing groups directly via Graph. Static groups are ALWAYS created as
-// role-assignable (isAssignableToRole: true) — always. Templates marked
-// "dynamic" are created dynamic with their membership rule intact and are NOT
-// role-assignable: Entra forbids the combination, and for those groups the
-// membership rule is the point.
+// missing groups directly via Graph.
+//
+// CHANGED in build 25026: assigned groups are NO LONGER created
+// role-assignable. That flag was only ever used for a side effect — keeping
+// membership out of reach of tenant-wide group administrators — and a
+// restricted management administrative unit does that better, names who may
+// manage the group, and can be undone. The two cannot be combined either: a
+// group carrying both has nobody who can change its members. Existing
+// role-assignable groups move across with CA groups ⑦ Migrate.
+//
+// Templates marked "dynamic" are created dynamic with their membership rule
+// intact; for those the rule is the point.
 // ======================================================================
 const GROUP_TEMPLATES = [
   {
