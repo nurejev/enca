@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 264, date: "2026-08-13", title: "A duplicated Help bullet",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "Help carried “Ceilings worth knowing” twice — once saying nine baseline units are comfortable within the 100-unit limit, once saying ten. Both were left behind when the break-glass unit was added in build 259: the bullet was inserted afresh instead of the existing one being edited, so the old copy stayed and contradicted the new one on the only number that changed. The stale copy is gone; ten is correct. A duplicate-bullet check now runs over the whole Help page rather than only the section being edited, which is how this survived a section-level review." },
+    ],
+  },
+  {
     build: 263, date: "2026-08-13", title: "Where a group actually lives, without hunting for it",
     items: [
       { kind: "fixed", tool: "Protect exclusions", text: "A baseline exclusion group that no policy currently references was not listed at all, so its protection state was unreachable — a group could be sitting frozen inside the Global unit and nothing anywhere in the app would say so. The candidate list now also includes groups the baseline expects that are named like exclusion groups, marked “not referenced”. They are never pre-selected and select-all skips them: they are there to be seen, not acted on by default." },

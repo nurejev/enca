@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=263"></script>
+<script src="js/popup-guard.js?v=264"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=263">
+<link rel="stylesheet" href="css/app.css?v=264">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=263"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=263"></script>
+<script src="js/counter.js?v=264"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=264"></script>
 </head>
 <body>
 
@@ -1286,7 +1286,6 @@
         <li><b>Break-glass gets its own vault.</b> <code>CAB-SEC-U-BreakGlass</code> is excluded from very nearly every policy in the baseline, so it belongs to no single persona — whoever can edit it can walk through every policy at once. It gets <code>CAB-SEC-RMAU-BreakGlass</code>, deliberately without an <code>-Exclusions</code> suffix because it holds the emergency access group itself rather than a persona's exclusions. Keep its list of scoped administrators shorter than any other unit's.</li>
         <li><b>📄 Report</b> — the ten rows, their status and their scoped administrator as Markdown, for the design document or the hand-over.</li>
         <li><b>Ceilings worth knowing</b> — a tenant may hold at most <b>100</b> restricted management administrative units, so ten is comfortable. Only <b>security</b> groups can be members: Microsoft 365, mail-enabled security and distribution groups cannot. Deleting a unit can take up to 30 minutes to lift the protection from its former members.</li>
-        <li><b>Ceilings worth knowing</b> — a tenant may hold at most <b>100</b> restricted management administrative units, so nine is comfortable. Only <b>security</b> groups can be members: Microsoft 365, mail-enabled security and distribution groups cannot. Deleting a unit can take up to 30 minutes to lift the protection from its former members.</li>
         <li><b>Open a card</b> — click its header, or the <b>👤 Scoped admins</b> button, to see members and scoped role grants. The ✎ Edit dialog is only the AU's own name and description; roles are not granted there.</li>
         <li><b>Add a member</b> — the box suggests your <b>baseline group names</b> before you type anything, since those are what the AU exists to protect, and folds in live directory results for any other group or user as you type.</li>
         <li><b>Grant a scoped administrator</b> — pick the role, then start typing a name: users are suggested from the directory. Without at least one scoped grant, nobody can manage these members at all.</li>
@@ -2073,42 +2072,42 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=263"></script>
-<script src="js/version.js?v=263"></script>
-<script src="js/authConfig.js?v=263"></script>
-<script src="js/labels.js?v=263"></script>
-<script src="js/graph.js?v=263"></script>
-<script src="js/model.js?v=263"></script>
-<script src="js/render.js?v=263"></script>
-<script src="js/analyze.js?v=263"></script>
-<script src="js/whatif.js?v=263"></script>
-<script src="js/mslearn.js?v=263"></script>
-<script src="js/gapcheck.js?v=263"></script>
-<script src="js/exclusions.js?v=263"></script>
-<script src="js/validator.js?v=263"></script>
-<script src="js/whatifeval.js?v=263"></script>
-<script src="js/compare.js?v=263"></script>
-<script src="js/groupuse.js?v=263"></script>
-<script src="js/locations.js?v=263"></script>
-<script src="js/authcontexts.js?v=263"></script>
-<script src="js/authstrengths.js?v=263"></script>
-<script src="js/recycle.js?v=263"></script>
-<script src="js/termsofuse.js?v=263"></script>
-<script src="js/rmau.js?v=263"></script>
-<script src="js/audit.js?v=263"></script>
-<script src="js/drift.js?v=263"></script>
-<script src="js/signins.js?v=263"></script>
-<script src="js/reportimpact.js?v=263"></script>
-<script src="js/changelog.js?v=263"></script>
-<script src="js/baselineData.js?v=263"></script>
-<script src="js/baselineJoeyData.js?v=263"></script>
-<script src="js/baseline.js?v=263"></script>
-<script src="js/groupTemplates.js?v=263"></script>
-<script src="js/assign.js?v=263"></script>
-<script src="js/cagroups.js?v=263"></script>
-<script src="js/import.js?v=263"></script>
-<script src="js/export.js?v=263"></script>
-<script src="js/demo.js?v=263"></script>
-<script src="js/app.js?v=263"></script>
+<script src="js/branding.js?v=264"></script>
+<script src="js/version.js?v=264"></script>
+<script src="js/authConfig.js?v=264"></script>
+<script src="js/labels.js?v=264"></script>
+<script src="js/graph.js?v=264"></script>
+<script src="js/model.js?v=264"></script>
+<script src="js/render.js?v=264"></script>
+<script src="js/analyze.js?v=264"></script>
+<script src="js/whatif.js?v=264"></script>
+<script src="js/mslearn.js?v=264"></script>
+<script src="js/gapcheck.js?v=264"></script>
+<script src="js/exclusions.js?v=264"></script>
+<script src="js/validator.js?v=264"></script>
+<script src="js/whatifeval.js?v=264"></script>
+<script src="js/compare.js?v=264"></script>
+<script src="js/groupuse.js?v=264"></script>
+<script src="js/locations.js?v=264"></script>
+<script src="js/authcontexts.js?v=264"></script>
+<script src="js/authstrengths.js?v=264"></script>
+<script src="js/recycle.js?v=264"></script>
+<script src="js/termsofuse.js?v=264"></script>
+<script src="js/rmau.js?v=264"></script>
+<script src="js/audit.js?v=264"></script>
+<script src="js/drift.js?v=264"></script>
+<script src="js/signins.js?v=264"></script>
+<script src="js/reportimpact.js?v=264"></script>
+<script src="js/changelog.js?v=264"></script>
+<script src="js/baselineData.js?v=264"></script>
+<script src="js/baselineJoeyData.js?v=264"></script>
+<script src="js/baseline.js?v=264"></script>
+<script src="js/groupTemplates.js?v=264"></script>
+<script src="js/assign.js?v=264"></script>
+<script src="js/cagroups.js?v=264"></script>
+<script src="js/import.js?v=264"></script>
+<script src="js/export.js?v=264"></script>
+<script src="js/demo.js?v=264"></script>
+<script src="js/app.js?v=264"></script>
 </body>
 </html>
