@@ -40,10 +40,10 @@ You need:
   (creating an app registration and granting tenant-wide admin consent).
 - The **Microsoft.Graph.Applications** PowerShell module:
   `Install-Module Microsoft.Graph.Applications -Scope CurrentUser`
-- Somewhere to serve static files. ENCA has no build step and no server
-  component — any static host works: an internal web server, Azure Static Web
-  Apps, an Azure Storage static website, GitHub Pages on a private repo, even a
-  file share behind a reverse proxy.
+- Somewhere to serve static files over HTTPS. ENCA has no build step and no
+  server component, so any static host works — see **[Where to host
+  it](#where-to-host-it)** below, which also covers the GitHub Pages trap that
+  a private repository still gives you a public website.
 
 ---
 
@@ -170,6 +170,86 @@ front door, not a permission model.
   app.
 - **Guests need assigning too**, individually or via a group they are a direct
   member of.
+
+---
+
+## Where to host it
+
+ENCA is static files. No build step, no server component, no database — whatever
+serves a folder over HTTPS will do. The choice is really about **who can reach
+the site**, which is a separate question from who can sign in.
+
+| Host | Site reachable by | Notes |
+|---|---|---|
+| GitHub Pages, public repo | anyone | Free. Simplest. |
+| GitHub Pages, **private** repo | **anyone** | Needs Pro/Team/Enterprise Cloud. The repo is private; **the site is not**. |
+| GitHub Pages, private *site* | org members with repo read access | **Enterprise Cloud only.** |
+| Azure Static Web Apps | anyone, or gated by Entra | Built-in auth can sit in front of the site itself. |
+| Azure Storage static website + Front Door | anyone, or gated by WAF/Private Link | |
+| Internal web server | your network | The traditional answer, and often the right one. |
+
+### The GitHub Pages trap
+
+**A private repository does not give you a private website.** Pages sites are
+publicly available on the internet even when the repository behind them is
+private. Publishing from a private repo requires **GitHub Pro, Team or
+Enterprise Cloud** (Free is public repositories only), and restricting who can
+*view the site* — to people with read access to the repo — is a **GitHub
+Enterprise Cloud** feature.
+
+So on Pro or Team you get private source and a public site. Whether that is
+acceptable depends on what your copy contains.
+
+### What a public site actually exposes
+
+Nothing secret ends up in the deployed files:
+
+- **The client ID is not a secret.** ENCA is a public client — a SPA using
+  authorization code + PKCE — and its application ID is visible to anyone who
+  signs in. That is by design; it is why there is no client secret to protect.
+- **No tenant data is in the files.** Everything is read live into the browser
+  and discarded; nothing is written to the site or to any server.
+- **The code is already open source**, so publishing a copy of it reveals
+  nothing that upstream does not already publish.
+- With `-RequireAssignment`, anyone who is not assigned cannot get past sign-in.
+  A public URL that turns everyone away except your assigned people is a
+  perfectly sound outcome.
+
+What a public site *would* expose is **your own changes**: your branding, an
+edited baseline catalog, and your group naming convention in
+`js/groupTemplates.js` — which names your CA exclusion groups. If that is
+sensitive in your environment, choose a host from the gated rows above.
+
+### If you do use GitHub Pages
+
+Two things will bite you:
+
+**1. Delete the `CNAME` file.** The upstream repository contains a `CNAME`
+holding `enca.limon-it.nl`. A fork that keeps it will fight for that domain and
+your site will not resolve.
+
+```bash
+git rm CNAME && git commit -m "Remove upstream custom domain"
+```
+
+**2. A project page serves from a subpath**, `https://yourorg.github.io/enca/`,
+and the redirect URI must match it **exactly, including the trailing slash**.
+ENCA computes its redirect URI at runtime as
+`window.location.origin + window.location.pathname`, so it will ask for exactly
+that — you just have to register it:
+
+```powershell
+./New-EncaAppRegistration.ps1 -SingleTenant -RequireAssignment `
+    -SingleTenantRedirectUris "https://yourorg.github.io/enca/"
+```
+
+A **user or organisation page** (`https://yourorg.github.io`) has no subpath and
+avoids the issue. Everything else in the app is referenced relatively — `js/`,
+`css/`, and the in-app rendering of this file and `SECURITY.md` — so a subpath
+deployment needs no edits.
+
+Sources: [GitHub's plans](https://docs.github.com/get-started/learning-about-github/githubs-products),
+[Changing the visibility of your GitHub Pages site](https://docs.github.com/en/enterprise-cloud@latest/pages/getting-started-with-github-pages/changing-the-visibility-of-your-github-pages-site).
 
 ---
 
