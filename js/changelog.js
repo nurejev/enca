@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25052, date: "2026-08-13", title: "Drift watch sees the vaults",
+    items: [
+      { kind: "new", tool: "Drift watch", text: "Administrative units are now a snapshot area. They live nowhere near the Conditional Access blade, but a restricted unit is what stops a tenant-wide Groups Administrator adding somebody to an exclusion group — so a group quietly leaving one widens the bypass surface exactly as much as editing the policy would, and until now nothing in the toolset would have noticed it happen. Members and scoped role grants are captured with the units; the read is a ladder, so a tenant that rejects the $expand still gets the units themselves, which is enough to catch the worst case of one being deleted." },
+      { kind: "new", tool: "Drift watch", text: "Ranked to match what the change means rather than how big it looks. A MEMBER REMOVED from a restricted unit is Critical — from that moment any tenant-wide Groups Administrator can add themselves to that exclusion group. A SCOPED ADMINISTRATOR ADDED is High: somebody new can now edit the protected groups, and an over-scoped unit is the failure worth shouting about, where one that lost an administrator is a management problem. A unit DELETED is Critical. The isMemberManagementRestricted flag is immutable, so if it ever appears to have moved, the object is not the one you snapshotted — also Critical." },
+      { kind: "improved", tool: "Drift watch", text: "The GUID→name map now includes the administrative units, so a change reads as “a member left CAB-SEC-RMAU-ADM-Exclusions” rather than as two GUIDs. AdministrativeUnit.Read.All is asked for on the click like every other on-demand scope; declining it never blocks the snapshot — the area is reported as not captured, which is the one thing this tool must never round to “no drift”." },
+    ],
+  },
+  {
     build: 25051, date: "2026-08-13", title: "Restricted AUs is out of BETA",
     items: [
       { kind: "improved", tool: "Restricted AUs", text: "The BETA chip comes off the tile, the tool header, the Help heading and the baseline panel. It shipped to production in build 253 and has since gained the per-persona baseline, bulk add, frozen-group detection and routing that the rest of the toolset now depends on — a tool other tools rely on should not still be labelled provisional." },

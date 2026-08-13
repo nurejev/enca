@@ -45,6 +45,22 @@ const Drift = (() => {
              "/policies/authenticationStrengthPolicies"] },
     { key: "contexts",  label: "Authentication contexts",     icon: "🏷",
       urls: ["/identity/conditionalAccess/authenticationContextClassReferences"] },
+    // Restricted administrative units are part of the Conditional Access
+    // posture even though they live nowhere near the CA blade: they are what
+    // stops a tenant-wide Groups Administrator adding somebody to an exclusion
+    // group. A group quietly leaving one, or a scoped administrator quietly
+    // joining one, widens the bypass surface exactly as much as editing the
+    // policy would — and neither shows up anywhere else in this tool.
+    //
+    // Members and scoped role grants are the point, so the ladder tries to
+    // capture both, then members alone, then the units by themselves. Even the
+    // thinnest read still catches a unit that has been deleted, which is the
+    // single worst thing that can happen to one.
+    { key: "adminunits", label: "Administrative units",        icon: "🛡",
+      scopes: ["AdministrativeUnit.Read.All"],
+      urls: ["/administrativeUnits?$select=id,displayName,description,visibility,isMemberManagementRestricted&$expand=members($select=id),scopedRoleMembers",
+             "/administrativeUnits?$select=id,displayName,description,visibility,isMemberManagementRestricted&$expand=members($select=id)",
+             "/administrativeUnits?$select=id,displayName,description,visibility,isMemberManagementRestricted"] },
   ];
   const areaByKey = (k) => AREAS.find((a) => a.key === k) || { key: k, label: k, icon: "•" };
 
@@ -137,6 +153,18 @@ const Drift = (() => {
     if (/^conditions\.(applications|locations|platforms|clientAppTypes|signInRisk|userRisk|devices)/.test(p)) return "high";
     if (/^sessionControls/.test(p)) return "medium";
     if (/^(displayName|description)$/.test(p)) return "low";
+    // --- restricted administrative units ---
+    // A member leaving a restricted unit is the protection coming off an
+    // exclusion group: from that moment any tenant-wide Groups Administrator
+    // can add themselves to it. That is the same event as widening an
+    // exclusion, one step removed, so it is ranked the same.
+    if (/^members/.test(p)) return ch.op === "remove" ? "critical" : "medium";
+    // A scoped administrator gained is somebody who can now edit the protected
+    // groups; lost is a management problem rather than a security one, and an
+    // over-scoped unit is the risk worth shouting about.
+    if (/^scopedRoleMembers/.test(p)) return ch.op === "add" ? "high" : "medium";
+    // Immutable, so if this ever moves the object is not the one you snapshotted.
+    if (/isMemberManagementRestricted/.test(p)) return "critical";
     if (/isTrusted/.test(p)) return "critical";       // a location becoming trusted bypasses controls
     if (/ipRanges|countriesAndRegions/.test(p)) return "high";
     return "medium";
@@ -157,6 +185,9 @@ const Drift = (() => {
     [/^conditions\.locations\.includeLocations$/, "Included locations"],
     [/^conditions\.locations\.excludeLocations$/, "Excluded locations"],
     [/^conditions\.platforms\./,               "Device platforms"],
+    [/^members$/,                              "Protected members"],
+    [/^scopedRoleMembers$/,                    "Scoped administrators"],
+    [/^isMemberManagementRestricted$/,         "Restricted management"],
     [/^conditions\.clientAppTypes$/,           "Client apps"],
     [/^conditions\.signInRiskLevels$/,         "Sign-in risk"],
     [/^conditions\.userRiskLevels$/,           "User risk"],
