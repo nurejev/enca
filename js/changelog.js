@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25034, date: "2026-08-13", title: "Help catches up with the baseline panel",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "The Help section still described the tool as it was before build 25033 — it said nothing about the persona baseline check, so the first thing the tool now shows was the one thing the documentation did not mention. Help now covers why there is one unit per persona rather than one shared vault, that creating a unit also grants you Groups Administrator scoped to it and why that second half is not optional, and what to do about a name already taken by a non-restricted unit. The permissions footnote also notes that directory writes are not read-your-writes consistent, so a unit that has just been created may lag the list below it." },
+    ],
+  },
+  {
     build: 25033, date: "2026-08-13", title: "One restricted administrative unit per persona",
     items: [
       { kind: "new", tool: "Restricted AUs", text: "The tool now opens with a BASELINE panel that checks the tenant for the nine administrative units the baseline expects — CAB-SEC-RMAU-GLO / ADM / INT / EXT / GUESTUSERS / GUESTAdmins / SA / DevOps / FW-Exclusions — and offers to create the missing ones. One unit per persona is the point: a scoped administrator for the Admins exclusions should not be able to touch the Externals exclusions, and a single shared unit gives exactly that. Each unit is created with isMemberManagementRestricted, and the account running it is granted Groups Administrator scoped to the unit in the same step — an administrative unit with no scoped administrator is a vault nobody can open, because the restricted flag is precisely what blocks the tenant-wide roles. Select all, tick individually, or produce a Markdown report of the current state." },
