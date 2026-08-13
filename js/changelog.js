@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25037, date: "2026-08-13", title: "Three more items reached production",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Production is now build 258. Items 8 (pickers above their lists on an administrative unit card) and 10 (one restricted administrative unit per persona, with the derived-check fix from build 25036) have shipped, and item 9 turned out to have gone to production back in build 256 without the queue being told — the exact failure this list warns about in its own header, so the numbers were reconciled against what main actually contains rather than against what the queue claimed. Item 11 (the Import protection preflight) now stands alone, since its dependency is live." },
+    ],
+  },
+  {
     build: 25036, date: "2026-08-13", title: "The baseline check no longer offers to create what is already there",
     items: [
       { kind: "fixed", tool: "Restricted AUs", text: "After creating the nine units the panel could still read “0 present · 9 missing” and offer to create them again, while the cards immediately below it showed all nine sitting in the tenant. The check was computed once and cached on the panel's state, so ⟳ Refresh — and any other re-render — updated the list of units without updating the verdict about them. The check is now derived on every render from the units currently loaded, so the panel and the cards can no longer disagree." },

@@ -20,8 +20,8 @@
 // the next new item takes the next free number.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.254",
-  betaBuild: "v1.0.250-beta.36",
+  productionBuild: "v1.0.258",
+  betaBuild: "v1.0.250-beta.37",
 
   items: [
     {
@@ -31,18 +31,8 @@ const PROMOTE = {
       builds: [25035],
       risk: "medium",
       what: "Import checks the restricted units for the personas the selection touches, offers to create the missing ones, and adds every group it creates to its persona's unit. Shared and pre-existing groups are deliberately not placed and are named in the report.",
-      why: "Depends on item 10 — without the persona units there is nothing to place into, so the two promote together or not at all. Also carries the fix for the report claiming created groups are role-assignable, which is wrong in production today.",
+      why: "Its dependency (the persona units) went to production in build 258, so this can now promote on its own. It writes to the directory on an import run, which is the moment you least want a surprise, so it is worth a couple of real restores on beta first. The role-assignable label fix it used to carry shipped separately as build 257.",
       files: ["js/import.js", "js/app.js", "js/rmau.js", "index.html"],
-    },
-    {
-      n: 10,
-      title: "Persona restricted administrative units in the baseline",
-      tools: ["Restricted AUs"],
-      builds: [25032, 25033, 25034, 25036],
-      risk: "medium",
-      what: "Restricted AUs opens with a baseline panel checking the tenant for the nine CAB-SEC-RMAU-<PERSONA>-Exclusions units, creating the missing ones as restricted, and granting the running account Groups Administrator scoped to each. Name clashes with a non-restricted unit are reported and refused rather than skipped.",
-      why: "It writes to the directory — it creates administrative units and grants a role — so it should be exercised against a couple of real tenants before it is in front of everyone. The read-only half (the nine-row status list) is the part that is safe today.",
-      files: ["js/rmau.js", "js/app.js", "index.html"],
     },
     {
       n: 6,
@@ -53,26 +43,6 @@ const PROMOTE = {
       what: "-SingleTenant and -RequireAssignment on the registration script, js/authConfig.local.js as an override, and SINGLE-TENANT.md with the hosting guidance.",
       why: "A documented route for high-assurance tenants. Additive — nothing behaves differently for anyone who ignores it.",
       files: ["New-EncaAppRegistration.ps1", "js/authConfig.js", "SINGLE-TENANT.md", "README.md", "SECURITY.md"],
-    },
-    {
-      n: 9,
-      title: "UPDATED tile chip, and sections that actually collapse",
-      tools: ["All tools"],
-      builds: [25026, 25032],
-      risk: "low",
-      what: "The .tag.upd CSS and the UPDATED chip on tiles that changed in the release, plus the fix that makes flagged tiles claim the four visible slots instead of adding to them — production has neither, so its home sections behave correctly but no tile is ever marked as updated.",
-      why: "Production has no UPDATED chip at all today, so a changed tool looks identical to an untouched one.",
-      files: ["css/app.css", "index.html", "js/app.js"],
-    },
-    {
-      n: 8,
-      title: "Restricted AUs: picker above the list, and the datalist pick fix",
-      tools: ["Restricted AUs", "Protect exclusions"],
-      builds: [25028, 25029, 25031],
-      risk: "low",
-      what: "On an AU card the add-member and grant-admin pickers move above their lists; picking a type-ahead suggestion no longer reopens the dropdown; ⑥ Protect gains ⟳ Re-check protection.",
-      why: "Usability. Nothing in production is wrong without it — the pickers are merely below a list that can be long.",
-      files: ["js/app.js"],
     },
   ],
 
