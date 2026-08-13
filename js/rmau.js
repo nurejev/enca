@@ -134,6 +134,9 @@ const Rmau = (() => {
         ...a, name,
         description: auDescription(a),
         au: hit || null,
+        // The id of the matching unit, so a caller that wants to add members to
+        // it does not have to reach through .au and get undefined in silence.
+        id: hit ? hit.id : null,
         status: !hit ? "missing" : (hit.isMemberManagementRestricted === true ? "present" : "unrestricted"),
       };
     });

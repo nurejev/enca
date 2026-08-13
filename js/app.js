@@ -1516,7 +1516,7 @@
   const imWidBlocked = (p) => p.wid && imLic.known && !imLic.licensed;
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
-    imBundle = null; imPlan = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
+    imBundle = null; imPlan = null; imAu = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -1533,6 +1533,59 @@
   const imPersonaKey = (p) => p.asIs ? "eadmins" : (p.persona || "other");
   const imPersonaLabel = (k) => k === "eadmins" ? "🚨 E-Admins" : (IM_PERSONA_LABEL[k] || "Other");
 
+  // Restricted-AU preflight. Read once per opened file; a failure to read is
+  // shown as "could not check", never as "all present" — the whole point of a
+  // preflight is that it does not lie about what it did not see.
+  let imAu = null;   // { codes, rows, missing, byCode, error, busy, sel, results }
+
+  async function imLoadAu() {
+    const codes = Importer.personaCodes(imBundle, imPlan.filter(p => !p.exists).map(p => p.raw));
+    imAu = { codes, rows: [], missing: [], byCode: {}, error: null, busy: false, sel: new Set(), results: null };
+    if (!codes.length) return;
+    try {
+      const aus = isDemo
+        ? [{ id: "au-GLO", displayName: "CAB-SEC-RMAU-GLO-Exclusions", isMemberManagementRestricted: true }]
+        : await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
+      const check = Rmau.baselineCheck(aus);
+      imAu.rows = check.rows.filter(r => codes.includes(r.code));
+      imAu.missing = imAu.rows.filter(r => r.status === "missing");
+      imAu.sel = new Set(imAu.missing.map(r => r.name));
+      for (const r of imAu.rows) if (r.status === "present") imAu.byCode[r.code] = r.id;
+    } catch (e) {
+      imAu.error = e.message || String(e);
+    }
+  }
+
+  function imAuPanel() {
+    if (!imAu || !imAu.codes.length) return "";
+    if (imAu.error) {
+      return `<div class="cg-panel"><h4>🛡 PROTECTION — COULD NOT CHECK</h4>
+        <p class="mini" style="margin:0">The tenant's administrative units could not be read (${esc(imAu.error)}), so it is not known whether the persona vaults exist. <b>The import will run regardless</b> — groups it creates will simply be left unprotected, and the report will say so per group.</p></div>`;
+    }
+    const chip = (r) => r.status === "present" ? '<span class="tag grant">present</span>'
+      : r.status === "unrestricted" ? '<span class="tag block">name taken — not restricted</span>'
+      : '<span class="tag">missing</span>';
+    const rows = imAu.rows.map(r => `<div class="dr-row"><div class="dr-head">
+        ${r.status === "missing"
+          ? `<label class="chk" style="margin:0"><input type="checkbox" data-imau="${esc(r.name)}"${imAu.sel.has(r.name) ? " checked" : ""}> <b>${esc(r.name)}</b></label>`
+          : `<b>${esc(r.name)}</b>`}
+        ${chip(r)} <span class="mini muted">${esc(r.label)}</span>
+      </div></div>`).join("");
+    const done = imAu.results ? `<p class="mini" style="margin:8px 0 0"><b>${imAu.results.filter(r => r.ok).length}/${imAu.results.length} created.</b>${imAu.results.some(r => r.ok && !r.adminOk) ? ` <span style="color:var(--off)">${imAu.results.filter(r => r.ok && !r.adminOk).length} without a scoped administrator.</span>` : ""}</p>` : "";
+    return `<div class="cg-panel">
+      <h4>🛡 PROTECTION — ${imAu.rows.length} PERSONA VAULT${imAu.rows.length === 1 ? "" : "S"} FOR THIS IMPORT</h4>
+      <p class="mini" style="margin:0 0 8px">Each group this import creates is added to its persona's restricted administrative unit, so a tenant-wide Groups Administrator cannot quietly widen a Conditional Access exclusion. Only the personas your selection touches are listed.</p>
+      <div class="cg-pick">${rows}</div>
+      ${imAu.missing.length ? `<div class="row" style="justify-content:flex-start;margin-top:10px">
+          <button class="btn sm" id="imAuAll">${imAu.sel.size === imAu.missing.length ? "☐ Deselect all" : "☑ Select all"}</button>
+          <button class="btn" id="imAuGo">Create ${imAu.sel.size} unit${imAu.sel.size === 1 ? "" : "s"} first</button>
+        </div>
+        <p class="mini muted" style="margin:8px 0 0">Created restricted, with you as Groups Administrator scoped to each. <b>Optional</b> — skip it and the import still runs; the groups land unprotected and the report names every one of them.</p>` : ""}
+      ${done}
+      <div id="imAuLog" class="mini" style="margin-top:8px">${(imAu.log || []).join("")}</div>
+    </div>`;
+  }
+
   async function imLoaded(bundle, fileName) {
     imBundle = bundle; imFileName = fileName;
     // pass the tenant's raw policies (not just names) so "match & replace" can
@@ -1544,6 +1597,7 @@
     imLic = imPlan.some(p => p.wid)
       ? (isDemo ? { known: true, licensed: false, sku: null } : await Importer.workloadIdLicence())
       : { known: false, licensed: false, sku: null };
+    await imLoadAu();
     imRenderList();
     $("imPick").style.display = "none";
   }
@@ -1575,6 +1629,7 @@
     };
 
     $("imBody").innerHTML = `
+      ${imAuPanel()}
       <div class="im-mode" role="radiogroup" aria-label="Assignment mode">
         <label class="im-mode-opt${!replace ? " on" : ""}"><input type="radio" name="imMode" value="deploy" ${!replace ? "checked" : ""}>
           <b>🚀 Deployment groups</b><span class="mini">Includes remapped to the deploy persona group (CAD-SEC-U-DG-*) — staged, nothing existing is touched.</span></label>
@@ -1626,7 +1681,13 @@
     btn.disabled = n === 0;
     btn.textContent = n ? `Import ${n}` : "Import";
   }
-  $("imBody").addEventListener("click", (e) => {
+  $("imBody").addEventListener("click", async (e) => {
+    if (e.target.id === "imAuAll") {
+      imAu.sel = imAu.sel.size === imAu.missing.length ? new Set() : new Set(imAu.missing.map(r => r.name));
+      imRenderList();
+      return;
+    }
+    if (e.target.id === "imAuGo") { await imAuCreate(e.target); return; }
     const chip = e.target.closest("[data-im-persona]");
     if (chip) {
       imSelectPersona(chip.dataset.imPersona);
@@ -1639,7 +1700,71 @@
   $("imBody").addEventListener("change", (e) => {
     if (e.target.matches('input[name="imMode"]')) { imMode = e.target.value; imRenderList(); return; }
     if (e.target.matches("[data-imp]")) updateImGo();
+    const b = e.target.closest("[data-imau]");
+    if (b) {
+      b.checked ? imAu.sel.add(b.dataset.imau) : imAu.sel.delete(b.dataset.imau);
+      imRenderList();
+    }
   });
+
+  // Create the vaults the import is about to need. Deliberately a separate
+  // click from Import: creating administrative units and granting yourself a
+  // role is a different kind of act from restoring policies, and should not
+  // ride along inside a button labelled Import.
+  async function imAuCreate(btn) {
+    const picked = imAu.missing.filter(r => imAu.sel.has(r.name));
+    if (!picked.length) { toast("Nothing selected"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...RU_BASE_SCOPES])) return;
+    btn.disabled = true;
+    const lines = []; imAu.log = lines;
+    const say = (h) => { lines.push(h); const el = $("imAuLog"); if (el) el.innerHTML = lines.join(""); };
+
+    let me = null, role = null, roleErr = null;
+    if (isDemo) me = { id: "demo-me", displayName: "You", userPrincipalName: "you@demo" };
+    else {
+      try { me = await Graph.gget("/me?$select=id,displayName,userPrincipalName"); }
+      catch (e) { say(`<div style="color:var(--off)">Could not read your own account (${esc(e.message || e)}) — units will be created with no scoped administrator.</div>`); }
+      if (me) { try { role = await ensureDirectoryRole(GROUPS_ADMIN_TEMPLATE); } catch (e) { roleErr = e.message || String(e); } }
+    }
+
+    const results = [];
+    for (const r of picked) {
+      const res = { name: r.name, code: r.code, ok: false, admin: me ? me.userPrincipalName : "" };
+      try {
+        const au = isDemo ? { id: "demo-au-" + r.code }
+          : await Graph.gpost("/administrativeUnits", { displayName: r.name, description: r.description, isMemberManagementRestricted: true });
+        res.ok = true; res.id = au.id;
+        imAu.byCode[r.code] = au.id;              // the import can place into it now
+        say(`<div>✓ created <b>${esc(r.name)}</b></div>`);
+        if (me) {
+          try {
+            if (roleErr) throw new Error(roleErr);
+            if (!isDemo) await Graph.gpost(`/administrativeUnits/${au.id}/scopedRoleMembers`, { roleId: role.id, roleMemberInfo: { id: me.id } });
+            res.adminOk = true;
+            say(`<div>&nbsp;&nbsp;✓ ${esc(me.userPrincipalName)} scoped as Groups Administrator</div>`);
+          } catch (e) {
+            res.adminError = e.message || String(e);
+            say(`<div style="color:var(--off)">&nbsp;&nbsp;✗ scoped administrator NOT granted — ${esc(res.adminError)}. Groups placed here will be manageable by nobody until one is.</div>`);
+          }
+        }
+      } catch (e) {
+        res.error = e.message || String(e);
+        say(`<div style="color:var(--off)">✗ ${esc(r.name)} — ${esc(res.error)}</div>`);
+      }
+      results.push(res);
+    }
+    imAu.results = results;
+    // Re-derive from what actually happened rather than re-reading: directory
+    // writes are not read-your-writes consistent, and a re-read that misses a
+    // unit created two seconds ago would wrongly offer to create it again.
+    const madeNames = new Set(results.filter(r => r.ok).map(r => r.name));
+    imAu.rows = imAu.rows.map(r => madeNames.has(r.name) ? { ...r, status: "present", id: imAu.byCode[r.code] } : r);
+    imAu.missing = imAu.rows.filter(r => r.status === "missing");
+    imAu.sel = new Set(imAu.missing.map(r => r.name));
+    btn.disabled = false;
+    imRenderList();
+    toast(`${results.filter(r => r.ok).length}/${results.length} administrative unit(s) created${isDemo ? " (simulated)" : ""}`);
+  }
   $("imZip").addEventListener("change", async (e) => {
     const f = e.target.files[0]; if (!f) return;
     try { await imLoaded(await Importer.readZip(f), f.name); }
@@ -1655,8 +1780,10 @@
     if (!chosen.length) { toast("Nothing selected to import"); return; }
     // Consent first, while the click is still fresh — an import creates
     // dependencies (groups, locations) as well as policies, so ask for both.
+    const placing = !!(imAu && !imAu.error && Object.keys(imAu.byCode).length);
     if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess",
-      "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+      "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory",
+      ...(placing ? ["AdministrativeUnit.ReadWrite.All"] : [])])) return;
     $("imGo").disabled = true;
     try {
       let depLog = { created: [], reused: [], warnings: [] }, maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, personaGroupIds: {} }, res = { results: [], warnings: [] };
@@ -1671,9 +1798,21 @@
           const matched = imMode === "replace" && p.upgrade;
           return { name: p.name, ok: true, persona: p.persona, personaGroup: matched ? null : p.personaGroup, matched, disabledOld: matched, oldName: matched ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : "disabled" };
         });
-        depLog.created = scoped.groups.map(g => "Group: " + g.displayName);
+        depLog.created = scoped.groups.map(g => "Group: " + g.displayName + " (assigned)");
+        // Simulate the placement too, so the demo report shows the same three
+        // outcomes as a real run rather than a tidier story than the truth.
+        if (imAu && !imAu.error) {
+          depLog.placed = []; depLog.placeFailed = []; depLog.unplaced = [];
+          const per = Importer.groupPersonas(scoped, scoped.policies);
+          for (const g of scoped.groups) {
+            const info = per.get(g.id);
+            const code = info && info.persona ? Importer.PERSONA_CODE[info.persona] : null;
+            if (code && imAu.byCode[code]) depLog.placed.push({ name: g.displayName, code });
+            else depLog.unplaced.push({ name: g.displayName, code, why: !code ? ((info && info.why) || "no persona could be read from the policies that use it") : `no restricted unit for persona ${code}` });
+          }
+        }
       } else {
-        const dep = await Importer.ensureDependencies(scoped, (m) => toast(esc(m)), { matchedNames });
+        const dep = await Importer.ensureDependencies(scoped, (m) => toast(esc(m)), { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
         res = await Importer.importPolicies(chosen, maps, (m) => toast(esc(m)), { mode: imMode });
       }

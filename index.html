@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25034"></script>
+<script src="js/popup-guard.js?v=25035"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25034">
+<link rel="stylesheet" href="css/app.css?v=25035">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25034"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25034"></script>
+<script src="js/counter.js?v=25035"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25035"></script>
 </head>
 <body>
 
@@ -1315,6 +1315,7 @@
         <li><b>Create the missing ones</b> — tick them, or take all. Each is created with the restricted flag set, and <b>you are granted Groups Administrator scoped to it in the same step</b>. That second half is not a convenience: an administrative unit with no scoped administrator is a vault nobody can open, because the restricted flag is precisely what shuts out the tenant-wide roles. Creation and the role grant are reported separately, so a unit that exists but has no administrator is visible as the half-outcome it is rather than counted as a success.</li>
         <li><b>A name clash is refused, not skipped</b> — if an AU already carries an expected name but is <b>not</b> restricted, it is shown as <i>name taken — not restricted</i> and is left alone. The flag is immutable, so that unit cannot be upgraded into the one you want; rename it and create a restricted replacement, or give the persona a different name.</li>
         <li><b>📄 Report</b> — the nine rows, their status and their scoped administrator as Markdown, for the design document or the hand-over.</li>
+        <li><b>Ceilings worth knowing</b> — a tenant may hold at most <b>100</b> restricted management administrative units, so nine is comfortable. Only <b>security</b> groups can be members: Microsoft 365, mail-enabled security and distribution groups cannot. Deleting a unit can take up to 30 minutes to lift the protection from its former members.</li>
         <li><b>Open a card</b> — click its header, or the <b>👤 Scoped admins</b> button, to see members and scoped role grants. The ✎ Edit dialog is only the AU's own name and description; roles are not granted there.</li>
         <li><b>Add a member</b> — the box suggests your <b>baseline group names</b> before you type anything, since those are what the AU exists to protect, and folds in live directory results for any other group or user as you type.</li>
         <li><b>Grant a scoped administrator</b> — pick the role, then start typing a name: users are suggested from the directory. Without at least one scoped grant, nobody can manage these members at all.</li>
@@ -1479,8 +1480,11 @@
         <li><b>Unknown application references</b> — a policy can only name an app that has a <b>service principal</b> in this tenant, and Graph rejects the whole policy over one it cannot resolve. The importer instantiates the missing ones first (the baseline excludes Microsoft first-party apps like Defender for Endpoint and Defender for Mobile TVM that an unused tenant does not have). If one still cannot be created, the policy is imported <b>without that reference</b> rather than failing — the report names each drop, and a dropped <b>exclusion widens the policy</b>, so review it before switching it On.</li>
         <li><b>🔒 no Workload ID licence</b> — a policy scoped to service principals (the CA900 range) needs the separately purchased <b>Microsoft Entra Workload ID</b> licence, which is <i>not</i> part of Entra ID P1/P2. The importer reads the tenant’s subscriptions first; without the licence those policies are shown greyed out and left out entirely, rather than attempted and rejected by Graph with a bare 400. Buy or trial the licence, then re-import.</li>
         <li><b>📜 needs ToU</b> — a policy granting a Terms of use imports without that control (Terms of use has no create API); the report gives a checklist to create it in the portal, then re-import.</li>
+        <li><b>🛡 Protection preflight</b> <span class="tag new">BETA</span> — before the import runs, the tool checks that a restricted administrative unit exists for each persona <i>your selection actually touches</i>, and offers to create the missing ones (restricted, with you scoped as Groups Administrator). Every group the import <b>creates</b> is then added to its persona's unit, so a tenant-wide Groups Administrator cannot afterwards widen a Conditional Access exclusion. It is optional and never blocks the import: skip it and the groups simply land unprotected.</li>
+        <li><b>Only groups this run created are placed</b> — a group that already existed is left where it is, because it may be somewhere on purpose and that is not the import's call to make. A group used by <b>two personas</b> is not placed either, and the report says why: an object may sit in several restricted units and a scoped administrator on <i>any</i> of them can manage it, so filing a shared group under one persona hands that persona's admin control of the other's exclusions, and filing it under both hands it to either. Split it per persona, or place it by hand knowing who can reach it.</li>
+        <li><b>An unreadable check says so</b> — if the tenant's administrative units cannot be read, the panel reports that it could not check rather than reporting everything present, and the import proceeds unprotected with each group named in the report.</li>
       </ul>
-      <p class="help-x">Writes; a change report is shown on screen and downloadable.</p>
+      <p class="help-x">Writes; a change report is shown on screen and downloadable. Creating administrative units is a separate click from Import, and needs <code>AdministrativeUnit.ReadWrite.All</code> plus <b>Privileged Role Administrator</b>.</p>
     </section>
 
     <section class="help-sec">
@@ -2097,45 +2101,45 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25034"></script>
-<script src="js/version.js?v=25034"></script>
-<script src="js/promote.js?v=25034"></script>
-<script src="js/authConfig.js?v=25034"></script>
-<script src="js/labels.js?v=25034"></script>
-<script src="js/graph.js?v=25034"></script>
-<script src="js/model.js?v=25034"></script>
-<script src="js/render.js?v=25034"></script>
-<script src="js/analyze.js?v=25034"></script>
-<script src="js/whatif.js?v=25034"></script>
-<script src="js/mslearn.js?v=25034"></script>
-<script src="js/gapcheck.js?v=25034"></script>
-<script src="js/cisdata.js?v=25034"></script>
-<script src="js/cischeck.js?v=25034"></script>
-<script src="js/exclusions.js?v=25034"></script>
-<script src="js/validator.js?v=25034"></script>
-<script src="js/whatifeval.js?v=25034"></script>
-<script src="js/compare.js?v=25034"></script>
-<script src="js/groupuse.js?v=25034"></script>
-<script src="js/locations.js?v=25034"></script>
-<script src="js/authcontexts.js?v=25034"></script>
-<script src="js/authstrengths.js?v=25034"></script>
-<script src="js/recycle.js?v=25034"></script>
-<script src="js/rmau.js?v=25034"></script>
-<script src="js/termsofuse.js?v=25034"></script>
-<script src="js/audit.js?v=25034"></script>
-<script src="js/drift.js?v=25034"></script>
-<script src="js/signins.js?v=25034"></script>
-<script src="js/reportimpact.js?v=25034"></script>
-<script src="js/changelog.js?v=25034"></script>
-<script src="js/baselineData.js?v=25034"></script>
-<script src="js/baselineJoeyData.js?v=25034"></script>
-<script src="js/baseline.js?v=25034"></script>
-<script src="js/groupTemplates.js?v=25034"></script>
-<script src="js/assign.js?v=25034"></script>
-<script src="js/cagroups.js?v=25034"></script>
-<script src="js/import.js?v=25034"></script>
-<script src="js/export.js?v=25034"></script>
-<script src="js/demo.js?v=25034"></script>
-<script src="js/app.js?v=25034"></script>
+<script src="js/branding.js?v=25035"></script>
+<script src="js/version.js?v=25035"></script>
+<script src="js/promote.js?v=25035"></script>
+<script src="js/authConfig.js?v=25035"></script>
+<script src="js/labels.js?v=25035"></script>
+<script src="js/graph.js?v=25035"></script>
+<script src="js/model.js?v=25035"></script>
+<script src="js/render.js?v=25035"></script>
+<script src="js/analyze.js?v=25035"></script>
+<script src="js/whatif.js?v=25035"></script>
+<script src="js/mslearn.js?v=25035"></script>
+<script src="js/gapcheck.js?v=25035"></script>
+<script src="js/cisdata.js?v=25035"></script>
+<script src="js/cischeck.js?v=25035"></script>
+<script src="js/exclusions.js?v=25035"></script>
+<script src="js/validator.js?v=25035"></script>
+<script src="js/whatifeval.js?v=25035"></script>
+<script src="js/compare.js?v=25035"></script>
+<script src="js/groupuse.js?v=25035"></script>
+<script src="js/locations.js?v=25035"></script>
+<script src="js/authcontexts.js?v=25035"></script>
+<script src="js/authstrengths.js?v=25035"></script>
+<script src="js/recycle.js?v=25035"></script>
+<script src="js/rmau.js?v=25035"></script>
+<script src="js/termsofuse.js?v=25035"></script>
+<script src="js/audit.js?v=25035"></script>
+<script src="js/drift.js?v=25035"></script>
+<script src="js/signins.js?v=25035"></script>
+<script src="js/reportimpact.js?v=25035"></script>
+<script src="js/changelog.js?v=25035"></script>
+<script src="js/baselineData.js?v=25035"></script>
+<script src="js/baselineJoeyData.js?v=25035"></script>
+<script src="js/baseline.js?v=25035"></script>
+<script src="js/groupTemplates.js?v=25035"></script>
+<script src="js/assign.js?v=25035"></script>
+<script src="js/cagroups.js?v=25035"></script>
+<script src="js/import.js?v=25035"></script>
+<script src="js/export.js?v=25035"></script>
+<script src="js/demo.js?v=25035"></script>
+<script src="js/app.js?v=25035"></script>
 </body>
 </html>

@@ -21,9 +21,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.254",
-  betaBuild: "v1.0.250-beta.34",
+  betaBuild: "v1.0.250-beta.35",
 
   items: [
+    {
+      n: 11,
+      title: "Import: protection preflight and group placement",
+      tools: ["Import"],
+      builds: [25035],
+      risk: "medium",
+      what: "Import checks the restricted units for the personas the selection touches, offers to create the missing ones, and adds every group it creates to its persona's unit. Shared and pre-existing groups are deliberately not placed and are named in the report.",
+      why: "Depends on item 10 — without the persona units there is nothing to place into, so the two promote together or not at all. Also carries the fix for the report claiming created groups are role-assignable, which is wrong in production today.",
+      files: ["js/import.js", "js/app.js", "js/rmau.js", "index.html"],
+    },
     {
       n: 10,
       title: "Persona restricted administrative units in the baseline",
