@@ -709,6 +709,13 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .wi-list li{padding:8px 0;border-top:1px solid var(--line)}
 .wi-list li:first-child{border-top:0}
 .wi-pn{font-weight:600;font-size:13px}
+/* A member row is name + chips + the remove button. Inline flow pushed the ✕
+   onto a line of its own as soon as a member carried two chips (group + frozen),
+   which read as a stray button belonging to nothing. Flex keeps the name and
+   chips together and pins ✕ to the right of the row, where it stays whatever
+   the chip count. */
+.wi-pn{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.wi-pn > .fchip:last-child{margin-left:auto;flex:none}
 .wi-ctrls{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;margin-top:3px}
 .wi-g{color:var(--on)}.wi-s{color:var(--report)}.wi-w{color:var(--off)}
 .wi-why{font-size:12px;color:var(--muted);margin-top:2px}

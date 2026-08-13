@@ -625,14 +625,18 @@ const CaGroups = (() => {
     (filter === "all" || r.status === filter)
     && (!q || r.name.toLowerCase().includes(q) || (r.id || "").toLowerCase().includes(q)));
 
-  function renderTable(res, filter, q) {
+  const attrEsc = (t) => String(t || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  // `prot` is groupId -> { auId, auName } for restricted units, or null when
+  // the units were not read. Null renders as "—", never as "not protected":
+  // unknown and unprotected are different answers and only one is reassuring.
+  function renderTable(res, filter, q, prot) {
     const rows = filtered(res, filter, q);
     if (!rows.length) return '<p class="mini" style="padding:20px">No groups match the current filter.</p>';
     // Deliberately NOT .mtable: that class makes the header row sticky for the
     // wide scrolling matrices, which here just slides it under the sticky
     // toolbar and leaves the list looking headerless.
     return `<div class="cg-tablewrap"><table class="cg-table">
-      <thead><tr><th style="width:34px"></th><th>Group</th><th style="width:150px">Type</th><th style="width:120px">Policies</th><th style="width:140px">Expected by</th><th style="width:110px">Members</th></tr></thead>
+      <thead><tr><th style="width:34px"></th><th>Group</th><th style="width:150px">Type</th><th style="width:120px">Policies</th><th style="width:150px">Protection</th><th style="width:140px">Expected by</th><th style="width:110px">Members</th></tr></thead>
       <tbody>${rows.map((r) => {
         const st = STATUS[r.status];
         const type = r.status === "missing"
@@ -668,6 +672,17 @@ const CaGroups = (() => {
             ${r.status === "dangling" ? '<div class="mini" style="color:var(--off)">Referenced by a policy but not found in the directory</div>' : ""}</td>
           <td class="mini">${esc(type)}</td>
           <td class="mini">${r.refCount ? `${r.refCount} <span class="muted">(${r.refs.include.length} inc / ${r.refs.exclude.length} exc)</span>` : '<span class="muted">unused</span>'}</td>
+          <td class="mini">${(() => {
+            // Answers "where does this group actually live?" without leaving the
+            // Check tab. Blank when the units were not read — unknown is not the
+            // same as unprotected, and only one of them is reassuring.
+            if (!prot) return '<span class="muted">—</span>';
+            const p = r.id ? prot.get(r.id) : null;
+            if (!p) return '<span class="muted">not in a unit</span>';
+            return r.roleAssignable
+              ? `<span style="color:var(--off)" title="Role-assignable AND restricted — nobody can change its members">🧊 frozen in ${attrEsc(p.auName)}</span>`
+              : `🔒 <span title="${attrEsc(p.auName)}">${esc(p.auName)}</span>`;
+          })()}</td>
           <td class="mini">${r.sources.map((s) => `<span class="tag">${esc(s)}</span>`).join(" ")}</td>
           <td class="mini cg-mem">${mem}</td>
         </tr>`;
@@ -886,9 +901,24 @@ const CaGroups = (() => {
   // only principals holding a role scoped to THAT administrative unit can
   // modify the members — tenant-wide admins, Global Administrator included,
   // are reduced to read.
+  // Candidates are the groups this tool has an opinion about. That used to mean
+  // "currently excluded by at least one policy", which had a blind spot with
+  // teeth: a baseline exclusion group that no policy references right now — a
+  // spare, or one whose policy was retired — could be sitting inside a
+  // restricted unit, or frozen inside one, and NOTHING in the app would say so.
+  // It was not listed here, so its protection state was unreachable.
+  //
+  // So: referenced as an exclusion, OR expected by the baseline and named like
+  // an exclusion group. The second kind is marked `unused` and never
+  // pre-selected — it is here to be SEEN, not to be acted on by default.
+  const EXCLUSION_NAME = /-Exclusions?$|-Exclusion-|BreakGlass/i;
   function rmauCandidates(res) {
     return (res ? res.rows : [])
-      .filter((r) => r.id && (r.refs?.exclude || []).length)
+      .filter((r) => r.id)
+      .filter((r) => (r.refs?.exclude || []).length
+        || (EXCLUSION_NAME.test(r.name || "")
+            && (r.template || (r.sources || []).some((x) => x === "template" || x === "catalog"))))
+      .map((r) => ({ ...r, unused: !(r.refs?.exclude || []).length }))
       .sort((a, b) => (b.refs.exclude.length - a.refs.exclude.length) || String(a.name).localeCompare(String(b.name)));
   }
 
