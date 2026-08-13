@@ -5279,8 +5279,28 @@ max@contoso.com,"Global, DevOps"</pre>
   const RU_BASE_SCOPES = ["AdministrativeUnit.ReadWrite.All", "RoleManagement.ReadWrite.Directory"];
 
   function ruBaseline() {
-    if (!ruBase) ruBase = { check: Rmau.baselineCheck(ruList || []), sel: null, busy: false, results: null };
-    if (!ruBase.sel) ruBase.sel = new Set(ruBase.check.missing.map((r) => r.name));
+    if (!ruBase) ruBase = { sel: null, busy: false, results: null, log: null, made: new Map() };
+    // The check is DERIVED on every render, never cached. It used to be computed
+    // once and kept, which meant ⟳ Refresh updated the cards below while the
+    // panel above still offered to create units that were by then sitting right
+    // there on screen.
+    const check = Rmau.baselineCheck(ruList || []);
+    // Units created in this session are held present regardless of what the
+    // read says. Directory writes are not read-your-writes consistent, and a
+    // panel that offers to create what it has just created is worse than one
+    // running a few seconds behind the tenant.
+    if (ruBase.made.size) {
+      check.rows = check.rows.map((r) => ruBase.made.has(r.name) && r.status !== "present"
+        ? { ...r, status: "present", id: ruBase.made.get(r.name) } : r);
+      check.missing = check.rows.filter((r) => r.status === "missing");
+      check.present = check.rows.filter((r) => r.status === "present");
+      check.unrestricted = check.rows.filter((r) => r.status === "unrestricted");
+    }
+    ruBase.check = check;
+    // Keep the ticks the user made, minus anything no longer missing.
+    ruBase.sel = ruBase.sel
+      ? new Set([...ruBase.sel].filter((n) => check.missing.some((r) => r.name === n)))
+      : new Set(check.missing.map((r) => r.name));
     return ruBase;
   }
 
@@ -5326,6 +5346,7 @@ max@contoso.com,"Global, DevOps"</pre>
           }, scopes);
         }
         res.ok = true; res.id = au.id;
+        t.made.set(r.name, au.id);
         say(`<div>✓ created <b>${esc(r.name)}</b></div>`);
 
         // Scoped administrator, AFTER the unit exists. Reported separately:
@@ -5351,13 +5372,11 @@ max@contoso.com,"Global, DevOps"</pre>
       results.push(res);
     }
     t.results = results; t.busy = false; btn.disabled = false;
-    // Both reads are stale now. Note the re-read may still not show what was
-    // just written — directory writes are not read-your-writes consistent — so
-    // the outcome above is carried over rather than inferred from the re-read.
-    ruList = null; ruBase = null;
+    // Re-read the units. ruBase is deliberately kept: it holds what was just
+    // created, which the read may not show yet.
+    ruList = null;
+    t.results = results; t.log = lines;
     await openRmauTool(true);
-    const nt = ruBaseline(); nt.results = results; nt.log = lines;
-    renderRmau();
     toast(`${results.filter((r) => r.ok).length}/${results.length} administrative unit${results.length === 1 ? "" : "s"} created${isDemo ? " (simulated)" : ""}`);
   }
 

@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25036, date: "2026-08-13", title: "The baseline check no longer offers to create what is already there",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "After creating the nine units the panel could still read “0 present · 9 missing” and offer to create them again, while the cards immediately below it showed all nine sitting in the tenant. The check was computed once and cached on the panel's state, so ⟳ Refresh — and any other re-render — updated the list of units without updating the verdict about them. The check is now derived on every render from the units currently loaded, so the panel and the cards can no longer disagree." },
+      { kind: "improved", tool: "Restricted AUs", text: "Units created in this session are held as present even if a subsequent read does not show them yet. Directory writes are not read-your-writes consistent, so a re-read seconds after a create can legitimately come back without them — and a panel that offers to create what it has just created is worse than one running a few seconds behind the tenant. Ticks you made are kept across the refresh, minus anything that is no longer missing." },
+    ],
+  },
+  {
     build: 25035, date: "2026-08-13", title: "Import checks the vaults before it fills them",
     items: [
       { kind: "new", tool: "Import", text: "A protection preflight sits above the policy list. It checks that a restricted administrative unit exists for each persona your selection actually touches — usually two or three, not all nine — and offers to create the missing ones, restricted, with you scoped as Groups Administrator. Creating them is a separate click from Import on purpose: creating administrative units and granting yourself a role is a different kind of act from restoring policies and should not ride along inside a button labelled Import. It never blocks the import either — skip it and everything still lands, just unprotected, and the report names each group." },

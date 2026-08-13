@@ -21,7 +21,7 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.254",
-  betaBuild: "v1.0.250-beta.35",
+  betaBuild: "v1.0.250-beta.36",
 
   items: [
     {
@@ -38,7 +38,7 @@ const PROMOTE = {
       n: 10,
       title: "Persona restricted administrative units in the baseline",
       tools: ["Restricted AUs"],
-      builds: [25032, 25033, 25034],
+      builds: [25032, 25033, 25034, 25036],
       risk: "medium",
       what: "Restricted AUs opens with a baseline panel checking the tenant for the nine CAB-SEC-RMAU-<PERSONA>-Exclusions units, creating the missing ones as restricted, and granting the running account Groups Administrator scoped to each. Name clashes with a non-restricted unit are reported and refused rather than skipped.",
       why: "It writes to the directory — it creates administrative units and grants a role — so it should be exercised against a couple of real tenants before it is in front of everyone. The read-only half (the nine-row status list) is the part that is safe today.",
