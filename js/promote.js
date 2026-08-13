@@ -21,7 +21,7 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.254",
-  betaBuild: "v1.0.250-beta.30",
+  betaBuild: "v1.0.250-beta.31",
 
   items: [
     {
@@ -33,6 +33,16 @@ const PROMOTE = {
       what: "-SingleTenant and -RequireAssignment on the registration script, js/authConfig.local.js as an override, and SINGLE-TENANT.md with the hosting guidance.",
       why: "A documented route for high-assurance tenants. Additive — nothing behaves differently for anyone who ignores it.",
       files: ["New-EncaAppRegistration.ps1", "js/authConfig.js", "SINGLE-TENANT.md", "README.md", "SECURITY.md"],
+    },
+    {
+      n: 8,
+      title: "Restricted AUs: picker above the list, and the datalist pick fix",
+      tools: ["Restricted AUs", "Protect exclusions"],
+      builds: [25028, 25029, 25031],
+      risk: "low",
+      what: "On an AU card the add-member and grant-admin pickers move above their lists; picking a type-ahead suggestion no longer reopens the dropdown; ⑥ Protect gains ⟳ Re-check protection.",
+      why: "Usability. Nothing in production is wrong without it — the pickers are merely below a list that can be long.",
+      files: ["js/app.js"],
     },
   ],
 

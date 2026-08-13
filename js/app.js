@@ -5159,14 +5159,18 @@ max@contoso.com,"Global, DevOps"</pre>
               <button class="fchip" data-rumrm="${esc(m.id)}" data-ruau="${esc(au.id)}" title="Remove from this AU">✕</button></div></li>`).join("");
           const scoped = (d.scoped || []).map((r) => `<li><div class="wi-pn">${esc(r._principal || "(principal)")} <span class="tag">${esc(r._roleName || r.roleId)}</span>
               <button class="fchip" data-rusrm="${esc(r.id)}" data-ruau="${esc(au.id)}" title="Remove this scoped role grant">✕</button></div></li>`).join("");
+          // The picker goes ABOVE its list. A protected AU can hold dozens of
+          // groups, and with the list first the input you came here to use was
+          // pushed off the bottom of the card — you scrolled past everything to
+          // reach the one control that does something.
           detail = `<div style="margin-top:8px">
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Members (${(d.members || []).length})</div>
-            <ul class="wi-list" style="margin:4px 0 6px">${mems || '<li><div class="wi-why">No members.</div></li>'}</ul>
-            <div style="display:flex;gap:6px;margin:0 0 10px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="Add member — baseline group name, any group, or user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
+            <div style="display:flex;gap:6px;margin:6px 0 6px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="Add member — baseline group name, any group, or user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
+            <ul class="wi-list" style="margin:0 0 12px">${mems || '<li><div class="wi-why">No members.</div></li>'}</ul>
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Scoped role members (${(d.scoped || []).length})${d.scopedError ? ` <span class="muted" style="font-weight:400;text-transform:none">— ${esc(d.scopedError)}</span>` : ""}</div>
-            <ul class="wi-list" style="margin:4px 0 6px">${scoped || '<li><div class="wi-why">No scoped role grants — nobody can manage the members except by tenant-unscoped rules. Grant one below.</div></li>'}</ul>
-            <div style="display:flex;gap:6px;flex-wrap:wrap"><select data-rurole="${esc(au.id)}" class="btn" style="cursor:pointer">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 6px"><select data-rurole="${esc(au.id)}" class="btn" style="cursor:pointer">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select>
               <input data-ruadminbox="${esc(au.id)}" list="ruUserSug" placeholder="UPN of the scoped administrator — start typing a name" spellcheck="false" autocomplete="off" style="flex:1;min-width:180px"><button class="btn sm" data-ruadmin="${esc(au.id)}">+ Grant</button></div>
+            <ul class="wi-list" style="margin:0">${scoped || '<li><div class="wi-why">No scoped role grants — nobody can manage the members except by tenant-unscoped rules. Grant one above.</div></li>'}</ul>
           </div>`;
         }
       }

@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25031, date: "2026-08-12", title: "The picker comes before the list",
+    items: [
+      { kind: "improved", tool: "Restricted AUs", text: "On an administrative-unit card, the add-member box and the grant-a-scoped-administrator row now sit ABOVE their lists instead of below them. A protected AU can hold dozens of groups, and with the list first the input you opened the card to use was pushed off the bottom — you scrolled past everything to reach the one control that does something. Both sections read heading → picker → list now, and the empty scoped-role message says “grant one above” to match." },
+    ],
+  },
+  {
     build: 25030, date: "2026-08-12", title: "Six items reached production",
     items: [
       { kind: "improved", tool: "All tools", text: "Production is now v1.0.254. Items 1, 2, 3, 4, 5 and 7 have been re-landed there and are removed from 🚚 Waiting for production: no longer creating role-assignable groups, ⑥ Protect refusing them (with select-all and ⟳ Re-check), the ⑦ Migrate wizard, the new ② Create model with an optional restricted AU, the ③ Members add bar, and the two roadmap cards. What remains on this channel: item 6, your own single-tenant app registration — plus the CIS Benchmark and this queue itself, both beta-only by design and now listed as such rather than left to look forgotten." },
