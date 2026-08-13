@@ -21,9 +21,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.265",
-  betaBuild: "v1.0.250-beta.49",
+  betaBuild: "v1.0.250-beta.50",
 
   items: [
+    {
+      n: 17,
+      title: "Roadmap card: bulk grant scoped administrators",
+      tools: ["Roadmap"],
+      builds: [25050],
+      risk: "low",
+      what: "One roadmap card describing granting scoped administrators across several restricted units at once, and showing the current grants across all units in one view.",
+      why: "Roadmap text only — nothing behaves differently. It can ride along with the next promotion.",
+      files: ["index.html"],
+    },
     {
       n: 6,
       title: "Your own single-tenant app registration",

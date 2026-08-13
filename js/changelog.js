@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25050, date: "2026-08-13", title: "Roadmap: bulk grant scoped administrators",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Added 👤 Bulk grant scoped administrators. Members can be bulk-added to a persona vault since build 25047, but the people who may manage them still cannot: a scoped role is granted one administrator, on one unit, at a time — four people across eleven units is 44 separate grants. The risk is not the tedium but the gap, because a restricted unit with no scoped administrator is one whose members NOBODY can change. The card also records that the tool should show current grants across all units together, since “who can manage the Externals exclusions?” currently means opening eleven cards." },
+    ],
+  },
+  {
     build: 25049, date: "2026-08-13", title: "Three items reached production",
     items: [
       { kind: "improved", tool: "All tools", text: "Production is now build 265: the Import protection preflight and group placement (item 11), the roadmap card for country-name to ISO-code lookup (15), and the persona work — Factory workers at CA1200, the workload-identity vault, and ＋ Bulk add (16). Item 13's roadmap card went with them: it had been cleared from this queue back at build 261 without ever being ported, which is exactly what the header of js/promote.js warns about, so the roadmap was diffed against production rather than taken on the queue's word. Only item 6 is left waiting." },
