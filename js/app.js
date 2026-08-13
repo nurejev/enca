@@ -1859,6 +1859,10 @@
   // is the former standalone tool, unchanged — it just lives here now, next to
   // the groups it assigns.
   let cgmMsg = null;   // ② Create result line — survives the re-scan that follows a create
+  // groupId -> { auId, auName } for restricted units. Null until read, and
+  // null again if the read fails — the Check tab shows "—" rather than
+  // claiming nothing is protected.
+  let cgProt = null;
   let cgRes = null, cgTab = "check", cgFilter = "all", cgQuery = "", cgBusy = false, cgStop = false;
   // Default scope: only the groups the tenant's CA policies actually reference.
   // "all" additionally expects every template / baseline group (finds missing).
@@ -1883,6 +1887,14 @@
         console.error(e);
         $("cgHead").innerHTML = `<p class="mini" style="color:var(--off)">Group scan failed: ${esc(e.message || e)}</p>`;
         return;
+      }
+      // Where each group actually lives. One call for the whole tenant, and
+      // deliberately non-fatal: not being allowed to read administrative units
+      // must not cost you the group scan. It leaves cgProt null, and the
+      // Protection column then shows "—" rather than "not protected".
+      if (!isDemo) {
+        try { cgProt = await readProtectionMap(); }
+        catch (e) { cgProt = null; console.warn("protection read failed:", e.message || e); }
       }
     }
     renderCaGroups();
@@ -1937,13 +1949,13 @@
     $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" || cgTab === "csv" || cgTab === "rmau" || cgTab === "migrate" ? "none" : "";
 
     if (cgTab === "check") {
-      $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery);
+      $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery, cgProt);
       // disableNesting is invisible to the main scan, so fill it in after the
       // table is already on screen and repaint — the check should never make
       // the tool feel slower to open.
       if (cgRes.rows.some((r) => r.id && r.nesting === undefined)) {
         loadNestingStates(cgRes.rows)
-          .then(() => { if (cgTab === "check") $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery); })
+          .then(() => { if (cgTab === "check") $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery, cgProt); })
           .catch((e) => console.warn("nesting state read failed:", e.message));
       }
     } else if (cgTab === "create") {
@@ -2337,14 +2349,17 @@ max@contoso.com,"Global, DevOps"</pre>
           t.rmaus = aus.filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
         }
         const cands = CaGroups.rmauCandidates(cgRes);
-        for (let i = 0; i < cands.length; i++) {
-          say(`Re-checking ${cands[i].name}… ${i + 1}/${cands.length}`, i + 1, cands.length);
-          if (isDemo) continue;
+        if (!isDemo) {
+          say("Re-reading administrative unit membership…", 1, 2);
           try {
-            const r = await Graph.gget(`/groups/${cands[i].id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
-            const hit = ((r && r.value) || []).find((a) => a.isMemberManagementRestricted === true);
-            t.status.set(cands[i].id, hit ? { auId: hit.id, auName: hit.displayName } : null);
-          } catch { /* leave the previous answer rather than inventing one */ }
+            const map = await readProtectionMap();
+            t.statusError = null;
+            say(`Matching ${cands.length} groups…`, 2, 2);
+            cands.forEach((g) => t.status.set(g.id, map.get(g.id) || null));
+          } catch (e) {
+            // Leave the previous answers rather than inventing one.
+            toast(`Re-check failed: <span>${esc(e.message || e)}</span>`);
+          }
         }
         // A group that is protected now cannot also be selected for protecting.
         for (const g of cands) if (t.status.get(g.id)) t.sel.delete(g.id);
@@ -2361,7 +2376,7 @@ max@contoso.com,"Global, DevOps"</pre>
         const q = (t.q || "").trim().toLowerCase();
         const pick = CaGroups.rmauCandidates(cgRes)
           .filter((g) => !q || String(g.name || "").toLowerCase().includes(q))
-          .filter((g) => !t.status.get(g.id) && !g.roleAssignable);
+          .filter((g) => !t.status.get(g.id) && !g.roleAssignable && !g.unused);
         const on = pick.filter((g) => t.sel.has(g.id)).length;
         if (on === pick.length) pick.forEach((g) => t.sel.delete(g.id));
         else pick.forEach((g) => t.sel.add(g.id));
@@ -2858,22 +2873,28 @@ max@contoso.com,"Global, DevOps"</pre>
         const aus = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
         st.rmaus = aus.filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
       }
-      for (let i = 0; i < cands.length; i++) {
-        const g = cands[i];
-        status(`Checking ${g.name}… ${i + 1}/${cands.length}`, i + 1, cands.length);
-        if (isDemo) { st.status.set(g.id, null); continue; }
-        try {
-          const r = await Graph.gget(`/groups/${g.id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
-          const hit = ((r && r.value) || []).find((a) => a.isMemberManagementRestricted === true);
-          st.status.set(g.id, hit ? { auId: hit.id, auName: hit.displayName } : null);
-        } catch { st.status.set(g.id, null); }
+      if (isDemo) {
+        cands.forEach((g) => st.status.set(g.id, null));
+      } else {
+        status(`Reading administrative unit membership…`, 1, 2);
+        let map = new Map();
+        try { map = await readProtectionMap(); }
+        catch (e) {
+          // A failed read must not read as "nothing is protected" — that is the
+          // reassuring answer, and it would be a guess.
+          st.statusError = e.message || String(e);
+        }
+        status(`Matching ${cands.length} groups…`, 2, 2);
+        if (!st.statusError) cands.forEach((g) => st.status.set(g.id, map.get(g.id) || null));
       }
       // Pre-select the groups the protection is FOR: the assigned exclusion
       // groups someone maintains by hand. Dynamic groups stay opt-in (their
       // membership follows a rule). Role-assignable groups are EXCLUDED, and
       // their checkbox is disabled — combining the two protections deadlocks
       // the membership (see the note rendered on the row).
-      cands.forEach((g) => { if (!st.status.get(g.id) && !g.roleAssignable && !g.dynamic) st.sel.add(g.id); });
+      // `unused` groups are listed so their protection can be SEEN; nothing
+      // references them, so protecting them is a decision, not a default.
+      cands.forEach((g) => { if (!st.status.get(g.id) && !g.roleAssignable && !g.dynamic && !g.unused) st.sel.add(g.id); });
       // Deliberately NOT defaulted to st.rmaus[0]: that is Global on most
       // tenants, so an unrecognised group would be filed into the Global vault
       // by nothing more than list order. Unset means "skip these" until someone
@@ -2889,6 +2910,24 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     rmauBusy = false;
     renderCgRmau();
+  }
+
+  // One read for the whole tenant instead of one per group. /administrativeUnits
+  // supports $expand, so the units and their members arrive together — which
+  // matters now that the candidate list includes baseline groups no policy
+  // references: those used to be invisible here, and checking each one
+  // separately would have made the scan cost grow with the baseline.
+  //
+  // Returns groupId -> { auId, auName } for RESTRICTED units only.
+  async function readProtectionMap() {
+    const map = new Map();
+    const aus = await Graph.ggetAll(
+      "/administrativeUnits?$select=id,displayName,isMemberManagementRestricted&$expand=members($select=id)");
+    for (const a of aus) {
+      if (a.isMemberManagementRestricted !== true) continue;
+      for (const m of a.members || []) map.set(m.id, { auId: a.id, auName: a.displayName });
+    }
+    return map;
   }
 
   // Where does a group go? Each exclusion group is routed to ITS OWN persona
@@ -2982,16 +3021,18 @@ max@contoso.com,"Global, DevOps"</pre>
       // assigned at AU scope. The result is a group nobody can edit, which for a
       // break-glass exclusion group is the worst possible day to discover it.
       // So the checkbox is disabled rather than merely unticked.
-      const disabled = !!prot || !!g.roleAssignable;
+      const disabled = !!prot || !!g.roleAssignable || !!g.unused;
       return `<tr>
         <td><label class="chk" style="margin:0"><input type="checkbox" data-cgrmau="${esc(g.id)}"${t.sel.has(g.id) ? " checked" : ""}${disabled ? " disabled" : ""}> <b>${esc(g.name)}</b></label>
           ${g.roleAssignable ? '<div class="mini" style="color:var(--off)"><b>role-assignable — cannot be protected this way.</b> Its membership is already restricted to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two roles. Putting it in one would leave <b>nobody</b> able to change the members. Pick one protection or the other: for a CA exclusion group, a restricted AU is usually the better one, because it lets you name who may manage it.</div>' : ""}
+          ${g.unused ? '<div class="mini muted">not referenced by any policy right now — listed so its protection state is visible. A baseline exclusion group can sit in a unit (or be frozen in one) long after the policy that used it was retired, and if it were not listed here nothing in the app would say so. Tick it deliberately if you want it protected.</div>' : ""}
           ${g.dynamic ? '<div class="mini" style="color:var(--report)">dynamic group — not pre-selected: members come and go with its membership rule, not by hand. Adding it still helps (the restriction covers the group object, so editing the <b>rule</b> also needs an AU-scoped role) — but protect the hand-managed exclusion groups first.</div>' : ""}</td>
-        <td class="mini">${g.refs.exclude.length} polic${g.refs.exclude.length === 1 ? "y" : "ies"}</td>
+        <td class="mini">${g.refs.exclude.length ? `${g.refs.exclude.length} polic${g.refs.exclude.length === 1 ? "y" : "ies"}` : '<span class="muted">not referenced</span>'}</td>
         <td class="mini">${prot
           ? (g.roleAssignable
             ? `<span style="color:var(--off)">🧊 <b>frozen</b> in ${esc(prot.auName)} — role-assignable AND restricted, so <b>nobody</b> can change its members. Remove it from the unit to restore Global / Privileged Role Administrator, then convert it with ⑦ Migrate.</span>`
             : `🔒 in <b>${esc(prot.auName)}</b>`)
+          : t.statusError ? '<span class="muted">unknown</span>'
           : '<span style="color:var(--report)">unprotected</span>'}</td>
         <td class="mini">${prot || g.roleAssignable ? '<span class="muted">—</span>'
           : dest.source === "persona" ? `→ <b>${esc(dest.auName)}</b>`
@@ -3031,6 +3072,7 @@ max@contoso.com,"Global, DevOps"</pre>
              the tab and losing the selection you have built. */ ""}
         <button class="btn" id="cgRmauRecheck">⟳ Re-check protection</button>
       </div>
+      ${t.statusError ? `<p class="mini" style="color:var(--off);margin:12px 0 0">⚠ The administrative units could not be read (${esc(t.statusError)}), so the <b>Protection</b> column below is blank rather than accurate — it is unknown, not “none”. ⟳ Re-check once the permission is in place.</p>` : ""}
       <h5 class="mini" style="margin:18px 0 4px">THE GROUPS</h5>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
         <input id="cgRmauQ" class="txt" list="cgRmauQList" value="${esc(t.q || "")}" placeholder="Search the exclusion groups…" autocomplete="off" spellcheck="false" style="max-width:340px;letter-spacing:normal;font-weight:400">
@@ -3046,7 +3088,7 @@ max@contoso.com,"Global, DevOps"</pre>
         // total the button can never reach.
         // Scoped to what is VISIBLE: with a search active, "all" meaning
         // "all 60, including the 54 you filtered out" is a trap.
-        const pick = shown.filter((g) => !t.status.get(g.id) && !g.roleAssignable);
+        const pick = shown.filter((g) => !t.status.get(g.id) && !g.roleAssignable && !g.unused);
         if (pick.length < 2) return "";
         const on = pick.filter((g) => t.sel.has(g.id)).length;
         return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
@@ -4097,10 +4139,10 @@ max@contoso.com,"Global, DevOps"</pre>
         // "Migrate it" understates the case when the group is ALREADY inside a
         // restricted unit: at that point its members cannot be changed by
         // anybody, today, and that is a live incident rather than a plan.
-        // Reuses ⑥ Protect's scan when it has run — no extra Graph calls, and
-        // nothing is claimed when the answer has not been read.
+        // Uses the tool's own protection read, falling back to ⑥ Protect's if
+        // that one failed. Nothing is claimed when neither has an answer.
         if (!r.roleAssignable) return "";
-        const prot = cgRmau && cgRmau.status ? cgRmau.status.get(r.id) : null;
+        const prot = (cgProt && cgProt.get(r.id)) || (cgRmau && cgRmau.status ? cgRmau.status.get(r.id) : null);
         if (!prot) return "";
         return `<p class="mini" style="color:var(--off)">🧊 <b>frozen — its members cannot be changed by anyone.</b> It is role-assignable <i>and</i> already in the restricted unit <b>${esc(prot.auName)}</b>. Only Global Administrator and Privileged Role Administrator may edit a role-assignable group's members, and that unit blocks both; neither flag can be undone. Remove it from the unit first (🛡 Restricted AUs), then convert it with ⑦ Migrate.</p>`;
       })()}

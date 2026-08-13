@@ -23,6 +23,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25045, date: "2026-08-13", title: "Where a group actually lives, without hunting for it",
+    items: [
+      { kind: "fixed", tool: "Protect exclusions", text: "A baseline exclusion group that no policy currently references was not listed at all, so its protection state was unreachable — CAB-SEC-U-CA001-Exclusion could be sitting frozen inside the Global unit and nothing anywhere in the app would say so. The candidate list now also includes groups the baseline expects and that are named like exclusion groups, marked “not referenced”. They are never pre-selected and select-all skips them: they are there to be seen, not acted on by default." },
+      { kind: "new", tool: "Conditional Access groups", text: "① Check gains a PROTECTION column — 🔒 the unit the group is in, “not in a unit”, or 🧊 frozen when it is role-assignable and restricted at once. Answering “where does this group live?” previously meant knowing to open ⑥ Protect and run a scan there, which is not a thing anyone should have to know." },
+      { kind: "improved", tool: "Protect exclusions", text: "Administrative-unit membership is read in ONE call for the whole tenant ($expand=members on /administrativeUnits) instead of one call per candidate group. The old shape would have made the scan cost grow with the baseline now that unreferenced groups are included. A failed read shows “unknown” rather than “unprotected” — the reassuring answer is the one that must never be a guess — and it cannot cost you the group scan." },
+      { kind: "fixed", tool: "Restricted AUs", text: "On an administrative-unit card the ✕ remove button dropped onto a line of its own as soon as a member carried two chips (group + frozen), reading as a stray button attached to nothing. It now sits at the right of its row whatever the chip count." },
+    ],
+  },
+  {
     build: 25044, date: "2026-08-13", title: "The Protect search box actually searches",
     items: [
       { kind: "fixed", tool: "Protect exclusions", text: "The search box did nothing while you typed. Its handler was attached to the CHANGE event rather than INPUT, and a text field fires change only when it loses focus — so the list stayed exactly as it was, however much you typed, until you clicked elsewhere. The type-ahead suggestions worked throughout, which made it look alive while the list underneath ignored every keystroke. Also shipped to production as build 262." },

@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25044"></script>
+<script src="js/popup-guard.js?v=25045"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25044">
+<link rel="stylesheet" href="css/app.css?v=25045">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25044"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25044"></script>
+<script src="js/counter.js?v=25045"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25045"></script>
 </head>
 <body>
 
@@ -1438,6 +1438,7 @@
         A recreate gives the group a <b>new object ID</b>. Conditional Access is moved for you; app assignments, Intune, group-based licensing and Azure RBAC are not — run <b>Group Analyzer</b> on the group first. The old group is renamed, not deleted, so it is recoverable. Needs <code>Group-NestingSupport.ReadWrite.All</code> and <code>Group.ReadWrite.All</code> (on demand). <a href="https://ourcloudnetwork.com/how-to-disable-group-nesting-in-microsoft-entra-id/" target="_blank" rel="noopener noreferrer">Background by Daniel Bradley ↗</a></li>
         <li><b>⑥ Protect <span class="tag new">NEW</span></b> — place the CA <b>exclusion</b> groups in a <b>restricted management administrative unit</b>. Membership of an exclusion group is a CA bypass, and any tenant-level Groups/User Administrator can hand it out; with the groups in a restricted AU (<code>isMemberManagementRestricted</code>, immutable at creation) only roles <b>scoped to that AU</b> can change members — Global Administrator included. Shows which exclusion groups are already protected, pre-selects the unprotected <b>assigned</b> exclusion groups (dynamic groups are opt-in — their membership follows a rule), creates or reuses the restricted AU, and optionally grants one account Groups Administrator <b>scoped to the AU</b> so membership stays manageable (do this — otherwise member changes need a new scoped assignment first). Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and P1. Only cloud security groups can be added; note that ⑤ Import members will afterwards need an AU-scoped role for these groups. <b>Role-assignable groups are refused here</b> — their membership is already limited to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two, so a group with both protections has nobody who can edit its members. Choose one or the other.</li>
         <li><b>⑤ Import members <span class="tag new">NEW</span></b> — bulk-add deployment-test users from a CSV. A <b>UPN column</b> is enough; with a <b>Persona column</b> (multi-persona cells split on <code>, ; |</code> or spaces) each user is auto-routed to the mapped group, pre-matched against the tenant’s group names — abbreviated conventions included (<code>internals → …-INT</code>). Only <b>baseline</b> groups (templates + active catalogs) are offered by default; ad-hoc groups that policies merely reference need an explicit opt-in checkbox. Users are resolved and existing memberships pre-checked (already-members are skipped), the plan is shown per group for review, and only then are members added. Dynamic groups are excluded — their membership is rule-managed. Ends with a Markdown change report.</li>
+        <li><b>Protection column</b> — ① Check now shows where each group actually lives: <code>🔒 &lt;unit&gt;</code>, <b>not in a unit</b>, or <b>🧊 frozen in &lt;unit&gt;</b> when the group is role-assignable and restricted at once, which means nobody can change its members. A dash means the administrative units could not be read, which is not the same as “not protected”.</li>
       </ul>
         <li><b>Add a member</b> — the matrix carries an <b>＋ Add</b> bar: type two letters and the directory suggests users, pick one of the loaded groups, and the member is added and the group re-read so the matrix shows the result rather than merely claiming it. Adding someone who is already in the group says so instead of failing.</li>
         <li><b>⑦ Migrate <span class="tag new">BETA</span></b> — move the baseline off <b>role-assignable</b> groups and onto a <b>restricted management administrative unit</b>. Role-assignable was only ever used here for its side effect: membership reachable only by Global Administrator or Privileged Role Administrator. A restricted AU does that <i>and</i> lets you name who may manage the groups, and it drops the role-assignable costs (500-per-tenant cap, no dynamic membership, no nesting control). The two cannot be combined — a restricted AU blocks GA and PRA, so a role-assignable group inside one has <b>nobody</b> who can change its members.
@@ -1459,6 +1460,8 @@
         <li><b>Scoped administrators are granted on every unit</b> the run wrote to, not just one of them, with each grant reported separately.</li>
         <li><b>🧊 frozen</b> — a group that is <b>role-assignable</b> and <i>already</i> in a restricted unit is a dead end: its members may only be changed by Global Administrator or Privileged Role Administrator, and the unit blocks both. Neither flag can be undone. Remove it from the unit to restore those two roles, then convert it with <b>⑦ Migrate</b>. ENCA refuses to create this state, but it can be inherited from a tenant configured before that guard existed, or from the portal — so it is now detected and called out wherever the group appears.</li>
         <li><b>Search</b> — the box above the list narrows the exclusion groups already found, with type-ahead over their names. Select-all then applies to what is visible, not to the whole list behind the filter.</li>
+        <li><b>Groups no policy references are listed too.</b> A baseline exclusion group can sit inside a unit — or be frozen inside one — long after the policy that used it was retired, and while the list only held <i>currently referenced</i> groups there was nowhere in the app that would tell you. They appear marked <b>not referenced</b>, are never pre-selected and are not swept up by select-all: they are here to be seen, not acted on by default.</li>
+        <li><b>Protection is read in one call</b> for the whole tenant rather than one per group, so the wider list costs nothing extra. If that read fails the column says <b>unknown</b>, never “unprotected” — the reassuring answer is the one you must not guess.</li>
       </ul>
       <p class="help-x">Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and Entra ID P1 for administrative-unit administrators. See the CA groups section above for the full detail and caveats.</p>
     </section>
@@ -2117,45 +2120,45 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25044"></script>
-<script src="js/version.js?v=25044"></script>
-<script src="js/promote.js?v=25044"></script>
-<script src="js/authConfig.js?v=25044"></script>
-<script src="js/labels.js?v=25044"></script>
-<script src="js/graph.js?v=25044"></script>
-<script src="js/model.js?v=25044"></script>
-<script src="js/render.js?v=25044"></script>
-<script src="js/analyze.js?v=25044"></script>
-<script src="js/whatif.js?v=25044"></script>
-<script src="js/mslearn.js?v=25044"></script>
-<script src="js/gapcheck.js?v=25044"></script>
-<script src="js/cisdata.js?v=25044"></script>
-<script src="js/cischeck.js?v=25044"></script>
-<script src="js/exclusions.js?v=25044"></script>
-<script src="js/validator.js?v=25044"></script>
-<script src="js/whatifeval.js?v=25044"></script>
-<script src="js/compare.js?v=25044"></script>
-<script src="js/groupuse.js?v=25044"></script>
-<script src="js/locations.js?v=25044"></script>
-<script src="js/authcontexts.js?v=25044"></script>
-<script src="js/authstrengths.js?v=25044"></script>
-<script src="js/recycle.js?v=25044"></script>
-<script src="js/rmau.js?v=25044"></script>
-<script src="js/termsofuse.js?v=25044"></script>
-<script src="js/audit.js?v=25044"></script>
-<script src="js/drift.js?v=25044"></script>
-<script src="js/signins.js?v=25044"></script>
-<script src="js/reportimpact.js?v=25044"></script>
-<script src="js/changelog.js?v=25044"></script>
-<script src="js/baselineData.js?v=25044"></script>
-<script src="js/baselineJoeyData.js?v=25044"></script>
-<script src="js/baseline.js?v=25044"></script>
-<script src="js/groupTemplates.js?v=25044"></script>
-<script src="js/assign.js?v=25044"></script>
-<script src="js/cagroups.js?v=25044"></script>
-<script src="js/import.js?v=25044"></script>
-<script src="js/export.js?v=25044"></script>
-<script src="js/demo.js?v=25044"></script>
-<script src="js/app.js?v=25044"></script>
+<script src="js/branding.js?v=25045"></script>
+<script src="js/version.js?v=25045"></script>
+<script src="js/promote.js?v=25045"></script>
+<script src="js/authConfig.js?v=25045"></script>
+<script src="js/labels.js?v=25045"></script>
+<script src="js/graph.js?v=25045"></script>
+<script src="js/model.js?v=25045"></script>
+<script src="js/render.js?v=25045"></script>
+<script src="js/analyze.js?v=25045"></script>
+<script src="js/whatif.js?v=25045"></script>
+<script src="js/mslearn.js?v=25045"></script>
+<script src="js/gapcheck.js?v=25045"></script>
+<script src="js/cisdata.js?v=25045"></script>
+<script src="js/cischeck.js?v=25045"></script>
+<script src="js/exclusions.js?v=25045"></script>
+<script src="js/validator.js?v=25045"></script>
+<script src="js/whatifeval.js?v=25045"></script>
+<script src="js/compare.js?v=25045"></script>
+<script src="js/groupuse.js?v=25045"></script>
+<script src="js/locations.js?v=25045"></script>
+<script src="js/authcontexts.js?v=25045"></script>
+<script src="js/authstrengths.js?v=25045"></script>
+<script src="js/recycle.js?v=25045"></script>
+<script src="js/rmau.js?v=25045"></script>
+<script src="js/termsofuse.js?v=25045"></script>
+<script src="js/audit.js?v=25045"></script>
+<script src="js/drift.js?v=25045"></script>
+<script src="js/signins.js?v=25045"></script>
+<script src="js/reportimpact.js?v=25045"></script>
+<script src="js/changelog.js?v=25045"></script>
+<script src="js/baselineData.js?v=25045"></script>
+<script src="js/baselineJoeyData.js?v=25045"></script>
+<script src="js/baseline.js?v=25045"></script>
+<script src="js/groupTemplates.js?v=25045"></script>
+<script src="js/assign.js?v=25045"></script>
+<script src="js/cagroups.js?v=25045"></script>
+<script src="js/import.js?v=25045"></script>
+<script src="js/export.js?v=25045"></script>
+<script src="js/demo.js?v=25045"></script>
+<script src="js/app.js?v=25045"></script>
 </body>
 </html>
