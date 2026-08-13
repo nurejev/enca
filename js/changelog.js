@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 260, date: "2026-08-13", title: "Release notes appear again",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The What's-new popup had gone permanently silent on any browser that had also opened the beta site. Both channels wrote the “last seen build” to one localStorage key while their build numbers come from two incompatible series — production counts 259, beta counts 25040 — so the check “have you already seen this?” compared 25040 against 259, decided yes, and returned. Not for one release: for every future one, because a production build number can never overtake a beta number. The marker is now per channel, and a value from the wrong series reads as “not seen”, so a browser already stuck heals itself on the next visit rather than needing its storage cleared. If you saw no release note for builds 255 to 259, they are all in 📋 What's new." },
+    ],
+  },
+  {
     build: 259, date: "2026-08-13", title: "Break-glass gets a vault of its own",
     items: [
       { kind: "new", tool: "Restricted AUs", text: "A tenth unit joins the baseline: CAB-SEC-RMAU-BreakGlass. CAB-SEC-U-BreakGlass is excluded from very nearly every policy in the baseline, so it belongs to no single persona — and that is precisely the argument for giving it its own unit rather than filing it under Global. Whoever can edit that group can walk through every policy at once, so it deserves a shorter list of scoped administrators than anything else. The name deliberately carries no -Exclusions suffix, because the unit holds the emergency access group itself rather than a persona's exclusions. Build 258 shipped the nine persona units without it." },
