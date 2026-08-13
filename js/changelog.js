@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 271, date: "2026-08-13", title: "The roadmap reference chips were unstyled",
+    items: [
+      { kind: "fixed", tool: "Roadmap", text: "Build 269 brought the roadmap's Rnn reference chips across but not the CSS that draws them, so 27 of them rendered as bare text run together with the titles. Build 270 then tried to insert the Shipped-before styling next to the missing rule, found nothing to anchor to, and silently did nothing — one omission hiding the next. Both rules are in now. The lesson is already familiar: a replace that finds no anchor should fail rather than succeed quietly, which is what a verification step is for." },
+    ],
+  },
+  {
     build: 270, date: "2026-08-13", title: "The roadmap retires what it delivered",
     items: [
       { kind: "new", tool: "Roadmap", text: "A SHIPPED BEFORE section at the foot of the page, outside the timeline. An item moves there on its own once it is more than 15 builds old, so “Now” stays what is actually current rather than everything ever delivered. Nothing is deleted — a roadmap that forgets what it delivered is only a wish list, and a retired reference still has to resolve for older notes about it to mean anything." },
