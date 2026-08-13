@@ -18,20 +18,56 @@
 // `n` is a stable hand-assigned number so it can be referred to out loud —
 // "push number 3 to main". Numbers are NOT reused after an item ships;
 // the next new item takes the next free number.
+//
+// ONE ITEM PER CHANGE. Only things that must ship together share a number —
+// a fix and the feature it fixes, or two edits that are meaningless apart.
+// Unrelated work bundled under one number cannot be promoted separately, which
+// is the whole point of numbering it: "push 19" has to mean one decision, not
+// three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.266",
-  betaBuild: "v1.0.250-beta.54",
+  betaBuild: "v1.0.250-beta.55",
 
   items: [
     {
-      n: 17,
-      title: "Roadmap cards: bulk grant scoped admins, baseline guide, self-hosting",
+      n: 21,
+      title: "Break-glass groups matched by local naming",
+      tools: ["Restricted AUs", "Protect exclusions", "Import"],
+      builds: [25054],
+      risk: "medium",
+      what: "＋ Bulk add finds break-glass groups named Emergency_Access1, EmergencyAccess, Break-Glass, BG-… and not only the baseline's own name — the query looks under those prefixes too, since such a group was never being read at all. The CA number now wins over a name match in every tool that routes.",
+      why: "Depends on bulk add, which is already in production. Without it the break-glass unit stays empty on any tenant that does not use the baseline's spelling — which is most of them, since break-glass groups predate the baseline.",
+      files: ["js/rmau.js", "js/app.js", "index.html"],
+    },
+    {
+      n: 20,
+      title: "Roadmap card: self-hosting with Docker",
       tools: ["Roadmap"],
-      builds: [25050, 25053],
+      builds: [25053],
       risk: "low",
-      what: "Three roadmap cards: granting scoped administrators across several restricted units at once, a baseline usage guide covering what the baseline is and the dependency order to deploy it in, and self-hosting via a Docker image.",
-      why: "Roadmap text only — nothing behaves differently. It can ride along with the next promotion.",
+      what: "One roadmap card describing a published nginx image and a compose example, pairing with the single-tenant app registration, and leading with the redirect-URI step that cannot be automated.",
+      why: "Roadmap text only. It can ride along with the next promotion.",
+      files: ["index.html"],
+    },
+    {
+      n: 19,
+      title: "Roadmap card: baseline usage guide",
+      tools: ["Roadmap"],
+      builds: [25053],
+      risk: "low",
+      what: "One roadmap card describing an in-app guide to what the baseline contains and the dependency order to deploy it in, with a readiness check per step.",
+      why: "Roadmap text only. It can ride along with the next promotion.",
+      files: ["index.html"],
+    },
+    {
+      n: 17,
+      title: "Roadmap card: bulk grant scoped administrators",
+      tools: ["Roadmap"],
+      builds: [25050],
+      risk: "low",
+      what: "One roadmap card describing granting scoped administrators across several restricted units at once, and showing the current grants across all units in one view.",
+      why: "Roadmap text only. It can ride along with the next promotion.",
       files: ["index.html"],
     },
     {

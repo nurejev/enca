@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25055, date: "2026-08-13", title: "One queue number per change",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The promotion queue had three unrelated roadmap cards filed under a single number, which defeats the point of numbering them: “push 17” has to mean one decision, not three that happened to be written on the same day, and bundling them made it impossible to promote one without the others. Split into 17 (bulk grant scoped administrators), 19 (baseline usage guide) and 20 (self-hosting with Docker), with the break-glass naming work as 21. The rule is now written into the header of js/promote.js so the next entry cannot quietly repeat it: one item per change, and only work that must ship together shares a number." },
+    ],
+  },
+  {
     build: 25054, date: "2026-08-13", title: "Break-glass groups by whatever they are called",
     items: [
       { kind: "improved", tool: "Restricted AUs", text: "＋ Bulk add on the break-glass unit now finds groups named the way tenants actually name them — Emergency_Access1, Emergency_Access2, EmergencyAccess, Break-Glass, BG-… — rather than only the baseline's own CAB-SEC-U-BreakGlass. Two changes were needed: the name rule matches on intent, and the group query looks under those prefixes too, since a group called Emergency_Access1 was not being READ at all, only unmatched. Anything holding the accounts that bypass every policy belongs in the same vault whatever it has been called." },
