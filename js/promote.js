@@ -27,9 +27,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.266",
-  betaBuild: "v1.0.250-beta.56",
+  betaBuild: "v1.0.250-beta.57",
 
   items: [
+    {
+      n: 22,
+      title: "Roadmap items carry a reference (R01–R26)",
+      tools: ["Roadmap"],
+      builds: [25057],
+      risk: "low",
+      what: "A stable reference chip on every roadmap item, plus the .rm-ref style and a line in the intro saying the references are permanent and not a priority order.",
+      why: "Labelling only. Production's roadmap has the same items and no way to name one out loud.",
+      files: ["index.html", "css/app.css"],
+    },
     {
       n: 21,
       title: "Break-glass groups matched by local naming",

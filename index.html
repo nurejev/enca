@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25056"></script>
+<script src="js/popup-guard.js?v=25057"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25056">
+<link rel="stylesheet" href="css/app.css?v=25057">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25056"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25056"></script>
+<script src="js/counter.js?v=25057"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25057"></script>
 </head>
 <body>
 
@@ -1057,7 +1057,7 @@
   <section id="screen-roadmap" class="screen">
     <div class="help-page">
       <h2 class="home-title" style="margin:0 0 8px">🗺 Roadmap</h2>
-      <p class="mini muted" style="margin:0 0 18px">Where ENCA is heading, laid out in time. Order and scope may change — real-tenant feedback decides what lands first. Suggestions are welcome as GitHub issues.</p>
+      <p class="mini muted" style="margin:0 0 18px">Where ENCA is heading, laid out in time. Order and scope may change — real-tenant feedback decides what lands first. Suggestions are welcome as GitHub issues.<br><b>Each item carries a reference</b> (<span class="rm-ref">Rnn</span>) so it can be pointed at without quoting the title. A reference belongs to that item permanently: it is never reused once the item ships, and the numbers are not a priority order.</p>
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
@@ -1068,124 +1068,124 @@
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> <span class="tag ok">in beta today</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R02</span> <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Does the tenant still look like it did when we signed it off? Snapshot the Conditional Access configuration to a file you keep, and compare a later run against it — added, removed, changed, ranked so a widened exclusion or a policy switched Off outranks a rename. No server and no 30-day limit, because the history is the file rather than Microsoft's audit log. Running on the beta channel now. <b>Next for it:</b> exclusion-group <i>membership</i> drift (an exclusion group quietly gaining members is the same risk as widening the exclusion itself) and comparing two snapshots to each other without re-reading the tenant.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">⌨️ Command palette <span class="tag ok">in beta today</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R03</span> ⌨️ Command palette <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Past twenty-odd tools, a tile grid stops being the fastest way in. <b>Ctrl/Cmd&nbsp;+&nbsp;K</b> anywhere opens a search box: type a few letters and land in the tool, or type a CA number or policy name and land on the policy card. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bbc</code> finds Best-practice &amp; bypass checks. Running on the beta channel now.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🧹 Retire role-assignable groups everywhere <span class="tag ok">started</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R04</span> 🧹 Retire role-assignable groups everywhere <span class="tag ok">started</span></h4>
             <p class="mini" style="margin:0">The baseline is moving off role-assignable groups: the flag was only ever used for a side effect — membership reachable by Global Administrator or Privileged Role Administrator only — and a restricted management administrative unit does that better, names <i>who</i> may manage the group, and can be undone. It also cannot be combined with one: a group carrying both has nobody who can change its members.
               <br><b>Done:</b> new groups are ordinary security groups (assigned or dynamic) with an optional restricted-AU placement at creation; the role-assignable checkbox and the ↻ Recreate-role-assignable action are gone; the ① Check drift flag is inverted, so a plain group is correct and a role-assignable one is what gets flagged; <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> moves existing ones across.
               <br><b>Still to do:</b> the bundled group templates and the baseline catalog still describe an estate built on role-assignable groups; the MS Learn and CIS checks, Group Analyzer and the documentation exports still mention it as the expected shape; and the persona <b>import</b> path should create protected groups directly rather than leaving protection as a later step. Production keeps creating role-assignable groups until this lands there.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">📖 Baseline usage guide <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R05</span> 📖 Baseline usage guide <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">The toolset can build the baseline; it cannot yet tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge currently lives in whoever has done it before, which is the least durable place to keep it. A first deployment guesses at questions with real answers: do the groups exist before the policies, do the named locations exist before the policies that reference them, which persona is safe to enable first, and what does CA000–CA099 actually cover.</p>
             <p class="mini" style="margin:6px 0 0">The plan is an in-app guide that reads the tenant while it explains: what each persona covers and its CA range, the <b>dependency order</b> (groups and restricted units → named locations, authentication strengths and contexts → Terms of use, which has no create API → policies, imported Off) with the reason for each step rather than just the sequence, and a <b>readiness check</b> per step that says what is missing before you run it instead of after. It ends where 🎚 Report-only impact begins: policies land Off, are switched to report-only, and are enforced once the forecast is boring.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🐳 Self-hosting with Docker <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R06</span> 🐳 Self-hosting with Docker <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">ENCA is static files and a browser — no server, no database, nothing stored anywhere. That makes it trivially self-hostable, and some tenants will require it: a security tool that reads Conditional Access is exactly the kind of thing an organisation wants served from its own infrastructure rather than from someone else's GitHub Pages, whatever the code does.</p>
             <p class="mini" style="margin:6px 0 0"><b>And with a host of your own, somewhere to keep things.</b> Today nothing survives the tab closing, by design — there is no server to keep it on, so a Drift snapshot is a file you download and a report is a file you save. A self-hosted instance changes what is possible: an optional <b>SQLite</b> store alongside the container could hold drift snapshots, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having had to keep track of a JSON file. Strictly opt-in and self-hosted only — the hosted site keeps storing nothing, because "nothing is kept anywhere" is a promise worth more than the convenience. Tokens would stay out of it regardless: they belong in the browser session and nowhere else.</p>
             <p class="mini" style="margin:6px 0 0">The plan is a published image (nginx over the built files) plus a <code>docker compose</code> example, so <code>docker run</code> gives a working instance. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. The one thing that cannot be automated is the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, so the documentation has to lead with that rather than bury it, since it is the step that produces the confusing sign-in error when missed.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">👤 Bulk grant scoped administrators <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R07</span> 👤 Bulk grant scoped administrators <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Members can be added to a persona vault in bulk; the people who may manage them still cannot. A scoped role is granted one administrator, on one unit, at a time — so a four-person team across the eleven baseline units is <b>44</b> separate grants, and the failure mode is not the tedium but the gap: miss one unit and that persona has no administrator, which in a restricted unit means <b>nobody</b> can change its members.</p>
             <p class="mini" style="margin:6px 0 0">The plan is to pick the administrators once and the units once, and apply the grid — with each unit × administrator reported as its own outcome, because a partial success has to be readable rather than rounded to “done”. It should also show the <b>current</b> grants across all units together, since the question people actually ask is “who can manage the Externals exclusions?” and answering it today means opening eleven cards.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🌐 Type the country, get the code <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R08</span> 🌐 Type the country, get the code <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">A country named location takes <b>two-letter ISO 3166-1 codes</b>, typed by hand into a free-text box. The failure mode is silent and total: a wrong code is still a <i>valid</i> code, so the policy saves, looks right in the portal, and quietly covers the wrong country until somebody is blocked or — worse — is not. Ireland is <code>IE</code>; <code>IR</code> is Iran. Austria is <code>AT</code>, Australia <code>AU</code>. Sweden is <code>SE</code>, Switzerland <code>CH</code>.</p>
             <p class="mini" style="margin:6px 0 0">The plan is to type the <b>name</b> and have the code filled in — a type-ahead over the full ISO list, matching on country name, adding the code as a chip you can see and remove. Codes typed directly keep working, but anything that is not a real ISO code is rejected at entry rather than accepted and discovered later. Worth doing for the same reason the CA-number routing exists: the tool knows the right answer, so the human should not have to be the one who remembers it.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🔝 Flagged tiles first in a collapsed section <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R09</span> 🔝 Flagged tiles first in a collapsed section <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">A collapsed home section shows four tiles, and anything flagged <b>NEW</b>, <b>BETA</b> or <b>UPDATED</b> claims those slots ahead of the rest — but it claims them <i>in page order</i>, so a flagged tile that sits ninth is visible while still appearing after unflagged ones, and with five flagged tiles in a section one of them drops below the fold. The plan is to lift flagged tiles to the <b>top</b> of the collapsed view, newest first, so what changed is the first thing read rather than merely somewhere on screen. Expanding restores the normal order, because the grid's grouping is meaningful and shuffling it permanently would cost more than it gains.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🎛 Group actions where you are already looking <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R10</span> 🎛 Group actions where you are already looking <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Clicking a group in <a href="#" class="md-tool" data-tool="toolCaGroups">👥 CA groups</a> ① Check opens a card that <i>reads</i>: object id, type, the policies that include or exclude it, its members. Everything you might then want to <i>do</i> lives on a different numbered tab, so you close the card, find the right step, and hunt for the group again. <b>List Policies already solves this</b> — every policy card carries its own Documentation, Backup, Assign and Policy-state buttons.
               <br>The plan is the same treatment for a group: create it if it is missing (②), read or add members (③), assign it to policies (④), import members from CSV (⑤), protect it in a restricted AU (⑥), migrate it off role-assignable (⑦), disable nesting, or open it in <a href="#" class="md-tool" data-tool="toolGroupUse">🔗 Group Analyzer</a> to see everything outside Conditional Access that points at it — each offered only when it actually applies, so a role-assignable group is not offered ⑥ Protect and a group already in a restricted AU is not offered it twice.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🖥 Compliant-device reality check <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R11</span> 🖥 Compliant-device reality check <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — and nothing checks the other half today. Read the compliance policies and their assignments, then flag every Conditional Access policy whose protection rests on a persona that no compliance policy actually covers. The same blind spot exists for app-protection policies behind “require approved client app”.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">↩️ Undo for writes <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R12</span> ↩️ Undo for writes <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Every write tool already produces a change report of exactly what it did. Make it replayable in reverse: one action that puts back the state before the run, with the same typed-confirmation discipline as the original write. It lowers the cost of every write tool already shipped, and it is the natural safety net under <i>Editable Conditional Access policies</i> further down this map.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🔐 Improve security <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R13</span> 🔐 Improve security <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🏢 Your own single-tenant app registration <span class="tag ok">available now</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R14</span> 🏢 Your own single-tenant app registration <span class="tag ok">available now</span></h4>
             <p class="mini" style="margin:0">Every tenant signs in through <b>one multi-tenant</b> app registration owned by Limon-IT by default — the same application ID, and therefore an application outside your directory holding a delegated grant on your data. <b>You can now run ENCA on your own instead:</b> a <b>single-tenant</b> SPA (<code>AzureADMyOrg</code>) registered inside your tenant, with your own client ID, consent record, redirect URIs and audit trail — nothing to trust but the code you reviewed. The sign-in <i>mechanism</i> is unchanged (a SPA using authorization code + PKCE, no client secret); what changes is who owns the registration, and so who can review, audit and revoke it.
               <br><br><b>Shipped:</b> <code>./New-EncaAppRegistration.ps1 -SingleTenant</code> creates the registration and prints what to paste; <code>js/authConfig.local.js</code> points your copy at it without editing a file upstream also changes, so later releases still merge cleanly.
               <br><b>Also shipped:</b> <code>-RequireAssignment</code> sets <i>Assignment required</i> on the enterprise application and assigns you first, so only you can open the tool until you widen it — the requirement is switched on only after somebody is successfully assigned, so the script cannot seal you out.
               <br>📖 <b><a href="#" id="stLink">Read the setup manual</a></b> — prerequisites, the five steps, verification, and the part people skip: keeping a pinned copy current. Also in <a href="#" id="rmSecLink2">Security &amp; risk</a>.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🍴 Fork detection and update-from-upstream <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R15</span> 🍴 Fork detection and update-from-upstream <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">A high-assurance tenant is encouraged to fork, review and serve its own pinned copy — and the moment it does, it stops hearing about fixes. The plan: the app notices it is running as a fork (its origin is not <code>BRANDING.host</code> and the build it carries is older than upstream), says so plainly, and shows what has changed since the pinned build — the What's-new entries between here and there — with the commands to pull <code>main</code> in and re-review the diff. The point is not auto-updating, which would defeat the reason for forking; it is making <b>“you are 14 builds behind, and here is what those builds changed”</b> impossible to miss. Pairs with <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a> and the security document's fork-review-pin guidance.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🔓 Revoke permissions when done <span class="tag ok">partially done</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R16</span> 🔓 Revoke permissions when done <span class="tag ok">partially done</span></h4>
             <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses. <b>First step shipped:</b> the Permissions panel's <i>🔒 How to revoke</i> guide documents the three revocation routes with ready-to-run PowerShell and their consequences — what remains is doing it in one click, which needs careful design (see the guide for why the app deliberately holds no revoke rights itself).</p>
           </div>
         </div>
         <div class="rm-era future far">
           <h3>Later <span class="rm-when">after the above</span></h3>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">✏️ Editable Conditional Access policies <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R17</span> ✏️ Editable Conditional Access policies <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Edit an existing policy from its card — not just state and group assignments but the conditions, grant and session controls themselves, with a field-level diff of exactly what will change and validation before the PATCH. The Change audit tool then shows the same diff after the fact, so intent and record match.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🏢 Several tenants at once <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R18</span> 🏢 Several tenants at once <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">For anyone who looks after more than one tenant: sign into each in turn and hold the results side by side — baseline coverage, CIS score, gap count, drift since last visit, one row per customer. One screen that answers “which of my tenants is worst off this month” without opening thirteen browser tabs. Pairs with Drift watch: a snapshot per tenant, reviewed on a schedule you keep rather than infrastructure you run.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🌐 Named locations vs. the sign-in log <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R19</span> 🌐 Named locations vs. the sign-in log <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">The trusted IP ranges in a tenant are usually older than the offices they describe. Cross the named locations with the sign-in log already read for Report-only impact and Sign-in failures: ranges nobody has signed in from for months, sign-ins from countries no location names, and trusted ranges that no longer match reality — the quiet way a location-based exception outlives its reason.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🤝 Cross-tenant access settings <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R20</span> 🤝 Cross-tenant access settings <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Inbound and outbound B2B collaboration, and whether the tenant accepts a partner's MFA and device claims. It sits directly next to Conditional Access — accepting a partner's MFA claim decides whether your own MFA requirement is satisfied by someone else's authentication — and it is invisible in every tool here today.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🎫 CAE and token protection coverage <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R21</span> 🎫 CAE and token protection coverage <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Continuous access evaluation and token protection are the newer session controls, and both are easy to leave half-configured: which policies opt in, which silently do not, and which resources support it. The same treatment the persona × control matrix gives the classic grant controls.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">📋 Change plan export <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R22</span> 📋 Change plan export <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Export what a write <i>would</i> do as a reviewable file, hand it to a colleague, then apply it. The obvious companion to a toolset whose whole pitch is that nothing changes until you say so — and the practical form of a two-person rule for tenants that need one.</p>
           </div>
         </div>
         <div class="rm-era future far">
           <h3>On the horizon <span class="rm-when">builds on policy editing</span></h3>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🏗 Policy builder <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R23</span> 🏗 Policy builder <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Build a new policy from scratch, guided: pick the persona, the resources, the conditions and the controls with best-practice hints along the way, preflight the result in What-If, and create it in report-only by default — so every new policy is born with the evidence trail the Report-only impact tool needs before go-live.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🚀 Go-live checklist <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R24</span> 🚀 Go-live checklist <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Report-only impact forecasts one policy at a time; a checklist tracks the whole report-only backlog toward enforcement — what is staged, what has enough traffic to judge, what is ready to switch on, with the forecast attached to each. The paperwork of a go-live, kept in the tool that produced the evidence.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">📏 Naming-convention linter <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R25</span> 📏 Naming-convention linter <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">The CA-number persona ranges are a convention every tool here assumes and none of them validates: numbers out of range for their persona, duplicates, gaps, policies whose name says one persona while their assignment says another. Cheap to check, and it keeps the convention that makes everything else legible from quietly rotting.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px">🇳🇱 Dutch interface <span class="tag">planned</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R26</span> 🇳🇱 Dutch interface <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">The exported documentation is the part non-administrators actually read, and for a Dutch organisation that reads better in Dutch. The tool is built for it — one labels file, no build step — so the work is translation and keeping it honest, not plumbing.</p>
           </div>
         </div>
@@ -2138,45 +2138,45 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25056"></script>
-<script src="js/version.js?v=25056"></script>
-<script src="js/promote.js?v=25056"></script>
-<script src="js/authConfig.js?v=25056"></script>
-<script src="js/labels.js?v=25056"></script>
-<script src="js/graph.js?v=25056"></script>
-<script src="js/model.js?v=25056"></script>
-<script src="js/render.js?v=25056"></script>
-<script src="js/analyze.js?v=25056"></script>
-<script src="js/whatif.js?v=25056"></script>
-<script src="js/mslearn.js?v=25056"></script>
-<script src="js/gapcheck.js?v=25056"></script>
-<script src="js/cisdata.js?v=25056"></script>
-<script src="js/cischeck.js?v=25056"></script>
-<script src="js/exclusions.js?v=25056"></script>
-<script src="js/validator.js?v=25056"></script>
-<script src="js/whatifeval.js?v=25056"></script>
-<script src="js/compare.js?v=25056"></script>
-<script src="js/groupuse.js?v=25056"></script>
-<script src="js/locations.js?v=25056"></script>
-<script src="js/authcontexts.js?v=25056"></script>
-<script src="js/authstrengths.js?v=25056"></script>
-<script src="js/recycle.js?v=25056"></script>
-<script src="js/rmau.js?v=25056"></script>
-<script src="js/termsofuse.js?v=25056"></script>
-<script src="js/audit.js?v=25056"></script>
-<script src="js/drift.js?v=25056"></script>
-<script src="js/signins.js?v=25056"></script>
-<script src="js/reportimpact.js?v=25056"></script>
-<script src="js/changelog.js?v=25056"></script>
-<script src="js/baselineData.js?v=25056"></script>
-<script src="js/baselineJoeyData.js?v=25056"></script>
-<script src="js/baseline.js?v=25056"></script>
-<script src="js/groupTemplates.js?v=25056"></script>
-<script src="js/assign.js?v=25056"></script>
-<script src="js/cagroups.js?v=25056"></script>
-<script src="js/import.js?v=25056"></script>
-<script src="js/export.js?v=25056"></script>
-<script src="js/demo.js?v=25056"></script>
-<script src="js/app.js?v=25056"></script>
+<script src="js/branding.js?v=25057"></script>
+<script src="js/version.js?v=25057"></script>
+<script src="js/promote.js?v=25057"></script>
+<script src="js/authConfig.js?v=25057"></script>
+<script src="js/labels.js?v=25057"></script>
+<script src="js/graph.js?v=25057"></script>
+<script src="js/model.js?v=25057"></script>
+<script src="js/render.js?v=25057"></script>
+<script src="js/analyze.js?v=25057"></script>
+<script src="js/whatif.js?v=25057"></script>
+<script src="js/mslearn.js?v=25057"></script>
+<script src="js/gapcheck.js?v=25057"></script>
+<script src="js/cisdata.js?v=25057"></script>
+<script src="js/cischeck.js?v=25057"></script>
+<script src="js/exclusions.js?v=25057"></script>
+<script src="js/validator.js?v=25057"></script>
+<script src="js/whatifeval.js?v=25057"></script>
+<script src="js/compare.js?v=25057"></script>
+<script src="js/groupuse.js?v=25057"></script>
+<script src="js/locations.js?v=25057"></script>
+<script src="js/authcontexts.js?v=25057"></script>
+<script src="js/authstrengths.js?v=25057"></script>
+<script src="js/recycle.js?v=25057"></script>
+<script src="js/rmau.js?v=25057"></script>
+<script src="js/termsofuse.js?v=25057"></script>
+<script src="js/audit.js?v=25057"></script>
+<script src="js/drift.js?v=25057"></script>
+<script src="js/signins.js?v=25057"></script>
+<script src="js/reportimpact.js?v=25057"></script>
+<script src="js/changelog.js?v=25057"></script>
+<script src="js/baselineData.js?v=25057"></script>
+<script src="js/baselineJoeyData.js?v=25057"></script>
+<script src="js/baseline.js?v=25057"></script>
+<script src="js/groupTemplates.js?v=25057"></script>
+<script src="js/assign.js?v=25057"></script>
+<script src="js/cagroups.js?v=25057"></script>
+<script src="js/import.js?v=25057"></script>
+<script src="js/export.js?v=25057"></script>
+<script src="js/demo.js?v=25057"></script>
+<script src="js/app.js?v=25057"></script>
 </body>
 </html>

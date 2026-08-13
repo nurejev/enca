@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25057, date: "2026-08-13", title: "Roadmap items have references now",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Every roadmap item carries a reference — R01 to R26 — so one can be pointed at without quoting its title, the same way the promotion queue is worked by number. A reference belongs to its item permanently: it is never reused once the item ships, because a number that gets recycled makes every older note about it wrong. The numbers are deliberately NOT a priority order; the eras above them are what says when, and the intro says so rather than leaving it to be assumed from the sequence." },
+    ],
+  },
+  {
     build: 25056, date: "2026-08-13", title: "Roadmap: somewhere to keep things, if you host it yourself",
     items: [
       { kind: "improved", tool: "Roadmap", text: "🐳 Self-hosting with Docker gains the reason it is worth more than a different URL. Nothing survives the tab closing today, by design — there is no server to keep it on, so a drift snapshot is a file you download and a report is a file you save. A self-hosted instance could offer an optional SQLite store holding snapshots, reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having had to keep track of a JSON file. Written as opt-in and self-hosted only: the hosted site keeps storing nothing, because “nothing is kept anywhere” is worth more than the convenience — and tokens stay out of it either way, since they belong in the browser session and nowhere else." },
