@@ -1472,7 +1472,7 @@
   const imWidBlocked = (p) => p.wid && imLic.known && !imLic.licensed;
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
-    imBundle = null; imPlan = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
+    imBundle = null; imPlan = null; imAu = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -1489,6 +1489,59 @@
   const imPersonaKey = (p) => p.asIs ? "eadmins" : (p.persona || "other");
   const imPersonaLabel = (k) => k === "eadmins" ? "🚨 E-Admins" : (IM_PERSONA_LABEL[k] || "Other");
 
+  // Restricted-AU preflight. Read once per opened file; a failure to read is
+  // shown as "could not check", never as "all present" — the whole point of a
+  // preflight is that it does not lie about what it did not see.
+  let imAu = null;   // { codes, rows, missing, byCode, error, busy, sel, results }
+
+  async function imLoadAu() {
+    const codes = Importer.personaCodes(imBundle, imPlan.filter(p => !p.exists).map(p => p.raw));
+    imAu = { codes, rows: [], missing: [], byCode: {}, error: null, busy: false, sel: new Set(), results: null };
+    if (!codes.length) return;
+    try {
+      const aus = isDemo
+        ? [{ id: "au-GLO", displayName: "CAB-SEC-RMAU-GLO-Exclusions", isMemberManagementRestricted: true }]
+        : await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
+      const check = Rmau.baselineCheck(aus);
+      imAu.rows = check.rows.filter(r => codes.includes(r.code));
+      imAu.missing = imAu.rows.filter(r => r.status === "missing");
+      imAu.sel = new Set(imAu.missing.map(r => r.name));
+      for (const r of imAu.rows) if (r.status === "present") imAu.byCode[r.code] = r.id;
+    } catch (e) {
+      imAu.error = e.message || String(e);
+    }
+  }
+
+  function imAuPanel() {
+    if (!imAu || !imAu.codes.length) return "";
+    if (imAu.error) {
+      return `<div class="cg-panel"><h4>🛡 PROTECTION — COULD NOT CHECK</h4>
+        <p class="mini" style="margin:0">The tenant's administrative units could not be read (${esc(imAu.error)}), so it is not known whether the persona vaults exist. <b>The import will run regardless</b> — groups it creates will simply be left unprotected, and the report will say so per group.</p></div>`;
+    }
+    const chip = (r) => r.status === "present" ? '<span class="tag grant">present</span>'
+      : r.status === "unrestricted" ? '<span class="tag block">name taken — not restricted</span>'
+      : '<span class="tag">missing</span>';
+    const rows = imAu.rows.map(r => `<div class="dr-row"><div class="dr-head">
+        ${r.status === "missing"
+          ? `<label class="chk" style="margin:0"><input type="checkbox" data-imau="${esc(r.name)}"${imAu.sel.has(r.name) ? " checked" : ""}> <b>${esc(r.name)}</b></label>`
+          : `<b>${esc(r.name)}</b>`}
+        ${chip(r)} <span class="mini muted">${esc(r.label)}</span>
+      </div></div>`).join("");
+    const done = imAu.results ? `<p class="mini" style="margin:8px 0 0"><b>${imAu.results.filter(r => r.ok).length}/${imAu.results.length} created.</b>${imAu.results.some(r => r.ok && !r.adminOk) ? ` <span style="color:var(--off)">${imAu.results.filter(r => r.ok && !r.adminOk).length} without a scoped administrator.</span>` : ""}</p>` : "";
+    return `<div class="cg-panel">
+      <h4>🛡 PROTECTION — ${imAu.rows.length} PERSONA VAULT${imAu.rows.length === 1 ? "" : "S"} FOR THIS IMPORT</h4>
+      <p class="mini" style="margin:0 0 8px">Each group this import creates is added to its persona's restricted administrative unit, so a tenant-wide Groups Administrator cannot quietly widen a Conditional Access exclusion. Only the personas your selection touches are listed.</p>
+      <div class="cg-pick">${rows}</div>
+      ${imAu.missing.length ? `<div class="row" style="justify-content:flex-start;margin-top:10px">
+          <button class="btn sm" id="imAuAll">${imAu.sel.size === imAu.missing.length ? "☐ Deselect all" : "☑ Select all"}</button>
+          <button class="btn" id="imAuGo">Create ${imAu.sel.size} unit${imAu.sel.size === 1 ? "" : "s"} first</button>
+        </div>
+        <p class="mini muted" style="margin:8px 0 0">Created restricted, with you as Groups Administrator scoped to each. <b>Optional</b> — skip it and the import still runs; the groups land unprotected and the report names every one of them.</p>` : ""}
+      ${done}
+      <div id="imAuLog" class="mini" style="margin-top:8px">${(imAu.log || []).join("")}</div>
+    </div>`;
+  }
+
   async function imLoaded(bundle, fileName) {
     imBundle = bundle; imFileName = fileName;
     // pass the tenant's raw policies (not just names) so "match & replace" can
@@ -1500,6 +1553,7 @@
     imLic = imPlan.some(p => p.wid)
       ? (isDemo ? { known: true, licensed: false, sku: null } : await Importer.workloadIdLicence())
       : { known: false, licensed: false, sku: null };
+    await imLoadAu();
     imRenderList();
     $("imPick").style.display = "none";
   }
@@ -1531,6 +1585,7 @@
     };
 
     $("imBody").innerHTML = `
+      ${imAuPanel()}
       <div class="im-mode" role="radiogroup" aria-label="Assignment mode">
         <label class="im-mode-opt${!replace ? " on" : ""}"><input type="radio" name="imMode" value="deploy" ${!replace ? "checked" : ""}>
           <b>🚀 Deployment groups</b><span class="mini">Includes remapped to the deploy persona group (CAD-SEC-U-DG-*) — staged, nothing existing is touched.</span></label>
@@ -1582,7 +1637,13 @@
     btn.disabled = n === 0;
     btn.textContent = n ? `Import ${n}` : "Import";
   }
-  $("imBody").addEventListener("click", (e) => {
+  $("imBody").addEventListener("click", async (e) => {
+    if (e.target.id === "imAuAll") {
+      imAu.sel = imAu.sel.size === imAu.missing.length ? new Set() : new Set(imAu.missing.map(r => r.name));
+      imRenderList();
+      return;
+    }
+    if (e.target.id === "imAuGo") { await imAuCreate(e.target); return; }
     const chip = e.target.closest("[data-im-persona]");
     if (chip) {
       imSelectPersona(chip.dataset.imPersona);
@@ -1595,7 +1656,71 @@
   $("imBody").addEventListener("change", (e) => {
     if (e.target.matches('input[name="imMode"]')) { imMode = e.target.value; imRenderList(); return; }
     if (e.target.matches("[data-imp]")) updateImGo();
+    const b = e.target.closest("[data-imau]");
+    if (b) {
+      b.checked ? imAu.sel.add(b.dataset.imau) : imAu.sel.delete(b.dataset.imau);
+      imRenderList();
+    }
   });
+  // Create the vaults the import is about to need. Deliberately a separate
+  // click from Import: creating administrative units and granting yourself a
+  // role is a different kind of act from restoring policies, and should not
+  // ride along inside a button labelled Import.
+  async function imAuCreate(btn) {
+    const picked = imAu.missing.filter(r => imAu.sel.has(r.name));
+    if (!picked.length) { toast("Nothing selected"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...RU_BASE_SCOPES])) return;
+    btn.disabled = true;
+    const lines = []; imAu.log = lines;
+    const say = (h) => { lines.push(h); const el = $("imAuLog"); if (el) el.innerHTML = lines.join(""); };
+
+    let me = null, role = null, roleErr = null;
+    if (isDemo) me = { id: "demo-me", displayName: "You", userPrincipalName: "you@demo" };
+    else {
+      try { me = await Graph.gget("/me?$select=id,displayName,userPrincipalName"); }
+      catch (e) { say(`<div style="color:var(--off)">Could not read your own account (${esc(e.message || e)}) — units will be created with no scoped administrator.</div>`); }
+      if (me) { try { role = await ensureDirectoryRole(GROUPS_ADMIN_TEMPLATE); } catch (e) { roleErr = e.message || String(e); } }
+    }
+
+    const results = [];
+    for (const r of picked) {
+      const res = { name: r.name, code: r.code, ok: false, admin: me ? me.userPrincipalName : "" };
+      try {
+        const au = isDemo ? { id: "demo-au-" + r.code }
+          : await Graph.gpost("/administrativeUnits", { displayName: r.name, description: r.description, isMemberManagementRestricted: true });
+        res.ok = true; res.id = au.id;
+        imAu.byCode[r.code] = au.id;              // the import can place into it now
+        say(`<div>✓ created <b>${esc(r.name)}</b></div>`);
+        if (me) {
+          try {
+            if (roleErr) throw new Error(roleErr);
+            if (!isDemo) await Graph.gpost(`/administrativeUnits/${au.id}/scopedRoleMembers`, { roleId: role.id, roleMemberInfo: { id: me.id } });
+            res.adminOk = true;
+            say(`<div>&nbsp;&nbsp;✓ ${esc(me.userPrincipalName)} scoped as Groups Administrator</div>`);
+          } catch (e) {
+            res.adminError = e.message || String(e);
+            say(`<div style="color:var(--off)">&nbsp;&nbsp;✗ scoped administrator NOT granted — ${esc(res.adminError)}. Groups placed here will be manageable by nobody until one is.</div>`);
+          }
+        }
+      } catch (e) {
+        res.error = e.message || String(e);
+        say(`<div style="color:var(--off)">✗ ${esc(r.name)} — ${esc(res.error)}</div>`);
+      }
+      results.push(res);
+    }
+    imAu.results = results;
+    // Re-derive from what actually happened rather than re-reading: directory
+    // writes are not read-your-writes consistent, and a re-read that misses a
+    // unit created two seconds ago would wrongly offer to create it again.
+    const madeNames = new Set(results.filter(r => r.ok).map(r => r.name));
+    imAu.rows = imAu.rows.map(r => madeNames.has(r.name) ? { ...r, status: "present", id: imAu.byCode[r.code] } : r);
+    imAu.missing = imAu.rows.filter(r => r.status === "missing");
+    imAu.sel = new Set(imAu.missing.map(r => r.name));
+    btn.disabled = false;
+    imRenderList();
+    toast(`${results.filter(r => r.ok).length}/${results.length} administrative unit(s) created${isDemo ? " (simulated)" : ""}`);
+  }
+
   $("imZip").addEventListener("change", async (e) => {
     const f = e.target.files[0]; if (!f) return;
     try { await imLoaded(await Importer.readZip(f), f.name); }
@@ -1611,8 +1736,10 @@
     if (!chosen.length) { toast("Nothing selected to import"); return; }
     // Consent first, while the click is still fresh — an import creates
     // dependencies (groups, locations) as well as policies, so ask for both.
+    const placing = !!(imAu && !imAu.error && Object.keys(imAu.byCode).length);
     if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess",
-      "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+      "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory",
+      ...(placing ? ["AdministrativeUnit.ReadWrite.All"] : [])])) return;
     $("imGo").disabled = true;
     try {
       let depLog = { created: [], reused: [], warnings: [] }, maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, personaGroupIds: {} }, res = { results: [], warnings: [] };
@@ -1627,9 +1754,24 @@
           const matched = imMode === "replace" && p.upgrade;
           return { name: p.name, ok: true, persona: p.persona, personaGroup: matched ? null : p.personaGroup, matched, disabledOld: matched, oldName: matched ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : "disabled" };
         });
-        depLog.created = scoped.groups.map(g => "Group: " + g.displayName);
+        depLog.created = scoped.groups.map(g => "Group: " + g.displayName + " (assigned)");
+        // Simulate the placement too, so the demo report shows the same three
+        // outcomes as a real run rather than a tidier story than the truth.
+        if (imAu && !imAu.error) {
+          depLog.placed = []; depLog.placeFailed = []; depLog.unplaced = [];
+          const per = Importer.groupPersonas(scoped, scoped.policies);
+          for (const g of scoped.groups) {
+            const info = per.get(g.id);
+            // info.code, not info.persona: since build 25046 the vault is read
+            // from the group's own name, and `persona` is null for every group
+            // routed that way — which is nearly all of them.
+            const code = info ? info.code : null;
+            if (code && imAu.byCode[code]) depLog.placed.push({ name: g.displayName, code });
+            else depLog.unplaced.push({ name: g.displayName, code, why: !code ? ((info && info.why) || "no persona could be read from the policies that use it") : `no restricted unit for ${code}` });
+          }
+        }
       } else {
-        const dep = await Importer.ensureDependencies(scoped, (m) => toast(esc(m)), { matchedNames });
+        const dep = await Importer.ensureDependencies(scoped, (m) => toast(esc(m)), { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
         res = await Importer.importPolicies(chosen, maps, (m) => toast(esc(m)), { mode: imMode });
       }
@@ -5247,6 +5389,20 @@ max@contoso.com,"Global, DevOps"</pre>
             ruRoleNames = {};
             (await Graph.ggetAll("/directoryRoles?$select=id,displayName")).forEach((r) => ruRoleNames[r.id] = r.displayName);
           }
+          // The map is cached for the session, and /directoryRoles only lists
+          // ACTIVATED roles — so a role activated after the cache was built (by
+          // this very tool, granting a scoped administrator on a unit created
+          // minutes ago) is absent from it, and the card fell back to printing
+          // the raw GUID. One targeted read per unknown id fixes it; the id is
+          // still shown if even that fails, because a wrong name would be worse
+          // than an ugly one.
+          const unknown = [...new Set(d.scoped.map((r) => r.roleId).filter((id) => id && !ruRoleNames[id]))];
+          for (const id of unknown) {
+            try {
+              const role = await Graph.gget(`/directoryRoles/${id}?$select=id,displayName`);
+              if (role && role.displayName) ruRoleNames[id] = role.displayName;
+            } catch { /* leave the id visible rather than inventing a name */ }
+          }
           d.scoped.forEach((r) => { r._roleName = ruRoleNames[r.roleId] || r.roleId; r._principal = r.roleMemberInfo?.displayName || r.roleMemberInfo?.id; });
         } catch (e) { d.scoped = []; d.scopedError = e.message || String(e); }
       }
@@ -5451,6 +5607,7 @@ max@contoso.com,"Global, DevOps"</pre>
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Members (${(d.members || []).length})${nFrozen ? ` <span class="tag block" style="text-transform:none;letter-spacing:normal">🧊 ${nFrozen} frozen</span>` : ""}</div>
             <div style="display:flex;gap:6px;margin:6px 0 6px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="Add member — baseline group name, any group, or user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
             <ul class="wi-list" style="margin:0 0 12px">${mems || '<li><div class="wi-why">No members.</div></li>'}</ul>
+            ${ruBulkPanel(au)}
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Scoped role members (${(d.scoped || []).length})${d.scopedError ? ` <span class="muted" style="font-weight:400;text-transform:none">— ${esc(d.scopedError)}</span>` : ""}</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 6px"><select data-rurole="${esc(au.id)}" class="btn" style="cursor:pointer">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select>
               <input data-ruadminbox="${esc(au.id)}" list="ruUserSug" placeholder="UPN of the scoped administrator — start typing a name" spellcheck="false" autocomplete="off" style="flex:1;min-width:180px"><button class="btn sm" data-ruadmin="${esc(au.id)}">+ Grant</button></div>
@@ -5576,6 +5733,136 @@ max@contoso.com,"Global, DevOps"</pre>
     return false;
   }
 
+  // Rendered inside a restricted persona AU's card, under the member list.
+  function ruBulkPanel(au) {
+    if (!Rmau.isRestricted(au)) return "";
+    const code = Rmau.codeForAu(au.displayName);
+    if (!code) return "";                       // not a baseline persona unit
+    const entry = Rmau.BASELINE_AUS.find((a) => a.code === code) || {};
+    const t = ruBulk && ruBulk.auId === au.id ? ruBulk : null;
+
+    if (!t) {
+      return `<div style="margin:10px 0 12px">
+        <button class="btn sm" data-rubulk="${esc(au.id)}">＋ Bulk add ${esc(entry.label || code)} groups</button>
+        <span class="mini muted"> — finds this tenant's security groups whose CA number falls in ${esc(entry.caRange || "this persona's range")} and adds them in one go.</span>
+      </div>`;
+    }
+    if (t.busy && !t.rows.length) return '<div class="mini muted" style="margin:10px 0"><div class="spinner" style="width:16px;height:16px"></div> Looking for this persona\'s groups…</div>';
+    if (t.error) return `<div class="mini" style="color:var(--off);margin:10px 0">✗ ${esc(t.error)}</div>`;
+
+    const can = t.rows.filter((r) => !r.why);
+    const cannot = t.rows.filter((r) => r.why);
+    const line = (r) => r.why
+      ? `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b> <span class="tag block">cannot</span></div>
+           <div class="mini" style="color:var(--off)">${esc(r.why)}</div></div>`
+      : `<div class="dr-row"><div class="dr-head"><label class="chk" style="margin:0">
+           <input type="checkbox" data-rubulkg="${esc(r.id)}"${t.sel.has(r.id) ? " checked" : ""}> <b>${esc(r.name)}</b></label></div></div>`;
+
+    return `<div class="cg-panel" style="margin:10px 0 12px">
+      <h4>BULK ADD — ${esc(entry.label || code).toUpperCase()} ${entry.caRange ? `(${esc(entry.caRange)})` : ""}</h4>
+      ${!t.rows.length ? '<p class="mini" style="margin:0">No security group in this tenant carries a CA number in this persona\'s range. Nothing to add — which for the workload-identity unit is the expected answer, since those policies exclude service principals and a service principal cannot be a member of an administrative unit.</p>' : `
+        <p class="mini" style="margin:0 0 8px">${can.length} can be added${cannot.length ? ` · <span style="color:var(--off)">${cannot.length} cannot</span>` : ""}. Matched by the CA number in the group's name — the same rule ⑥ Protect routes by.</p>
+        <div class="cg-pick">${t.rows.map(line).join("")}</div>
+        ${can.length ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+            <button class="btn sm" data-rubulkall="${esc(au.id)}">${t.sel.size === can.length ? "☐ Deselect all" : "☑ Select all"}</button>
+            <span class="mini muted">${t.sel.size} of ${can.length} selected</span>
+          </div>
+          <div class="row" style="justify-content:flex-start;margin-top:10px">
+            <button class="btn primary" data-rubulkgo="${esc(au.id)}"${t.busy ? " disabled" : ""}>Add ${t.sel.size} group${t.sel.size === 1 ? "" : "s"}${isDemo ? " (simulated)" : ""}</button>
+            <button class="btn" data-rubulk="${esc(au.id)}">⟳ Re-check</button>
+          </div>` : ""}`}
+      ${t.results ? `<p class="mini" style="margin:8px 0 0"><b>${t.results.filter((r) => r.ok).length}/${t.results.length} added.</b>${t.results.some((r) => !r.ok) ? ` <span style="color:var(--off)">${t.results.filter((r) => !r.ok).map((r) => `${esc(r.name)} — ${esc(r.error)}`).join("; ")}</span>` : ""}</p>` : ""}
+    </div>`;
+  }
+
+  // ---------- bulk add: the whole persona at once ----------
+  // A persona vault wants every exclusion group of that persona in it. Adding
+  // them one at a time through the type-ahead is the same decision repeated
+  // twenty times, and the failure mode is not noticing that you stopped at
+  // nineteen. This finds them by the CA number in their names — the same rule
+  // ⑥ Protect routes by — and shows what CANNOT go in as prominently as what
+  // can, because those are the rows that need a different action, not a retry.
+  let ruBulk = null;   // { auId, busy, rows, sel, results, error }
+
+  const RU_BULK_PREFIXES = ["CAB-SEC", "CAD-SEC"];
+
+  async function ruBulkScan(auId) {
+    const au = (ruList || []).find((a) => a.id === auId);
+    const code = au ? Rmau.codeForAu(au.displayName) : null;
+    ruBulk = { auId, busy: true, rows: [], sel: new Set(), results: null, error: null, code };
+    renderRmau();
+    try {
+      if (!code) throw new Error("this administrative unit is not one of the baseline persona units, so there is no persona to gather groups for");
+      let groups = [];
+      if (isDemo) {
+        groups = [{ id: "d1", displayName: "CAB-SEC-U-CA101-Exclusion" }, { id: "d2", displayName: "CAB-SEC-U-CA102-Exclusion" }];
+      } else {
+        // Bounded on purpose: the baseline family, not every group in the
+        // tenant. A displayName cannot be matched by pattern in Graph, so the
+        // CA-number filter happens here.
+        for (const p of RU_BULK_PREFIXES) {
+          const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
+          groups = groups.concat(r);
+        }
+      }
+      const already = new Set(((ruDetails[auId] || {}).members || []).map((m) => m.id));
+      // Where everything else already lives, so a group sitting in the WRONG
+      // unit is visible rather than silently offered as if it were free.
+      let prot = new Map();
+      if (!isDemo) { try { prot = await readProtectionMap(); } catch { /* leave it unknown */ } }
+
+      const rows = [];
+      for (const g of groups) {
+        if (Rmau.codeForGroup(g.displayName) !== code) continue;
+        const m365 = (g.groupTypes || []).includes("Unified");
+        const mailSec = g.mailEnabled === true && g.securityEnabled === true;
+        const dist = g.mailEnabled === true && g.securityEnabled === false;
+        const elsewhere = prot.get(g.id);
+        const row = { id: g.id, name: g.displayName, roleAssignable: g.isAssignableToRole === true };
+        if (already.has(g.id)) row.why = "already a member of this unit";
+        else if (m365) row.why = "Microsoft 365 group — only SECURITY groups can be members of a restricted unit";
+        else if (mailSec) row.why = "mail-enabled security group — only cloud security groups can be members";
+        else if (dist) row.why = "distribution group — only security groups can be members";
+        else if (row.roleAssignable) row.why = "role-assignable — putting it in a restricted unit would leave NOBODY able to change its members. Convert it with ⑦ Migrate first";
+        else if (elsewhere && elsewhere.auId !== auId) row.why = `already in ${elsewhere.auName} — an object can sit in several restricted units, and a scoped administrator on ANY of them can manage it, so adding it here widens who can reach it rather than narrowing it`;
+        rows.push(row);
+      }
+      rows.sort((a, b) => (a.why ? 1 : 0) - (b.why ? 1 : 0) || String(a.name).localeCompare(String(b.name)));
+      ruBulk.rows = rows;
+      ruBulk.sel = new Set(rows.filter((r) => !r.why).map((r) => r.id));
+    } catch (e) {
+      ruBulk.error = e.message || String(e);
+    }
+    ruBulk.busy = false;
+    renderRmau();
+  }
+
+  async function ruBulkAdd(btn) {
+    const t = ruBulk; if (!t || t.busy) return;
+    const picked = t.rows.filter((r) => t.sel.has(r.id) && !r.why);
+    if (!picked.length) { toast("Nothing selected"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE])) return;
+    t.busy = true; btn.disabled = true;
+    const results = [];
+    for (const r of picked) {
+      try {
+        if (!isDemo) await Graph.gpost(`/administrativeUnits/${t.auId}/members/$ref`,
+          { "@odata.id": `https://graph.microsoft.com/beta/groups/${r.id}` });
+        results.push({ name: r.name, ok: true });
+      } catch (e) {
+        const already = /already exist/i.test(e.message || "");
+        results.push({ name: r.name, ok: already, error: already ? "" : (e.message || String(e)) });
+      }
+    }
+    t.results = results; t.busy = false;
+    // The card's member list is stale now, and so is the offer.
+    delete ruDetails[t.auId];
+    await ruLoadDetail(t.auId);
+    const ok = results.filter((r) => r.ok).length;
+    toast(`${ok}/${results.length} group${results.length === 1 ? "" : "s"} added${isDemo ? " (simulated)" : ""}`);
+    await ruBulkScan(t.auId);
+  }
+
   async function ruAddMember(auId, term) {
     const t = term.trim();
     if (!t) { toast("Type a group name or a user UPN"); return; }
@@ -5661,6 +5948,12 @@ max@contoso.com,"Global, DevOps"</pre>
         Rmau.baselineReport(t.check, t.results, { tenant: tenantName, build: APP_BUILD.label }));
       return;
     }
+    const bg = e.target.closest("[data-rubulkg]");
+    if (bg && ruBulk) {
+      bg.checked ? ruBulk.sel.add(bg.dataset.rubulkg) : ruBulk.sel.delete(bg.dataset.rubulkg);
+      renderRmau();
+      return;
+    }
     const bs = e.target.closest("[data-rubase]");
     if (bs) {
       const t = ruBaseline();
@@ -5668,6 +5961,17 @@ max@contoso.com,"Global, DevOps"</pre>
       renderRmau();
       return;
     }
+    const bk = e.target.closest("[data-rubulk]");
+    if (bk) { await ruBulkScan(bk.dataset.rubulk); return; }
+    const bka = e.target.closest("[data-rubulkall]");
+    if (bka && ruBulk) {
+      const can = ruBulk.rows.filter((r) => !r.why);
+      ruBulk.sel = ruBulk.sel.size === can.length ? new Set() : new Set(can.map((r) => r.id));
+      renderRmau();
+      return;
+    }
+    const bkg = e.target.closest("[data-rubulkgo]");
+    if (bkg) { await ruBulkAdd(bkg); return; }
     const sc = e.target.closest("[data-ruscope]");
     if (sc) {
       const id = sc.dataset.ruscope;

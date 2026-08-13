@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=264"></script>
+<script src="js/popup-guard.js?v=265"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=264">
+<link rel="stylesheet" href="css/app.css?v=265">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=264"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=264"></script>
+<script src="js/counter.js?v=265"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=265"></script>
 </head>
 <body>
 
@@ -99,7 +99,7 @@
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
     <div class="tools">
       <div class="tool" id="toolPolicies">
-        <div class="tool-ic">🗂</div><h3>List Policies</h3>
+        <div class="tool-ic">🗂</div><h3>List Policies <span class="tag upd">UPDATED</span></h3>
         <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona.</p>
       </div>
       <div class="tool" id="toolDocument">
@@ -172,11 +172,11 @@
     <div class="tool-sec"><h3>✍️ Manage the tenant</h3><p>The tools that write. Each one confirms before it changes anything.</p></div>
     <div class="tools">
       <div class="tool" id="toolCaGroups">
-        <div class="tool-ic">👥</div><h3>Conditional Access groups <span class="tag upd">UPDATED</span></h3>
+        <div class="tool-ic">👥</div><h3>Conditional Access groups</h3>
         <p>Check the baseline groups against this tenant, create the missing ones, analyze their members in a matrix, and assign them to policies. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolProtect">
-        <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag new">NEW</span> <span class="tag upd">UPDATED</span></h3>
+        <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag new">NEW</span></h3>
         <p>Place the CA exclusion groups in a restricted management administrative unit, so only AU-scoped roles can change their membership — closing the "an admin adds themselves to an exclusion group" bypass. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolLocations">
@@ -212,7 +212,7 @@
         <p>Switch selected policies between On, Report-only and Off. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolImport">
-        <div class="tool-ic">📥</div><h3>Import</h3>
+        <div class="tool-ic">📥</div><h3>Import <span class="tag upd">UPDATED</span></h3>
         <p>Restore a backup (zip or folder): dependencies first, policies imported Off, includes remapped to deploy persona groups. <span class="tag block">writes to tenant</span></p>
       </div>
     </div>
@@ -1082,6 +1082,15 @@
               <br><b>Still to do:</b> the bundled group templates and the baseline catalog still describe an estate built on role-assignable groups; the MS Learn and CIS checks, Group Analyzer and the documentation exports still mention it as the expected shape; and the persona <b>import</b> path should create protected groups directly rather than leaving protection as a later step. Production keeps creating role-assignable groups until this lands there.</p>
           </div>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🌐 Type the country, get the code <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">A country named location takes <b>two-letter ISO 3166-1 codes</b>, typed by hand into a free-text box. The failure mode is silent and total: a wrong code is still a <i>valid</i> code, so the policy saves, looks right in the portal, and quietly covers the wrong country until somebody is blocked or — worse — is not. Ireland is <code>IE</code>; <code>IR</code> is Iran. Austria is <code>AT</code>, Australia <code>AU</code>. Sweden is <code>SE</code>, Switzerland <code>CH</code>.</p>
+            <p class="mini" style="margin:6px 0 0">The plan is to type the <b>name</b> and have the code filled in — a type-ahead over the full ISO list, matching on country name, adding the code as a chip you can see and remove. Codes typed directly keep working, but anything that is not a real ISO code is rejected at entry rather than accepted and discovered later. Worth doing for the same reason the CA-number routing exists: the tool knows the right answer, so the human should not have to be the one who remembers it.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🔝 Flagged tiles first in a collapsed section <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">A collapsed home section shows four tiles, and anything flagged <b>NEW</b>, <b>BETA</b> or <b>UPDATED</b> claims those slots ahead of the rest — but it claims them <i>in page order</i>, so a flagged tile that sits ninth is visible while still appearing after unflagged ones, and with five flagged tiles in a section one of them drops below the fold. The plan is to lift flagged tiles to the <b>top</b> of the collapsed view, newest first, so what changed is the first thing read rather than merely somewhere on screen. Expanding restores the normal order, because the grid's grouping is meaningful and shuffling it permanently would cost more than it gains.</p>
+          </div>
+          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">🎛 Group actions where you are already looking <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Clicking a group in <a href="#" class="md-tool" data-tool="toolCaGroups">👥 CA groups</a> ① Check opens a card that <i>reads</i>: object id, type, the policies that include or exclude it, its members. Everything you might then want to <i>do</i> lives on a different numbered tab, so you close the card, find the right step, and hunt for the group again. <b>List Policies already solves this</b> — every policy card carries its own Documentation, Backup, Assign and Policy-state buttons.
               <br>The plan is the same treatment for a group: create it if it is missing (②), read or add members (③), assign it to policies (④), import members from CSV (⑤), protect it in a restricted AU (⑥), migrate it off role-assignable (⑦), disable nesting, or open it in <a href="#" class="md-tool" data-tool="toolGroupUse">🔗 Group Analyzer</a> to see everything outside Conditional Access that points at it — each offered only when it actually applies, so a role-assignable group is not offered ⑥ Protect and a group already in a restricted AU is not offered it twice.</p>
@@ -1280,18 +1289,21 @@
       <h4>🛡 Restricted AUs <span class="tag new">BETA</span></h4>
       <p>Restricted management administrative units — the vaults that shield your Conditional Access exclusion groups from tenant-wide administrators. Members of a restricted AU answer <b>only</b> to roles scoped to that AU; a Global Administrator can read them but not change their membership.</p>
       <ul>
-        <li><b>The baseline check comes first.</b> The tool opens with a panel that looks for the nine units the baseline expects — <code>CAB-SEC-RMAU-GLO / ADM / INT / EXT / GUESTUSERS / GUESTAdmins / SA / DevOps / FW-Exclusions</code> plus <code>CAB-SEC-RMAU-BreakGlass</code> — and marks each one <i>present</i>, <i>missing</i>, or a name clash. <b>One unit per persona</b> is the whole point: with a single shared vault, whoever may manage the Admins exclusions may equally manage the Externals exclusions, and the separation you built the personas for stops at the AU boundary.</li>
+        <li><b>The baseline check comes first.</b> The tool opens with a panel that looks for the nine units the baseline expects — <code>CAB-SEC-RMAU-GLO / ADM / INT / EXT / GUESTUSERS / GUESTAdmins / SA / WLI / DevOps / FW-Exclusions</code> plus <code>CAB-SEC-RMAU-BreakGlass</code> — and marks each one <i>present</i>, <i>missing</i>, or a name clash. <b>One unit per persona</b> is the whole point: with a single shared vault, whoever may manage the Admins exclusions may equally manage the Externals exclusions, and the separation you built the personas for stops at the AU boundary.</li>
         <li><b>Create the missing ones</b> — tick them, or take all. Each is created with the restricted flag set, and <b>you are granted Groups Administrator scoped to it in the same step</b>. That second half is not a convenience: an administrative unit with no scoped administrator is a vault nobody can open, because the restricted flag is precisely what shuts out the tenant-wide roles. Creation and the role grant are reported separately, so a unit that exists but has no administrator is visible as the half-outcome it is rather than counted as a success.</li>
         <li><b>A name clash is refused, not skipped</b> — if an AU already carries an expected name but is <b>not</b> restricted, it is shown as <i>name taken — not restricted</i> and is left alone. The flag is immutable, so that unit cannot be upgraded into the one you want; rename it and create a restricted replacement, or give the persona a different name.</li>
         <li><b>Break-glass gets its own vault.</b> <code>CAB-SEC-U-BreakGlass</code> is excluded from very nearly every policy in the baseline, so it belongs to no single persona — whoever can edit it can walk through every policy at once. It gets <code>CAB-SEC-RMAU-BreakGlass</code>, deliberately without an <code>-Exclusions</code> suffix because it holds the emergency access group itself rather than a persona's exclusions. Keep its list of scoped administrators shorter than any other unit's.</li>
-        <li><b>📄 Report</b> — the ten rows, their status and their scoped administrator as Markdown, for the design document or the hand-over.</li>
-        <li><b>Ceilings worth knowing</b> — a tenant may hold at most <b>100</b> restricted management administrative units, so ten is comfortable. Only <b>security</b> groups can be members: Microsoft 365, mail-enabled security and distribution groups cannot. Deleting a unit can take up to 30 minutes to lift the protection from its former members.</li>
+        <li><b>Workload identities get a vault that will often be empty</b> — and that is correct rather than a mistake. CA900–CA999 policies target <b>service principals</b>, which cannot be members of an administrative unit at all; only users, groups and devices can. <code>CAB-SEC-RMAU-WLI-Exclusions</code> holds whatever exclusion <i>groups</i> the range uses, which is worth separating because those groups gate the automation that runs with nobody behind it.</li>
+        <li><b>📄 Report</b> — the eleven rows, their status and their scoped administrator as Markdown, for the design document or the hand-over.</li>
+        <li><b>Ceilings worth knowing</b> — a tenant may hold at most <b>100</b> restricted management administrative units, so eleven is comfortable. Only <b>security</b> groups can be members: Microsoft 365, mail-enabled security and distribution groups cannot. Deleting a unit can take up to 30 minutes to lift the protection from its former members.</li>
         <li><b>Open a card</b> — click its header, or the <b>👤 Scoped admins</b> button, to see members and scoped role grants. The ✎ Edit dialog is only the AU's own name and description; roles are not granted there.</li>
         <li><b>Add a member</b> — the box suggests your <b>baseline group names</b> before you type anything, since those are what the AU exists to protect, and folds in live directory results for any other group or user as you type.</li>
         <li><b>Grant a scoped administrator</b> — pick the role, then start typing a name: users are suggested from the directory. Without at least one scoped grant, nobody can manage these members at all.</li>
         <li><b>The restricted flag is immutable</b> — set at creation, never changeable. Converting an existing AU means creating a new one and moving the members, and the tool says so rather than letting you discover it.</li>
         <li><b>Put the group in, not the accounts.</b> A restricted unit holding a group protects the group's membership. Adding the break-glass <i>user accounts</i> themselves is a different and much sharper act: a Global Administrator inside a restricted unit cannot have their password reset by anyone, because no role that resets a Global Administrator's password can be assigned at administrative-unit scope. Recovering one means removing the account from the unit first — which is the opposite of what you want at 3am.</li>
         <li><b>A 403 is the shield working</b> — if a member change is refused, that is the restriction doing its job, not a fault. You need a role scoped to that AU.</li>
+        <li><b>＋ Bulk add &lt;persona&gt; groups</b> — on a baseline persona unit, gathers this tenant's security groups whose CA number falls in that persona's range and adds the ticked ones in one run. Matched by the same rule ⑥ Protect routes by, so the two cannot disagree. Adding twenty groups one at a time through the type-ahead is the same decision twenty times, and the failure mode is not noticing you stopped at nineteen.</li>
+        <li><b>What cannot go in is shown as prominently as what can</b>, because those rows need a different action rather than another attempt: a <b>role-assignable</b> group (would be frozen — convert it with ⑦ Migrate first), a <b>Microsoft 365</b>, <b>mail-enabled security</b> or <b>distribution</b> group (only cloud security groups may be members), one <b>already in this unit</b>, and one <b>already in another restricted unit</b> — that last is not a duplicate but a widening, since a scoped administrator on <i>any</i> unit an object belongs to can manage it.</li>
       </ul>
       <p class="help-x">Writes to the tenant, and asks for each permission on the click. Creating one needs <b>Privileged Role Administrator</b>; granting a scoped role also needs <code>RoleManagement.ReadWrite.Directory</code>. Directory writes are not read-your-writes consistent, so a unit you just created may take a moment to appear in the list below — the creation log above it is the record of what actually happened.</p>
     </section>
@@ -1457,6 +1469,9 @@
         <li><b>Unknown application references</b> — a policy can only name an app that has a <b>service principal</b> in this tenant, and Graph rejects the whole policy over one it cannot resolve. The importer instantiates the missing ones first (the baseline excludes Microsoft first-party apps like Defender for Endpoint and Defender for Mobile TVM that an unused tenant does not have). If one still cannot be created, the policy is imported <b>without that reference</b> rather than failing — the report names each drop, and a dropped <b>exclusion widens the policy</b>, so review it before switching it On.</li>
         <li><b>🔒 no Workload ID licence</b> — a policy scoped to service principals (the CA900 range) needs the separately purchased <b>Microsoft Entra Workload ID</b> licence, which is <i>not</i> part of Entra ID P1/P2. The importer reads the tenant’s subscriptions first; without the licence those policies are shown greyed out and left out entirely, rather than attempted and rejected by Graph with a bare 400. Buy or trial the licence, then re-import.</li>
         <li><b>📜 needs ToU</b> — a policy granting a Terms of use imports without that control (Terms of use has no create API); the report gives a checklist to create it in the portal, then re-import.</li>
+        <li><b>🛡 Protection preflight</b> <span class="tag new">BETA</span> — before the import runs, the tool checks that a restricted administrative unit exists for each persona <i>your selection actually touches</i>, and offers to create the missing ones (restricted, with you scoped as Groups Administrator). Every group the import <b>creates</b> is then added to its persona's unit, so a tenant-wide Groups Administrator cannot afterwards widen a Conditional Access exclusion. It is optional and never blocks the import: skip it and the groups simply land unprotected.</li>
+        <li><b>Only groups this run created are placed</b> — a group that already existed is left where it is, because it may be somewhere on purpose and that is not the import's call to make. A group used by <b>two personas</b> is not placed either, and the report says why: an object may sit in several restricted units and a scoped administrator on <i>any</i> of them can manage it, so filing a shared group under one persona hands that persona's admin control of the other's exclusions, and filing it under both hands it to either. Split it per persona, or place it by hand knowing who can reach it.</li>
+        <li><b>An unreadable check says so</b> — if the tenant's administrative units cannot be read, the panel reports that it could not check rather than reporting everything present, and the import proceeds unprotected with each group named in the report.</li>
       </ul>
       <p class="help-x">Writes; a change report is shown on screen and downloadable.</p>
     </section>
@@ -2072,42 +2087,42 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=264"></script>
-<script src="js/version.js?v=264"></script>
-<script src="js/authConfig.js?v=264"></script>
-<script src="js/labels.js?v=264"></script>
-<script src="js/graph.js?v=264"></script>
-<script src="js/model.js?v=264"></script>
-<script src="js/render.js?v=264"></script>
-<script src="js/analyze.js?v=264"></script>
-<script src="js/whatif.js?v=264"></script>
-<script src="js/mslearn.js?v=264"></script>
-<script src="js/gapcheck.js?v=264"></script>
-<script src="js/exclusions.js?v=264"></script>
-<script src="js/validator.js?v=264"></script>
-<script src="js/whatifeval.js?v=264"></script>
-<script src="js/compare.js?v=264"></script>
-<script src="js/groupuse.js?v=264"></script>
-<script src="js/locations.js?v=264"></script>
-<script src="js/authcontexts.js?v=264"></script>
-<script src="js/authstrengths.js?v=264"></script>
-<script src="js/recycle.js?v=264"></script>
-<script src="js/termsofuse.js?v=264"></script>
-<script src="js/rmau.js?v=264"></script>
-<script src="js/audit.js?v=264"></script>
-<script src="js/drift.js?v=264"></script>
-<script src="js/signins.js?v=264"></script>
-<script src="js/reportimpact.js?v=264"></script>
-<script src="js/changelog.js?v=264"></script>
-<script src="js/baselineData.js?v=264"></script>
-<script src="js/baselineJoeyData.js?v=264"></script>
-<script src="js/baseline.js?v=264"></script>
-<script src="js/groupTemplates.js?v=264"></script>
-<script src="js/assign.js?v=264"></script>
-<script src="js/cagroups.js?v=264"></script>
-<script src="js/import.js?v=264"></script>
-<script src="js/export.js?v=264"></script>
-<script src="js/demo.js?v=264"></script>
-<script src="js/app.js?v=264"></script>
+<script src="js/branding.js?v=265"></script>
+<script src="js/version.js?v=265"></script>
+<script src="js/authConfig.js?v=265"></script>
+<script src="js/labels.js?v=265"></script>
+<script src="js/graph.js?v=265"></script>
+<script src="js/model.js?v=265"></script>
+<script src="js/render.js?v=265"></script>
+<script src="js/analyze.js?v=265"></script>
+<script src="js/whatif.js?v=265"></script>
+<script src="js/mslearn.js?v=265"></script>
+<script src="js/gapcheck.js?v=265"></script>
+<script src="js/exclusions.js?v=265"></script>
+<script src="js/validator.js?v=265"></script>
+<script src="js/whatifeval.js?v=265"></script>
+<script src="js/compare.js?v=265"></script>
+<script src="js/groupuse.js?v=265"></script>
+<script src="js/locations.js?v=265"></script>
+<script src="js/authcontexts.js?v=265"></script>
+<script src="js/authstrengths.js?v=265"></script>
+<script src="js/recycle.js?v=265"></script>
+<script src="js/termsofuse.js?v=265"></script>
+<script src="js/rmau.js?v=265"></script>
+<script src="js/audit.js?v=265"></script>
+<script src="js/drift.js?v=265"></script>
+<script src="js/signins.js?v=265"></script>
+<script src="js/reportimpact.js?v=265"></script>
+<script src="js/changelog.js?v=265"></script>
+<script src="js/baselineData.js?v=265"></script>
+<script src="js/baselineJoeyData.js?v=265"></script>
+<script src="js/baseline.js?v=265"></script>
+<script src="js/groupTemplates.js?v=265"></script>
+<script src="js/assign.js?v=265"></script>
+<script src="js/cagroups.js?v=265"></script>
+<script src="js/import.js?v=265"></script>
+<script src="js/export.js?v=265"></script>
+<script src="js/demo.js?v=265"></script>
+<script src="js/app.js?v=265"></script>
 </body>
 </html>

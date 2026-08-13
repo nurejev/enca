@@ -57,7 +57,8 @@ const Rmau = (() => {
 
   function summarize(list) {
     const l = list || [];
-    return { total: l.length, restricted: l.filter(isRestricted).length, standard: l.filter((a) => !isRestricted(a)).length };
+    return {
+    total: l.length, restricted: l.filter(isRestricted).length, standard: l.filter((a) => !isRestricted(a)).length };
   }
 
   function buildPayload(form) {
@@ -97,6 +98,12 @@ const Rmau = (() => {
     return L.join("\n");
   }
 
+  // ---------- the baseline's per-persona restricted AUs ----------
+  //
+  // One vault per persona rather than one for everything, so a scoped
+  // administrator for the DevOps exclusions cannot also edit the Admins ones.
+  // The codes mirror the deployment groups the baseline already uses
+  // (CAD-SEC-U-DG-<CODE>), so the two naming schemes stay legible together.
   const BASELINE_AUS = [
     { code: "GLO",         label: "Global",                  caRange: "CA000–CA099" },
     { code: "ADM",         label: "Admins",                  caRange: "CA100–CA199" },
@@ -105,8 +112,13 @@ const Rmau = (() => {
     { code: "GUESTUSERS",  label: "Guest users",             caRange: "CA400–CA499" },
     { code: "GUESTAdmins", label: "Guest admins",            caRange: "CA500–CA599" },
     { code: "SA",          label: "Service accounts",        caRange: "CA600–CA899" },
+    // Workload-identity policies target SERVICE PRINCIPALS, which cannot be
+    // members of an administrative unit at all — only users, groups and devices
+    // can. So this unit holds whatever exclusion GROUPS the CA900 range uses,
+    // and nothing else; that is still worth separating, because those groups
+    // gate access for the automation that runs without a person behind it.
+    { code: "WLI",         label: "Workload identities",     caRange: "CA900–CA999" },
     { code: "DevOps",      label: "DevOps",                  caRange: "CA1000–CA1099" },
-    { code: "FW",          label: "Frontline workers",       caRange: "" },
     // Break-glass is not a persona and has no CA range: CAB-SEC-U-BreakGlass is
     // excluded from very nearly every policy in the baseline, which is exactly
     // why it cannot sit in one persona's vault. Whoever can edit it can walk
@@ -116,6 +128,7 @@ const Rmau = (() => {
     // access group itself.
     { code: "BreakGlass",  label: "Break-glass",             caRange: "", name: "CAB-SEC-RMAU-BreakGlass",
       description: "Restricted management administrative unit for the break-glass emergency access group (CAB-SEC-U-BreakGlass), which is excluded from nearly every Conditional Access policy. Membership changes require a role scoped to this administrative unit — keep the list of scoped administrators shorter than for any other unit." },
+    { code: "FW",          label: "Factory workers",         caRange: "CA1200–CA1299" },
   ];
   // Which persona vault does an exclusion group belong in? Derived from the CA
   // number in its name, using the same ranges the baseline documents, so
@@ -124,8 +137,10 @@ const Rmau = (() => {
   // nearly every policy, so no CA number could ever place it.
   const CA_BASE_CODE = {
     0: "GLO", 100: "ADM", 200: "INT", 300: "EXT", 400: "GUESTUSERS",
-    500: "GUESTAdmins", 600: "SA", 700: "SA", 800: "SA", 1000: "DevOps",
-    1100: "ADM",   // E-Admins live with the admins
+    500: "GUESTAdmins", 600: "SA", 700: "SA", 800: "SA",
+    900: "WLI", 1000: "DevOps",
+    1100: "ADM",   // E-Admins file with the admins
+    1200: "FW",
   };
   function codeForGroup(name) {
     const n = String(name || "");
@@ -133,8 +148,6 @@ const Rmau = (() => {
     if (/\bfrontline\b|[-_]FW[-_]|[-_]FW$/i.test(n)) return "FW";
     const m = /CA(\d{3,4})/i.exec(n);
     if (!m) return null;
-    // 900–999 is the workload-identity range: no persona vault covers it, and
-    // saying so is better than filing it under the nearest neighbour.
     return CA_BASE_CODE[Math.floor(+m[1] / 100) * 100] || null;
   }
 
@@ -146,6 +159,15 @@ const Rmau = (() => {
   };
   const auDescription = (a) => a.description
     || `Restricted management administrative unit for the ${a.label} Conditional Access exclusion groups${a.caRange ? ` (${a.caRange})` : ""}. Membership changes require a role scoped to this administrative unit.`;
+
+  // The reverse of auName: which persona is THIS administrative unit? Matched
+  // against the catalog by name, because an administrative unit's name carries
+  // no CA number for codeForGroup to read.
+  const codeForAu = (displayName) => {
+    const n = String(displayName || "").toLowerCase();
+    const hit = BASELINE_AUS.find((a) => auName(a.code).toLowerCase() === n);
+    return hit ? hit.code : null;
+  };
 
   // Compare the catalog with what the tenant has. `aus` is the /administrativeUnits
   // read (id, displayName, isMemberManagementRestricted).
@@ -203,5 +225,5 @@ const Rmau = (() => {
   }
 
   return { ROLE_TEMPLATES, isRestricted, memberType, caRefs, summarize, buildPayload, toMd,
-    BASELINE_AUS, auName, auDescription, baselineCheck, baselineReport, codeForGroup };
+    BASELINE_AUS, auName, auDescription, baselineCheck, baselineReport, codeForGroup, codeForAu };
 })();

@@ -113,6 +113,75 @@ const Importer = (() => {
     return { 0: "global", 100: "admins", 200: "internals", 300: "externals", 400: "guestusers", 500: "g_admins", 600: "serviceaccounts", 700: "serviceaccounts", 800: "serviceaccounts", 1000: "devops", 1100: "admins" }[k] || null;
   }
 
+  // Persona key -> restricted-AU code. The deploy group and the AU carry the
+  // same suffix by design (CAD-SEC-U-DG-ADM / CAB-SEC-RMAU-ADM-Exclusions), so
+  // this is derived rather than written out a second time and left to rot.
+  const PERSONA_CODE = Object.fromEntries(
+    Object.entries(PERSONA_GROUPS).map(([k, g]) => [k, g.replace(/^CAD-SEC-U-DG-/, "")]));
+
+  // A group's vault is decided by ONE rule, shared with ⑥ Protect:
+  // Rmau.codeForGroup reads the CA number out of the group's own name. Import
+  // used to infer it from the personas of the policies that reference the
+  // group, which cannot answer for CAB-SEC-U-BreakGlass (every persona excludes
+  // it) and gets no answer at all for a group whose policies were not selected.
+  // Persona inference is kept only as the fallback for a group whose name
+  // carries no CA number.
+  const fixedCode = (name) => {
+    try { return (typeof Rmau !== "undefined" && Rmau.codeForGroup) ? Rmau.codeForGroup(name) : null; }
+    catch { return null; }
+  };
+
+  // Which persona's vault does an imported group belong in? A group has no
+  // persona of its own — it inherits from the policies that reference it. One
+  // persona is an answer; two is NOT, and the difference matters:
+  //
+  // An object may sit in more than one restricted AU, and a scoped admin on
+  // ANY of them can manage it (Microsoft Learn, "Who can modify objects").
+  // So filing a shared group under two personas would let the Externals admin
+  // edit a group the Admins policies rely on — the exact leak the per-persona
+  // split exists to prevent. Ambiguous groups are reported, never placed.
+  function groupPersonas(bundle, chosenRaws) {
+    const out = new Map();
+    for (const g of bundle.groups || []) {
+      const fixed = fixedCode(g.displayName);
+      if (fixed) { out.set(g.id, { name: g.displayName, personas: [], persona: null, code: fixed, why: null }); continue; }
+      const seen = new Set();
+      for (const raw of chosenRaws) {
+        const blob = JSON.stringify(raw);
+        if (!blob.includes(g.id) && !(g.displayName && blob.includes(g.displayName))) continue;
+        const p = personaOf(raw.displayName);
+        if (p) seen.add(p);
+      }
+      out.set(g.id, {
+        name: g.displayName,
+        personas: [...seen],
+        persona: seen.size === 1 ? [...seen][0] : null,
+        code: seen.size === 1 ? PERSONA_CODE[[...seen][0]] : null,
+        why: seen.size === 0 ? "no persona could be read from the policies that use it"
+           : seen.size > 1 ? `used by ${seen.size} personas (${[...seen].join(", ")}) — a shared group placed in one persona's unit would be editable by that persona's admin alone, and placing it in both would let either edit it`
+           : null,
+      });
+    }
+    return out;
+  }
+
+  // The persona codes an import will actually touch — the preflight asks about
+  // these nine at most, and usually far fewer.
+  function personaCodes(bundle, chosenRaws) {
+    const codes = new Set();
+    for (const raw of chosenRaws) {
+      const p = personaOf(raw.displayName);
+      if (p && PERSONA_CODE[p]) codes.add(PERSONA_CODE[p]);
+    }
+    // Break-glass is not a persona, so it is added by the presence of the group
+    // itself rather than by any policy name.
+    for (const g of bundle.groups || []) {
+      const c = fixedCode(g.displayName);
+      if (c) codes.add(c);
+    }
+    return [...codes];
+  }
+
   function parseCaVersion(name) {
     const m = /v(\d+(?:\.\d+)+)/i.exec(name || "");
     return { num: Render.caGroup(name).num, ver: m ? m[1] : null };
@@ -276,7 +345,7 @@ const Importer = (() => {
     // API (the PDF/localised content must be uploaded in the portal), so these
     // are collected for the report as a to-create checklist rather than a
     // generic warning.
-    const log = { created: [], reused: [], warnings: [], missingTou: [] };
+    const log = { created: [], reused: [], warnings: [], missingTou: [], placed: [], placeFailed: [], unplaced: [] };
     const noteMissingTou = (name) => { if (name && !log.missingTou.includes(name)) log.missingTou.push(name); };
     // Groups are created as ORDINARY security groups. They were role-assignable
     // until build 254; the baseline moved off that, because a role-assignable
@@ -368,14 +437,47 @@ const Importer = (() => {
       } catch (e) { log.warnings.push(`Persona group ${gname}: ${e.message}`); }
     }
 
+    // Placement into the persona's restricted AU, when the caller supplied a
+    // code -> auId map from the preflight. Only groups this run CREATED are
+    // placed: a group that already existed may be somewhere deliberately, and
+    // filing it into a vault is not the import's decision to make.
+    const auByCode = opts.auByCode || null;
+    const personas = auByCode ? groupPersonas(bundle, bundle.policies) : null;
+
     for (const raw of bundle.groups) {
       onStatus?.(`Group ${raw.displayName}…`);
+      let created = null;
       try {
         const dyn = (raw.groupTypes || []).includes("DynamicMembership");
         const g = await Assign.createGroup({ displayName: raw.displayName, description: raw.description, mailNickname: raw.mailNickname, dynamic: dyn, membershipRule: raw.membershipRule });
         maps.group[raw.id] = g.id;
         noteGroup(g, `Group: ${raw.displayName}`);
-      } catch (e) { log.warnings.push(`Group ${raw.displayName}: ${e.message}`); }
+        if (g.created) created = g;
+      } catch (e) { log.warnings.push(`Group ${raw.displayName}: ${e.message}`); continue; }
+
+      if (!created || !auByCode) continue;
+      const info = personas.get(raw.id);
+      const code = info ? info.code : null;
+      const auId = code ? auByCode[code] : null;
+      if (!auId) {
+        // Not placing is a decision, so it is recorded as one. An unplaced
+        // group is unprotected, and silence would read as "protected".
+        log.unplaced.push({ name: raw.displayName, code,
+          why: !code ? (info && info.why) || "no persona could be read from the policies that use it"
+             : `no restricted unit for ${code} — it was missing at preflight and not created` });
+        continue;
+      }
+      onStatus?.(`Protecting ${raw.displayName}…`);
+      try {
+        await Graph.gpost(`/administrativeUnits/${auId}/members/$ref`,
+          { "@odata.id": `https://graph.microsoft.com/beta/groups/${created.id}` });
+        log.placed.push({ name: raw.displayName, code });
+      } catch (e) {
+        // Reported, never swallowed: the group exists and the policy will use
+        // it either way, so this failure is invisible unless it is said.
+        log.placeFailed.push({ name: raw.displayName, code, error: e.message || String(e) });
+        log.warnings.push(`${raw.displayName} was created but NOT added to CAB-SEC-RMAU-${code}-Exclusions: ${e.message || e} — the group is live and unprotected.`);
+      }
     }
 
     if (bundle.namedLocations.length) {
@@ -720,6 +822,20 @@ const Importer = (() => {
       ``,
       ...(depLog.created.length ? [`### Created`, ``, ...depLog.created.map(x => `- ${x}`), ``] : []),
       ...(depLog.reused.length ? [`### Reused (already existed)`, ``, ...depLog.reused.map(x => `- ${x}`), ``] : []),
+      ...(((depLog.placed || []).length || (depLog.placeFailed || []).length || (depLog.unplaced || []).length) ? [
+        `### Protection — restricted administrative units`,
+        ``,
+        `A group created by this import is added to its persona's restricted management administrative unit, so only an administrator scoped to that unit can change its members. Only groups **created here** are placed; one that already existed is left where it is.`,
+        ``,
+        ...(depLog.placed || []).map(x => `- 🛡 **${x.name}** → \`CAB-SEC-RMAU-${x.code}-Exclusions\``),
+        ...(depLog.placeFailed || []).map(x => `- ❌ **${x.name}** → \`CAB-SEC-RMAU-${x.code}-Exclusions\` — ${x.error}. **The group exists and is in use, but is not protected.**`),
+        ...(depLog.unplaced || []).map(x => `- ⚠ **${x.name}** — not placed: ${x.why}`),
+        ``,
+        ...((depLog.unplaced || []).length ? [
+          `An unplaced group is a normal group: any tenant-wide Groups Administrator can change who is excluded by the policies that use it. Where the reason is a shared group, that is a judgement call rather than a fault — a group two personas rely on cannot be filed under one of them without handing that persona's administrator control of the other's exclusions, and cannot be filed under both without handing it to either. Split it per persona, or place it by hand and accept who can reach it.`,
+          ``,
+        ] : []),
+      ] : []),
       `## Imported policies`,
       ``,
       ...(results.filter(r => r.ok).map(r => r.asIs
@@ -774,5 +890,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, personaOf, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();
