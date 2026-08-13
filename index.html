@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25024"></script>
+<script src="js/popup-guard.js?v=25025"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25024">
+<link rel="stylesheet" href="css/app.css?v=25025">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25024"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25024"></script>
+<script src="js/counter.js?v=25025"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25025"></script>
 </head>
 <body>
 
@@ -1084,6 +1084,11 @@
             <p class="mini" style="margin:0">Past twenty-odd tools, a tile grid stops being the fastest way in. <b>Ctrl/Cmd&nbsp;+&nbsp;K</b> anywhere opens a search box: type a few letters and land in the tool, or type a CA number or policy name and land on the policy card. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bbc</code> finds Best-practice &amp; bypass checks. Running on the beta channel now.</p>
           </div>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🎛 Group actions where you are already looking <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Clicking a group in <a href="#" class="md-tool" data-tool="toolCaGroups">👥 CA groups</a> ① Check opens a card that <i>reads</i>: object id, type, the policies that include or exclude it, its members. Everything you might then want to <i>do</i> lives on a different numbered tab, so you close the card, find the right step, and hunt for the group again. <b>List Policies already solves this</b> — every policy card carries its own Documentation, Backup, Assign and Policy-state buttons.
+              <br>The plan is the same treatment for a group: create it if it is missing (②), read or add members (③), assign it to policies (④), import members from CSV (⑤), protect it in a restricted AU (⑥), migrate it off role-assignable (⑦), disable nesting, or open it in <a href="#" class="md-tool" data-tool="toolGroupUse">🔗 Group Analyzer</a> to see everything outside Conditional Access that points at it — each offered only when it actually applies, so a role-assignable group is not offered ⑥ Protect and a group already in a restricted AU is not offered it twice.</p>
+          </div>
+          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">🖥 Compliant-device reality check <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — and nothing checks the other half today. Read the compliance policies and their assignments, then flag every Conditional Access policy whose protection rests on a persona that no compliance policy actually covers. The same blind spot exists for app-protection policies behind “require approved client app”.</p>
           </div>
@@ -2091,44 +2096,44 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25024"></script>
-<script src="js/version.js?v=25024"></script>
-<script src="js/authConfig.js?v=25024"></script>
-<script src="js/labels.js?v=25024"></script>
-<script src="js/graph.js?v=25024"></script>
-<script src="js/model.js?v=25024"></script>
-<script src="js/render.js?v=25024"></script>
-<script src="js/analyze.js?v=25024"></script>
-<script src="js/whatif.js?v=25024"></script>
-<script src="js/mslearn.js?v=25024"></script>
-<script src="js/gapcheck.js?v=25024"></script>
-<script src="js/cisdata.js?v=25024"></script>
-<script src="js/cischeck.js?v=25024"></script>
-<script src="js/exclusions.js?v=25024"></script>
-<script src="js/validator.js?v=25024"></script>
-<script src="js/whatifeval.js?v=25024"></script>
-<script src="js/compare.js?v=25024"></script>
-<script src="js/groupuse.js?v=25024"></script>
-<script src="js/locations.js?v=25024"></script>
-<script src="js/authcontexts.js?v=25024"></script>
-<script src="js/authstrengths.js?v=25024"></script>
-<script src="js/recycle.js?v=25024"></script>
-<script src="js/rmau.js?v=25024"></script>
-<script src="js/termsofuse.js?v=25024"></script>
-<script src="js/audit.js?v=25024"></script>
-<script src="js/drift.js?v=25024"></script>
-<script src="js/signins.js?v=25024"></script>
-<script src="js/reportimpact.js?v=25024"></script>
-<script src="js/changelog.js?v=25024"></script>
-<script src="js/baselineData.js?v=25024"></script>
-<script src="js/baselineJoeyData.js?v=25024"></script>
-<script src="js/baseline.js?v=25024"></script>
-<script src="js/groupTemplates.js?v=25024"></script>
-<script src="js/assign.js?v=25024"></script>
-<script src="js/cagroups.js?v=25024"></script>
-<script src="js/import.js?v=25024"></script>
-<script src="js/export.js?v=25024"></script>
-<script src="js/demo.js?v=25024"></script>
-<script src="js/app.js?v=25024"></script>
+<script src="js/branding.js?v=25025"></script>
+<script src="js/version.js?v=25025"></script>
+<script src="js/authConfig.js?v=25025"></script>
+<script src="js/labels.js?v=25025"></script>
+<script src="js/graph.js?v=25025"></script>
+<script src="js/model.js?v=25025"></script>
+<script src="js/render.js?v=25025"></script>
+<script src="js/analyze.js?v=25025"></script>
+<script src="js/whatif.js?v=25025"></script>
+<script src="js/mslearn.js?v=25025"></script>
+<script src="js/gapcheck.js?v=25025"></script>
+<script src="js/cisdata.js?v=25025"></script>
+<script src="js/cischeck.js?v=25025"></script>
+<script src="js/exclusions.js?v=25025"></script>
+<script src="js/validator.js?v=25025"></script>
+<script src="js/whatifeval.js?v=25025"></script>
+<script src="js/compare.js?v=25025"></script>
+<script src="js/groupuse.js?v=25025"></script>
+<script src="js/locations.js?v=25025"></script>
+<script src="js/authcontexts.js?v=25025"></script>
+<script src="js/authstrengths.js?v=25025"></script>
+<script src="js/recycle.js?v=25025"></script>
+<script src="js/rmau.js?v=25025"></script>
+<script src="js/termsofuse.js?v=25025"></script>
+<script src="js/audit.js?v=25025"></script>
+<script src="js/drift.js?v=25025"></script>
+<script src="js/signins.js?v=25025"></script>
+<script src="js/reportimpact.js?v=25025"></script>
+<script src="js/changelog.js?v=25025"></script>
+<script src="js/baselineData.js?v=25025"></script>
+<script src="js/baselineJoeyData.js?v=25025"></script>
+<script src="js/baseline.js?v=25025"></script>
+<script src="js/groupTemplates.js?v=25025"></script>
+<script src="js/assign.js?v=25025"></script>
+<script src="js/cagroups.js?v=25025"></script>
+<script src="js/import.js?v=25025"></script>
+<script src="js/export.js?v=25025"></script>
+<script src="js/demo.js?v=25025"></script>
+<script src="js/app.js?v=25025"></script>
 </body>
 </html>

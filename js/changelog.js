@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25025, date: "2026-08-12", title: "Roadmap: group actions where you are already looking",
+    items: [
+      { kind: "improved", tool: "All tools", text: "New on the roadmap: \ud83c\udf9b Group actions where you are already looking. Clicking a group in \u2460 Check opens a card that only READS \u2014 object id, type, the policies that include or exclude it, its members. Everything you might then want to DO lives on a different numbered tab, so you close the card, find the right step, and hunt for the group again. List Policies already solves this: every policy card carries its own Documentation, Backup, Assign and Policy-state buttons. The plan is the same treatment for a group \u2014 create (\u2461), members (\u2462), assign (\u2463), import members (\u2464), protect (\u2465), migrate (\u2466), disable nesting, and open it in \ud83d\udd17 Group Analyzer \u2014 with each action offered only when it actually applies, so a role-assignable group is not offered \u2465 Protect and one already in a restricted AU is not offered it twice." },
+    ],
+  },
+  {
     build: 25024, date: "2026-08-12", title: "The add bar fills in the obvious answer",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "\u2462 Members: when only one group\u2019s members are loaded, the add bar fills that group in \u2014 there is only one possible answer, so making you pick it was busywork \u2014 and the hint says so. With several groups loaded it keeps whatever you used last, but only if that group is still loaded; otherwise it clears the field rather than leaving a stale name behind, because guessing among several groups is how a member lands in the wrong exclusion." },
