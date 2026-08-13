@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 257, date: "2026-08-13", title: "The import report told the truth about role-assignable groups",
+    items: [
+      { kind: "fixed", tool: "Import", text: "The import report labelled every group it created “(assigned, role-assignable)”. That stopped being true in build 254, when the baseline moved off role-assignable groups — a role-assignable group's members can only be changed by Global Administrator or Privileged Role Administrator, and neither role can be assigned at administrative-unit scope, so such a group placed in a restricted administrative unit has nobody left who can edit it. The groups were already being created correctly as ordinary security groups; only the report was wrong. Worth a build of its own because it is exactly the sort of line that gets pasted into a design document and believed a year later." },
+    ],
+  },
+  {
     build: 256, date: "2026-08-12", title: "Tiles say when a tool changed",
     items: [
       { kind: "new", tool: "All tools", text: "An UPDATED chip on the home tiles, alongside NEW and BETA, marking a tool that changed in this release — 👥 Conditional Access groups and 🔒 Protect exclusions carry it after build 254. A flagged tile now claims one of its section's four visible slots before the unflagged ones, so a release is reachable without expanding the section; it does not enlarge the section, because when a release touches many tools that would stop it collapsing at all. Tile order never changes, only which tiles are shown, and anything flagged that still does not fit is counted on the button — “Show 7 more · 2 new or beta”. The convention, including clearing UPDATED at the start of the next cycle so a stale flag does not take a slot from something that genuinely changed, is written next to the tiles in index.html." },

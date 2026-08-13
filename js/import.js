@@ -278,10 +278,14 @@ const Importer = (() => {
     // generic warning.
     const log = { created: [], reused: [], warnings: [], missingTou: [] };
     const noteMissingTou = (name) => { if (name && !log.missingTou.includes(name)) log.missingTou.push(name); };
-    // Assigned groups are created role-assignable; dynamic groups keep their
-    // membership rule (Entra forbids role-assignable + dynamic). Say which.
+    // Groups are created as ORDINARY security groups. They were role-assignable
+    // until build 254; the baseline moved off that, because a role-assignable
+    // group's members can only be changed by Global Administrator or Privileged
+    // Role Administrator — neither of which can be assigned at AU scope — so a
+    // role-assignable group inside a restricted AU has nobody who can edit it.
+    // Dynamic groups keep their membership rule. Say which, accurately.
     const noteGroup = (g, label) => {
-      const kind = !g.created ? "" : g.dynamic ? " (dynamic, membership rule preserved)" : " (assigned, role-assignable)";
+      const kind = !g.created ? "" : g.dynamic ? " (dynamic, membership rule preserved)" : " (assigned)";
       (g.created ? log.created : log.reused).push(`${label}${kind}`);
     };
 
@@ -294,7 +298,7 @@ const Importer = (() => {
       for (const p of placeholders) {
         try {
           if (p.kind === "group") {
-            // create-if-missing, always role-assignable (template if we have one)
+            // create-if-missing (from the template if we have one)
             const tpl = Assign.templates().find(t => t.displayName === p.name) || { displayName: p.name };
             const g = await Assign.createGroup(tpl);
             maps.ph[key(p)] = g.id;
