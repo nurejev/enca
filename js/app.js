@@ -305,17 +305,34 @@
       const key = (head && head.querySelector("h3") ? head.querySelector("h3").textContent : `sec${gi}`).trim();
       const btn = document.createElement("button");
       btn.className = "btn home-more";
+      // A tool that just shipped or just changed should not be behind the fold.
+      // NEW, BETA and UPDATED tiles therefore claim the visible slots FIRST —
+      // but they do not enlarge the section, because when a release touches six
+      // tools that stopped the section collapsing at all. Order never changes;
+      // only which tiles are shown.
+      const flagged = (t) => !!t.querySelector(".tag.new, .tag.upd");
       const paint = () => {
         const open = homeExpanded.has(key);
-        tiles.forEach((t, i) => { t.style.display = i < HOME_VISIBLE || open ? "" : "none"; });
-        // A tool that just shipped should not vanish behind the fold without
-        // saying so — otherwise collapsing the grid quietly buries the thing
-        // most worth finding. Count the BETA/NEW tiles that are hidden and name
-        // them on the button.
-        const buried = tiles.slice(HOME_VISIBLE).filter((t) => t.querySelector(".tag.new")).length;
+        // The visible budget is HOME_VISIBLE in total. Flagged tiles claim those
+        // slots FIRST — a release must be reachable without expanding — but they
+        // no longer sit on top of the budget. With six flagged tiles in a section
+        // that meant nothing collapsed at all, which is the opposite of the point.
+        // Anything flagged that still does not fit is counted on the button, so it
+        // is announced rather than silently buried.
+        const keep = new Set();
+        for (const t of tiles) { if (keep.size >= HOME_VISIBLE) break; if (flagged(t)) keep.add(t); }
+        for (const t of tiles) { if (keep.size >= HOME_VISIBLE) break; keep.add(t); }
+        const hidden = [];
+        tiles.forEach((t) => {
+          const show = open || keep.has(t);
+          t.style.display = show ? "" : "none";      // display only — order never changes
+          if (!show) hidden.push(t);
+        });
+        const buried = hidden.filter(flagged).length;
+        btn.style.display = hidden.length || open ? "" : "none";
         btn.textContent = open
           ? "▲ Show fewer"
-          : `▼ Show ${tiles.length - HOME_VISIBLE} more${buried ? ` · ${buried} new or beta` : ""}`;
+          : `▼ Show ${hidden.length} more${buried ? ` · ${buried} new or beta` : ""}`;
         btn.setAttribute("aria-expanded", open ? "true" : "false");
       };
       btn.addEventListener("click", () => {

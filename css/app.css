@@ -399,6 +399,9 @@ tr.grouprow:hover td{background:var(--line)}
 .tag.grant{background:var(--ok-bg);border-color:var(--ok-bd)}
 .tag.block{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--off)}
 .tag.new{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn-fg)}
+/* A tool that changed in the current release. Like .new it exempts the tile
+   from the home-page collapse, so an update is never hidden behind a toggle. */
+.tag.upd{background:var(--ok-bg2);border-color:var(--ok-bd);color:var(--on)}
 .pcard-foot{padding:10px 22px;display:flex;align-items:center;gap:10px;background:var(--hover)}
 .dep-bar{padding:10px 22px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .dep-link{cursor:pointer}

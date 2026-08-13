@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 256, date: "2026-08-12", title: "Tiles say when a tool changed",
+    items: [
+      { kind: "new", tool: "All tools", text: "An UPDATED chip on the home tiles, alongside NEW and BETA, marking a tool that changed in this release — 👥 Conditional Access groups and 🔒 Protect exclusions carry it after build 254. A flagged tile now claims one of its section's four visible slots before the unflagged ones, so a release is reachable without expanding the section; it does not enlarge the section, because when a release touches many tools that would stop it collapsing at all. Tile order never changes, only which tiles are shown, and anything flagged that still does not fit is counted on the button — “Show 7 more · 2 new or beta”. The convention, including clearing UPDATED at the start of the next cycle so a stale flag does not take a slot from something that genuinely changed, is written next to the tiles in index.html." },
+    ],
+  },
+  {
     build: 255, date: "2026-08-12", title: "Hotfix: the stylesheet was cut in half",
     items: [
       { kind: "fixed", tool: "All tools", text: "Build 254 shipped an unclosed CSS rule — .cg-actionbar opened a block and never closed it — and a browser discards everything after an unterminated rule, so roughly two thirds of the stylesheet never applied. The site rendered as unstyled HTML with every screen visible at once. The rule is closed. Cause: the rule was copied across from the beta branch by taking text up to the first newline, but it spans two lines, so the closing brace was left behind." },

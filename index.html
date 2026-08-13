@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=255"></script>
+<script src="js/popup-guard.js?v=256"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=255">
+<link rel="stylesheet" href="css/app.css?v=256">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=255"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=255"></script>
+<script src="js/counter.js?v=256"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=256"></script>
 </head>
 <body>
 
@@ -87,6 +87,14 @@
 
   <!-- ============ TOOLS HOME ============ -->
   <section id="screen-home" class="screen">
+    <!-- TILE TAGS — not decoration. A tile carrying NEW, BETA or UPDATED claims
+         one of the section's visible slots before the unflagged ones (see
+         initHomeSections in app.js), so a release is reachable without expanding.
+           NEW      a tool that did not exist in the previous release
+           BETA     shipped, still proving itself; may change or be withdrawn
+           UPDATED  an existing tool that changed in this release
+         Clear UPDATED at the start of the next cycle — a stale flag takes a slot
+         from something that genuinely changed. -->
     <h2 class="home-title">What do you want to do?</h2>
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
     <div class="tools">
@@ -164,11 +172,11 @@
     <div class="tool-sec"><h3>✍️ Manage the tenant</h3><p>The tools that write. Each one confirms before it changes anything.</p></div>
     <div class="tools">
       <div class="tool" id="toolCaGroups">
-        <div class="tool-ic">👥</div><h3>Conditional Access groups</h3>
+        <div class="tool-ic">👥</div><h3>Conditional Access groups <span class="tag upd">UPDATED</span></h3>
         <p>Check the baseline groups against this tenant, create the missing ones, analyze their members in a matrix, and assign them to policies. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolProtect">
-        <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag new">NEW</span></h3>
+        <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag new">NEW</span> <span class="tag upd">UPDATED</span></h3>
         <p>Place the CA exclusion groups in a restricted management administrative unit, so only AU-scoped roles can change their membership — closing the "an admin adds themselves to an exclusion group" bypass. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolLocations">
@@ -2049,42 +2057,42 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=255"></script>
-<script src="js/version.js?v=255"></script>
-<script src="js/authConfig.js?v=255"></script>
-<script src="js/labels.js?v=255"></script>
-<script src="js/graph.js?v=255"></script>
-<script src="js/model.js?v=255"></script>
-<script src="js/render.js?v=255"></script>
-<script src="js/analyze.js?v=255"></script>
-<script src="js/whatif.js?v=255"></script>
-<script src="js/mslearn.js?v=255"></script>
-<script src="js/gapcheck.js?v=255"></script>
-<script src="js/exclusions.js?v=255"></script>
-<script src="js/validator.js?v=255"></script>
-<script src="js/whatifeval.js?v=255"></script>
-<script src="js/compare.js?v=255"></script>
-<script src="js/groupuse.js?v=255"></script>
-<script src="js/locations.js?v=255"></script>
-<script src="js/authcontexts.js?v=255"></script>
-<script src="js/authstrengths.js?v=255"></script>
-<script src="js/recycle.js?v=255"></script>
-<script src="js/termsofuse.js?v=255"></script>
-<script src="js/rmau.js?v=255"></script>
-<script src="js/audit.js?v=255"></script>
-<script src="js/drift.js?v=255"></script>
-<script src="js/signins.js?v=255"></script>
-<script src="js/reportimpact.js?v=255"></script>
-<script src="js/changelog.js?v=255"></script>
-<script src="js/baselineData.js?v=255"></script>
-<script src="js/baselineJoeyData.js?v=255"></script>
-<script src="js/baseline.js?v=255"></script>
-<script src="js/groupTemplates.js?v=255"></script>
-<script src="js/assign.js?v=255"></script>
-<script src="js/cagroups.js?v=255"></script>
-<script src="js/import.js?v=255"></script>
-<script src="js/export.js?v=255"></script>
-<script src="js/demo.js?v=255"></script>
-<script src="js/app.js?v=255"></script>
+<script src="js/branding.js?v=256"></script>
+<script src="js/version.js?v=256"></script>
+<script src="js/authConfig.js?v=256"></script>
+<script src="js/labels.js?v=256"></script>
+<script src="js/graph.js?v=256"></script>
+<script src="js/model.js?v=256"></script>
+<script src="js/render.js?v=256"></script>
+<script src="js/analyze.js?v=256"></script>
+<script src="js/whatif.js?v=256"></script>
+<script src="js/mslearn.js?v=256"></script>
+<script src="js/gapcheck.js?v=256"></script>
+<script src="js/exclusions.js?v=256"></script>
+<script src="js/validator.js?v=256"></script>
+<script src="js/whatifeval.js?v=256"></script>
+<script src="js/compare.js?v=256"></script>
+<script src="js/groupuse.js?v=256"></script>
+<script src="js/locations.js?v=256"></script>
+<script src="js/authcontexts.js?v=256"></script>
+<script src="js/authstrengths.js?v=256"></script>
+<script src="js/recycle.js?v=256"></script>
+<script src="js/termsofuse.js?v=256"></script>
+<script src="js/rmau.js?v=256"></script>
+<script src="js/audit.js?v=256"></script>
+<script src="js/drift.js?v=256"></script>
+<script src="js/signins.js?v=256"></script>
+<script src="js/reportimpact.js?v=256"></script>
+<script src="js/changelog.js?v=256"></script>
+<script src="js/baselineData.js?v=256"></script>
+<script src="js/baselineJoeyData.js?v=256"></script>
+<script src="js/baseline.js?v=256"></script>
+<script src="js/groupTemplates.js?v=256"></script>
+<script src="js/assign.js?v=256"></script>
+<script src="js/cagroups.js?v=256"></script>
+<script src="js/import.js?v=256"></script>
+<script src="js/export.js?v=256"></script>
+<script src="js/demo.js?v=256"></script>
+<script src="js/app.js?v=256"></script>
 </body>
 </html>
