@@ -27,9 +27,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.267",
-  betaBuild: "v1.0.250-beta.58",
+  betaBuild: "v1.0.250-beta.59",
 
   items: [
+    {
+      n: 23,
+      title: "Flagged tiles sort first in a collapsed section (R09)",
+      tools: ["All tools"],
+      builds: [25059],
+      risk: "low",
+      what: "A collapsed home section puts NEW / BETA / UPDATED tiles first via CSS order, restoring the authored order on expand. Nothing is reparented — the grid's grouping survives untouched.",
+      why: "Production has the same behaviour of a flagged tile claiming a visible slot but keeping its page position, so a flagged tile sitting ninth is on screen and still reads as an afterthought.",
+      files: ["js/app.js"],
+    },
     {
       n: 22,
       title: "Roadmap items carry a reference (R01–R26)",
@@ -92,13 +102,12 @@ const PROMOTE = {
     },
   ],
 
-  // Deliberately NOT promoted. Listed so the absence is a decision on the
-  // record rather than something that looks forgotten.
+  // Deliberately NOT promoted. Every entry here must be something that EXISTS
+  // on beta and is not going to production — it is still part of the gap, just
+  // a permanent part of it. Something that has already shipped is not a
+  // difference between the channels and belongs in neither list: it goes in
+  // js/changelog.js and nowhere else. This section is the diff, not a history.
   staying: [
-    {
-      title: "📉 Drift watch and ⌨️ the command palette",
-      why: "Both graduated to production in build 267 (roadmap R02 and R03). Listed here only so their absence from the queue reads as a decision; they will drop off the next time this file is edited.",
-    },
     {
       title: "🚚 This promotion queue",
       why: "Beta-only by design — js/promote.js and the Help section that renders it exist to describe the gap, so they have no meaning in production.",

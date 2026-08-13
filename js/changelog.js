@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25059, date: "2026-08-13", title: "What changed comes first, and the queue shows only the gap",
+    items: [
+      { kind: "improved", tool: "All tools", text: "R09 — in a COLLAPSED home section the NEW / BETA / UPDATED tiles now sort to the front. They already claimed one of the four visible slots, but kept their position in page order, so a flagged tile sitting ninth was on screen and still read as an afterthought. Done with CSS order rather than by moving anything: nothing is reparented, expanding restores the authored order exactly, and the grid's grouping — which is meaningful — survives untouched." },
+      { kind: "fixed", tool: "All tools", text: "🚚 Waiting for production listed 📉 Drift watch and ⌨️ the command palette under “staying on this channel”, describing them as having graduated. Something that has shipped is not a difference between the channels and belongs in neither list — it made a table whose entire job is “what is here and not there” read as a history. Removed, and the section now says outright that it is the gap and only the gap, with the “staying” list restricted to things that exist here and are deliberately not going." },
+    ],
+  },
+  {
     build: 25058, date: "2026-08-13", title: "R02 and R03 went live",
     items: [
       { kind: "improved", tool: "All tools", text: "📉 Drift watch (R02) and the ⌨️ command palette (R03) are out of BETA and in production as build 267 — Drift watch taking the administrative-unit snapshot area with it. Their roadmap cards leave “Next”, and their references retire with them: R02 and R03 are not reused, so the remaining numbers keep their gaps rather than shuffling up. A reference that moved would make every older note about it wrong." },

@@ -325,7 +325,14 @@
         const hidden = [];
         tiles.forEach((t) => {
           const show = open || keep.has(t);
-          t.style.display = show ? "" : "none";      // display only — order never changes
+          t.style.display = show ? "" : "none";
+          // COLLAPSED: what changed goes first. A flagged tile claimed a visible
+          // slot before this but kept its page position, so a flagged tile
+          // sitting ninth was on screen and still read as an afterthought.
+          // Order is a CSS property here, not a DOM move — nothing is
+          // reparented, so expanding restores the authored order exactly, and
+          // the grid's grouping (which is meaningful) survives untouched.
+          t.style.order = open ? "" : (flagged(t) ? "-1" : "");
           if (!show) hidden.push(t);
         });
         const buried = hidden.filter(flagged).length;
@@ -370,8 +377,9 @@
       el.innerHTML = `
         <h4>🚚 Waiting for production <span class="tag new">BETA CHANNEL</span></h4>
         <p>Production is <b>${esc2(PROMOTE.productionBuild)}</b>; this site is <b>${esc2(PROMOTE.betaBuild)}</b>.
-          Each item below is one promotable change. They carry <b>stable numbers</b>, so you can say
-          <i>“push number 3 to main”</i> and mean exactly one thing.</p>
+          <b>This is the gap, and only the gap</b> — what exists here and not there. Nothing that has already
+          shipped appears below; for that, read <b>📋 What's new</b>. Each row is one promotable change with a
+          <b>stable number</b>, so <i>“push number 3 to main”</i> means exactly one thing.</p>
         <div class="cg-tablewrap"><table class="cg-table">
           <thead><tr><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:120px">Beta builds</th></tr></thead>
           <tbody>${items.map((it) => {
@@ -389,6 +397,7 @@
           }).join("")}</tbody></table></div>
         ${(PROMOTE.staying || []).length ? `
           <h4 style="margin-top:18px">Staying on this channel</h4>
+          <p class="mini muted" style="margin:0 0 6px">Also part of the gap, but permanently: these exist here and are not going to production.</p>
           <ul>${PROMOTE.staying.map((sv) => `<li><b>${esc2(sv.title)}</b> — ${esc2(sv.why)}</li>`).join("")}</ul>` : ""}
         <p class="help-x">This list is written by hand — the app is static files in a browser and cannot read git or diff two branches. It is maintained alongside <b>📋 What's new</b>; if an entry looks stale, trust the changelog and the build numbers over this table.</p>`;
       el.style.display = "";
