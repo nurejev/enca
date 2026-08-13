@@ -986,7 +986,9 @@ const CaGroups = (() => {
         steps: [
           { key: "rename",  text: `Rename “${row.name}” to “${archiveName}” — kept as the rollback` },
           { key: "create",  text: `Create “${row.name}” as a plain security group${disableNesting ? ", nesting disabled" : ""}` },
-          { key: "members", text: `Copy the members across${row.memberTotal != null ? ` (${row.memberTotal})` : ""}` },
+          { key: "members", text: row.memberTotal != null
+              ? `Copy ${row.memberTotal} member${row.memberTotal === 1 ? "" : "s"} across — the archived group keeps its own copy`
+              : `Copy the members across (count unknown — the read failed) — the archived group keeps its own copy` },
           ...(base.refs.include.length ? [{ key: "addInc", text: `Add the new group to the INCLUDE of ${base.refs.include.length} polic${base.refs.include.length === 1 ? "y" : "ies"}` }] : []),
           ...(base.refs.exclude.length ? [{ key: "addExc", text: `Add the new group to the EXCLUDE of ${base.refs.exclude.length} polic${base.refs.exclude.length === 1 ? "y" : "ies"}` }] : []),
           ...(base.refs.include.length ? [{ key: "delInc", text: `Remove the archived group from those ${base.refs.include.length} include assignment${base.refs.include.length === 1 ? "" : "s"}` }] : []),

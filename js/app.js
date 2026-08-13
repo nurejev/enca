@@ -2218,9 +2218,23 @@ max@contoso.com,"Global, DevOps"</pre>
       const roles = new Map(), protectedIn = new Map();
       const cands = rows.filter((r) => r.id && r.roleAssignable);
       for (let i = 0; i < cands.length; i++) {
-        say(`Checking ${cands[i].name} for directory roles… ${i + 1}/${cands.length}`, i + 1, cands.length);
-        if (isDemo) { roles.set(cands[i].id, { ok: true, active: [], eligible: [] }); continue; }
+        say(`Checking ${cands[i].name}… ${i + 1}/${cands.length}`, i + 1, cands.length);
+        if (isDemo) {
+          roles.set(cands[i].id, { ok: true, active: [], eligible: [] });
+          if (cands[i].memberTotal == null) cands[i].memberTotal = 2;   // demo fixture
+          continue;
+        }
         roles.set(cands[i].id, await CaGroups.heldRoles(cands[i].id));
+        // How many members will actually be copied, so the preview can say so
+        // BEFORE you commit. Counted the same way the copy reads them — DIRECT
+        // members of every type — not transitiveMembers/user like the ③ Members
+        // tab, which would report a different number than the one that moves.
+        if (cands[i].memberTotal == null) {
+          try {
+            const ms = await Graph.ggetAll(`/groups/${cands[i].id}/members?$select=id&$top=999`);
+            cands[i].memberTotal = ms.length;
+          } catch (e) { console.warn("member count failed for", cands[i].name, e.message); }
+        }
         try {
           const r = await Graph.gget(`/groups/${cands[i].id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
           const hit = ((r && r.value) || []).find((a) => a.isMemberManagementRestricted === true);

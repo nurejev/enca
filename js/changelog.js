@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25020, date: "2026-08-12", title: "Say how many members are about to move",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "\u2466 Migrate\u2019s step 3 read \u201cCopy the members across\u201d with no number, because the group scan does not load members \u2014 so the one figure worth checking before migrating a break-glass group was missing. The scan now counts them, and counts them the SAME WAY THE COPY READS THEM: direct members of every type, via /groups/{id}/members. The \u2462 Members tab deliberately counts something else (transitiveMembers of type user), and quoting that number here would have promised a total the copy does not move. The step also now says the archived group keeps its own copy \u2014 the migration copies rather than moves, which is exactly what makes the archived original a working rollback. Where the count cannot be read the step says so instead of silently omitting it." },
+    ],
+  },
+  {
     build: 25019, date: "2026-08-12", title: "Migrate in stages if you want to",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "\u2466 Migrate gains a select-all / deselect-all control above the list, with a live \u201cN of M selected\u201d count that follows the individual checkboxes rather than drifting from them." },
