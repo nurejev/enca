@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=260"></script>
+<script src="js/popup-guard.js?v=261"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=260">
+<link rel="stylesheet" href="css/app.css?v=261">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=260"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=260"></script>
+<script src="js/counter.js?v=261"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=261"></script>
 </head>
 <body>
 
@@ -172,11 +172,11 @@
     <div class="tool-sec"><h3>✍️ Manage the tenant</h3><p>The tools that write. Each one confirms before it changes anything.</p></div>
     <div class="tools">
       <div class="tool" id="toolCaGroups">
-        <div class="tool-ic">👥</div><h3>Conditional Access groups</h3>
+        <div class="tool-ic">👥</div><h3>Conditional Access groups <span class="tag upd">UPDATED</span></h3>
         <p>Check the baseline groups against this tenant, create the missing ones, analyze their members in a matrix, and assign them to policies. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolProtect">
-        <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag new">NEW</span></h3>
+        <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag new">NEW</span> <span class="tag upd">UPDATED</span></h3>
         <p>Place the CA exclusion groups in a restricted management administrative unit, so only AU-scoped roles can change their membership — closing the "an admin adds themselves to an exclusion group" bypass. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolLocations">
@@ -212,7 +212,7 @@
         <p>Switch selected policies between On, Report-only and Off. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolImport">
-        <div class="tool-ic">📥</div><h3>Import <span class="tag upd">UPDATED</span></h3>
+        <div class="tool-ic">📥</div><h3>Import</h3>
         <p>Restore a backup (zip or folder): dependencies first, policies imported Off, includes remapped to deploy persona groups. <span class="tag block">writes to tenant</span></p>
       </div>
     </div>
@@ -1413,6 +1413,11 @@
       <ul>
         <li><b>What it does</b> — creates the restricted management administrative unit if it doesn't exist (or reuses an existing restricted one), shows which exclusion groups are already protected, adds the selected groups, and can grant one account Groups Administrator <b>scoped to the AU</b>. Explicit acknowledgement before anything is written; Markdown change report after. <b>Role-assignable groups are refused here</b> — their membership is already limited to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two, so a group with both protections has nobody who can edit its members. Choose one or the other.</li>
         <li><b>Shared state</b> — it uses the same group scan and selection as CA groups ⑥, so switching between the two views keeps your work.</li>
+        <li><b>Each group goes to its own persona vault.</b> The destination is read from the CA number in the group's name — CA001 to <code>CAB-SEC-RMAU-GLO-Exclusions</code>, CA101 to <code>ADM</code>, CA1001 to <code>DevOps</code> — and shown per row before you write. One unit for the whole run was the old behaviour, and it quietly undid the point of having a unit per persona: protect CA001 and CA101 together and the Admins exclusions land in the Global vault, giving the Global vault's scoped administrators control of policies they have nothing to do with.</li>
+        <li><b>Nothing is filed by proximity.</b> If a group's persona unit does not exist yet, or its name carries no CA number the baseline recognises, it is <b>skipped and named</b> rather than placed in whichever unit was nearest. The fallback unit at the top is used only for the unrecognised ones, and only if you pick it — it is unset by default, because defaulting to the first unit in the list means Global on most tenants.</li>
+        <li><b>Scoped administrators are granted on every unit</b> the run wrote to, not just one of them, with each grant reported separately.</li>
+        <li><b>🧊 frozen</b> — a group that is <b>role-assignable</b> and <i>already</i> in a restricted unit is a dead end: its members may only be changed by Global Administrator or Privileged Role Administrator, and the unit blocks both. Neither flag can be undone. Remove it from the unit to restore those two roles, then convert it with <b>⑦ Migrate</b>. ENCA refuses to create this state, but it can be inherited from a tenant configured before that guard existed, or from the portal — so it is now detected and called out wherever the group appears.</li>
+        <li><b>Search</b> — the box above the list narrows the exclusion groups already found, with type-ahead over their names. Select-all then applies to what is visible, not to the whole list behind the filter.</li>
       </ul>
       <p class="help-x">Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and Entra ID P1 for administrative-unit administrators. See the CA groups section above for the full detail and caveats.</p>
     </section>
@@ -2065,42 +2070,42 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=260"></script>
-<script src="js/version.js?v=260"></script>
-<script src="js/authConfig.js?v=260"></script>
-<script src="js/labels.js?v=260"></script>
-<script src="js/graph.js?v=260"></script>
-<script src="js/model.js?v=260"></script>
-<script src="js/render.js?v=260"></script>
-<script src="js/analyze.js?v=260"></script>
-<script src="js/whatif.js?v=260"></script>
-<script src="js/mslearn.js?v=260"></script>
-<script src="js/gapcheck.js?v=260"></script>
-<script src="js/exclusions.js?v=260"></script>
-<script src="js/validator.js?v=260"></script>
-<script src="js/whatifeval.js?v=260"></script>
-<script src="js/compare.js?v=260"></script>
-<script src="js/groupuse.js?v=260"></script>
-<script src="js/locations.js?v=260"></script>
-<script src="js/authcontexts.js?v=260"></script>
-<script src="js/authstrengths.js?v=260"></script>
-<script src="js/recycle.js?v=260"></script>
-<script src="js/termsofuse.js?v=260"></script>
-<script src="js/rmau.js?v=260"></script>
-<script src="js/audit.js?v=260"></script>
-<script src="js/drift.js?v=260"></script>
-<script src="js/signins.js?v=260"></script>
-<script src="js/reportimpact.js?v=260"></script>
-<script src="js/changelog.js?v=260"></script>
-<script src="js/baselineData.js?v=260"></script>
-<script src="js/baselineJoeyData.js?v=260"></script>
-<script src="js/baseline.js?v=260"></script>
-<script src="js/groupTemplates.js?v=260"></script>
-<script src="js/assign.js?v=260"></script>
-<script src="js/cagroups.js?v=260"></script>
-<script src="js/import.js?v=260"></script>
-<script src="js/export.js?v=260"></script>
-<script src="js/demo.js?v=260"></script>
-<script src="js/app.js?v=260"></script>
+<script src="js/branding.js?v=261"></script>
+<script src="js/version.js?v=261"></script>
+<script src="js/authConfig.js?v=261"></script>
+<script src="js/labels.js?v=261"></script>
+<script src="js/graph.js?v=261"></script>
+<script src="js/model.js?v=261"></script>
+<script src="js/render.js?v=261"></script>
+<script src="js/analyze.js?v=261"></script>
+<script src="js/whatif.js?v=261"></script>
+<script src="js/mslearn.js?v=261"></script>
+<script src="js/gapcheck.js?v=261"></script>
+<script src="js/exclusions.js?v=261"></script>
+<script src="js/validator.js?v=261"></script>
+<script src="js/whatifeval.js?v=261"></script>
+<script src="js/compare.js?v=261"></script>
+<script src="js/groupuse.js?v=261"></script>
+<script src="js/locations.js?v=261"></script>
+<script src="js/authcontexts.js?v=261"></script>
+<script src="js/authstrengths.js?v=261"></script>
+<script src="js/recycle.js?v=261"></script>
+<script src="js/termsofuse.js?v=261"></script>
+<script src="js/rmau.js?v=261"></script>
+<script src="js/audit.js?v=261"></script>
+<script src="js/drift.js?v=261"></script>
+<script src="js/signins.js?v=261"></script>
+<script src="js/reportimpact.js?v=261"></script>
+<script src="js/changelog.js?v=261"></script>
+<script src="js/baselineData.js?v=261"></script>
+<script src="js/baselineJoeyData.js?v=261"></script>
+<script src="js/baseline.js?v=261"></script>
+<script src="js/groupTemplates.js?v=261"></script>
+<script src="js/assign.js?v=261"></script>
+<script src="js/cagroups.js?v=261"></script>
+<script src="js/import.js?v=261"></script>
+<script src="js/export.js?v=261"></script>
+<script src="js/demo.js?v=261"></script>
+<script src="js/app.js?v=261"></script>
 </body>
 </html>
