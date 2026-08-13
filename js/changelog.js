@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 267, date: "2026-08-13", title: "Drift watch and the command palette are out of BETA",
+    items: [
+      { kind: "improved", tool: "Drift watch", text: "Out of BETA. It has been answering the question it was built for — does the tenant still look like it did when we signed it off — across enough real tenants, and it is read-only: the worst it can do is describe the configuration. The BETA chip comes off the tile and the Help heading, and its roadmap card moves into “Now”." },
+      { kind: "new", tool: "Drift watch", text: "Administrative units are now a snapshot area. They live nowhere near the Conditional Access blade, but a restricted unit is what stops a tenant-wide Groups Administrator adding somebody to an exclusion group — so a group quietly leaving one widens the bypass surface exactly as much as editing the policy would, and until now nothing here would have noticed. A MEMBER REMOVED ranks Critical, a SCOPED ADMINISTRATOR ADDED ranks High, a unit DELETED ranks Critical. Needs AdministrativeUnit.Read.All, asked for on the click; decline it and the area reports as not captured rather than as clean." },
+      { kind: "improved", tool: "All tools", text: "The ⌨️ command palette is out of BETA. Ctrl/⌘ + K, type a few letters, Enter. It navigates and nothing else — it opens things, it never changes anything — which is the argument for graduating it early rather than late." },
+    ],
+  },
+  {
     build: 266, date: "2026-08-13", title: "Restricted AUs is out of BETA",
     items: [
       { kind: "improved", tool: "Restricted AUs", text: "The BETA chip comes off the tile, the tool header, the Help heading and the baseline panel. It shipped here in build 253 and has since gained the per-persona baseline, bulk add, frozen-group detection and the routing that ⑥ Protect and 📥 Import both depend on — a tool other tools rely on should not still be labelled provisional. Its roadmap card moves out of “Next — being worked toward” and into “Now”, where it belongs." },

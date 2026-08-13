@@ -6389,7 +6389,7 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("🕓 Change audit", "CA-ChangeAudit", L.join("\n"));
   });
 
-  // ---------- Command palette (BETA) ----------
+  // ---------- Command palette ----------
   // Past twenty-odd tools a tile grid stops being the fastest way in. Ctrl/Cmd+K
   // anywhere, type, Enter. Two sources: every tool in TOOL_TABS, and — once a
   // tenant is loaded — every policy by CA number or name, so "203" lands on the
@@ -6502,12 +6502,18 @@ max@contoso.com,"Global, DevOps"</pre>
   function drNames() {
     const out = {};
     for (const p of policies) for (const d of (p.deps || [])) if (d.id && d.label) out[d.id] = d.label;
+    // Administrative units and the groups inside them, so "a member left
+    // CAB-SEC-RMAU-ADM-Exclusions" does not read as two GUIDs. The AU list is
+    // whatever the Restricted AUs tool last read; the group names come from the
+    // policy dependencies above, which already cover every exclusion group.
+    for (const a of (ruList || [])) if (a.id && a.displayName) out[a.id] = a.displayName;
     return out;
   }
   async function drRead(url, key) {
     if (isDemo) {
       if (key === "policies") return (typeof DEMO_DATA !== "undefined" && DEMO_DATA.policies) || [];
       if (key === "locations") return (typeof DEMO_DATA !== "undefined" && DEMO_DATA.namedLocations) || [];
+      if (key === "adminunits") return (typeof DEMO_DATA !== "undefined" && DEMO_DATA.adminUnits) || [];
       return [];
     }
     return Graph.ggetAll(url);
@@ -6535,7 +6541,18 @@ max@contoso.com,"Global, DevOps"</pre>
     } finally { drBusy = false; }
   }
 
+  // AdministrativeUnit.Read.All is asked for on the click, once, like every
+  // other on-demand scope. Declined, the units simply come back as "not
+  // captured" — the snapshot is still worth taking for everything else.
+  const DRIFT_SCOPES = [...new Set(Drift.AREAS.flatMap((a) => a.scopes || []))];
+  async function drConsent() {
+    if (isDemo || !DRIFT_SCOPES.length) return true;
+    try { return await preConsent([...AUTH_CONFIG.scopes, ...DRIFT_SCOPES]); }
+    catch { return true; }   // never block a snapshot over an optional area
+  }
+
   $("drSnap").addEventListener("click", async () => {
+    await drConsent();
     const snap = await drTake(false);
     if (!snap) return;
     const failed = Object.entries(snap.areas).filter(([, v]) => !v.ok);
@@ -6557,6 +6574,7 @@ max@contoso.com,"Global, DevOps"</pre>
       toast(`That snapshot could not be read: ${esc(err.message || err)}`);
       return;
     }
+    await drConsent();
     if (!await drTake(false)) return;
     drCmp = Drift.attribute(Drift.compare(drBase, drNow), auRes ? auRes.rows : null);
     renderDrift();
@@ -6576,7 +6594,7 @@ max@contoso.com,"Global, DevOps"</pre>
   }
 
   function renderDrift() {
-    $("drHead").innerHTML = `<h3>📉 Drift watch <span class="tag new">BETA</span></h3>
+    $("drHead").innerHTML = `<h3>📉 Drift watch</h3>
       <p class="mini" style="margin:6px 0 0">Snapshot the Conditional Access configuration now, compare a later run against it. The history is a file you keep — no server, no 30-day limit. Take a snapshot today; come back next month and load it.</p>`;
 
     if (!drCmp) {
