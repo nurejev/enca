@@ -27,7 +27,7 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.266",
-  betaBuild: "v1.0.250-beta.55",
+  betaBuild: "v1.0.250-beta.56",
 
   items: [
     {
@@ -44,9 +44,9 @@ const PROMOTE = {
       n: 20,
       title: "Roadmap card: self-hosting with Docker",
       tools: ["Roadmap"],
-      builds: [25053],
+      builds: [25053, 25056],
       risk: "low",
-      what: "One roadmap card describing a published nginx image and a compose example, pairing with the single-tenant app registration, and leading with the redirect-URI step that cannot be automated.",
+      what: "One roadmap card describing a published nginx image and a compose example, pairing with the single-tenant app registration, leading with the redirect-URI step that cannot be automated, and an optional SQLite store for keeping snapshots and reports between sessions.",
       why: "Roadmap text only. It can ride along with the next promotion.",
       files: ["index.html"],
     },

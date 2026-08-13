@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25056, date: "2026-08-13", title: "Roadmap: somewhere to keep things, if you host it yourself",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "🐳 Self-hosting with Docker gains the reason it is worth more than a different URL. Nothing survives the tab closing today, by design — there is no server to keep it on, so a drift snapshot is a file you download and a report is a file you save. A self-hosted instance could offer an optional SQLite store holding snapshots, reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having had to keep track of a JSON file. Written as opt-in and self-hosted only: the hosted site keeps storing nothing, because “nothing is kept anywhere” is worth more than the convenience — and tokens stay out of it either way, since they belong in the browser session and nowhere else." },
+    ],
+  },
+  {
     build: 25055, date: "2026-08-13", title: "One queue number per change",
     items: [
       { kind: "fixed", tool: "All tools", text: "The promotion queue had three unrelated roadmap cards filed under a single number, which defeats the point of numbering them: “push 17” has to mean one decision, not three that happened to be written on the same day, and bundling them made it impossible to promote one without the others. Split into 17 (bulk grant scoped administrators), 19 (baseline usage guide) and 20 (self-hosting with Docker), with the break-glass naming work as 21. The rule is now written into the header of js/promote.js so the next entry cannot quietly repeat it: one item per change, and only work that must ship together shares a number." },
