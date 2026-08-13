@@ -20,7 +20,7 @@
 // the next new item takes the next free number.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.262",
+  productionBuild: "v1.0.263",
   betaBuild: "v1.0.250-beta.45",
 
   items: [
