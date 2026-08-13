@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 270, date: "2026-08-13", title: "The roadmap retires what it delivered",
+    items: [
+      { kind: "new", tool: "Roadmap", text: "A SHIPPED BEFORE section at the foot of the page, outside the timeline. An item moves there on its own once it is more than 15 builds old, so “Now” stays what is actually current rather than everything ever delivered. Nothing is deleted — a roadmap that forgets what it delivered is only a wish list, and a retired reference still has to resolve for older notes about it to mean anything." },
+      { kind: "improved", tool: "Roadmap", text: "The ageing is computed, not maintained: each shipped card carries the build it went live in, and the page already knows which build it is. Hand-moving them would make the roadmap only as current as the last time somebody remembered. The two channels count differently — production 270, beta 25070 — and the same file travels between them, so a card is only aged when its build and the running build are from the SAME series; otherwise it stays where it is, which is the honest answer to “I cannot tell”." },
+    ],
+  },
+  {
     build: 269, date: "2026-08-13", title: "Type the country; the actions come to the group; grants across units",
     items: [
       { kind: "new", tool: "Named locations", text: "A country named location is built by typing the COUNTRY, not the code. The picker suggests from the ISO 3166-1 list and adds the match as a chip showing both code and name, because a wrong code is still a VALID code: the policy saves, looks right, and covers the wrong country until somebody is blocked or, worse, is not. Ireland is IE; IR is Iran. Pasting still works and is normalised — “NL, BE, Germany, UK, ie” becomes NL, BE, DE, GB, IE — and anything unrecognised is NAMED rather than dropped. UK and EU are rejected: neither is an ISO code, and the United Kingdom is GB. The 249 codes come from the ISO register and were confirmed against the ICU database, which knows 31 more that are reserved or deprecated and are deliberately absent." },

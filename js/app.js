@@ -610,7 +610,36 @@
     clMarkSeen();
   }
   $("toolChangelog").addEventListener("click", openChangelog);
-  function openRoadmap() { crumb("🗺 Roadmap"); show("screen-roadmap"); }
+  // Shipped items age out of "Now" on their own. Hand-moving them means the
+  // roadmap is only as current as the last time somebody remembered, and the
+  // information needed — which build it shipped in, and which build this is —
+  // is already on the page.
+  //
+  // The two channels count differently (production 269, beta 25070), and the
+  // same file travels between them, so a card tagged on one channel would be
+  // compared against the other's numbering and age wrongly. Ageing is therefore
+  // only applied when both numbers are from the SAME series; otherwise the card
+  // stays where it is, which is the honest answer to "I cannot tell".
+  const RM_AGE = 15;
+  let rmAged = false;
+  function rmAgeShipped() {
+    if (rmAged) return;                       // the DOM move is permanent
+    const host = $("rmShippedCards"), box = $("rmShipped");
+    if (!host || !box) return;
+    const here = APP_BUILD.build, beta = here >= 10000;
+    const moved = [];
+    for (const card of [...document.querySelectorAll("#screen-roadmap [data-shipped]")]) {
+      const b = +card.dataset.shipped;
+      if (!b || (b >= 10000) !== beta) continue;   // a different channel's numbering
+      if (here - b < RM_AGE) continue;
+      moved.push([b, card]);
+    }
+    // Newest first: the most recently retired is the most likely to be looked up.
+    moved.sort((a, b) => b[0] - a[0]).forEach(([, c]) => host.appendChild(c));
+    box.style.display = moved.length ? "" : "none";
+    rmAged = true;
+  }
+  function openRoadmap() { crumb("🗺 Roadmap"); show("screen-roadmap"); rmAgeShipped(); }
   $("toolRoadmap").addEventListener("click", openRoadmap);
 
 
