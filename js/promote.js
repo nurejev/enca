@@ -20,19 +20,19 @@
 // the next new item takes the next free number.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.258",
-  betaBuild: "v1.0.250-beta.38",
+  productionBuild: "v1.0.259",
+  betaBuild: "v1.0.250-beta.39",
 
   items: [
     {
-      n: 12,
-      title: "Break-glass restricted administrative unit",
-      tools: ["Restricted AUs"],
-      builds: [25038],
-      risk: "medium",
-      what: "A tenth baseline unit, CAB-SEC-RMAU-BreakGlass, for the group excluded from nearly every policy. Production shipped the nine persona units in build 258 without it.",
-      why: "Production's baseline is incomplete without it — it reports nine units as the full set and a tenant that follows it leaves the single most sensitive exclusion group in whatever unit somebody guessed. Low mechanical risk (one more row in the same catalog), but it changes what the baseline claims is complete, which is why it is not filed as low.",
-      files: ["js/rmau.js", "index.html"],
+      n: 13,
+      title: "Roadmap card: flagged tiles first in a collapsed section",
+      tools: ["Roadmap"],
+      builds: [25039],
+      risk: "low",
+      what: "One new roadmap card describing the intent to lift NEW / BETA / UPDATED tiles to the top of a collapsed home section rather than leaving them in page order.",
+      why: "Roadmap text only — nothing behaves differently. It can ride along with the next promotion rather than justifying one.",
+      files: ["index.html"],
     },
     {
       n: 11,

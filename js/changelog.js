@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25039, date: "2026-08-13", title: "Roadmap: flagged tiles first",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Added 🔝 Flagged tiles first in a collapsed section. Today a flagged tile claims one of the four visible slots but keeps its position in page order, so it can be on screen and still read as an afterthought — and a section with five flagged tools loses one below the fold. The plan is to lift them to the top of the collapsed view, newest first, and restore normal order on expand." },
+    ],
+  },
+  {
     build: 25038, date: "2026-08-13", title: "Break-glass gets a vault of its own",
     items: [
       { kind: "new", tool: "Restricted AUs", text: "A tenth unit joins the baseline: CAB-SEC-RMAU-BreakGlass. CAB-SEC-U-BreakGlass is excluded from very nearly every policy in the baseline, so it belongs to no single persona — and that is precisely the argument for giving it its own unit rather than filing it under Global. Whoever can edit that group can walk through every policy at once, so it deserves a shorter list of scoped administrators than anything else. The name deliberately carries no -Exclusions suffix, because the unit holds the emergency access group itself rather than a persona's exclusions." },
