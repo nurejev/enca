@@ -2197,15 +2197,15 @@ max@contoso.com,"Global, DevOps"</pre>
   // tenant covered: the new group joins every policy BEFORE the old one leaves,
   // and it enters the restricted AU only AFTER its members are in — once inside,
   // nothing but an AU-scoped role could add them.
-  let cgMig = null;   // { plan, au, aus, auChoice, auName, busy, results, ack, nesting }
+  let cgMig = null;      // { plan, aus, auChoice, auName, results, ack, nesting, toAu, sel }
+  let cgMigBusy = false; // a scan in flight — survives navigating away and back
 
   function migBody() { return $("cgBody"); }
 
   async function cgMigScan() {
-    if (cgMig && cgMig.busy) return;
-    migBody().innerHTML = `<div class="run-prompt"><div class="spinner"></div>
-      <p class="mini muted" id="cgMigStatus">Reading groups, roles and administrative units…</p>
-      <div id="cgMigBar" style="width:100%"></div></div>`;
+    if (cgMigBusy) return;
+    cgMigBusy = true;
+    migBody().innerHTML = migBusyPanel();
     const say = (m, i, n) => { const el = $("cgMigStatus"); if (el) el.textContent = m;
       const b = $("cgMigBar"); if (b) b.innerHTML = progInline(i, n); };
     try {
@@ -2248,99 +2248,115 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       const auChoice = aus.length ? aus[0].id : "new";
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME;
-      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: true, toAu: true,
+      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: true, toAu: true, sel: null,
         plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: true }) };
     } catch (e) {
       console.error("Migrate scan failed:", e);
-      migBody().innerHTML = `<div class="list-card dr-card"><p class="mini" style="color:var(--off)">Scan failed: ${esc(e.message || e)}</p></div>`;
+      cgMigBusy = false;
+      migBody().innerHTML = `<div class="cg-panel"><h4>SCAN FAILED</h4>
+        <p class="mini" style="color:var(--off);margin:0">${esc(e.message || e)}</p>
+        <div class="row" style="justify-content:flex-start;margin-top:12px"><button class="btn" data-migrun>▶ Try again</button></div></div>`;
       return;
     }
+    cgMigBusy = false;
     renderCgMigrate();
   }
 
+  const migBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgMigStatus">Scanning… this keeps running if you switch tabs.</p><div id="cgMigBar" style="width:100%"></div></div>';
+
   function renderCgMigrate() {
+    // Same manners as ⑥ Protect: nothing scans until asked — this one reads
+    // every role-assignable group's directory-role assignments AND its member
+    // count, which is far too much work to fire off just because a tab was
+    // clicked. A scan in flight survives navigating away; the result stays
+    // until an explicit rescan.
+    if (cgMigBusy) { migBody().innerHTML = migBusyPanel(); return; }
+    if (!cgMig) {
+      migBody().innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-migrun>▶ Scan for role-assignable groups</button>
+        <p class="mini muted">Reads the baseline groups, checks each role-assignable one for directory roles and restricted-AU membership, and counts the members that would move. Nothing is written. The result stays until you rescan.</p>
+      </div>`;
+      return;
+    }
     const t = cgMig;
-    if (!t) { cgMigScan(); return; }
     if (t.results) { renderCgMigResults(); return; }
 
     const p = t.plan;
+    const sel = t.sel || new Set(p.eligible.map((x) => x.id));
+    const nSel = p.eligible.filter((x) => sel.has(x.id)).length;
     const auOptions = [...t.aus.map((a) => `<option value="${esc(a.id)}"${t.auChoice === a.id ? " selected" : ""}>${esc(a.name)}</option>`),
       `<option value="new"${t.auChoice === "new" ? " selected" : ""}>➕ Create “${esc(RMAU_DEFAULT_NAME)}”</option>`].join("");
 
-    const sel = t.sel || new Set(p.eligible.map((x) => x.id));
-    const nSel = p.eligible.filter((x) => sel.has(x.id)).length;
-    const allBar = p.eligible.length > 1 ? `<div class="dr-head" style="padding-bottom:8px;border-bottom:1px solid var(--border)">
-        <button class="btn sm" id="cgMigAll">${nSel === p.eligible.length ? "☐ Deselect all" : "☑ Select all"}</button>
-        <span class="mini muted">${nSel} of ${p.eligible.length} selected</span>
-      </div>` : "";
-
-    const eligible = p.eligible.map((x) => `<div class="dr-row">
-        <div class="dr-head">
-          <label class="chk" style="margin:0"><input type="checkbox" data-cgmig="${esc(x.id)}"${sel.has(x.id) ? " checked" : ""}> <b>${esc(x.name)}</b></label>
-          <span class="tag">${x.nRef} polic${x.nRef === 1 ? "y" : "ies"}</span>
-          ${x.memberTotal != null ? `<span class="tag">${x.memberTotal} member${x.memberTotal === 1 ? "" : "s"}</span>` : ""}
-        </div>
-        <ol class="mini muted" style="margin:6px 0 0 20px;padding:0">${x.steps.map((s) => `<li>${esc(s.text)}</li>`).join("")}</ol>
+    const rows = p.eligible.map((x) => `<div style="padding:8px 0;border-top:1px solid var(--border)">
+        <label class="chk" style="margin:0"><input type="checkbox" data-cgmig="${esc(x.id)}"${sel.has(x.id) ? " checked" : ""}>
+          <b>${esc(x.name)}</b></label>
+        <span class="tag">${x.nRef} polic${x.nRef === 1 ? "y" : "ies"}</span>${x.memberTotal != null ? ` <span class="tag">${x.memberTotal} member${x.memberTotal === 1 ? "" : "s"}</span>` : ""}
+        <ol class="mini muted" style="margin:6px 0 0 20px;padding:0">${x.steps.map((q) => `<li>${esc(q.text)}</li>`).join("")}</ol>
       </div>`).join("");
 
-    const skipped = p.skipped.length ? `<div class="list-card dr-card" style="margin-top:12px">
-        <h4 style="margin:0 0 6px">Not migrated (${p.skipped.length})</h4>
-        ${p.skipped.map((x) => `<div class="dr-row"><div class="mini"><b>${esc(x.name)}</b> — ${esc(x.reason)}</div></div>`).join("")}
-      </div>` : "";
-
     migBody().innerHTML = `
-      <div class="list-card dr-card">
-        <h4 style="margin:0 0 6px">⑦ Migrate role-assignable groups to a restricted administrative unit <span class="tag new">BETA</span></h4>
+      <div class="cg-panel">
+        <h4>WHY MIGRATE</h4>
         <p class="mini" style="margin:0 0 8px">Your CA exclusion groups were made <b>role-assignable</b> to keep their membership away from tenant-wide group administrators. A <b>restricted management administrative unit</b> does that job better: it lets you <b>name</b> who may manage them, instead of leaving it to anyone holding Privileged Role Administrator. It also drops the role-assignable costs — the 500-per-tenant cap, no dynamic membership, and no control over nesting.</p>
-        <p class="mini" style="margin:0 0 8px;color:var(--off)"><b>The two cannot be combined.</b> A role-assignable group admits only Global Administrator or Privileged Role Administrator; a restricted AU blocks exactly those two, and neither can be scoped to an AU. A group with both has <b>nobody</b> who can change its members — which is why this migration converts rather than simply protecting.</p>
+        <p class="mini" style="margin:0 0 8px;color:var(--off)"><b>The two cannot be combined.</b> A role-assignable group admits only Global Administrator or Privileged Role Administrator; a restricted AU blocks exactly those two, and neither can be scoped to an AU. A group with both has <b>nobody</b> who can change its members.</p>
         <p class="mini muted" style="margin:0"><code>isAssignableToRole</code> is immutable, so each group is <b>recreated</b>: the old one is renamed aside and kept as your rollback, the new one takes its name, members and policy assignments.</p>
       </div>
 
-      ${p.eligible.length ? `<div class="list-card dr-card" style="margin-top:12px">
-        <h4 style="margin:0 0 6px">${p.eligible.length} group${p.eligible.length === 1 ? "" : "s"} to migrate</h4>
-        ${allBar}
-        ${eligible}
+      ${p.eligible.length ? `<div class="cg-panel">
+        <h4>MIGRATE ${p.eligible.length} GROUP${p.eligible.length === 1 ? "" : "S"}</h4>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          ${p.eligible.length > 1 ? `<button class="btn sm" id="cgMigAll">${nSel === p.eligible.length ? "☐ Deselect all" : "☑ Select all"}</button>` : ""}
+          <span class="mini muted">${nSel} of ${p.eligible.length} selected</span>
+        </div>
+        <div class="cg-pick">${rows}</div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
           <label class="chk" style="margin:0"><input type="checkbox" id="cgMigToAu"${t.toAu !== false ? " checked" : ""}> Place the new groups in a restricted AU now</label>
           <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px;margin:0"><span>Restricted AU</span>
             <select id="cgMigAu" class="btn" style="cursor:pointer;width:auto"${t.toAu === false ? " disabled" : ""}>${auOptions}</select></label>
           <label class="chk" style="margin:0"><input type="checkbox" id="cgMigNest"${t.nesting ? " checked" : ""}> Disable nesting on the new groups</label>
         </div>
-        ${t.toAu === false ? `<p class="mini" style="margin:8px 0 0;color:var(--report)">The groups will be converted but left <b>unprotected</b> — an ordinary group any tenant-wide Groups Administrator can edit. That is fine as a staged migration: convert now, verify the members, then place them from <b>⑥ Protect</b> whenever you are ready.</p>` : ""}
-        <p class="mini muted" style="margin:8px 0 0">Nesting off keeps the one property the role-assignable flag gave you for free: no group can be added as a member, so nobody widens an exclusion by nesting a group inside it.</p>
+        ${t.toAu === false
+          ? `<p class="mini" style="margin:8px 0 0;color:var(--report)">The groups will be converted but left <b>unprotected</b> — an ordinary group any tenant-wide Groups Administrator can edit. That is fine as a staged migration: convert now, verify the members, then place them from <b>⑥ Protect</b> when ready.</p>`
+          : `<p class="mini muted" style="margin:8px 0 0">Nesting off keeps the one property the role-assignable flag gave you for free: no group can be added as a member, so nobody widens an exclusion by nesting a group inside it.</p>`}
         <label class="chk" style="display:block;margin-top:14px"><input type="checkbox" id="cgMigAck"${t.ack ? " checked" : ""}> I understand each group is <b>recreated</b>: the current group is renamed aside, a new one takes its name and members, every policy is repointed${t.toAu === false ? "" : ", and the new group is placed in the restricted AU — after which only an <b>AU-scoped role</b> can change its members"}.</label>
-        <div style="display:flex;gap:8px;margin-top:12px">
+        <div class="row" style="justify-content:flex-start;margin-top:12px">
           <button class="btn primary" id="cgMigGo">Migrate</button>
           <button class="btn" id="cgMigRescan">⟳ Rescan</button>
         </div>
         <div id="cgMigBar2" style="display:none;width:100%;margin-top:12px"></div>
         <div id="cgMigLog" class="mini" style="margin-top:8px"></div>
-      </div>` : `<div class="list-card dr-card" style="margin-top:12px">
-        <p class="mini" style="margin:0">Nothing to migrate — no role-assignable baseline group is eligible. ${p.skipped.length ? "See below for why." : ""}</p>
-        <div style="margin-top:10px"><button class="btn" id="cgMigRescan">⟳ Rescan</button></div>
+      </div>` : `<div class="cg-panel">
+        <h4>NOTHING TO MIGRATE</h4>
+        <p class="mini" style="margin:0">No role-assignable baseline group is eligible.${p.skipped.length ? " See below for why." : ""}</p>
+        <div class="row" style="justify-content:flex-start;margin-top:12px"><button class="btn" id="cgMigRescan">⟳ Rescan</button></div>
       </div>`}
-      ${skipped}`;
+
+      ${p.skipped.length ? `<div class="cg-panel">
+        <h4>NOT MIGRATED (${p.skipped.length})</h4>
+        ${p.skipped.map((x) => `<div style="padding:6px 0;border-top:1px solid var(--border)"><span class="mini"><b>${esc(x.name)}</b> — ${esc(x.reason)}</span></div>`).join("")}
+      </div>` : ""}`;
   }
 
   function renderCgMigResults() {
     const t = cgMig, r = t.results;
     const ok = r.filter((x) => x.ok).length;
-    migBody().innerHTML = `<div class="list-card dr-card">
-        <h4 style="margin:0 0 6px">Migration ${ok === r.length ? "complete" : "finished with failures"} — ${ok}/${r.length}</h4>
-        ${r.map((x) => `<div class="dr-row"><div class="dr-head">
+    const outside = r.filter((x) => x.ok && !x.inAu);
+    migBody().innerHTML = `<div class="cg-panel">
+        <h4>MIGRATION ${ok === r.length ? "COMPLETE" : "FINISHED WITH FAILURES"}</h4>
+        <p class="mini"><b style="color:var(--on)">${ok} of ${r.length} migrated</b>${ok === r.length ? "" : ` · <b style="color:var(--off)">${r.length - ok} failed</b>`}</p>
+        ${r.map((x) => `<div style="padding:8px 0;border-top:1px solid var(--border)">
             <span class="tag ${x.ok ? "grant" : "block"}">${x.ok ? "migrated" : "failed"}</span> <b>${esc(x.name)}</b>
             ${x.membersMoved != null && x.memberTotal != null ? `<span class="tag">${x.membersMoved}/${x.memberTotal} members</span>` : ""}
             ${x.refsMoved != null ? `<span class="tag">${x.refsMoved} policies</span>` : ""}
             ${x.ok ? (x.inAu ? '<span class="tag ok">in the restricted AU</span>' : '<span class="tag block">not protected yet</span>') : ""}
-          </div>${x.error ? `<div class="mini" style="color:var(--off)">${esc(x.error)}</div>` : ""}
-          ${x.archiveName ? `<div class="mini muted">rollback: ${esc(x.archiveName)}</div>` : ""}</div>`).join("")}
-        ${(() => { const out = r.filter((x) => x.ok && !x.inAu); return out.length
-          ? `<p class="mini" style="margin:12px 0 0;color:var(--report)"><b>${out.length} group${out.length === 1 ? " is" : "s are"} converted but not protected.</b> They are ordinary groups now, so any tenant-wide Groups Administrator can change their members until you place them in a restricted AU.</p>`
-          : ""; })()}
+            ${x.error ? `<div class="mini" style="color:var(--off)">${esc(x.error)}</div>` : ""}
+            ${x.archiveName ? `<div class="mini muted">rollback: ${esc(x.archiveName)}</div>` : ""}
+          </div>`).join("")}
+        ${outside.length ? `<p class="mini" style="margin:12px 0 0;color:var(--report)">⚠ <b>${outside.length} group${outside.length === 1 ? " is" : "s are"} converted but not protected.</b> They are ordinary groups now, so any tenant-wide Groups Administrator can change their members until you place them in a restricted AU.</p>` : ""}
         <p class="mini" style="margin:12px 0 0">Check the members of each new group before deleting anything. The archived groups are your rollback — remove them from <b>🧹 Archived groups</b> on the ① Check tab once you are satisfied.</p>
-        <div style="display:flex;gap:8px;margin-top:12px">
-          ${r.some((x) => x.ok && !x.inAu) ? '<button class="btn primary" id="cgMigProtect">🔒 Protect them now (⑥)</button>' : ""}
-          <button class="btn" id="cgMigMd">Export report</button>
+        <div class="row" style="justify-content:flex-start;margin-top:12px">
+          ${outside.length ? '<button class="btn primary" id="cgMigProtect">🔒 Protect them now (⑥)</button>' : ""}
+          <button class="btn" id="cgMigMd">📄 Change report</button>
           <button class="btn" id="cgMigRescan">⟳ Rescan</button>
         </div>
       </div>`;
@@ -2379,6 +2395,7 @@ max@contoso.com,"Global, DevOps"</pre>
   });
 
   migBody().addEventListener("click", async (e) => {
+    if (e.target.closest("[data-migrun]")) { cgMigScan(); return; }
     if (e.target.id === "cgMigRescan") { cgMig = null; cgRes = null; cgMigScan(); return; }
     if (e.target.id === "cgMigAll") {
       const all = cgMig.plan.eligible.map((x) => x.id);

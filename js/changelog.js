@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25021, date: "2026-08-12", title: "Migrate asks before it scans, and looks like the rest of the tool",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "\u2466 Migrate scanned the moment you opened the tab, which is the wrong manners for the most expensive read in the tool \u2014 it checks every role-assignable group for directory-role assignments and restricted-AU membership, and counts each one\u2019s members. A \u25b6 Scan button now starts it, exactly like \u2465 Protect: a scan in flight survives navigating away, the result stays until an explicit rescan, and the gate says what will be read and that nothing is written." },
+      { kind: "improved", tool: "Conditional Access groups", text: "The wizard is laid out like the rest of Conditional Access groups \u2014 .cg-panel sections with the same uppercase headings and the same scrolling pick list \u2014 instead of borrowing Drift watch\u2019s card styling, which made step \u2466 look like a different tool bolted on. A failed scan now offers \u25b6 Try again in the same panel style rather than a bare error line." },
+    ],
+  },
+  {
     build: 25020, date: "2026-08-12", title: "Say how many members are about to move",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "\u2466 Migrate\u2019s step 3 read \u201cCopy the members across\u201d with no number, because the group scan does not load members \u2014 so the one figure worth checking before migrating a break-glass group was missing. The scan now counts them, and counts them the SAME WAY THE COPY READS THEM: direct members of every type, via /groups/{id}/members. The \u2462 Members tab deliberately counts something else (transitiveMembers of type user), and quoting that number here would have promised a total the copy does not move. The step also now says the archived group keeps its own copy \u2014 the migration copies rather than moves, which is exactly what makes the archived original a working rollback. Where the count cannot be read the step says so instead of silently omitting it." },
