@@ -1306,6 +1306,12 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .lo-chip b{font-family:var(--mono,ui-monospace,monospace);font-size:12px}
 .lo-chip button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
 .lo-chip button:hover{color:var(--off)}
+/* Shipped-before. Outside the timeline on purpose: these are delivered, and
+   leaving them in the "Now" column makes a roadmap read as busier than it is. */
+.rm-shipped{margin-top:34px;padding-top:22px;border-top:1px solid var(--border)}
+.rm-shipped > h3{margin:0 0 4px}
+.rm-shipped .rm-card{opacity:.72}
+.rm-shipped .rm-card:hover{opacity:1}
 .rm-ref{font-family:var(--mono,ui-monospace,monospace);font-size:11px;font-weight:700;letter-spacing:.04em;
   color:var(--muted);background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:1px 6px;
   margin-right:6px;vertical-align:1px}

@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25070, date: "2026-08-13", title: "The roadmap retires what it delivered",
+    items: [
+      { kind: "new", tool: "Roadmap", text: "A SHIPPED BEFORE section at the foot of the page, outside the timeline. An item moves there on its own once it is more than 15 builds old, so “Now” stays what is actually current rather than everything ever delivered. Nothing is deleted — a roadmap that forgets what it delivered is only a wish list, and a retired reference still has to resolve for older notes about it to mean anything." },
+      { kind: "improved", tool: "Roadmap", text: "The ageing is computed rather than maintained: each shipped card carries the build it went live in, and the page already knows which build it is running. Hand-moving them would make the roadmap only as current as the last time somebody remembered. The two channels count differently — production 271, beta 25070 — and the same file travels between them, so a card is aged only when its build and the running build are from the SAME series; otherwise it stays put, which is the honest answer to “I cannot tell”." },
+    ],
+  },
+  {
     build: 25069, date: "2026-08-13", title: "The restricted-unit export names names",
     items: [
       { kind: "fixed", tool: "Restricted AUs", text: "📄 Export MD printed whatever happened to be cached, so a document produced without opening every card was a list of unit names and GUIDs — the two facts that matter least about a vault. It now reads each unit's members and scoped administrators first, showing progress on the button, and one unreadable unit is recorded as unreadable rather than costing the whole document." },

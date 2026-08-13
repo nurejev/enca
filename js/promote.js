@@ -33,60 +33,10 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.268",
-  betaBuild: "v1.0.250-beta.69",
+  productionBuild: "v1.0.271",
+  betaBuild: "v1.0.250-beta.70",
 
   items: [
-    {
-      n: 29,
-      title: "Restricted-unit export reads before it writes",
-      tools: ["Restricted AUs"],
-      builds: [25069],
-      risk: "low",
-      what: "Export MD loads every unit's members and scoped administrators first, leads with names instead of GUIDs, and states the two failure cases outright — a unit shielding nothing, and a unit nobody can manage.",
-      why: "Production's export is only as complete as the cards you happened to open, so a document made in one click is names and GUIDs. Read-only.",
-      files: ["js/rmau.js", "js/app.js"],
-    },
-    {
-      n: 28,
-      title: "Grant scoped administrators across units (R07)",
-      tools: ["Restricted AUs"],
-      builds: [25068],
-      risk: "medium",
-      what: "Name the administrators once, tick the units once, apply the grid. Each unit x administrator is its own outcome; the role is activated once and each user resolved once. Units with nobody scoped are flagged.",
-      why: "It writes role assignments, which is why it is not low. Production grants one administrator on one unit at a time, so a team across eleven baseline units is 44 acts and a missed unit is a persona nobody can manage — with nothing to announce it.",
-      files: ["js/app.js", "index.html"],
-    },
-    {
-      n: 27,
-      title: "Group actions where you are already looking (R10)",
-      tools: ["Conditional Access groups"],
-      builds: [25067],
-      risk: "low",
-      what: "Clicking a group in ① Check lists the actions that apply to it and carries the group across to the tab that performs them. Only applicable actions are shown, and a frozen group is told the order it has to be unpicked in.",
-      why: "Navigation only — every action already existed and none behaves differently. It removes the step of finding the same row a second time in another tab.",
-      files: ["js/app.js", "index.html"],
-    },
-    {
-      n: 26,
-      title: "Baseline guide and Drift watch move to Explore & document",
-      tools: ["All tools"],
-      builds: [25065],
-      risk: "low",
-      what: "Both tiles move out of ✍️ Manage the tenant into 🗂 Explore & document. Read-only tools sitting among the ones that write.",
-      why: "Production has 📉 Drift watch in the writing section, where a read-only tool implies it might change something.",
-      files: ["index.html"],
-    },
-    {
-      n: 25,
-      title: "Type the country, get the ISO code (R08)",
-      tools: ["Named locations"],
-      builds: [25065],
-      risk: "medium",
-      what: "A country named location is built by typing the country name; the picker fills in the ISO 3166-1 code and shows both on a chip. Pasted text is normalised, and anything that is not a real code is reported rather than dropped. New file js/iso3166.js.",
-      why: "Production takes two-letter codes typed by hand into a free-text box, where a wrong code is indistinguishable from a right one — the policy saves and covers the wrong country silently. Medium rather than low because it changes how a location is authored, and locations gate access.",
-      files: ["js/iso3166.js", "js/app.js", "index.html", "css/app.css"],
-    },
     {
       n: 24,
       title: "📖 Baseline usage guide (R05)",

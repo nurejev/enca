@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25069"></script>
+<script src="js/popup-guard.js?v=25070"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25069">
+<link rel="stylesheet" href="css/app.css?v=25070">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25069"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25069"></script>
+<script src="js/counter.js?v=25070"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25070"></script>
 </head>
 <body>
 
@@ -1080,28 +1080,28 @@
           <div class="list-card rm-card">
             <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · <a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a>, <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> and the <b>⌨️ command palette</b> (all out of BETA) · 🔒 the <a href="#" id="rmSecLink">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
           </div>
-          <div class="list-card rm-card">
+          <div class="list-card rm-card" data-shipped="25058">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R02</span> <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> <span class="tag grant">live · build 267</span></h4>
             <p class="mini" style="margin:0">Does the tenant still look like it did when we signed it off? Snapshot the Conditional Access configuration to a file you keep, and compare a later run against it — added, removed, changed, ranked so a widened exclusion or a policy switched Off outranks a rename. No server and no 30-day limit, because the history is the file rather than Microsoft's audit log. Now watches the <b>restricted administrative units</b> too — a group leaving one widens the bypass surface as much as editing the policy would. <b>Next for it:</b> exclusion-group <i>membership</i> drift (an exclusion group quietly gaining members is the same risk as widening the exclusion itself) and comparing two snapshots to each other without re-reading the tenant.</p>
           </div>
-          <div class="list-card rm-card">
+          <div class="list-card rm-card" data-shipped="25058">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R03</span> ⌨️ Command palette <span class="tag grant">live · build 267</span></h4>
             <p class="mini" style="margin:0">Past twenty-odd tools, a tile grid stops being the fastest way in. <b>Ctrl/Cmd&nbsp;+&nbsp;K</b> anywhere opens a search box: type a few letters and land in the tool, or type a CA number or policy name and land on the policy card. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bbc</code> finds Best-practice &amp; bypass checks.</p>
           </div>
-          <div class="list-card rm-card">
+          <div class="list-card rm-card" data-shipped="25063">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R05</span> <a href="#" class="md-tool" data-tool="toolGuide">📖 Baseline usage guide</a> <span class="tag grant">live · beta 25063</span></h4>
             <p class="mini" style="margin:0">The toolset could build the baseline; it could not tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge lived in whoever has done it before, which is the least durable place to keep it. Now it is a tool: the deployment order as six steps, each with the <b>reason</b> it sits where it does — the persona model and its CA ranges, groups and restricted units before the policies that target them, named locations, authentication strengths and contexts before the policies that reference them, Terms of use (which has no create API) before import, policies imported Off, then Off → report-only → 🎚 forecast → enforced, Global last. 🔎 <b>Read the tenant</b> turns every step into a readiness check that names what is missing <i>before</i> the step is run instead of after. Graduates to production once the step texts have proven themselves against enough real deployments.</p>
           </div>
-          <div class="list-card rm-card">
+          <div class="list-card rm-card" data-shipped="25059">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R09</span> 🔝 Flagged tiles first in a collapsed section <span class="tag grant">live · beta 25059</span></h4>
             <p class="mini" style="margin:0">A collapsed home section shows four tiles, and anything flagged <b>NEW</b>, <b>BETA</b> or <b>UPDATED</b> claims those slots ahead of the rest — but it claims them <i>in page order</i>, so a flagged tile that sits ninth is visible while still appearing after unflagged ones, and with five flagged tiles in a section one of them drops below the fold. Flagged tiles now lift to the <b>top</b> of the collapsed view, newest first, so what changed is the first thing read rather than merely somewhere on screen. Expanding restores the normal order, because the grid's grouping is meaningful and shuffling it permanently would cost more than it gains.</p>
           </div>
-          <div class="list-card rm-card">
+          <div class="list-card rm-card" data-shipped="25067">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R10</span> 🎛 Group actions where you are already looking <span class="tag grant">live · beta 25067</span></h4>
             <p class="mini" style="margin:0">Clicking a group in <a href="#" class="md-tool" data-tool="toolCaGroups">👥 CA groups</a> ① Check opens a card that <i>reads</i>: object id, type, the policies that include or exclude it, its members. Everything you might then want to <i>do</i> lives on a different numbered tab, so you close the card, find the right step, and hunt for the group again. <b>List Policies already solves this</b> — every policy card carries its own Documentation, Backup, Assign and Policy-state buttons.
               <br>Selecting a group now shows the same treatment for a group: create it if it is missing (②), read or add members (③), assign it to policies (④), import members from CSV (⑤), protect it in a restricted AU (⑥), migrate it off role-assignable (⑦), disable nesting, or open it in <a href="#" class="md-tool" data-tool="toolGroupUse">🔗 Group Analyzer</a> to see everything outside Conditional Access that points at it — each offered only when it actually applies, so a role-assignable group is not offered ⑥ Protect and a group already in a restricted AU is not offered it twice.</p>
           </div>
-          <div class="list-card rm-card">
+          <div class="list-card rm-card" data-shipped="25068">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R07</span> 👤 Bulk grant scoped administrators <span class="tag grant">live · beta 25068</span></h4>
             <p class="mini" style="margin:0">Members can be added to a persona vault in bulk; the people who may manage them still cannot. A scoped role is granted one administrator, on one unit, at a time — so a four-person team across the eleven baseline units is <b>44</b> separate grants, and the failure mode is not the tedium but the gap: miss one unit and that persona has no administrator, which in a restricted unit means <b>nobody</b> can change its members.</p>
             <p class="mini" style="margin:6px 0 0">Pick the administrators once and the units once, and the grid is applied — with each unit × administrator reported as its own outcome, because a partial success has to be readable rather than rounded to “done”. It should also show the <b>current</b> grants across all units together, since the question people actually ask is “who can manage the Externals exclusions?” and answering it today means opening eleven cards.</p>
@@ -1212,6 +1212,33 @@
         <div class="rm-more">→ and further, steered by what you ask for</div>
       </div>
     </div>
+        <div class="rm-shipped" id="rmShipped" style="display:none">
+        <h3>Shipped before <span class="rm-when">delivered, and no longer news</span></h3>
+        <p class="mini muted" style="margin:0 0 12px">Items move here automatically once they are more than <b>15 builds</b> old. They are kept rather than deleted — a roadmap that forgets what it delivered is only a wish list — but they stop competing with what is happening now.</p>
+        <div id="rmShippedCards"></div>
+      </div>
+</section>
+
+  <!-- ============ HELP — opens as a tool, in its own tab ============ -->
+  <section id="screen-help" class="screen">
+    <div class="help-page">
+      <h2 class="home-title" style="margin:0 0 8px">❓ How to use ENCA</h2>
+      <p class="mini muted" style="margin:0 0 10px">A read-only toolset for your Microsoft Entra Conditional Access baseline. Sign in gives read-only Graph access; the four tools that can change your tenant are marked <span class="tag block">writes to tenant</span> and ask for extra permission only when you run them. Every write lands safely — imported policies come in <b>Off</b>, deletes need a typed confirmation.</p>
+
+    <div class="help-toc" id="helpToc"></div>
+
+    <section class="help-sec">
+      <h4>🗂 List Policies</h4>
+      <p>Browse every Conditional Access policy, grouped by persona (the CA-number range in the name: Global 000–099, Admins 100–199, Internals 200–299, and so on).</p>
+      <ul>
+        <li><b>Cards / List / Settings matrix</b> — Cards show each policy in full; List is a compact one-line-per-policy view; the Settings matrix is a policies × settings grid for spotting differences at a glance. The matrix has a <b>full-screen</b> button.</li>
+        <li><b>Search</b> — filter by CA number, policy name or persona.</li>
+        <li><b>Select policies</b> (checkboxes) — a green action bar appears: send the selection straight to <b>Documentation</b>, <b>Backup</b>, <b>Assign groups or roles</b>, <b>Set state</b> or <b>Delete</b>.</li>
+        <li><b>Per-card quick actions</b> — Documentation, Backup, Assign groups or roles, and Policy state, scoped to that one policy.</li>
+        <li><b>Apply flow</b> (per persona) — a visual of what actually applies to a persona, including Global policies in scope and honouring exclusions (an excluded persona group drops the policy from the flow).</li>
+        <li><b>🧹 Housekeeping</b> — appears only when there is something to clean: policies that are <b>Off</b> while a <i>higher version of the same CA number</i> also exists, i.e. the old versions a <b>match &amp; replace</b> import left behind as your rollback. It lists each one next to the policy that superseded it; the ones you tick go through the normal delete flow (JSON backup + typed <code>DELETE</code>).</li>
+      </ul>
+      <p class="help-x">Read-only. Nothing changes until you open a write tool from the action bar.</p>
   </section>
 
   <!-- ============ HELP — opens as a tool, in its own tab ============ -->
@@ -2177,47 +2204,47 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25069"></script>
-<script src="js/version.js?v=25069"></script>
-<script src="js/promote.js?v=25069"></script>
-<script src="js/authConfig.js?v=25069"></script>
-<script src="js/labels.js?v=25069"></script>
-<script src="js/graph.js?v=25069"></script>
-<script src="js/model.js?v=25069"></script>
-<script src="js/render.js?v=25069"></script>
-<script src="js/analyze.js?v=25069"></script>
-<script src="js/whatif.js?v=25069"></script>
-<script src="js/mslearn.js?v=25069"></script>
-<script src="js/gapcheck.js?v=25069"></script>
-<script src="js/cisdata.js?v=25069"></script>
-<script src="js/cischeck.js?v=25069"></script>
-<script src="js/exclusions.js?v=25069"></script>
-<script src="js/validator.js?v=25069"></script>
-<script src="js/whatifeval.js?v=25069"></script>
-<script src="js/compare.js?v=25069"></script>
-<script src="js/groupuse.js?v=25069"></script>
-<script src="js/iso3166.js?v=25069"></script>
-<script src="js/locations.js?v=25069"></script>
-<script src="js/authcontexts.js?v=25069"></script>
-<script src="js/authstrengths.js?v=25069"></script>
-<script src="js/recycle.js?v=25069"></script>
-<script src="js/rmau.js?v=25069"></script>
-<script src="js/termsofuse.js?v=25069"></script>
-<script src="js/audit.js?v=25069"></script>
-<script src="js/drift.js?v=25069"></script>
-<script src="js/guide.js?v=25069"></script>
-<script src="js/signins.js?v=25069"></script>
-<script src="js/reportimpact.js?v=25069"></script>
-<script src="js/changelog.js?v=25069"></script>
-<script src="js/baselineData.js?v=25069"></script>
-<script src="js/baselineJoeyData.js?v=25069"></script>
-<script src="js/baseline.js?v=25069"></script>
-<script src="js/groupTemplates.js?v=25069"></script>
-<script src="js/assign.js?v=25069"></script>
-<script src="js/cagroups.js?v=25069"></script>
-<script src="js/import.js?v=25069"></script>
-<script src="js/export.js?v=25069"></script>
-<script src="js/demo.js?v=25069"></script>
-<script src="js/app.js?v=25069"></script>
+<script src="js/branding.js?v=25070"></script>
+<script src="js/version.js?v=25070"></script>
+<script src="js/promote.js?v=25070"></script>
+<script src="js/authConfig.js?v=25070"></script>
+<script src="js/labels.js?v=25070"></script>
+<script src="js/graph.js?v=25070"></script>
+<script src="js/model.js?v=25070"></script>
+<script src="js/render.js?v=25070"></script>
+<script src="js/analyze.js?v=25070"></script>
+<script src="js/whatif.js?v=25070"></script>
+<script src="js/mslearn.js?v=25070"></script>
+<script src="js/gapcheck.js?v=25070"></script>
+<script src="js/cisdata.js?v=25070"></script>
+<script src="js/cischeck.js?v=25070"></script>
+<script src="js/exclusions.js?v=25070"></script>
+<script src="js/validator.js?v=25070"></script>
+<script src="js/whatifeval.js?v=25070"></script>
+<script src="js/compare.js?v=25070"></script>
+<script src="js/groupuse.js?v=25070"></script>
+<script src="js/iso3166.js?v=25070"></script>
+<script src="js/locations.js?v=25070"></script>
+<script src="js/authcontexts.js?v=25070"></script>
+<script src="js/authstrengths.js?v=25070"></script>
+<script src="js/recycle.js?v=25070"></script>
+<script src="js/rmau.js?v=25070"></script>
+<script src="js/termsofuse.js?v=25070"></script>
+<script src="js/audit.js?v=25070"></script>
+<script src="js/drift.js?v=25070"></script>
+<script src="js/guide.js?v=25070"></script>
+<script src="js/signins.js?v=25070"></script>
+<script src="js/reportimpact.js?v=25070"></script>
+<script src="js/changelog.js?v=25070"></script>
+<script src="js/baselineData.js?v=25070"></script>
+<script src="js/baselineJoeyData.js?v=25070"></script>
+<script src="js/baseline.js?v=25070"></script>
+<script src="js/groupTemplates.js?v=25070"></script>
+<script src="js/assign.js?v=25070"></script>
+<script src="js/cagroups.js?v=25070"></script>
+<script src="js/import.js?v=25070"></script>
+<script src="js/export.js?v=25070"></script>
+<script src="js/demo.js?v=25070"></script>
+<script src="js/app.js?v=25070"></script>
 </body>
 </html>
