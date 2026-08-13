@@ -20,30 +20,10 @@
 // the next new item takes the next free number.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.259",
-  betaBuild: "v1.0.250-beta.41",
+  productionBuild: "v1.0.261",
+  betaBuild: "v1.0.250-beta.42",
 
   items: [
-    {
-      n: 14,
-      title: "Per-persona routing in Protect, and frozen-group detection",
-      tools: ["Protect exclusions", "Conditional Access groups", "Restricted AUs"],
-      builds: [25040],
-      risk: "high",
-      what: "⑥ Protect routes each exclusion group to its own persona unit instead of filing the whole run into one, skips rather than guesses when it cannot tell, and grants scoped administrators on every unit touched. Separately, a group that is role-assignable AND already inside a restricted unit is detected and reported as frozen.",
-      why: "Production filed every selected group into a single chosen unit, so a tenant following the persona baseline ends up with the Admins exclusion groups inside the Global vault — a real misconfiguration that production can create today. The frozen detection is read-only and matters just as much: production cannot currently tell you that a group's membership is editable by nobody.",
-      files: ["js/app.js", "js/cagroups.js", "js/rmau.js", "index.html"],
-    },
-    {
-      n: 13,
-      title: "Roadmap card: flagged tiles first in a collapsed section",
-      tools: ["Roadmap"],
-      builds: [25039],
-      risk: "low",
-      what: "One new roadmap card describing the intent to lift NEW / BETA / UPDATED tiles to the top of a collapsed home section rather than leaving them in page order.",
-      why: "Roadmap text only — nothing behaves differently. It can ride along with the next promotion rather than justifying one.",
-      files: ["index.html"],
-    },
     {
       n: 11,
       title: "Import: protection preflight and group placement",

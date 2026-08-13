@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25042, date: "2026-08-13", title: "Two more items reached production",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Production is now build 261. Item 14 (per-persona routing in ⑥ Protect, the search box, and frozen-group detection) and item 13 (the roadmap card) have shipped, so the queue is down to item 11 — the Import protection preflight — and item 6, your own single-tenant app registration. The per-channel release-note fix went out separately as build 260." },
+    ],
+  },
+  {
     build: 25041, date: "2026-08-13", title: "Release notes stopped appearing in production",
     items: [
       { kind: "fixed", tool: "All tools", text: "The What's-new popup had gone permanently silent in production on any browser that had also opened the beta site. Both channels wrote the “last seen build” to one localStorage key while their build numbers come from two incompatible series — production counts 259, beta counts 25040 — so the check “have you already seen this?” compared 25040 against 259, decided yes, and returned. Not for one release: for every future one, because a production build number can never overtake a beta number. The marker is now per channel, and a value from the wrong series reads as “not seen”, so a browser already stuck heals itself on the next visit rather than needing its storage cleared. Beta additionally adopts the old value when it was a beta number, so nobody is shown a release note twice." },
