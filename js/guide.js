@@ -72,19 +72,20 @@ const Guide = (() => {
       missing: n ? [] : ["Create agreements (with their PDFs) in 📜 Terms of use before importing policies that require them"] };
   }
   function checkPolicies(ctx) {
-    const per = catalogByPersona();
-    const have = new Map();
-    for (const vm of ctx.policies || []) {
-      const g = Render.caGroup(vm.name);
-      if (g.num === null) continue;
-      have.set(g.key, (have.get(g.key) || 0) + 1);
-    }
-    const rows = [...per.entries()].sort((a, b) => a[0] - b[0])
-      .map(([key, v]) => `${v.label}: ${Math.min(have.get(key) || 0, v.total)}/${v.total}`);
-    const total = [...per.values()].reduce((s, v) => s + v.total, 0);
-    const got = [...per.keys()].reduce((s, k) => s + Math.min(have.get(k) || 0, (per.get(k) || {}).total || 0), 0);
+    // Use the same policy-by-policy matcher as the Baseline tool. Counting all
+    // numbered policies inside a persona could say 93/99 while hiding WHICH
+    // six CA numbers were absent (and an unrelated policy in the same persona
+    // could even make the count look complete). The readiness check is useful
+    // only when every gap names the exact policy that has to be imported.
+    const cmp = Baseline.compare(ctx.policies || [], "limonit");
+    const gaps = cmp.rows.filter((r) => r.baseline && (r.status === "missing" || r.status === "conflict"));
+    const missing = gaps.map((r) => r.status === "conflict"
+      ? `${r.baseline.name} — CA number clash with ${r.tenant.name}`
+      : r.baseline.name);
+    const total = cmp.baselineTotal;
+    const got = cmp.covered;
     return { state: got >= total ? "ok" : got ? "warn" : "missing",
-      summary: `${got} of ${total} catalog policies present (by CA number)`, missing: rows };
+      summary: `${got} of ${total} catalog policies present (by CA number)`, missing };
   }
   function checkStates(ctx) {
     const nums = (ctx.policies || []).filter((vm) => Render.caGroup(vm.name).num !== null);

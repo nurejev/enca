@@ -83,15 +83,26 @@ const Rmau = (() => {
       const d = (details || {})[au.id] || {};
       L.push(`## ${mdEsc(au.displayName)}${isRestricted(au) ? " 🔒 (restricted)" : ""}`, "");
       if (au.description) L.push(mdEsc(au.description), "");
-      L.push(`- id \`${au.id}\`${au.visibility ? ` · visibility: ${au.visibility}` : ""}`);
+      // Names first. The object id is real information for a support case but
+      // it is the least interesting fact about a unit, and leading with it —
+      // which is what this did — made a document of GUIDs.
       if (d.members) {
-        L.push(`- Members (${d.members.length}):`);
-        for (const m of d.members) L.push(`  - ${mdEsc(m.displayName || m.userPrincipalName || m.id)} _(${memberType(m)})_${(m._caRefs || []).length ? ` — ${m._caRefs.length} CA polic${m._caRefs.length === 1 ? "y" : "ies"} reference it` : ""}`);
+        L.push(d.members.length ? `- **Protected members (${d.members.length})**` : "- **Protected members:** none — this unit shields nothing yet.");
+        for (const m of d.members) {
+          const frozen = isRestricted(au) && m.isAssignableToRole === true;
+          L.push(`  - ${mdEsc(m.displayName || m.userPrincipalName || m.id)} _(${memberType(m)})_`
+            + `${(m._caRefs || []).length ? ` — ${m._caRefs.length} CA polic${m._caRefs.length === 1 ? "y" : "ies"} reference it` : ""}`
+            + `${frozen ? " — ⚠ **frozen**: role-assignable inside a restricted unit, so nobody can change its members" : ""}`);
+        }
       }
       if (d.scoped) {
-        L.push(`- Scoped role members (${d.scoped.length}):`);
+        L.push(d.scoped.length
+          ? `- **Who may manage them (${d.scoped.length})**`
+          : "- **Who may manage them:** ⚠ nobody. No role is scoped to this unit, so its members cannot be changed by anyone.");
         for (const r of d.scoped) L.push(`  - ${mdEsc(r._principal || r.roleMemberInfo?.displayName || r.roleMemberInfo?.id)} — ${mdEsc(r._roleName || r.roleId)}`);
       }
+      if (d.error) L.push(`- ⚠ could not be read: ${mdEsc(d.error)}`);
+      L.push(`- <sub>id \`${au.id}\`${au.visibility ? ` · visibility: ${au.visibility}` : ""}</sub>`);
       L.push("");
     }
     L.push("The isMemberManagementRestricted flag is immutable — an existing AU cannot be converted either way. Members of a restricted AU can only be managed by roles scoped to that AU.", "");

@@ -23,6 +23,21 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25069, date: "2026-08-13", title: "The restricted-unit export names names",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "📄 Export MD printed whatever happened to be cached, so a document produced without opening every card was a list of unit names and GUIDs — the two facts that matter least about a vault. It now reads each unit's members and scoped administrators first, showing progress on the button, and one unreadable unit is recorded as unreadable rather than costing the whole document." },
+      { kind: "improved", tool: "Restricted AUs", text: "Names lead and the object id is demoted to a footnote — it is real information for a support case and the least interesting fact in a review. The two failure states are now stated outright rather than left as an absence: a unit with no members says it shields nothing yet, and a unit with no scoped role says “nobody — its members cannot be changed by anyone”, which is the single most important sentence such a document can contain. A frozen member is marked as frozen with the reason." },
+      { kind: "improved", tool: "Roadmap", text: "Added R27 📄 Documentation for the restricted units — the same treatment 📄 Create documentation gives the policies: what each unit protects, which policies depend on those groups, who is scoped to it, and the two questions an auditor actually asks — who could widen an exclusion, and what would happen if they did." },
+    ],
+  },
+  {
+    build: 25069, date: "2026-08-13", title: "The policy gap names the policies",
+    items: [
+      { kind: "fixed", tool: "Baseline guide", text: "When the readiness check says, for example, 93 of 99 catalog policies are present, the list underneath now names the six missing policies by their full CA number and policy name. It previously showed only per-persona totals, which still left the operator to find the actual gaps elsewhere." },
+      { kind: "improved", tool: "Baseline guide", text: "Policy readiness now uses the same policy-by-policy CA-number and name-corroboration matcher as Baseline Policies. An unrelated numbered policy in the same persona can no longer fill the count, and a CA-number clash is named as a clash rather than treated as coverage." },
+    ],
+  },
+  {
     build: 25068, date: "2026-08-13", title: "Grant scoped administrators across units",
     items: [
       { kind: "new", tool: "Restricted AUs", text: "R07 — 👤 Grant scoped administrators across units. Name the people once, tick the units once, and the grid is applied. A restricted unit with no scoped administrator is one whose members NOBODY can change, so these grants are not paperwork; and granted one person on one unit at a time, four people across eleven baseline units is 44 separate acts where the risk is not the tedium but the omission — miss one and that persona is unmanageable, which nothing announces. Units that currently have nobody scoped are flagged in the list for exactly that reason." },

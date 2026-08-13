@@ -6409,8 +6409,26 @@ max@contoso.com,"Global, DevOps"</pre>
       await openRmauTool(true);
     } catch (e) { toast(`Delete failed: <span>${esc(e.message || e)}</span>`); btn.disabled = false; }
   });
-  $("ruMd").addEventListener("click", () => {
+  $("ruMd").addEventListener("click", async (e) => {
     if (!ruList) return;
+    // Read every unit's members and scoped administrators FIRST. The report used
+    // to print whatever happened to be cached, which meant a document produced
+    // without opening each card was a list of names and GUIDs — the two facts
+    // that matter least. What the document is for is who is protected and who
+    // may manage them.
+    const missing = ruList.filter((au) => !ruDetails[au.id]);
+    if (missing.length && !isDemo) {
+      const btn = e.target; const label = btn.textContent;
+      btn.disabled = true;
+      try {
+        for (let i = 0; i < missing.length; i++) {
+          btn.textContent = `Reading ${i + 1}/${missing.length}…`;
+          // Failures are left to ruLoadDetail, which records them on the detail
+          // object; one unreadable unit must not cost the whole document.
+          await ruLoadDetail(missing[i].id);
+        }
+      } finally { btn.disabled = false; btn.textContent = label; }
+    }
     showReport("🛡 Restricted AUs", "CA-RestrictedAUs", Rmau.toMd(ruList, ruDetails, { tenantName }));
   });
 
