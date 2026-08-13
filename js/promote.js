@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.268",
-  betaBuild: "v1.0.250-beta.66",
+  betaBuild: "v1.0.250-beta.67",
 
   items: [
+    {
+      n: 27,
+      title: "Group actions where you are already looking (R10)",
+      tools: ["Conditional Access groups"],
+      builds: [25067],
+      risk: "low",
+      what: "Clicking a group in ① Check lists the actions that apply to it and carries the group across to the tab that performs them. Only applicable actions are shown, and a frozen group is told the order it has to be unpicked in.",
+      why: "Navigation only — every action already existed and none behaves differently. It removes the step of finding the same row a second time in another tab.",
+      files: ["js/app.js", "index.html"],
+    },
     {
       n: 26,
       title: "Baseline guide and Drift watch move to Explore & document",

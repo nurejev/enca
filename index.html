@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25066"></script>
+<script src="js/popup-guard.js?v=25067"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25066">
+<link rel="stylesheet" href="css/app.css?v=25067">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25066"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25066"></script>
+<script src="js/counter.js?v=25067"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25067"></script>
 </head>
 <body>
 
@@ -1096,6 +1096,11 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R09</span> 🔝 Flagged tiles first in a collapsed section <span class="tag grant">live · beta 25059</span></h4>
             <p class="mini" style="margin:0">A collapsed home section shows four tiles, and anything flagged <b>NEW</b>, <b>BETA</b> or <b>UPDATED</b> claims those slots ahead of the rest — but it claims them <i>in page order</i>, so a flagged tile that sits ninth is visible while still appearing after unflagged ones, and with five flagged tiles in a section one of them drops below the fold. Flagged tiles now lift to the <b>top</b> of the collapsed view, newest first, so what changed is the first thing read rather than merely somewhere on screen. Expanding restores the normal order, because the grid's grouping is meaningful and shuffling it permanently would cost more than it gains.</p>
           </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R10</span> 🎛 Group actions where you are already looking <span class="tag grant">live · beta 25067</span></h4>
+            <p class="mini" style="margin:0">Clicking a group in <a href="#" class="md-tool" data-tool="toolCaGroups">👥 CA groups</a> ① Check opens a card that <i>reads</i>: object id, type, the policies that include or exclude it, its members. Everything you might then want to <i>do</i> lives on a different numbered tab, so you close the card, find the right step, and hunt for the group again. <b>List Policies already solves this</b> — every policy card carries its own Documentation, Backup, Assign and Policy-state buttons.
+              <br>Selecting a group now shows the same treatment for a group: create it if it is missing (②), read or add members (③), assign it to policies (④), import members from CSV (⑤), protect it in a restricted AU (⑥), migrate it off role-assignable (⑦), disable nesting, or open it in <a href="#" class="md-tool" data-tool="toolGroupUse">🔗 Group Analyzer</a> to see everything outside Conditional Access that points at it — each offered only when it actually applies, so a role-assignable group is not offered ⑥ Protect and a group already in a restricted AU is not offered it twice.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -1124,11 +1129,6 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R08</span> 🌐 Type the country, get the code <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">A country named location takes <b>two-letter ISO 3166-1 codes</b>, typed by hand into a free-text box. The failure mode is silent and total: a wrong code is still a <i>valid</i> code, so the policy saves, looks right in the portal, and quietly covers the wrong country until somebody is blocked or — worse — is not. Ireland is <code>IE</code>; <code>IR</code> is Iran. Austria is <code>AT</code>, Australia <code>AU</code>. Sweden is <code>SE</code>, Switzerland <code>CH</code>.</p>
             <p class="mini" style="margin:6px 0 0">The plan is to type the <b>name</b> and have the code filled in — a type-ahead over the full ISO list, matching on country name, adding the code as a chip you can see and remove. Codes typed directly keep working, but anything that is not a real ISO code is rejected at entry rather than accepted and discovered later. Worth doing for the same reason the CA-number routing exists: the tool knows the right answer, so the human should not have to be the one who remembers it.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R10</span> 🎛 Group actions where you are already looking <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Clicking a group in <a href="#" class="md-tool" data-tool="toolCaGroups">👥 CA groups</a> ① Check opens a card that <i>reads</i>: object id, type, the policies that include or exclude it, its members. Everything you might then want to <i>do</i> lives on a different numbered tab, so you close the card, find the right step, and hunt for the group again. <b>List Policies already solves this</b> — every policy card carries its own Documentation, Backup, Assign and Policy-state buttons.
-              <br>The plan is the same treatment for a group: create it if it is missing (②), read or add members (③), assign it to policies (④), import members from CSV (⑤), protect it in a restricted AU (⑥), migrate it off role-assignable (⑦), disable nesting, or open it in <a href="#" class="md-tool" data-tool="toolGroupUse">🔗 Group Analyzer</a> to see everything outside Conditional Access that points at it — each offered only when it actually applies, so a role-assignable group is not offered ⑥ Protect and a group already in a restricted AU is not offered it twice.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R11</span> 🖥 Compliant-device reality check <span class="tag">planned</span></h4>
@@ -1474,6 +1474,7 @@
         <li><b>Protection column</b> — ① Check now shows where each group actually lives: <code>🔒 &lt;unit&gt;</code>, <b>not in a unit</b>, or <b>🧊 frozen in &lt;unit&gt;</b> when the group is role-assignable and restricted at once, which means nobody can change its members. A dash means the administrative units could not be read, which is not the same as “not protected”.</li>
       </ul>
         <li><b>Add a member</b> — the matrix carries an <b>＋ Add</b> bar: type two letters and the directory suggests users, pick one of the loaded groups, and the member is added and the group re-read so the matrix shows the result rather than merely claiming it. Adding someone who is already in the group says so instead of failing.</li>
+        <li><b>What you can do with it</b> — click a group in ① Check and the overlay lists the actions that apply <i>to that group</i>, each carrying it across: read its members, assign it to policies, protect it, or convert it. Only what makes sense is offered — a group that does not exist yet cannot have members read, a role-assignable one cannot be protected, and one already in a vault is not offered protection again. Every one of these was reachable before by opening the right tab and finding the row a second time; the tab strip just never said which of the seven applied to the group in front of you.</li>
         <li><b>⑦ Migrate <span class="tag new">BETA</span></b> — move the baseline off <b>role-assignable</b> groups and onto a <b>restricted management administrative unit</b>. Role-assignable was only ever used here for its side effect: membership reachable only by Global Administrator or Privileged Role Administrator. A restricted AU does that <i>and</i> lets you name who may manage the groups, and it drops the role-assignable costs (500-per-tenant cap, no dynamic membership, no nesting control). The two cannot be combined — a restricted AU blocks GA and PRA, so a role-assignable group inside one has <b>nobody</b> who can change its members.
           <br><code>isAssignableToRole</code> is immutable, so each group is <b>recreated</b>, in this order: rename the current group aside as <code>(migrated YYYY-MM-DD)</code>, create a plain group under the original name (nesting disabled by default — the one property the role-assignable flag gave you for free), <b>copy the members</b>, add the new group to every policy, remove the old one, and only then place the new group in the restricted AU. Members move <b>before</b> the AU placement because afterwards only an AU-scoped role could add them; the new group joins each policy <b>before</b> the old one leaves, so no exclusion ever briefly vanishes.
           <br><b>Skipped, with the reason shown:</b> a group that holds a directory role (a plain group cannot carry one — deal with the role first), one already inside a restricted AU, one not in the tenant, and one already plain. A group whose role check fails is skipped rather than risked.
@@ -2170,47 +2171,47 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25066"></script>
-<script src="js/version.js?v=25066"></script>
-<script src="js/promote.js?v=25066"></script>
-<script src="js/authConfig.js?v=25066"></script>
-<script src="js/labels.js?v=25066"></script>
-<script src="js/graph.js?v=25066"></script>
-<script src="js/model.js?v=25066"></script>
-<script src="js/render.js?v=25066"></script>
-<script src="js/analyze.js?v=25066"></script>
-<script src="js/whatif.js?v=25066"></script>
-<script src="js/mslearn.js?v=25066"></script>
-<script src="js/gapcheck.js?v=25066"></script>
-<script src="js/cisdata.js?v=25066"></script>
-<script src="js/cischeck.js?v=25066"></script>
-<script src="js/exclusions.js?v=25066"></script>
-<script src="js/validator.js?v=25066"></script>
-<script src="js/whatifeval.js?v=25066"></script>
-<script src="js/compare.js?v=25066"></script>
-<script src="js/groupuse.js?v=25066"></script>
-<script src="js/iso3166.js?v=25066"></script>
-<script src="js/locations.js?v=25066"></script>
-<script src="js/authcontexts.js?v=25066"></script>
-<script src="js/authstrengths.js?v=25066"></script>
-<script src="js/recycle.js?v=25066"></script>
-<script src="js/rmau.js?v=25066"></script>
-<script src="js/termsofuse.js?v=25066"></script>
-<script src="js/audit.js?v=25066"></script>
-<script src="js/drift.js?v=25066"></script>
-<script src="js/guide.js?v=25066"></script>
-<script src="js/signins.js?v=25066"></script>
-<script src="js/reportimpact.js?v=25066"></script>
-<script src="js/changelog.js?v=25066"></script>
-<script src="js/baselineData.js?v=25066"></script>
-<script src="js/baselineJoeyData.js?v=25066"></script>
-<script src="js/baseline.js?v=25066"></script>
-<script src="js/groupTemplates.js?v=25066"></script>
-<script src="js/assign.js?v=25066"></script>
-<script src="js/cagroups.js?v=25066"></script>
-<script src="js/import.js?v=25066"></script>
-<script src="js/export.js?v=25066"></script>
-<script src="js/demo.js?v=25066"></script>
-<script src="js/app.js?v=25066"></script>
+<script src="js/branding.js?v=25067"></script>
+<script src="js/version.js?v=25067"></script>
+<script src="js/promote.js?v=25067"></script>
+<script src="js/authConfig.js?v=25067"></script>
+<script src="js/labels.js?v=25067"></script>
+<script src="js/graph.js?v=25067"></script>
+<script src="js/model.js?v=25067"></script>
+<script src="js/render.js?v=25067"></script>
+<script src="js/analyze.js?v=25067"></script>
+<script src="js/whatif.js?v=25067"></script>
+<script src="js/mslearn.js?v=25067"></script>
+<script src="js/gapcheck.js?v=25067"></script>
+<script src="js/cisdata.js?v=25067"></script>
+<script src="js/cischeck.js?v=25067"></script>
+<script src="js/exclusions.js?v=25067"></script>
+<script src="js/validator.js?v=25067"></script>
+<script src="js/whatifeval.js?v=25067"></script>
+<script src="js/compare.js?v=25067"></script>
+<script src="js/groupuse.js?v=25067"></script>
+<script src="js/iso3166.js?v=25067"></script>
+<script src="js/locations.js?v=25067"></script>
+<script src="js/authcontexts.js?v=25067"></script>
+<script src="js/authstrengths.js?v=25067"></script>
+<script src="js/recycle.js?v=25067"></script>
+<script src="js/rmau.js?v=25067"></script>
+<script src="js/termsofuse.js?v=25067"></script>
+<script src="js/audit.js?v=25067"></script>
+<script src="js/drift.js?v=25067"></script>
+<script src="js/guide.js?v=25067"></script>
+<script src="js/signins.js?v=25067"></script>
+<script src="js/reportimpact.js?v=25067"></script>
+<script src="js/changelog.js?v=25067"></script>
+<script src="js/baselineData.js?v=25067"></script>
+<script src="js/baselineJoeyData.js?v=25067"></script>
+<script src="js/baseline.js?v=25067"></script>
+<script src="js/groupTemplates.js?v=25067"></script>
+<script src="js/assign.js?v=25067"></script>
+<script src="js/cagroups.js?v=25067"></script>
+<script src="js/import.js?v=25067"></script>
+<script src="js/export.js?v=25067"></script>
+<script src="js/demo.js?v=25067"></script>
+<script src="js/app.js?v=25067"></script>
 </body>
 </html>

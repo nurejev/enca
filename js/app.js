@@ -4153,6 +4153,44 @@ max@contoso.com,"Global, DevOps"</pre>
     }
   });
 
+  // R10 — the actions available for one group, offered on the group itself.
+  // Every one of these was already reachable: open the right tab, find the row
+  // again, tick it. That is three steps of re-finding something you already had
+  // selected, and the tab strip gives no clue which of the seven apply to the
+  // group in front of you. What is offered here is only what makes sense for
+  // this group's actual state — a missing group cannot have members read, a
+  // role-assignable one cannot be protected, one already in a vault does not
+  // need protecting again.
+  function cgRowActions(r) {
+    const acts = [];
+    const prot = r.id ? ((cgProt && cgProt.get(r.id)) || (cgRmau && cgRmau.status ? cgRmau.status.get(r.id) : null)) : null;
+
+    if (!r.id && r.template) acts.push({ tab: "create", label: "② Create it", why: "it does not exist in this tenant yet" });
+    if (r.id) {
+      acts.push({ tab: "members", label: "③ Read members", why: "who is in it right now" });
+      acts.push({ tab: "assign", label: "④ Assign to policies", why: "put it on a policy's include or exclude" });
+      // ⑤ takes a whole CSV rather than one group, so it is offered as a
+      // destination but nothing is pre-selected there — saying otherwise would
+      // promise a carry-over that cannot happen.
+      acts.push({ tab: "csv", label: "⑤ Import members", why: "add people from a CSV (the file picks the groups)" });
+    }
+    if (r.id && !prot && !r.roleAssignable) {
+      acts.push({ tab: "rmau", label: "⑥ Protect it", why: "file it in its persona's restricted unit" });
+    }
+    if (r.id && r.roleAssignable) {
+      acts.push({ tab: "migrate", label: "⑦ Migrate off role-assignable", why: prot
+        ? "it is FROZEN — remove it from the unit first, then convert it"
+        : "role-assignable groups cannot be protected; convert it first" });
+    }
+    if (!acts.length) return "";
+    return `<h5 class="mini" style="margin:14px 0 6px">WHAT YOU CAN DO WITH IT</h5>
+      <div class="cg-pick" style="padding:0">${acts.map((a) => `<div class="dr-row"><div class="dr-head">
+          <button class="btn sm" data-cgact="${esc(a.tab)}" data-cgactname="${esc(r.name)}">${esc(a.label)}</button>
+          <span class="mini muted">${esc(a.why)}</span>
+        </div></div>`).join("")}</div>
+      ${prot ? `<p class="mini muted" style="margin:6px 0 0">🔒 Currently in <b>${esc(prot.auName)}</b> — its members can only be changed by a role scoped to that unit.</p>` : ""}`;
+  }
+
   // Detail of one group row — the policies that use it and its members.
   function showGroupRow(name) {
     const r = cgRes.rows.find(x => x.name === name); if (!r) return;
@@ -4177,6 +4215,7 @@ max@contoso.com,"Global, DevOps"</pre>
         if (!prot) return "";
         return `<p class="mini" style="color:var(--off)">🧊 <b>frozen — its members cannot be changed by anyone.</b> It is role-assignable <i>and</i> already in the restricted unit <b>${esc(prot.auName)}</b>. Only Global Administrator and Privileged Role Administrator may edit a role-assignable group's members, and that unit blocks both; neither flag can be undone. Remove it from the unit first (🛡 Restricted AUs), then convert it with ⑦ Migrate.</p>`;
       })()}
+      ${cgRowActions(r)}
       ${list(r.refs.include, "Included in")}
       ${list(r.refs.exclude, "Excluded from")}
       ${!r.refCount ? '<p class="mini muted" style="margin-top:10px">No policy references this group.</p>' : ""}
@@ -4190,7 +4229,20 @@ max@contoso.com,"Global, DevOps"</pre>
   // the same per-group scan, from inside the group's detail overlay
   $("depBody").addEventListener("click", (e) => {
     const b = e.target.closest("[data-cgone]");
-    if (b) scanOneGroup(b.dataset.cgone, b);
+    if (b) { scanOneGroup(b.dataset.cgone, b); return; }
+    const a = e.target.closest("[data-cgact]");
+    if (!a) return;
+    // Carry the group across rather than dropping the reader back into a tab
+    // with nothing selected — the whole point is not having to find it again.
+    const name = a.dataset.cgactname;
+    const row = (cgRes && cgRes.rows || []).find((x) => x.name === name);
+    $("depModal").classList.remove("open");
+    cgTab = a.dataset.cgact; cgQuery = ""; $("cgSearch").value = "";
+    if (cgTab === "members") { cgMemberSel.clear(); cgMemberSel.add(name); cgMemberPick = true; }
+    if (cgTab === "rmau" && row && row.id && cgRmau) { cgRmau.sel = new Set([row.id]); cgRmau.q = name; }
+    if (cgTab === "migrate" && row && row.id && cgMig) { cgMig.sel = new Set([row.id]); }
+    renderCaGroups();
+    toast(`<span>${esc(name)}</span> carried over to ${esc(a.textContent.trim())}`);
   });
 
   // Changing the scope means a different set of groups to look up → re-scan.

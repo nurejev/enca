@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25067, date: "2026-08-13", title: "The actions come to the group",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "R10 — click a group in ① Check and the overlay now lists what you can do with THAT group, each button carrying it across: ③ read its members, ④ assign it to policies, ⑥ protect it, ⑦ convert it, or ② create it if it does not exist. All of this was reachable before by opening the right tab and finding the row a second time — three steps of re-finding something already selected, with a tab strip that gave no clue which of the seven applied." },
+      { kind: "improved", tool: "Conditional Access groups", text: "Only what makes sense is offered, which is most of the value: a group that does not exist yet cannot have its members read, a ROLE-ASSIGNABLE group is offered ⑦ Migrate rather than ⑥ Protect (a restricted unit would leave nobody able to edit it), and a group already in a vault is not offered protection a second time. A group that is both role-assignable and already in a unit is told it is frozen and that the unit must be left first — the order matters and getting it wrong is how the deadlock is entered rather than escaped." },
+      { kind: "improved", tool: "Conditional Access groups", text: "⑤ Import members is offered as a destination but pre-selects nothing, because that step takes a whole CSV rather than one group. Promising a carry-over that cannot happen would be worse than not offering the button." },
+    ],
+  },
+  {
     build: 25066, date: "2026-08-13", title: "Items 21 and 23 reached production",
     items: [
       { kind: "improved", tool: "All tools", text: "Production is now build 268: break-glass groups matched by local naming with the CA number winning over a name match (21), and flagged tiles sorting first in a collapsed section with the expanded choice scoped to the build (23). The gap is down to 6, 24, 25 and 26." },
