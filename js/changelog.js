@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25029, date: "2026-08-12", title: "Re-check protection without starting over",
+    items: [
+      { kind: "improved", tool: "Protect exclusions", text: "\u27f3 Re-check protection sits next to the Protect button. The protection column is a point-in-time read \u2014 somebody may have protected a group from the portal, \u2466 Migrate may have replaced one, or an earlier run may have half-succeeded \u2014 and until now the only way to refresh it was to leave the tab and rescan, losing the selection you had built. It re-reads each candidate\u2019s administrative-unit membership and the list of restricted AUs (one may have been created since), keeps your selection, and drops any group that is protected now, whose checkbox goes disabled in the same pass. A group whose re-read fails keeps its previous answer rather than being reported as unprotected." },
+    ],
+  },
+  {
     build: 25028, date: "2026-08-12", title: "Picking a suggestion sticks",
     items: [
       { kind: "fixed", tool: "Restricted AUs", text: "Choosing a name from the scoped-administrator suggestions filled the field and then immediately reopened the dropdown over it, so the choice looked as though it had not taken. Cause: selecting from a <datalist> fires the same input event as typing does, so the pick re-ran the directory query, rewrote the options, and the browser reopened the list. A query is now skipped when the field exactly matches an option already offered \u2014 which means the value came from the list rather than the keyboard. Typing something new still searches, so nothing is lost." },

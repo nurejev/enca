@@ -2154,6 +2154,38 @@ max@contoso.com,"Global, DevOps"</pre>
     // Select / deselect every SELECTABLE candidate. Role-assignable groups and
     // already-protected ones have disabled checkboxes, so they are not counted
     // and not toggled — an "all" that includes rows you cannot tick is a lie.
+    if (e.target.id === "cgRmauRecheck") {
+      const t = cgRmau;
+      if (!t || rmauBusy) return true;
+      rmauBusy = true;
+      rmauBody().innerHTML = rmauBusyPanel();
+      const say = (m, i, n) => { const el = $("cgRmauStatus"); if (el) el.textContent = m;
+        const b = $("cgRmauBar"); if (b) b.innerHTML = progInline(i, n); };
+      try {
+        // Re-read the administrative units too — one may have been created since.
+        if (!isDemo) {
+          const aus = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
+          t.rmaus = aus.filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
+        }
+        const cands = CaGroups.rmauCandidates(cgRes);
+        for (let i = 0; i < cands.length; i++) {
+          say(`Re-checking ${cands[i].name}… ${i + 1}/${cands.length}`, i + 1, cands.length);
+          if (isDemo) continue;
+          try {
+            const r = await Graph.gget(`/groups/${cands[i].id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
+            const hit = ((r && r.value) || []).find((a) => a.isMemberManagementRestricted === true);
+            t.status.set(cands[i].id, hit ? { auId: hit.id, auName: hit.displayName } : null);
+          } catch { /* leave the previous answer rather than inventing one */ }
+        }
+        // A group that is protected now cannot also be selected for protecting.
+        for (const g of cands) if (t.status.get(g.id)) t.sel.delete(g.id);
+      } catch (err) {
+        toast(`Re-check failed: <span>${esc(err.message || err)}</span>`);
+      }
+      rmauBusy = false;
+      renderCgRmau();
+      return true;
+    }
     if (e.target.id === "cgRmauAll") {
       const t = cgRmau;
       if (t) {
@@ -2741,6 +2773,11 @@ max@contoso.com,"Global, DevOps"</pre>
       <div id="cgRmauLog" class="mini" style="margin-top:8px"></div>
       <div class="row" style="justify-content:flex-start;margin-top:12px">
         <button class="btn primary" id="cgRmauGo" ${picked ? "" : "disabled"}>Protect ${picked} group${picked === 1 ? "" : "s"}${isDemo ? " (simulated)" : ""}</button>
+        ${/* The protection status is a point-in-time read. Somebody else may have
+             protected a group from the portal, a migration may have replaced one,
+             or a previous run may have half-succeeded — re-check without leaving
+             the tab and losing the selection you have built. */ ""}
+        <button class="btn" id="cgRmauRecheck">⟳ Re-check protection</button>
       </div>
       <h5 class="mini" style="margin:18px 0 4px">THE GROUPS</h5>
       <p class="mini muted" style="margin:0 0 8px">Pre-selected: the unprotected <b>assigned exclusion groups</b> — the ones whose membership is maintained by hand, which is exactly the membership this protection locks down.

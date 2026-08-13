@@ -21,7 +21,7 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.253",
-  betaBuild: "v1.0.250-beta.28",
+  betaBuild: "v1.0.250-beta.29",
 
   items: [
     {
@@ -38,9 +38,9 @@ const PROMOTE = {
       n: 2,
       title: "Protect refuses role-assignable groups",
       tools: ["Protect exclusions", "Conditional Access groups"],
-      builds: [25017, 25023],
+      builds: [25017, 25023, 25028, 25029],
       risk: "high",
-      what: "Disables the checkbox, filters the write, corrects the header text, and adds select-all / deselect-all over the selectable rows.",
+      what: "Disables the checkbox, filters the write, corrects the header text, adds select-all / deselect-all over the selectable rows, a ⟳ Re-check protection button, and the datalist fix so picking a suggested admin does not reopen the dropdown.",
       why: "Production still lets you tick a role-assignable group into a restricted AU. That combination leaves NOBODY able to change its members — on a break-glass exclusion group, discovered during an incident.",
       files: ["js/app.js"],
     },
