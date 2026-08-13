@@ -212,6 +212,14 @@ registration differs.
 ./New-EncaAppRegistration.ps1 -SingleTenant -SingleTenantRedirectUris "https://enca.contoso.example"
 ```
 
+Add `-RequireAssignment` to gate the app to named people — it sets *Assignment
+required* on the enterprise application and assigns you first, so only you can
+open it until you widen it:
+
+```powershell
+./New-EncaAppRegistration.ps1 -RequireAssignment -AssignTo "sec-team@contoso.com","CA Administrators"
+```
+
 Full walkthrough, including keeping a pinned copy current:
 **[SINGLE-TENANT.md](SINGLE-TENANT.md)**.
 

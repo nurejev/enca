@@ -127,6 +127,52 @@ belt-and-braces alongside the single-tenant audience.
 
 ---
 
+## Step 3b — Restrict who may open it (recommended)
+
+By default any user in the tenant can sign in to the app; what they can *see*
+is bounded by their own roles, but the app itself opens for anyone. To gate it
+to named people:
+
+```powershell
+./New-EncaAppRegistration.ps1 -SingleTenant -RequireAssignment `
+    -SingleTenantRedirectUris "https://enca.contoso.example"
+```
+
+This sets **Assignment required** on the enterprise application and assigns
+**you** — the account running the script — first. Everyone else is refused at
+sign-in with `AADSTS50105` until you add them. Add others at the same time:
+
+```powershell
+./New-EncaAppRegistration.ps1 -RequireAssignment -AssignTo "sec-team@contoso.com","CA Administrators"
+```
+
+or afterwards in **Entra ID → Enterprise applications → ENCA → Users and
+groups**.
+
+**What this does and does not do.** It gates *who may open the tool*. It does
+not reduce what an assigned person can do once inside — that is still bounded
+by their own directory roles and by the consented scopes. A Global
+Administrator you assign is still a Global Administrator. Treat it as a
+front door, not a permission model.
+
+**Four things to know before you switch it on:**
+
+- **Nested groups are ignored.** Entra honours only *direct* membership of an
+  assigned group for app assignment. A group of groups will not work, and it
+  fails silently — the user simply cannot sign in.
+- **You cannot lock yourself out with this script.** The requirement is only
+  enabled *after* at least one principal is successfully assigned, and you are
+  always the first one tried. If nothing could be assigned, the script says so
+  and leaves the requirement off rather than sealing the app shut.
+- **If you do get locked out another way**, you are still an administrator:
+  fix it in the portal under Enterprise applications → Properties →
+  *Assignment required* → No. The app's own gate does not apply to managing the
+  app.
+- **Guests need assigning too**, individually or via a group they are a direct
+  member of.
+
+---
+
 ## Step 4 — Deploy and grant consent
 
 Publish the folder to your host. There is nothing to compile; the files are
@@ -152,6 +198,10 @@ Open your copy and sign in. Check:
    grant recorded against your own service principal.
 3. The footer build number matches the release you pinned.
 4. The 🔒 Permissions panel in ENCA lists the scopes you consented to.
+5. If you used `-RequireAssignment`: **Enterprise applications → your app →
+   Properties** shows *Assignment required* = **Yes**, and **Users and groups**
+   lists exactly who you assigned. Sign in as somebody unassigned and confirm
+   they are refused with `AADSTS50105` — an untested gate is not a gate.
 
 If sign-in returns `AADSTS50011`, the redirect URI does not match your origin
 exactly. If it returns `AADSTS700016`, the client ID in
