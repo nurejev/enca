@@ -33,8 +33,8 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.267",
-  betaBuild: "v1.0.250-beta.65",
+  productionBuild: "v1.0.268",
+  betaBuild: "v1.0.250-beta.66",
 
   items: [
     {
@@ -66,26 +66,6 @@ const PROMOTE = {
       what: "New beta-only tool: the deployment order as six steps with the reason for each, and a 🔎 Read-the-tenant readiness check per step (baseline groups, restricted units, locations, strengths, contexts, terms of use, per-persona policy coverage, state tally). Pure reads plus one on-demand scope (Agreement.Read.All). New js/guide.js plus tile, screen and wiring.",
       why: "Reads only and self-contained, but it EXPLAINS the baseline — wrong prose is worse than no prose, so it graduates once the step texts have survived a few real deployments.",
       files: ["js/guide.js", "js/app.js", "index.html", "js/version.js"],
-    },
-    {
-      n: 23,
-      title: "Flagged tiles sort first in a collapsed section (R09)",
-      tools: ["All tools"],
-      builds: [25059, 25062],
-      risk: "low",
-      what: "A collapsed home section puts NEW / BETA / UPDATED tiles first via CSS order, restoring the authored order on expand — nothing is reparented, so the grid's grouping survives. Also scopes the expanded/collapsed preference to the build, so a section expanded once does not stay expanded through every later release.",
-      why: "Production has the same behaviour of a flagged tile claiming a visible slot but keeping its page position, so a flagged tile sitting ninth is on screen and still reads as an afterthought.",
-      files: ["js/app.js"],
-    },
-    {
-      n: 21,
-      title: "Break-glass groups matched by local naming",
-      tools: ["Restricted AUs", "Protect exclusions", "Import"],
-      builds: [25054],
-      risk: "medium",
-      what: "＋ Bulk add finds break-glass groups named Emergency_Access1, EmergencyAccess, Break-Glass, BG-… and not only the baseline's own name — the query looks under those prefixes too, since such a group was never being read at all. The CA number now wins over a name match in every tool that routes.",
-      why: "Depends on bulk add, which is already in production. Without it the break-glass unit stays empty on any tenant that does not use the baseline's spelling — which is most of them, since break-glass groups predate the baseline.",
-      files: ["js/rmau.js", "js/app.js", "index.html"],
     },
     {
       n: 6,

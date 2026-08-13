@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25066, date: "2026-08-13", title: "Items 21 and 23 reached production",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Production is now build 268: break-glass groups matched by local naming with the CA number winning over a name match (21), and flagged tiles sorting first in a collapsed section with the expanded choice scoped to the build (23). The gap is down to 6, 24, 25 and 26." },
+    ],
+  },
+  {
     build: 25065, date: "2026-08-13", title: "Type the country, get the code",
     items: [
       { kind: "new", tool: "Named locations", text: "R08 — a country named location is built by typing the COUNTRY, not the code. The picker suggests from the ISO 3166-1 list and adds the match as a chip showing both the code and the name, because a wrong code is still a VALID code: the policy saves, looks right in the portal, and covers the wrong country until somebody is blocked or, worse, is not. Ireland is IE; IR is Iran. Austria is AT, Australia AU. Sweden is SE, Switzerland CH." },
