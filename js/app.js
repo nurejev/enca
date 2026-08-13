@@ -7801,6 +7801,8 @@ max@contoso.com,"Global, DevOps"</pre>
     $("loKind").value = f.kind; $("loKind").disabled = !!loc;
     $("loName").value = f.name; $("loRanges").value = f.ranges; $("loTrusted").checked = f.isTrusted;
     $("loCountries").value = f.countries; $("loUnknown").checked = f.includeUnknown; $("loLookup").value = f.lookupMethod;
+    $("loCountrySearch").value = ""; $("loCountryList").innerHTML = "";
+    loCountryRender([]);           // a fresh dialog starts with no complaints
     loSyncKind();
     // changing isTrusted moves every policy that uses "All trusted locations"
     const at = Locations.trustedConsumers(policies.map((p) => p.raw));
@@ -7808,6 +7810,80 @@ max@contoso.com,"Global, DevOps"</pre>
       ? `<div class="mini muted">⚠ ${at.length} polic${at.length === 1 ? "y uses" : "ies use"} <b>All trusted locations</b> — changing the trusted flag changes ${at.length === 1 ? "it" : "them"} too.</div>` : "";
     $("loEditModal").classList.add("open");
   }
+  // ---------- country picker (R08) ----------
+  // The hidden textarea stays the single source of truth: buildPayload already
+  // reads it, and every other path (paste, an existing location being edited)
+  // still works. The picker writes to it; the chips read from it. One place to
+  // be wrong beats two places to keep in step.
+  // Unknowns survive normalisation. Rewriting the field to clean codes is what
+  // makes the chips and the payload agree — but if the message were rebuilt
+  // from the rewritten value there would be nothing left to complain about, and
+  // the junk would have been dropped in silence. Which is the failure this
+  // feature exists to prevent, arrived at from the other direction.
+  let loCountryRejected = [];
+  function loCountryRender(rejected) {
+    const box = $("loCountries");
+    const parsed = ISO3166.parse(box.value);
+    const codes = parsed.codes;
+    if (rejected !== undefined) loCountryRejected = rejected;
+    const unknown = [...new Set([...parsed.unknown, ...loCountryRejected])];
+    $("loCountryPicks").innerHTML = codes.map((c) => `<span class="lo-chip"><b>${esc(c)}</b> ${esc(ISO3166.nameOf(c))}
+        <button type="button" data-locountry-rm="${esc(c)}" title="Remove">✕</button></span>`).join("")
+      || '<span class="mini muted">No countries selected yet.</span>';
+    // Anything unrecognised is NAMED, not dropped. A code silently discarded is
+    // a country silently not covered, which is the failure this whole feature
+    // exists to prevent.
+    $("loCountryMsg").innerHTML = unknown.length
+      ? `<span style="color:var(--off)">✗ not an ISO 3166-1 code: ${unknown.map((u) => `<b>${esc(u)}</b>`).join(", ")}
+         — these are <b>ignored</b>. UK is not a code (the United Kingdom is <b>GB</b>); EU is not one either.</span>`
+      : (codes.length ? `<span class="muted">${codes.length} countr${codes.length === 1 ? "y" : "ies"}.</span>` : "");
+    return codes;
+  }
+  function loCountryAdd(code) {
+    const box = $("loCountries");
+    const { codes } = ISO3166.parse(box.value);
+    if (!codes.includes(code)) codes.push(code);
+    box.value = codes.join(", ");
+    loCountryRender([]);
+  }
+
+  // Suggestions come from the local ISO list — no network, and it is the same
+  // list the codes are validated against, so what is offered is exactly what is
+  // accepted.
+  $("loCountrySearch").addEventListener("input", (e) => {
+    const hits = ISO3166.search(e.target.value, 8);
+    $("loCountryList").innerHTML = hits.map((h) => `<option value="${esc(h.name)} (${esc(h.code)})"></option>`).join("");
+    // Picking from the datalist fires `input` with the full option text; that
+    // is the confirmation, so it is added straight away rather than waiting for
+    // a second gesture nobody knows to make.
+    const m = /\(([A-Z]{2})\)\s*$/.exec(e.target.value.trim());
+    if (m && ISO3166.isCode(m[1])) { loCountryAdd(m[1]); e.target.value = ""; $("loCountryList").innerHTML = ""; }
+  });
+  $("loCountrySearch").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();          // this field must never submit the dialog
+    const hit = ISO3166.search(e.target.value, 1)[0];
+    if (hit) { loCountryAdd(hit.code); e.target.value = ""; $("loCountryList").innerHTML = ""; }
+    else if (e.target.value.trim()) {
+      $("loCountryMsg").innerHTML = `<span style="color:var(--off)">✗ no country matches <b>${esc(e.target.value.trim())}</b> — nothing was added.</span>`;
+    }
+  });
+  $("loCountryPicks").addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-locountry-rm]");
+    if (!rm) return;
+    const box = $("loCountries");
+    box.value = ISO3166.parse(box.value).codes.filter((c) => c !== rm.dataset.locountryRm).join(", ");
+    loCountryRender([]);
+  });
+  // Typed or pasted directly: normalise to codes so the chips and the payload
+  // agree with each other.
+  $("loCountries").addEventListener("input", () => loCountryRender());
+  $("loCountries").addEventListener("change", () => {
+    const { codes, unknown } = ISO3166.parse($("loCountries").value);
+    $("loCountries").value = codes.join(", ");
+    loCountryRender(unknown);      // keep saying what was thrown away
+  });
+
   $("loNew").addEventListener("click", () => openLoEditor(null));
   $("loEditCancel").addEventListener("click", () => $("loEditModal").classList.remove("open"));
   $("loEditSave").addEventListener("click", async () => {

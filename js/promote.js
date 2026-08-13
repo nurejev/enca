@@ -34,14 +34,34 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.267",
-  betaBuild: "v1.0.250-beta.63",
+  betaBuild: "v1.0.250-beta.65",
 
   items: [
+    {
+      n: 26,
+      title: "Baseline guide and Drift watch move to Explore & document",
+      tools: ["All tools"],
+      builds: [25065],
+      risk: "low",
+      what: "Both tiles move out of ✍️ Manage the tenant into 🗂 Explore & document. Read-only tools sitting among the ones that write.",
+      why: "Production has 📉 Drift watch in the writing section, where a read-only tool implies it might change something.",
+      files: ["index.html"],
+    },
+    {
+      n: 25,
+      title: "Type the country, get the ISO code (R08)",
+      tools: ["Named locations"],
+      builds: [25065],
+      risk: "medium",
+      what: "A country named location is built by typing the country name; the picker fills in the ISO 3166-1 code and shows both on a chip. Pasted text is normalised, and anything that is not a real code is reported rather than dropped. New file js/iso3166.js.",
+      why: "Production takes two-letter codes typed by hand into a free-text box, where a wrong code is indistinguishable from a right one — the policy saves and covers the wrong country silently. Medium rather than low because it changes how a location is authored, and locations gate access.",
+      files: ["js/iso3166.js", "js/app.js", "index.html", "css/app.css"],
+    },
     {
       n: 24,
       title: "📖 Baseline usage guide (R05)",
       tools: ["Baseline guide"],
-      builds: [25063],
+      builds: [25063, 25065],
       risk: "low",
       what: "New beta-only tool: the deployment order as six steps with the reason for each, and a 🔎 Read-the-tenant readiness check per step (baseline groups, restricted units, locations, strengths, contexts, terms of use, per-persona policy coverage, state tally). Pure reads plus one on-demand scope (Agreement.Read.All). New js/guide.js plus tile, screen and wiring.",
       why: "Reads only and self-contained, but it EXPLAINS the baseline — wrong prose is worse than no prose, so it graduates once the step texts have survived a few real deployments.",

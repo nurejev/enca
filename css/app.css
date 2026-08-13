@@ -1297,6 +1297,15 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 /* Roadmap reference. Monospaced and quiet: it is a handle for pointing at an
    item out loud, not a rank — so it must be readable at a glance without
    competing with the title it precedes. */
+/* Country picks. A chip shows the CODE and the NAME together — the code is
+   what Entra stores and the name is what makes it checkable at a glance, and
+   showing only one of them is how the wrong country goes unnoticed. */
+.lo-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.lo-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);
+  border-radius:999px;padding:3px 6px 3px 10px;font-size:12px}
+.lo-chip b{font-family:var(--mono,ui-monospace,monospace);font-size:12px}
+.lo-chip button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
+.lo-chip button:hover{color:var(--off)}
 .rm-ref{font-family:var(--mono,ui-monospace,monospace);font-size:11px;font-weight:700;letter-spacing:.04em;
   color:var(--muted);background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:1px 6px;
   margin-right:6px;vertical-align:1px}

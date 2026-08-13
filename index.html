@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25063"></script>
+<script src="js/popup-guard.js?v=25065"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25063">
+<link rel="stylesheet" href="css/app.css?v=25065">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25063"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25063"></script>
+<script src="js/counter.js?v=25065"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25065"></script>
 </head>
 <body>
 
@@ -98,6 +98,14 @@
     <h2 class="home-title">What do you want to do?</h2>
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
     <div class="tools">
+      <div class="tool" id="toolGuide">
+        <div class="tool-ic">📖</div><h3>Baseline guide <span class="tag new">BETA</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
+        <p>The deployment order with the reason for each step, not just the sequence: personas and their CA ranges, groups and their vaults before the policies that target them, locations, strengths and Terms of use before the policies that reference them, policies imported Off, then live the boring way. Reads the tenant and tells you what is missing <b>before</b> each step instead of after.</p>
+      </div>
+      <div class="tool" id="toolDrift">
+        <div class="tool-ic">📉</div><h3>Drift watch <span class="tag upd">UPDATED</span></h3>
+        <p>Take a snapshot of the Conditional Access configuration today, compare a later run against it, and see exactly what moved — policies added, removed, switched Off, exclusions widened, locations retrusted. The history is a file you keep, so it has no 30-day limit, and no infrastructure is needed. Ranked by severity, because a widened exclusion matters more than a rename.</p>
+      </div>
       <div class="tool" id="toolPolicies">
         <div class="tool-ic">🗂</div><h3>List Policies <span class="tag upd">UPDATED</span></h3>
         <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona.</p>
@@ -206,14 +214,6 @@
       <div class="tool" id="toolRmau">
         <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag upd">UPDATED</span></h3>
         <p>Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
-      </div>
-      <div class="tool" id="toolDrift">
-        <div class="tool-ic">📉</div><h3>Drift watch <span class="tag upd">UPDATED</span></h3>
-        <p>Take a snapshot of the Conditional Access configuration today, compare a later run against it, and see exactly what moved — policies added, removed, switched Off, exclusions widened, locations retrusted. The history is a file you keep, so it has no 30-day limit, and no infrastructure is needed. Ranked by severity, because a widened exclusion matters more than a rename.</p>
-      </div>
-      <div class="tool" id="toolGuide">
-        <div class="tool-ic">📖</div><h3>Baseline guide <span class="tag new">BETA</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
-        <p>The deployment order with the reason for each step, not just the sequence: personas and their CA ranges, groups and their vaults before the policies that target them, locations, strengths and Terms of use before the policies that reference them, policies imported Off, then live the boring way. Reads the tenant and tells you what is missing <b>before</b> each step instead of after.</p>
       </div>
       <div class="tool" id="toolState">
         <div class="tool-ic">🎚</div><h3>Set Policy state</h3>
@@ -1523,6 +1523,18 @@
     </section>
 
     <section class="help-sec">
+      <h4>📖 Baseline guide <span class="tag new">BETA</span></h4>
+      <p>The deployment order, with the <b>reason</b> for each step rather than just the sequence — and read against <i>your</i> tenant, so each step says what is missing before you run it instead of after. Six steps: understand the model, groups and their vaults, named locations / strengths / contexts, Terms of use, policies imported Off, then go live.</p>
+      <ul>
+        <li><b>Order is not arbitrary.</b> Groups and their restricted units come before the policies that target them, because a policy referencing a group that does not exist cannot be created. Named locations, authentication strengths and contexts come before the policies that reference them for the same reason. Terms of use sits on its own because it has <b>no Graph create API</b> — it must be made in the portal first, and a policy granting one imports without that control until it exists.</li>
+        <li><b>Readiness, not a checklist.</b> Each step is evaluated against the tenant as it is now: what exists, what is missing, and what that means for the step after. A step you cannot do yet says so with the reason, which is the difference between a guide and a list of instructions.</li>
+        <li><b>It ends where 🎚 Report-only impact begins</b> — policies land <b>Off</b>, are switched to report-only, and are enforced once the forecast is boring. That is the whole of "go live the boring way".</li>
+        <li><b>📄 Export MD</b> — the plan and the current readiness as Markdown, for the change record or to hand to whoever runs the deployment.</li>
+      </ul>
+      <p class="help-x">Read-only. It reads groups, administrative units, named locations, strengths, contexts and policies to work out where you are; it writes nothing and never acts on your behalf — the tools it points at do that, and each asks for its own permission on the click.</p>
+    </section>
+
+    <section class="help-sec">
       <h4>📥 Import <span class="tag block">writes to tenant</span></h4>
       <p>Restore a backup (zip or extracted folder). Dependencies are created first (create-if-missing), then the policies — always in state <b>Off</b> unless a replacement inherits an existing state.</p>
       <ul>
@@ -1822,8 +1834,13 @@
         <span class="mini muted">— policies using “All trusted locations” will follow it</span></label>
     </div>
     <div id="loCountryFields" style="display:none">
-      <label class="wi-f"><span>Countries / regions — two-letter ISO codes</span>
-        <textarea id="loCountries" rows="4" placeholder="NL, BE, DE" spellcheck="false"></textarea></label>
+      <label class="wi-f"><span>Countries / regions <span class="muted">— type the name, the ISO code is filled in</span></span>
+        <input id="loCountrySearch" class="txt" list="loCountryList" placeholder="Type a country name — Ireland, Netherlands, Switzerland…" autocomplete="off" spellcheck="false" style="letter-spacing:normal;font-weight:400">
+        <datalist id="loCountryList"></datalist>
+        <div id="loCountryPicks" class="lo-chips"></div>
+        <div id="loCountryMsg" class="mini" style="margin-top:4px"></div>
+        <details style="margin-top:6px"><summary class="mini muted" style="cursor:pointer">Paste or edit codes directly</summary>
+          <textarea id="loCountries" rows="3" placeholder="NL, BE, DE" spellcheck="false" style="margin-top:6px"></textarea></details></label>
       <label class="chk" style="margin-top:8px"><input type="checkbox" id="loUnknown"> Include unknown countries / regions</label>
       <label class="wi-f" style="margin-top:8px"><span>Location lookup method</span>
         <select id="loLookup">
@@ -2153,46 +2170,47 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25063"></script>
-<script src="js/version.js?v=25063"></script>
-<script src="js/promote.js?v=25063"></script>
-<script src="js/authConfig.js?v=25063"></script>
-<script src="js/labels.js?v=25063"></script>
-<script src="js/graph.js?v=25063"></script>
-<script src="js/model.js?v=25063"></script>
-<script src="js/render.js?v=25063"></script>
-<script src="js/analyze.js?v=25063"></script>
-<script src="js/whatif.js?v=25063"></script>
-<script src="js/mslearn.js?v=25063"></script>
-<script src="js/gapcheck.js?v=25063"></script>
-<script src="js/cisdata.js?v=25063"></script>
-<script src="js/cischeck.js?v=25063"></script>
-<script src="js/exclusions.js?v=25063"></script>
-<script src="js/validator.js?v=25063"></script>
-<script src="js/whatifeval.js?v=25063"></script>
-<script src="js/compare.js?v=25063"></script>
-<script src="js/groupuse.js?v=25063"></script>
-<script src="js/locations.js?v=25063"></script>
-<script src="js/authcontexts.js?v=25063"></script>
-<script src="js/authstrengths.js?v=25063"></script>
-<script src="js/recycle.js?v=25063"></script>
-<script src="js/rmau.js?v=25063"></script>
-<script src="js/termsofuse.js?v=25063"></script>
-<script src="js/audit.js?v=25063"></script>
-<script src="js/drift.js?v=25063"></script>
-<script src="js/guide.js?v=25063"></script>
-<script src="js/signins.js?v=25063"></script>
-<script src="js/reportimpact.js?v=25063"></script>
-<script src="js/changelog.js?v=25063"></script>
-<script src="js/baselineData.js?v=25063"></script>
-<script src="js/baselineJoeyData.js?v=25063"></script>
-<script src="js/baseline.js?v=25063"></script>
-<script src="js/groupTemplates.js?v=25063"></script>
-<script src="js/assign.js?v=25063"></script>
-<script src="js/cagroups.js?v=25063"></script>
-<script src="js/import.js?v=25063"></script>
-<script src="js/export.js?v=25063"></script>
-<script src="js/demo.js?v=25063"></script>
-<script src="js/app.js?v=25063"></script>
+<script src="js/branding.js?v=25065"></script>
+<script src="js/version.js?v=25065"></script>
+<script src="js/promote.js?v=25065"></script>
+<script src="js/authConfig.js?v=25065"></script>
+<script src="js/labels.js?v=25065"></script>
+<script src="js/graph.js?v=25065"></script>
+<script src="js/model.js?v=25065"></script>
+<script src="js/render.js?v=25065"></script>
+<script src="js/analyze.js?v=25065"></script>
+<script src="js/whatif.js?v=25065"></script>
+<script src="js/mslearn.js?v=25065"></script>
+<script src="js/gapcheck.js?v=25065"></script>
+<script src="js/cisdata.js?v=25065"></script>
+<script src="js/cischeck.js?v=25065"></script>
+<script src="js/exclusions.js?v=25065"></script>
+<script src="js/validator.js?v=25065"></script>
+<script src="js/whatifeval.js?v=25065"></script>
+<script src="js/compare.js?v=25065"></script>
+<script src="js/groupuse.js?v=25065"></script>
+<script src="js/iso3166.js?v=25065"></script>
+<script src="js/locations.js?v=25065"></script>
+<script src="js/authcontexts.js?v=25065"></script>
+<script src="js/authstrengths.js?v=25065"></script>
+<script src="js/recycle.js?v=25065"></script>
+<script src="js/rmau.js?v=25065"></script>
+<script src="js/termsofuse.js?v=25065"></script>
+<script src="js/audit.js?v=25065"></script>
+<script src="js/drift.js?v=25065"></script>
+<script src="js/guide.js?v=25065"></script>
+<script src="js/signins.js?v=25065"></script>
+<script src="js/reportimpact.js?v=25065"></script>
+<script src="js/changelog.js?v=25065"></script>
+<script src="js/baselineData.js?v=25065"></script>
+<script src="js/baselineJoeyData.js?v=25065"></script>
+<script src="js/baseline.js?v=25065"></script>
+<script src="js/groupTemplates.js?v=25065"></script>
+<script src="js/assign.js?v=25065"></script>
+<script src="js/cagroups.js?v=25065"></script>
+<script src="js/import.js?v=25065"></script>
+<script src="js/export.js?v=25065"></script>
+<script src="js/demo.js?v=25065"></script>
+<script src="js/app.js?v=25065"></script>
 </body>
 </html>
