@@ -2309,6 +2309,7 @@ max@contoso.com,"Global, DevOps"</pre>
           <span class="mini muted">${nSel} of ${p.eligible.length} selected</span>
         </div>
         <div class="cg-pick">${rows}</div>
+        <div class="cg-actionbar">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
           <label class="chk" style="margin:0"><input type="checkbox" id="cgMigToAu"${t.toAu !== false ? " checked" : ""}> Place the new groups in a restricted AU now</label>
           <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px;margin:0"><span>Restricted AU</span>
@@ -2325,6 +2326,7 @@ max@contoso.com,"Global, DevOps"</pre>
         </div>
         <div id="cgMigBar2" style="display:none;width:100%;margin-top:12px"></div>
         <div id="cgMigLog" class="mini" style="margin-top:8px"></div>
+        </div>
       </div>` : `<div class="cg-panel">
         <h4>NOTHING TO MIGRATE</h4>
         <p class="mini" style="margin:0">No role-assignable baseline group is eligible.${p.skipped.length ? " See below for why." : ""}</p>
@@ -2396,6 +2398,7 @@ max@contoso.com,"Global, DevOps"</pre>
 
   migBody().addEventListener("click", async (e) => {
     if (e.target.closest("[data-migrun]")) { cgMigScan(); return; }
+    if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
     if (e.target.id === "cgMigRescan") { cgMig = null; cgRes = null; cgMigScan(); return; }
     if (e.target.id === "cgMigAll") {
       const all = cgMig.plan.eligible.map((x) => x.id);
@@ -3468,6 +3471,83 @@ max@contoso.com,"Global, DevOps"</pre>
     </div>`;
   }
 
+  // ---------- ③ Members: add a user to a group ----------
+  // A directory type-ahead on the user field and the loaded groups on the other.
+  // The write is deliberately narrow: one user, one group, reported inline, and
+  // the matrix re-reads that group afterwards so the new row is visible rather
+  // than merely claimed.
+  let cgAddGroup = "";
+  let cgAddTimer = null;
+  // renderCgMembers() rebuilds #cgAddLog, so a message written straight into the
+  // DOM vanishes the moment the matrix repaints — which is exactly when the
+  // confirmation matters. Keep it in state and render it.
+  let cgAddMsg = null;   // { html, bad }
+
+  function cgAddSuggest(e) {
+    if (e.target.id !== "cgAddUser") return;
+    const term = String(e.target.value || "").trim();
+    clearTimeout(cgAddTimer);
+    if (term.length < 2 || isDemo) return;
+    cgAddTimer = setTimeout(async () => {
+      const f = term.replace(/'/g, "''");
+      try {
+        const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
+        const dl = $("cgUserSug");
+        if (dl) dl.innerHTML = ((r && r.value) || [])
+          .map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+      } catch (err) { console.warn("member suggest failed:", err.message); }
+    }, 250);
+  }
+
+  async function cgAddMember() {
+    const uBox = $("cgAddUser"), gBox = $("cgAddGroup"), log = $("cgAddLog");
+    const upn = (uBox?.value || "").trim(), gName = (gBox?.value || "").trim();
+    const say = (html, bad) => {
+      cgAddMsg = { html, bad: !!bad };
+      const el = $("cgAddLog");
+      if (el) el.innerHTML = `<span style="${bad ? "color:var(--off)" : ""}">${html}</span>`;
+    };
+    if (!upn) { say("Type a user first.", true); return; }
+    if (!gName) { say("Pick a group.", true); return; }
+    const row = (cgRes.rows || []).find((r) => r.name === gName && r.id);
+    if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
+    cgAddGroup = gName;
+
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All"])) return;
+    say("Adding…");
+    try {
+      let user = { id: "demo-" + upn, displayName: upn };
+      if (!isDemo) user = await Graph.gget(`/users/${encodeURIComponent(upn)}?$select=id,displayName,userPrincipalName`);
+      if ((row.members || []).some((m) => m.id === user.id)) {
+        say(`<b>${esc(user.displayName || upn)}</b> is already a member of <b>${esc(gName)}</b>.`);
+        return;
+      }
+      if (!isDemo) {
+        await Graph.gpost(`/groups/${row.id}/members/$ref`,
+          { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${user.id}` },
+          [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+      }
+      // Re-read that one group so the matrix shows the result. Directory writes
+      // are not read-your-writes consistent, so add the row locally too and let
+      // the re-read confirm it rather than contradict it.
+      const fresh = { id: user.id, name: user.displayName || upn, upn: user.userPrincipalName || upn, disabled: false };
+      row.members = [...(row.members || []), fresh];
+      row.memberTotal = (row.memberTotal || 0) + 1;
+      say(`✓ <b>${esc(fresh.name)}</b> added to <b>${esc(gName)}</b>.`);
+      if (uBox) uBox.value = "";
+      renderCgMembers();
+      if (!isDemo) {
+        try {
+          await CaGroups.loadMembers([row], {});
+          renderCgMembers();
+        } catch { /* the optimistic row stands */ }
+      }
+    } catch (e) {
+      const dup = /already exist/i.test(e.message || "");
+      say(dup ? `Already a member of <b>${esc(gName)}</b>.` : `Add failed: ${esc(e.message || e)}`, !dup);
+    }
+  }
+
   function renderCgMembers() {
     const scanned = cgRes.rows.filter(r => r.members);
     if (cgMemberPick || (!scanned.length && !cgBusy)) {
@@ -3489,13 +3569,30 @@ max@contoso.com,"Global, DevOps"</pre>
          ${m.empty.map(c => `<b>${esc(c.name)}</b>`).join(", ")} — a policy scoped to an empty include group applies to nobody;
          an empty exclude group excludes nobody.</p>` : "";
     const errs = cgRes.rows.filter(r => r.memberError);
+    // Add a member without leaving the matrix. Only the groups whose members
+    // are actually loaded are offered — adding to a group you cannot see the
+    // members of would be a write with no way to check the result.
+    const addBar = `<div class="cg-panel">
+        <h4>ADD A MEMBER <span class="tag new">NEW</span></h4>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input id="cgAddUser" list="cgUserSug" placeholder="User — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px">
+          <span class="mini muted">to</span>
+          <input id="cgAddGroup" list="cgGroupSug" placeholder="Group" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px" value="${esc(cgAddGroup || "")}">
+          <button class="btn primary" id="cgAddGo">＋ Add</button>
+        </div>
+        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. The group list is the ${m.cols.length} group${m.cols.length === 1 ? "" : "s"} whose members are loaded here, so the matrix can show the result immediately.</p>
+        <div id="cgAddLog" class="mini" style="margin-top:8px">${cgAddMsg ? `<span style="${cgAddMsg.bad ? "color:var(--off)" : ""}">${cgAddMsg.html}</span>` : ""}</div>
+      </div>`;
+
     $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">
         ${m.users.length} distinct member${m.users.length === 1 ? "" : "s"} across ${m.cols.length} group${m.cols.length === 1 ? "" : "s"}.
         <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Read more groups</button>
         <button class="btn sm" id="cgMemberGo" style="margin-left:6px">⟳ Re-read selected</button>
-      </div>${empties}
+      </div>${addBar}${empties}
       ${errs.length ? `<p class="mini" style="color:var(--off)">${errs.length} group${errs.length === 1 ? "" : "s"} could not be read: ${errs.map(r => esc(r.name)).join(", ")}</p>` : ""}
       ${CaGroups.renderMatrix(m, cgQuery)}`;
+    const gl = $("cgGroupSug");
+    if (gl) gl.innerHTML = m.cols.map((c) => `<option value="${esc(c.name)}"></option>`).join("");
   }
 
   // One group's members, on demand. Same reader as the bulk scan so a row
@@ -3628,6 +3725,8 @@ max@contoso.com,"Global, DevOps"</pre>
     cgRes = null; cgMemberSel.clear(); cgMemberPick = false;
     await openCaGroups(true);
   });
+  $("cgBody").addEventListener("input", cgAddSuggest);
+  $("cgBody").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
   $("cgTabs").addEventListener("click", (e) => {
     const b = e.target.closest("[data-cgtab]"); if (!b) return;
     cgTab = b.dataset.cgtab; cgQuery = ""; $("cgSearch").value = "";

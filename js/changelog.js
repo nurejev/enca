@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25022, date: "2026-08-12", title: "Add a member without leaving the matrix",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "\u2462 Members gains an \u002b Add bar. Type two letters and the directory suggests users by display name or UPN; the group side offers the groups whose members are already loaded, so the matrix can show the result immediately instead of asking you to re-read. The new member appears straight away and the group is then re-read to confirm it \u2014 directory writes are not read-your-writes consistent, so the optimistic row stands if the read has not caught up. Adding someone already in the group says so rather than failing, and an unknown group or an empty field is refused before any write." },
+      { kind: "improved", tool: "Conditional Access groups", text: "\u2466 Migrate keeps the restricted-AU choice, the nesting toggle, the acknowledgement and the Migrate button pinned to the bottom of the panel while you scroll the group list. Picking the last of forty groups no longer means scrolling back down to find the button." },
+    ],
+  },
+  {
     build: 25021, date: "2026-08-12", title: "Migrate asks before it scans, and looks like the rest of the tool",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "\u2466 Migrate scanned the moment you opened the tab, which is the wrong manners for the most expensive read in the tool \u2014 it checks every role-assignable group for directory-role assignments and restricted-AU membership, and counts each one\u2019s members. A \u25b6 Scan button now starts it, exactly like \u2465 Protect: a scan in flight survives navigating away, the result stays until an explicit rescan, and the gate says what will be read and that nothing is written." },
