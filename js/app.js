@@ -1829,9 +1829,12 @@
           const per = Importer.groupPersonas(scoped, scoped.policies);
           for (const g of scoped.groups) {
             const info = per.get(g.id);
-            const code = info && info.persona ? Importer.PERSONA_CODE[info.persona] : null;
+            // info.code, not info.persona: since build 25046 the vault is read
+            // from the group's own name, and `persona` is null for every group
+            // routed that way — which is nearly all of them.
+            const code = info ? info.code : null;
             if (code && imAu.byCode[code]) depLog.placed.push({ name: g.displayName, code });
-            else depLog.unplaced.push({ name: g.displayName, code, why: !code ? ((info && info.why) || "no persona could be read from the policies that use it") : `no restricted unit for persona ${code}` });
+            else depLog.unplaced.push({ name: g.displayName, code, why: !code ? ((info && info.why) || "no persona could be read from the policies that use it") : `no restricted unit for ${code}` });
           }
         }
       } else {

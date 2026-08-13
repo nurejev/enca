@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25048, date: "2026-08-13", title: "Demo import placement read the wrong field",
+    items: [
+      { kind: "fixed", tool: "Import", text: "The simulated placement shown in demo mode still read a group's vault from info.persona, which build 25046 stopped setting when routing moved to the CA number in the group's own name — so every group in the demo report came back “no persona could be read”, describing a failure that a real run would not have. Reads info.code now. Only demo output was affected; a real import placed groups correctly throughout." },
+    ],
+  },
+  {
     build: 25047, date: "2026-08-13", title: "Fill a persona vault in one go",
     items: [
       { kind: "new", tool: "Restricted AUs", text: "A baseline persona unit gains ＋ Bulk add — it finds this tenant's security groups whose CA number falls in that persona's range and adds the ticked ones in one run, matched by the same rule ⑥ Protect routes by so the two cannot disagree. Adding twenty groups one at a time through the type-ahead is the same decision twenty times, and the failure mode is not noticing you stopped at nineteen. A unit that is not one of the baseline personas offers nothing, because there would be no persona to gather." },
