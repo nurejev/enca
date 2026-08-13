@@ -2115,7 +2115,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const adds = t.plan.filter((x) => x.state === "add");
     if (!adds.length) return;
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All"])) return;
-    t.busy = true; btn.disabled = true;
+    t.busy = true; btn.disabled = true; t.log = null;
     const bar = $("cgCsvBar"), log = $("cgCsvLog");
     bar.style.display = "block";
     const lines = [];
@@ -5133,6 +5133,136 @@ max@contoso.com,"Global, DevOps"</pre>
     return d;
   }
 
+  // ---------- baseline: one restricted AU per persona ----------
+  // A vault per persona rather than one for everything, so a scoped
+  // administrator for the DevOps exclusions cannot also edit the Admins ones.
+  let ruBase = null;      // { check, sel:Set, busy, results, me }
+  const RU_BASE_SCOPES = ["AdministrativeUnit.ReadWrite.All", "RoleManagement.ReadWrite.Directory"];
+
+  function ruBaseline() {
+    if (!ruBase) ruBase = { check: Rmau.baselineCheck(ruList || []), sel: null, busy: false, results: null };
+    if (!ruBase.sel) ruBase.sel = new Set(ruBase.check.missing.map((r) => r.name));
+    return ruBase;
+  }
+
+  async function ruBaseCreate(btn) {
+    const t = ruBaseline();
+    if (t.busy) return;
+    const picked = t.check.missing.filter((r) => t.sel.has(r.name));
+    if (!picked.length) { toast("Nothing selected"); return; }
+    const scopes = [...AUTH_CONFIG.scopes, ...RU_BASE_SCOPES];
+    if (!isDemo && !await preConsent(scopes)) return;
+
+    t.busy = true; btn.disabled = true;
+    const lines = [], results = [];
+    t.log = lines;
+    const say = (h) => { lines.push(h); const el = $("ruBaseLog"); if (el) el.innerHTML = lines.join(""); };
+
+    // Who to scope. The account running this is the sane default: an AU with no
+    // scoped administrator is a vault nobody can open, because tenant-wide roles
+    // are blocked by design.
+    let me = null;
+    if (!isDemo) {
+      try { me = await Graph.gget("/me?$select=id,displayName,userPrincipalName"); }
+      catch (e) { say(`<div style="color:var(--off)">Could not read your own account (${esc(e.message || e)}) — the units will be created without a scoped administrator, and nobody will be able to manage their members until one is granted.</div>`); }
+    } else { me = { id: "demo-me", displayName: "You", userPrincipalName: "you@demo" }; }
+    t.me = me;
+
+    // The role is resolved once, not per AU.
+    let role = null, roleErr = null;
+    if (me && !isDemo) {
+      try { role = await ensureDirectoryRole(GROUPS_ADMIN_TEMPLATE); }
+      catch (e) { roleErr = e.message || String(e); }
+    }
+
+    for (const r of picked) {
+      const res = { name: r.name, code: r.code, ok: false, admin: me ? me.userPrincipalName : "" };
+      try {
+        let au = { id: "demo-au-" + r.code, displayName: r.name };
+        if (!isDemo) {
+          au = await Graph.gpost("/administrativeUnits", {
+            displayName: r.name,
+            description: r.description,
+            isMemberManagementRestricted: true,
+          }, scopes);
+        }
+        res.ok = true; res.id = au.id;
+        say(`<div>✓ created <b>${esc(r.name)}</b></div>`);
+
+        // Scoped administrator, AFTER the unit exists. Reported separately:
+        // a created-but-unscoped AU is a real half-outcome, not a failure.
+        if (me) {
+          try {
+            if (roleErr) throw new Error(roleErr);
+            if (!isDemo) {
+              await Graph.gpost(`/administrativeUnits/${au.id}/scopedRoleMembers`,
+                { roleId: role.id, roleMemberInfo: { id: me.id } }, scopes);
+            }
+            res.adminOk = true;
+            say(`<div>&nbsp;&nbsp;✓ ${esc(me.userPrincipalName)} is Groups Administrator scoped to it</div>`);
+          } catch (e) {
+            res.adminError = e.message || String(e);
+            say(`<div style="color:var(--off)">&nbsp;&nbsp;✗ scoped administrator NOT granted — ${esc(res.adminError)}. The unit exists but nobody can manage its members yet.</div>`);
+          }
+        }
+      } catch (e) {
+        res.error = e.message || String(e);
+        say(`<div style="color:var(--off)">✗ ${esc(r.name)} — ${esc(res.error)}</div>`);
+      }
+      results.push(res);
+    }
+    t.results = results; t.busy = false; btn.disabled = false;
+    // Both reads are stale now. Note the re-read may still not show what was
+    // just written — directory writes are not read-your-writes consistent — so
+    // the outcome above is carried over rather than inferred from the re-read.
+    ruList = null; ruBase = null;
+    await openRmauTool(true);
+    const nt = ruBaseline(); nt.results = results; nt.log = lines;
+    renderRmau();
+    toast(`${results.filter((r) => r.ok).length}/${results.length} administrative unit${results.length === 1 ? "" : "s"} created${isDemo ? " (simulated)" : ""}`);
+  }
+
+  function ruBaselinePanel() {
+    const t = ruBaseline();
+    const c = t.check;
+    const chip = (r) => r.status === "present" ? '<span class="tag grant">present</span>'
+      : r.status === "unrestricted" ? '<span class="tag block">name taken — not restricted</span>'
+      : '<span class="tag">missing</span>';
+    const rows = c.rows.map((r) => `<div class="dr-row">
+        <div class="dr-head">
+          ${r.status === "missing"
+            ? `<label class="chk" style="margin:0"><input type="checkbox" data-rubase="${esc(r.name)}"${t.sel.has(r.name) ? " checked" : ""}> <b>${esc(r.name)}</b></label>`
+            : `<b>${esc(r.name)}</b>`}
+          ${chip(r)}
+          <span class="mini muted">${esc(r.label)}${r.caRange ? ` · ${esc(r.caRange)}` : ""}</span>
+        </div>
+        ${r.status === "unrestricted" ? `<div class="mini" style="color:var(--off)">An administrative unit already has this name but is <b>not</b> restricted. The flag is set at creation and cannot be changed, so this one cannot be upgraded — rename it and create a restricted replacement, or pick another name for the persona.</div>` : ""}
+      </div>`).join("");
+
+    const results = t.results ? `<div class="dr-row"><div class="mini">
+        <b>${t.results.filter((r) => r.ok).length}/${t.results.length} created.</b>
+        ${t.results.some((r) => r.ok && !r.adminOk) ? `<span style="color:var(--off)"> ${t.results.filter((r) => r.ok && !r.adminOk).length} without a scoped administrator — nobody can manage their members until one is granted.</span>` : ""}
+      </div></div>` : "";
+
+    return `<div class="cg-panel" id="ruBasePanel">
+      <h4>BASELINE — ONE RESTRICTED AU PER PERSONA <span class="tag new">BETA</span></h4>
+      <p class="mini" style="margin:0 0 8px">The baseline expects a restricted management administrative unit per persona, so a scoped administrator for one persona's exclusion groups cannot edit another's. Names mirror the deployment groups (<code>CAD-SEC-U-DG-&lt;CODE&gt;</code>).</p>
+      <p class="mini" style="margin:0 0 8px"><b>${c.present.length} present</b> · ${c.missing.length} missing${c.unrestricted.length ? ` · <span style="color:var(--off)">${c.unrestricted.length} name clash</span>` : ""}</p>
+      <div class="cg-pick">${rows}</div>
+      ${c.missing.length ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+          <button class="btn sm" id="ruBaseAll">${t.sel.size === c.missing.length ? "☐ Deselect all" : "☑ Select all"}</button>
+          <span class="mini muted">${t.sel.size} of ${c.missing.length} selected</span>
+        </div>
+        <p class="mini muted" style="margin:8px 0 0">Each one is created restricted, and <b>you</b> are granted Groups Administrator scoped to it — without a scoped administrator an AU is a vault nobody can open, because tenant-wide roles are blocked by design.</p>
+        <div class="row" style="justify-content:flex-start;margin-top:10px">
+          <button class="btn primary" id="ruBaseGo">Create ${t.sel.size} administrative unit${t.sel.size === 1 ? "" : "s"}${isDemo ? " (simulated)" : ""}</button>
+          <button class="btn" id="ruBaseMd">📄 Report</button>
+        </div>` : `<div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="ruBaseMd">📄 Report</button></div>`}
+      ${results}
+      <div id="ruBaseLog" class="mini" style="margin-top:8px">${(t.log || []).join("")}</div>
+    </div>`;
+  }
+
   function renderRmau() {
     ruSeedGroupSug();       // baseline group names are available before any typing
     const su = Rmau.summarize(ruList);
@@ -5152,8 +5282,8 @@ max@contoso.com,"Global, DevOps"</pre>
     const rows = (ruList || []).filter((a) => (ruFilter === "all" || Rmau.isRestricted(a))
       && (!q || `${a.displayName} ${a.description || ""}`.toLowerCase().includes(q)))
       .sort((a, b) => (Rmau.isRestricted(b) ? 1 : 0) - (Rmau.isRestricted(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
-    if (!rows.length) { $("ruBody").innerHTML = '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
-    $("ruBody").innerHTML = `<div class="lo-grid">` + rows.map((au) => {
+    if (!rows.length) { $("ruBody").innerHTML = ruBaselinePanel() + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
+    $("ruBody").innerHTML = ruBaselinePanel() + `<div class="lo-grid">` + rows.map((au) => {
       const open = ruOpen.has(au.id);
       const d = ruDetails[au.id];
       let detail = "";
@@ -5368,6 +5498,26 @@ max@contoso.com,"Global, DevOps"</pre>
       ruOpen.has(id) ? ruOpen.delete(id) : ruOpen.add(id);
       renderRmau();
       if (ruOpen.has(id)) { await ruLoadDetail(id); renderRmau(); }
+      return;
+    }
+    if (e.target.id === "ruBaseAll") {
+      const t = ruBaseline();
+      t.sel = t.sel.size === t.check.missing.length ? new Set() : new Set(t.check.missing.map((r) => r.name));
+      renderRmau();
+      return;
+    }
+    if (e.target.id === "ruBaseGo") { await ruBaseCreate(e.target); return; }
+    if (e.target.id === "ruBaseMd") {
+      const t = ruBaseline();
+      showReport("🛡 Persona restricted administrative units", "CA-PersonaRMAUs",
+        Rmau.baselineReport(t.check, t.results, { tenant: tenantName, build: APP_BUILD.label }));
+      return;
+    }
+    const bs = e.target.closest("[data-rubase]");
+    if (bs) {
+      const t = ruBaseline();
+      bs.checked ? t.sel.add(bs.dataset.rubase) : t.sel.delete(bs.dataset.rubase);
+      renderRmau();
       return;
     }
     const sc = e.target.closest("[data-ruscope]");

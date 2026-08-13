@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25033, date: "2026-08-13", title: "One restricted administrative unit per persona",
+    items: [
+      { kind: "new", tool: "Restricted AUs", text: "The tool now opens with a BASELINE panel that checks the tenant for the nine administrative units the baseline expects — CAB-SEC-RMAU-GLO / ADM / INT / EXT / GUESTUSERS / GUESTAdmins / SA / DevOps / FW-Exclusions — and offers to create the missing ones. One unit per persona is the point: a scoped administrator for the Admins exclusions should not be able to touch the Externals exclusions, and a single shared unit gives exactly that. Each unit is created with isMemberManagementRestricted, and the account running it is granted Groups Administrator scoped to the unit in the same step — an administrative unit with no scoped administrator is a vault nobody can open, because the restricted flag is precisely what blocks the tenant-wide roles. Select all, tick individually, or produce a Markdown report of the current state." },
+      { kind: "new", tool: "Restricted AUs", text: "A name clash is called out rather than silently skipped. If an administrative unit already exists under an expected name but WITHOUT the restricted flag, it is shown as “name taken — not restricted” and is not offered for creation: the flag is set at creation and is immutable, so that unit cannot be upgraded. The fix is to rename it and create a restricted replacement, or to adopt a different name for the persona — and the report says so in as many words." },
+      { kind: "improved", tool: "Restricted AUs", text: "The creation log survives the re-read that follows it. Each unit reports its two outcomes separately — created, and scoped administrator granted — because a unit that exists but has no administrator is a real half-outcome, not a failure, and it is the case most worth reading. Directory writes are not read-your-writes consistent, so the summary is carried over from what actually happened rather than inferred from the list that is re-fetched afterwards." },
+    ],
+  },
+  {
     build: 25032, date: "2026-08-12", title: "Sections collapse again",
     items: [
       { kind: "fixed", tool: "All tools", text: "Manage the tenant and Analyse & simulate started EXPANDED. Cause: flagged tiles (NEW / BETA / UPDATED) were exempt from the collapse and sat on top of the four-tile budget rather than inside it — and with six flagged tools in one section that meant ten of eleven tiles showing, which is the opposite of collapsing. Flagged tiles now claim the four slots FIRST, in page order, but do not add to them, so both sections start collapsed as intended. Anything flagged that still does not fit is counted on the button — “Show 7 more · 2 new or beta” — so it is announced rather than silently buried. Tile order never changes; only visibility does." },
