@@ -21,9 +21,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.261",
-  betaBuild: "v1.0.250-beta.42",
+  betaBuild: "v1.0.250-beta.43",
 
   items: [
+    {
+      n: 15,
+      title: "Roadmap card: country name to ISO code lookup",
+      tools: ["Roadmap"],
+      builds: [25043],
+      risk: "low",
+      what: "One roadmap card describing a type-ahead that turns a country NAME into its two-letter ISO 3166-1 code in Named locations, and refuses codes that are not real.",
+      why: "Roadmap text only — nothing behaves differently. It can ride along with the next promotion.",
+      files: ["index.html"],
+    },
     {
       n: 11,
       title: "Import: protection preflight and group placement",

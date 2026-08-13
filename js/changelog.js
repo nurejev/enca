@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25043, date: "2026-08-13", title: "Roadmap: type the country, get the code",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Added 🌐 Type the country, get the code. A country named location takes two-letter ISO 3166-1 codes typed by hand, and a wrong code is still a VALID code — the policy saves, looks right, and covers the wrong country until somebody is blocked or, worse, is not. Ireland is IE; IR is Iran. The plan is a type-ahead over the full ISO list that matches on country name and fills the code in, rejecting anything that is not a real code at entry rather than after the fact." },
+    ],
+  },
+  {
     build: 25042, date: "2026-08-13", title: "Two more items reached production",
     items: [
       { kind: "improved", tool: "All tools", text: "Production is now build 261. Item 14 (per-persona routing in ⑥ Protect, the search box, and frozen-group detection) and item 13 (the roadmap card) have shipped, so the queue is down to item 11 — the Import protection preflight — and item 6, your own single-tenant app registration. The per-channel release-note fix went out separately as build 260." },
