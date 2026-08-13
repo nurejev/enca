@@ -124,6 +124,27 @@ const Rmau = (() => {
     { code: "BreakGlass",  label: "Break-glass",             caRange: "", name: "CAB-SEC-RMAU-BreakGlass",
       description: "Restricted management administrative unit for the break-glass emergency access group (CAB-SEC-U-BreakGlass), which is excluded from nearly every Conditional Access policy. Membership changes require a role scoped to this administrative unit — keep the list of scoped administrators shorter than for any other unit." },
   ];
+  // Which persona vault does an exclusion group belong in? Derived from the CA
+  // number in its name, using the same ranges the baseline documents, so
+  // CAB-SEC-U-CA101-Exclusion goes to ADM and not to whichever unit happened to
+  // be first in a dropdown. Break-glass is matched by name: it is excluded from
+  // nearly every policy, so no CA number could ever place it.
+  const CA_BASE_CODE = {
+    0: "GLO", 100: "ADM", 200: "INT", 300: "EXT", 400: "GUESTUSERS",
+    500: "GUESTAdmins", 600: "SA", 700: "SA", 800: "SA", 1000: "DevOps",
+    1100: "ADM",   // E-Admins live with the admins
+  };
+  function codeForGroup(name) {
+    const n = String(name || "");
+    if (/break[-_]?glass/i.test(n)) return "BreakGlass";
+    if (/\bfrontline\b|[-_]FW[-_]|[-_]FW$/i.test(n)) return "FW";
+    const m = /CA(\d{3,4})/i.exec(n);
+    if (!m) return null;
+    // 900–999 is the workload-identity range: no persona vault covers it, and
+    // saying so is better than filing it under the nearest neighbour.
+    return CA_BASE_CODE[Math.floor(+m[1] / 100) * 100] || null;
+  }
+
   // A catalog entry may carry its own `name` — break-glass does, because it
   // holds the emergency access group rather than a persona's exclusions.
   const auName = (code) => {
@@ -189,5 +210,5 @@ const Rmau = (() => {
   }
 
   return { ROLE_TEMPLATES, isRestricted, memberType, caRefs, summarize, buildPayload, toMd,
-    BASELINE_AUS, auName, auDescription, baselineCheck, baselineReport };
+    BASELINE_AUS, auName, auDescription, baselineCheck, baselineReport, codeForGroup };
 })();

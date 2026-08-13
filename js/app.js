@@ -2335,7 +2335,10 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "cgRmauAll") {
       const t = cgRmau;
       if (t) {
-        const pick = CaGroups.rmauCandidates(cgRes).filter((g) => !t.status.get(g.id) && !g.roleAssignable);
+        const q = (t.q || "").trim().toLowerCase();
+        const pick = CaGroups.rmauCandidates(cgRes)
+          .filter((g) => !q || String(g.name || "").toLowerCase().includes(q))
+          .filter((g) => !t.status.get(g.id) && !g.roleAssignable);
         const on = pick.filter((g) => t.sel.has(g.id)).length;
         if (on === pick.length) pick.forEach((g) => t.sel.delete(g.id));
         else pick.forEach((g) => t.sel.add(g.id));
@@ -2343,6 +2346,7 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       return true;
     }
+    if (e.target.id === "cgRmauQClear" && cgRmau) { cgRmau.q = ""; renderCgRmau(); return true; }
     if (e.target.closest("[data-rmaurun]")) { await cgRmauScan(); return true; }
     if (e.target.id === "cgRmauGo") { await cgRmauApply(e.target); return true; }
     if (e.target.id === "cgRmauAgain") { cgRmau = null; await cgRmauScan(); return true; }
@@ -2351,7 +2355,7 @@ max@contoso.com,"Global, DevOps"</pre>
         CaGroups.rmauReport({ tenant: tenantName, generatedBy: Brand.generatedBy("Generated"),
           // every admin, with its own outcome — a partial failure has to be
           // visible in the report, not flattened into "no admin was set"
-          scopedAdmins: cgRmau.adminResults || [] }, cgRmau.au, cgRmau.results));
+          scopedAdmins: cgRmau.adminResults || [] }, cgRmau.au, cgRmau.results, cgRmau.units || []));
       return true;
     }
     return false;
@@ -2376,6 +2380,16 @@ max@contoso.com,"Global, DevOps"</pre>
       return true;
     }
     if (e.target.id === "cgRmauAdmin" && cgRmau) { cgRmau.admin = e.target.value; return true; }
+    if (e.target.id === "cgRmauQ" && cgRmau) {
+      cgRmau.q = e.target.value;
+      const pos = e.target.selectionStart;
+      renderCgRmau();
+      // renderCgRmau rebuilds the panel, so the field the user is typing in is
+      // a different element by the time this returns. Put the caret back.
+      const box = rmauBody().querySelector("#cgRmauQ");
+      if (box) { box.focus(); try { box.setSelectionRange(pos, pos); } catch {} }
+      return true;
+    }
     return false;
   }
   // Resolve a directory-role TEMPLATE id to the ACTIVATED role object, which is
@@ -2833,7 +2847,11 @@ max@contoso.com,"Global, DevOps"</pre>
       // their checkbox is disabled — combining the two protections deadlocks
       // the membership (see the note rendered on the row).
       cands.forEach((g) => { if (!st.status.get(g.id) && !g.roleAssignable && !g.dynamic) st.sel.add(g.id); });
-      if (st.rmaus.length) { st.auChoice = st.rmaus[0].id; }
+      // Deliberately NOT defaulted to st.rmaus[0]: that is Global on most
+      // tenants, so an unrecognised group would be filed into the Global vault
+      // by nothing more than list order. Unset means "skip these" until someone
+      // chooses, which is the safe reading of an unanswered question.
+      st.auChoice = "";
       cgRmau = st;
     } catch (e) {
       console.error("RMAU scan failed:", e);
@@ -2844,6 +2862,33 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     rmauBusy = false;
     renderCgRmau();
+  }
+
+  // Where does a group go? Each exclusion group is routed to ITS OWN persona
+  // vault, derived from its CA number. One dropdown for the whole run was the
+  // old behaviour and it quietly defeated the point of per-persona units: run
+  // it once over CA001 and CA101 together and the Admins exclusions land in the
+  // Global vault, handing the Global vault's scoped administrators control of
+  // policies they have nothing to do with.
+  //
+  // The dropdown survives as the FALLBACK for the groups nothing matches — a
+  // custom name, or the CA900 workload-identity range that no persona covers.
+  function rmauTarget(t, g) {
+    const code = Rmau.codeForGroup(g.name);
+    if (code) {
+      const want = Rmau.auName(code).toLowerCase();
+      const hit = (t.rmaus || []).find((a) => String(a.name || "").toLowerCase() === want);
+      if (hit) return { auId: hit.id, auName: hit.name, code, source: "persona" };
+      // The right vault is known but absent. Saying "we will use the fallback"
+      // would be worse than saying nothing: it is a silent demotion.
+      return { auId: null, auName: Rmau.auName(code), code, source: "missing" };
+    }
+    if (t.auChoice === "new") return { auId: null, auName: (t.auName || RMAU_DEFAULT_NAME), code: null, source: "fallbackNew" };
+    if (t.auChoice) {
+      const hit = (t.rmaus || []).find((a) => a.id === t.auChoice);
+      if (hit) return { auId: hit.id, auName: hit.name, code: null, source: "fallback" };
+    }
+    return { auId: null, auName: null, code: null, source: "unset" };
   }
 
   let rmauBusy = false;
@@ -2866,9 +2911,26 @@ max@contoso.com,"Global, DevOps"</pre>
     if (t.results) {
       const ok = t.results.filter((x) => x.state === "added").length;
       const failed = t.results.filter((x) => x.state === "failed").length;
+      const skipped = t.results.filter((x) => x.state === "skipped");
+      // Each group went to its OWN persona unit, so the summary counts per unit
+      // rather than naming one and hoping it covers everything.
+      const byAu = new Map();
+      for (const x of t.results) if (x.state === "added") byAu.set(x.auName, (byAu.get(x.auName) || 0) + 1);
       rmauBody().innerHTML = `<div class="cg-panel">
         <h4>PROTECTION APPLIED</h4>
-        <p class="mini"><b style="color:var(--on)">${ok} group${ok === 1 ? "" : "s"} protected</b> in <b>${esc(t.au?.name || "")}</b>${failed ? ` · <b style="color:var(--off)">${failed} failed</b>` : ""} · ${t.results.filter((x) => x.state === "already").length} already in it</p>
+        <p class="mini"><b style="color:var(--on)">${ok} group${ok === 1 ? "" : "s"} protected</b> across ${byAu.size} administrative unit${byAu.size === 1 ? "" : "s"}${failed ? ` · <b style="color:var(--off)">${failed} failed</b>` : ""} · ${t.results.filter((x) => x.state === "already").length} already in one</p>
+        ${byAu.size ? `<ul class="wi-list" style="margin:6px 0 0">${[...byAu].map(([n, c]) => `<li><div class="wi-why">🔒 <b>${esc(n)}</b> — ${c} group${c === 1 ? "" : "s"}</div></li>`).join("")}</ul>` : ""}
+        ${(() => {
+          if (!skipped.length) return "";
+          // Two different reasons, and conflating them would send somebody to
+          // create a unit for a group that never had a persona to begin with.
+          const noUnit = skipped.filter((x) => x.auName && x.auName !== "(none chosen)");
+          const noPersona = skipped.filter((x) => !noUnit.includes(x));
+          const list = (xs, suffix) => `<ul class="wi-list" style="margin:6px 0 0">${xs.map((x) => `<li><div class="wi-why">⊘ <b>${esc(x.name)}</b>${suffix(x)}</div></li>`).join("")}</ul>`;
+          return `<p class="mini" style="color:var(--off);margin:8px 0 0"><b>${skipped.length} skipped</b> — nothing was filed elsewhere on their behalf, because putting an Admins exclusion group into the Global vault would hand the Global vault's administrators control of it.</p>
+            ${noUnit.length ? `<p class="mini" style="margin:8px 0 0">${noUnit.length} because <b>the persona unit does not exist yet</b> — create it in <b>🛡 Restricted AUs</b>, then run this again.</p>${list(noUnit, (x) => ` → ${esc(x.auName)}`)}` : ""}
+            ${noPersona.length ? `<p class="mini" style="margin:8px 0 0">${noPersona.length} because <b>the name carries no CA number the baseline recognises</b> and no fallback unit was chosen. Pick one above, or place them by hand once you have decided who should manage them.</p>${list(noPersona, () => "")}` : ""}`;
+        })()}
         <p class="mini" style="color:var(--report)">⚠ From now on, membership of these groups can only be changed by principals holding a role <b>scoped to this administrative unit</b> — including by this tool's own ⑤ Import members.</p>
         <div class="row" style="justify-content:flex-start;margin-top:12px">
           <button class="btn" id="cgRmauReport">📄 Change report</button>
@@ -2878,8 +2940,14 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
 
-    const rows = cands.map((g) => {
+    // Search narrows what is already found — no directory lookup. The list runs
+    // to dozens of groups on a real tenant, which is the only reason it exists.
+    const q = (t.q || "").trim().toLowerCase();
+    const shown = q ? cands.filter((g) => String(g.name || "").toLowerCase().includes(q)) : cands;
+
+    const rows = shown.map((g) => {
       const prot = t.status.get(g.id);
+      const dest = rmauTarget(t, g);
       // A ROLE-ASSIGNABLE group must not go into a restricted management AU.
       // The two protections deadlock: membership of a role-assignable group can
       // only be changed by Global Administrator or Privileged Role Administrator
@@ -2893,12 +2961,23 @@ max@contoso.com,"Global, DevOps"</pre>
           ${g.roleAssignable ? '<div class="mini" style="color:var(--off)"><b>role-assignable — cannot be protected this way.</b> Its membership is already restricted to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two roles. Putting it in one would leave <b>nobody</b> able to change the members. Pick one protection or the other: for a CA exclusion group, a restricted AU is usually the better one, because it lets you name who may manage it.</div>' : ""}
           ${g.dynamic ? '<div class="mini" style="color:var(--report)">dynamic group — not pre-selected: members come and go with its membership rule, not by hand. Adding it still helps (the restriction covers the group object, so editing the <b>rule</b> also needs an AU-scoped role) — but protect the hand-managed exclusion groups first.</div>' : ""}</td>
         <td class="mini">${g.refs.exclude.length} polic${g.refs.exclude.length === 1 ? "y" : "ies"}</td>
-        <td class="mini">${prot ? `🔒 in <b>${esc(prot.auName)}</b>` : '<span style="color:var(--report)">unprotected</span>'}</td>
+        <td class="mini">${prot
+          ? (g.roleAssignable
+            ? `<span style="color:var(--off)">🧊 <b>frozen</b> in ${esc(prot.auName)} — role-assignable AND restricted, so <b>nobody</b> can change its members. Remove it from the unit to restore Global / Privileged Role Administrator, then convert it with ⑦ Migrate.</span>`
+            : `🔒 in <b>${esc(prot.auName)}</b>`)
+          : '<span style="color:var(--report)">unprotected</span>'}</td>
+        <td class="mini">${prot || g.roleAssignable ? '<span class="muted">—</span>'
+          : dest.source === "persona" ? `→ <b>${esc(dest.auName)}</b>`
+          : dest.source === "missing" ? `<span style="color:var(--off)">→ <b>${esc(dest.auName)}</b> does not exist — create it in 🛡 Restricted AUs first, or this group is skipped</span>`
+          : dest.source === "unset" ? '<span style="color:var(--report)">no persona matches this name — pick a fallback unit above, or it is skipped</span>'
+          : `<span style="color:var(--report)">→ <b>${esc(dest.auName)}</b> (fallback — no persona matches this name)</span>`}</td>
       </tr>`;
     }).join("");
 
-    const auPick = `<label class="mini" style="display:block;margin:14px 0 4px">Restricted management administrative unit</label>
+    const unmatched = cands.filter((g) => !t.status.get(g.id) && !g.roleAssignable && rmauTarget(t, g).source.startsWith("fallback"));
+    const auPick = `<label class="mini" style="display:block;margin:14px 0 4px">Fallback administrative unit <span class="muted">— used only for the ${unmatched.length} group${unmatched.length === 1 ? "" : "s"} whose name carries no CA number the baseline recognises. Everything else goes to its own persona vault.</span></label>
       <select id="cgRmauAu" style="max-width:420px">
+        <option value=""${t.auChoice ? "" : " selected"}>— none: skip the groups that match no persona —</option>
         ${t.rmaus.map((a) => `<option value="${esc(a.id)}"${t.auChoice === a.id ? " selected" : ""}>${esc(a.name)} (existing)</option>`).join("")}
         <option value="new"${t.auChoice === "new" ? " selected" : ""}>＋ Create a new one…</option>
       </select>
@@ -2926,6 +3005,11 @@ max@contoso.com,"Global, DevOps"</pre>
         <button class="btn" id="cgRmauRecheck">⟳ Re-check protection</button>
       </div>
       <h5 class="mini" style="margin:18px 0 4px">THE GROUPS</h5>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
+        <input id="cgRmauQ" class="txt" list="cgRmauQList" value="${esc(t.q || "")}" placeholder="Search the exclusion groups…" autocomplete="off" spellcheck="false" style="max-width:340px;letter-spacing:normal;font-weight:400">
+        <datalist id="cgRmauQList">${cands.map((g) => `<option value="${esc(g.name)}"></option>`).join("")}</datalist>
+        ${q ? `<button class="btn sm" id="cgRmauQClear">✕ Clear</button><span class="mini muted">${shown.length} of ${cands.length}</span>` : ""}
+      </div>
       <p class="mini muted" style="margin:0 0 8px">Pre-selected: the unprotected <b>assigned exclusion groups</b> — the ones whose membership is maintained by hand, which is exactly the membership this protection locks down.
         <b>Dynamic</b> groups are listed but not pre-selected: their members come and go with a membership rule, not by hand — the restriction still guards the group object (so changing the <b>rule</b> would also need an AU-scoped role), but the hand-managed exclusion groups are the priority.
         <b>Role-assignable</b> groups cannot be added at all: a restricted AU blocks Global Administrator and Privileged Role Administrator, the only roles that can edit a role-assignable group's members, so a group with both protections has nobody who can change them. Convert them first with <b>⑦ Migrate</b>.</p>
@@ -2933,7 +3017,9 @@ max@contoso.com,"Global, DevOps"</pre>
         // "All" means all SELECTABLE — a role-assignable group or one already
         // protected has a disabled checkbox, and counting those would show a
         // total the button can never reach.
-        const pick = cands.filter((g) => !t.status.get(g.id) && !g.roleAssignable);
+        // Scoped to what is VISIBLE: with a search active, "all" meaning
+        // "all 60, including the 54 you filtered out" is a trap.
+        const pick = shown.filter((g) => !t.status.get(g.id) && !g.roleAssignable);
         if (pick.length < 2) return "";
         const on = pick.filter((g) => t.sel.has(g.id)).length;
         return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
@@ -2942,8 +3028,8 @@ max@contoso.com,"Global, DevOps"</pre>
         </div>`;
       })()}
       <div class="cg-tablewrap"><table class="cg-table">
-        <thead><tr><th>Exclusion group</th><th style="width:110px">Excluded on</th><th style="width:220px">Protection</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="3" class="mini muted" style="padding:14px">No groups are used as exclusions by the tenant\'s policies.</td></tr>'}</tbody></table></div>
+        <thead><tr><th>Exclusion group</th><th style="width:110px">Excluded on</th><th style="width:200px">Protection</th><th style="width:260px">Goes to</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="4" class="mini muted" style="padding:14px">${q ? `No exclusion group matches “${esc(t.q)}”.` : "No groups are used as exclusions by the tenant's policies."}</td></tr>`}</tbody></table></div>
       <p class="mini muted" style="margin-top:10px">Consents <code>AdministrativeUnit.ReadWrite.All</code>${""} on demand (plus <code>RoleManagement.ReadWrite.Directory</code> if a scoped administrator is set).
         Requires the <b>Privileged Role Administrator</b> role and an Entra ID P1 licence for administrative-unit administrators. Only cloud security groups can be added — mail-enabled or on-premises-synced groups are rejected by Graph.</p>
     </div>`;
@@ -2971,38 +3057,61 @@ max@contoso.com,"Global, DevOps"</pre>
     const lines = [], results = [];
     const say = (h) => { lines.push(h); log.innerHTML = lines.slice(-10).join(""); };
     try {
-      // 1) the AU itself
-      let au;
-      if (t.auChoice !== "new") {
-        const hit = t.rmaus.find((a) => a.id === t.auChoice);
-        au = { id: hit.id, name: hit.name, created: false };
-      } else {
+      // 1) work out where each group goes BEFORE writing anything, so a group
+      //    whose vault does not exist is reported rather than quietly filed
+      //    into the fallback with everything else.
+      const plan = picked.map((g) => ({ g, dest: rmauTarget(t, g) }));
+      const skipped = plan.filter((x) => x.dest.source === "missing" || x.dest.source === "unset");
+      for (const x of skipped) {
+        const unset = x.dest.source === "unset";
+        results.push({ name: x.g.name, excludeCount: x.g.refs.exclude.length, state: "skipped",
+          auName: x.dest.auName || "(none chosen)",
+          error: unset
+            ? "its name carries no CA number the baseline recognises, and no fallback unit was chosen"
+            : `its persona unit ${x.dest.auName} does not exist — create it in 🛡 Restricted AUs, then protect this group` });
+        say(`<div style="color:var(--off)">⊘ <b>${esc(x.g.name)}</b> — ${unset ? "no persona and no fallback chosen" : `${esc(x.dest.auName)} does not exist yet`}</div>`);
+      }
+      const doable = plan.filter((x) => x.dest.source !== "missing" && x.dest.source !== "unset");
+
+      // The fallback unit is created only if something actually needs it.
+      let fallback = null;
+      const needFallback = doable.some((x) => x.dest.source === "fallbackNew");
+      if (needFallback) {
         const name = (rmauBody().querySelector("#cgRmauName")?.value || RMAU_DEFAULT_NAME).trim() || RMAU_DEFAULT_NAME;
-        if (isDemo) au = { id: "au-demo", name, created: true };
+        if (isDemo) fallback = { id: "au-demo", name, created: true };
         else {
           const made = await Graph.gpost("/administrativeUnits", {
             displayName: name,
             description: "Restricted management administrative unit protecting Conditional Access exclusion groups. Membership changes require a role scoped to this administrative unit.",
             isMemberManagementRestricted: true,
           });
-          au = { id: made.id, name, created: true };
+          fallback = { id: made.id, name, created: true };
         }
-        say(`<div>✓ created restricted management administrative unit <b>${esc(au.name)}</b></div>`);
+        say(`<div>✓ created restricted management administrative unit <b>${esc(fallback.name)}</b></div>`);
       }
-      t.au = au;
-      // 2) the groups
-      for (let i = 0; i < picked.length; i++) {
-        const g = picked[i];
-        bar.firstElementChild.style.width = `${Math.round(((i + 1) / picked.length) * 100)}%`;
+      const auOf = (d) => d.source === "fallbackNew" ? fallback : { id: d.auId, name: d.auName, created: false };
+
+      // The units actually touched — the summary and the scoped-admin step both
+      // need this, and "the AU" is no longer a single thing.
+      const unitsUsed = new Map();
+      for (const x of doable) { const a = auOf(x.dest); if (a) unitsUsed.set(a.id, a); }
+      t.units = [...unitsUsed.values()];
+      t.au = t.units.length === 1 ? t.units[0] : null;
+
+      // 2) the groups, each into its own unit
+      for (let i = 0; i < doable.length; i++) {
+        const { g, dest } = doable[i];
+        const au = auOf(dest);
+        bar.firstElementChild.style.width = `${Math.round(((i + 1) / doable.length) * 100)}%`;
         try {
           if (!isDemo) await Graph.gpost(`/administrativeUnits/${au.id}/members/$ref`,
             { "@odata.id": `https://graph.microsoft.com/beta/groups/${g.id}` });
-          results.push({ name: g.name, excludeCount: g.refs.exclude.length, state: "added" });
-          say(`<div>✓ protected <b>${esc(g.name)}</b></div>`);
+          results.push({ name: g.name, excludeCount: g.refs.exclude.length, state: "added", auName: au.name });
+          say(`<div>✓ protected <b>${esc(g.name)}</b> → ${esc(au.name)}</div>`);
         } catch (err) {
           const already = /added object references already exist|one or more added object references already exist/i.test(err.message || "");
-          results.push({ name: g.name, excludeCount: g.refs.exclude.length, state: already ? "already" : "failed", error: already ? "" : (err.message || String(err)) });
-          say(`<div style="color:var(--off)">${already ? "•" : "✗"} <b>${esc(g.name)}</b>${already ? " — already a member" : ` — ${esc(err.message || err)}`}</div>`);
+          results.push({ name: g.name, excludeCount: g.refs.exclude.length, state: already ? "already" : "failed", auName: au.name, error: already ? "" : (err.message || String(err)) });
+          say(`<div style="color:var(--off)">${already ? "•" : "✗"} <b>${esc(g.name)}</b>${already ? ` — already in ${esc(au.name)}` : ` — ${esc(err.message || err)}`}</div>`);
         }
       }
       // 3) the scoped administrators, so somebody can still manage the members.
@@ -3022,26 +3131,37 @@ max@contoso.com,"Global, DevOps"</pre>
             role = await ensureDirectoryRole(GROUPS_ADMIN_TEMPLATE);
           } catch (err) { roleErr = err.message || String(err); }
         }
+        // Scoped to EVERY unit this run wrote to, not to one of them. The
+        // groups are now spread across several persona units, and an admin
+        // scoped to only the first would be unable to manage most of what they
+        // were just named for. Each unit is a separate outcome.
         for (const upn of admins) {
-          try {
-            if (roleErr) throw new Error(`Groups Administrator role could not be activated: ${roleErr}`);
-            if (!isDemo) {
-              const u = await Graph.gget(`/users/${encodeURIComponent(upn)}?$select=id,userPrincipalName`);
-              await Graph.gpost(`/administrativeUnits/${au.id}/scopedRoleMembers`,
-                { roleId: role.id, roleMemberInfo: { id: u.id } });
+          let uid = null, lookupErr = null;
+          if (!isDemo && !roleErr) {
+            try { uid = (await Graph.gget(`/users/${encodeURIComponent(upn)}?$select=id,userPrincipalName`)).id; }
+            catch (err) { lookupErr = err.message || String(err); }
+          }
+          for (const unit of t.units) {
+            try {
+              if (roleErr) throw new Error(`Groups Administrator role could not be activated: ${roleErr}`);
+              if (lookupErr) throw new Error(lookupErr);
+              if (!isDemo) {
+                await Graph.gpost(`/administrativeUnits/${unit.id}/scopedRoleMembers`,
+                  { roleId: role.id, roleMemberInfo: { id: uid } });
+              }
+              t.adminResults.push({ upn, au: unit.name, ok: true });
+              say(`<div>✓ <b>${esc(upn)}</b> granted Groups Administrator scoped to <b>${esc(unit.name)}</b></div>`);
+            } catch (err) {
+              const already = /already exist|conflicting object/i.test(err.message || "");
+              t.adminResults.push({ upn, au: unit.name, ok: already, error: already ? "" : (err.message || String(err)) });
+              say(already
+                ? `<div>• <b>${esc(upn)}</b> — already scoped to ${esc(unit.name)}</div>`
+                : `<div style="color:var(--off)">✗ <b>${esc(upn)}</b> on ${esc(unit.name)} — ${esc(err.message || err)}</div>`);
             }
-            t.adminResults.push({ upn, ok: true });
-            say(`<div>✓ <b>${esc(upn)}</b> granted Groups Administrator scoped to <b>${esc(au.name)}</b></div>`);
-          } catch (err) {
-            const already = /already exist|conflicting object/i.test(err.message || "");
-            t.adminResults.push({ upn, ok: already, error: already ? "" : (err.message || String(err)) });
-            say(already
-              ? `<div>• <b>${esc(upn)}</b> — already scoped to this administrative unit</div>`
-              : `<div style="color:var(--off)">✗ <b>${esc(upn)}</b> — ${esc(err.message || err)}</div>`);
           }
         }
         const bad = t.adminResults.filter((a) => !a.ok);
-        t.adminError = bad.length ? `${bad.length} of ${admins.length} could not be granted` : null;
+        t.adminError = bad.length ? `${bad.length} of ${t.adminResults.length} grants could not be made` : null;
       }
       t.results = results;
       const ok = results.filter((r) => r.state === "added").length;
@@ -3946,6 +4066,17 @@ max@contoso.com,"Global, DevOps"</pre>
       ${r.description ? `<p class="mini">${esc(r.description)}</p>` : ""}
       ${r.membershipRule ? `<p class="mini">Membership rule: <code>${esc(r.membershipRule)}</code></p>` : ""}
       ${r.drift ? `<p class="mini" style="color:var(--report)">⚠ ${esc(r.drift)}</p>` : ""}
+      ${(() => {
+        // "Migrate it" understates the case when the group is ALREADY inside a
+        // restricted unit: at that point its members cannot be changed by
+        // anybody, today, and that is a live incident rather than a plan.
+        // Reuses ⑥ Protect's scan when it has run — no extra Graph calls, and
+        // nothing is claimed when the answer has not been read.
+        if (!r.roleAssignable) return "";
+        const prot = cgRmau && cgRmau.status ? cgRmau.status.get(r.id) : null;
+        if (!prot) return "";
+        return `<p class="mini" style="color:var(--off)">🧊 <b>frozen — its members cannot be changed by anyone.</b> It is role-assignable <i>and</i> already in the restricted unit <b>${esc(prot.auName)}</b>. Only Global Administrator and Privileged Role Administrator may edit a role-assignable group's members, and that unit blocks both; neither flag can be undone. Remove it from the unit first (🛡 Restricted AUs), then convert it with ⑦ Migrate.</p>`;
+      })()}
       ${list(r.refs.include, "Included in")}
       ${list(r.refs.exclude, "Excluded from")}
       ${!r.refCount ? '<p class="mini muted" style="margin-top:10px">No policy references this group.</p>' : ""}
@@ -5255,7 +5386,13 @@ max@contoso.com,"Global, DevOps"</pre>
         const demo = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.adminUnitDetails) || {};
         Object.assign(d, demo[id] || { members: [], scoped: [] });
       } else {
-        d.members = await Graph.ggetAll(`/administrativeUnits/${id}/members?$select=id,displayName,userPrincipalName`);
+        // isAssignableToRole is the point of this $select: a role-assignable
+        // group inside a RESTRICTED unit can be edited by nobody. Its members
+        // may only be changed by Global Administrator or Privileged Role
+        // Administrator, and a restricted unit blocks exactly those two, and
+        // neither can be assigned at unit scope. Without the flag the member
+        // renders as an ordinary group and the deadlock stays invisible.
+        d.members = await Graph.ggetAll(`/administrativeUnits/${id}/members?$select=id,displayName,userPrincipalName,isAssignableToRole`);
         try {
           d.scoped = await Graph.ggetAll(`/administrativeUnits/${id}/scopedRoleMembers`);
           if (!ruRoleNames) {
@@ -5449,9 +5586,13 @@ max@contoso.com,"Global, DevOps"</pre>
         if (!d) { detail = '<div class="mini muted" style="margin-top:8px"><div class="spinner" style="width:18px;height:18px"></div> Reading members and scoped roles…</div>'; }
         else if (d.error) { detail = `<div class="mini" style="color:var(--off);margin-top:8px">✗ ${esc(d.error)}</div>`; }
         else {
+          const frozen = (m) => Rmau.isRestricted(au) && m.isAssignableToRole === true;
           const mems = (d.members || []).map((m) => `<li><div class="wi-pn">${esc(m.displayName || m.userPrincipalName || m.id)} <span class="tag">${Rmau.memberType(m)}</span>
+              ${frozen(m) ? '<span class="tag block" title="Role-assignable AND in a restricted unit — nobody can change its members">🧊 frozen</span>' : ""}
               ${(m._caRefs || []).length ? `<span class="tag grant" title="${esc(m._caRefs.map((r) => `${r.how} by ${r.name}`).join("\n"))}">${m._caRefs.length} CA ref${m._caRefs.length === 1 ? "" : "s"}</span>` : ""}
-              <button class="fchip" data-rumrm="${esc(m.id)}" data-ruau="${esc(au.id)}" title="Remove from this AU">✕</button></div></li>`).join("");
+              <button class="fchip" data-rumrm="${esc(m.id)}" data-ruau="${esc(au.id)}" title="Remove from this AU">✕</button></div></li>`
+            + (frozen(m) ? `<div class="wi-why" style="color:var(--off);margin:0 0 6px">This group is <b>role-assignable</b> and sits in a <b>restricted</b> unit, so <b>nobody</b> can change its members — its membership is reserved to Global Administrator and Privileged Role Administrator, and this unit blocks both. Neither flag can be undone: both are immutable. The way out is to <b>remove it from this unit</b> (✕ above), which restores those two roles, and then convert it with <b>⑦ Migrate</b> in Conditional Access groups.</div>` : "")).join("");
+          const nFrozen = (d.members || []).filter(frozen).length;
           const scoped = (d.scoped || []).map((r) => `<li><div class="wi-pn">${esc(r._principal || "(principal)")} <span class="tag">${esc(r._roleName || r.roleId)}</span>
               <button class="fchip" data-rusrm="${esc(r.id)}" data-ruau="${esc(au.id)}" title="Remove this scoped role grant">✕</button></div></li>`).join("");
           // The picker goes ABOVE its list. A protected AU can hold dozens of
@@ -5459,7 +5600,7 @@ max@contoso.com,"Global, DevOps"</pre>
           // pushed off the bottom of the card — you scrolled past everything to
           // reach the one control that does something.
           detail = `<div style="margin-top:8px">
-            <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Members (${(d.members || []).length})</div>
+            <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Members (${(d.members || []).length})${nFrozen ? ` <span class="tag block" style="text-transform:none;letter-spacing:normal">🧊 ${nFrozen} frozen</span>` : ""}</div>
             <div style="display:flex;gap:6px;margin:6px 0 6px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="Add member — baseline group name, any group, or user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
             <ul class="wi-list" style="margin:0 0 12px">${mems || '<li><div class="wi-why">No members.</div></li>'}</ul>
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Scoped role members (${(d.scoped || []).length})${d.scopedError ? ` <span class="muted" style="font-weight:400;text-transform:none">— ${esc(d.scopedError)}</span>` : ""}</div>

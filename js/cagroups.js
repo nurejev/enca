@@ -892,21 +892,31 @@ const CaGroups = (() => {
       .sort((a, b) => (b.refs.exclude.length - a.refs.exclude.length) || String(a.name).localeCompare(String(b.name)));
   }
 
-  function rmauReport(meta, au, results) {
+  // `units` is the list actually written to — each group goes to its own
+  // persona unit, so naming a single one would be a report that reads well and
+  // describes something that did not happen.
+  function rmauReport(meta, au, results, units) {
     const ok = results.filter((r) => r.state === "added").length;
-    const L = [`# Restricted management administrative unit — ${meta.tenant || "tenant"}`, "",
+    const list = (units && units.length) ? units : (au && au.id ? [au] : []);
+    const byAu = new Map();
+    for (const r of results) if (r.state === "added") byAu.set(r.auName, (byAu.get(r.auName) || 0) + 1);
+    const L = [`# Restricted management administrative units — ${meta.tenant || "tenant"}`, "",
       meta.generatedBy || "", "",
-      `- Administrative unit: **${au.name}**${au.created ? " (created by this run)" : " (already existed, reused)"} — \`${au.id || ""}\``,
+      `- Administrative units written to: **${byAu.size}** — each exclusion group is filed under its own persona, so a scoped administrator for one persona cannot reach another's exclusions.`,
+      ...[...byAu].map(([n, c]) => `  - **${n}** — ${c} group${c === 1 ? "" : "s"}${list.find((u) => u.name === n && u.created) ? " _(created by this run)_" : ""}`),
       `- Restricted management: **yes** (\`isMemberManagementRestricted\`, immutable)`,
-      `- Groups protected: **${ok}** · already in it: ${results.filter((r) => r.state === "already").length} · failed: ${results.filter((r) => r.state === "failed").length}`,
+      `- Groups protected: **${ok}** · already in one: ${results.filter((r) => r.state === "already").length} · failed: ${results.filter((r) => r.state === "failed").length} · skipped: ${results.filter((r) => r.state === "skipped").length}`,
       ...((meta.scopedAdmins && meta.scopedAdmins.length)
-        ? [`- Scoped administrator${meta.scopedAdmins.length === 1 ? "" : "s"} (Groups Administrator scoped to this administrative unit): `
-            + meta.scopedAdmins.map((a) => `**${a.upn}**${a.ok ? "" : ` — ❌ ${String(a.error || "failed").replace(/\|/g, "\\|")}`}`).join(", ")]
+        ? [`- Scoped administrator grants (Groups Administrator, per administrative unit): `
+            + meta.scopedAdmins.map((a) => `**${a.upn}**${a.au ? ` → ${a.au}` : ""}${a.ok ? "" : ` — ❌ ${String(a.error || "failed").replace(/\|/g, "\\|")}`}`).join(", ")]
         : []),
-      "", "| Group | Excluded on | Result |", "| --- | --- | --- |"];
-    results.forEach((r) => L.push(`| ${r.name} | ${r.excludeCount} polic${r.excludeCount === 1 ? "y" : "ies"} | ${r.state}${r.error ? ` — ${String(r.error).replace(/\|/g, "\\|")}` : ""} |`));
+      "", "| Group | Excluded on | Administrative unit | Result |", "| --- | --- | --- | --- |"];
+    results.forEach((r) => L.push(`| ${r.name} | ${r.excludeCount} polic${r.excludeCount === 1 ? "y" : "ies"} | ${r.auName || "—"} | ${r.state}${r.error ? ` — ${String(r.error).replace(/\|/g, "\\|")}` : ""} |`));
+    if (results.some((r) => r.state === "skipped")) {
+      L.push("", "> **Skipped groups were not filed anywhere else.** A group whose persona unit is missing, or whose name carries no CA number, is left unprotected rather than placed in whichever unit was nearest — putting an Admins exclusion group into the Global vault would hand the Global vault's administrators control of it.");
+    }
     L.push("", "## What changed operationally", "",
-      "- Membership of the protected groups can now only be changed by principals holding a role **scoped to this administrative unit** — tenant-level Groups/User Administrators (and Global Administrator) can read but not modify.",
+      "- Membership of the protected groups can now only be changed by principals holding a role **scoped to the administrative unit each one is in** — tenant-level Groups/User Administrators (and Global Administrator) can read but not modify.",
       "- That includes this tool: ⑤ Import members and any member add against these groups needs the signed-in account to hold an administrative-unit-scoped role.",
       "- The groups themselves (name, policies referencing them) are unaffected — only member management is restricted.");
     return L.join("\n");
