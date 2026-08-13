@@ -3598,6 +3598,14 @@ max@contoso.com,"Global, DevOps"</pre>
     // Add a member without leaving the matrix. Only the groups whose members
     // are actually loaded are offered — adding to a group you cannot see the
     // members of would be a write with no way to check the result.
+    // Prefill the group when there is no ambiguity — one loaded group means
+    // there is only one possible answer, so making you pick it is busywork.
+    // With several, keep whatever you used last IF it is still loaded, and
+    // otherwise leave it blank: guessing among several groups is how a member
+    // lands in the wrong exclusion.
+    if (m.cols.length === 1) cgAddGroup = m.cols[0].name;
+    else if (cgAddGroup && !m.cols.some((c) => c.name === cgAddGroup)) cgAddGroup = "";
+
     const addBar = `<div class="cg-panel">
         <h4>ADD A MEMBER <span class="tag new">NEW</span></h4>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -3606,7 +3614,9 @@ max@contoso.com,"Global, DevOps"</pre>
           <input id="cgAddGroup" list="cgGroupSug" placeholder="Group" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px" value="${esc(cgAddGroup || "")}">
           <button class="btn primary" id="cgAddGo">＋ Add</button>
         </div>
-        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. The group list is the ${m.cols.length} group${m.cols.length === 1 ? "" : "s"} whose members are loaded here, so the matrix can show the result immediately.</p>
+        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. ${m.cols.length === 1
+          ? `Only <b>${esc(m.cols[0].name)}</b> is loaded here, so it is filled in for you — read more groups above to add to another.`
+          : `The group list is the ${m.cols.length} groups whose members are loaded here, so the matrix can show the result immediately.`}</p>
         <div id="cgAddLog" class="mini" style="margin-top:8px">${cgAddMsg ? `<span style="${cgAddMsg.bad ? "color:var(--off)" : ""}">${cgAddMsg.html}</span>` : ""}</div>
       </div>`;
 

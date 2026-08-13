@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25024, date: "2026-08-12", title: "The add bar fills in the obvious answer",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "\u2462 Members: when only one group\u2019s members are loaded, the add bar fills that group in \u2014 there is only one possible answer, so making you pick it was busywork \u2014 and the hint says so. With several groups loaded it keeps whatever you used last, but only if that group is still loaded; otherwise it clears the field rather than leaving a stale name behind, because guessing among several groups is how a member lands in the wrong exclusion." },
+    ],
+  },
+  {
     build: 25023, date: "2026-08-12", title: "Select all in Protect, and honest wording about role-assignable groups",
     items: [
       { kind: "improved", tool: "Protect exclusions", text: "Select-all / deselect-all above the exclusion-group list. \u201cAll\u201d means all SELECTABLE: a role-assignable group or one already inside a restricted AU has a disabled checkbox, so they are neither counted nor toggled \u2014 an \u2018all\u2019 that includes rows you cannot tick is a lie, and the counter says how many cannot be added." },
