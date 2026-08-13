@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25049, date: "2026-08-13", title: "Three items reached production",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Production is now build 265: the Import protection preflight and group placement (item 11), the roadmap card for country-name to ISO-code lookup (15), and the persona work — Factory workers at CA1200, the workload-identity vault, and ＋ Bulk add (16). Item 13's roadmap card went with them: it had been cleared from this queue back at build 261 without ever being ported, which is exactly what the header of js/promote.js warns about, so the roadmap was diffed against production rather than taken on the queue's word. Only item 6 is left waiting." },
+    ],
+  },
+  {
     build: 25048, date: "2026-08-13", title: "Demo import placement read the wrong field",
     items: [
       { kind: "fixed", tool: "Import", text: "The simulated placement shown in demo mode still read a group's vault from info.persona, which build 25046 stopped setting when routing moved to the CA number in the group's own name — so every group in the demo report came back “no persona could be read”, describing a failure that a real run would not have. Reads info.code now. Only demo output was affected; a real import placed groups correctly throughout." },

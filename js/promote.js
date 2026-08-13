@@ -20,40 +20,10 @@
 // the next new item takes the next free number.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.263",
-  betaBuild: "v1.0.250-beta.48",
+  productionBuild: "v1.0.265",
+  betaBuild: "v1.0.250-beta.49",
 
   items: [
-    {
-      n: 16,
-      title: "Factory workers and workload identities",
-      tools: ["Restricted AUs", "List Policies", "Protect exclusions", "Import"],
-      builds: [25046, 25047, 25048],
-      risk: "high",
-      what: "CA1200–CA1299 named as Factory workers (it rendered as “CA1200+”), a WLI vault for workload identities and the FW vault given its CA range so groups in it route at all. Import switched to the same routing rule as Protect. Also fixes a scoped role showing its raw GUID.",
-      why: "Production names no persona above CA1100, so a Factory-workers policy set reads as an unnamed range, and a CA1200 or CA1250 exclusion group routes nowhere.",
-      files: ["js/rmau.js", "js/render.js", "js/import.js", "js/app.js", "index.html"],
-    },
-    {
-      n: 15,
-      title: "Roadmap card: country name to ISO code lookup",
-      tools: ["Roadmap"],
-      builds: [25043],
-      risk: "low",
-      what: "One roadmap card describing a type-ahead that turns a country NAME into its two-letter ISO 3166-1 code in Named locations, and refuses codes that are not real.",
-      why: "Roadmap text only — nothing behaves differently. It can ride along with the next promotion.",
-      files: ["index.html"],
-    },
-    {
-      n: 11,
-      title: "Import: protection preflight and group placement",
-      tools: ["Import"],
-      builds: [25035, 25038],
-      risk: "medium",
-      what: "Import checks the restricted units for the personas the selection touches, offers to create the missing ones, and adds every group it creates to its persona's unit. Shared and pre-existing groups are deliberately not placed and are named in the report.",
-      why: "Its dependency (the persona units) went to production in build 258, so this can now promote on its own. It writes to the directory on an import run, which is the moment you least want a surprise, so it is worth a couple of real restores on beta first. The role-assignable label fix it used to carry shipped separately as build 257.",
-      files: ["js/import.js", "js/app.js", "js/rmau.js", "index.html"],
-    },
     {
       n: 6,
       title: "Your own single-tenant app registration",
