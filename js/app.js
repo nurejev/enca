@@ -288,11 +288,27 @@
   // takes a synthetic click. Collapsing the grid must not amputate navigation.
   const HOME_VISIBLE = 4;
   const HOME_KEY = "enca-home-expanded";
+  // The expanded/collapsed choice is remembered, but only WITHIN A BUILD. A
+  // release that adds or changes tools has changed what the section contains,
+  // so "show me all eleven" — decided against a different eleven, possibly
+  // months ago — is no longer an answer to the question being asked. Left to
+  // persist, it also silently defeats the point of putting what changed at the
+  // top of a collapsed section: an expanded section has no top.
+  //
+  // The old format was a bare array. It is read once and discarded rather than
+  // migrated: it carries no build, so there is no honest way to decide whether
+  // it still applies, and one collapsed visit costs a click.
   const homeExpanded = (() => {
-    try { return new Set(JSON.parse(localStorage.getItem(HOME_KEY) || "[]")); }
-    catch { return new Set(); }
+    try {
+      const raw = JSON.parse(localStorage.getItem(HOME_KEY) || "null");
+      if (raw && !Array.isArray(raw) && raw.build === APP_BUILD.build) return new Set(raw.keys || []);
+    } catch { /* unreadable or private mode */ }
+    return new Set();
   })();
-  const homeSave = () => { try { localStorage.setItem(HOME_KEY, JSON.stringify([...homeExpanded])); } catch { /* private mode */ } };
+  const homeSave = () => {
+    try { localStorage.setItem(HOME_KEY, JSON.stringify({ build: APP_BUILD.build, keys: [...homeExpanded] })); }
+    catch { /* private mode */ }
+  };
 
   function initHomeSections() {
     const grids = [...document.querySelectorAll("#screen-home .tools")];

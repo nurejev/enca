@@ -34,16 +34,16 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.267",
-  betaBuild: "v1.0.250-beta.61",
+  betaBuild: "v1.0.250-beta.62",
 
   items: [
     {
       n: 23,
       title: "Flagged tiles sort first in a collapsed section (R09)",
       tools: ["All tools"],
-      builds: [25059],
+      builds: [25059, 25062],
       risk: "low",
-      what: "A collapsed home section puts NEW / BETA / UPDATED tiles first via CSS order, restoring the authored order on expand. Nothing is reparented — the grid's grouping survives untouched.",
+      what: "A collapsed home section puts NEW / BETA / UPDATED tiles first via CSS order, restoring the authored order on expand — nothing is reparented, so the grid's grouping survives. Also scopes the expanded/collapsed preference to the build, so a section expanded once does not stay expanded through every later release.",
       why: "Production has the same behaviour of a flagged tile claiming a visible slot but keeping its page position, so a flagged tile sitting ninth is on screen and still reads as an afterthought.",
       files: ["js/app.js"],
     },

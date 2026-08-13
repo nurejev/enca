@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25062, date: "2026-08-13", title: "An expanded section no longer outlives the release",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Manage the tenant opened expanded even on a fresh visit. Nothing was broken — the section was expanded because it had been expanded, once, and the choice was remembered forever. That was wrong in two ways. A release that adds or changes tools has changed what the section CONTAINS, so “show me all eleven”, decided against a different eleven, is no longer an answer to the question being asked; and an expanded section has no top, which silently defeats R09 putting what changed at the top of a collapsed one. The choice is now remembered within a build and reset by the next one." },
+      { kind: "improved", tool: "All tools", text: "The old stored format was a bare list of section names. It is read once and discarded rather than migrated: it carries no build, so there is no honest way to decide whether it still applies, and one collapsed visit costs a single click." },
+    ],
+  },
+  {
     build: 25061, date: "2026-08-13", title: "The queue lists changes, not descriptions of changes",
     items: [
       { kind: "fixed", tool: "All tools", text: "🚚 Waiting for production had grown five rows that were roadmap cards and one that was this table's own styling — documentation about the work rather than the work — and they buried the three rows anybody actually has to decide about. Roadmap cards, changelog entries and the queue itself are no longer listed at all: they describe changes rather than being them, and they travel with whatever promotion happens next, which is why a port copies the roadmap and Help along with the code. The gap is now 6, 21 and 23, which is what it always really was." },
