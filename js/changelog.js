@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25032, date: "2026-08-12", title: "Sections collapse again",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Manage the tenant and Analyse & simulate started EXPANDED. Cause: flagged tiles (NEW / BETA / UPDATED) were exempt from the collapse and sat on top of the four-tile budget rather than inside it — and with six flagged tools in one section that meant ten of eleven tiles showing, which is the opposite of collapsing. Flagged tiles now claim the four slots FIRST, in page order, but do not add to them, so both sections start collapsed as intended. Anything flagged that still does not fit is counted on the button — “Show 7 more · 2 new or beta” — so it is announced rather than silently buried. Tile order never changes; only visibility does." },
+    ],
+  },
+  {
     build: 25031, date: "2026-08-12", title: "The picker comes before the list",
     items: [
       { kind: "improved", tool: "Restricted AUs", text: "On an administrative-unit card, the add-member box and the grant-a-scoped-administrator row now sit ABOVE their lists instead of below them. A protected AU can hold dozens of groups, and with the list first the input you opened the card to use was pushed off the bottom — you scrolled past everything to reach the one control that does something. Both sections read heading → picker → list now, and the empty scoped-role message says “grant one above” to match." },

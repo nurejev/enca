@@ -21,7 +21,7 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.254",
-  betaBuild: "v1.0.250-beta.31",
+  betaBuild: "v1.0.250-beta.32",
 
   items: [
     {
@@ -33,6 +33,16 @@ const PROMOTE = {
       what: "-SingleTenant and -RequireAssignment on the registration script, js/authConfig.local.js as an override, and SINGLE-TENANT.md with the hosting guidance.",
       why: "A documented route for high-assurance tenants. Additive — nothing behaves differently for anyone who ignores it.",
       files: ["New-EncaAppRegistration.ps1", "js/authConfig.js", "SINGLE-TENANT.md", "README.md", "SECURITY.md"],
+    },
+    {
+      n: 9,
+      title: "UPDATED tile chip, and sections that actually collapse",
+      tools: ["All tools"],
+      builds: [25026, 25032],
+      risk: "low",
+      what: "The .tag.upd CSS and the UPDATED chip on tiles that changed in the release, plus the fix that makes flagged tiles claim the four visible slots instead of adding to them — production has neither, so its home sections behave correctly but no tile is ever marked as updated.",
+      why: "Production has no UPDATED chip at all today, so a changed tool looks identical to an untouched one.",
+      files: ["css/app.css", "index.html", "js/app.js"],
     },
     {
       n: 8,

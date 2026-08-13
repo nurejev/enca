@@ -313,19 +313,26 @@
       const flagged = (t) => !!t.querySelector(".tag.new, .tag.upd");
       const paint = () => {
         const open = homeExpanded.has(key);
-        // Flagged tiles are shown on top of the budget, not out of it — four
-        // ordinary tools stay visible however many are flagged, so a release
-        // never pushes the everyday tools out of sight either.
-        let ordinary = 0;
+        // The visible budget is HOME_VISIBLE in total. Flagged tiles claim those
+        // slots FIRST — a release must be reachable without expanding — but they
+        // no longer sit on top of the budget. With six flagged tiles in a section
+        // that meant nothing collapsed at all, which is the opposite of the point.
+        // Anything flagged that still does not fit is counted on the button, so it
+        // is announced rather than silently buried.
+        const keep = new Set();
+        for (const t of tiles) { if (keep.size >= HOME_VISIBLE) break; if (flagged(t)) keep.add(t); }
+        for (const t of tiles) { if (keep.size >= HOME_VISIBLE) break; keep.add(t); }
         const hidden = [];
         tiles.forEach((t) => {
-          const keep = open || flagged(t) || ordinary < HOME_VISIBLE;
-          t.style.display = keep ? "" : "none";
-          if (keep && !flagged(t)) ordinary++;
-          if (!keep) hidden.push(t);
+          const show = open || keep.has(t);
+          t.style.display = show ? "" : "none";      // display only — order never changes
+          if (!show) hidden.push(t);
         });
-        btn.style.display = hidden.length || open ? "" : "none";   // nothing left to reveal
-        btn.textContent = open ? "▲ Show fewer" : `▼ Show ${hidden.length} more`;
+        const buried = hidden.filter(flagged).length;
+        btn.style.display = hidden.length || open ? "" : "none";
+        btn.textContent = open
+          ? "▲ Show fewer"
+          : `▼ Show ${hidden.length} more${buried ? ` · ${buried} new or beta` : ""}`;
         btn.setAttribute("aria-expanded", open ? "true" : "false");
       };
       btn.addEventListener("click", () => {
