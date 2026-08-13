@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25025"></script>
+<script src="js/popup-guard.js?v=25026"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25025">
+<link rel="stylesheet" href="css/app.css?v=25026">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25025"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25025"></script>
+<script src="js/counter.js?v=25026"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25026"></script>
 </head>
 <body>
 
@@ -1084,6 +1084,12 @@
             <p class="mini" style="margin:0">Past twenty-odd tools, a tile grid stops being the fastest way in. <b>Ctrl/Cmd&nbsp;+&nbsp;K</b> anywhere opens a search box: type a few letters and land in the tool, or type a CA number or policy name and land on the policy card. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bbc</code> finds Best-practice &amp; bypass checks. Running on the beta channel now.</p>
           </div>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🧹 Retire role-assignable groups everywhere <span class="tag ok">started</span></h4>
+            <p class="mini" style="margin:0">The baseline is moving off role-assignable groups: the flag was only ever used for a side effect — membership reachable by Global Administrator or Privileged Role Administrator only — and a restricted management administrative unit does that better, names <i>who</i> may manage the group, and can be undone. It also cannot be combined with one: a group carrying both has nobody who can change its members.
+              <br><b>Done:</b> new groups are ordinary security groups (assigned or dynamic) with an optional restricted-AU placement at creation; the role-assignable checkbox and the ↻ Recreate-role-assignable action are gone; the ① Check drift flag is inverted, so a plain group is correct and a role-assignable one is what gets flagged; <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> moves existing ones across.
+              <br><b>Still to do:</b> the bundled group templates and the baseline catalog still describe an estate built on role-assignable groups; the MS Learn and CIS checks, Group Analyzer and the documentation exports still mention it as the expected shape; and the persona <b>import</b> path should create protected groups directly rather than leaving protection as a later step. Production keeps creating role-assignable groups until this lands there.</p>
+          </div>
+          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">🎛 Group actions where you are already looking <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Clicking a group in <a href="#" class="md-tool" data-tool="toolCaGroups">👥 CA groups</a> ① Check opens a card that <i>reads</i>: object id, type, the policies that include or exclude it, its members. Everything you might then want to <i>do</i> lives on a different numbered tab, so you close the card, find the right step, and hunt for the group again. <b>List Policies already solves this</b> — every policy card carries its own Documentation, Backup, Assign and Policy-state buttons.
               <br>The plan is the same treatment for a group: create it if it is missing (②), read or add members (③), assign it to policies (④), import members from CSV (⑤), protect it in a restricted AU (⑥), migrate it off role-assignable (⑦), disable nesting, or open it in <a href="#" class="md-tool" data-tool="toolGroupUse">🔗 Group Analyzer</a> to see everything outside Conditional Access that points at it — each offered only when it actually applies, so a role-assignable group is not offered ⑥ Protect and a group already in a restricted AU is not offered it twice.</p>
@@ -1694,19 +1700,6 @@
   </div>
 </div>
 
-<div class="modal-bg" id="recreateModal">
-  <div class="modal" style="max-width:620px">
-    <h3>↻ Recreate as role-assignable</h3>
-    <div id="recreateBody" class="md-view" style="max-height:52vh"></div>
-    <label class="mini" for="recreateOk" style="display:block;margin-top:10px">Type <b>RECREATE</b> to confirm</label>
-    <input id="recreateOk" class="txt" placeholder="RECREATE" autocomplete="off" spellcheck="false" style="margin-top:4px">
-    <div class="row">
-      <button class="btn" id="recreateCancel">Cancel</button>
-      <button class="btn primary" id="recreateGo" disabled>Recreate &amp; move policies</button>
-    </div>
-  </div>
-</div>
-
 <!-- ============ PERSONA APPLY FLOW ============
      A popout showing what Conditional Access does to a persona sign-in: the
      persona's own policies plus the Global policies that apply to everyone. -->
@@ -2096,44 +2089,44 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25025"></script>
-<script src="js/version.js?v=25025"></script>
-<script src="js/authConfig.js?v=25025"></script>
-<script src="js/labels.js?v=25025"></script>
-<script src="js/graph.js?v=25025"></script>
-<script src="js/model.js?v=25025"></script>
-<script src="js/render.js?v=25025"></script>
-<script src="js/analyze.js?v=25025"></script>
-<script src="js/whatif.js?v=25025"></script>
-<script src="js/mslearn.js?v=25025"></script>
-<script src="js/gapcheck.js?v=25025"></script>
-<script src="js/cisdata.js?v=25025"></script>
-<script src="js/cischeck.js?v=25025"></script>
-<script src="js/exclusions.js?v=25025"></script>
-<script src="js/validator.js?v=25025"></script>
-<script src="js/whatifeval.js?v=25025"></script>
-<script src="js/compare.js?v=25025"></script>
-<script src="js/groupuse.js?v=25025"></script>
-<script src="js/locations.js?v=25025"></script>
-<script src="js/authcontexts.js?v=25025"></script>
-<script src="js/authstrengths.js?v=25025"></script>
-<script src="js/recycle.js?v=25025"></script>
-<script src="js/rmau.js?v=25025"></script>
-<script src="js/termsofuse.js?v=25025"></script>
-<script src="js/audit.js?v=25025"></script>
-<script src="js/drift.js?v=25025"></script>
-<script src="js/signins.js?v=25025"></script>
-<script src="js/reportimpact.js?v=25025"></script>
-<script src="js/changelog.js?v=25025"></script>
-<script src="js/baselineData.js?v=25025"></script>
-<script src="js/baselineJoeyData.js?v=25025"></script>
-<script src="js/baseline.js?v=25025"></script>
-<script src="js/groupTemplates.js?v=25025"></script>
-<script src="js/assign.js?v=25025"></script>
-<script src="js/cagroups.js?v=25025"></script>
-<script src="js/import.js?v=25025"></script>
-<script src="js/export.js?v=25025"></script>
-<script src="js/demo.js?v=25025"></script>
-<script src="js/app.js?v=25025"></script>
+<script src="js/branding.js?v=25026"></script>
+<script src="js/version.js?v=25026"></script>
+<script src="js/authConfig.js?v=25026"></script>
+<script src="js/labels.js?v=25026"></script>
+<script src="js/graph.js?v=25026"></script>
+<script src="js/model.js?v=25026"></script>
+<script src="js/render.js?v=25026"></script>
+<script src="js/analyze.js?v=25026"></script>
+<script src="js/whatif.js?v=25026"></script>
+<script src="js/mslearn.js?v=25026"></script>
+<script src="js/gapcheck.js?v=25026"></script>
+<script src="js/cisdata.js?v=25026"></script>
+<script src="js/cischeck.js?v=25026"></script>
+<script src="js/exclusions.js?v=25026"></script>
+<script src="js/validator.js?v=25026"></script>
+<script src="js/whatifeval.js?v=25026"></script>
+<script src="js/compare.js?v=25026"></script>
+<script src="js/groupuse.js?v=25026"></script>
+<script src="js/locations.js?v=25026"></script>
+<script src="js/authcontexts.js?v=25026"></script>
+<script src="js/authstrengths.js?v=25026"></script>
+<script src="js/recycle.js?v=25026"></script>
+<script src="js/rmau.js?v=25026"></script>
+<script src="js/termsofuse.js?v=25026"></script>
+<script src="js/audit.js?v=25026"></script>
+<script src="js/drift.js?v=25026"></script>
+<script src="js/signins.js?v=25026"></script>
+<script src="js/reportimpact.js?v=25026"></script>
+<script src="js/changelog.js?v=25026"></script>
+<script src="js/baselineData.js?v=25026"></script>
+<script src="js/baselineJoeyData.js?v=25026"></script>
+<script src="js/baseline.js?v=25026"></script>
+<script src="js/groupTemplates.js?v=25026"></script>
+<script src="js/assign.js?v=25026"></script>
+<script src="js/cagroups.js?v=25026"></script>
+<script src="js/import.js?v=25026"></script>
+<script src="js/export.js?v=25026"></script>
+<script src="js/demo.js?v=25026"></script>
+<script src="js/app.js?v=25026"></script>
 </body>
 </html>

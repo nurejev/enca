@@ -250,11 +250,14 @@ const CaGroups = (() => {
       refs: r.refs || { include: [], exclude: [] },
       refCount: nRef,
       members: null, memberTotal: null, memberError: null,
-      // A role-assignable expectation that came back as a plain group is worth
-      // knowing about: isAssignableToRole is immutable, so it cannot be fixed
-      // in place — the group has to be recreated.
-      drift: g && r.template && !r.template.membershipRule && !dynamic && !g.isAssignableToRole
-        ? "not role-assignable (immutable — recreate to change)"
+      // INVERTED (build 25026). A plain assigned group used to be reported as
+      // drift because the baseline made everything role-assignable. That has
+      // been retired: role-assignable was only ever a way to keep membership
+      // away from tenant-wide group administrators, and a restricted AU does
+      // it better. So a plain group is now correct, and the flag points the
+      // other way — a role-assignable group is the one with somewhere to go.
+      drift: g && g.isAssignableToRole
+        ? "role-assignable — migrate it to a restricted AU (⑦ Migrate)"
         : (g && r.template && r.template.membershipRule && !dynamic
           ? "template is dynamic but this group is assigned" : null),
     };
@@ -646,7 +649,6 @@ const CaGroups = (() => {
           : '<span class="mini muted">—</span>';
         // A present group that should be role-assignable but is not — isAssignableToRole
         // is immutable, so offer to recreate it (rename old, make a new one, move policies).
-        const roleDrift = r.drift && /role-assignable/i.test(r.drift);
         // The other direction: the template says dynamic, the tenant group is
         // assigned. Offer the conversion — in place when Entra allows it.
         const dynDrift = r.drift && /template is dynamic/i.test(r.drift);
@@ -654,7 +656,7 @@ const CaGroups = (() => {
           <td class="cg-ic ${st.cls}">${st.icon}</td>
           <td><b>${esc(r.name)}</b>${r.id ? `<div class="mini muted">${esc(r.id)}</div>` : ""}
             ${r.drift ? `<div class="mini" style="color:var(--report)">⚠ ${esc(r.drift)}</div>` : ""}
-            ${roleDrift ? `<button class="btn sm" data-cgrecreate="${esc(r.name)}" style="margin-top:4px">↻ Recreate role-assignable</button>` : ""}
+            ${r.roleAssignable ? `<button class="btn sm" data-cgmigrate="${esc(r.name)}" style="margin-top:4px">⑦ Migrate off role-assignable</button>` : ""}
             ${dynDrift ? `<button class="btn sm" data-cgdynamic="${esc(r.name)}" style="margin-top:4px">⟳ Make dynamic</button>` : ""}
             ${r.roleAssignable
               ? `<div class="mini" style="color:var(--on)">🚫 Nesting already impossible — Entra does not allow a group as a member of a role-assignable group</div>`

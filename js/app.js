@@ -1639,6 +1639,7 @@
   // does not, read who is in them, and assign them to policies. The assign step
   // is the former standalone tool, unchanged — it just lives here now, next to
   // the groups it assigns.
+  let cgmMsg = null;   // ② Create result line — survives the re-scan that follows a create
   let cgRes = null, cgTab = "check", cgFilter = "all", cgQuery = "", cgBusy = false, cgStop = false;
   // Default scope: only the groups the tenant's CA policies actually reference.
   // "all" additionally expects every template / baseline group (finds missing).
@@ -1786,16 +1787,20 @@
         <p class="mini muted" style="margin-top:4px">Entra dynamic-membership syntax. The group is created with the rule processing <b>On</b>.</p>
       </div>
 
-      <h5 class="mini" style="margin:16px 0 6px">ROLE-ASSIGNABLE</h5>
-      <label class="chk" id="cgmRoleWrap" style="margin:5px 0"><input type="checkbox" id="cgmRole"> Make this group <b>role-assignable</b> <span class="mini muted">(<code>isAssignableToRole</code> — lets it hold directory roles; immutable after creation)</span></label>
-      <p class="mini" id="cgmRoleNote" style="display:none;color:var(--report)">Dynamic groups cannot be role-assignable — Entra forbids the combination, so this is off for a dynamic group.</p>
+      <h5 class="mini" style="margin:16px 0 6px">PROTECTION</h5>
+      <label class="chk" style="margin:5px 0"><input type="checkbox" id="cgmRmau"> Place it in a <b>restricted management administrative unit</b> <span class="mini muted">(only roles scoped to that AU can change the members)</span></label>
+      <div id="cgmRmauWrap" style="display:none;margin:6px 0 0 24px">
+        <select id="cgmRmauPick" class="btn" style="cursor:pointer;width:auto"></select>
+        <p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ Order matters: once the group is in the AU, only an <b>AU-scoped role</b> can add members — including this tool. For an <b>assigned</b> group, add the members first and protect it afterwards from ⑥ Protect, unless you already hold a scoped role. A <b>dynamic</b> group fills itself from its rule, so protecting it at creation is safe.</p>
+      </div>
+      <p class="mini muted" id="cgmRoleWrap" style="margin:8px 0 0"><b>Role-assignable is no longer offered.</b> That flag was only ever used to keep membership out of reach of tenant-wide group administrators, and a restricted AU does the same job, names <i>who</i> may manage it, and can be undone. The two cannot be combined: a role-assignable group admits only Global Administrator and Privileged Role Administrator, and a restricted AU blocks exactly those two. Existing ones move across with <b>⑦ Migrate</b>.</p>
+      <p class="mini" id="cgmRoleNote" style="display:none"></p>
 
-      <div id="cgmLog" class="mini" style="margin-top:10px"></div>
+      <div id="cgmLog" class="mini" style="margin-top:10px">${cgmMsg || ""}</div>
       <div class="row" style="justify-content:flex-start;margin-top:12px">
         <button class="btn primary" id="cgmCreate">Create group${isDemo ? " (simulated)" : ""}</button>
       </div>
-      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled. Requires the Privileged Role Administrator role for role-assignable groups;
-        consents <code>Group.ReadWrite.All</code> + <code>RoleManagement.ReadWrite.Directory</code> on demand. An existing group with the same name is reused.</p>
+      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled. Consents <code>Group.ReadWrite.All</code> on demand, plus <code>AdministrativeUnit.ReadWrite.All</code> if you protect it. An existing group with the same name is reused.</p>
     </div>`;
 
     $("cgBody").innerHTML = batch + manual;
@@ -2881,8 +2886,10 @@ max@contoso.com,"Global, DevOps"</pre>
     const co = e.target.closest("[data-cgcreateone]");
     if (co) { e.stopPropagation(); await cgCreateOne(co.dataset.cgcreateone, co); return; }
     // Recreate a present-but-not-role-assignable group correctly.
-    const rc = e.target.closest("[data-cgrecreate]");
-    if (rc) { e.stopPropagation(); openRecreate(rc.dataset.cgrecreate); return; }
+    // "Recreate role-assignable" is retired — the baseline moves the other way
+    // now. The button on a role-assignable row opens ⑦ Migrate instead.
+    const mg = e.target.closest("[data-cgmigrate]");
+    if (mg) { e.stopPropagation(); cgTab = "migrate"; renderCaGroups(); return; }
     const nb = e.target.closest("[data-cgnesting]");
     if (nb) { e.stopPropagation(); openNesting(nb.dataset.cgnesting, nb); return; }
     // Convert an assigned group to the dynamic membership its template expects.
@@ -3309,107 +3316,13 @@ max@contoso.com,"Global, DevOps"</pre>
   // old one aside, create a new role-assignable group with the original name,
   // then swap every referencing policy from the old group id to the new one.
   let recreateRow = null;
-  function openRecreate(name) {
-    const r = cgRes && cgRes.rows.find((x) => x.name === name);
-    if (!r || !r.id) return;
-    recreateRow = r;
-    const legacy = `${r.name} (legacy ${new Date().toISOString().slice(0, 10)})`;
-    const inc = r.refs.include, exc = r.refs.exclude;
-    const md = [];
-    md.push(`**${r.name}** is not role-assignable, and \`isAssignableToRole\` cannot be changed on an existing group. This will:`);
-    md.push("");
-    md.push(`1. Rename the current group to **${legacy}** (kept, not deleted — a fallback until you delete it).`);
-    md.push(`2. Create a new **role-assignable** security group named **${r.name}**.`);
-    md.push(`3. **Copy the members across** — users, service principals and devices. Nested groups cannot be members of a role-assignable group (an Entra rule) and are listed in the report instead.`);
-    md.push(`4. Move the **${r.refCount}** referencing polic${r.refCount === 1 ? "y" : "ies"} from the old group to the new one:`);
-    md.push("");
-    if (inc.length) { md.push("_Included in:_"); inc.forEach((p) => md.push(`- ${p.name}`)); md.push(""); }
-    if (exc.length) { md.push("_Excluded from:_"); exc.forEach((p) => md.push(`- ${p.name}`)); md.push(""); }
-    if (!r.refCount) md.push("_No policy references this group, so only the group is recreated (members still come across)._");
-    md.push("");
-    md.push(isDemo ? "_Demo mode — simulated, nothing is written._" : "This **writes to your tenant**.");
-    $("recreateBody").innerHTML = mdToHtml(md.join("\n"));
-    $("recreateOk").value = ""; $("recreateGo").disabled = true;
-    $("recreateModal").classList.add("open");
-  }
-  $("recreateOk").addEventListener("input", (e) => { $("recreateGo").disabled = e.target.value.trim().toUpperCase() !== "RECREATE"; });
-  $("recreateCancel").addEventListener("click", () => $("recreateModal").classList.remove("open"));
-  $("recreateGo").addEventListener("click", async () => {
-    const r = recreateRow; if (!r) return;
-    if (!await preConsent([...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES, "Policy.ReadWrite.ConditionalAccess"])) return;
-    const btn = $("recreateGo"); btn.disabled = true;
-    const legacy = `${r.name} (legacy ${new Date().toISOString().slice(0, 10)})`;
-    const log = { renamed: false, newId: null, membersMoved: 0, memberTotal: 0, moved: [], failed: [] };
-    try {
-      if (isDemo) {
-        log.renamed = true; log.newId = "g-new-" + r.name;
-        log.moved = [...r.refs.include.map((p) => ({ name: p.name, how: "include" })), ...r.refs.exclude.map((p) => ({ name: p.name, how: "exclude" }))];
-      } else {
-        toast("Renaming the old group…");
-        await Graph.gpatch(`/groups/${r.id}`, { displayName: legacy }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
-        log.renamed = true;
-        toast("Creating the new role-assignable group…");
-        const g = await Assign.createGroup({ displayName: r.name, description: r.description, roleAssignable: true }, { mustCreate: true });
-        log.newId = g.id;
-        // Members come across too. Leaving them behind meant the new group was
-        // empty — an include group that applies to nobody, an exclude group
-        // that excludes nobody — until someone noticed and did it by hand.
-        const mm = await moveGroupMembers(r.id, g.id, (m) => toast(m));
-        log.membersMoved = mm.moved; log.memberTotal = mm.total; log.skippedGroups = mm.skippedGroups;
-        mm.failed.forEach((f) => log.failed.push({ name: `member ${f.name}`, error: f.error }));
-        // swap old id -> new id in every referencing policy
-        const refs = [...r.refs.include.map((p) => ({ ...p, how: "include" })), ...r.refs.exclude.map((p) => ({ ...p, how: "exclude" }))];
-        for (let i = 0; i < refs.length; i++) {
-          const p = refs[i];
-          toast(`Moving policy ${i + 1}/${refs.length}…`);
-          try {
-            const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${p.id}`);
-            const u = fresh.conditions?.users || {};
-            const key = p.how === "include" ? "includeGroups" : "excludeGroups";
-            const list = (u[key] || []).map((x) => (x === r.id ? g.id : x));
-            await Graph.gpatch(`/identity/conditionalAccess/policies/${p.id}`, { conditions: { users: { ...u, [key]: [...new Set(list)] } } });
-            log.moved.push({ name: p.name, how: p.how });
-          } catch (e) { console.error(e); log.failed.push({ name: p.name, error: e.message || String(e) }); }
-        }
-      }
-      $("recreateModal").classList.remove("open");
-      // change report
-      const md = [];
-      md.push(`# Group recreated role-assignable — ${tenantName || "tenant"}`);
-      md.push("");
-      md.push(`- **Group:** ${r.name}`);
-      md.push(`- **Old group renamed to:** ${legacy} (id \`${r.id}\`)`);
-      md.push(`- **New role-assignable group id:** \`${log.newId}\``);
-      md.push(`- **Members moved:** ${log.membersMoved || 0}${log.memberTotal ? `/${log.memberTotal}` : ""}${log.skippedGroups?.length ? ` · **${log.skippedGroups.length} nested group${log.skippedGroups.length === 1 ? "" : "s"} not movable** (role-assignable groups cannot contain groups): ${log.skippedGroups.join(", ")}` : ""}`);
-      md.push(`- **Policies moved:** ${log.moved.length}${log.failed.length ? ` · **failed:** ${log.failed.length}` : ""}`);
-      if (isDemo) md.push(`- _Demo mode — simulated._`);
-      md.push("");
-      if (log.moved.length) {
-        md.push("## Policies moved to the new group");
-        md.push("");
-        md.push("| Policy | Slot |");
-        md.push("|---|---|");
-        log.moved.forEach((m) => md.push(`| ${m.name} | ${m.how} |`));
-        md.push("");
-      }
-      if (log.failed.length) {
-        md.push("## Failed — move these manually");
-        md.push("");
-        log.failed.forEach((f) => md.push(`- ❌ **${f.name}** — ${f.error}`));
-        md.push("");
-      }
-      md.push("The old group is renamed, not deleted. Its members have been copied to the new group; remove the old group from **① Check → 🧹 Archived groups** once you are satisfied. A deleted group is recoverable for 30 days.");
-      md.push("");
-      md.push("---");
-      md.push(`Generated by ${BRANDING.name} — Conditional Access groups`);
-      showReport("↻ Group recreate report", "CA-Group-Recreate", md.join("\n"));
-      toast(log.failed.length ? `Recreated with <span>${log.failed.length} failure(s)</span>` : `<span>${r.name}</span> recreated role-assignable`);
-      cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
-    } catch (e) {
-      console.error(e); toast(`Recreate failed: <span>${esc(e.message || e)}</span>`);
-      btn.disabled = false;
-    }
-  });
+  // ↻ Recreate role-assignable was removed in build 25026. The baseline no
+  // longer uses role-assignable groups: the flag was only ever a way to keep
+  // membership away from tenant-wide group administrators, and a restricted
+  // management administrative unit does that better. ⑦ Migrate moves existing
+  // ones across. The old modal is gone with it rather than left dead in the
+  // file, where it would be one wire away from creating them again.
+
 
   // Dynamic and role-assignable are mutually exclusive in Entra. Reflect that
   // live: choosing Dynamic reveals the rule box and forces role-assignable off.
@@ -3425,11 +3338,32 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.name === "cgmType") {
       const dyn = e.target.value === "dynamic";
       const w = $("cgmRuleWrap"); if (w) w.style.display = dyn ? "block" : "none";
-      const role = $("cgmRole"), note = $("cgmRoleNote");
-      if (role) { role.disabled = dyn; if (dyn) role.checked = false; }
-      if (note) note.style.display = dyn ? "block" : "none";
+    }
+    if (e.target.id === "cgmRmau") {
+      const w = $("cgmRmauWrap");
+      if (w) w.style.display = e.target.checked ? "block" : "none";
+      if (e.target.checked) cgmLoadRmaus();
     }
   });
+
+  // The restricted AUs available to the builder. Loaded on demand — ticking the
+  // box is the first moment we need them.
+  let cgmRmauList = null;
+  async function cgmLoadRmaus() {
+    const sel = $("cgmRmauPick");
+    if (!sel) return;
+    if (!cgmRmauList) {
+      sel.innerHTML = '<option>Reading administrative units…</option>';
+      try {
+        cgmRmauList = isDemo
+          ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.adminUnits) || []).filter((a) => a.isMemberManagementRestricted).map((a) => ({ id: a.id, name: a.displayName }))
+          : (await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted"))
+              .filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
+      } catch (e) { cgmRmauList = []; console.warn("RMAU list failed:", e.message); }
+    }
+    sel.innerHTML = [...cgmRmauList.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`),
+      `<option value="new">➕ Create “${esc(RMAU_DEFAULT_NAME)}”</option>`].join("");
+  }
 
   async function cgManualCreate(btn) {
     const name = $("cgmName").value.trim();
@@ -3437,7 +3371,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const dynamic = document.querySelector('[name="cgmType"]:checked')?.value === "dynamic";
     const rule = dynamic ? $("cgmRule").value.trim() : "";
     if (dynamic && !rule) { toast("A dynamic group needs a membership rule"); $("cgmRule").focus(); return; }
-    const roleAssignable = !dynamic && $("cgmRole").checked;
+    const roleAssignable = false;   // retired — see the note in the builder
     if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
     btn.disabled = true;
     const log = $("cgmLog");
@@ -3446,10 +3380,42 @@ max@contoso.com,"Global, DevOps"</pre>
       const g = isDemo
         ? { id: "g-" + name, name, created: true, dynamic, roleAssignable }
         : await Assign.createGroup(spec);
-      const kind = g.dynamic ? "dynamic" : g.roleAssignable ? "role-assignable" : "assigned";
-      log.innerHTML = g.created
+      // Protection LAST, and only after the group exists — the same ordering
+      // the migration wizard uses, for the same reason: once it is in the AU,
+      // adding members needs an AU-scoped role.
+      if ($("cgmRmau")?.checked && g && g.id) {
+        try {
+          let auId = $("cgmRmauPick")?.value;
+          if (auId === "new" && !isDemo) {
+            const au = await Graph.gpost("/administrativeUnits", {
+              displayName: RMAU_DEFAULT_NAME,
+              description: "Restricted management administrative unit protecting Conditional Access exclusion groups. Membership changes require a role scoped to this administrative unit.",
+              isMemberManagementRestricted: true,
+            }, [...AUTH_CONFIG.scopes, "AdministrativeUnit.ReadWrite.All"]);
+            auId = au.id; cgmRmauList = null;
+          }
+          if (!isDemo && auId && auId !== "new") {
+            await Graph.gpost(`/administrativeUnits/${auId}/members/$ref`,
+              { "@odata.id": `https://graph.microsoft.com/beta/groups/${g.id}` },
+              [...AUTH_CONFIG.scopes, "AdministrativeUnit.ReadWrite.All"]);
+          }
+          g.protected = true;
+        } catch (e) {
+          // The group exists either way — say which half succeeded rather than
+          // reporting the whole create as failed.
+          g.protectError = e.message || String(e);
+        }
+      }
+      const kind = g.dynamic ? "dynamic" : "assigned";
+      const prot = g.protectError
+        ? `<div style="color:var(--off)">✗ but it could NOT be placed in the restricted AU — ${esc(g.protectError)}. The group exists; protect it from ⑥ Protect.</div>`
+        : g.protected
+          ? `<div style="color:var(--on)">✓ placed in the restricted AU — only an AU-scoped role can change its members now${g.dynamic ? "" : ", so add members with a scoped role or remove it from the AU first"}</div>`
+          : "";
+      cgmMsg = (g.created
         ? `<span style="color:var(--on)">✓ created <b>${esc(g.name)}</b> — ${kind}</span>`
-        : `<span style="color:var(--report)">• <b>${esc(g.name)}</b> already existed — reused</span>`;
+        : `<span style="color:var(--report)">• <b>${esc(g.name)}</b> already existed — reused</span>`) + prot;
+      log.innerHTML = cgmMsg;
       toast(g.created ? `<span>${esc(g.name)}</span> created (${kind})${isDemo ? " (simulated)" : ""}` : `<span>${esc(g.name)}</span> already existed — reused`);
       // fold the new group into the scan so Check shows it without a refresh
       cgRes = null;
@@ -3457,7 +3423,8 @@ max@contoso.com,"Global, DevOps"</pre>
       cgTab = "create"; renderCaGroups();
     } catch (err) {
       console.error(err);
-      if ($("cgmLog")) $("cgmLog").innerHTML = `<span style="color:var(--off)">✗ ${esc(err.message || err)}</span>`;
+      cgmMsg = `<span style="color:var(--off)">✗ ${esc(err.message || err)}</span>`;
+      if ($("cgmLog")) $("cgmLog").innerHTML = cgmMsg;
       toast(`Create failed: <span>${esc(err.message || err)}</span>`);
       btn.disabled = false;
     }
@@ -8838,7 +8805,6 @@ max@contoso.com,"Global, DevOps"</pre>
         : await Assign.createGroup({
             displayName: name,
             description: MSLearn.GROUP_PURPOSE[key] || `Created by ${Brand.title}`,
-            roleAssignable: true,
           });
       toast(g.dynamic
         ? `<span>${esc(g.name || name)}</span> created — dynamic, it fills itself from the Teams Rooms plans`
