@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25053, date: "2026-08-13", title: "Roadmap: a baseline guide, and self-hosting",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Added 📖 Baseline usage guide. The toolset can build the baseline but cannot say what it IS or what order to do it in, so that knowledge lives in whoever has done it before — the least durable place to keep it. The card records an in-app guide that reads the tenant while it explains: what each persona covers and its CA range, the dependency order with the reason for each step rather than just the sequence, and a readiness check per step that says what is missing BEFORE you run it." },
+      { kind: "improved", tool: "Roadmap", text: "Added 🐳 Self-hosting with Docker. ENCA is static files and a browser, so it is trivially self-hostable — and a tool that reads Conditional Access is exactly what an organisation will want served from its own infrastructure whatever the code does. A published nginx image plus a compose example, pairing with the single-tenant app registration already available. The card leads with the one step that cannot be automated: every host must be registered as a SPA redirect URI, which is the omission that produces the confusing sign-in error." },
+    ],
+  },
+  {
     build: 25052, date: "2026-08-13", title: "Drift watch sees the vaults",
     items: [
       { kind: "new", tool: "Drift watch", text: "Administrative units are now a snapshot area. They live nowhere near the Conditional Access blade, but a restricted unit is what stops a tenant-wide Groups Administrator adding somebody to an exclusion group — so a group quietly leaving one widens the bypass surface exactly as much as editing the policy would, and until now nothing in the toolset would have noticed it happen. Members and scoped role grants are captured with the units; the read is a ladder, so a tenant that rejects the $expand still gets the units themselves, which is enough to catch the worst case of one being deleted." },

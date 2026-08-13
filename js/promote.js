@@ -21,16 +21,16 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.266",
-  betaBuild: "v1.0.250-beta.52",
+  betaBuild: "v1.0.250-beta.53",
 
   items: [
     {
       n: 17,
-      title: "Roadmap card: bulk grant scoped administrators",
+      title: "Roadmap cards: bulk grant scoped admins, baseline guide, self-hosting",
       tools: ["Roadmap"],
-      builds: [25050],
+      builds: [25050, 25053],
       risk: "low",
-      what: "One roadmap card describing granting scoped administrators across several restricted units at once, and showing the current grants across all units in one view.",
+      what: "Three roadmap cards: granting scoped administrators across several restricted units at once, a baseline usage guide covering what the baseline is and the dependency order to deploy it in, and self-hosting via a Docker image.",
       why: "Roadmap text only — nothing behaves differently. It can ride along with the next promotion.",
       files: ["index.html"],
     },

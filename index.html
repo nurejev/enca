@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25052"></script>
+<script src="js/popup-guard.js?v=25053"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25052">
+<link rel="stylesheet" href="css/app.css?v=25053">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25052"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25052"></script>
+<script src="js/counter.js?v=25053"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25053"></script>
 </head>
 <body>
 
@@ -1086,6 +1086,16 @@
               <br><b>Still to do:</b> the bundled group templates and the baseline catalog still describe an estate built on role-assignable groups; the MS Learn and CIS checks, Group Analyzer and the documentation exports still mention it as the expected shape; and the persona <b>import</b> path should create protected groups directly rather than leaving protection as a later step. Production keeps creating role-assignable groups until this lands there.</p>
           </div>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">📖 Baseline usage guide <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The toolset can build the baseline; it cannot yet tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge currently lives in whoever has done it before, which is the least durable place to keep it. A first deployment guesses at questions with real answers: do the groups exist before the policies, do the named locations exist before the policies that reference them, which persona is safe to enable first, and what does CA000–CA099 actually cover.</p>
+            <p class="mini" style="margin:6px 0 0">The plan is an in-app guide that reads the tenant while it explains: what each persona covers and its CA range, the <b>dependency order</b> (groups and restricted units → named locations, authentication strengths and contexts → Terms of use, which has no create API → policies, imported Off) with the reason for each step rather than just the sequence, and a <b>readiness check</b> per step that says what is missing before you run it instead of after. It ends where 🎚 Report-only impact begins: policies land Off, are switched to report-only, and are enforced once the forecast is boring.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🐳 Self-hosting with Docker <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">ENCA is static files and a browser — no server, no database, nothing stored anywhere. That makes it trivially self-hostable, and some tenants will require it: a security tool that reads Conditional Access is exactly the kind of thing an organisation wants served from its own infrastructure rather than from someone else's GitHub Pages, whatever the code does.</p>
+            <p class="mini" style="margin:6px 0 0">The plan is a published image (nginx over the built files) plus a <code>docker compose</code> example, so <code>docker run</code> gives a working instance. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. The one thing that cannot be automated is the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, so the documentation has to lead with that rather than bury it, since it is the step that produces the confusing sign-in error when missed.</p>
+          </div>
+          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">👤 Bulk grant scoped administrators <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Members can be added to a persona vault in bulk; the people who may manage them still cannot. A scoped role is granted one administrator, on one unit, at a time — so a four-person team across the eleven baseline units is <b>44</b> separate grants, and the failure mode is not the tedium but the gap: miss one unit and that persona has no administrator, which in a restricted unit means <b>nobody</b> can change its members.</p>
             <p class="mini" style="margin:6px 0 0">The plan is to pick the administrators once and the units once, and apply the grid — with each unit × administrator reported as its own outcome, because a partial success has to be readable rather than rounded to “done”. It should also show the <b>current</b> grants across all units together, since the question people actually ask is “who can manage the Externals exclusions?” and answering it today means opening eleven cards.</p>
@@ -2125,45 +2135,45 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25052"></script>
-<script src="js/version.js?v=25052"></script>
-<script src="js/promote.js?v=25052"></script>
-<script src="js/authConfig.js?v=25052"></script>
-<script src="js/labels.js?v=25052"></script>
-<script src="js/graph.js?v=25052"></script>
-<script src="js/model.js?v=25052"></script>
-<script src="js/render.js?v=25052"></script>
-<script src="js/analyze.js?v=25052"></script>
-<script src="js/whatif.js?v=25052"></script>
-<script src="js/mslearn.js?v=25052"></script>
-<script src="js/gapcheck.js?v=25052"></script>
-<script src="js/cisdata.js?v=25052"></script>
-<script src="js/cischeck.js?v=25052"></script>
-<script src="js/exclusions.js?v=25052"></script>
-<script src="js/validator.js?v=25052"></script>
-<script src="js/whatifeval.js?v=25052"></script>
-<script src="js/compare.js?v=25052"></script>
-<script src="js/groupuse.js?v=25052"></script>
-<script src="js/locations.js?v=25052"></script>
-<script src="js/authcontexts.js?v=25052"></script>
-<script src="js/authstrengths.js?v=25052"></script>
-<script src="js/recycle.js?v=25052"></script>
-<script src="js/rmau.js?v=25052"></script>
-<script src="js/termsofuse.js?v=25052"></script>
-<script src="js/audit.js?v=25052"></script>
-<script src="js/drift.js?v=25052"></script>
-<script src="js/signins.js?v=25052"></script>
-<script src="js/reportimpact.js?v=25052"></script>
-<script src="js/changelog.js?v=25052"></script>
-<script src="js/baselineData.js?v=25052"></script>
-<script src="js/baselineJoeyData.js?v=25052"></script>
-<script src="js/baseline.js?v=25052"></script>
-<script src="js/groupTemplates.js?v=25052"></script>
-<script src="js/assign.js?v=25052"></script>
-<script src="js/cagroups.js?v=25052"></script>
-<script src="js/import.js?v=25052"></script>
-<script src="js/export.js?v=25052"></script>
-<script src="js/demo.js?v=25052"></script>
-<script src="js/app.js?v=25052"></script>
+<script src="js/branding.js?v=25053"></script>
+<script src="js/version.js?v=25053"></script>
+<script src="js/promote.js?v=25053"></script>
+<script src="js/authConfig.js?v=25053"></script>
+<script src="js/labels.js?v=25053"></script>
+<script src="js/graph.js?v=25053"></script>
+<script src="js/model.js?v=25053"></script>
+<script src="js/render.js?v=25053"></script>
+<script src="js/analyze.js?v=25053"></script>
+<script src="js/whatif.js?v=25053"></script>
+<script src="js/mslearn.js?v=25053"></script>
+<script src="js/gapcheck.js?v=25053"></script>
+<script src="js/cisdata.js?v=25053"></script>
+<script src="js/cischeck.js?v=25053"></script>
+<script src="js/exclusions.js?v=25053"></script>
+<script src="js/validator.js?v=25053"></script>
+<script src="js/whatifeval.js?v=25053"></script>
+<script src="js/compare.js?v=25053"></script>
+<script src="js/groupuse.js?v=25053"></script>
+<script src="js/locations.js?v=25053"></script>
+<script src="js/authcontexts.js?v=25053"></script>
+<script src="js/authstrengths.js?v=25053"></script>
+<script src="js/recycle.js?v=25053"></script>
+<script src="js/rmau.js?v=25053"></script>
+<script src="js/termsofuse.js?v=25053"></script>
+<script src="js/audit.js?v=25053"></script>
+<script src="js/drift.js?v=25053"></script>
+<script src="js/signins.js?v=25053"></script>
+<script src="js/reportimpact.js?v=25053"></script>
+<script src="js/changelog.js?v=25053"></script>
+<script src="js/baselineData.js?v=25053"></script>
+<script src="js/baselineJoeyData.js?v=25053"></script>
+<script src="js/baseline.js?v=25053"></script>
+<script src="js/groupTemplates.js?v=25053"></script>
+<script src="js/assign.js?v=25053"></script>
+<script src="js/cagroups.js?v=25053"></script>
+<script src="js/import.js?v=25053"></script>
+<script src="js/export.js?v=25053"></script>
+<script src="js/demo.js?v=25053"></script>
+<script src="js/app.js?v=25053"></script>
 </body>
 </html>
