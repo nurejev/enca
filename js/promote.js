@@ -21,7 +21,7 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.253",
-  betaBuild: "v1.0.250-beta.27",
+  betaBuild: "v1.0.250-beta.28",
 
   items: [
     {
@@ -68,9 +68,9 @@ const PROMOTE = {
       n: 5,
       title: "③ Members: add a member",
       tools: ["Conditional Access groups"],
-      builds: [25022, 25024],
+      builds: [25022, 25024, 25028],
       risk: "low",
-      what: "An ＋ Add bar with directory type-ahead on the user, loaded groups on the other side, prefilled when only one group is loaded.",
+      what: "An ＋ Add bar with directory type-ahead on the user, loaded groups on the other side, prefilled when only one group is loaded. Includes the datalist fix: picking a suggestion no longer reopens the dropdown over the filled field.",
       why: "Convenience. Nothing in production is wrong without it.",
       files: ["js/app.js", "index.html"],
     },

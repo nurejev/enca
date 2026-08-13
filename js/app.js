@@ -3530,6 +3530,13 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id !== "cgAddUser") return;
     const term = String(e.target.value || "").trim();
     clearTimeout(cgAddTimer);
+    // Selecting from a <datalist> fires `input` just like typing does. Without
+    // this the pick re-runs the query, the options are rewritten, and the
+    // browser reopens the dropdown over a field you have already filled — so
+    // it looks like the choice did not take. An exact match against what is
+    // already offered means the value came from the list, not the keyboard.
+    const dlNow = $("cgUserSug");
+    if (dlNow && [...dlNow.options].some((o) => o.value === term)) return;
     if (term.length < 2 || isDemo) return;
     cgAddTimer = setTimeout(async () => {
       const f = term.replace(/'/g, "''");
@@ -5179,6 +5186,13 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!isGroup && !isUser) return;
     const term = String(e.target.value || "").trim();
     clearTimeout(ruSugTimer);
+    // Selecting from a <datalist> fires `input` just like typing does. Without
+    // this the pick re-runs the query, the options are rewritten, and the
+    // browser reopens the dropdown over a field you have already filled — so
+    // it looks like the choice did not take. An exact match against what is
+    // already offered means the value came from the list, not the keyboard.
+    const dlNow = $(isUser ? "ruUserSug" : "ruGroupSug");
+    if (dlNow && [...dlNow.options].some((o) => o.value === term)) return;
     if (term.length < 2 || isDemo) return;
     ruSugTimer = setTimeout(async () => {
       const f = term.replace(/'/g, "''");

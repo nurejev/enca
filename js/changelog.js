@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25028, date: "2026-08-12", title: "Picking a suggestion sticks",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "Choosing a name from the scoped-administrator suggestions filled the field and then immediately reopened the dropdown over it, so the choice looked as though it had not taken. Cause: selecting from a <datalist> fires the same input event as typing does, so the pick re-ran the directory query, rewrote the options, and the browser reopened the list. A query is now skipped when the field exactly matches an option already offered \u2014 which means the value came from the list rather than the keyboard. Typing something new still searches, so nothing is lost." },
+      { kind: "fixed", tool: "Conditional Access groups", text: "The same fix on the \u2462 Members \u002b Add bar (user and group) and on the Restricted AUs add-member box \u2014 all four type-ahead fields in the tool behaved this way, so all four are guarded rather than only the one that was reported." },
+    ],
+  },
+  {
     build: 25027, date: "2026-08-12", title: "A list of what is waiting for production",
     items: [
       { kind: "new", tool: "All tools", text: "Help gains 🚚 Waiting for production, visible ONLY on the beta channel — the same non-production host test the BETA ribbon uses, so nobody on enca.limon-it.nl sees a list of things they do not have. It shows both build numbers and every promotable change as a NUMBERED row with what it is, why it matters, the beta builds it spans, the files it touches, and a risk rating: high means a real problem in production until it lands, medium a missing capability with nothing broken, low convenience or documentation. The numbers are stable and hand-assigned so a change can be named out loud — \u201cpush number 3 to main\u201d. A second list records what is deliberately NOT promoted (today the CIS Benchmark) so the absence reads as a decision rather than an oversight. It is hand-maintained in js/promote.js, because the app is static files in a browser and cannot read git or diff two branches \u2014 the section says so itself, and tells you to trust the changelog and the build numbers over the table if they ever disagree." },
