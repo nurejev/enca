@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=253"></script>
+<script src="js/popup-guard.js?v=254"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=253">
+<link rel="stylesheet" href="css/app.css?v=254">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=253"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=253"></script>
+<script src="js/counter.js?v=254"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=254"></script>
 </head>
 <body>
 
@@ -491,6 +491,7 @@
         <button data-cgtab="assign">④ Assign</button>
         <button data-cgtab="csv">⑤ Import members</button>
         <button data-cgtab="rmau">⑥ Protect</button>
+        <button data-cgtab="migrate">⑦ Migrate <span class="tag new">BETA</span></button>
       </div>
       <input type="file" id="cgCsvFile" accept=".csv,text/csv,text/plain" style="display:none">
       <div class="chip-filter" id="cgChips"></div>
@@ -508,6 +509,10 @@
       </div>
     </div>
     <div id="cgBody"></div>
+    <!-- Shared by ③ Members' add-member bar. One datalist each, outside the
+         repeated rows — per-row ids are the duplicate-id trap from build 23016. -->
+    <datalist id="cgUserSug"></datalist>
+    <datalist id="cgGroupSug"></datalist>
   </section>
 
   <!-- ============ PROTECT EXCLUSIONS (standalone view of CA groups ⑥) ============ -->
@@ -1062,6 +1067,17 @@
             <h4 style="margin:0 0 4px">🍴 Fork detection and update-from-upstream <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">A high-assurance tenant is encouraged to fork, review and serve its own pinned copy — and the moment it does, it stops hearing about fixes. The plan: the app notices it is running as a fork (its origin is not <code>BRANDING.host</code> and the build it carries is older than upstream), says so plainly, and shows what has changed since the pinned build — the What's-new entries between here and there — with the commands to pull <code>main</code> in and re-review the diff. The point is not auto-updating, which would defeat the reason for forking; it is making <b>“you are 14 builds behind, and here is what those builds changed”</b> impossible to miss. Pairs with <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a> and the security document's fork-review-pin guidance.</p>
           </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🧹 Retire role-assignable groups everywhere <span class="tag ok">started</span></h4>
+            <p class="mini" style="margin:0">The baseline is moving off role-assignable groups: the flag was only ever used for a side effect — membership reachable by Global Administrator or Privileged Role Administrator only — and a restricted management administrative unit does that better, names <i>who</i> may manage the group, and can be undone. It also cannot be combined with one: a group carrying both has nobody who can change its members.
+              <br><b>Done:</b> new groups are ordinary security groups (assigned or dynamic) with an optional restricted-AU placement at creation; the role-assignable checkbox and the ↻ Recreate-role-assignable action are gone; the ① Check drift flag is inverted, so a plain group is correct and a role-assignable one is what gets flagged; <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> moves existing ones across.
+              <br><b>Still to do:</b> the bundled group templates and the baseline catalog still describe an estate built on role-assignable groups; the MS Learn and CIS checks, Group Analyzer and the documentation exports still mention it as the expected shape; and the persona <b>import</b> path should create protected groups directly rather than leaving protection as a later step. Production keeps creating role-assignable groups until this lands there.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px">🎛 Group actions where you are already looking <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Clicking a group in <a href="#" class="md-tool" data-tool="toolCaGroups">👥 CA groups</a> ① Check opens a card that <i>reads</i>: object id, type, the policies that include or exclude it, its members. Everything you might then want to <i>do</i> lives on a different numbered tab, so you close the card, find the right step, and hunt for the group again. <b>List Policies already solves this</b> — every policy card carries its own Documentation, Backup, Assign and Policy-state buttons.
+              <br>The plan is the same treatment for a group: create it if it is missing (②), read or add members (③), assign it to policies (④), import members from CSV (⑤), protect it in a restricted AU (⑥), migrate it off role-assignable (⑦), disable nesting, or open it in <a href="#" class="md-tool" data-tool="toolGroupUse">🔗 Group Analyzer</a> to see everything outside Conditional Access that points at it — each offered only when it actually applies, so a role-assignable group is not offered ⑥ Protect and a group already in a restricted AU is not offered it twice.</p>
+          </div>
                     <div class="list-card rm-card">
             <h4 style="margin:0 0 4px">🔐 Improve security <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
@@ -1364,17 +1380,22 @@
         Two things make this awkward, and the tool is explicit about both. <b>Reading it is not free</b>: a plain read does not return the property at all, so ENCA asks for it separately and reports three states — disabled, allowed, or <i>not reported</i> (which honestly means "this tenant does not surface it yet", not "allowed"). <b>Writing it is undocumented</b>: Microsoft lists a dedicated permission for updating it but does not list the property as updatable, and in the field it currently only takes at creation. So ENCA <b>tries the in-place change first</b> — and verifies it by reading the value back, because Entra will accept a PATCH and silently ignore a property it does not know. Only if that genuinely fails does it offer to <b>recreate</b> the group: rename the current one aside, create it again with nesting disabled, move the user members and repoint every Conditional Access assignment. That path is behind its own typed confirmation, never the first one. When Microsoft finishes shipping this, the recreate simply stops being offered.<br>
         <b>It refuses to run on a group that already contains nested groups.</b> A nesting-disabled group cannot hold them, so recreating would silently drop those memberships and every user who was only a member through them. The tool names the nested groups and stops, so you resolve it deliberately.<br>
         A recreate gives the group a <b>new object ID</b>. Conditional Access is moved for you; app assignments, Intune, group-based licensing and Azure RBAC are not — run <b>Group Analyzer</b> on the group first. The old group is renamed, not deleted, so it is recoverable. Needs <code>Group-NestingSupport.ReadWrite.All</code> and <code>Group.ReadWrite.All</code> (on demand). <a href="https://ourcloudnetwork.com/how-to-disable-group-nesting-in-microsoft-entra-id/" target="_blank" rel="noopener noreferrer">Background by Daniel Bradley ↗</a></li>
-        <li><b>⑥ Protect <span class="tag new">NEW</span></b> — place the CA <b>exclusion</b> groups in a <b>restricted management administrative unit</b>. Membership of an exclusion group is a CA bypass, and any tenant-level Groups/User Administrator can hand it out; with the groups in a restricted AU (<code>isMemberManagementRestricted</code>, immutable at creation) only roles <b>scoped to that AU</b> can change members — Global Administrator included. Shows which exclusion groups are already protected, pre-selects the unprotected <b>assigned</b> exclusion groups (dynamic groups are opt-in — their membership follows a rule), creates or reuses the restricted AU, and optionally grants one account Groups Administrator <b>scoped to the AU</b> so membership stays manageable (do this — otherwise member changes need a new scoped assignment first). Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and P1. Only cloud security groups can be added; note that ⑤ Import members will afterwards need an AU-scoped role for these groups.</li>
+        <li><b>⑥ Protect <span class="tag new">NEW</span></b> — place the CA <b>exclusion</b> groups in a <b>restricted management administrative unit</b>. Membership of an exclusion group is a CA bypass, and any tenant-level Groups/User Administrator can hand it out; with the groups in a restricted AU (<code>isMemberManagementRestricted</code>, immutable at creation) only roles <b>scoped to that AU</b> can change members — Global Administrator included. Shows which exclusion groups are already protected, pre-selects the unprotected <b>assigned</b> exclusion groups (dynamic groups are opt-in — their membership follows a rule), creates or reuses the restricted AU, and optionally grants one account Groups Administrator <b>scoped to the AU</b> so membership stays manageable (do this — otherwise member changes need a new scoped assignment first). Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and P1. Only cloud security groups can be added; note that ⑤ Import members will afterwards need an AU-scoped role for these groups. <b>Role-assignable groups are refused here</b> — their membership is already limited to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two, so a group with both protections has nobody who can edit its members. Choose one or the other.</li>
         <li><b>⑤ Import members <span class="tag new">NEW</span></b> — bulk-add deployment-test users from a CSV. A <b>UPN column</b> is enough; with a <b>Persona column</b> (multi-persona cells split on <code>, ; |</code> or spaces) each user is auto-routed to the mapped group, pre-matched against the tenant’s group names — abbreviated conventions included (<code>internals → …-INT</code>). Only <b>baseline</b> groups (templates + active catalogs) are offered by default; ad-hoc groups that policies merely reference need an explicit opt-in checkbox. Users are resolved and existing memberships pre-checked (already-members are skipped), the plan is shown per group for review, and only then are members added. Dynamic groups are excluded — their membership is rule-managed. Ends with a Markdown change report.</li>
       </ul>
-      <p class="help-x">Writes only on Create / Recreate / Make dynamic / Assign / Import members / Protect, each behind a confirmation.</p>
+        <li><b>⑦ Migrate <span class="tag new">BETA</span></b> — move the baseline off <b>role-assignable</b> groups and onto a <b>restricted management administrative unit</b>. Role-assignable was only ever used here for its side effect: membership reachable only by Global Administrator or Privileged Role Administrator. A restricted AU does that <i>and</i> lets you name who may manage the groups, and it drops the role-assignable costs (500-per-tenant cap, no dynamic membership, no nesting control). The two cannot be combined — a restricted AU blocks GA and PRA, so a role-assignable group inside one has <b>nobody</b> who can change its members.
+          <br><code>isAssignableToRole</code> is immutable, so each group is <b>recreated</b>, in this order: rename the current group aside as <code>(migrated YYYY-MM-DD)</code>, create a plain group under the original name (nesting disabled by default — the one property the role-assignable flag gave you for free), <b>copy the members</b>, add the new group to every policy, remove the old one, and only then place the new group in the restricted AU. Members move <b>before</b> the AU placement because afterwards only an AU-scoped role could add them; the new group joins each policy <b>before</b> the old one leaves, so no exclusion ever briefly vanishes.
+          <br><b>Skipped, with the reason shown:</b> a group that holds a directory role (a plain group cannot carry one — deal with the role first), one already inside a restricted AU, one not in the tenant, and one already plain. A group whose role check fails is skipped rather than risked.
+          <br><b>Select all / deselect all</b> above the list, and the restricted-AU placement is <b>optional</b> — untick it to convert in stages, verify the members, then place the groups from ⑥ Protect when ready (they are ordinary groups by then, so Protect handles them like any other). A converted-but-unplaced group is editable by any tenant-wide Groups Administrator until you do.
+          <br>The archived originals keep their members and stay role-assignable — they are your rollback until you delete them from <b>🧹 Archived groups</b>. Needs <code>Group.ReadWrite.All</code>, <code>RoleManagement.ReadWrite.Directory</code>, <code>AdministrativeUnit.ReadWrite.All</code> and <code>Policy.ReadWrite.ConditionalAccess</code>, plus <b>Privileged Role Administrator</b>.</li>
+      <p class="help-x">Writes only on Create / Make dynamic / Assign / Import members / Protect / Migrate, each behind a confirmation.</p>
     </section>
 
     <section class="help-sec">
       <h4>🔒 Protect exclusions <span class="tag new">NEW</span> <span class="tag block">writes to tenant</span></h4>
       <p>The exclusion-group protection workflow as its own tool — identical to <b>Conditional Access groups → ⑥ Protect</b>, just reachable directly from the home grid.</p>
       <ul>
-        <li><b>What it does</b> — creates the restricted management administrative unit if it doesn't exist (or reuses an existing restricted one), shows which exclusion groups are already protected, adds the selected groups, and can grant one account Groups Administrator <b>scoped to the AU</b>. Explicit acknowledgement before anything is written; Markdown change report after.</li>
+        <li><b>What it does</b> — creates the restricted management administrative unit if it doesn't exist (or reuses an existing restricted one), shows which exclusion groups are already protected, adds the selected groups, and can grant one account Groups Administrator <b>scoped to the AU</b>. Explicit acknowledgement before anything is written; Markdown change report after. <b>Role-assignable groups are refused here</b> — their membership is already limited to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two, so a group with both protections has nobody who can edit its members. Choose one or the other.</li>
         <li><b>Shared state</b> — it uses the same group scan and selection as CA groups ⑥, so switching between the two views keeps your work.</li>
       </ul>
       <p class="help-x">Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and Entra ID P1 for administrative-unit administrators. See the CA groups section above for the full detail and caveats.</p>
@@ -1638,19 +1659,6 @@
     <div class="row">
       <button class="btn" id="nestRcCancel">Cancel</button>
       <button class="btn primary" id="nestRcGo" disabled>Recreate &amp; move</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-bg" id="recreateModal">
-  <div class="modal" style="max-width:620px">
-    <h3>↻ Recreate as role-assignable</h3>
-    <div id="recreateBody" class="md-view" style="max-height:52vh"></div>
-    <label class="mini" for="recreateOk" style="display:block;margin-top:10px">Type <b>RECREATE</b> to confirm</label>
-    <input id="recreateOk" class="txt" placeholder="RECREATE" autocomplete="off" spellcheck="false" style="margin-top:4px">
-    <div class="row">
-      <button class="btn" id="recreateCancel">Cancel</button>
-      <button class="btn primary" id="recreateGo" disabled>Recreate &amp; move policies</button>
     </div>
   </div>
 </div>
@@ -2041,42 +2049,42 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=253"></script>
-<script src="js/version.js?v=253"></script>
-<script src="js/authConfig.js?v=253"></script>
-<script src="js/labels.js?v=253"></script>
-<script src="js/graph.js?v=253"></script>
-<script src="js/model.js?v=253"></script>
-<script src="js/render.js?v=253"></script>
-<script src="js/analyze.js?v=253"></script>
-<script src="js/whatif.js?v=253"></script>
-<script src="js/mslearn.js?v=253"></script>
-<script src="js/gapcheck.js?v=253"></script>
-<script src="js/exclusions.js?v=253"></script>
-<script src="js/validator.js?v=253"></script>
-<script src="js/whatifeval.js?v=253"></script>
-<script src="js/compare.js?v=253"></script>
-<script src="js/groupuse.js?v=253"></script>
-<script src="js/locations.js?v=253"></script>
-<script src="js/authcontexts.js?v=253"></script>
-<script src="js/authstrengths.js?v=253"></script>
-<script src="js/recycle.js?v=253"></script>
-<script src="js/termsofuse.js?v=253"></script>
-<script src="js/rmau.js?v=253"></script>
-<script src="js/audit.js?v=253"></script>
-<script src="js/drift.js?v=253"></script>
-<script src="js/signins.js?v=253"></script>
-<script src="js/reportimpact.js?v=253"></script>
-<script src="js/changelog.js?v=253"></script>
-<script src="js/baselineData.js?v=253"></script>
-<script src="js/baselineJoeyData.js?v=253"></script>
-<script src="js/baseline.js?v=253"></script>
-<script src="js/groupTemplates.js?v=253"></script>
-<script src="js/assign.js?v=253"></script>
-<script src="js/cagroups.js?v=253"></script>
-<script src="js/import.js?v=253"></script>
-<script src="js/export.js?v=253"></script>
-<script src="js/demo.js?v=253"></script>
-<script src="js/app.js?v=253"></script>
+<script src="js/branding.js?v=254"></script>
+<script src="js/version.js?v=254"></script>
+<script src="js/authConfig.js?v=254"></script>
+<script src="js/labels.js?v=254"></script>
+<script src="js/graph.js?v=254"></script>
+<script src="js/model.js?v=254"></script>
+<script src="js/render.js?v=254"></script>
+<script src="js/analyze.js?v=254"></script>
+<script src="js/whatif.js?v=254"></script>
+<script src="js/mslearn.js?v=254"></script>
+<script src="js/gapcheck.js?v=254"></script>
+<script src="js/exclusions.js?v=254"></script>
+<script src="js/validator.js?v=254"></script>
+<script src="js/whatifeval.js?v=254"></script>
+<script src="js/compare.js?v=254"></script>
+<script src="js/groupuse.js?v=254"></script>
+<script src="js/locations.js?v=254"></script>
+<script src="js/authcontexts.js?v=254"></script>
+<script src="js/authstrengths.js?v=254"></script>
+<script src="js/recycle.js?v=254"></script>
+<script src="js/termsofuse.js?v=254"></script>
+<script src="js/rmau.js?v=254"></script>
+<script src="js/audit.js?v=254"></script>
+<script src="js/drift.js?v=254"></script>
+<script src="js/signins.js?v=254"></script>
+<script src="js/reportimpact.js?v=254"></script>
+<script src="js/changelog.js?v=254"></script>
+<script src="js/baselineData.js?v=254"></script>
+<script src="js/baselineJoeyData.js?v=254"></script>
+<script src="js/baseline.js?v=254"></script>
+<script src="js/groupTemplates.js?v=254"></script>
+<script src="js/assign.js?v=254"></script>
+<script src="js/cagroups.js?v=254"></script>
+<script src="js/import.js?v=254"></script>
+<script src="js/export.js?v=254"></script>
+<script src="js/demo.js?v=254"></script>
+<script src="js/app.js?v=254"></script>
 </body>
 </html>

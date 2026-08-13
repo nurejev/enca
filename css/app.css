@@ -213,6 +213,11 @@ table.plist tr:hover td{background:var(--hover)}
 .cg-progress{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin:10px 0}
 .cg-progress > div{height:100%;background:var(--green);transition:width .2s}
 .cg-pick{max-height:44vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-top:8px}
+/* The controls under a long pick list stay reachable while you tick through it,
+   so choosing the last of forty groups does not mean scrolling back down to
+   find the button. Sticks to the bottom of the viewport, inside its panel. */
+.cg-actionbar{position:sticky;bottom:0;z-index:20;background:var(--surface);
+
 
 /* ---------- What-If flow (per policy + simulator) ---------- */
 .wf-flow{max-width:640px;margin:0 auto}

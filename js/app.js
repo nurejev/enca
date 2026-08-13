@@ -1612,6 +1612,7 @@
   // does not, read who is in them, and assign them to policies. The assign step
   // is the former standalone tool, unchanged — it just lives here now, next to
   // the groups it assigns.
+  let cgmMsg = null;   // ② Create result line — survives the re-scan that follows a create
   let cgRes = null, cgTab = "check", cgFilter = "all", cgQuery = "", cgBusy = false, cgStop = false;
   // Default scope: only the groups the tenant's CA policies actually reference.
   // "all" additionally expects every template / baseline group (finds missing).
@@ -1687,7 +1688,7 @@
     $("cgArchived").style.display = cgTab === "check" ? "inline-flex" : "none";
     $("cgSearch").placeholder = cgTab === "members"
       ? "Search member name or UPN…" : "Search group name or object ID…";
-    $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" || cgTab === "csv" || cgTab === "rmau" ? "none" : "";
+    $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" || cgTab === "csv" || cgTab === "rmau" || cgTab === "migrate" ? "none" : "";
 
     if (cgTab === "check") {
       $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery);
@@ -1708,6 +1709,8 @@
     } else if (cgTab === "rmau") {
       rmauStandalone = false;
       renderCgRmau();
+    } else if (cgTab === "migrate") {
+      renderCgMigrate();
     } else {
       renderCgAssign();
     }
@@ -1757,16 +1760,20 @@
         <p class="mini muted" style="margin-top:4px">Entra dynamic-membership syntax. The group is created with the rule processing <b>On</b>.</p>
       </div>
 
-      <h5 class="mini" style="margin:16px 0 6px">ROLE-ASSIGNABLE</h5>
-      <label class="chk" id="cgmRoleWrap" style="margin:5px 0"><input type="checkbox" id="cgmRole"> Make this group <b>role-assignable</b> <span class="mini muted">(<code>isAssignableToRole</code> — lets it hold directory roles; immutable after creation)</span></label>
-      <p class="mini" id="cgmRoleNote" style="display:none;color:var(--report)">Dynamic groups cannot be role-assignable — Entra forbids the combination, so this is off for a dynamic group.</p>
+      <h5 class="mini" style="margin:16px 0 6px">PROTECTION</h5>
+      <label class="chk" style="margin:5px 0"><input type="checkbox" id="cgmRmau"> Place it in a <b>restricted management administrative unit</b> <span class="mini muted">(only roles scoped to that AU can change the members)</span></label>
+      <div id="cgmRmauWrap" style="display:none;margin:6px 0 0 24px">
+        <select id="cgmRmauPick" class="btn" style="cursor:pointer;width:auto"></select>
+        <p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ Order matters: once the group is in the AU, only an <b>AU-scoped role</b> can add members — including this tool. For an <b>assigned</b> group, add the members first and protect it afterwards from ⑥ Protect, unless you already hold a scoped role. A <b>dynamic</b> group fills itself from its rule, so protecting it at creation is safe.</p>
+      </div>
+      <p class="mini muted" id="cgmRoleWrap" style="margin:8px 0 0"><b>Role-assignable is no longer offered.</b> That flag was only ever used to keep membership out of reach of tenant-wide group administrators, and a restricted AU does the same job, names <i>who</i> may manage it, and can be undone. The two cannot be combined: a role-assignable group admits only Global Administrator and Privileged Role Administrator, and a restricted AU blocks exactly those two. Existing ones move across with <b>⑦ Migrate</b>.</p>
+      <p class="mini" id="cgmRoleNote" style="display:none"></p>
 
-      <div id="cgmLog" class="mini" style="margin-top:10px"></div>
+      <div id="cgmLog" class="mini" style="margin-top:10px">${cgmMsg || ""}</div>
       <div class="row" style="justify-content:flex-start;margin-top:12px">
         <button class="btn primary" id="cgmCreate">Create group${isDemo ? " (simulated)" : ""}</button>
       </div>
-      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled. Requires the Privileged Role Administrator role for role-assignable groups;
-        consents <code>Group.ReadWrite.All</code> + <code>RoleManagement.ReadWrite.Directory</code> on demand. An existing group with the same name is reused.</p>
+      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled. Consents <code>Group.ReadWrite.All</code> on demand, plus <code>AdministrativeUnit.ReadWrite.All</code> if you protect it. An existing group with the same name is reused.</p>
     </div>`;
 
     $("cgBody").innerHTML = batch + manual;
@@ -2067,6 +2074,53 @@ max@contoso.com,"Global, DevOps"</pre>
 
   // Shared by both hosts (CA groups ⑥ tab and the standalone tool tile).
   async function rmauClick(e) {
+    // Select / deselect every SELECTABLE candidate. Role-assignable groups and
+    // already-protected ones have disabled checkboxes, so they are not counted
+    // and not toggled — an "all" that includes rows you cannot tick is a lie.
+    if (e.target.id === "cgRmauRecheck") {
+      const t = cgRmau;
+      if (!t || rmauBusy) return true;
+      rmauBusy = true;
+      rmauBody().innerHTML = rmauBusyPanel();
+      const say = (m, i, n) => { const el = $("cgRmauStatus"); if (el) el.textContent = m;
+        const b = $("cgRmauBar"); if (b) b.innerHTML = progInline(i, n); };
+      try {
+        // Re-read the administrative units too — one may have been created since.
+        if (!isDemo) {
+          const aus = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
+          t.rmaus = aus.filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
+        }
+        const cands = CaGroups.rmauCandidates(cgRes);
+        for (let i = 0; i < cands.length; i++) {
+          say(`Re-checking ${cands[i].name}… ${i + 1}/${cands.length}`, i + 1, cands.length);
+          if (isDemo) continue;
+          try {
+            const r = await Graph.gget(`/groups/${cands[i].id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
+            const hit = ((r && r.value) || []).find((a) => a.isMemberManagementRestricted === true);
+            t.status.set(cands[i].id, hit ? { auId: hit.id, auName: hit.displayName } : null);
+          } catch { /* leave the previous answer rather than inventing one */ }
+        }
+        // A group that is protected now cannot also be selected for protecting.
+        for (const g of cands) if (t.status.get(g.id)) t.sel.delete(g.id);
+      } catch (err) {
+        toast(`Re-check failed: <span>${esc(err.message || err)}</span>`);
+      }
+      rmauBusy = false;
+      renderCgRmau();
+      return true;
+    }
+    if (e.target.id === "cgRmauAll") {
+      const t = cgRmau;
+      if (t) {
+        const pick = CaGroups.rmauCandidates(cgRes).filter((g) => !t.status.get(g.id) && !g.roleAssignable);
+        const on = pick.filter((g) => t.sel.has(g.id)).length;
+        if (on === pick.length) pick.forEach((g) => t.sel.delete(g.id));
+        else pick.forEach((g) => t.sel.add(g.id));
+        renderCgRmau();
+      }
+      return true;
+    }
+
     if (e.target.closest("[data-rmaurun]")) { await cgRmauScan(); return true; }
     if (e.target.id === "cgRmauGo") { await cgRmauApply(e.target); return true; }
     if (e.target.id === "cgRmauAgain") { cgRmau = null; await cgRmauScan(); return true; }
@@ -2162,6 +2216,344 @@ max@contoso.com,"Global, DevOps"</pre>
   $("prBody").addEventListener("input", rmauInput);
   $("prBody").addEventListener("click", (e) => { rmauClick(e); });
   $("prBody").addEventListener("change", (e) => { rmauChange(e); });
+
+  // ---------- ⑦ Migrate: role-assignable -> plain group in a restricted AU ----------
+  // The destructive one. Everything here is ordered so that a failure leaves the
+  // tenant covered: the new group joins every policy BEFORE the old one leaves,
+  // and it enters the restricted AU only AFTER its members are in — once inside,
+  // nothing but an AU-scoped role could add them.
+  let cgMig = null;      // { plan, aus, auChoice, auName, results, ack, nesting, toAu, sel }
+  let cgMigBusy = false; // a scan in flight — survives navigating away and back
+
+  function migBody() { return $("cgBody"); }
+
+  async function cgMigScan() {
+    if (cgMigBusy) return;
+    cgMigBusy = true;
+    migBody().innerHTML = migBusyPanel();
+    const say = (m, i, n) => { const el = $("cgMigStatus"); if (el) el.textContent = m;
+      const b = $("cgMigBar"); if (b) b.innerHTML = progInline(i, n); };
+    try {
+      if (!cgRes) {
+        cgRes = isDemo ? demoGroupScan() : await CaGroups.scan(policies, { scope: cgScope, onStatus: say });
+      }
+      // Only role-assignable baseline groups are candidates; the rest are listed
+      // as skipped so the wizard is honest about what it is not doing.
+      const rows = (cgRes.rows || []).filter((r) => r.id || r.roleAssignable);
+      const roles = new Map(), protectedIn = new Map();
+      const cands = rows.filter((r) => r.id && r.roleAssignable);
+      for (let i = 0; i < cands.length; i++) {
+        say(`Checking ${cands[i].name}… ${i + 1}/${cands.length}`, i + 1, cands.length);
+        if (isDemo) {
+          roles.set(cands[i].id, { ok: true, active: [], eligible: [] });
+          if (cands[i].memberTotal == null) cands[i].memberTotal = 2;   // demo fixture
+          continue;
+        }
+        roles.set(cands[i].id, await CaGroups.heldRoles(cands[i].id));
+        // How many members will actually be copied, so the preview can say so
+        // BEFORE you commit. Counted the same way the copy reads them — DIRECT
+        // members of every type — not transitiveMembers/user like the ③ Members
+        // tab, which would report a different number than the one that moves.
+        if (cands[i].memberTotal == null) {
+          try {
+            const ms = await Graph.ggetAll(`/groups/${cands[i].id}/members?$select=id&$top=999`);
+            cands[i].memberTotal = ms.length;
+          } catch (e) { console.warn("member count failed for", cands[i].name, e.message); }
+        }
+        try {
+          const r = await Graph.gget(`/groups/${cands[i].id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
+          const hit = ((r && r.value) || []).find((a) => a.isMemberManagementRestricted === true);
+          if (hit) protectedIn.set(cands[i].id, { auId: hit.id, auName: hit.displayName });
+        } catch { /* not fatal: the plan just will not know */ }
+      }
+      let aus = [];
+      if (!isDemo) {
+        aus = (await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted"))
+          .filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
+      }
+      const auChoice = aus.length ? aus[0].id : "new";
+      const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME;
+      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: true, toAu: true, sel: null,
+        plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: true }) };
+    } catch (e) {
+      console.error("Migrate scan failed:", e);
+      cgMigBusy = false;
+      migBody().innerHTML = `<div class="cg-panel"><h4>SCAN FAILED</h4>
+        <p class="mini" style="color:var(--off);margin:0">${esc(e.message || e)}</p>
+        <div class="row" style="justify-content:flex-start;margin-top:12px"><button class="btn" data-migrun>▶ Try again</button></div></div>`;
+      return;
+    }
+    cgMigBusy = false;
+    renderCgMigrate();
+  }
+
+  const migBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgMigStatus">Scanning… this keeps running if you switch tabs.</p><div id="cgMigBar" style="width:100%"></div></div>';
+
+  function renderCgMigrate() {
+    // Same manners as ⑥ Protect: nothing scans until asked — this one reads
+    // every role-assignable group's directory-role assignments AND its member
+    // count, which is far too much work to fire off just because a tab was
+    // clicked. A scan in flight survives navigating away; the result stays
+    // until an explicit rescan.
+    if (cgMigBusy) { migBody().innerHTML = migBusyPanel(); return; }
+    if (!cgMig) {
+      migBody().innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-migrun>▶ Scan for role-assignable groups</button>
+        <p class="mini muted">Reads the baseline groups, checks each role-assignable one for directory roles and restricted-AU membership, and counts the members that would move. Nothing is written. The result stays until you rescan.</p>
+      </div>`;
+      return;
+    }
+    const t = cgMig;
+    if (t.results) { renderCgMigResults(); return; }
+
+    const p = t.plan;
+    const sel = t.sel || new Set(p.eligible.map((x) => x.id));
+    const nSel = p.eligible.filter((x) => sel.has(x.id)).length;
+    const auOptions = [...t.aus.map((a) => `<option value="${esc(a.id)}"${t.auChoice === a.id ? " selected" : ""}>${esc(a.name)}</option>`),
+      `<option value="new"${t.auChoice === "new" ? " selected" : ""}>➕ Create “${esc(RMAU_DEFAULT_NAME)}”</option>`].join("");
+
+    const rows = p.eligible.map((x) => `<div style="padding:8px 0;border-top:1px solid var(--border)">
+        <label class="chk" style="margin:0"><input type="checkbox" data-cgmig="${esc(x.id)}"${sel.has(x.id) ? " checked" : ""}>
+          <b>${esc(x.name)}</b></label>
+        <span class="tag">${x.nRef} polic${x.nRef === 1 ? "y" : "ies"}</span>${x.memberTotal != null ? ` <span class="tag">${x.memberTotal} member${x.memberTotal === 1 ? "" : "s"}</span>` : ""}
+        <ol class="mini muted" style="margin:6px 0 0 20px;padding:0">${x.steps.map((q) => `<li>${esc(q.text)}</li>`).join("")}</ol>
+      </div>`).join("");
+
+    migBody().innerHTML = `
+      <div class="cg-panel">
+        <h4>WHY MIGRATE</h4>
+        <p class="mini" style="margin:0 0 8px">Your CA exclusion groups were made <b>role-assignable</b> to keep their membership away from tenant-wide group administrators. A <b>restricted management administrative unit</b> does that job better: it lets you <b>name</b> who may manage them, instead of leaving it to anyone holding Privileged Role Administrator. It also drops the role-assignable costs — the 500-per-tenant cap, no dynamic membership, and no control over nesting.</p>
+        <p class="mini" style="margin:0 0 8px;color:var(--off)"><b>The two cannot be combined.</b> A role-assignable group admits only Global Administrator or Privileged Role Administrator; a restricted AU blocks exactly those two, and neither can be scoped to an AU. A group with both has <b>nobody</b> who can change its members.</p>
+        <p class="mini muted" style="margin:0"><code>isAssignableToRole</code> is immutable, so each group is <b>recreated</b>: the old one is renamed aside and kept as your rollback, the new one takes its name, members and policy assignments.</p>
+      </div>
+
+      ${p.eligible.length ? `<div class="cg-panel">
+        <h4>MIGRATE ${p.eligible.length} GROUP${p.eligible.length === 1 ? "" : "S"}</h4>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          ${p.eligible.length > 1 ? `<button class="btn sm" id="cgMigAll">${nSel === p.eligible.length ? "☐ Deselect all" : "☑ Select all"}</button>` : ""}
+          <span class="mini muted">${nSel} of ${p.eligible.length} selected</span>
+        </div>
+        <div class="cg-pick">${rows}</div>
+        <div class="cg-actionbar">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
+          <label class="chk" style="margin:0"><input type="checkbox" id="cgMigToAu"${t.toAu !== false ? " checked" : ""}> Place the new groups in a restricted AU now</label>
+          <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px;margin:0"><span>Restricted AU</span>
+            <select id="cgMigAu" class="btn" style="cursor:pointer;width:auto"${t.toAu === false ? " disabled" : ""}>${auOptions}</select></label>
+          <label class="chk" style="margin:0"><input type="checkbox" id="cgMigNest"${t.nesting ? " checked" : ""}> Disable nesting on the new groups</label>
+        </div>
+        ${t.toAu === false
+          ? `<p class="mini" style="margin:8px 0 0;color:var(--report)">The groups will be converted but left <b>unprotected</b> — an ordinary group any tenant-wide Groups Administrator can edit. That is fine as a staged migration: convert now, verify the members, then place them from <b>⑥ Protect</b> when ready.</p>`
+          : `<p class="mini muted" style="margin:8px 0 0">Nesting off keeps the one property the role-assignable flag gave you for free: no group can be added as a member, so nobody widens an exclusion by nesting a group inside it.</p>`}
+        <label class="chk" style="display:block;margin-top:14px"><input type="checkbox" id="cgMigAck"${t.ack ? " checked" : ""}> I understand each group is <b>recreated</b>: the current group is renamed aside, a new one takes its name and members, every policy is repointed${t.toAu === false ? "" : ", and the new group is placed in the restricted AU — after which only an <b>AU-scoped role</b> can change its members"}.</label>
+        <div class="row" style="justify-content:flex-start;margin-top:12px">
+          <button class="btn primary" id="cgMigGo">Migrate</button>
+          <button class="btn" id="cgMigRescan">⟳ Rescan</button>
+        </div>
+        <div id="cgMigBar2" style="display:none;width:100%;margin-top:12px"></div>
+        <div id="cgMigLog" class="mini" style="margin-top:8px"></div>
+        </div>
+      </div>` : `<div class="cg-panel">
+        <h4>NOTHING TO MIGRATE</h4>
+        <p class="mini" style="margin:0">No role-assignable baseline group is eligible.${p.skipped.length ? " See below for why." : ""}</p>
+        <div class="row" style="justify-content:flex-start;margin-top:12px"><button class="btn" id="cgMigRescan">⟳ Rescan</button></div>
+      </div>`}
+
+      ${p.skipped.length ? `<div class="cg-panel">
+        <h4>NOT MIGRATED (${p.skipped.length})</h4>
+        ${p.skipped.map((x) => `<div style="padding:6px 0;border-top:1px solid var(--border)"><span class="mini"><b>${esc(x.name)}</b> — ${esc(x.reason)}</span></div>`).join("")}
+      </div>` : ""}`;
+  }
+
+  function renderCgMigResults() {
+    const t = cgMig, r = t.results;
+    const ok = r.filter((x) => x.ok).length;
+    const outside = r.filter((x) => x.ok && !x.inAu);
+    migBody().innerHTML = `<div class="cg-panel">
+        <h4>MIGRATION ${ok === r.length ? "COMPLETE" : "FINISHED WITH FAILURES"}</h4>
+        <p class="mini"><b style="color:var(--on)">${ok} of ${r.length} migrated</b>${ok === r.length ? "" : ` · <b style="color:var(--off)">${r.length - ok} failed</b>`}</p>
+        ${r.map((x) => `<div style="padding:8px 0;border-top:1px solid var(--border)">
+            <span class="tag ${x.ok ? "grant" : "block"}">${x.ok ? "migrated" : "failed"}</span> <b>${esc(x.name)}</b>
+            ${x.membersMoved != null && x.memberTotal != null ? `<span class="tag">${x.membersMoved}/${x.memberTotal} members</span>` : ""}
+            ${x.refsMoved != null ? `<span class="tag">${x.refsMoved} policies</span>` : ""}
+            ${x.ok ? (x.inAu ? '<span class="tag ok">in the restricted AU</span>' : '<span class="tag block">not protected yet</span>') : ""}
+            ${x.error ? `<div class="mini" style="color:var(--off)">${esc(x.error)}</div>` : ""}
+            ${x.archiveName ? `<div class="mini muted">rollback: ${esc(x.archiveName)}</div>` : ""}
+          </div>`).join("")}
+        ${outside.length ? `<p class="mini" style="margin:12px 0 0;color:var(--report)">⚠ <b>${outside.length} group${outside.length === 1 ? " is" : "s are"} converted but not protected.</b> They are ordinary groups now, so any tenant-wide Groups Administrator can change their members until you place them in a restricted AU.</p>` : ""}
+        <p class="mini" style="margin:12px 0 0">Check the members of each new group before deleting anything. The archived groups are your rollback — remove them from <b>🧹 Archived groups</b> on the ① Check tab once you are satisfied.</p>
+        <div class="row" style="justify-content:flex-start;margin-top:12px">
+          ${outside.length ? '<button class="btn primary" id="cgMigProtect">🔒 Protect them now (⑥)</button>' : ""}
+          <button class="btn" id="cgMigMd">📄 Change report</button>
+          <button class="btn" id="cgMigRescan">⟳ Rescan</button>
+        </div>
+      </div>`;
+  }
+
+  migBody().addEventListener("change", (e) => {
+    if (!cgMig) return;
+    if (e.target.id === "cgMigAu") {
+      cgMig.auChoice = e.target.value;
+      const hit = cgMig.aus.find((a) => a.id === e.target.value);
+      cgMig.auName = hit ? hit.name : RMAU_DEFAULT_NAME;
+      return;
+    }
+    if (e.target.id === "cgMigNest") { cgMig.nesting = e.target.checked; return; }
+    if (e.target.id === "cgMigToAu") {
+      cgMig.toAu = e.target.checked;
+      // Re-plan so the step list, the acknowledgement and the report all agree
+      // with what will actually be done.
+      cgMig.plan = { ...cgMig.plan, toAu: cgMig.toAu,
+        eligible: cgMig.plan.eligible.map((x) => ({ ...x, toAu: cgMig.toAu,
+          steps: x.steps.filter((st) => st.key !== "rmau" && st.key !== "noAu").concat(
+            cgMig.toAu ? [{ key: "rmau", text: `Add the new group to the restricted AU${cgMig.auName ? ` “${cgMig.auName}”` : ""} — last, so the member copy is still possible` }]
+                       : [{ key: "noAu", text: "Leave it outside the restricted AU for now — add it later from ⑥ Protect" }]) })) };
+      renderCgMigrate();
+      return;
+    }
+    if (e.target.id === "cgMigAck") { cgMig.ack = e.target.checked; return; }
+    const cb = e.target.closest("[data-cgmig]");
+    if (cb) {
+      cgMig.sel = cgMig.sel || new Set(cgMig.plan.eligible.map((x) => x.id));
+      cb.checked ? cgMig.sel.add(cb.dataset.cgmig) : cgMig.sel.delete(cb.dataset.cgmig);
+      // Repaint so the counter and the select-all label match the checkboxes —
+      // a count that disagrees with what is ticked is worse than no count.
+      renderCgMigrate();
+    }
+  });
+
+  migBody().addEventListener("click", async (e) => {
+    if (e.target.closest("[data-migrun]")) { cgMigScan(); return; }
+    if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
+    if (e.target.id === "cgMigRescan") { cgMig = null; cgRes = null; cgMigScan(); return; }
+    if (e.target.id === "cgMigAll") {
+      const all = cgMig.plan.eligible.map((x) => x.id);
+      const cur = cgMig.sel || new Set(all);
+      cgMig.sel = cur.size === all.length ? new Set() : new Set(all);
+      renderCgMigrate();
+      return;
+    }
+    if (e.target.id === "cgMigProtect") {
+      // The migration nulls cgRes (the scan is stale the moment groups change),
+      // and renderCaGroups() returns early without one — so re-scan before
+      // switching, or the button appears to do nothing.
+      cgTab = "rmau"; rmauStandalone = false;
+      if (!cgRes) {
+        migBody().innerHTML = `<div class="run-prompt"><div class="spinner"></div><p class="mini muted">Re-reading the groups…</p></div>`;
+        try { cgRes = isDemo ? demoGroupScan() : await CaGroups.scan(policies, { scope: cgScope }); }
+        catch (err) { toast(`Could not re-read the groups: <span>${esc(err.message || err)}</span>`); return; }
+      }
+      renderCaGroups();
+      return;
+    }
+    if (e.target.id === "cgMigMd" && cgMig && cgMig.results) {
+      showReport("⑦ Migration report", "CA-Migration",
+        CaGroups.migrateReport(cgMig.plan, cgMig.results, { tenant: tenantName, auName: cgMig.auName, build: APP_BUILD.label }));
+      return;
+    }
+    if (e.target.id === "cgMigGo") await cgMigRun(e.target);
+  });
+
+  async function cgMigRun(btn) {
+    const t = cgMig;
+    if (!t || t.busy) return;
+    if (!$("cgMigAck")?.checked) { toast("Tick the <span>confirmation</span> first — each group is recreated"); return; }
+    const sel = t.sel || new Set(t.plan.eligible.map((x) => x.id));
+    // Never migrate something the planner refused, whatever the checkboxes say.
+    const picked = t.plan.eligible.filter((x) => sel.has(x.id));
+    if (!picked.length) { toast("Nothing selected"); return; }
+    const scopes = [...AUTH_CONFIG.scopes, ...CaGroups.MIGRATE_SCOPES];
+    if (!isDemo && !await preConsent(scopes)) return;
+
+    t.busy = true; btn.disabled = true;
+    const bar = $("cgMigBar2"), log = $("cgMigLog");
+    bar.style.display = "block";
+    const lines = [], results = [];
+    const say = (html) => { lines.push(html); log.innerHTML = lines.join(""); };
+
+    // The AU must exist before the first group finishes, but create it once —
+    // and not at all if the placement step was switched off.
+    const toAu = t.toAu !== false;
+    let auId = t.auChoice === "new" ? null : t.auChoice;
+    try {
+      if (toAu && !auId && !isDemo) {
+        const au = await Graph.gpost("/administrativeUnits", {
+          displayName: RMAU_DEFAULT_NAME,
+          description: "Restricted management administrative unit protecting Conditional Access exclusion groups. Membership changes require a role scoped to this administrative unit.",
+          isMemberManagementRestricted: true,
+        }, scopes);
+        auId = au.id; t.auName = au.displayName;
+        say(`<div>✓ created restricted AU <b>${esc(au.displayName)}</b></div>`);
+      }
+    } catch (err) {
+      say(`<div style="color:var(--off)">✗ could not create the restricted AU — ${esc(err.message || err)}. Nothing was migrated.</div>`);
+      t.busy = false; btn.disabled = false; return;
+    }
+
+    for (let i = 0; i < picked.length; i++) {
+      const x = picked[i];
+      bar.innerHTML = progInline(i, picked.length);
+      const res = { name: x.name, ok: false, memberTotal: x.memberTotal, archiveName: x.archiveName };
+      try {
+        say(`<div><b>${esc(x.name)}</b></div>`);
+        // 1. rename the old one aside
+        if (!isDemo) await Graph.gpatch(`/groups/${x.id}`, { displayName: x.archiveName }, scopes);
+        say(`<div>&nbsp;&nbsp;✓ renamed to ${esc(x.archiveName)}</div>`);
+        // 2. create the replacement — plain, optionally nesting-proof
+        let created;
+        if (isDemo) { created = { id: "demo-new-" + x.id }; }
+        else {
+          created = await Assign.createGroup({ displayName: x.name, roleAssignable: false, disableNesting: !!t.nesting }, { mustCreate: true });
+          if (!created || !created.id || created.id === x.id) {
+            await Graph.gpatch(`/groups/${x.id}`, { displayName: x.name }, scopes).catch(() => {});
+            throw new Error("Create returned the existing group — the rename was rolled back and no policy was touched.");
+          }
+        }
+        res.newId = created.id;
+        say(`<div>&nbsp;&nbsp;✓ created plain group${t.nesting ? " (nesting disabled)" : ""}</div>`);
+        // 3. members BEFORE the AU, or they can never be added
+        if (!isDemo) {
+          const mm = await moveGroupMembers(x.id, created.id);
+          res.membersMoved = mm.moved; res.memberTotal = mm.total;
+          say(`<div>&nbsp;&nbsp;✓ ${mm.moved}/${mm.total} members copied${mm.failed.length ? ` — ${mm.failed.length} failed` : ""}</div>`);
+        } else { res.membersMoved = res.memberTotal || 0; }
+        // 4./5. add the new group everywhere, then remove the old one
+        const incIds = x.refs.include.map((q) => q.id), excIds = x.refs.exclude.map((q) => q.id);
+        const apply = async (ids, action, id) => {
+          if (!ids.length || isDemo) return;
+          const r = await Assign.apply(ids, action, [id]);
+          const bad = r.filter((q) => !q.ok);
+          if (bad.length) throw new Error(`policy update failed on ${bad.length} — the old group is still assigned, so nothing is uncovered`);
+        };
+        await apply(incIds, 2, created.id);
+        await apply(excIds, 3, created.id);
+        await apply(incIds, 5, x.id);
+        await apply(excIds, 6, x.id);
+        res.refsMoved = incIds.length + excIds.length;
+        if (res.refsMoved) say(`<div>&nbsp;&nbsp;✓ ${res.refsMoved} policy assignment${res.refsMoved === 1 ? "" : "s"} repointed</div>`);
+        // 6. LAST: into the restricted AU — or deliberately not
+        if (toAu) {
+          if (!isDemo) {
+            await Graph.gpost(`/administrativeUnits/${auId}/members/$ref`,
+              { "@odata.id": `https://graph.microsoft.com/beta/groups/${created.id}` }, scopes);
+          }
+          res.inAu = true;
+          say(`<div>&nbsp;&nbsp;✓ placed in the restricted AU</div>`);
+        } else {
+          res.inAu = false;
+          say(`<div>&nbsp;&nbsp;• left outside the restricted AU — add it from ⑥ Protect when ready</div>`);
+        }
+        res.ok = true;
+      } catch (err) {
+        res.error = err.message || String(err);
+        say(`<div style="color:var(--off)">&nbsp;&nbsp;✗ ${esc(res.error)}</div>`);
+      }
+      results.push(res);
+    }
+    bar.innerHTML = progInline(picked.length, picked.length);
+    t.results = results; t.busy = false; btn.disabled = false;
+    cgRes = null;                        // the scan is stale now
+    renderCgMigrate();
+  }
 
   // The standalone tile: same scan, same renderer, its own screen. The group
   // scan is the one CA groups uses, so opening either tool primes the other.
@@ -2265,10 +2657,18 @@ max@contoso.com,"Global, DevOps"</pre>
 
     const rows = cands.map((g) => {
       const prot = t.status.get(g.id);
-      const disabled = !!prot;
+      // A ROLE-ASSIGNABLE group must not go into a restricted management AU.
+      // The two protections deadlock: membership of a role-assignable group can
+      // only be changed by Global Administrator or Privileged Role Administrator
+      // (owners aside), and an RMAU blocks exactly those two — neither can be
+      // assigned at AU scope. The result is a group nobody can edit, which for a
+      // break-glass exclusion group is the worst possible day to discover it.
+      // So the checkbox is disabled rather than merely unticked.
+      const disabled = !!prot || !!g.roleAssignable;
+
       return `<tr>
         <td><label class="chk" style="margin:0"><input type="checkbox" data-cgrmau="${esc(g.id)}"${t.sel.has(g.id) ? " checked" : ""}${disabled ? " disabled" : ""}> <b>${esc(g.name)}</b></label>
-          ${g.roleAssignable ? '<div class="mini muted">role-assignable — already modifiable only by privileged roles; adding it is optional</div>' : ""}
+          ${g.roleAssignable ? '<div class="mini" style="color:var(--off)"><b>role-assignable — cannot be protected this way.</b> Its membership is already restricted to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two. Putting it in one would leave <b>nobody</b> able to change the members. Convert it with ⑦ Migrate.</div>' : ""}
           ${g.dynamic ? '<div class="mini" style="color:var(--report)">dynamic group — not pre-selected: members come and go with its membership rule, not by hand. Adding it still helps (the restriction covers the group object, so editing the <b>rule</b> also needs an AU-scoped role) — but protect the hand-managed exclusion groups first.</div>' : ""}</td>
         <td class="mini">${g.refs.exclude.length} polic${g.refs.exclude.length === 1 ? "y" : "ies"}</td>
         <td class="mini">${prot ? `🔒 in <b>${esc(prot.auName)}</b>` : '<span style="color:var(--report)">unprotected</span>'}</td>
@@ -2297,11 +2697,28 @@ max@contoso.com,"Global, DevOps"</pre>
       <div id="cgRmauLog" class="mini" style="margin-top:8px"></div>
       <div class="row" style="justify-content:flex-start;margin-top:12px">
         <button class="btn primary" id="cgRmauGo" ${picked ? "" : "disabled"}>Protect ${picked} group${picked === 1 ? "" : "s"}${isDemo ? " (simulated)" : ""}</button>
+        ${/* The protection status is a point-in-time read. Somebody else may have
+             protected a group from the portal, a migration may have replaced one,
+             or a previous run may have half-succeeded — re-check without leaving
+             the tab and losing the selection you have built. */ ""}
+        <button class="btn" id="cgRmauRecheck">⟳ Re-check protection</button>
       </div>
       <h5 class="mini" style="margin:18px 0 4px">THE GROUPS</h5>
       <p class="mini muted" style="margin:0 0 8px">Pre-selected: the unprotected <b>assigned exclusion groups</b> — the ones whose membership is maintained by hand, which is exactly the membership this protection locks down.
         <b>Dynamic</b> groups are listed but not pre-selected: their members come and go with a membership rule, not by hand — the restriction still guards the group object (so changing the <b>rule</b> would also need an AU-scoped role), but the hand-managed exclusion groups are the priority.
-        <b>Role-assignable</b> groups are already modifiable only by privileged roles.</p>
+        <b>Role-assignable</b> groups cannot be added at all: a restricted AU blocks Global Administrator and Privileged Role Administrator, the only roles that can edit a role-assignable group's members, so a group with both protections has nobody who can change them. Convert them first with <b>⑦ Migrate</b>.</p>
+      ${(() => {
+        // "All" means all SELECTABLE — a role-assignable group or one already
+        // protected has a disabled checkbox, and counting those would show a
+        // total the button can never reach.
+        const pick = cands.filter((g) => !t.status.get(g.id) && !g.roleAssignable);
+        if (pick.length < 2) return "";
+        const on = pick.filter((g) => t.sel.has(g.id)).length;
+        return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
+          <button class="btn sm" id="cgRmauAll">${on === pick.length ? "☐ Deselect all" : "☑ Select all"}</button>
+          <span class="mini muted">${on} of ${pick.length} selectable group${pick.length === 1 ? "" : "s"} selected${cands.length - pick.length ? ` · ${cands.length - pick.length} cannot be added` : ""}</span>
+        </div>`;
+      })()}
       <div class="cg-tablewrap"><table class="cg-table">
         <thead><tr><th>Exclusion group</th><th style="width:110px">Excluded on</th><th style="width:220px">Protection</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="3" class="mini muted" style="padding:14px">No groups are used as exclusions by the tenant\'s policies.</td></tr>'}</tbody></table></div>
@@ -2315,8 +2732,16 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!rmauBody().querySelector("#cgRmauAck")?.checked) { toast("Tick the <span>confirmation</span> first — this restricts who can manage these groups"); return; }
     t.admin = (rmauBody().querySelector("#cgRmauAdmin")?.value || "").trim();
     const cands = CaGroups.rmauCandidates(cgRes);
-    const picked = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id));
+    // Guard the WRITE, not just the checkbox — a selection can survive a rescan,
+    // and adding a role-assignable group to a restricted AU freezes its members
+    // for everybody (GA/PRA are blocked by the AU; nobody else was ever allowed).
+    const picked = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id) && !g.roleAssignable);
+    const refused = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id) && g.roleAssignable);
+    if (refused.length) {
+      toast(`Skipped ${refused.length} role-assignable group${refused.length === 1 ? "" : "s"} — a restricted AU would leave nobody able to change their members.`);
+    }
     if (!picked.length) return;
+
     const scopes = [...AUTH_CONFIG.scopes, ...RMAU_WRITE, ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
     if (!isDemo && !await preConsent(scopes)) return;
     t.busy = true; btn.disabled = true;
@@ -2473,8 +2898,10 @@ max@contoso.com,"Global, DevOps"</pre>
     const co = e.target.closest("[data-cgcreateone]");
     if (co) { e.stopPropagation(); await cgCreateOne(co.dataset.cgcreateone, co); return; }
     // Recreate a present-but-not-role-assignable group correctly.
-    const rc = e.target.closest("[data-cgrecreate]");
-    if (rc) { e.stopPropagation(); openRecreate(rc.dataset.cgrecreate); return; }
+    // "Recreate role-assignable" is retired — the baseline moves the other way
+    // now. The button on a role-assignable row opens ⑦ Migrate instead.
+    const mg = e.target.closest("[data-cgmigrate]");
+    if (mg) { e.stopPropagation(); cgTab = "migrate"; renderCaGroups(); return; }
     const nb = e.target.closest("[data-cgnesting]");
     if (nb) { e.stopPropagation(); openNesting(nb.dataset.cgnesting, nb); return; }
     // Convert an assigned group to the dynamic membership its template expects.
@@ -2891,106 +3318,11 @@ max@contoso.com,"Global, DevOps"</pre>
   // old one aside, create a new role-assignable group with the original name,
   // then swap every referencing policy from the old group id to the new one.
   let recreateRow = null;
-  function openRecreate(name) {
-    const r = cgRes && cgRes.rows.find((x) => x.name === name);
-    if (!r || !r.id) return;
-    recreateRow = r;
-    const legacy = `${r.name} (legacy ${new Date().toISOString().slice(0, 10)})`;
-    const inc = r.refs.include, exc = r.refs.exclude;
-    const md = [];
-    md.push(`**${r.name}** is not role-assignable, and \`isAssignableToRole\` cannot be changed on an existing group. This will:`);
-    md.push("");
-    md.push(`1. Rename the current group to **${legacy}** (kept, not deleted — members and history preserved).`);
-    md.push(`2. Create a new **role-assignable** security group named **${r.name}**.`);
-    md.push(`3. Move the **${r.refCount}** referencing polic${r.refCount === 1 ? "y" : "ies"} from the old group to the new one:`);
-    md.push("");
-    if (inc.length) { md.push("_Included in:_"); inc.forEach((p) => md.push(`- ${p.name}`)); md.push(""); }
-    if (exc.length) { md.push("_Excluded from:_"); exc.forEach((p) => md.push(`- ${p.name}`)); md.push(""); }
-    if (!r.refCount) md.push("_No policy references this group, so only the group is recreated._");
-    md.push("");
-    md.push(isDemo ? "_Demo mode — simulated, nothing is written._" : "The new group has **no members** — add them (or set a membership rule) afterwards. This **writes to your tenant**.");
-    $("recreateBody").innerHTML = mdToHtml(md.join("\n"));
-    $("recreateOk").value = ""; $("recreateGo").disabled = true;
-    $("recreateModal").classList.add("open");
-  }
-  $("recreateOk").addEventListener("input", (e) => { $("recreateGo").disabled = e.target.value.trim().toUpperCase() !== "RECREATE"; });
-  $("recreateCancel").addEventListener("click", () => $("recreateModal").classList.remove("open"));
-  $("recreateGo").addEventListener("click", async () => {
-    const r = recreateRow; if (!r) return;
-    if (!await preConsent([...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES, "Policy.ReadWrite.ConditionalAccess"])) return;
-    const btn = $("recreateGo"); btn.disabled = true;
-    const legacy = `${r.name} (legacy ${new Date().toISOString().slice(0, 10)})`;
-    const log = { renamed: false, newId: null, membersMoved: 0, memberTotal: 0, moved: [], failed: [] };
-    try {
-      if (isDemo) {
-        log.renamed = true; log.newId = "g-new-" + r.name;
-        log.moved = [...r.refs.include.map((p) => ({ name: p.name, how: "include" })), ...r.refs.exclude.map((p) => ({ name: p.name, how: "exclude" }))];
-      } else {
-        toast("Renaming the old group…");
-        await Graph.gpatch(`/groups/${r.id}`, { displayName: legacy }, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
-        log.renamed = true;
-        toast("Creating the new role-assignable group…");
-        const g = await Assign.createGroup({ displayName: r.name, description: r.description, roleAssignable: true }, { mustCreate: true });
-        log.newId = g.id;
-        // Members come across too. Leaving them behind meant the new group was
-        // empty — an include group that applies to nobody, an exclude group
-        // that excludes nobody — until someone noticed and did it by hand.
-        const mm = await moveGroupMembers(r.id, g.id, (m) => toast(m));
-        log.membersMoved = mm.moved; log.memberTotal = mm.total;
-        mm.failed.forEach((f) => log.failed.push({ name: `member ${f.name}`, error: f.error }));
-        // swap old id -> new id in every referencing policy
-        const refs = [...r.refs.include.map((p) => ({ ...p, how: "include" })), ...r.refs.exclude.map((p) => ({ ...p, how: "exclude" }))];
-        for (let i = 0; i < refs.length; i++) {
-          const p = refs[i];
-          toast(`Moving policy ${i + 1}/${refs.length}…`);
-          try {
-            const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${p.id}`);
-            const u = fresh.conditions?.users || {};
-            const key = p.how === "include" ? "includeGroups" : "excludeGroups";
-            const list = (u[key] || []).map((x) => (x === r.id ? g.id : x));
-            await Graph.gpatch(`/identity/conditionalAccess/policies/${p.id}`, { conditions: { users: { ...u, [key]: [...new Set(list)] } } });
-            log.moved.push({ name: p.name, how: p.how });
-          } catch (e) { console.error(e); log.failed.push({ name: p.name, error: e.message || String(e) }); }
-        }
-      }
-      $("recreateModal").classList.remove("open");
-      // change report
-      const md = [];
-      md.push(`# Group recreated role-assignable — ${tenantName || "tenant"}`);
-      md.push("");
-      md.push(`- **Group:** ${r.name}`);
-      md.push(`- **Old group renamed to:** ${legacy} (id \`${r.id}\`)`);
-      md.push(`- **New role-assignable group id:** \`${log.newId}\``);
-      md.push(`- **Members moved:** ${log.membersMoved || 0}${log.memberTotal ? `/${log.memberTotal}` : ""}`);
-      md.push(`- **Policies moved:** ${log.moved.length}${log.failed.length ? ` · **failed:** ${log.failed.length}` : ""}`);
-      if (isDemo) md.push(`- _Demo mode — simulated._`);
-      md.push("");
-      if (log.moved.length) {
-        md.push("## Policies moved to the new group");
-        md.push("");
-        md.push("| Policy | Slot |");
-        md.push("|---|---|");
-        log.moved.forEach((m) => md.push(`| ${m.name} | ${m.how} |`));
-        md.push("");
-      }
-      if (log.failed.length) {
-        md.push("## Failed — move these manually");
-        md.push("");
-        log.failed.forEach((f) => md.push(`- ❌ **${f.name}** — ${f.error}`));
-        md.push("");
-      }
-      md.push("The old group is renamed, not deleted. Its members have been copied to the new group; remove the old group from **① Check → 🧹 Archived groups** once you are satisfied. A deleted group is recoverable for 30 days.");
-      md.push("");
-      md.push("---");
-      md.push(`Generated by ${BRANDING.name} — Conditional Access groups`);
-      showReport("↻ Group recreate report", "CA-Group-Recreate", md.join("\n"));
-      toast(log.failed.length ? `Recreated with <span>${log.failed.length} failure(s)</span>` : `<span>${r.name}</span> recreated role-assignable`);
-      cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
-    } catch (e) {
-      console.error(e); toast(`Recreate failed: <span>${esc(e.message || e)}</span>`);
-      btn.disabled = false;
-    }
-  });
+  // ↻ Recreate role-assignable was removed in build 254. The baseline no longer
+  // uses role-assignable groups: the flag was only ever a way to keep membership
+  // away from tenant-wide group administrators, and a restricted management
+  // administrative unit does that better. ⑦ Migrate moves existing ones across.
+
 
   // Dynamic and role-assignable are mutually exclusive in Entra. Reflect that
   // live: choosing Dynamic reveals the rule box and forces role-assignable off.
@@ -3006,11 +3338,32 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.name === "cgmType") {
       const dyn = e.target.value === "dynamic";
       const w = $("cgmRuleWrap"); if (w) w.style.display = dyn ? "block" : "none";
-      const role = $("cgmRole"), note = $("cgmRoleNote");
-      if (role) { role.disabled = dyn; if (dyn) role.checked = false; }
-      if (note) note.style.display = dyn ? "block" : "none";
+    }
+    if (e.target.id === "cgmRmau") {
+      const w = $("cgmRmauWrap");
+      if (w) w.style.display = e.target.checked ? "block" : "none";
+      if (e.target.checked) cgmLoadRmaus();
     }
   });
+
+  // The restricted AUs available to the builder. Loaded on demand — ticking the
+  // box is the first moment we need them.
+  let cgmRmauList = null;
+  async function cgmLoadRmaus() {
+    const sel = $("cgmRmauPick");
+    if (!sel) return;
+    if (!cgmRmauList) {
+      sel.innerHTML = '<option>Reading administrative units…</option>';
+      try {
+        cgmRmauList = isDemo
+          ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.adminUnits) || []).filter((a) => a.isMemberManagementRestricted).map((a) => ({ id: a.id, name: a.displayName }))
+          : (await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted"))
+              .filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
+      } catch (e) { cgmRmauList = []; console.warn("RMAU list failed:", e.message); }
+    }
+    sel.innerHTML = [...cgmRmauList.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`),
+      `<option value="new">➕ Create “${esc(RMAU_DEFAULT_NAME)}”</option>`].join("");
+  }
 
   async function cgManualCreate(btn) {
     const name = $("cgmName").value.trim();
@@ -3018,7 +3371,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const dynamic = document.querySelector('[name="cgmType"]:checked')?.value === "dynamic";
     const rule = dynamic ? $("cgmRule").value.trim() : "";
     if (dynamic && !rule) { toast("A dynamic group needs a membership rule"); $("cgmRule").focus(); return; }
-    const roleAssignable = !dynamic && $("cgmRole").checked;
+    const roleAssignable = false;   // retired — see the note in the builder
     if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
     btn.disabled = true;
     const log = $("cgmLog");
@@ -3027,10 +3380,42 @@ max@contoso.com,"Global, DevOps"</pre>
       const g = isDemo
         ? { id: "g-" + name, name, created: true, dynamic, roleAssignable }
         : await Assign.createGroup(spec);
-      const kind = g.dynamic ? "dynamic" : g.roleAssignable ? "role-assignable" : "assigned";
-      log.innerHTML = g.created
+      // Protection LAST, and only after the group exists — the same ordering
+      // the migration wizard uses, for the same reason: once it is in the AU,
+      // adding members needs an AU-scoped role.
+      if ($("cgmRmau")?.checked && g && g.id) {
+        try {
+          let auId = $("cgmRmauPick")?.value;
+          if (auId === "new" && !isDemo) {
+            const au = await Graph.gpost("/administrativeUnits", {
+              displayName: RMAU_DEFAULT_NAME,
+              description: "Restricted management administrative unit protecting Conditional Access exclusion groups. Membership changes require a role scoped to this administrative unit.",
+              isMemberManagementRestricted: true,
+            }, [...AUTH_CONFIG.scopes, "AdministrativeUnit.ReadWrite.All"]);
+            auId = au.id; cgmRmauList = null;
+          }
+          if (!isDemo && auId && auId !== "new") {
+            await Graph.gpost(`/administrativeUnits/${auId}/members/$ref`,
+              { "@odata.id": `https://graph.microsoft.com/beta/groups/${g.id}` },
+              [...AUTH_CONFIG.scopes, "AdministrativeUnit.ReadWrite.All"]);
+          }
+          g.protected = true;
+        } catch (e) {
+          // The group exists either way — say which half succeeded rather than
+          // reporting the whole create as failed.
+          g.protectError = e.message || String(e);
+        }
+      }
+      const kind = g.dynamic ? "dynamic" : "assigned";
+      const prot = g.protectError
+        ? `<div style="color:var(--off)">✗ but it could NOT be placed in the restricted AU — ${esc(g.protectError)}. The group exists; protect it from ⑥ Protect.</div>`
+        : g.protected
+          ? `<div style="color:var(--on)">✓ placed in the restricted AU — only an AU-scoped role can change its members now${g.dynamic ? "" : ", so add members with a scoped role or remove it from the AU first"}</div>`
+          : "";
+      cgmMsg = (g.created
         ? `<span style="color:var(--on)">✓ created <b>${esc(g.name)}</b> — ${kind}</span>`
-        : `<span style="color:var(--report)">• <b>${esc(g.name)}</b> already existed — reused</span>`;
+        : `<span style="color:var(--report)">• <b>${esc(g.name)}</b> already existed — reused</span>`) + prot;
+      log.innerHTML = cgmMsg;
       toast(g.created ? `<span>${esc(g.name)}</span> created (${kind})${isDemo ? " (simulated)" : ""}` : `<span>${esc(g.name)}</span> already existed — reused`);
       // fold the new group into the scan so Check shows it without a refresh
       cgRes = null;
@@ -3038,7 +3423,8 @@ max@contoso.com,"Global, DevOps"</pre>
       cgTab = "create"; renderCaGroups();
     } catch (err) {
       console.error(err);
-      if ($("cgmLog")) $("cgmLog").innerHTML = `<span style="color:var(--off)">✗ ${esc(err.message || err)}</span>`;
+      cgmMsg = `<span style="color:var(--off)">✗ ${esc(err.message || err)}</span>`;
+      if ($("cgmLog")) $("cgmLog").innerHTML = cgmMsg;
       toast(`Create failed: <span>${esc(err.message || err)}</span>`);
       btn.disabled = false;
     }
@@ -3078,6 +3464,90 @@ max@contoso.com,"Global, DevOps"</pre>
     </div>`;
   }
 
+  // ---------- ③ Members: add a user to a group ----------
+  // A directory type-ahead on the user field and the loaded groups on the other.
+  // The write is deliberately narrow: one user, one group, reported inline, and
+  // the matrix re-reads that group afterwards so the new row is visible rather
+  // than merely claimed.
+  let cgAddGroup = "";
+  let cgAddTimer = null;
+  // renderCgMembers() rebuilds #cgAddLog, so a message written straight into the
+  // DOM vanishes the moment the matrix repaints — which is exactly when the
+  // confirmation matters. Keep it in state and render it.
+  let cgAddMsg = null;   // { html, bad }
+
+  function cgAddSuggest(e) {
+    if (e.target.id !== "cgAddUser") return;
+    const term = String(e.target.value || "").trim();
+    clearTimeout(cgAddTimer);
+    // Selecting from a <datalist> fires `input` just like typing does. Without
+    // this the pick re-runs the query, the options are rewritten, and the
+    // browser reopens the dropdown over a field you have already filled — so
+    // it looks like the choice did not take. An exact match against what is
+    // already offered means the value came from the list, not the keyboard.
+    const dlNow = $("cgUserSug");
+    if (dlNow && [...dlNow.options].some((o) => o.value === term)) return;
+    if (term.length < 2 || isDemo) return;
+    cgAddTimer = setTimeout(async () => {
+      const f = term.replace(/'/g, "''");
+      try {
+        const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
+        const dl = $("cgUserSug");
+        if (dl) dl.innerHTML = ((r && r.value) || [])
+          .map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+      } catch (err) { console.warn("member suggest failed:", err.message); }
+    }, 250);
+  }
+
+  async function cgAddMember() {
+    const uBox = $("cgAddUser"), gBox = $("cgAddGroup"), log = $("cgAddLog");
+    const upn = (uBox?.value || "").trim(), gName = (gBox?.value || "").trim();
+    const say = (html, bad) => {
+      cgAddMsg = { html, bad: !!bad };
+      const el = $("cgAddLog");
+      if (el) el.innerHTML = `<span style="${bad ? "color:var(--off)" : ""}">${html}</span>`;
+    };
+    if (!upn) { say("Type a user first.", true); return; }
+    if (!gName) { say("Pick a group.", true); return; }
+    const row = (cgRes.rows || []).find((r) => r.name === gName && r.id);
+    if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
+    cgAddGroup = gName;
+
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All"])) return;
+    say("Adding…");
+    try {
+      let user = { id: "demo-" + upn, displayName: upn };
+      if (!isDemo) user = await Graph.gget(`/users/${encodeURIComponent(upn)}?$select=id,displayName,userPrincipalName`);
+      if ((row.members || []).some((m) => m.id === user.id)) {
+        say(`<b>${esc(user.displayName || upn)}</b> is already a member of <b>${esc(gName)}</b>.`);
+        return;
+      }
+      if (!isDemo) {
+        await Graph.gpost(`/groups/${row.id}/members/$ref`,
+          { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${user.id}` },
+          [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+      }
+      // Re-read that one group so the matrix shows the result. Directory writes
+      // are not read-your-writes consistent, so add the row locally too and let
+      // the re-read confirm it rather than contradict it.
+      const fresh = { id: user.id, name: user.displayName || upn, upn: user.userPrincipalName || upn, disabled: false };
+      row.members = [...(row.members || []), fresh];
+      row.memberTotal = (row.memberTotal || 0) + 1;
+      say(`✓ <b>${esc(fresh.name)}</b> added to <b>${esc(gName)}</b>.`);
+      if (uBox) uBox.value = "";
+      renderCgMembers();
+      if (!isDemo) {
+        try {
+          await CaGroups.loadMembers([row], {});
+          renderCgMembers();
+        } catch { /* the optimistic row stands */ }
+      }
+    } catch (e) {
+      const dup = /already exist/i.test(e.message || "");
+      say(dup ? `Already a member of <b>${esc(gName)}</b>.` : `Add failed: ${esc(e.message || e)}`, !dup);
+    }
+  }
+
   function renderCgMembers() {
     const scanned = cgRes.rows.filter(r => r.members);
     if (cgMemberPick || (!scanned.length && !cgBusy)) {
@@ -3099,13 +3569,40 @@ max@contoso.com,"Global, DevOps"</pre>
          ${m.empty.map(c => `<b>${esc(c.name)}</b>`).join(", ")} — a policy scoped to an empty include group applies to nobody;
          an empty exclude group excludes nobody.</p>` : "";
     const errs = cgRes.rows.filter(r => r.memberError);
+    // Add a member without leaving the matrix. Only the groups whose members
+    // are actually loaded are offered — adding to a group you cannot see the
+    // members of would be a write with no way to check the result.
+    // Prefill the group when there is no ambiguity — one loaded group means
+    // there is only one possible answer, so making you pick it is busywork.
+    // With several, keep whatever you used last IF it is still loaded, and
+    // otherwise leave it blank: guessing among several groups is how a member
+    // lands in the wrong exclusion.
+    if (m.cols.length === 1) cgAddGroup = m.cols[0].name;
+    else if (cgAddGroup && !m.cols.some((c) => c.name === cgAddGroup)) cgAddGroup = "";
+
+    const addBar = `<div class="cg-panel">
+        <h4>ADD A MEMBER <span class="tag new">NEW</span></h4>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input id="cgAddUser" list="cgUserSug" placeholder="User — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px">
+          <span class="mini muted">to</span>
+          <input id="cgAddGroup" list="cgGroupSug" placeholder="Group" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px" value="${esc(cgAddGroup || "")}">
+          <button class="btn primary" id="cgAddGo">＋ Add</button>
+        </div>
+        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. ${m.cols.length === 1
+          ? `Only <b>${esc(m.cols[0].name)}</b> is loaded here, so it is filled in for you — read more groups above to add to another.`
+          : `The group list is the ${m.cols.length} groups whose members are loaded here, so the matrix can show the result immediately.`}</p>
+        <div id="cgAddLog" class="mini" style="margin-top:8px">${cgAddMsg ? `<span style="${cgAddMsg.bad ? "color:var(--off)" : ""}">${cgAddMsg.html}</span>` : ""}</div>
+      </div>`;
+
     $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">
         ${m.users.length} distinct member${m.users.length === 1 ? "" : "s"} across ${m.cols.length} group${m.cols.length === 1 ? "" : "s"}.
         <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Read more groups</button>
         <button class="btn sm" id="cgMemberGo" style="margin-left:6px">⟳ Re-read selected</button>
-      </div>${empties}
+      </div>${addBar}${empties}
       ${errs.length ? `<p class="mini" style="color:var(--off)">${errs.length} group${errs.length === 1 ? "" : "s"} could not be read: ${errs.map(r => esc(r.name)).join(", ")}</p>` : ""}
       ${CaGroups.renderMatrix(m, cgQuery)}`;
+    const gl = $("cgGroupSug");
+    if (gl) gl.innerHTML = m.cols.map((c) => `<option value="${esc(c.name)}"></option>`).join("");
   }
 
   // One group's members, on demand. Same reader as the bulk scan so a row
@@ -3238,6 +3735,8 @@ max@contoso.com,"Global, DevOps"</pre>
     cgRes = null; cgMemberSel.clear(); cgMemberPick = false;
     await openCaGroups(true);
   });
+  $("cgBody").addEventListener("input", cgAddSuggest);
+  $("cgBody").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
   $("cgTabs").addEventListener("click", (e) => {
     const b = e.target.closest("[data-cgtab]"); if (!b) return;
     cgTab = b.dataset.cgtab; cgQuery = ""; $("cgSearch").value = "";
@@ -4637,7 +5136,15 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!isGroup && !isUser) return;
     const term = String(e.target.value || "").trim();
     clearTimeout(ruSugTimer);
+    // Selecting from a <datalist> fires `input` just like typing does. Without
+    // this the pick re-runs the query, the options are rewritten, and the
+    // browser reopens the dropdown over a field you have already filled — so
+    // it looks like the choice did not take. An exact match against what is
+    // already offered means the value came from the list, not the keyboard.
+    const dlNow = $(isUser ? "ruUserSug" : "ruGroupSug");
+    if (dlNow && [...dlNow.options].some((o) => o.value === term)) return;
     if (term.length < 2 || isDemo) return;
+
     ruSugTimer = setTimeout(async () => {
       const f = term.replace(/'/g, "''");
       try {

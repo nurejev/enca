@@ -154,8 +154,18 @@ const Assign = (() => {
   function buildGroupPayload(t) {
     const nickname = (String(t.mailNickname || t.displayName || "grp").replace(/[^A-Za-z0-9]/g, "").slice(0, 60)) || "CADSECgroup";
     const dynamic = !!t.dynamic;
-    // explicit wins; otherwise assigned⇒role-assignable, dynamic⇒not
-    const wantRole = t.roleAssignable != null ? !!t.roleAssignable : !dynamic;
+    // DEFAULT CHANGED (build 25026): assigned groups are no longer created
+    // role-assignable. That flag was only ever used here for a side effect —
+    // membership reachable by Global Administrator / Privileged Role
+    // Administrator only — and a restricted management administrative unit
+    // does that better, names who may manage it, and does not carry the
+    // 500-per-tenant cap, the no-dynamic-membership rule or the inability to
+    // control nesting. It also cannot be combined with a restricted AU: a
+    // group with both has nobody who can change its members.
+    //
+    // An explicit roleAssignable:true still wins, so a caller that genuinely
+    // needs a group to HOLD a directory role can still ask for one.
+    const wantRole = t.roleAssignable === true;
     const roleAssignable = wantRole && !dynamic;   // Entra forbids the combination
     const p = {
       displayName: t.displayName,

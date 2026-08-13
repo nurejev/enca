@@ -108,7 +108,7 @@ const CaGroups = (() => {
   // 20 000-group tenant. The search is a net; ARCHIVE_SUFFIX is the sieve.
   async function findArchived(raws) {
     const seen = new Map();
-    for (const term of ["legacy", "nesting", "static"]) {
+    for (const term of ["legacy", "nesting", "migrated", "static"]) {
       try {
         const gs = await Graph.ggetAll(`/groups?$search=${encodeURIComponent(`"displayName:${term}"`)}`
           + "&$select=id,displayName,isAssignableToRole,groupTypes,membershipRule,createdDateTime&$top=999");
@@ -250,11 +250,14 @@ const CaGroups = (() => {
       refs: r.refs || { include: [], exclude: [] },
       refCount: nRef,
       members: null, memberTotal: null, memberError: null,
-      // A role-assignable expectation that came back as a plain group is worth
-      // knowing about: isAssignableToRole is immutable, so it cannot be fixed
-      // in place — the group has to be recreated.
-      drift: g && r.template && !r.template.membershipRule && !dynamic && !g.isAssignableToRole
-        ? "not role-assignable (immutable — recreate to change)"
+      // INVERTED (build 25026). A plain assigned group used to be reported as
+      // drift because the baseline made everything role-assignable. That has
+      // been retired: role-assignable was only ever a way to keep membership
+      // away from tenant-wide group administrators, and a restricted AU does
+      // it better. So a plain group is now correct, and the flag points the
+      // other way — a role-assignable group is the one with somewhere to go.
+      drift: g && g.isAssignableToRole
+        ? "role-assignable — migrate it to a restricted AU (⑦ Migrate)"
         : (g && r.template && r.template.membershipRule && !dynamic
           ? "template is dynamic but this group is assigned" : null),
     };
@@ -315,9 +318,16 @@ const CaGroups = (() => {
   }
 
   // The archive names this tool leaves behind: "(legacy YYYY-MM-DD)" from the
-  // role-assignable recreate, "(nesting YYYY-MM-DD)" from this one, and
+  // role-assignable recreate, "(nesting YYYY-MM-DD)" from the nesting one,
+  // "(migrated YYYY-MM-DD)" from the restricted-AU migration, and
   // "-static-<stamp>" from the make-dynamic conversion.
-  const ARCHIVE_SUFFIX = /(\s*\((?:legacy|nesting)\s+\d{4}-\d{2}-\d{2}\)|-static-[\w.-]+)\s*$/i;
+  const ARCHIVE_SUFFIX = /(\s*\((?:legacy|nesting|migrated)\s+\d{4}-\d{2}-\d{2}\)|-static-[\w.-]+)\s*$/i;
+  const isoDay = () => new Date().toISOString().slice(0, 10);
+  // The literal this tool writes. ARCHIVE_SUFFIX above is the MATCHER — a
+  // RegExp — and interpolating it into a name yields nonsense; keep the two
+  // apart by name so the mistake is hard to make.
+  const MIGRATED_TAG = "migrated";
+  const migratedName = (name) => `${name} (${MIGRATED_TAG} ${isoDay()})`;
 
   const NESTING = {
     disabled: { icon: "🚫", label: "Nesting disabled", cls: "ok" },
@@ -639,7 +649,6 @@ const CaGroups = (() => {
           : '<span class="mini muted">—</span>';
         // A present group that should be role-assignable but is not — isAssignableToRole
         // is immutable, so offer to recreate it (rename old, make a new one, move policies).
-        const roleDrift = r.drift && /role-assignable/i.test(r.drift);
         // The other direction: the template says dynamic, the tenant group is
         // assigned. Offer the conversion — in place when Entra allows it.
         const dynDrift = r.drift && /template is dynamic/i.test(r.drift);
@@ -647,7 +656,7 @@ const CaGroups = (() => {
           <td class="cg-ic ${st.cls}">${st.icon}</td>
           <td><b>${esc(r.name)}</b>${r.id ? `<div class="mini muted">${esc(r.id)}</div>` : ""}
             ${r.drift ? `<div class="mini" style="color:var(--report)">⚠ ${esc(r.drift)}</div>` : ""}
-            ${roleDrift ? `<button class="btn sm" data-cgrecreate="${esc(r.name)}" style="margin-top:4px">↻ Recreate role-assignable</button>` : ""}
+            ${r.roleAssignable ? `<button class="btn sm" data-cgmigrate="${esc(r.name)}" style="margin-top:4px">⑦ Migrate off role-assignable</button>` : ""}
             ${dynDrift ? `<button class="btn sm" data-cgdynamic="${esc(r.name)}" style="margin-top:4px">⟳ Make dynamic</button>` : ""}
             ${r.roleAssignable
               ? `<div class="mini" style="color:var(--on)">🚫 Nesting already impossible — Entra does not allow a group as a member of a role-assignable group</div>`
@@ -903,12 +912,145 @@ const CaGroups = (() => {
     return L.join("\n");
   }
 
+  // ---------- migrate: role-assignable -> plain group in a restricted AU ----------
+  //
+  // WHY. A CA exclusion group was made role-assignable purely for the side
+  // effect: only Global Administrator or Privileged Role Administrator can
+  // change its members. A restricted management administrative unit does that
+  // job better, because it lets you NAME who may manage the group instead of
+  // leaving it to whoever holds PRA. It also drops the role-assignable costs:
+  // the 500-per-tenant cap, no dynamic membership, and no nesting control.
+  //
+  // The two must never be combined: a role-assignable group admits only GA/PRA,
+  // an RMAU blocks exactly those two, and neither can be assigned at AU scope —
+  // so a group with both has nobody who can edit its members.
+  //
+  // isAssignableToRole is IMMUTABLE, so this is a recreate, not a patch.
+  const MIGRATE_SCOPES = ["Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory",
+    "AdministrativeUnit.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess"];
+
+  // Does this group CARRY a directory role? If so it is doing more than being a
+  // CA exclusion, and a plain group cannot hold a role at all — so it is skipped
+  // rather than quietly broken. Read-only; a failure here is reported, never
+  // assumed to mean "no roles", because assuming that would migrate it anyway.
+  async function heldRoles(groupId) {
+    const out = { active: [], eligible: [], ok: true, error: "" };
+    try {
+      const a = await Graph.gget(`/roleManagement/directory/roleAssignments?$filter=principalId eq '${groupId}'&$expand=roleDefinition($select=displayName)`);
+      out.active = ((a && a.value) || []).map((r) => (r.roleDefinition && r.roleDefinition.displayName) || r.roleDefinitionId);
+    } catch (e) { out.ok = false; out.error = e.message || String(e); }
+    try {
+      const b = await Graph.gget(`/roleManagement/directory/roleEligibilitySchedules?$filter=principalId eq '${groupId}'&$expand=roleDefinition($select=displayName)`);
+      out.eligible = ((b && b.value) || []).map((r) => (r.roleDefinition && r.roleDefinition.displayName) || r.roleDefinitionId);
+    } catch (e) {
+      // PIM is licence-gated; "not licensed" is not the same as "failed to read".
+      if (!/not licensed|does not have|Insufficient privileges/i.test(e.message || "")) { out.ok = false; out.error = out.error || (e.message || String(e)); }
+    }
+    return out;
+  }
+
+  // One plan per group. `roles` is a Map(id -> heldRoles result); `protectedIn`
+  // a Map(id -> {auName}) for groups already inside a restricted AU.
+  function migratePlan(rows, opts = {}) {
+    const roles = opts.roles || new Map();
+    const protectedIn = opts.protectedIn || new Map();
+    const disableNesting = opts.disableNesting !== false;      // default ON
+    // Placing the new group in the restricted AU is optional. Skipping it leaves
+    // an ordinary group that ⑥ Protect can pick up later — which is the same
+    // path any never-role-assignable baseline group takes, so nothing special
+    // is needed to finish the job afterwards.
+    const toAu = opts.toAu !== false;
+    const items = (rows || []).map((row) => {
+      const base = { id: row.id, name: row.name, row,
+        refs: row.refs || { include: [], exclude: [] },
+        memberTotal: row.memberTotal };
+      const nRef = base.refs.include.length + base.refs.exclude.length;
+
+      if (!row.id) return { ...base, ok: false, reason: "Not in the tenant yet — create it first." };
+      if (!row.roleAssignable) return { ...base, ok: false, reason: "Already a plain group — nothing to convert. Use ⑥ Protect to place it in a restricted AU." };
+      if (protectedIn.has(row.id)) return { ...base, ok: false, reason: `Already inside the restricted AU “${protectedIn.get(row.id).auName}” — its members cannot be read or moved from here.` };
+
+      const r = roles.get(row.id);
+      if (r && !r.ok) return { ...base, ok: false, reason: `Could not check whether this group holds a directory role (${r.error}). Skipped rather than risk breaking a role assignment.` };
+      if (r && (r.active.length || r.eligible.length)) {
+        const names = [...new Set([...r.active, ...r.eligible])].join(", ");
+        return { ...base, ok: false,
+          reason: `This group holds a directory role (${names}). A plain group cannot carry a role, so migrating it would break that assignment. Deal with the role first.` };
+      }
+
+      const archiveName = migratedName(row.name);
+      return { ...base, ok: true, archiveName, disableNesting,
+        // The order IS the safety property. Members must move while the new
+        // group is still ordinary; once it is inside the restricted AU only an
+        // AU-scoped role could add them. And the new group is added to every
+        // policy BEFORE the old one is removed, so no policy is ever left
+        // without either — an exclusion that briefly vanishes is an outage.
+        steps: [
+          { key: "rename",  text: `Rename “${row.name}” to “${archiveName}” — kept as the rollback` },
+          { key: "create",  text: `Create “${row.name}” as a plain security group${disableNesting ? ", nesting disabled" : ""}` },
+          { key: "members", text: row.memberTotal != null
+              ? `Copy ${row.memberTotal} member${row.memberTotal === 1 ? "" : "s"} across — the archived group keeps its own copy`
+              : `Copy the members across (count unknown — the read failed) — the archived group keeps its own copy` },
+          ...(base.refs.include.length ? [{ key: "addInc", text: `Add the new group to the INCLUDE of ${base.refs.include.length} polic${base.refs.include.length === 1 ? "y" : "ies"}` }] : []),
+          ...(base.refs.exclude.length ? [{ key: "addExc", text: `Add the new group to the EXCLUDE of ${base.refs.exclude.length} polic${base.refs.exclude.length === 1 ? "y" : "ies"}` }] : []),
+          ...(base.refs.include.length ? [{ key: "delInc", text: `Remove the archived group from those ${base.refs.include.length} include assignment${base.refs.include.length === 1 ? "" : "s"}` }] : []),
+          ...(base.refs.exclude.length ? [{ key: "delExc", text: `Remove the archived group from those ${base.refs.exclude.length} exclude assignment${base.refs.exclude.length === 1 ? "" : "s"}` }] : []),
+          ...(toAu ? [{ key: "rmau", text: `Add the new group to the restricted AU${opts.rmauName ? ` “${opts.rmauName}”` : ""} — last, so the member copy is still possible` }]
+                   : [{ key: "noAu", text: `Leave it outside the restricted AU for now — add it later from ⑥ Protect` }]),
+        ],
+        toAu,
+        nRef,
+      };
+    });
+    return {
+      items,
+      eligible: items.filter((x) => x.ok),
+      skipped: items.filter((x) => !x.ok),
+      disableNesting, toAu,
+    };
+  }
+
+  function migrateReport(plan, results, meta = {}) {
+    const L = [`# Migration: role-assignable → restricted administrative unit`, "",
+      `**Tenant:** ${meta.tenant || "—"}  `,
+      `**Restricted AU:** ${meta.auName || "—"}  `,
+      `**Generated by:** ${meta.build || ""}  `,
+      `**When:** ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, "",
+      `Role-assignable groups were used to keep CA exclusion membership out of reach of tenant-wide group administrators. A restricted management administrative unit does that and lets you name who may manage them. The two cannot be combined: a role-assignable group admits only Global Administrator or Privileged Role Administrator, and a restricted AU blocks exactly those two.`, ""];
+    L.push(`## Result`, "");
+    L.push(`| Group | Outcome | New id | Members | Policies |`, `| --- | --- | --- | ---: | ---: |`);
+    for (const r of (results || [])) {
+      const mem = r.membersMoved != null && r.memberTotal != null ? `${r.membersMoved}/${r.memberTotal}` : (r.membersMoved != null ? String(r.membersMoved) : "—");
+      L.push(`| ${r.name} | ${r.ok ? "migrated" : "FAILED"} | ${r.newId || "—"} | ${mem} | ${r.refsMoved != null ? r.refsMoved : "—"} |`);
+    }
+    L.push("");
+    const skipped = (plan && plan.skipped) || [];
+    if (skipped.length) {
+      L.push(`## Not migrated (${skipped.length})`, "");
+      for (const s of skipped) L.push(`- **${s.name}** — ${s.reason}`);
+      L.push("");
+    }
+    L.push(`## What to do next`, "");
+    L.push(`1. Check the members of each new group against the archived one before deleting anything.`);
+    const outside = (results || []).filter((r) => r.ok && !r.inAu);
+    if (outside.length) {
+      L.push(`2. **${outside.length} group${outside.length === 1 ? " is" : "s are"} not in the restricted AU yet** — ${outside.map((r) => r.name).join(", ")}. They are ordinary groups now, so **CA groups → ⑥ Protect** can place them whenever you are ready.`);
+    } else {
+      L.push(`2. Grant a **scoped administrator** on the restricted AU if you have not — otherwise nobody can manage these members.`);
+    }
+    L.push(`3. Delete the archived \`(${MIGRATED_TAG} …)\` groups from **CA groups → 🧹 Archived groups** once satisfied. They are your rollback until then.`);
+    L.push("");
+    L.push(`_The archived groups keep their members and remain role-assignable; they simply no longer appear in any Conditional Access policy._`);
+    return L.join("\n");
+  }
+
   return {
     STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate,
     renderSummary, chips, renderTable, renderMatrix, toMd, filtered,
     NESTING, NEST_WRITE_SCOPES, nestingState, nestingPlan, nestingReport, adminList,
     ARCHIVE_SUFFIX, findArchived,
     catalogGroupNames, templateNames, policyRefs, convertPlan, runConvert,
+    MIGRATE_SCOPES, heldRoles, migratePlan, migrateReport, migratedName,
     csvParse, csvDetect, csvPersonas, csvUsers, csvSuggest, csvReport,
     rmauCandidates, rmauReport,
   };
