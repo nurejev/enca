@@ -107,9 +107,24 @@ const Rmau = (() => {
     { code: "SA",          label: "Service accounts",        caRange: "CA600–CA899" },
     { code: "DevOps",      label: "DevOps",                  caRange: "CA1000–CA1099" },
     { code: "FW",          label: "Frontline workers",       caRange: "" },
+    // Break-glass is not a persona and has no CA range: CAB-SEC-U-BreakGlass is
+    // excluded from very nearly every policy in the baseline, which is exactly
+    // why it cannot sit in one persona's vault. Whoever can edit it can walk
+    // through every policy at once, so it gets a unit of its own with its own
+    // (smaller) list of scoped administrators. The name has no -Exclusions
+    // suffix because it is not a persona's exclusions — it is the emergency
+    // access group itself.
+    { code: "BreakGlass",  label: "Break-glass",             caRange: "", name: "CAB-SEC-RMAU-BreakGlass",
+      description: "Restricted management administrative unit for the break-glass emergency access group (CAB-SEC-U-BreakGlass), which is excluded from nearly every Conditional Access policy. Membership changes require a role scoped to this administrative unit — keep the list of scoped administrators shorter than for any other unit." },
   ];
-  const auName = (code) => `CAB-SEC-RMAU-${code}-Exclusions`;
-  const auDescription = (a) => `Restricted management administrative unit for the ${a.label} Conditional Access exclusion groups${a.caRange ? ` (${a.caRange})` : ""}. Membership changes require a role scoped to this administrative unit.`;
+  // A catalog entry may carry its own `name` — break-glass does, because it
+  // holds the emergency access group rather than a persona's exclusions.
+  const auName = (code) => {
+    const e = BASELINE_AUS.find((a) => a.code === code);
+    return (e && e.name) || `CAB-SEC-RMAU-${code}-Exclusions`;
+  };
+  const auDescription = (a) => a.description
+    || `Restricted management administrative unit for the ${a.label} Conditional Access exclusion groups${a.caRange ? ` (${a.caRange})` : ""}. Membership changes require a role scoped to this administrative unit.`;
 
   // Compare the catalog with what the tenant has. `aus` is the /administrativeUnits
   // read (id, displayName, isMemberManagementRestricted).

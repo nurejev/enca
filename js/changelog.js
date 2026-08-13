@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 259, date: "2026-08-13", title: "Break-glass gets a vault of its own",
+    items: [
+      { kind: "new", tool: "Restricted AUs", text: "A tenth unit joins the baseline: CAB-SEC-RMAU-BreakGlass. CAB-SEC-U-BreakGlass is excluded from very nearly every policy in the baseline, so it belongs to no single persona — and that is precisely the argument for giving it its own unit rather than filing it under Global. Whoever can edit that group can walk through every policy at once, so it deserves a shorter list of scoped administrators than anything else. The name deliberately carries no -Exclusions suffix, because the unit holds the emergency access group itself rather than a persona's exclusions. Build 258 shipped the nine persona units without it." },
+      { kind: "improved", tool: "Restricted AUs", text: "Help now warns against adding the break-glass USER ACCOUNTS to a restricted unit. A Global Administrator inside one cannot have their password reset by anybody, because no role that can reset a Global Administrator's password can be assigned at administrative-unit scope — recovery means removing the account from the unit first, which is the opposite of what you want during an incident. Protect the group's membership; leave the accounts out." },
+    ],
+  },
+  {
     build: 258, date: "2026-08-13", title: "One restricted administrative unit per persona",
     items: [
       { kind: "new", tool: "Restricted AUs", text: "The tool now opens with a BASELINE panel that checks the tenant for the nine administrative units the baseline expects — CAB-SEC-RMAU-GLO / ADM / INT / EXT / GUESTUSERS / GUESTAdmins / SA / DevOps / FW-Exclusions — and offers to create the missing ones. One unit per persona is the point: a scoped administrator for the Admins exclusions should not be able to touch the Externals exclusions, and a single shared unit gives exactly that. Each is created with isMemberManagementRestricted, and the account running it is granted Groups Administrator scoped to the unit in the same step — an administrative unit with no scoped administrator is a vault nobody can open, because the restricted flag is precisely what blocks the tenant-wide roles. Select all, tick individually, or export the current state as Markdown." },
