@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25018"></script>
+<script src="js/popup-guard.js?v=25019"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25018">
+<link rel="stylesheet" href="css/app.css?v=25019">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25018"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25018"></script>
+<script src="js/counter.js?v=25019"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25019"></script>
 </head>
 <body>
 
@@ -1407,6 +1407,7 @@
         <li><b>⑦ Migrate <span class="tag new">BETA</span></b> — move the baseline off <b>role-assignable</b> groups and onto a <b>restricted management administrative unit</b>. Role-assignable was only ever used here for its side effect: membership reachable only by Global Administrator or Privileged Role Administrator. A restricted AU does that <i>and</i> lets you name who may manage the groups, and it drops the role-assignable costs (500-per-tenant cap, no dynamic membership, no nesting control). The two cannot be combined — a restricted AU blocks GA and PRA, so a role-assignable group inside one has <b>nobody</b> who can change its members.
           <br><code>isAssignableToRole</code> is immutable, so each group is <b>recreated</b>, in this order: rename the current group aside as <code>(migrated YYYY-MM-DD)</code>, create a plain group under the original name (nesting disabled by default — the one property the role-assignable flag gave you for free), <b>copy the members</b>, add the new group to every policy, remove the old one, and only then place the new group in the restricted AU. Members move <b>before</b> the AU placement because afterwards only an AU-scoped role could add them; the new group joins each policy <b>before</b> the old one leaves, so no exclusion ever briefly vanishes.
           <br><b>Skipped, with the reason shown:</b> a group that holds a directory role (a plain group cannot carry one — deal with the role first), one already inside a restricted AU, one not in the tenant, and one already plain. A group whose role check fails is skipped rather than risked.
+          <br><b>Select all / deselect all</b> above the list, and the restricted-AU placement is <b>optional</b> — untick it to convert in stages, verify the members, then place the groups from ⑥ Protect when ready (they are ordinary groups by then, so Protect handles them like any other). A converted-but-unplaced group is editable by any tenant-wide Groups Administrator until you do.
           <br>The archived originals keep their members and stay role-assignable — they are your rollback until you delete them from <b>🧹 Archived groups</b>. Needs <code>Group.ReadWrite.All</code>, <code>RoleManagement.ReadWrite.Directory</code>, <code>AdministrativeUnit.ReadWrite.All</code> and <code>Policy.ReadWrite.ConditionalAccess</code>, plus <b>Privileged Role Administrator</b>.</li>
       <p class="help-x">Writes only on Create / Recreate / Make dynamic / Assign / Import members / Protect / Migrate, each behind a confirmation.</p>
     </section>
@@ -2085,44 +2086,44 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25018"></script>
-<script src="js/version.js?v=25018"></script>
-<script src="js/authConfig.js?v=25018"></script>
-<script src="js/labels.js?v=25018"></script>
-<script src="js/graph.js?v=25018"></script>
-<script src="js/model.js?v=25018"></script>
-<script src="js/render.js?v=25018"></script>
-<script src="js/analyze.js?v=25018"></script>
-<script src="js/whatif.js?v=25018"></script>
-<script src="js/mslearn.js?v=25018"></script>
-<script src="js/gapcheck.js?v=25018"></script>
-<script src="js/cisdata.js?v=25018"></script>
-<script src="js/cischeck.js?v=25018"></script>
-<script src="js/exclusions.js?v=25018"></script>
-<script src="js/validator.js?v=25018"></script>
-<script src="js/whatifeval.js?v=25018"></script>
-<script src="js/compare.js?v=25018"></script>
-<script src="js/groupuse.js?v=25018"></script>
-<script src="js/locations.js?v=25018"></script>
-<script src="js/authcontexts.js?v=25018"></script>
-<script src="js/authstrengths.js?v=25018"></script>
-<script src="js/recycle.js?v=25018"></script>
-<script src="js/rmau.js?v=25018"></script>
-<script src="js/termsofuse.js?v=25018"></script>
-<script src="js/audit.js?v=25018"></script>
-<script src="js/drift.js?v=25018"></script>
-<script src="js/signins.js?v=25018"></script>
-<script src="js/reportimpact.js?v=25018"></script>
-<script src="js/changelog.js?v=25018"></script>
-<script src="js/baselineData.js?v=25018"></script>
-<script src="js/baselineJoeyData.js?v=25018"></script>
-<script src="js/baseline.js?v=25018"></script>
-<script src="js/groupTemplates.js?v=25018"></script>
-<script src="js/assign.js?v=25018"></script>
-<script src="js/cagroups.js?v=25018"></script>
-<script src="js/import.js?v=25018"></script>
-<script src="js/export.js?v=25018"></script>
-<script src="js/demo.js?v=25018"></script>
-<script src="js/app.js?v=25018"></script>
+<script src="js/branding.js?v=25019"></script>
+<script src="js/version.js?v=25019"></script>
+<script src="js/authConfig.js?v=25019"></script>
+<script src="js/labels.js?v=25019"></script>
+<script src="js/graph.js?v=25019"></script>
+<script src="js/model.js?v=25019"></script>
+<script src="js/render.js?v=25019"></script>
+<script src="js/analyze.js?v=25019"></script>
+<script src="js/whatif.js?v=25019"></script>
+<script src="js/mslearn.js?v=25019"></script>
+<script src="js/gapcheck.js?v=25019"></script>
+<script src="js/cisdata.js?v=25019"></script>
+<script src="js/cischeck.js?v=25019"></script>
+<script src="js/exclusions.js?v=25019"></script>
+<script src="js/validator.js?v=25019"></script>
+<script src="js/whatifeval.js?v=25019"></script>
+<script src="js/compare.js?v=25019"></script>
+<script src="js/groupuse.js?v=25019"></script>
+<script src="js/locations.js?v=25019"></script>
+<script src="js/authcontexts.js?v=25019"></script>
+<script src="js/authstrengths.js?v=25019"></script>
+<script src="js/recycle.js?v=25019"></script>
+<script src="js/rmau.js?v=25019"></script>
+<script src="js/termsofuse.js?v=25019"></script>
+<script src="js/audit.js?v=25019"></script>
+<script src="js/drift.js?v=25019"></script>
+<script src="js/signins.js?v=25019"></script>
+<script src="js/reportimpact.js?v=25019"></script>
+<script src="js/changelog.js?v=25019"></script>
+<script src="js/baselineData.js?v=25019"></script>
+<script src="js/baselineJoeyData.js?v=25019"></script>
+<script src="js/baseline.js?v=25019"></script>
+<script src="js/groupTemplates.js?v=25019"></script>
+<script src="js/assign.js?v=25019"></script>
+<script src="js/cagroups.js?v=25019"></script>
+<script src="js/import.js?v=25019"></script>
+<script src="js/export.js?v=25019"></script>
+<script src="js/demo.js?v=25019"></script>
+<script src="js/app.js?v=25019"></script>
 </body>
 </html>

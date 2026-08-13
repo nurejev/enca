@@ -953,6 +953,11 @@ const CaGroups = (() => {
     const roles = opts.roles || new Map();
     const protectedIn = opts.protectedIn || new Map();
     const disableNesting = opts.disableNesting !== false;      // default ON
+    // Placing the new group in the restricted AU is optional. Skipping it leaves
+    // an ordinary group that ⑥ Protect can pick up later — which is the same
+    // path any never-role-assignable baseline group takes, so nothing special
+    // is needed to finish the job afterwards.
+    const toAu = opts.toAu !== false;
     const items = (rows || []).map((row) => {
       const base = { id: row.id, name: row.name, row,
         refs: row.refs || { include: [], exclude: [] },
@@ -986,8 +991,10 @@ const CaGroups = (() => {
           ...(base.refs.exclude.length ? [{ key: "addExc", text: `Add the new group to the EXCLUDE of ${base.refs.exclude.length} polic${base.refs.exclude.length === 1 ? "y" : "ies"}` }] : []),
           ...(base.refs.include.length ? [{ key: "delInc", text: `Remove the archived group from those ${base.refs.include.length} include assignment${base.refs.include.length === 1 ? "" : "s"}` }] : []),
           ...(base.refs.exclude.length ? [{ key: "delExc", text: `Remove the archived group from those ${base.refs.exclude.length} exclude assignment${base.refs.exclude.length === 1 ? "" : "s"}` }] : []),
-          { key: "rmau",    text: `Add the new group to the restricted AU${opts.rmauName ? ` “${opts.rmauName}”` : ""} — last, so the member copy is still possible` },
+          ...(toAu ? [{ key: "rmau", text: `Add the new group to the restricted AU${opts.rmauName ? ` “${opts.rmauName}”` : ""} — last, so the member copy is still possible` }]
+                   : [{ key: "noAu", text: `Leave it outside the restricted AU for now — add it later from ⑥ Protect` }]),
         ],
+        toAu,
         nRef,
       };
     });
@@ -995,7 +1002,7 @@ const CaGroups = (() => {
       items,
       eligible: items.filter((x) => x.ok),
       skipped: items.filter((x) => !x.ok),
-      disableNesting,
+      disableNesting, toAu,
     };
   }
 
@@ -1021,7 +1028,12 @@ const CaGroups = (() => {
     }
     L.push(`## What to do next`, "");
     L.push(`1. Check the members of each new group against the archived one before deleting anything.`);
-    L.push(`2. Grant a **scoped administrator** on the restricted AU if you have not — otherwise nobody can manage these members.`);
+    const outside = (results || []).filter((r) => r.ok && !r.inAu);
+    if (outside.length) {
+      L.push(`2. **${outside.length} group${outside.length === 1 ? " is" : "s are"} not in the restricted AU yet** — ${outside.map((r) => r.name).join(", ")}. They are ordinary groups now, so **CA groups → ⑥ Protect** can place them whenever you are ready.`);
+    } else {
+      L.push(`2. Grant a **scoped administrator** on the restricted AU if you have not — otherwise nobody can manage these members.`);
+    }
     L.push(`3. Delete the archived \`(${MIGRATED_TAG} …)\` groups from **CA groups → 🧹 Archived groups** once satisfied. They are your rollback until then.`);
     L.push("");
     L.push(`_The archived groups keep their members and remain role-assignable; they simply no longer appear in any Conditional Access policy._`);
