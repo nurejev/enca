@@ -126,8 +126,8 @@ const Rmau = (() => {
     // (smaller) list of scoped administrators. The name has no -Exclusions
     // suffix because it is not a persona's exclusions — it is the emergency
     // access group itself.
-    { code: "BreakGlass",  label: "Break-glass / E-Admins",  caRange: "CA1100–CA1199", name: "CAB-SEC-RMAU-BreakGlass",
-      description: "Restricted management administrative unit for the break-glass emergency access group (CAB-SEC-U-BreakGlass) and the E-Admins exclusions (CA1100–CA1199) — the E-Admins ARE the break-glass accounts, so they share one vault rather than sitting with the ordinary admins. Excluded from nearly every Conditional Access policy. Membership changes require a role scoped to this administrative unit — keep the list of scoped administrators shorter than for any other unit." },
+    { code: "BreakGlass",  label: "Break-glass",             caRange: "", name: "CAB-SEC-RMAU-BreakGlass",
+      description: "Restricted management administrative unit for the break-glass emergency access group (CAB-SEC-U-BreakGlass), which is excluded from nearly every Conditional Access policy. Membership changes require a role scoped to this administrative unit — keep the list of scoped administrators shorter than for any other unit." },
     { code: "FW",          label: "Factory workers",         caRange: "CA1200–CA1299" },
   ];
   // Which persona vault does an exclusion group belong in? Derived from the CA
@@ -139,7 +139,7 @@ const Rmau = (() => {
     0: "GLO", 100: "ADM", 200: "INT", 300: "EXT", 400: "GUESTUSERS",
     500: "GUESTAdmins", 600: "SA", 700: "SA", 800: "SA",
     900: "WLI", 1000: "DevOps",
-    1100: "BreakGlass",   // E-Admins ARE the break-glass accounts
+    1100: "ADM",   // E-Admins file with the admins
     1200: "FW",
   };
   function codeForGroup(name) {
@@ -159,6 +159,15 @@ const Rmau = (() => {
   };
   const auDescription = (a) => a.description
     || `Restricted management administrative unit for the ${a.label} Conditional Access exclusion groups${a.caRange ? ` (${a.caRange})` : ""}. Membership changes require a role scoped to this administrative unit.`;
+
+  // The reverse of auName: which persona is THIS administrative unit? Matched
+  // against the catalog by name, because an administrative unit's name carries
+  // no CA number for codeForGroup to read.
+  const codeForAu = (displayName) => {
+    const n = String(displayName || "").toLowerCase();
+    const hit = BASELINE_AUS.find((a) => auName(a.code).toLowerCase() === n);
+    return hit ? hit.code : null;
+  };
 
   // Compare the catalog with what the tenant has. `aus` is the /administrativeUnits
   // read (id, displayName, isMemberManagementRestricted).
@@ -216,5 +225,5 @@ const Rmau = (() => {
   }
 
   return { ROLE_TEMPLATES, isRestricted, memberType, caRefs, summarize, buildPayload, toMd,
-    BASELINE_AUS, auName, auDescription, baselineCheck, baselineReport, codeForGroup };
+    BASELINE_AUS, auName, auDescription, baselineCheck, baselineReport, codeForGroup, codeForAu };
 })();

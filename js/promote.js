@@ -21,17 +21,17 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.263",
-  betaBuild: "v1.0.250-beta.46",
+  betaBuild: "v1.0.250-beta.47",
 
   items: [
     {
       n: 16,
-      title: "Factory workers, workload identities, and E-Admins with break-glass",
+      title: "Factory workers and workload identities",
       tools: ["Restricted AUs", "List Policies", "Protect exclusions", "Import"],
-      builds: [25046],
+      builds: [25046, 25047],
       risk: "high",
-      what: "CA1200–CA1299 named as Factory workers (it rendered as “CA1200+”), a WLI vault for workload identities, E-Admins moved from the Admins vault to break-glass, and the FW vault given its CA range so groups in it route at all. Import switched to the same routing rule as Protect. Also fixes a scoped role showing its raw GUID.",
-      why: "Production names no persona above CA1100, so a Factory-workers policy set reads as an unnamed range, and a CA1200 or CA1250 exclusion group routes nowhere. E-Admins filing into the Admins vault is a real separation failure rather than a cosmetic one: it gives the everyday admin team management of the emergency accounts' exclusions.",
+      what: "CA1200–CA1299 named as Factory workers (it rendered as “CA1200+”), a WLI vault for workload identities and the FW vault given its CA range so groups in it route at all. Import switched to the same routing rule as Protect. Also fixes a scoped role showing its raw GUID.",
+      why: "Production names no persona above CA1100, so a Factory-workers policy set reads as an unnamed range, and a CA1200 or CA1250 exclusion group routes nowhere.",
       files: ["js/rmau.js", "js/render.js", "js/import.js", "js/app.js", "index.html"],
     },
     {

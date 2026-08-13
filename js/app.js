@@ -5686,6 +5686,7 @@ max@contoso.com,"Global, DevOps"</pre>
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Members (${(d.members || []).length})${nFrozen ? ` <span class="tag block" style="text-transform:none;letter-spacing:normal">🧊 ${nFrozen} frozen</span>` : ""}</div>
             <div style="display:flex;gap:6px;margin:6px 0 6px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="Add member — baseline group name, any group, or user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
             <ul class="wi-list" style="margin:0 0 12px">${mems || '<li><div class="wi-why">No members.</div></li>'}</ul>
+            ${ruBulkPanel(au)}
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Scoped role members (${(d.scoped || []).length})${d.scopedError ? ` <span class="muted" style="font-weight:400;text-transform:none">— ${esc(d.scopedError)}</span>` : ""}</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 6px"><select data-rurole="${esc(au.id)}" class="btn" style="cursor:pointer">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select>
               <input data-ruadminbox="${esc(au.id)}" list="ruUserSug" placeholder="UPN of the scoped administrator — start typing a name" spellcheck="false" autocomplete="off" style="flex:1;min-width:180px"><button class="btn sm" data-ruadmin="${esc(au.id)}">+ Grant</button></div>
@@ -5810,6 +5811,136 @@ max@contoso.com,"Global, DevOps"</pre>
     return false;
   }
 
+  // Rendered inside a restricted persona AU's card, under the member list.
+  function ruBulkPanel(au) {
+    if (!Rmau.isRestricted(au)) return "";
+    const code = Rmau.codeForAu(au.displayName);
+    if (!code) return "";                       // not a baseline persona unit
+    const entry = Rmau.BASELINE_AUS.find((a) => a.code === code) || {};
+    const t = ruBulk && ruBulk.auId === au.id ? ruBulk : null;
+
+    if (!t) {
+      return `<div style="margin:10px 0 12px">
+        <button class="btn sm" data-rubulk="${esc(au.id)}">＋ Bulk add ${esc(entry.label || code)} groups</button>
+        <span class="mini muted"> — finds this tenant's security groups whose CA number falls in ${esc(entry.caRange || "this persona's range")} and adds them in one go.</span>
+      </div>`;
+    }
+    if (t.busy && !t.rows.length) return '<div class="mini muted" style="margin:10px 0"><div class="spinner" style="width:16px;height:16px"></div> Looking for this persona\'s groups…</div>';
+    if (t.error) return `<div class="mini" style="color:var(--off);margin:10px 0">✗ ${esc(t.error)}</div>`;
+
+    const can = t.rows.filter((r) => !r.why);
+    const cannot = t.rows.filter((r) => r.why);
+    const line = (r) => r.why
+      ? `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b> <span class="tag block">cannot</span></div>
+           <div class="mini" style="color:var(--off)">${esc(r.why)}</div></div>`
+      : `<div class="dr-row"><div class="dr-head"><label class="chk" style="margin:0">
+           <input type="checkbox" data-rubulkg="${esc(r.id)}"${t.sel.has(r.id) ? " checked" : ""}> <b>${esc(r.name)}</b></label></div></div>`;
+
+    return `<div class="cg-panel" style="margin:10px 0 12px">
+      <h4>BULK ADD — ${esc(entry.label || code).toUpperCase()} ${entry.caRange ? `(${esc(entry.caRange)})` : ""}</h4>
+      ${!t.rows.length ? '<p class="mini" style="margin:0">No security group in this tenant carries a CA number in this persona\'s range. Nothing to add — which for the workload-identity unit is the expected answer, since those policies exclude service principals and a service principal cannot be a member of an administrative unit.</p>' : `
+        <p class="mini" style="margin:0 0 8px">${can.length} can be added${cannot.length ? ` · <span style="color:var(--off)">${cannot.length} cannot</span>` : ""}. Matched by the CA number in the group's name — the same rule ⑥ Protect routes by.</p>
+        <div class="cg-pick">${t.rows.map(line).join("")}</div>
+        ${can.length ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+            <button class="btn sm" data-rubulkall="${esc(au.id)}">${t.sel.size === can.length ? "☐ Deselect all" : "☑ Select all"}</button>
+            <span class="mini muted">${t.sel.size} of ${can.length} selected</span>
+          </div>
+          <div class="row" style="justify-content:flex-start;margin-top:10px">
+            <button class="btn primary" data-rubulkgo="${esc(au.id)}"${t.busy ? " disabled" : ""}>Add ${t.sel.size} group${t.sel.size === 1 ? "" : "s"}${isDemo ? " (simulated)" : ""}</button>
+            <button class="btn" data-rubulk="${esc(au.id)}">⟳ Re-check</button>
+          </div>` : ""}`}
+      ${t.results ? `<p class="mini" style="margin:8px 0 0"><b>${t.results.filter((r) => r.ok).length}/${t.results.length} added.</b>${t.results.some((r) => !r.ok) ? ` <span style="color:var(--off)">${t.results.filter((r) => !r.ok).map((r) => `${esc(r.name)} — ${esc(r.error)}`).join("; ")}</span>` : ""}</p>` : ""}
+    </div>`;
+  }
+
+  // ---------- bulk add: the whole persona at once ----------
+  // A persona vault wants every exclusion group of that persona in it. Adding
+  // them one at a time through the type-ahead is the same decision repeated
+  // twenty times, and the failure mode is not noticing that you stopped at
+  // nineteen. This finds them by the CA number in their names — the same rule
+  // ⑥ Protect routes by — and shows what CANNOT go in as prominently as what
+  // can, because those are the rows that need a different action, not a retry.
+  let ruBulk = null;   // { auId, busy, rows, sel, results, error }
+
+  const RU_BULK_PREFIXES = ["CAB-SEC", "CAD-SEC"];
+
+  async function ruBulkScan(auId) {
+    const au = (ruList || []).find((a) => a.id === auId);
+    const code = au ? Rmau.codeForAu(au.displayName) : null;
+    ruBulk = { auId, busy: true, rows: [], sel: new Set(), results: null, error: null, code };
+    renderRmau();
+    try {
+      if (!code) throw new Error("this administrative unit is not one of the baseline persona units, so there is no persona to gather groups for");
+      let groups = [];
+      if (isDemo) {
+        groups = [{ id: "d1", displayName: "CAB-SEC-U-CA101-Exclusion" }, { id: "d2", displayName: "CAB-SEC-U-CA102-Exclusion" }];
+      } else {
+        // Bounded on purpose: the baseline family, not every group in the
+        // tenant. A displayName cannot be matched by pattern in Graph, so the
+        // CA-number filter happens here.
+        for (const p of RU_BULK_PREFIXES) {
+          const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
+          groups = groups.concat(r);
+        }
+      }
+      const already = new Set(((ruDetails[auId] || {}).members || []).map((m) => m.id));
+      // Where everything else already lives, so a group sitting in the WRONG
+      // unit is visible rather than silently offered as if it were free.
+      let prot = new Map();
+      if (!isDemo) { try { prot = await readProtectionMap(); } catch { /* leave it unknown */ } }
+
+      const rows = [];
+      for (const g of groups) {
+        if (Rmau.codeForGroup(g.displayName) !== code) continue;
+        const m365 = (g.groupTypes || []).includes("Unified");
+        const mailSec = g.mailEnabled === true && g.securityEnabled === true;
+        const dist = g.mailEnabled === true && g.securityEnabled === false;
+        const elsewhere = prot.get(g.id);
+        const row = { id: g.id, name: g.displayName, roleAssignable: g.isAssignableToRole === true };
+        if (already.has(g.id)) row.why = "already a member of this unit";
+        else if (m365) row.why = "Microsoft 365 group — only SECURITY groups can be members of a restricted unit";
+        else if (mailSec) row.why = "mail-enabled security group — only cloud security groups can be members";
+        else if (dist) row.why = "distribution group — only security groups can be members";
+        else if (row.roleAssignable) row.why = "role-assignable — putting it in a restricted unit would leave NOBODY able to change its members. Convert it with ⑦ Migrate first";
+        else if (elsewhere && elsewhere.auId !== auId) row.why = `already in ${elsewhere.auName} — an object can sit in several restricted units, and a scoped administrator on ANY of them can manage it, so adding it here widens who can reach it rather than narrowing it`;
+        rows.push(row);
+      }
+      rows.sort((a, b) => (a.why ? 1 : 0) - (b.why ? 1 : 0) || String(a.name).localeCompare(String(b.name)));
+      ruBulk.rows = rows;
+      ruBulk.sel = new Set(rows.filter((r) => !r.why).map((r) => r.id));
+    } catch (e) {
+      ruBulk.error = e.message || String(e);
+    }
+    ruBulk.busy = false;
+    renderRmau();
+  }
+
+  async function ruBulkAdd(btn) {
+    const t = ruBulk; if (!t || t.busy) return;
+    const picked = t.rows.filter((r) => t.sel.has(r.id) && !r.why);
+    if (!picked.length) { toast("Nothing selected"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE])) return;
+    t.busy = true; btn.disabled = true;
+    const results = [];
+    for (const r of picked) {
+      try {
+        if (!isDemo) await Graph.gpost(`/administrativeUnits/${t.auId}/members/$ref`,
+          { "@odata.id": `https://graph.microsoft.com/beta/groups/${r.id}` });
+        results.push({ name: r.name, ok: true });
+      } catch (e) {
+        const already = /already exist/i.test(e.message || "");
+        results.push({ name: r.name, ok: already, error: already ? "" : (e.message || String(e)) });
+      }
+    }
+    t.results = results; t.busy = false;
+    // The card's member list is stale now, and so is the offer.
+    delete ruDetails[t.auId];
+    await ruLoadDetail(t.auId);
+    const ok = results.filter((r) => r.ok).length;
+    toast(`${ok}/${results.length} group${results.length === 1 ? "" : "s"} added${isDemo ? " (simulated)" : ""}`);
+    await ruBulkScan(t.auId);
+  }
+
   async function ruAddMember(auId, term) {
     const t = term.trim();
     if (!t) { toast("Type a group name or a user UPN"); return; }
@@ -5895,6 +6026,12 @@ max@contoso.com,"Global, DevOps"</pre>
         Rmau.baselineReport(t.check, t.results, { tenant: tenantName, build: APP_BUILD.label }));
       return;
     }
+    const bg = e.target.closest("[data-rubulkg]");
+    if (bg && ruBulk) {
+      bg.checked ? ruBulk.sel.add(bg.dataset.rubulkg) : ruBulk.sel.delete(bg.dataset.rubulkg);
+      renderRmau();
+      return;
+    }
     const bs = e.target.closest("[data-rubase]");
     if (bs) {
       const t = ruBaseline();
@@ -5902,6 +6039,17 @@ max@contoso.com,"Global, DevOps"</pre>
       renderRmau();
       return;
     }
+    const bk = e.target.closest("[data-rubulk]");
+    if (bk) { await ruBulkScan(bk.dataset.rubulk); return; }
+    const bka = e.target.closest("[data-rubulkall]");
+    if (bka && ruBulk) {
+      const can = ruBulk.rows.filter((r) => !r.why);
+      ruBulk.sel = ruBulk.sel.size === can.length ? new Set() : new Set(can.map((r) => r.id));
+      renderRmau();
+      return;
+    }
+    const bkg = e.target.closest("[data-rubulkgo]");
+    if (bkg) { await ruBulkAdd(bkg); return; }
     const sc = e.target.closest("[data-ruscope]");
     if (sc) {
       const id = sc.dataset.ruscope;
