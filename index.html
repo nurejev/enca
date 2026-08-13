@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=267"></script>
+<script src="js/popup-guard.js?v=268"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=267">
+<link rel="stylesheet" href="css/app.css?v=268">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=267"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=267"></script>
+<script src="js/counter.js?v=268"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=268"></script>
 </head>
 <body>
 
@@ -1277,6 +1277,8 @@
         <li><b>Create the missing ones</b> — tick them, or take all. Each is created with the restricted flag set, and <b>you are granted Groups Administrator scoped to it in the same step</b>. That second half is not a convenience: an administrative unit with no scoped administrator is a vault nobody can open, because the restricted flag is precisely what shuts out the tenant-wide roles. Creation and the role grant are reported separately, so a unit that exists but has no administrator is visible as the half-outcome it is rather than counted as a success.</li>
         <li><b>A name clash is refused, not skipped</b> — if an AU already carries an expected name but is <b>not</b> restricted, it is shown as <i>name taken — not restricted</i> and is left alone. The flag is immutable, so that unit cannot be upgraded into the one you want; rename it and create a restricted replacement, or give the persona a different name.</li>
         <li><b>Break-glass gets its own vault.</b> <code>CAB-SEC-U-BreakGlass</code> is excluded from very nearly every policy in the baseline, so it belongs to no single persona — whoever can edit it can walk through every policy at once. It gets <code>CAB-SEC-RMAU-BreakGlass</code>, deliberately without an <code>-Exclusions</code> suffix because it holds the emergency access group itself rather than a persona's exclusions. Keep its list of scoped administrators shorter than any other unit's.</li>
+        <li><b>Break-glass groups are matched by intent, not by our spelling.</b> Tenants name them locally — <code>BreakGlass</code>, <code>Break-Glass</code>, <code>Emergency_Access1</code>, <code>BG-Admins</code> — so ＋ Bulk add on the break-glass unit looks for all of those rather than only the baseline's name. A group carrying a <b>CA number</b> keeps that number's persona even if its name also says "emergency": <code>CAB-SEC-U-CA101-EmergencyAccess</code> is an Admins exclusion group, filed deliberately, and a coincidence of wording should not overrule it.</li>
+        <li><b>Groups, not the accounts themselves.</b> Bulk add offers security <i>groups</i>. If <code>Emergency_Access1</code> is a user account rather than a group, do not add it here — a Global Administrator inside a restricted unit cannot have their password reset by anybody, which is the one thing you need to work during the incident these accounts exist for.</li>
         <li><b>Workload identities get a vault that will often be empty</b> — and that is correct rather than a mistake. CA900–CA999 policies target <b>service principals</b>, which cannot be members of an administrative unit at all; only users, groups and devices can. <code>CAB-SEC-RMAU-WLI-Exclusions</code> holds whatever exclusion <i>groups</i> the range uses, which is worth separating because those groups gate the automation that runs with nobody behind it.</li>
         <li><b>📄 Report</b> — the eleven rows, their status and their scoped administrator as Markdown, for the design document or the hand-over.</li>
         <li><b>Ceilings worth knowing</b> — a tenant may hold at most <b>100</b> restricted management administrative units, so eleven is comfortable. Only <b>security</b> groups can be members: Microsoft 365, mail-enabled security and distribution groups cannot. Deleting a unit can take up to 30 minutes to lift the protection from its former members.</li>
@@ -2071,42 +2073,42 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=267"></script>
-<script src="js/version.js?v=267"></script>
-<script src="js/authConfig.js?v=267"></script>
-<script src="js/labels.js?v=267"></script>
-<script src="js/graph.js?v=267"></script>
-<script src="js/model.js?v=267"></script>
-<script src="js/render.js?v=267"></script>
-<script src="js/analyze.js?v=267"></script>
-<script src="js/whatif.js?v=267"></script>
-<script src="js/mslearn.js?v=267"></script>
-<script src="js/gapcheck.js?v=267"></script>
-<script src="js/exclusions.js?v=267"></script>
-<script src="js/validator.js?v=267"></script>
-<script src="js/whatifeval.js?v=267"></script>
-<script src="js/compare.js?v=267"></script>
-<script src="js/groupuse.js?v=267"></script>
-<script src="js/locations.js?v=267"></script>
-<script src="js/authcontexts.js?v=267"></script>
-<script src="js/authstrengths.js?v=267"></script>
-<script src="js/recycle.js?v=267"></script>
-<script src="js/termsofuse.js?v=267"></script>
-<script src="js/rmau.js?v=267"></script>
-<script src="js/audit.js?v=267"></script>
-<script src="js/drift.js?v=267"></script>
-<script src="js/signins.js?v=267"></script>
-<script src="js/reportimpact.js?v=267"></script>
-<script src="js/changelog.js?v=267"></script>
-<script src="js/baselineData.js?v=267"></script>
-<script src="js/baselineJoeyData.js?v=267"></script>
-<script src="js/baseline.js?v=267"></script>
-<script src="js/groupTemplates.js?v=267"></script>
-<script src="js/assign.js?v=267"></script>
-<script src="js/cagroups.js?v=267"></script>
-<script src="js/import.js?v=267"></script>
-<script src="js/export.js?v=267"></script>
-<script src="js/demo.js?v=267"></script>
-<script src="js/app.js?v=267"></script>
+<script src="js/branding.js?v=268"></script>
+<script src="js/version.js?v=268"></script>
+<script src="js/authConfig.js?v=268"></script>
+<script src="js/labels.js?v=268"></script>
+<script src="js/graph.js?v=268"></script>
+<script src="js/model.js?v=268"></script>
+<script src="js/render.js?v=268"></script>
+<script src="js/analyze.js?v=268"></script>
+<script src="js/whatif.js?v=268"></script>
+<script src="js/mslearn.js?v=268"></script>
+<script src="js/gapcheck.js?v=268"></script>
+<script src="js/exclusions.js?v=268"></script>
+<script src="js/validator.js?v=268"></script>
+<script src="js/whatifeval.js?v=268"></script>
+<script src="js/compare.js?v=268"></script>
+<script src="js/groupuse.js?v=268"></script>
+<script src="js/locations.js?v=268"></script>
+<script src="js/authcontexts.js?v=268"></script>
+<script src="js/authstrengths.js?v=268"></script>
+<script src="js/recycle.js?v=268"></script>
+<script src="js/termsofuse.js?v=268"></script>
+<script src="js/rmau.js?v=268"></script>
+<script src="js/audit.js?v=268"></script>
+<script src="js/drift.js?v=268"></script>
+<script src="js/signins.js?v=268"></script>
+<script src="js/reportimpact.js?v=268"></script>
+<script src="js/changelog.js?v=268"></script>
+<script src="js/baselineData.js?v=268"></script>
+<script src="js/baselineJoeyData.js?v=268"></script>
+<script src="js/baseline.js?v=268"></script>
+<script src="js/groupTemplates.js?v=268"></script>
+<script src="js/assign.js?v=268"></script>
+<script src="js/cagroups.js?v=268"></script>
+<script src="js/import.js?v=268"></script>
+<script src="js/export.js?v=268"></script>
+<script src="js/demo.js?v=268"></script>
+<script src="js/app.js?v=268"></script>
 </body>
 </html>

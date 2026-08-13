@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 268, date: "2026-08-13", title: "Break-glass by any name, and what changed comes first",
+    items: [
+      { kind: "improved", tool: "Restricted AUs", text: "＋ Bulk add on the break-glass unit now finds groups named the way tenants actually name them — Emergency_Access1, Emergency_Access2, EmergencyAccess, Break-Glass, BG-… — rather than only the baseline's own CAB-SEC-U-BreakGlass. Two things were needed, not one: the name rule, and the group query, which looked only under the CAB-SEC and CAD-SEC prefixes, so a group called Emergency_Access1 was never being READ at all. Anything holding the accounts that bypass every policy belongs in the same vault whatever it has been called." },
+      { kind: "fixed", tool: "Protect exclusions", text: "The CA NUMBER now wins over a name match in every tool that routes. CAB-SEC-U-CA101-EmergencyAccess is an Admins exclusion group somebody filed deliberately, and a coincidence of wording should not send it to the break-glass vault — the break-glass and frontline name rules are the fallback for groups carrying no number at all. “Emergency Response Team” is offered nowhere: it is neither." },
+      { kind: "improved", tool: "All tools", text: "In a COLLAPSED home section the NEW / BETA / UPDATED tiles now sort to the front. They already claimed one of the four visible slots but kept their position in page order, so a flagged tile sitting ninth was on screen and still read as an afterthought. Done with CSS order rather than by moving anything: nothing is reparented, expanding restores the authored order exactly, and the grid's grouping survives untouched." },
+      { kind: "fixed", tool: "All tools", text: "A section you once expanded stayed expanded through every later release. A release that adds or changes tools has changed what the section CONTAINS, so “show me all eleven”, decided against a different eleven, is no longer an answer to the question being asked — and an expanded section has no top, which silently defeats putting what changed at the top of a collapsed one. The choice is now remembered within a build and reset by the next. The old stored format is read once and discarded rather than migrated: it carries no build, so there is no honest way to decide whether it still applies." },
+    ],
+  },
+  {
     build: 267, date: "2026-08-13", title: "Drift watch and the command palette are out of BETA",
     items: [
       { kind: "improved", tool: "Drift watch", text: "Out of BETA. It has been answering the question it was built for — does the tenant still look like it did when we signed it off — across enough real tenants, and it is read-only: the worst it can do is describe the configuration. The BETA chip comes off the tile and the Help heading, and its roadmap card moves into “Now”." },

@@ -288,11 +288,27 @@
   // takes a synthetic click. Collapsing the grid must not amputate navigation.
   const HOME_VISIBLE = 4;
   const HOME_KEY = "enca-home-expanded";
+  // The expanded/collapsed choice is remembered, but only WITHIN A BUILD. A
+  // release that adds or changes tools has changed what the section contains,
+  // so "show me all eleven" — decided against a different eleven, possibly
+  // months ago — is no longer an answer to the question being asked. Left to
+  // persist, it also silently defeats the point of putting what changed at the
+  // top of a collapsed section: an expanded section has no top.
+  //
+  // The old format was a bare array. It is read once and discarded rather than
+  // migrated: it carries no build, so there is no honest way to decide whether
+  // it still applies, and one collapsed visit costs a click.
   const homeExpanded = (() => {
-    try { return new Set(JSON.parse(localStorage.getItem(HOME_KEY) || "[]")); }
-    catch { return new Set(); }
+    try {
+      const raw = JSON.parse(localStorage.getItem(HOME_KEY) || "null");
+      if (raw && !Array.isArray(raw) && raw.build === APP_BUILD.build) return new Set(raw.keys || []);
+    } catch { /* unreadable or private mode */ }
+    return new Set();
   })();
-  const homeSave = () => { try { localStorage.setItem(HOME_KEY, JSON.stringify([...homeExpanded])); } catch { /* private mode */ } };
+  const homeSave = () => {
+    try { localStorage.setItem(HOME_KEY, JSON.stringify({ build: APP_BUILD.build, keys: [...homeExpanded] })); }
+    catch { /* private mode */ }
+  };
 
   function initHomeSections() {
     const grids = [...document.querySelectorAll("#screen-home .tools")];
@@ -325,7 +341,14 @@
         const hidden = [];
         tiles.forEach((t) => {
           const show = open || keep.has(t);
-          t.style.display = show ? "" : "none";      // display only — order never changes
+          t.style.display = show ? "" : "none";
+          // COLLAPSED: what changed goes first. A flagged tile claimed a visible
+          // slot before this but kept its page position, so a flagged tile
+          // sitting ninth was on screen and still read as an afterthought.
+          // Order is a CSS property here, not a DOM move — nothing is
+          // reparented, so expanding restores the authored order exactly, and
+          // the grid's grouping (which is meaningful) survives untouched.
+          t.style.order = open ? "" : (flagged(t) ? "-1" : "");
           if (!show) hidden.push(t);
         });
         const buried = hidden.filter(flagged).length;
@@ -5744,7 +5767,9 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!t) {
       return `<div style="margin:10px 0 12px">
         <button class="btn sm" data-rubulk="${esc(au.id)}">＋ Bulk add ${esc(entry.label || code)} groups</button>
-        <span class="mini muted"> — finds this tenant's security groups whose CA number falls in ${esc(entry.caRange || "this persona's range")} and adds them in one go.</span>
+        <span class="mini muted"> — finds this tenant's security groups ${code === "BreakGlass"
+          ? "named like break-glass groups (BreakGlass, Break-Glass, Emergency_Access1, BG-…)"
+          : `whose CA number falls in ${esc(entry.caRange || "this persona's range")}`} and adds them in one go.</span>
       </div>`;
     }
     if (t.busy && !t.rows.length) return '<div class="mini muted" style="margin:10px 0"><div class="spinner" style="width:16px;height:16px"></div> Looking for this persona\'s groups…</div>';
@@ -5784,7 +5809,12 @@ max@contoso.com,"Global, DevOps"</pre>
   // can, because those are the rows that need a different action, not a retry.
   let ruBulk = null;   // { auId, busy, rows, sel, results, error }
 
+  // The baseline family, plus — for the break-glass unit only — the names
+  // tenants actually give those groups. Graph cannot match a displayName by
+  // pattern without $search, so the shortlist is a few startswith reads and the
+  // real filter happens on the results.
   const RU_BULK_PREFIXES = ["CAB-SEC", "CAD-SEC"];
+  const RU_BULK_EXTRA = { BreakGlass: ["Emergency", "BreakGlass", "Break-Glass", "BG-"] };
 
   async function ruBulkScan(auId) {
     const au = (ruList || []).find((a) => a.id === auId);
@@ -5800,9 +5830,14 @@ max@contoso.com,"Global, DevOps"</pre>
         // Bounded on purpose: the baseline family, not every group in the
         // tenant. A displayName cannot be matched by pattern in Graph, so the
         // CA-number filter happens here.
-        for (const p of RU_BULK_PREFIXES) {
-          const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
-          groups = groups.concat(r);
+        const seen = new Set();
+        for (const p of [...RU_BULK_PREFIXES, ...(RU_BULK_EXTRA[code] || [])]) {
+          // One prefix failing must not cost the others — a tenant with an odd
+          // group estate should still get the ones that did come back.
+          try {
+            const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
+            for (const g of r) if (!seen.has(g.id)) { seen.add(g.id); groups.push(g); }
+          } catch (e) { console.warn("bulk add: prefix", p, "failed:", e.message || e); }
         }
       }
       const already = new Set(((ruDetails[auId] || {}).members || []).map((m) => m.id));
