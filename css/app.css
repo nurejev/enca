@@ -1318,6 +1318,11 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
   border-radius:6px;padding:1px 7px;margin:0 3px;cursor:pointer;font-size:13px}
 .wi-blocker:hover{border-color:var(--off);color:var(--off)}
 .wi-verdict-sub{font-size:12px;color:var(--muted);margin-top:6px}
+/* The sign-ins behind a report-only verdict. Indented and quiet: it is
+   supporting evidence under a claim, not a second list competing with it. */
+.si-samples{margin:6px 0 2px 14px;border-left:2px solid var(--border);padding-left:10px}
+.si-samples .wi-pn{font-weight:600;font-size:12px}
+.si-lab{font-family:var(--mono,ui-monospace,monospace);font-size:11px;color:var(--muted);margin-right:4px}
 .rm-ref{font-family:var(--mono,ui-monospace,monospace);font-size:11px;font-weight:700;letter-spacing:.04em;
   color:var(--muted);background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:1px 6px;
   margin-right:6px;vertical-align:1px}

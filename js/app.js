@@ -7734,7 +7734,7 @@ max@contoso.com,"Global, DevOps"</pre>
         const open = riOpen.has("u:" + u.upn);
         const detail = open ? `<tr class="au-sumdet"><td colspan="6"><ul class="wi-list" style="margin:6px 0">
           ${u.policies.map((x) => `<li><div class="wi-pn"><span class="pol-link" data-polid="${esc(x.id || "")}" title="Open the policy card">${esc(x.name)}</span></div>
-            <div class="wi-why">${[x.failure ? `${x.failure} would deny` : "", x.interrupted ? `${x.interrupted} interrupted` : "", x.success ? `${x.success} pass` : ""].filter(Boolean).join(" · ")}${riRiskWhy(x)}</div>${riDenyWhy(x)}</li>`).join("")}
+            <div class="wi-why">${[x.failure ? `${x.failure} would deny` : "", x.interrupted ? `${x.interrupted} interrupted` : "", x.success ? `${x.success} pass` : ""].filter(Boolean).join(" · ")}${riRiskWhy(x)}</div>${riDenyWhy(x)}${riSamples(x)}</li>`).join("")}
         </ul></td></tr>` : "";
         return `<tr class="au-sumrow" data-riuser="${esc(u.upn)}">
           <td><b>${esc(u.name)}</b>${u.upn !== u.name ? ` <span class="mini muted">${esc(u.upn)}</span>` : ""}</td>
@@ -7753,6 +7753,20 @@ max@contoso.com,"Global, DevOps"</pre>
   // one question — low, or medium? — and the sign-in record carries the answer.
   // Shown per level rather than summarised, because a run that was two lows and
   // one medium is a different go-live decision from three mediums.
+  // The sign-ins behind a verdict, shown the way 🚦 Sign-in failures shows them:
+  // which controls the policy demanded, then the where-and-what of the actual
+  // sign-in. A count with a derived explanation is thinner than the record it
+  // came from, and this is the same evidence a reviewer would go and look up.
+  const riSamples = (x) => (x.samples || []).length ? `<ul class="wi-list si-samples">${x.samples.map((r) => `<li>
+      <div class="wi-pn"><span class="si-lab">would fail</span> ${esc((r.controls || []).join(", ") || "no control recorded")}
+        <span class="mini muted">→ ${esc(r.app)}</span></div>
+      <div class="wi-why">${esc([new Date(r.when).toLocaleString(), r.client, r.os || r.browser,
+        [r.city, r.country].filter(Boolean).join(", "), r.ip,
+        r.compliant ? "compliant" : (r.trustType || r.managed ? "not compliant" : "unregistered device")].filter(Boolean).join(" · "))}</div>
+      ${r.failureReason ? `<div class="wi-why" style="color:var(--off)"><span class="si-lab">reason</span> ${esc(r.failureReason)}${r.errorCode ? ` (${r.errorCode})` : ""}</div>`
+        : '<div class="wi-why muted">the sign-in itself succeeded — this policy only recorded what it would have done</div>'}
+    </li>`).join("")}</ul>` : "";
+
   // Why it would say NO. The scope line explains why the policy looked at the
   // user; this explains what it would have demanded and what the sign-in
   // actually brought — the question a go-live turns on.

@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25087, date: "2026-08-14", title: "Report-only impact shows the sign-ins, not just the count",
+    items: [
+      { kind: "new", tool: "Report-only impact", text: "🚦 Sign-in failures shows a failed sign-in in full — which policies failed and on which controls, the failure reason and error code, the client and device. Report-only impact gave a count and a derived explanation, which is thinner than the record that produced it. A would-deny row now carries up to three of the ACTUAL sign-ins behind it, in the same shape: the controls the policy demanded, then the client, OS, location and device state. Capped at three deliberately — this is evidence for a reader, not a log, and keeping all of them would hold the window in memory twice over." },
+      { kind: "improved", tool: "Report-only impact", text: "Where the sign-in ALSO failed for an enforced reason, the failure reason and error code appear as they do in Sign-in failures — “Device authentication is required. (50097)”. Where it did not, the row says so outright: the sign-in itself succeeded and this policy only recorded what it would have done. That absence is the whole meaning of report-only, and leaving it blank would read as missing data instead." },
+    ],
+  },
+  {
     build: 25086, date: "2026-08-14", title: "One sign-in window, two tools — and the versions that were never bumped",
     items: [
       { kind: "fixed", tool: "Sign-in failures", text: "In report-only mode this tool and 🎚 Report-only impact issue the byte-for-byte SAME Graph read — the entire window, unfiltered, because report-only verdicts cannot be filtered server-side. Switching between them read it twice: on a real tenant, ten thousand records and minutes of waiting, twice, for one answer. Whichever runs second now reuses what the first read and says so, with the age of the data. ⟳ Rescan always re-reads the tenant, and the truncation flag travels with the records — a window that was cut short is a different fact from a complete one, and inheriting the rows without inheriting that would overstate what the second tool knows." },

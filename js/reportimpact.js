@@ -126,6 +126,28 @@ const ReportImpact = (() => {
   }
   const bump = (m, k) => { if (k) m.set(k, (m.get(k) || 0) + 1); };
 
+  // A handful of the actual sign-ins behind a verdict. Capped deliberately:
+  // this is evidence for a reader, not a log — three is enough to see a
+  // pattern, and keeping all of them would hold the whole window in memory
+  // twice over.
+  const SAMPLE_MAX = 3;
+  function sampleOf(rec, ap) {
+    const d = rec.deviceDetail || {}, l = rec.location || {}, st = rec.status || {};
+    return {
+      id: rec.id, when: rec.createdDateTime || "",
+      app: rec.appDisplayName || rec.resourceDisplayName || "(app)",
+      client: rec.clientAppUsed || "", os: d.operatingSystem || "", browser: d.browser || "",
+      ip: rec.ipAddress || "", city: l.city || "", country: l.countryOrRegion || "",
+      compliant: d.isCompliant === true, managed: d.isManaged === true, trustType: d.trustType || "",
+      // Present when the sign-in ALSO failed for an enforced reason. A
+      // report-only verdict on its own does not fail a sign-in, so this is
+      // usually empty — and that absence is information, not a gap.
+      errorCode: st.errorCode ?? null, failureReason: st.failureReason || "",
+      controls: [...(ap.enforcedGrantControls || []), ...(ap.enforcedSessionControls || [])].filter(Boolean),
+    };
+  }
+  const keep = (arr, rec, ap) => { if (arr.length < SAMPLE_MAX) arr.push(sampleOf(rec, ap)); };
+
   // roPolicies: [{id, name}] — the tenant's report-only policies from the
   // already-loaded policy list, so a policy with zero log traffic still
   // shows up (as "no data" — the one answer that should stop a go-live).
@@ -159,7 +181,7 @@ const ReportImpact = (() => {
         if (kind === "notApplied") continue;       // out of scope: no user/app impact
         const upn = rec.userPrincipalName || rec.userDisplayName || "(unknown)";
         let u = e.users.get(upn);
-        if (!u) { u = { upn, name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "", risk: new Map(), deny: new Map() }; e.users.set(upn, u); }
+        if (!u) { u = { upn, name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "", risk: new Map(), deny: new Map(), samples: [] }; e.users.set(upn, u); }
         u[kind]++;
         // WHY the policy bit. A verdict of "3 interrupted" on a policy called
         // LowMediumUserRisk raises the obvious question — low, or medium? —
@@ -168,7 +190,7 @@ const ReportImpact = (() => {
         if (kind !== "success") bump(u.risk, riskOf(rec));
         // Only a FAILURE is a denial. An interruption was satisfied by doing
         // the extra step, so explaining it as a refusal would be wrong.
-        if (kind === "failure") bump(u.deny, denyWhy(rec, ap));
+        if (kind === "failure") { bump(u.deny, denyWhy(rec, ap)); keep(u.samples, rec, ap); }
         if (when > u.last) u.last = when;
         const app = rec.appDisplayName || rec.resourceDisplayName || "(app)";
         u.apps.add(app);
@@ -181,10 +203,10 @@ const ReportImpact = (() => {
         if (when > g.last) g.last = when;
         g.apps.add(app);
         let gp = g.policies.get(e.key);
-        if (!gp) { gp = { key: e.key, id: e.id, name: e.name, success: 0, interrupted: 0, failure: 0, risk: new Map(), deny: new Map() }; g.policies.set(e.key, gp); }
+        if (!gp) { gp = { key: e.key, id: e.id, name: e.name, success: 0, interrupted: 0, failure: 0, risk: new Map(), deny: new Map(), samples: [] }; g.policies.set(e.key, gp); }
         gp[kind]++;
         if (kind !== "success") bump(gp.risk, riskOf(rec));
-        if (kind === "failure") bump(gp.deny, denyWhy(rec, ap));
+        if (kind === "failure") { bump(gp.deny, denyWhy(rec, ap)); keep(gp.samples, rec, ap); }
       }
     }
 
