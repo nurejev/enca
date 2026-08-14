@@ -16,7 +16,7 @@ const APP_BUILD = {
   // and consolidate the cycle's changelog entries into one entry (build NNN).
   // The What's-new overlay compares numerically per origin, and both series
   // are monotone on their own origin, so nothing else changes.
-  build: 25088,
+  build: 25089,
   date: "2026-08-13",
   // When this build was cut, UTC. Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the

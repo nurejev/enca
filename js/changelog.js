@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25089, date: "2026-08-14", title: "Best-practice checks move to Compare against a baseline",
+    items: [
+      { kind: "improved", tool: "All tools", text: "🛡 Best-practice & bypass checks moves from 🔍 Analyse & simulate into 🧬 Compare against a baseline. It measures the tenant against a reference standard, which is exactly what that section is for; it sat with the simulators because that is where it was written, not because that is where somebody would look for it. No behaviour changes and no version bump — the tool is untouched, only its home." },
+    ],
+  },
+  {
     build: 25088, date: "2026-08-14", title: "Item 38 reached production",
     items: [
       { kind: "improved", tool: "All tools", text: "Production is build 275: the shared sign-in window between 🚦 Sign-in failures and 🎚 Report-only impact, the actual sign-ins shown behind a would-deny verdict, and the six per-tool versions that had not moved for changes already shipped. The gap is 24 and 34 — both Help or tool work waiting on a beta-only tool, so neither can travel on its own." },
