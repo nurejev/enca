@@ -1649,7 +1649,8 @@
     try {
       const aus = isDemo
         ? [{ id: "au-GLO", displayName: "CAB-SEC-RMAU-GLO-Exclusions", isMemberManagementRestricted: true }]
-        : await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
+        : await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,isMemberManagementRestricted");
+      rmSetExtras(aus);
       const check = Rmau.baselineCheck(aus);
       imAu.rows = check.rows.filter(r => codes.includes(r.code));
       imAu.missing = imAu.rows.filter(r => r.status === "missing");
@@ -2429,7 +2430,8 @@ max@contoso.com,"Global, DevOps"</pre>
       try {
         // Re-read the administrative units too — one may have been created since.
         if (!isDemo) {
-          const aus = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
+          const aus = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,isMemberManagementRestricted");
+          rmSetExtras(aus);
           t.rmaus = aus.filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
         }
         const cands = CaGroups.rmauCandidates(cgRes);
@@ -2630,8 +2632,9 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       let aus = [];
       if (!isDemo) {
-        aus = (await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted"))
-          .filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
+        const auRaw = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,isMemberManagementRestricted");
+        rmSetExtras(auRaw);
+        aus = auRaw.filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
       }
       const auChoice = aus.length ? aus[0].id : "new";
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME;
@@ -2954,7 +2957,8 @@ max@contoso.com,"Global, DevOps"</pre>
       if (isDemo) {
         st.rmaus = [];
       } else {
-        const aus = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
+        const aus = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,isMemberManagementRestricted");
+        rmSetExtras(aus);
         st.rmaus = aus.filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
       }
       if (isDemo) {
@@ -3006,7 +3010,8 @@ max@contoso.com,"Global, DevOps"</pre>
   async function readProtectionMap() {
     const map = new Map();
     const aus = await Graph.ggetAll(
-      "/administrativeUnits?$select=id,displayName,isMemberManagementRestricted&$expand=members($select=id)");
+      "/administrativeUnits?$select=id,displayName,description,isMemberManagementRestricted&$expand=members($select=id)");
+    rmSetExtras(aus);
     for (const a of aus) {
       if (a.isMemberManagementRestricted !== true) continue;
       for (const m of a.members || []) map.set(m.id, { auId: a.id, auName: a.displayName });
@@ -3023,8 +3028,13 @@ max@contoso.com,"Global, DevOps"</pre>
   //
   // The dropdown survives as the FALLBACK for the groups nothing matches — a
   // custom name, or the CA900 workload-identity range that no persona covers.
+  // R28 — the mappings a tenant has stated, keyed by lowercased group name.
+  // Read from the persona vaults' own descriptions, so it survives a release
+  // and never becomes our list of everybody's group names.
+  let rmExtras = new Map();
+  function rmSetExtras(aus) { try { rmExtras = Rmau.extraMap(aus || []); } catch { rmExtras = new Map(); } }
   function rmauTarget(t, g) {
-    const code = Rmau.codeForGroup(g.name);
+    const code = Rmau.codeForGroup(g.name, rmExtras);
     if (code) {
       const want = Rmau.auName(code).toLowerCase();
       const hit = (t.rmaus || []).find((a) => String(a.name || "").toLowerCase() === want);
@@ -3863,7 +3873,7 @@ max@contoso.com,"Global, DevOps"</pre>
       try {
         cgmRmauList = isDemo
           ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.adminUnits) || []).filter((a) => a.isMemberManagementRestricted).map((a) => ({ id: a.id, name: a.displayName }))
-          : (await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted"))
+          : (await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,isMemberManagementRestricted"))
               .filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
       } catch (e) { cgmRmauList = []; console.warn("RMAU list failed:", e.message); }
     }
@@ -5573,6 +5583,7 @@ max@contoso.com,"Global, DevOps"</pre>
       ruList = isDemo
         ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.adminUnits) || [])
         : await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,visibility,isMemberManagementRestricted");
+      rmSetExtras(ruList);
       ruDetails = {}; ruOpen.clear();
       renderRmau();
     } catch (e) {
@@ -5736,6 +5747,36 @@ max@contoso.com,"Global, DevOps"</pre>
     toast(`${results.filter((r) => r.ok).length}/${results.length} administrative unit${results.length === 1 ? "" : "s"} created${isDemo ? " (simulated)" : ""}`);
   }
 
+  // R28 — the groups a tenant has filed into this vault by hand, stated in the
+  // unit's own description. Shown per unit so the mapping is visible where it
+  // applies rather than in a settings page nobody opens.
+  function ruExtraRow(r) {
+    const au = (ruList || []).find((a) => a.id === r.id);
+    const names = au ? Rmau.parseExtra(au.description) : [];
+    return `<div class="ru-extra">
+      <span class="mini muted">Also filed here${names.length ? "" : " — nothing yet"}:</span>
+      ${names.map((n) => `<span class="an-pick">🏷 ${esc(n)}<button data-ruxdel="${esc(r.id)}|${esc(n)}" title="Remove">×</button></span>`).join("")}
+      <input class="btn ru-extra-in" data-ruxin="${esc(r.id)}" style="cursor:text;min-width:190px" placeholder="Group name to file here…" autocomplete="off">
+      <button class="btn sm" data-ruxadd="${esc(r.id)}">Add <span class="tag block">writes</span></button>
+    </div>`;
+  }
+  // Writing the mapping = PATCHing the unit's description. The human text is
+  // preserved; only the token is rewritten.
+  async function ruExtraWrite(auId, mutate) {
+    const au = (ruList || []).find((a) => a.id === auId);
+    if (!au) return;
+    const next = mutate(Rmau.parseExtra(au.description));
+    const desc = Rmau.withExtra(au.description, next);
+    if (isDemo) { au.description = desc; rmSetExtras(ruList); renderRmau(); toast("Filed (simulated)"); return; }
+    try {
+      await Graph.gpatch(`/administrativeUnits/${auId}`, { description: desc });
+      au.description = desc;
+      rmSetExtras(ruList);
+      renderRmau();
+      toast("Mapping <span>saved</span> on the unit");
+    } catch (e) { toast(`Could not save: ${esc(e.message)}`); }
+  }
+
   function ruBaselinePanel() {
     const t = ruBaseline();
     const c = t.check;
@@ -5750,6 +5791,7 @@ max@contoso.com,"Global, DevOps"</pre>
           ${chip(r)}
           <span class="mini muted">${esc(r.label)}${r.caRange ? ` · ${esc(r.caRange)}` : ""}</span>
         </div>
+        ${r.status === "present" ? ruExtraRow(r) : ""}
         ${r.status === "unrestricted" ? `<div class="mini" style="color:var(--off)">An administrative unit already has this name but is <b>not</b> restricted. The flag is set at creation and cannot be changed, so this one cannot be upgraded — rename it and create a restricted replacement, or pick another name for the persona.</div>` : ""}
       </div>`).join("");
 
@@ -6179,7 +6221,7 @@ max@contoso.com,"Global, DevOps"</pre>
 
       const rows = [];
       for (const g of groups) {
-        if (Rmau.codeForGroup(g.displayName) !== code) continue;
+        if (Rmau.codeForGroup(g.displayName, rmExtras) !== code) continue;
         const m365 = (g.groupTypes || []).includes("Unified");
         const mailSec = g.mailEnabled === true && g.securityEnabled === true;
         const dist = g.mailEnabled === true && g.securityEnabled === false;
@@ -6293,6 +6335,22 @@ max@contoso.com,"Global, DevOps"</pre>
   }
 
   $("ruBody").addEventListener("click", async (e) => {
+    // R28 — file a custom group into this persona vault, or unfile it
+    const xa = e.target.closest("[data-ruxadd]");
+    if (xa) {
+      const id = xa.dataset.ruxadd;
+      const input = $("ruBody").querySelector(`[data-ruxin="${CSS.escape(id)}"]`);
+      const name = input ? input.value.trim() : "";
+      if (!name) { toast("Type a <span>group name</span> to file here"); return; }
+      await ruExtraWrite(id, (cur) => [...cur, name]);
+      return;
+    }
+    const xd = e.target.closest("[data-ruxdel]");
+    if (xd) {
+      const [id, name] = xd.dataset.ruxdel.split("|");
+      await ruExtraWrite(id, (cur) => cur.filter((x) => x.toLowerCase() !== name.toLowerCase()));
+      return;
+    }
     const op = e.target.closest("[data-ruopen]");
     if (op && !e.target.closest("button")) {
       const id = op.dataset.ruopen;
@@ -7127,7 +7185,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (key === "groups")
       return (await Graph.ggetAll("/groups?$filter=startswith(displayName,'CAB-SEC-')&$select=displayName&$top=999")).map((g) => g.displayName);
     if (key === "aus")
-      return Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
+      return Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,isMemberManagementRestricted");
     if (key === "locations")
       return Graph.ggetAll("/identity/conditionalAccess/namedLocations");
     if (key === "strengths")

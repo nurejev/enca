@@ -160,9 +160,59 @@ const Rmau = (() => {
   // preferred spelling.
   const BREAKGLASS_NAME = /break[-_ ]?glass|emergency[-_ ]?access|^bg[-_]/i;
 
-  function codeForGroup(name) {
+  // ---- R28: groups a tenant has filed by hand -------------------------
+  // Everything above routes a group by reading the CA number in its name,
+  // which works for the baseline and for nothing else. A tenant's own
+  // exclusion group — SEC-VIP-Exceptions, Contractors-NoMFA — matches no
+  // persona, and telling somebody their naming is wrong is not a feature.
+  //
+  // So a persona vault can carry a stated mapping in its own description:
+  //
+  //     [enca:extra=Contractors-NoMFA;SEC-VIP-Exceptions]
+  //
+  // The administrative unit is the thing the mapping is about, it is one
+  // object per persona, and it is readable in the portal. Two rules the
+  // roadmap card sets and this code keeps: never GUESS a mapping (a persona
+  // nobody stated is how a group ends up in the wrong vault silently), and
+  // never HIDE an unmapped group — it stays visible as unmapped rather than
+  // dropping quietly out of every list.
+  const EXTRA_RE = /\[enca:extra=([^\]]*)\]/i;
+  function parseExtra(description) {
+    const m = EXTRA_RE.exec(String(description || ""));
+    if (!m) return [];
+    return m[1].split(";").map((x) => x.trim()).filter(Boolean);
+  }
+  // Rewrite the token in place, leaving the human text either side of it
+  // alone — the description is somebody's writing first and our storage second.
+  function withExtra(description, names) {
+    const d = String(description || "");
+    const list = [...new Set((names || []).map((x) => String(x).trim()).filter(Boolean))];
+    const token = list.length ? `[enca:extra=${list.join(";")}]` : "";
+    if (EXTRA_RE.test(d)) return d.replace(EXTRA_RE, token).replace(/\s{2,}/g, " ").trim();
+    return list.length ? `${d.trim()} ${token}`.trim() : d.trim();
+  }
+  // name -> persona code, from the descriptions of the units themselves.
+  // `aus` is the /administrativeUnits read including `description`.
+  function extraMap(aus) {
+    const map = new Map();
+    for (const a of aus || []) {
+      const code = codeForAu(a.displayName);
+      if (!code) continue;
+      for (const n of parseExtra(a.description)) map.set(n.toLowerCase(), code);
+    }
+    return map;
+  }
+
+  // `extras` is the map from extraMap(). A STATED mapping wins over every
+  // inference, including the CA number: somebody said this out loud, and the
+  // number in a name is at best a convention.
+  function codeForGroup(name, extras) {
     const n = String(name || "");
-    // The CA NUMBER WINS. A group that carries one has been filed deliberately,
+    if (extras && extras.size) {
+      const stated = extras.get(n.toLowerCase());
+      if (stated) return stated;
+    }
+    // Failing a stated mapping, the CA NUMBER WINS. A group that carries one has been filed deliberately,
     // and a name that also happens to say "emergency" should not overrule it —
     // CAB-SEC-U-CA101-EmergencyAccess is an Admins exclusion group, not a
     // break-glass one.
@@ -247,5 +297,6 @@ const Rmau = (() => {
   }
 
   return { ROLE_TEMPLATES, isRestricted, memberType, caRefs, summarize, buildPayload, toMd,
-    BASELINE_AUS, auName, auDescription, baselineCheck, baselineReport, codeForGroup, codeForAu, BREAKGLASS_NAME };
+    BASELINE_AUS, auName, auDescription, baselineCheck, baselineReport, codeForGroup, codeForAu, BREAKGLASS_NAME,
+    parseExtra, withExtra, extraMap };
 })();

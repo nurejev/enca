@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25098, date: "2026-08-14", title: "Your own groups can live in a persona vault (R28)",
+    items: [
+      { kind: "new", tool: "Restricted AUs", text: "R28 — everything that routes a group to a vault read the CA number in its name, which works for the baseline and for nothing else. A tenant's own exclusion group — Contractors-NoMFA, SEC-VIP-Exceptions — matched no persona, so ⑥ Protect skipped it unless a fallback unit was picked by hand, ＋ Bulk add never offered it, and break-glass had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them their naming is wrong is not a feature. Say once, on the unit, that a group belongs there and every tool routes it there afterwards." },
+      { kind: "new", tool: "Restricted AUs", text: "The mapping is stored in the administrative unit's own description as [enca:extra=Name;Name] — with the tenant rather than in this app, so it survives a release, is readable in the portal, and never becomes our list of everybody's group names. The human text in the description is preserved; only the token is rewritten." },
+      { kind: "improved", tool: "Restricted AUs", text: "A stated mapping outranks the CA number, because somebody said it out loud and a number in a name is at best a convention. Two things the feature deliberately does not do: guess a persona nobody stated — that is how a group ends up in the wrong vault silently — and hide what is unmapped, which stays visible as unmapped rather than dropping quietly out of every list." },
+    ],
+  },
+  {
     build: 25097, date: "2026-08-14", title: "Gap analyse can scan only who you asked about (R29)",
     items: [
       { kind: "new", tool: "Gap analyse", text: "R29 — Scope → \"Only these users or groups\" names principals before the scan and judges only those: the same policies, the same verdicts, a fraction of the reads. The matrix was always the right output; the scope was not. The question is usually narrow — is this contractor covered, what does the finance team bypass, did that exclusion group leave anybody exposed — and answering it should not mean reading every user in the tenant first." },

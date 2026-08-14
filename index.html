@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25097"></script>
+<script src="js/popup-guard.js?v=25098"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25097">
+<link rel="stylesheet" href="css/app.css?v=25098">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25097"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25097"></script>
+<script src="js/counter.js?v=25098"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25098"></script>
 </head>
 <body>
 
@@ -1094,6 +1094,11 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+<div class="list-card rm-card" data-shipped="25098">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R28</span> 🏷 Custom groups in the persona vaults <span class="tag grant">live · build 25098</span></h4>
+            <p class="mini" style="margin:0">Everything that routes a group to a vault reads the <b>CA number in its name</b>. That works for the baseline and for nothing else: a tenant's own exclusion group — <code>SEC-VIP-Exceptions</code>, <code>Contractors-NoMFA</code> — matches no persona, so ⑥ Protect skips it unless a fallback unit is chosen by hand, ＋ Bulk add never offers it, and the break-glass case had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them the naming is wrong is not a feature.</p>
+            <p class="mini" style="margin:6px 0 0">It is a <b>per-tenant mapping</b> — say once that <code>Contractors-NoMFA</code> belongs to Externals, and every tool routes it there afterwards: ⑥ Protect files it, ＋ Bulk add offers it, 📄 the documentation counts it. Kept with the tenant rather than in the code, so it survives a release and does not become our list of everybody's group names. Two things it must not do: guess (a mapping nobody stated is how a group ends up in the wrong vault silently), and hide the unmapped — a group with no persona should stay visible as <i>unmapped</i> rather than quietly dropping out of every list.</p>
+          </div>
 <div class="list-card rm-card" data-shipped="25097">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R29</span> <a href="#" class="md-tool" data-tool="toolAnalyze">🔍 Gap analyse</a> — scan only who you asked about <span class="tag grant">live · build 25097</span></h4>
             <p class="mini" style="margin:0">Gap analyse builds a users × policies matrix for <b>every</b> user it can read. On a tenant of any size that is a long read producing a wide answer, when the question was usually narrow: <i>is this contractor covered</i>, <i>what does the finance team bypass</i>, <i>did that one exclusion group leave anybody exposed</i>. The matrix is the right output; the scope is not.</p>
@@ -1156,12 +1161,7 @@
               <br><b>Done:</b> new groups are ordinary security groups (assigned or dynamic) with an optional restricted-AU placement at creation; the role-assignable checkbox and the ↻ Recreate-role-assignable action are gone; the ① Check drift flag is inverted, so a plain group is correct and a role-assignable one is what gets flagged; <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> moves existing ones across.
               <br><b>Still to do:</b> the bundled group templates and the baseline catalog still describe an estate built on role-assignable groups; the MS Learn and CIS checks, Group Analyzer and the documentation exports still mention it as the expected shape; and the persona <b>import</b> path should create protected groups directly rather than leaving protection as a later step. Production keeps creating role-assignable groups until this lands there.</p>
           </div>
-                                        <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R28</span> 🏷 Custom groups in the persona vaults <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Everything that routes a group to a vault reads the <b>CA number in its name</b>. That works for the baseline and for nothing else: a tenant's own exclusion group — <code>SEC-VIP-Exceptions</code>, <code>Contractors-NoMFA</code> — matches no persona, so ⑥ Protect skips it unless a fallback unit is chosen by hand, ＋ Bulk add never offers it, and the break-glass case had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them the naming is wrong is not a feature.</p>
-            <p class="mini" style="margin:6px 0 0">The plan is a <b>per-tenant mapping</b> — say once that <code>Contractors-NoMFA</code> belongs to Externals, and every tool routes it there afterwards: ⑥ Protect files it, ＋ Bulk add offers it, 📄 the documentation counts it. Kept with the tenant rather than in the code, so it survives a release and does not become our list of everybody's group names. Two things it must not do: guess (a mapping nobody stated is how a group ends up in the wrong vault silently), and hide the unmapped — a group with no persona should stay visible as <i>unmapped</i> rather than quietly dropping out of every list.</p>
-          </div>
-          <div class="list-card rm-card">
+                                                  <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R27</span> 📄 Documentation for the restricted units <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">📄 Create documentation turns the Conditional Access policies into something you can hand to an auditor. The <b>restricted administrative units</b> deserve the same and do not have it: the Markdown export lists what each unit holds and who may manage it, which is the raw material, but it is a list rather than a document.</p>
             <p class="mini" style="margin:6px 0 0">The plan is the same treatment the policies get — a per-persona page saying what the unit protects, which CA policies depend on those groups, who is scoped to it and what that lets them do, and the questions an auditor actually asks: <b>who could widen an exclusion</b>, and <b>what would happen if they did</b>. Plus the two failure states worth a document of their own — a unit with <b>nobody</b> scoped to it, and a <b>frozen</b> group nobody can edit — because those are exactly what a review is for and neither is visible from the portal.</p>
@@ -1419,7 +1419,8 @@
         <li><b>The restricted flag is immutable</b> — set at creation, never changeable. Converting an existing AU means creating a new one and moving the members, and the tool says so rather than letting you discover it.</li>
         <li><b>Put the group in, not the accounts.</b> A restricted unit holding a group protects the group's membership. Adding the break-glass <i>user accounts</i> themselves is a different and much sharper act: a Global Administrator inside a restricted unit cannot have their password reset by anyone, because no role that resets a Global Administrator's password can be assigned at administrative-unit scope. Recovering one means removing the account from the unit first — which is the opposite of what you want at 3am.</li>
         <li><b>A 403 is the shield working</b> — if a member change is refused, that is the restriction doing its job, not a fault. You need a role scoped to that AU.</li>
-      </ul>
+              <li><b>File your own groups into a persona vault.</b> Everything that routes a group reads the CA number in its name, which works for the baseline and nothing else — a tenant's own <code>Contractors-NoMFA</code> matches no persona, so ⑥ Protect skipped it and ＋ Bulk add never offered it. Say once, on the unit, that a group belongs here and every tool routes it there afterwards. The mapping is stored in the <b>unit's own description</b> as <code>[enca:extra=Name;Name]</code>, so it lives with the tenant rather than in this app, survives a release, and is readable in the portal; the human text around it is preserved. Two things it deliberately will not do: <b>guess</b> a persona nobody stated — that is how a group ends up in the wrong vault silently — and <b>hide</b> what is unmapped, which stays visible as unmapped rather than dropping out of every list. A stated mapping outranks the CA number, because somebody said it out loud.</li>
+</ul>
       <p class="help-x">Writes to the tenant, and asks for each permission on the click. Creating one needs <b>Privileged Role Administrator</b>; granting a scoped role also needs <code>RoleManagement.ReadWrite.Directory</code>. Directory writes are not read-your-writes consistent, so a unit you just created may take a moment to appear in the list below — the creation log above it is the record of what actually happened.</p>
     </section>
 
@@ -2308,47 +2309,47 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25097"></script>
-<script src="js/version.js?v=25097"></script>
-<script src="js/promote.js?v=25097"></script>
-<script src="js/authConfig.js?v=25097"></script>
-<script src="js/labels.js?v=25097"></script>
-<script src="js/graph.js?v=25097"></script>
-<script src="js/model.js?v=25097"></script>
-<script src="js/render.js?v=25097"></script>
-<script src="js/analyze.js?v=25097"></script>
-<script src="js/whatif.js?v=25097"></script>
-<script src="js/mslearn.js?v=25097"></script>
-<script src="js/gapcheck.js?v=25097"></script>
-<script src="js/cisdata.js?v=25097"></script>
-<script src="js/cischeck.js?v=25097"></script>
-<script src="js/exclusions.js?v=25097"></script>
-<script src="js/validator.js?v=25097"></script>
-<script src="js/whatifeval.js?v=25097"></script>
-<script src="js/compare.js?v=25097"></script>
-<script src="js/groupuse.js?v=25097"></script>
-<script src="js/iso3166.js?v=25097"></script>
-<script src="js/locations.js?v=25097"></script>
-<script src="js/authcontexts.js?v=25097"></script>
-<script src="js/authstrengths.js?v=25097"></script>
-<script src="js/recycle.js?v=25097"></script>
-<script src="js/rmau.js?v=25097"></script>
-<script src="js/termsofuse.js?v=25097"></script>
-<script src="js/audit.js?v=25097"></script>
-<script src="js/drift.js?v=25097"></script>
-<script src="js/guide.js?v=25097"></script>
-<script src="js/signins.js?v=25097"></script>
-<script src="js/reportimpact.js?v=25097"></script>
-<script src="js/changelog.js?v=25097"></script>
-<script src="js/baselineData.js?v=25097"></script>
-<script src="js/baselineJoeyData.js?v=25097"></script>
-<script src="js/baseline.js?v=25097"></script>
-<script src="js/groupTemplates.js?v=25097"></script>
-<script src="js/assign.js?v=25097"></script>
-<script src="js/cagroups.js?v=25097"></script>
-<script src="js/import.js?v=25097"></script>
-<script src="js/export.js?v=25097"></script>
-<script src="js/demo.js?v=25097"></script>
-<script src="js/app.js?v=25097"></script>
+<script src="js/branding.js?v=25098"></script>
+<script src="js/version.js?v=25098"></script>
+<script src="js/promote.js?v=25098"></script>
+<script src="js/authConfig.js?v=25098"></script>
+<script src="js/labels.js?v=25098"></script>
+<script src="js/graph.js?v=25098"></script>
+<script src="js/model.js?v=25098"></script>
+<script src="js/render.js?v=25098"></script>
+<script src="js/analyze.js?v=25098"></script>
+<script src="js/whatif.js?v=25098"></script>
+<script src="js/mslearn.js?v=25098"></script>
+<script src="js/gapcheck.js?v=25098"></script>
+<script src="js/cisdata.js?v=25098"></script>
+<script src="js/cischeck.js?v=25098"></script>
+<script src="js/exclusions.js?v=25098"></script>
+<script src="js/validator.js?v=25098"></script>
+<script src="js/whatifeval.js?v=25098"></script>
+<script src="js/compare.js?v=25098"></script>
+<script src="js/groupuse.js?v=25098"></script>
+<script src="js/iso3166.js?v=25098"></script>
+<script src="js/locations.js?v=25098"></script>
+<script src="js/authcontexts.js?v=25098"></script>
+<script src="js/authstrengths.js?v=25098"></script>
+<script src="js/recycle.js?v=25098"></script>
+<script src="js/rmau.js?v=25098"></script>
+<script src="js/termsofuse.js?v=25098"></script>
+<script src="js/audit.js?v=25098"></script>
+<script src="js/drift.js?v=25098"></script>
+<script src="js/guide.js?v=25098"></script>
+<script src="js/signins.js?v=25098"></script>
+<script src="js/reportimpact.js?v=25098"></script>
+<script src="js/changelog.js?v=25098"></script>
+<script src="js/baselineData.js?v=25098"></script>
+<script src="js/baselineJoeyData.js?v=25098"></script>
+<script src="js/baseline.js?v=25098"></script>
+<script src="js/groupTemplates.js?v=25098"></script>
+<script src="js/assign.js?v=25098"></script>
+<script src="js/cagroups.js?v=25098"></script>
+<script src="js/import.js?v=25098"></script>
+<script src="js/export.js?v=25098"></script>
+<script src="js/demo.js?v=25098"></script>
+<script src="js/app.js?v=25098"></script>
 </body>
 </html>
