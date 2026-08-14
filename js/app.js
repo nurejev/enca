@@ -133,7 +133,10 @@
   (function showBuild() {
     if (typeof APP_BUILD === "undefined") return;
     const stamp = $("buildStamp"), foot = $("buildStampFoot");
-    if (stamp) stamp.textContent = `${APP_BUILD.label} · ${APP_BUILD.date}`;
+    // Version AND release time, before sign-in. The date alone cannot separate
+    // two releases on the same day, which is exactly when somebody asks whether
+    // what they pushed is live.
+    if (stamp) stamp.textContent = APP_BUILD.stamp || `${APP_BUILD.label} · ${APP_BUILD.date}`;
     if (foot) {
       // the build number is the natural way in to "what changed"
       foot.textContent = APP_BUILD.label;

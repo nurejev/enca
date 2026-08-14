@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25080, date: "2026-08-13", title: "A release stamp you can trust",
+    items: [
+      { kind: "new", tool: "All tools", text: "The sign-in screen shows the version AND the time the build was cut, in UTC. The date alone cannot separate two releases on the same day, which is precisely when somebody needs to know whether what they pushed is live — that is a question about minutes. UTC on purpose: a shared answer beats a local one when the person asking and the person who pushed are in different places." },
+      { kind: "improved", tool: "All tools", text: "Items 6, 32 and 33 reached production as build 273 — your own single-tenant app registration, the 1.0 tool versions, and the Help sections for the four production tools that had none. 📐 CIS Benchmark's Help section stays here as item 34: the tool is beta-only, and a Help entry for a tile nobody has would be a lie." },
+    ],
+  },
+  {
     build: 25079, date: "2026-08-13", title: "The five tools with no Help section",
     items: [
       { kind: "fixed", tool: "All tools", text: "🎫 Authentication contexts, 💪 Authentication strengths, 📜 Terms of use, ♻ Recycle bin and 📐 CIS Benchmark had no Help section at all — and since the Help contents list is built from those headings, they were absent from Help entirely rather than merely thin. Every tile now has one. The check added in build 25077 compares the tool tiles against the Help headings, which is how these were found; before that, a tool could ship, graduate out of BETA and never acquire documentation with nothing to notice." },
