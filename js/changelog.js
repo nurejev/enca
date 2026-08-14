@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25108, date: "2026-08-14", title: "Items 48-51 reached production (281)",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue items 48 (searchable bulk scoped-admin grant), 49 (flagged home tiles ranked by recency), 50 (the per-unit scoped-admin field really takes several people) and 51 (tool count on the home heading) are live in production build 281. Removed from the queue; the numbers are retired rather than reused. Only the two beta-only tools remain queued, and neither can move without its tool." },
+    ],
+  },
+  {
     build: 25107, date: "2026-08-14", title: "Items 44 and 47 reached production (280)",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue items 44 (Gap analyse scans only named users or groups) and 47 (persona groups offered when adding to a restricted unit) are live in production build 280. Removed from the queue; the numbers are retired rather than reused." },

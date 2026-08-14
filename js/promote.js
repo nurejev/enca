@@ -33,50 +33,10 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.280",
-  betaBuild: "v1.0.250-beta.107",
+  productionBuild: "v1.0.281",
+  betaBuild: "v1.0.250-beta.108",
 
   items: [
-    {
-      n: 51,
-      title: "Tool count beside \"What do you want to do?\"",
-      tools: ["All tools"],
-      builds: [25106],
-      risk: "low",
-      what: "A counted-from-the-page badge next to the home heading, Help cards excluded, with new/beta count in the tooltip.",
-      why: "Nothing on the home screen says how much is there, and the two channels have different totals.",
-      files: ["index.html", "js/app.js", "css/app.css"],
-    },
-    {
-      n: 50,
-      title: "Per-unit scoped-admin field takes several people",
-      tools: ["Restricted AUs"],
-      builds: [25105],
-      risk: "high",
-      what: "The type-ahead searches the entry being typed rather than the whole field, a pick is appended instead of replacing what was there, and the grant loops over the list with a per-person outcome.",
-      why: "In production the field accepts a ;-separated list, finds nobody once you type the separator, and then sends the whole string as one UPN — so it fails and looks like the tenant is at fault.",
-      files: ["js/app.js"],
-    },
-    {
-      n: 49,
-      title: "Flagged home tiles ranked by recency, not page order",
-      tools: ["All tools"],
-      builds: [25104],
-      risk: "medium",
-      what: "When more tiles are flagged than a collapsed section has slots, the ones changed most recently claim them — ranked by the newest changelog build naming that tool — and the newest sits leftmost. The button label now says new, beta or updated.",
-      why: "Production buries the tool changed in the current build under a BETA badge from weeks ago, which is the opposite of what the collapsed view is for.",
-      files: ["js/app.js", "index.html"],
-    },
-    {
-      n: 48,
-      title: "Search for scoped administrators in the bulk grant",
-      tools: ["Restricted AUs"],
-      builds: [25103],
-      risk: "low",
-      what: "The bulk scoped-administrator panel gains a type-ahead over the tenant's users: pick by name, chips you can remove, Enter to add. Pasting UPNs still works and both write the same list.",
-      why: "Production only takes typed UPNs, so granting to somebody whose UPN you do not know means leaving the tool to find it.",
-      files: ["js/app.js", "css/app.css", "index.html"],
-    },
     {
       n: 34,
       title: "CIS Benchmark Help section",
