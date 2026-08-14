@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.273",
-  betaBuild: "v1.0.250-beta.81",
+  betaBuild: "v1.0.250-beta.82",
 
   items: [
+    {
+      n: 36,
+      title: "Report-only impact says why a policy would DENY",
+      tools: ["Report-only impact"],
+      builds: [25082],
+      risk: "low",
+      what: "A would-deny row states what the policy demands and what the sign-in brought — needs a compliant device, device NOT compliant, Azure AD joined. Evidence rather than diagnosis: an unregistered device is not called non-compliant, only denials get a reason, and a Block policy says it blocks outright.",
+      why: "Read-only, from data the tool already fetched. Production explains why a user was in SCOPE and leaves the actual refusal to guesswork, which is the question a go-live decision turns on.",
+      files: ["js/reportimpact.js", "js/app.js", "index.html"],
+    },
     {
       n: 35,
       title: "Make the bulk scoped-admin grant findable (R07)",

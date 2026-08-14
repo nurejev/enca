@@ -53,6 +53,61 @@ const ReportImpact = (() => {
     return "nodata";
   }
 
+  // ---- why a sign-in would be DENIED --------------------------------------
+  // The scope explanation answers "why did this policy look at you". It does
+  // not answer "and why would it have said no", which is the question a
+  // go-live turns on. Graph does not hand over a per-control verdict, but the
+  // sign-in record carries the facts each control is judged on — so the honest
+  // answer is: this is what the policy demands, and this is what the sign-in
+  // brought. Stated as evidence, never as a diagnosis we cannot support.
+  const CONTROL_LABEL = {
+    mfa: "multifactor authentication",
+    compliantdevice: "a compliant device",
+    domainjoineddevice: "a Microsoft Entra hybrid joined device",
+    approvedapplication: "an approved client app",
+    compliantapplication: "an app protection policy",
+    passwordchange: "a password change",
+    block: "__BLOCK__",
+  };
+  const norm = (c) => String(c || "").toLowerCase().replace(/^require/, "").replace(/[^a-z]/g, "");
+
+  function deviceEvidence(rec) {
+    const d = rec.deviceDetail || {};
+    const bits = [];
+    // isCompliant is a tri-state in practice: true, false, or absent because
+    // the device was never registered — and "absent" is not "false".
+    if (d.isCompliant === true) bits.push("device reported compliant");
+    else if (d.isCompliant === false) bits.push("device NOT compliant");
+    else bits.push("no compliance state on the sign-in (unregistered device?)");
+    if (d.trustType) bits.push(String(d.trustType));
+    else bits.push("not joined");
+    if (d.isManaged === false) bits.push("unmanaged");
+    if (d.operatingSystem) bits.push(String(d.operatingSystem));
+    return bits.join(", ");
+  }
+
+  function denyWhy(rec, ap) {
+    const controls = (ap.enforcedGrantControls || []).filter(Boolean);
+    if (!controls.length) return null;
+    const kindsAll = controls.map(norm);
+    // A Block policy has no control to satisfy — saying "needs …" of it would
+    // be nonsense, and the distinction matters: nothing the user does helps.
+    if (kindsAll.includes("block")) return "blocks outright — no control can satisfy it";
+    const wants = controls.map((c) => CONTROL_LABEL[norm(c)] || String(c)).join(" or ");
+    const ev = [];
+    const kinds = new Set(controls.map(norm));
+    if (kinds.has("compliantdevice") || kinds.has("domainjoineddevice")) ev.push(deviceEvidence(rec));
+    if (kinds.has("mfa")) {
+      ev.push(rec.authenticationRequirement === "multiFactorAuthentication"
+        ? "the sign-in did satisfy MFA — another control in the same policy is the one that failed"
+        : "single-factor sign-in");
+    }
+    if (kinds.has("approvedapplication") || kinds.has("compliantapplication")) {
+      ev.push(`client app: ${rec.clientAppUsed || rec.appDisplayName || "unknown"}`);
+    }
+    return `needs ${wants}${ev.length ? ` — ${ev.join("; ")}` : ""}`;
+  }
+
   // Graph reports two different risks and a policy can key off either, so both
   // are kept and labelled rather than merged into one number that would be
   // right half the time. "hidden" is what a tenant without Entra ID P2 gets —
@@ -104,13 +159,16 @@ const ReportImpact = (() => {
         if (kind === "notApplied") continue;       // out of scope: no user/app impact
         const upn = rec.userPrincipalName || rec.userDisplayName || "(unknown)";
         let u = e.users.get(upn);
-        if (!u) { u = { upn, name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "", risk: new Map() }; e.users.set(upn, u); }
+        if (!u) { u = { upn, name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "", risk: new Map(), deny: new Map() }; e.users.set(upn, u); }
         u[kind]++;
         // WHY the policy bit. A verdict of "3 interrupted" on a policy called
         // LowMediumUserRisk raises the obvious question — low, or medium? —
         // and the answer was in the record all along and being discarded.
         // Counted per level so a mixture reads as a mixture.
         if (kind !== "success") bump(u.risk, riskOf(rec));
+        // Only a FAILURE is a denial. An interruption was satisfied by doing
+        // the extra step, so explaining it as a refusal would be wrong.
+        if (kind === "failure") bump(u.deny, denyWhy(rec, ap));
         if (when > u.last) u.last = when;
         const app = rec.appDisplayName || rec.resourceDisplayName || "(app)";
         u.apps.add(app);
@@ -123,9 +181,10 @@ const ReportImpact = (() => {
         if (when > g.last) g.last = when;
         g.apps.add(app);
         let gp = g.policies.get(e.key);
-        if (!gp) { gp = { key: e.key, id: e.id, name: e.name, success: 0, interrupted: 0, failure: 0, risk: new Map() }; g.policies.set(e.key, gp); }
+        if (!gp) { gp = { key: e.key, id: e.id, name: e.name, success: 0, interrupted: 0, failure: 0, risk: new Map(), deny: new Map() }; g.policies.set(e.key, gp); }
         gp[kind]++;
         if (kind !== "success") bump(gp.risk, riskOf(rec));
+        if (kind === "failure") bump(gp.deny, denyWhy(rec, ap));
       }
     }
 
@@ -133,7 +192,7 @@ const ReportImpact = (() => {
     const riskList = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ what: k, n }));
     const policies = [...pol.values()].map((e) => {
       const users = [...e.users.values()]
-        .map((u) => ({ ...u, riskWhy: riskList(u.risk) }))
+        .map((u) => ({ ...u, riskWhy: riskList(u.risk), denyWhy: riskList(u.deny) }))
         .sort((a, b) => (b.failure - a.failure) || (b.interrupted - a.interrupted) || (b.success - a.success));
       const evaluated = e.success + e.interrupted + e.failure;
       return {
@@ -153,7 +212,7 @@ const ReportImpact = (() => {
       ...g,
       apps: [...g.apps],
       policies: [...g.policies.values()]
-        .map((x) => ({ ...x, riskWhy: riskList(x.risk) }))
+        .map((x) => ({ ...x, riskWhy: riskList(x.risk), denyWhy: riskList(x.deny) }))
         .sort((a, b) => b.failure - a.failure || b.interrupted - a.interrupted),
       worst: g.failure ? "block" : g.interrupted ? "prompt" : "clean",
     })).sort((a, b) => ORDER[a.worst] - ORDER[b.worst] || b.failure - a.failure || b.interrupted - a.interrupted);

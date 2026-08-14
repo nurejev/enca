@@ -7649,7 +7649,7 @@ max@contoso.com,"Global, DevOps"</pre>
               <td>${u.failure ? `<span class="au-n rem">${u.failure}</span>` : '<span class="mini muted">—</span>'}</td>
               <td>${u.interrupted ? `<span class="au-n upd">${u.interrupted}</span>` : '<span class="mini muted">—</span>'}</td>
               <td class="mini">${u.success || "—"}</td>
-              <td class="mini">${esc([...u.apps].slice(0, 3).join(", "))}${u.apps.size > 3 ? ` +${u.apps.size - 3}` : ""}${riRiskWhy(u)}</td>
+              <td class="mini">${esc([...u.apps].slice(0, 3).join(", "))}${u.apps.size > 3 ? ` +${u.apps.size - 3}` : ""}${riRiskWhy(u)}${riDenyWhy(u)}</td>
               <td class="mini">${esc(auAgo(u.last))}</td></tr>`).join("")}</tbody></table>
             ${users.length > 60 ? `<p class="mini muted">Showing 60 of ${users.length} affected users — the Markdown export has them all.</p>` : ""}`
             : '<p class="mini muted" style="margin:6px 0">No user would notice this policy going live in this window.</p>'}
@@ -7685,7 +7685,7 @@ max@contoso.com,"Global, DevOps"</pre>
         const open = riOpen.has("u:" + u.upn);
         const detail = open ? `<tr class="au-sumdet"><td colspan="6"><ul class="wi-list" style="margin:6px 0">
           ${u.policies.map((x) => `<li><div class="wi-pn"><span class="pol-link" data-polid="${esc(x.id || "")}" title="Open the policy card">${esc(x.name)}</span></div>
-            <div class="wi-why">${[x.failure ? `${x.failure} would deny` : "", x.interrupted ? `${x.interrupted} interrupted` : "", x.success ? `${x.success} pass` : ""].filter(Boolean).join(" · ")}${riRiskWhy(x)}</div></li>`).join("")}
+            <div class="wi-why">${[x.failure ? `${x.failure} would deny` : "", x.interrupted ? `${x.interrupted} interrupted` : "", x.success ? `${x.success} pass` : ""].filter(Boolean).join(" · ")}${riRiskWhy(x)}</div>${riDenyWhy(x)}</li>`).join("")}
         </ul></td></tr>` : "";
         return `<tr class="au-sumrow" data-riuser="${esc(u.upn)}">
           <td><b>${esc(u.name)}</b>${u.upn !== u.name ? ` <span class="mini muted">${esc(u.upn)}</span>` : ""}</td>
@@ -7704,6 +7704,12 @@ max@contoso.com,"Global, DevOps"</pre>
   // one question — low, or medium? — and the sign-in record carries the answer.
   // Shown per level rather than summarised, because a run that was two lows and
   // one medium is a different go-live decision from three mediums.
+  // Why it would say NO. The scope line explains why the policy looked at the
+  // user; this explains what it would have demanded and what the sign-in
+  // actually brought — the question a go-live turns on.
+  const riDenyWhy = (x) => (x.denyWhy || []).length
+    ? `<div class="wi-why" style="color:var(--off)">✗ ${x.denyWhy.map((r) => `${esc(r.what)}${r.n > 1 ? ` <span class="muted">(×${r.n})</span>` : ""}`).join("<br>✗ ")}</div>`
+    : "";
   const riRiskWhy = (x) => (x.riskWhy || []).length
     ? ` — <span title="From the sign-in records behind this verdict">${x.riskWhy.map((r) => `${esc(r.what)} ×${r.n}`).join(", ")}</span>`
     : "";

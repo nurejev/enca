@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25082, date: "2026-08-14", title: "Why the policy would say no",
+    items: [
+      { kind: "new", tool: "Report-only impact", text: "A user's “why” explained why the policy was IN SCOPE — member of an included group, no exclude caught them — which is not the question a go-live turns on. A row reading “59 would be denied” under a policy called Windows-Compliant leaves you guessing that the device was not compliant. It now says so: “needs a compliant device — device NOT compliant, Azure AD joined, Windows”. The facts were in the sign-in record; the tool was reading only the applied-policy verdict." },
+      { kind: "improved", tool: "Report-only impact", text: "Written as evidence, not as a diagnosis, because Graph returns no per-control verdict — it gives what the policy enforced and what the sign-in carried, and the honest form is to state both. A device with NO compliance state on the record is reported as unregistered rather than as non-compliant: a different problem with a different fix, and guessing between them would be the tool inventing a cause. An MFA control that the sign-in did satisfy says another control in the same policy is the one that failed, rather than contradicting the record." },
+      { kind: "improved", tool: "Report-only impact", text: "Only a denial gets an explanation. An interruption was satisfied by doing the extra step, so describing it as a refusal would be wrong — and a Block policy is reported as blocking outright rather than as “needing” something, since nothing the user does would help." },
+    ],
+  },
+  {
     build: 25081, date: "2026-08-13", title: "The bulk grant was there and nobody could find it",
     items: [
       { kind: "fixed", tool: "Restricted AUs", text: "R07 shipped in build 25068 and was effectively invisible: its entry point was one line of small print at the FOOT of the baseline checklist, below eleven rows of units. It rendered, it worked, and it was in a place nobody scrolls to — which for a feature is the same as not shipping it. It is now its own panel with a heading, above the unit cards, and there is a 👤 Scoped admins across units button in the toolbar next to ⟳ Refresh and ＋ New restricted AU, where actions live." },
