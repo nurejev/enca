@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25111"></script>
+<script src="js/popup-guard.js?v=25112"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25111">
+<link rel="stylesheet" href="css/app.css?v=25112">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25111"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25111"></script>
+<script src="js/counter.js?v=25112"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25112"></script>
 </head>
 <body>
 
@@ -1261,6 +1261,21 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R26</span> 🇳🇱 Dutch interface <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">The exported documentation is the part non-administrators actually read, and for a Dutch organisation that reads better in Dutch. The tool is built for it — one labels file, no build step — so the work is translation and keeping it honest, not plumbing.</p>
           </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R32</span> 🧩 Every tool runs on its own <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Today most tools quietly lean on the rest of the app having run first: the policy list a tool judges against was loaded by sign-in, the group names it prints were resolved by another tool's pass, the shared wiring holds state a tool assumes is there. It mostly works because the app loads everything up front — which means the dependency is invisible until the day it is not (a deep link straight into a tool, a tool opened before a slow read finished, a tool lifted out of this app entirely).</p>
+            <p class="mini" style="margin:6px 0 0">The rule this item works toward: <b>every tool must be able to run with nothing but a signed-in session</b>. Whatever it needs, it reads itself — or states plainly that it is waiting, instead of rendering from state that happens to be lying around. The newest tools already live this way (📖 the guide, 🖥 the device check and 📉 Drift watch read the tenant on their own run button); the older ones grew up sharing and need untangling one at a time. Independence is also the precondition for <span class="rm-ref">R34</span> — a tool that cannot run alone cannot move alone.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R33</span> 🔢 Tool reference numbers, in order of introduction <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The roadmap items carry <span class="rm-ref">Rnn</span> references so one can be pointed at without quoting its title; the tools themselves still go by name and emoji, which drift (tools get renamed, retitled, translated — 🇳🇱 <span class="rm-ref">R26</span> will rename every one of them). The plan is the same discipline for the tools: a permanent <b>T-number</b> per tool, assigned in the order each tool entered ENCA, never reused — not even when a tool is retired or folded into another, because a recycled number makes every older note about it wrong.</p>
+            <p class="mini" style="margin:6px 0 0">Shown in the tool header next to the per-tool version that is already there, findable in the command palette, and used in the changelog, the Help page and the promotion queue — so "T07 misbehaves on this tenant" means one thing across both channels, every build, and any future language.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R34</span> 📦 Every tool easy to port to other applications <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The newer tools already follow a pattern worth making a rule: the logic lives in its own file as pure functions over a plain data contract — no DOM, no globals, no Graph calls — and the app contributes only a thin wiring layer that fills the contract and renders the result. That split is why the Restricted-AUs checks, the guide and the device check can be tested with <code>node</code> alone, and it is exactly what makes a tool liftable: another application (a customer's own portal, a CLI in a pipeline, a scheduled report) reimplements the small wiring and takes the logic file as-is.</p>
+            <p class="mini" style="margin:6px 0 0">This item makes that the standard for <b>every</b> tool: each one a logic module with a documented contract (what goes in, what comes out, which Graph reads the host must supply), the wiring kept small enough to rewrite in an afternoon, and the boundary enforced — a tool that reaches into the app's internals fails the rule. Portability is also the honest test of <span class="rm-ref">R32</span>: a module you can lift into a different application is a module that was actually decoupled, rather than one that merely looks tidy from inside this one.</p>
+          </div>
         </div>
         <div class="rm-more">→ and further, steered by what you ask for</div>
       </div>
@@ -2348,48 +2363,48 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25111"></script>
-<script src="js/version.js?v=25111"></script>
-<script src="js/promote.js?v=25111"></script>
-<script src="js/authConfig.js?v=25111"></script>
-<script src="js/labels.js?v=25111"></script>
-<script src="js/graph.js?v=25111"></script>
-<script src="js/model.js?v=25111"></script>
-<script src="js/render.js?v=25111"></script>
-<script src="js/analyze.js?v=25111"></script>
-<script src="js/whatif.js?v=25111"></script>
-<script src="js/mslearn.js?v=25111"></script>
-<script src="js/gapcheck.js?v=25111"></script>
-<script src="js/cisdata.js?v=25111"></script>
-<script src="js/cischeck.js?v=25111"></script>
-<script src="js/exclusions.js?v=25111"></script>
-<script src="js/validator.js?v=25111"></script>
-<script src="js/whatifeval.js?v=25111"></script>
-<script src="js/compare.js?v=25111"></script>
-<script src="js/groupuse.js?v=25111"></script>
-<script src="js/iso3166.js?v=25111"></script>
-<script src="js/locations.js?v=25111"></script>
-<script src="js/authcontexts.js?v=25111"></script>
-<script src="js/authstrengths.js?v=25111"></script>
-<script src="js/recycle.js?v=25111"></script>
-<script src="js/rmau.js?v=25111"></script>
-<script src="js/termsofuse.js?v=25111"></script>
-<script src="js/audit.js?v=25111"></script>
-<script src="js/drift.js?v=25111"></script>
-<script src="js/guide.js?v=25111"></script>
-<script src="js/devcheck.js?v=25111"></script>
-<script src="js/signins.js?v=25111"></script>
-<script src="js/reportimpact.js?v=25111"></script>
-<script src="js/changelog.js?v=25111"></script>
-<script src="js/baselineData.js?v=25111"></script>
-<script src="js/baselineJoeyData.js?v=25111"></script>
-<script src="js/baseline.js?v=25111"></script>
-<script src="js/groupTemplates.js?v=25111"></script>
-<script src="js/assign.js?v=25111"></script>
-<script src="js/cagroups.js?v=25111"></script>
-<script src="js/import.js?v=25111"></script>
-<script src="js/export.js?v=25111"></script>
-<script src="js/demo.js?v=25111"></script>
-<script src="js/app.js?v=25111"></script>
+<script src="js/branding.js?v=25112"></script>
+<script src="js/version.js?v=25112"></script>
+<script src="js/promote.js?v=25112"></script>
+<script src="js/authConfig.js?v=25112"></script>
+<script src="js/labels.js?v=25112"></script>
+<script src="js/graph.js?v=25112"></script>
+<script src="js/model.js?v=25112"></script>
+<script src="js/render.js?v=25112"></script>
+<script src="js/analyze.js?v=25112"></script>
+<script src="js/whatif.js?v=25112"></script>
+<script src="js/mslearn.js?v=25112"></script>
+<script src="js/gapcheck.js?v=25112"></script>
+<script src="js/cisdata.js?v=25112"></script>
+<script src="js/cischeck.js?v=25112"></script>
+<script src="js/exclusions.js?v=25112"></script>
+<script src="js/validator.js?v=25112"></script>
+<script src="js/whatifeval.js?v=25112"></script>
+<script src="js/compare.js?v=25112"></script>
+<script src="js/groupuse.js?v=25112"></script>
+<script src="js/iso3166.js?v=25112"></script>
+<script src="js/locations.js?v=25112"></script>
+<script src="js/authcontexts.js?v=25112"></script>
+<script src="js/authstrengths.js?v=25112"></script>
+<script src="js/recycle.js?v=25112"></script>
+<script src="js/rmau.js?v=25112"></script>
+<script src="js/termsofuse.js?v=25112"></script>
+<script src="js/audit.js?v=25112"></script>
+<script src="js/drift.js?v=25112"></script>
+<script src="js/guide.js?v=25112"></script>
+<script src="js/devcheck.js?v=25112"></script>
+<script src="js/signins.js?v=25112"></script>
+<script src="js/reportimpact.js?v=25112"></script>
+<script src="js/changelog.js?v=25112"></script>
+<script src="js/baselineData.js?v=25112"></script>
+<script src="js/baselineJoeyData.js?v=25112"></script>
+<script src="js/baseline.js?v=25112"></script>
+<script src="js/groupTemplates.js?v=25112"></script>
+<script src="js/assign.js?v=25112"></script>
+<script src="js/cagroups.js?v=25112"></script>
+<script src="js/import.js?v=25112"></script>
+<script src="js/export.js?v=25112"></script>
+<script src="js/demo.js?v=25112"></script>
+<script src="js/app.js?v=25112"></script>
 </body>
 </html>

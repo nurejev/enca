@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25112, date: "2026-08-14", title: "Roadmap: tools as independent, numbered, portable modules",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Three new items that are one architectural direction. R32 — every tool must be able to run on its own, with nothing but a signed-in session: whatever it needs it reads itself, instead of rendering from state another tool happened to leave behind; the newest tools already live this way, the older ones grew up sharing and need untangling one at a time. R33 — permanent T-numbers for the tools themselves, assigned in the order each tool entered ENCA and never reused, the same discipline the roadmap's R-references already follow — so “T07 misbehaves” means one thing across both channels, every build, and any future language. R34 — every tool easy to port to other applications: logic as a pure module with a documented contract, wiring thin enough to rewrite in an afternoon, the way the newer tools are already built. R32 is the precondition for R34, and R34 is the honest test of R32: a module you can lift into a different application is one that was actually decoupled." },
+    ],
+  },
+  {
     build: 25111, date: "2026-08-14", title: "The verdicts explain themselves, and “assigned to nothing” must be earned",
     items: [
       { kind: "improved", tool: "Device reality check", text: "The four verdicts are now defined where they are read, not just used: a legend on the summary card and a full explanation in Help. ✅ <b>covered</b> — proof was found (All-devices / All-users assignment, the include group assigned directly, or every member matched by the membership pass); it says the check has someone to answer for, not that the compliance policy is strict. ⚠️ <b>not proven</b> — Intune policies exist but coverage could not be <i>proven</i>: an unenumerable CA scope (All users, guests, roles), a partial member match, a device-group assignment that cannot be matched to users, or an empty include group — not necessarily broken, but “nobody can show you this works”, which for an audit is usually the same problem. ❌ <b>uncovered</b> — a proven gap: no Intune policy for the platform, or none of the scope's members in any assigned group; the tenant default decides whether that means silent passes or blocked users. 🚫 <b>n/a</b> — the control cannot exist on the platform at all." },
