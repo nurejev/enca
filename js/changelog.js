@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25107, date: "2026-08-14", title: "Items 44 and 47 reached production (280)",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue items 44 (Gap analyse scans only named users or groups) and 47 (persona groups offered when adding to a restricted unit) are live in production build 280. Removed from the queue; the numbers are retired rather than reused." },
+    ],
+  },
+  {
     build: 25106, date: "2026-08-14", title: "How many tools there are, next to the question",
     items: [
       { kind: "new", tool: "All tools", text: "\"What do you want to do?\" now says how many tools there are to do it with. The number is counted from the tiles on the page rather than written down, so it cannot drift from what is actually there — a hand-maintained count is wrong one release after it is typed. Help cards are excluded: they explain the tools rather than being them, and counting them would inflate the number by three. Hovering gives how many are new or in beta." },

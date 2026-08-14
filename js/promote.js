@@ -33,8 +33,8 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.279",
-  betaBuild: "v1.0.250-beta.106",
+  productionBuild: "v1.0.280",
+  betaBuild: "v1.0.250-beta.107",
 
   items: [
     {
@@ -76,26 +76,6 @@ const PROMOTE = {
       what: "The bulk scoped-administrator panel gains a type-ahead over the tenant's users: pick by name, chips you can remove, Enter to add. Pasting UPNs still works and both write the same list.",
       why: "Production only takes typed UPNs, so granting to somebody whose UPN you do not know means leaving the tool to find it.",
       files: ["js/app.js", "css/app.css", "index.html"],
-    },
-    {
-      n: 47,
-      title: "Persona groups offered when adding to a restricted unit",
-      tools: ["Restricted AUs"],
-      builds: [25101],
-      risk: "medium",
-      what: "The member picker offers the groups whose CA number maps to this unit's persona as one-click chips, hides ones already in, and seeds the type-ahead persona-first. Manual entry of any other group is unchanged.",
-      why: "Production offers a free-text box over every group in the tenant, so adding the right group takes the same effort as adding the wrong one.",
-      files: ["js/app.js", "css/app.css", "index.html"],
-    },
-    {
-      n: 44,
-      title: "Gap analyse scans only named users or groups (R29)",
-      tools: ["Gap analyse"],
-      builds: [25097],
-      risk: "medium",
-      what: "A scope mode that names users or groups before the run: groups expanded to their transitive members, no tenant-wide /users read, and the scoped-ness reported on screen and in the export.",
-      why: "Production reads every user in the tenant to answer a question about one contractor, which on a large tenant is minutes of reads for a wide answer nobody asked for.",
-      files: ["index.html", "js/app.js", "js/analyze.js", "css/app.css"],
     },
     {
       n: 34,
