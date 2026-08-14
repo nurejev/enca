@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25075, date: "2026-08-13", title: "Roadmap: search apps by name in What-If",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Added R31 🧪 What-If — search the tenant's apps, not their GUIDs. “Other — enter an App ID” asks for a raw GUID, so answering it means leaving the tool, finding the enterprise application in the portal and copying the id back; and a mistyped GUID does not fail, it quietly describes a sign-in to an app nobody has — the same class of mistake as a wrong country code. The card records a type-ahead over the tenant's service principals, and the constraint that a pasted GUID must keep working: a policy can reference an application with no service principal here, which 📥 Import already has to handle, so an id ENCA cannot name is still legitimate and should be marked “not found in this tenant” rather than rejected." },
+    ],
+  },
+  {
     build: 25074, date: "2026-08-13", title: "Roadmap: filter What-If's non-matches",
     items: [
       { kind: "improved", tool: "Roadmap", text: "Added R30 🧪 What-If — filter the policies that did not apply. A run against a real tenant answers with two policies that apply and 107 that do not, each with its reason: honest, and unreadable. The question behind that list is a persona question (why did none of the Admins policies apply to this admin) or a number question (what happened to CA103), so the card records filtering by persona and CA number using the same ranges 🗂 List Policies already groups by — one idea across the toolset rather than two. It also records a count per reason, since when an expected policy is missing the reason is what you are hunting for; the per-policy reasons stay either way, because a summary replacing them would answer a different question." },
