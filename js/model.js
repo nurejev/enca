@@ -14,17 +14,38 @@ function buildViewModel(raw, resolve, index) {
     ...(u.includeGroups || []).map(id => name(id) + " (group)"),
     ...(u.includeRoles || []).map(id => name(id) + " (role)"),
   ];
-  if (u.includeGuestsOrExternalUsers) {
-    const g = u.includeGuestsOrExternalUsers;
-    const types = (g.guestOrExternalUserTypes || "").split(",").map(t => L.guestTypes[t.trim()] || t.trim()).filter(Boolean);
-    usersInc.push("Guests/external: " + (types.join(", ") || "all types"));
+  // "Guests & external users" on its own is not an answer. The selection is
+  // six independent types, and which ones are in it decides whether a policy
+  // reaches your CSP partner's delegated admins — the one external identity
+  // that holds admin roles here and cannot be excluded by any group. A card
+  // that collapses the six to one line hides exactly the thing worth reading.
+  const ALL_GUEST_TYPES = ["b2bCollaborationGuest", "b2bCollaborationMember", "b2bDirectConnectUser",
+                           "internalGuest", "serviceProvider", "otherExternalUser"];
+  function guestLabel(g) {
+    const raw = String(g.guestOrExternalUserTypes || "").split(",").map(t => t.trim()).filter(Boolean);
+    const et = g.externalTenants || {};
+    // an enumerated tenant list only reaches the tenants it names, so a
+    // selection covering two partner tenants does not cover a third
+    const scope = (et.membershipKind || "all") === "enumerated"
+      ? ` — from ${(et.members || []).length} named tenant${(et.members || []).length === 1 ? "" : "s"}`
+      : "";
+    if (!raw.length || ALL_GUEST_TYPES.every(t => raw.includes(t))) {
+      return `Guests & external users (all types, incl. service providers)${scope}`;
+    }
+    const types = raw.map(t => L.guestTypes[t] || t);
+    const missing = ALL_GUEST_TYPES.filter(t => !raw.includes(t));
+    // naming the absence matters as much as the presence: a policy meant to
+    // cover every external identity that quietly omits one is the bug
+    const not = missing.includes("serviceProvider") ? " · NOT service providers" : "";
+    return `Guests & external users: ${types.join(", ")}${not}${scope}`;
   }
+  if (u.includeGuestsOrExternalUsers) usersInc.push(guestLabel(u.includeGuestsOrExternalUsers));
   const usersExc = [
     ...(u.excludeUsers || []).map(id => name(id, L.users)),
     ...(u.excludeGroups || []).map(id => name(id) + " (group)"),
     ...(u.excludeRoles || []).map(id => name(id) + " (role)"),
   ];
-  if (u.excludeGuestsOrExternalUsers) usersExc.push("Guests & external users");
+  if (u.excludeGuestsOrExternalUsers) usersExc.push(guestLabel(u.excludeGuestsOrExternalUsers));
 
   // ---- workload identities / agents ----
   const ca = c.clientApplications || {};

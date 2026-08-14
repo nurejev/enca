@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25094, date: "2026-08-14", title: "Which external users, not just \"external users\"",
+    items: [
+      { kind: "improved", tool: "List Policies", text: "A policy card showed − Guests & external users and stopped there, so the exclusion that decides whether a policy reaches your CSP partner's delegated admins read the same as one that does not. The selection is six independent types and the card now names them: \"Guests & external users: B2B collaboration guests · NOT service providers\". When all six are selected it says so — \"all types, incl. service providers\" — because the collapsed form still has to answer the question. A selection scoped to named tenants says how many, since an exclusion covering two partner tenants does not cover a third." },
+      { kind: "improved", tool: "List Policies", text: "Include and exclude now read the same way. The include side already listed the types under a different label (\"Guests/external:\"); both use one formatter, so the two halves of a policy can be compared without translating between them." },
+    ],
+  },
+  {
     build: 25093, date: "2026-08-14", title: "The release time was an hour in the future",
     items: [
       { kind: "fixed", tool: "All tools", text: "The sign-in stamp read 15:00 CEST at 13:52. The conversion was right and the recorded value was wrong: builds 25090-25092 (and production 277) carried a local Amsterdam time in a field documented as UTC, so every stamp was displayed two hours late — typing a local time into a field labelled UTC is the same mistake the local-time display was added to prevent, made one build after adding it. The field is now set from the clock rather than by hand, and says so." },

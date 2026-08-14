@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.277",
-  betaBuild: "v1.0.250-beta.93",
+  betaBuild: "v1.0.250-beta.94",
 
   items: [
+    {
+      n: 41,
+      title: "Policy cards name the external user types",
+      tools: ["List Policies"],
+      builds: [25094],
+      risk: "medium",
+      what: "A guest/external include or exclude lists which of the six user types it holds, calls out an omitted service provider as NOT service providers, says \"all types, incl. service providers\" when all six are selected, and reports a selection scoped to named tenants.",
+      why: "Production collapses the whole selection to \"Guests & external users\", so a card cannot show whether a policy reaches the CSP partner's delegated admins — which is what the new service provider checks are about. The check finds it; the card should show it.",
+      files: ["js/model.js"],
+    },
     {
       n: 40,
       title: "Release time in the reader's own timezone",
