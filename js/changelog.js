@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25111, date: "2026-08-14", title: "The verdicts explain themselves, and “assigned to nothing” must be earned",
+    items: [
+      { kind: "improved", tool: "Device reality check", text: "The four verdicts are now defined where they are read, not just used: a legend on the summary card and a full explanation in Help. ✅ <b>covered</b> — proof was found (All-devices / All-users assignment, the include group assigned directly, or every member matched by the membership pass); it says the check has someone to answer for, not that the compliance policy is strict. ⚠️ <b>not proven</b> — Intune policies exist but coverage could not be <i>proven</i>: an unenumerable CA scope (All users, guests, roles), a partial member match, a device-group assignment that cannot be matched to users, or an empty include group — not necessarily broken, but “nobody can show you this works”, which for an audit is usually the same problem. ❌ <b>uncovered</b> — a proven gap: no Intune policy for the platform, or none of the scope's members in any assigned group; the tenant default decides whether that means silent passes or blocked users. 🚫 <b>n/a</b> — the control cannot exist on the platform at all." },
+      { kind: "fixed", tool: "Device reality check", text: "Policies showed as “assigned to nothing” that are assigned. The list-level $expand=assignments is not reliable — on real tenants it comes back empty for whole families (app protections notoriously, some compliance policies too), and an empty answer is indistinguishable from a genuinely unassigned policy. Any policy the expand returns without assignments now gets its assignments re-read individually before the analysis sees it, so “assigned to nothing” is a finding again rather than an artefact — and the membership pass matches against the real groups instead of judging a false empty." },
+    ],
+  },
+  {
     build: 25110, date: "2026-08-14", title: "The verdict names the groups — and matches the members",
     items: [
       { kind: "improved", tool: "Device reality check", text: "A “not proven” verdict said <i>only group-assigned (3 policies)</i> and listed the policy names — which told you there was a gap without telling you who is in it. WHICH groups those policies are assigned to is exactly what decides who falls through to the tenant default, so every Intune policy on a verdict now carries its assignment inline: policy → the groups it is assigned to, with its exclusion groups named too, because an exclusion is how coverage leaks just as quietly. Shown as a sub-list on the card and in the Markdown report." },

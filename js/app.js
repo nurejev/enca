@@ -7508,27 +7508,47 @@ max@contoso.com,"Global, DevOps"</pre>
     settings: { secureByDefault: false },
   };
 
+  // The list-level $expand=assignments is not reliable: on real tenants it
+  // comes back EMPTY for some families (app protections notoriously, and
+  // some compliance policies), and an empty answer is indistinguishable
+  // from a genuinely unassigned policy. Nothing may be called "assigned to
+  // nothing" on that evidence — so any policy whose expand yielded nothing
+  // gets its assignments re-read individually before the analysis sees it.
+  async function dvFillAssignments(list, base) {
+    for (const p of list) {
+      if ((p.assignments || []).length || !p.id) continue;
+      try { p.assignments = (await Graph.gget(`${base}/${p.id}/assignments`)).value || []; }
+      catch { /* stays as the list said — empty */ }
+    }
+    return list;
+  }
+
   async function dvRead(key) {
     if (isDemo) return DV_DEMO[key];
     if (key === "comp")
-      return Graph.ggetAll("/deviceManagement/deviceCompliancePolicies?$expand=assignments");
+      return dvFillAssignments(await Graph.ggetAll("/deviceManagement/deviceCompliancePolicies?$expand=assignments"),
+        "/deviceManagement/deviceCompliancePolicies");
     if (key === "compSC") {
       // Settings-catalog compliance is where Linux lives; a tenant that
       // rejects the endpoint (no licence, old cloud) is an empty list,
       // not a failure of the whole run.
-      try { return await Graph.ggetAll("/deviceManagement/compliancePolicies?$expand=assignments"); }
-      catch { return []; }
+      try {
+        return await dvFillAssignments(await Graph.ggetAll("/deviceManagement/compliancePolicies?$expand=assignments"),
+          "/deviceManagement/compliancePolicies");
+      } catch { return []; }
     }
     if (key === "appPols") {
       const fams = [
-        ["/deviceAppManagement/iosManagedAppProtections?$expand=assignments", "iOS"],
-        ["/deviceAppManagement/androidManagedAppProtections?$expand=assignments", "android"],
-        ["/deviceAppManagement/windowsManagedAppProtections?$expand=assignments", "windows"],
+        ["/deviceAppManagement/iosManagedAppProtections", "iOS"],
+        ["/deviceAppManagement/androidManagedAppProtections", "android"],
+        ["/deviceAppManagement/windowsManagedAppProtections", "windows"],
       ];
       const out = [];
-      for (const [url, platform] of fams) {
-        try { for (const p of await Graph.ggetAll(url)) out.push({ platform, name: p.displayName || p.name, assignments: p.assignments }); }
-        catch { /* family missing on this cloud — the others still count */ }
+      for (const [base, platform] of fams) {
+        try {
+          const list = await dvFillAssignments(await Graph.ggetAll(`${base}?$expand=assignments`), base);
+          for (const p of list) out.push({ platform, name: p.displayName || p.name, assignments: p.assignments });
+        } catch { /* family missing on this cloud — the others still count */ }
       }
       return out;
     }
@@ -7666,8 +7686,17 @@ max@contoso.com,"Global, DevOps"</pre>
       : r.secure
       ? `<p class="mini" style="margin:0">⚙ Tenant default: devices with no compliance policy are marked <b>Not compliant</b>. A coverage gap below surfaces as <b>blocked users</b> — loud, but not silent.</p>`
       : `<p class="mini" style="color:var(--off);margin:0">⚙ Tenant default: devices with no compliance policy are marked <b>COMPLIANT</b>. Every coverage gap below <b>passes the device check silently</b> — this single Intune toggle (Compliance policy settings → “Mark devices with no compliance policy assigned as”) decides what all the gaps mean.</p>`;
+    // The verdict words carry the whole result, so they are defined where
+    // they are read — not only in Help.
+    const legend = `<div class="mini" style="margin:10px 0 0;display:grid;gap:3px">
+      <div>${dvChip("covered")} proof found — an All-devices / All-users assignment, the CA include group assigned directly, or every member of the CA scope matched inside assigned groups.</div>
+      <div>${dvChip("partial")} Intune policies exist for the platform, but coverage could not be <i>proven</i>: the CA scope cannot be enumerated (All users, guests, roles), only some members matched, the assignment is a device group, or the included group is empty. Not necessarily a gap — the tool refuses to guess.</div>
+      <div>${dvChip("uncovered")} a proven gap as far as reads go: no Intune policy exists for the platform, or none of the CA scope's members is in any assigned group. What an uncovered device becomes is the tenant default above.</div>
+      <div>${dvChip("na")} the control cannot exist on this platform — approved client app / app protection is an iOS-and-Android mechanism, so demanding it elsewhere can never be satisfied.</div>
+    </div>`;
     const head = `<div class="list-card" style="padding:14px 16px">
       ${secure}
+      ${legend}
       <p class="mini muted" style="margin:8px 0 0">${r.summary.compCount} compliance polic${r.summary.compCount === 1 ? "y" : "ies"} (${r.summary.perPlat.map((x) => `${esc(x.label)}: ${x.n}`).join(" · ")}) · ${r.summary.appCount} app-protection · ${r.results.length} CA polic${r.results.length === 1 ? "y" : "ies"} using device grants · <b>${r.summary.flagged} flagged</b>${r.summary.membersExpanded ? ` · memberships matched across ${r.summary.membersExpanded} group${r.summary.membersExpanded === 1 ? "" : "s"}${r.summary.memberCap ? ` <span style="color:var(--off)">(${r.summary.memberCap} more not expanded — over the read cap; those verdicts rest on assignment names alone)</span>` : ""}` : ""}</p>
     </div>`;
 
