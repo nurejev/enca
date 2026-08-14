@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 274, date: "2026-08-14", title: "Which policy blocks, why a user is denied, and a findable bulk grant",
+    items: [
+      { kind: "fixed", tool: "What-If", text: "The verdict counted REPORT-ONLY policies as blocking. A report-only policy records what it would have done and changes nothing, so a scenario whose only Block policy was staged came back as “Access would be blocked” for a sign-in that in fact succeeds today — a wrong answer, not a missing one, and a common state during a rollout. The verdict now comes from the enforced policies alone, and a report-only block is reported separately as “would block once enforced”. Grant controls are split the same way: what you must satisfy comes from the enforced policies." },
+      { kind: "improved", tool: "What-If", text: "“Access would be blocked” with ten applying policies left you to work out which one did it. The blockers are named in the verdict and clickable straight through to the policy, and marked in the list — ⛔ this is the block, or “would block once enforced” for a staged one. The Markdown export carries the same, since that is the copy that reaches a ticket." },
+      { kind: "new", tool: "Report-only impact", text: "A would-deny row now says WHY. The old explanation covered why the policy was in scope, which is not the question a go-live turns on: a row reading “59 would be denied” under a policy called Windows-Compliant left you guessing. It now reads “needs a compliant device — device NOT compliant, Azure AD joined, Windows”. Written as evidence rather than diagnosis, because Graph returns no per-control verdict: a device with NO compliance state is reported as unregistered rather than as non-compliant, a different problem with a different fix. Only denials get a reason — an interruption was satisfied by doing the extra step — and a Block policy says it blocks outright." },
+      { kind: "fixed", tool: "Restricted AUs", text: "👤 Grant scoped administrators across units was effectively invisible: its entry point was one line of small print at the foot of the baseline checklist, below eleven rows. It is now its own panel above the unit cards, with a toolbar button next to ⟳ Refresh, and no longer depends on the baseline panel existing — so it works on a tenant whose units are not the baseline's. It hides itself when there is only one restricted unit." },
+    ],
+  },
+  {
     build: 273, date: "2026-08-13", title: "Your own app registration, and a release stamp you can trust",
     items: [
       { kind: "new", tool: "All tools", text: "Your own single-tenant app registration. New-EncaAppRegistration.ps1 gains -SingleTenant and -RequireAssignment, js/authConfig.local.js works as an override, and SINGLE-TENANT.md documents the route end to end including where to host it. Additive: nothing behaves differently for anyone who ignores it, and it is the documented answer for a tenant that will not sign in to somebody else's registration." },

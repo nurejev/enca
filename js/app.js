@@ -5673,7 +5673,7 @@ max@contoso.com,"Global, DevOps"</pre>
         </div>` : `<div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="ruBaseMd">📄 Report</button></div>`}
       ${results}
       <div id="ruBaseLog" class="mini" style="margin-top:8px">${(t.log || []).join("")}</div>
-    </div>` + ruBulkAdminPanel();
+    </div>`;
   }
 
   function renderRmau() {
@@ -5695,8 +5695,8 @@ max@contoso.com,"Global, DevOps"</pre>
     const rows = (ruList || []).filter((a) => (ruFilter === "all" || Rmau.isRestricted(a))
       && (!q || `${a.displayName} ${a.description || ""}`.toLowerCase().includes(q)))
       .sort((a, b) => (Rmau.isRestricted(b) ? 1 : 0) - (Rmau.isRestricted(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
-    if (!rows.length) { $("ruBody").innerHTML = ruBaselinePanel() + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
-    $("ruBody").innerHTML = ruBaselinePanel() + `<div class="lo-grid">` + rows.map((au) => {
+    if (!rows.length) { $("ruBody").innerHTML = ruBaselinePanel() + ruBulkAdminPanel() + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
+    $("ruBody").innerHTML = ruBaselinePanel() + ruBulkAdminPanel() + `<div class="lo-grid">` + rows.map((au) => {
       const open = ruOpen.has(au.id);
       const d = ruDetails[au.id];
       let detail = "";
@@ -5922,8 +5922,15 @@ max@contoso.com,"Global, DevOps"</pre>
     if (restricted.length < 2) return "";      // nothing to do in bulk
     const t = ruBulkAdmin;
     if (!t || !t.open) {
-      return `<div style="margin:10px 0 0"><button class="btn" id="ruBAOpen">👤 Grant scoped administrators across units…</button>
-        <span class="mini muted"> — one set of people, several units, each grant reported on its own.</span></div>`;
+      // A closed state that reads as a feature. It used to be one line of small
+      // print at the foot of the baseline checklist, below eleven rows — which
+      // is to say invisible, whatever the roadmap claimed had shipped.
+      const naked = restricted.filter((au) => { const d = ruDetails[au.id]; return d && d.scoped && !d.scoped.length; }).length;
+      return `<div class="cg-panel">
+        <h4>👤 SCOPED ADMINISTRATORS ACROSS UNITS</h4>
+        <p class="mini" style="margin:0 0 8px">One set of people, several units, applied as a grid — each unit × administrator its own outcome. A restricted unit with nobody scoped to it is a unit whose members <b>nobody</b> can change${naked ? `, and <b style="color:var(--off)">${naked}</b> of the ${restricted.length} opened so far ${naked === 1 ? "is" : "are"} in that state` : ""}.</p>
+        <button class="btn primary" id="ruBAOpen">👤 Grant across ${restricted.length} restricted units…</button>
+      </div>`;
     }
     const rows = restricted.map((au) => {
       const d = ruDetails[au.id];
@@ -6220,7 +6227,7 @@ max@contoso.com,"Global, DevOps"</pre>
       renderRmau();
       return;
     }
-    if (e.target.id === "ruBAOpen") {
+    if (e.target.id === "ruBAOpen" || e.target.id === "ruBAOpenTop") {
       ruBulkAdmin = { open: true, sel: new Set((ruList || []).filter(Rmau.isRestricted).map((a) => a.id)),
         upns: "", role: Rmau.ROLE_TEMPLATES[0].id, busy: false, results: null, log: null };
       renderRmau();
@@ -6361,6 +6368,13 @@ max@contoso.com,"Global, DevOps"</pre>
       toast(`<span>${esc(ruDeleting.displayName)}</span> deleted${isDemo ? " (simulated)" : ""}`);
       await openRmauTool(true);
     } catch (e) { toast(`Delete failed: <span>${esc(e.message || e)}</span>`); btn.disabled = false; }
+  });
+  $("ruBAOpenTop").addEventListener("click", () => {
+    ruBulkAdmin = { open: true, sel: new Set((ruList || []).filter(Rmau.isRestricted).map((a) => a.id)),
+      upns: "", role: Rmau.ROLE_TEMPLATES[0].id, busy: false, results: null, log: null };
+    renderRmau();
+    const el = $("ruBAPanel");
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
   });
   $("ruMd").addEventListener("click", async (e) => {
     if (!ruList) return;
@@ -7388,7 +7402,7 @@ max@contoso.com,"Global, DevOps"</pre>
               <td>${u.failure ? `<span class="au-n rem">${u.failure}</span>` : '<span class="mini muted">—</span>'}</td>
               <td>${u.interrupted ? `<span class="au-n upd">${u.interrupted}</span>` : '<span class="mini muted">—</span>'}</td>
               <td class="mini">${u.success || "—"}</td>
-              <td class="mini">${esc([...u.apps].slice(0, 3).join(", "))}${u.apps.size > 3 ? ` +${u.apps.size - 3}` : ""}${riRiskWhy(u)}</td>
+              <td class="mini">${esc([...u.apps].slice(0, 3).join(", "))}${u.apps.size > 3 ? ` +${u.apps.size - 3}` : ""}${riRiskWhy(u)}${riDenyWhy(u)}</td>
               <td class="mini">${esc(auAgo(u.last))}</td></tr>`).join("")}</tbody></table>
             ${users.length > 60 ? `<p class="mini muted">Showing 60 of ${users.length} affected users — the Markdown export has them all.</p>` : ""}`
             : '<p class="mini muted" style="margin:6px 0">No user would notice this policy going live in this window.</p>'}
@@ -7424,7 +7438,7 @@ max@contoso.com,"Global, DevOps"</pre>
         const open = riOpen.has("u:" + u.upn);
         const detail = open ? `<tr class="au-sumdet"><td colspan="6"><ul class="wi-list" style="margin:6px 0">
           ${u.policies.map((x) => `<li><div class="wi-pn"><span class="pol-link" data-polid="${esc(x.id || "")}" title="Open the policy card">${esc(x.name)}</span></div>
-            <div class="wi-why">${[x.failure ? `${x.failure} would deny` : "", x.interrupted ? `${x.interrupted} interrupted` : "", x.success ? `${x.success} pass` : ""].filter(Boolean).join(" · ")}${riRiskWhy(x)}</div></li>`).join("")}
+            <div class="wi-why">${[x.failure ? `${x.failure} would deny` : "", x.interrupted ? `${x.interrupted} interrupted` : "", x.success ? `${x.success} pass` : ""].filter(Boolean).join(" · ")}${riRiskWhy(x)}</div>${riDenyWhy(x)}</li>`).join("")}
         </ul></td></tr>` : "";
         return `<tr class="au-sumrow" data-riuser="${esc(u.upn)}">
           <td><b>${esc(u.name)}</b>${u.upn !== u.name ? ` <span class="mini muted">${esc(u.upn)}</span>` : ""}</td>
@@ -7443,6 +7457,12 @@ max@contoso.com,"Global, DevOps"</pre>
   // one question — low, or medium? — and the sign-in record carries the answer.
   // Shown per level rather than summarised, because a run that was two lows and
   // one medium is a different go-live decision from three mediums.
+  // Why it would say NO. The scope line explains why the policy looked at the
+  // user; this explains what it would have demanded and what the sign-in
+  // actually brought — the question a go-live turns on.
+  const riDenyWhy = (x) => (x.denyWhy || []).length
+    ? `<div class="wi-why" style="color:var(--off)">✗ ${x.denyWhy.map((r) => `${esc(r.what)}${r.n > 1 ? ` <span class="muted">(×${r.n})</span>` : ""}`).join("<br>✗ ")}</div>`
+    : "";
   const riRiskWhy = (x) => (x.riskWhy || []).length
     ? ` — <span title="From the sign-in records behind this verdict">${x.riskWhy.map((r) => `${esc(r.what)} ×${r.n}`).join(", ")}</span>`
     : "";
@@ -8958,15 +8978,29 @@ max@contoso.com,"Global, DevOps"</pre>
       sc.deviceState ? WhatIfEval.LABEL[sc.deviceState] : "", sc.signInRisk ? `sign-in risk ${sc.signInRisk}` : "",
       sc.userRisk ? `user risk ${sc.userRisk}` : "", sc.authFlow ? esc(sc.authFlow) : ""].filter(Boolean).join(" · ");
 
-    const allControls = [...new Set(r.applied.flatMap((p) => p.grant || []))];
-    const verdict = r.blocked
-      ? `<div class="wi-verdict block">⛔ Access would be <b>blocked</b></div>`
+    // "Blocked" with ten applying policies leaves you to work out WHICH one
+    // said no. Name them, and make them clickable — with report-only kept
+    // separate, because a report-only block changes nothing today and saying
+    // otherwise is the difference between a verdict and a guess.
+    const nameList = (xs) => xs.map((b) => `<span class="wi-blocker pol-link" data-polid="${esc(b.id)}">${esc(b.name)}</span>`).join(" ");
+    const enforced = r.applied.filter((p) => p.state !== "enabledForReportingButNotEnforced");
+    const allControls = [...new Set(enforced.flatMap((p) => p.grant || []))].filter((c) => c !== "block");
+    const roControls = [...new Set(r.applied.filter((p) => p.state === "enabledForReportingButNotEnforced")
+      .flatMap((p) => p.grant || []))].filter((c) => c !== "block");
+    const roNote = (r.blockersReportOnly || []).length || roControls.length
+      ? `<div class="wi-verdict-sub">Report-only, so not enforced today: ${
+          (r.blockersReportOnly || []).length ? `<b>would block</b> once enforced — ${nameList(r.blockersReportOnly)}` : ""}${
+          (r.blockersReportOnly || []).length && roControls.length ? " · " : ""}${
+          roControls.length ? `would also require ${esc(roControls.map(wiCtrl).join(", "))}` : ""}</div>`
+      : "";
+    const verdict = (r.blocked
+      ? `<div class="wi-verdict block">⛔ Access would be <b>blocked</b> by ${(r.blockers || []).length === 1 ? "" : `${r.blockers.length} policies: `}${nameList(r.blockers || [])}</div>`
       : allControls.length
         ? `<div class="wi-verdict grant">✅ Access granted after satisfying: <b>${esc(allControls.map(wiCtrl).join(", "))}</b></div>`
-        : `<div class="wi-verdict none">✅ No grant control required by any applying policy</div>`;
+        : `<div class="wi-verdict none">✅ No grant control required by any enforced policy</div>`) + roNote;
 
     const applied = r.applied.length ? r.applied.map((p) => `<li>
-        <div class="wi-pn"><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">report-only</span>' : ""}</div>
+        <div class="wi-pn"><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">report-only</span>' : ""}${(p.grant || []).includes("block") ? (p.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">would block once enforced</span>' : ' <span class="tag block">⛔ this is the block</span>') : ""}</div>
         <div class="wi-ctrls">
           ${(p.grant || []).length ? `<span class="wi-g">Grant: ${esc((p.grant || []).map(wiCtrl).join(p.operator === "OR" ? " or " : " and "))}</span>` : ""}
           ${(p.session || []).length ? `<span class="wi-s">Session: ${esc((p.session || []).join(" · "))}</span>` : ""}
@@ -9005,9 +9039,17 @@ max@contoso.com,"Global, DevOps"</pre>
       `- Device platform: ${sc.platform} · Client app: ${sc.clientApp}`,
       `- IP: ${sc.ip || "—"} · Country: ${sc.country || "—"} · Device state: ${sc.deviceState || "not specified"}`,
       `- Sign-in risk: ${sc.signInRisk || "not specified"} · User risk: ${sc.userRisk || "not specified"}`, "",
-      `**Result:** ${r.blocked ? "access would be BLOCKED" : "access granted after satisfying the controls below"}`, "",
+      // The report carries the same obligation as the screen: name the cause.
+      // A document that says BLOCKED and leaves the reader to find the policy
+      // in a list of ten is the version that gets pasted into a ticket.
+      `**Result:** ${r.blocked
+        ? `access would be **BLOCKED** by ${(r.blockers || []).map((b) => b.name).join(", ")}`
+        : "access granted after satisfying the controls below"}`,
+      ...((r.blockersReportOnly || []).length
+        ? [`**Report-only:** ${r.blockersReportOnly.map((b) => b.name).join(", ")} would block once enforced — ${r.blocked ? "in addition to the above" : "today this sign-in succeeds"}.`]
+        : []), "",
       `## Policies that apply (${r.applied.length})`, ""];
-    r.applied.forEach((p) => L.push(`- **${p.name}**${p.state === "enabledForReportingButNotEnforced" ? " *(report-only)*" : ""} — grant: ${(p.grant || []).map(wiCtrl).join(", ") || "none"}${(p.session || []).length ? `; session: ${p.session.join(" · ")}` : ""}`));
+    r.applied.forEach((p) => L.push(`- **${p.name}**${p.state === "enabledForReportingButNotEnforced" ? " *(report-only)*" : ""}${(p.grant || []).includes("block") ? (p.state === "enabledForReportingButNotEnforced" ? " ⛔ *would block once enforced*" : " ⛔ **this is the block**") : ""} — grant: ${(p.grant || []).map(wiCtrl).join(", ") || "none"}${(p.session || []).length ? `; session: ${p.session.join(" · ")}` : ""}`));
     L.push("", `## Policies that do not apply (${r.notApplied.length})`, "");
     r.notApplied.forEach((p) => L.push(`- ${p.name} — ${p.reason}`));
     if (r.notEvaluated.length) { L.push("", `## Not evaluated (Off)`, ""); r.notEvaluated.forEach((p) => L.push(`- ${p.name}`)); }

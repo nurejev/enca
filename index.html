@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=273"></script>
+<script src="js/popup-guard.js?v=274"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=273">
+<link rel="stylesheet" href="css/app.css?v=274">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=273"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=273"></script>
+<script src="js/counter.js?v=274"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=274"></script>
 </head>
 <body>
 
@@ -130,7 +130,7 @@
         <p>Per policy, the sign-in simulations it implies — user, app, client, location, platform, risk — and the control each one should (or should not) enforce. Ported from Jasper Baes' CA Validator.</p>
       </div>
       <div class="tool" id="toolWhatIf">
-        <div class="tool-ic">🧪</div><h3>What-If</h3>
+        <div class="tool-ic">🧪</div><h3>What-If <span class="tag upd">UPDATED</span></h3>
         <p>Simulate a sign-in — user, app, platform, client, location, device state and risk — and see which policies would apply, with the controls required, and which would not and why.</p>
       </div>
       <div class="tool" id="toolCompare">
@@ -1003,6 +1003,7 @@
       <div class="chip-filter" id="ruChips"></div>
       <div class="tb-actions">
         <button class="btn" id="ruRefresh" title="Re-read the administrative units">⟳ Refresh</button>
+        <button class="btn" id="ruBAOpenTop" title="Grant scoped administrators across several units at once">👤 Scoped admins across units</button>
         <button class="btn primary" id="ruNew">＋ New restricted AU</button>
         <button class="btn" id="ruMd">Export MD</button>
       </div>
@@ -1230,6 +1231,8 @@
       <ul>
         <li>MFA coverage, FOCI token-sharing, break-glass coverage, known bypass apps, and a <b>persona × control</b> coverage matrix.</li>
         <li>Each finding has a severity and an explanation; a deployed-but-Off policy is flagged as not yet enforcing.</li>
+        <li><b>The verdict names the policy that said no.</b> "Access would be blocked" with ten applying policies leaves you to work out which one did it; the blockers are named in the verdict and clickable straight through to the policy, and marked in the list below.</li>
+        <li><b>Report-only never counts toward the verdict.</b> A report-only policy records what it would have done and changes nothing today, so a report-only block is reported separately — <i>would block once enforced</i> — rather than as a block. Counting it produced "access would be blocked" for a sign-in that in fact succeeds, which is the opposite of the answer you asked for. The same applies to grant controls: what you must satisfy comes from the enforced policies, with the report-only ones listed as what would additionally be required.</li>
         <li><b>Export MD</b> — the findings as Markdown for a ticket or review.</li>
       </ul>
       <p class="help-x">Read-only.</p>
@@ -1380,6 +1383,7 @@
       <ul>
         <li><b>Per policy</b> — is it safe to switch THIS one on. <b>Per user</b> — what happens to THIS person when everything staged goes live at once, which is the question nobody can answer policy by policy.</li>
         <li><b>Why a user was interrupted</b> — a policy called <code>LowMediumUserRisk</code> reporting “3 interrupted” invites exactly one question, and the sign-in records behind the verdict carry the answer: the drill-down reads <i>user risk low ×2, user risk medium ×1</i>. Counted per level rather than summarised, because two lows and one medium is a different decision from three mediums. <b>User risk</b> and <b>sign-in risk</b> are shown separately — a policy can key off either, and merging them would be right about half the time. Where the tenant has no Entra ID P2 the value arrives as <b>hidden</b>, and is reported as hidden rather than as no risk: not knowing is not the same as nothing.</li>
+        <li><b>Why it would say no</b> — not just why the policy looked at the user. The scope line explains the assignment; this explains the refusal: what the policy demands and what the sign-in actually brought — <i>needs a compliant device — device NOT compliant, Azure AD joined, Windows</i>. Stated as evidence rather than as a diagnosis, because Graph does not return a per-control verdict: a device with <b>no</b> compliance state on the record is reported as unregistered rather than as non-compliant, which is a different problem with a different fix. Only a <b>denial</b> gets one — an interruption was satisfied by doing the extra step, so calling it a refusal would be wrong — and a <b>Block</b> policy says it blocks outright, since nothing the user does would help.</li>
         <li><b>A verdict is only as good as its window.</b> The range and the number of sign-ins read are stated up front, and a truncated read says so — a policy with <b>no evidence</b> is called out rather than counted as safe, because "nobody was affected" and "nobody signed in" look identical in a summary and only one of them is a reason to go live.</li>
         <li><b>Export MD</b> — the forecast with every affected user, for the change record or the go-live approval.</li>
       </ul>
@@ -2185,43 +2189,43 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=273"></script>
-<script src="js/version.js?v=273"></script>
-<script src="js/authConfig.js?v=273"></script>
-<script src="js/labels.js?v=273"></script>
-<script src="js/graph.js?v=273"></script>
-<script src="js/model.js?v=273"></script>
-<script src="js/render.js?v=273"></script>
-<script src="js/analyze.js?v=273"></script>
-<script src="js/whatif.js?v=273"></script>
-<script src="js/mslearn.js?v=273"></script>
-<script src="js/gapcheck.js?v=273"></script>
-<script src="js/exclusions.js?v=273"></script>
-<script src="js/validator.js?v=273"></script>
-<script src="js/whatifeval.js?v=273"></script>
-<script src="js/compare.js?v=273"></script>
-<script src="js/groupuse.js?v=273"></script>
-<script src="js/iso3166.js?v=273"></script>
-<script src="js/locations.js?v=273"></script>
-<script src="js/authcontexts.js?v=273"></script>
-<script src="js/authstrengths.js?v=273"></script>
-<script src="js/recycle.js?v=273"></script>
-<script src="js/termsofuse.js?v=273"></script>
-<script src="js/rmau.js?v=273"></script>
-<script src="js/audit.js?v=273"></script>
-<script src="js/drift.js?v=273"></script>
-<script src="js/signins.js?v=273"></script>
-<script src="js/reportimpact.js?v=273"></script>
-<script src="js/changelog.js?v=273"></script>
-<script src="js/baselineData.js?v=273"></script>
-<script src="js/baselineJoeyData.js?v=273"></script>
-<script src="js/baseline.js?v=273"></script>
-<script src="js/groupTemplates.js?v=273"></script>
-<script src="js/assign.js?v=273"></script>
-<script src="js/cagroups.js?v=273"></script>
-<script src="js/import.js?v=273"></script>
-<script src="js/export.js?v=273"></script>
-<script src="js/demo.js?v=273"></script>
-<script src="js/app.js?v=273"></script>
+<script src="js/branding.js?v=274"></script>
+<script src="js/version.js?v=274"></script>
+<script src="js/authConfig.js?v=274"></script>
+<script src="js/labels.js?v=274"></script>
+<script src="js/graph.js?v=274"></script>
+<script src="js/model.js?v=274"></script>
+<script src="js/render.js?v=274"></script>
+<script src="js/analyze.js?v=274"></script>
+<script src="js/whatif.js?v=274"></script>
+<script src="js/mslearn.js?v=274"></script>
+<script src="js/gapcheck.js?v=274"></script>
+<script src="js/exclusions.js?v=274"></script>
+<script src="js/validator.js?v=274"></script>
+<script src="js/whatifeval.js?v=274"></script>
+<script src="js/compare.js?v=274"></script>
+<script src="js/groupuse.js?v=274"></script>
+<script src="js/iso3166.js?v=274"></script>
+<script src="js/locations.js?v=274"></script>
+<script src="js/authcontexts.js?v=274"></script>
+<script src="js/authstrengths.js?v=274"></script>
+<script src="js/recycle.js?v=274"></script>
+<script src="js/termsofuse.js?v=274"></script>
+<script src="js/rmau.js?v=274"></script>
+<script src="js/audit.js?v=274"></script>
+<script src="js/drift.js?v=274"></script>
+<script src="js/signins.js?v=274"></script>
+<script src="js/reportimpact.js?v=274"></script>
+<script src="js/changelog.js?v=274"></script>
+<script src="js/baselineData.js?v=274"></script>
+<script src="js/baselineJoeyData.js?v=274"></script>
+<script src="js/baseline.js?v=274"></script>
+<script src="js/groupTemplates.js?v=274"></script>
+<script src="js/assign.js?v=274"></script>
+<script src="js/cagroups.js?v=274"></script>
+<script src="js/import.js?v=274"></script>
+<script src="js/export.js?v=274"></script>
+<script src="js/demo.js?v=274"></script>
+<script src="js/app.js?v=274"></script>
 </body>
 </html>

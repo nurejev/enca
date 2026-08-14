@@ -1315,6 +1315,12 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .rm-shipped > h3{margin:0 0 4px}
 .rm-shipped .rm-card{opacity:.72}
 .rm-shipped .rm-card:hover{opacity:1}
+/* The policy that actually said no, named in the verdict. A verdict that
+   states an outcome without naming its cause makes the reader hunt a list. */
+.wi-blocker{display:inline-block;font-weight:700;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;padding:1px 7px;margin:0 3px;cursor:pointer;font-size:13px}
+.wi-blocker:hover{border-color:var(--off);color:var(--off)}
+.wi-verdict-sub{font-size:12px;color:var(--muted);margin-top:6px}
 .rm-ref{font-family:var(--mono,ui-monospace,monospace);font-size:11px;font-weight:700;letter-spacing:.04em;
   color:var(--muted);background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:1px 6px;
   margin-right:6px;vertical-align:1px}
