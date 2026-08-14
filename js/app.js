@@ -136,7 +136,17 @@
     // Version AND release time, before sign-in. The date alone cannot separate
     // two releases on the same day, which is exactly when somebody asks whether
     // what they pushed is live.
-    if (stamp) stamp.textContent = APP_BUILD.stamp || `${APP_BUILD.label} · ${APP_BUILD.date}`;
+    if (stamp) {
+      stamp.textContent = APP_BUILD.stamp || `${APP_BUILD.label} · ${APP_BUILD.date}`;
+      // The time reads in this browser's timezone; the tooltip keeps the UTC
+      // original and names the zone, so a screenshot from another country and
+      // a note in a ticket can still be reconciled.
+      if (APP_BUILD.releasedUtc) {
+        stamp.title = `Released ${APP_BUILD.releasedUtc}`
+          + (APP_BUILD.timeZone ? ` — shown in your local time (${APP_BUILD.timeZone})` : " — shown in your local time")
+          + ". Build number matches the asset version; if this is not the version you pushed, hard-refresh.";
+      }
+    }
     if (foot) {
       // the build number is the natural way in to "what changed"
       foot.textContent = APP_BUILD.label;

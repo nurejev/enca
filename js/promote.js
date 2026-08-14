@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.275",
-  betaBuild: "v1.0.250-beta.90",
+  betaBuild: "v1.0.250-beta.91",
 
   items: [
+    {
+      n: 40,
+      title: "Release time in the reader's own timezone",
+      tools: ["All tools"],
+      builds: [25091],
+      risk: "low",
+      what: "The sign-in build stamp converts the recorded UTC release time to the browser's timezone and names the offset; the UTC original moves to the tooltip along with the zone it was converted to.",
+      why: "Production shows 12:05Z, so everybody outside UTC does the arithmetic to answer \"is what I pushed live?\".",
+      files: ["js/version.js", "js/app.js"],
+    },
     {
       n: 39,
       title: "Service provider (CSP / GDAP) exclusion checks",

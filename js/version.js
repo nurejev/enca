@@ -16,14 +16,36 @@ const APP_BUILD = {
   // and consolidate the cycle's changelog entries into one entry (build NNN).
   // The What's-new overlay compares numerically per origin, and both series
   // are monotone on their own origin, so nothing else changes.
-  build: 25090,
+  build: 25091,
   date: "2026-08-13",
   // When this build was cut, UTC. Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
-  released: "2026-08-14T12:05Z",
+  released: "2026-08-14T12:40Z",
   get isBeta() { return this.build >= 10000; },
-  get stamp() { return `${this.label} · ${String(this.released).replace("T", " ")}`; },
+  // Stored UTC, shown in the reader's own timezone with the offset named.
+  // A build is cut once, so one absolute instant is the right thing to record —
+  // but "when was this last updated?" is asked by somebody sitting in a
+  // timezone, and an ISO Z stamp makes every one of them do the arithmetic.
+  // The UTC original stays reachable in the element's tooltip.
+  get stamp() { return `${this.label} · ${this.releasedLocal}`; },
+  get releasedLocal() {
+    const raw = String(this.released || "");
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw.replace("T", " ");    // unparseable — show it raw rather than "Invalid Date"
+    try {
+      const parts = new Intl.DateTimeFormat(undefined, {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short",
+      }).formatToParts(d);
+      const g = (t) => (parts.find((x) => x.type === t) || {}).value || "";
+      if (!g("year")) return raw.replace("T", " ");
+      const zone = g("timeZoneName");
+      return `${g("year")}-${g("month")}-${g("day")} ${g("hour")}:${g("minute")}${zone ? ` ${zone}` : ""}`;
+    } catch { return raw.replace("T", " "); }                 // Intl is optional in principle
+  },
+  get releasedUtc() { return String(this.released || "").replace("T", " ").replace("Z", " UTC"); },
+  get timeZone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; } },
   get label() {
     return this.isBeta
       ? `v${this.version}.${Math.floor(this.build / 100)}-beta.${this.build % 100}`
