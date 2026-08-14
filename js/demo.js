@@ -130,6 +130,14 @@ const DEMO_DATA = {
       ] },
     },
   },
+  // Cross-tenant access partners flagged isServiceProvider — the MS Learn
+  // service provider checks read this to name the partner and to decide
+  // whether they apply at all. Inbound trust is deliberately off, which is
+  // the common real configuration and what makes the device check bite.
+  serviceProviders: [
+    { tenantId: "7f1a0c2e-4b55-4a3c-9d10-2f8e6b41c009", name: "Northwind Managed Services",
+      inboundTrust: { isMfaAccepted: false, isCompliantDeviceAccepted: false, isHybridAzureADJoinedDeviceAccepted: false } },
+  ],
   scopeGroups: {
     "CAB-SEC-U-BreakGlass": ["u-break1", "u-break2"],
     "CAB-SEC-U-Persona-Admins": ["u-admin"],

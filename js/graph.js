@@ -500,5 +500,27 @@ const Graph = (() => {
     } catch { return []; }
   }
 
-  return { init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, ARM_SCOPES, existingAppIds, createServicePrincipal, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, get account() { return account; } };
+  // ---- cross-tenant access: which partners are service providers? --------
+  // A CSP / delegated-administration partner appears here with
+  // isServiceProvider true, and inboundTrust records whether this tenant
+  // accepts MFA and device claims from theirs. Both drive the MS Learn
+  // service provider checks. Read-only, Policy.Read.All, beta endpoint —
+  // isServiceProvider is not on the v1.0 resource.
+  // Returns { ok: true, list: [...] } or { ok: false, error } — the caller
+  // must be able to tell "no partners" from "could not look".
+  async function serviceProviderPartners() {
+    try {
+      const rows = await ggetAll("/policies/crossTenantAccessPolicy/partners");
+      const list = rows.filter((r) => r.isServiceProvider === true).map((r) => ({
+        tenantId: r.tenantId,
+        name: r.identitySynchronization?.displayName || r.displayName || r.tenantId,
+        inboundTrust: r.inboundTrust || null,
+      }));
+      return { ok: true, list };
+    } catch (e) {
+      return { ok: false, error: e.message || String(e), list: [] };
+    }
+  }
+
+  return { init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, get account() { return account; } };
 })();
