@@ -133,7 +133,39 @@ const Analyzer = (() => {
   }
 
   // ---------- data collection via Graph ----------
-  async function collect(vms, scope, onStatus) {
+  // R29 — `only` limits the scan to named principals: { users:[{id,name}],
+  // groups:[{id,name}] }. A group is expanded to its transitive MEMBERS, not
+  // treated as one row: the question is whether these PEOPLE are covered, and
+  // a group that is in scope of a policy says nothing about a member who is
+  // excluded by another. When `only` is given the tenant-wide /users read is
+  // skipped entirely, which is where the time goes on a large tenant.
+  async function collectNamed(only, onStatus) {
+    const ids = new Set((only.users || []).map((u) => u.id));
+    let i = 0;
+    for (const g of (only.groups || [])) {
+      onStatus(`Expanding ${g.name} (${++i}/${(only.groups || []).length})…`, i, (only.groups || []).length);
+      try {
+        const m = await Graph.ggetAll(`/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`);
+        m.forEach((x) => ids.add(x.id));
+      } catch (e) { console.warn("gap analyse: group expand failed", g.name, e.message); }
+    }
+    if (!ids.size) return [];
+    onStatus(`Reading ${ids.size} user${ids.size === 1 ? "" : "s"}…`);
+    const out = [];
+    // $filter id in (...) is capped; read in chunks and keep going if one fails
+    const list = [...ids];
+    for (let k = 0; k < list.length; k += 15) {
+      const chunk = list.slice(k, k + 15);
+      try {
+        const f = chunk.map((x) => `id eq '${x}'`).join(" or ");
+        const r = await Graph.ggetAll(`/users?$filter=${encodeURIComponent(f)}&$select=id,userPrincipalName,displayName,accountEnabled,userType&$top=999`);
+        out.push(...r);
+      } catch (e) { console.warn("gap analyse: user chunk failed", e.message); }
+    }
+    return out;
+  }
+
+  async function collect(vms, scope, onStatus, only) {
     const lookup = buildLookup(vms);
     const gids = new Set(), rids = new Set();
     lookup.forEach(P => {
@@ -141,10 +173,15 @@ const Analyzer = (() => {
       [...P.incRoles, ...P.excRoles].forEach(r => rids.add(r));
     });
 
-    onStatus("Fetching users…");
-    let users = await Graph.ggetAll("/users?$select=id,userPrincipalName,displayName,accountEnabled,userType&$top=999");
-    if (scope === "member") users = users.filter(u => u.userType !== "Guest");
-    if (scope === "guest") users = users.filter(u => u.userType === "Guest");
+    let users;
+    if (only && ((only.users || []).length || (only.groups || []).length)) {
+      users = await collectNamed(only, onStatus);
+    } else {
+      onStatus("Fetching users…");
+      users = await Graph.ggetAll("/users?$select=id,userPrincipalName,displayName,accountEnabled,userType&$top=999");
+      if (scope === "member") users = users.filter(u => u.userType !== "Guest");
+      if (scope === "guest") users = users.filter(u => u.userType === "Guest");
+    }
 
     const groups = new Map(); let i = 0;
     for (const g of gids) {
@@ -449,5 +486,5 @@ draw();
 </script></body></html>`;
   }
 
-  return { collect, collectDemo, evaluate, summary, filterRows, userRows, userDetail, policyMeta, buildMatrixMaps, matrixTable, exportHtml, resolveGroup };
+  return { collect, collectNamed, collectDemo, evaluate, summary, filterRows, userRows, userDetail, policyMeta, buildMatrixMaps, matrixTable, exportHtml, resolveGroup };
 })();

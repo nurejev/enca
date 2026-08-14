@@ -36,6 +36,10 @@
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
   let anPols = [], anMaps = [], anTab = "users", anPage = 0;
   let anGroups = [], anGroupSel = "";   // persona/scope group filter
+  // R29 — the principals a scan is limited to, and what it actually judged
+  let anNamed = [];          // [{ kind:"user"|"group", id, name }]
+  let anNamedMap = new Map();  // lowercased label -> pick
+  let anScopedTo = null;     // what the LAST run was scoped to, for the report
   let anType = "";                       // post-run user-type filter: "" | member | guest
   let toolMode = "document";             // action of the lemon toolbar button: document | backup
   const AN_PAGE_SIZE = 50;
@@ -5729,7 +5733,17 @@ max@contoso.com,"Global, DevOps"</pre>
           // reach the one control that does something.
           detail = `<div style="margin-top:8px">
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Members (${(d.members || []).length})${nFrozen ? ` <span class="tag block" style="text-transform:none;letter-spacing:normal">🧊 ${nFrozen} frozen</span>` : ""}</div>
-            <div style="display:flex;gap:6px;margin:6px 0 6px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="Add member — baseline group name, any group, or user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
+            ${(() => {
+              const pg = ruPersonaGroups(au, d);
+              if (!pg.code) return "";
+              return `<div class="ru-pg">
+                <span class="mini muted">${pg.names.length
+                  ? `${esc(pg.entry ? pg.entry.label : pg.code)} groups for this unit — click to add:`
+                  : `No ${esc(pg.entry ? pg.entry.label : pg.code)} group is left to add${(d.members || []).length ? " — they are all in already" : ""}. Add any other group below.`}</span>
+                ${pg.names.map((n) => `<button class="btn sm ru-pgchip" data-rupg="${esc(au.id)}|${esc(n)}">＋ ${esc(n)}</button>`).join("")}
+              </div>`;
+            })()}
+            <div style="display:flex;gap:6px;margin:6px 0 6px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="…or any other group, by name — or a user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
             <ul class="wi-list" style="margin:0 0 12px">${mems || '<li><div class="wi-why">No members.</div></li>'}</ul>
             ${ruBulkPanel(au)}
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Scoped role members (${(d.scoped || []).length})${d.scopedError ? ` <span class="muted" style="font-weight:400;text-transform:none">— ${esc(d.scopedError)}</span>` : ""}</div>
@@ -5778,6 +5792,23 @@ max@contoso.com,"Global, DevOps"</pre>
     const present = new Set();
     try { for (const r of (cgRes ? cgRes.rows : [])) if (r.id && r.name) present.add(r.name); } catch {}
     return [...new Set([...present, ...out])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }
+  // Adding a group should work the way granting a scoped administrator does:
+  // the tool offers what belongs here first, and typing something else is
+  // still allowed. The unit already knows its persona, so the groups whose CA
+  // number maps to it can be offered by name — nobody should have to remember
+  // that CAB-SEC-U-CA101-Exclusion is the Admins one, and a free-text box over
+  // every group in the tenant makes the right answer as hard to reach as the
+  // wrong one.
+  function ruPersonaGroups(au, d) {
+    const code = Rmau.codeForAu(au.displayName);
+    if (!code) return { code: null, entry: null, names: [] };
+    const entry = Rmau.BASELINE_AUS.find((a) => a.code === code) || null;
+    const already = new Set(((d && d.members) || [])
+      .map((m) => String(m.displayName || "").toLowerCase()).filter(Boolean));
+    const names = ruBaselineGroups()
+      .filter((n) => Rmau.codeForGroup(n) === code && !already.has(n.toLowerCase()));
+    return { code, entry, names };
   }
   function ruSeedGroupSug() {
     const dl = $("ruGroupSug");
@@ -5836,6 +5867,23 @@ max@contoso.com,"Global, DevOps"</pre>
     }, 250);
   }
   $("ruBody").addEventListener("input", ruSuggest);
+  // The datalist is shared, so seed it for the unit whose box has focus:
+  // this persona's groups first, then the rest of the baseline. Otherwise the
+  // dropdown is 200 names in alphabetical order and the four that belong here
+  // are somewhere in the middle of it.
+  $("ruBody").addEventListener("focusin", (e) => {
+    if (!e.target.matches("[data-ruaddbox]")) return;
+    const au = (ruList || []).find((a) => a.id === e.target.dataset.ruaddbox);
+    const dl = $("ruGroupSug");
+    if (!au || !dl) return;
+    const pg = ruPersonaGroups(au, ruDetails[au.id]);
+    const mine = new Set(pg.names.map((n) => n.toLowerCase()));
+    const rest = ruBaselineGroups().filter((n) => !mine.has(n.toLowerCase()));
+    dl.innerHTML = [
+      ...pg.names.map((n) => `<option value="${esc(n)}" label="${esc(pg.entry ? pg.entry.label : pg.code)} — belongs here"></option>`),
+      ...rest.slice(0, 200).map((n) => `<option value="${esc(n)}"></option>`),
+    ].join("");
+  });
   $("ruBody").addEventListener("change", (e) => {
     if (e.target.id === "ruBARole" && ruBulkAdmin) { ruBulkAdmin.role = e.target.value; return; }
     const bau = e.target.closest("[data-ruba]");
@@ -6286,6 +6334,13 @@ max@contoso.com,"Global, DevOps"</pre>
     const dl = e.target.closest("[data-rudel]"); if (dl) { openRuDelete(ruList.find((x) => x.id === dl.dataset.rudel)); return; }
     const ad = e.target.closest("[data-ruadd]");
     if (ad) { const box = document.querySelector(`[data-ruaddbox="${ad.dataset.ruadd}"]`); await ruAddMember(ad.dataset.ruadd, box ? box.value : ""); return; }
+    // one click for a group that belongs to this unit's persona
+    const pg = e.target.closest("[data-rupg]");
+    if (pg) {
+      const i = pg.dataset.rupg.indexOf("|");
+      await ruAddMember(pg.dataset.rupg.slice(0, i), pg.dataset.rupg.slice(i + 1));
+      return;
+    }
     const ga = e.target.closest("[data-ruadmin]");
     if (ga) {
       const id = ga.dataset.ruadmin;
@@ -10888,13 +10943,20 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       const { lookup, users, scopeGroups, ctx } = isDemo
         ? Analyzer.collectDemo(vms)
-        : await Analyzer.collect(vms, scope, status);
+        : await Analyzer.collect(vms, scope, status, scope === "named" ? {
+            users: anNamed.filter((x) => x.kind === "user"),
+            groups: anNamed.filter((x) => x.kind === "group"),
+          } : null);
       status(`Evaluating ${users.length} users × ${lookup.length} policies…`);
       await new Promise(r => setTimeout(r, 30)); // let the status paint
       anReport = Analyzer.evaluate(lookup, users, ctx);
       anPols = Analyzer.policyMeta(lookup);
       anMaps = Analyzer.buildMatrixMaps(anReport);
       anGroups = scopeGroups || []; anGroupSel = "";
+      // what was scoped has to be as prominent as what was found: a clean
+      // result over four people is not a clean result over the tenant
+      anScopedTo = scope === "named" && anNamed.length
+        ? anNamed.map((x) => `${x.kind === "group" ? "👥" : "👤"} ${x.name}`) : null;
       refreshGroupSelect();
       anFilter = "all"; anQuery = ""; anPage = 0; anType = ""; $("anSearch").value = ""; $("anType").value = "";
       renderAnalysis();
@@ -10916,6 +10978,16 @@ max@contoso.com,"Global, DevOps"</pre>
   function renderAnalysis() {
     if (!anReport) return;
     const s = Analyzer.summary(anReport);
+    // What was scanned, said as loudly as what was found. "No risky bypasses"
+    // over four named people and over the whole tenant are different answers
+    // that otherwise render identically.
+    const sb = $("anScopeBanner");
+    if (sb) {
+      sb.style.display = anScopedTo ? "" : "none";
+      sb.innerHTML = anScopedTo
+        ? `<b>Scoped run</b> — these findings cover ${anReport.length} user${anReport.length === 1 ? "" : "s"} from ${anScopedTo.length} named principal${anScopedTo.length === 1 ? "" : "s"} only, not the tenant: ${anScopedTo.map(esc).join(" · ")}`
+        : "";
+    }
     $("anCards").innerHTML = [
       ["all", s.users, "Users", ""],
       ["risky", s.risky, "Risky bypasses", "risk"],
@@ -10963,6 +11035,68 @@ max@contoso.com,"Global, DevOps"</pre>
   $("anMPrev").addEventListener("click", () => { anPage--; renderAnalysis(); });
   $("anMNext").addEventListener("click", () => { anPage++; renderAnalysis(); });
   $("anGroup").addEventListener("change", (e) => { anGroupSel = e.target.value; anPage = 0; renderAnalysis(); });
+  // ---- R29: scan only who you asked about --------------------------------
+  function anRenderPicks() {
+    $("anNamedPicks").innerHTML = anNamed.map((x, i) =>
+      `<span class="an-pick">${x.kind === "group" ? "👥" : "👤"} ${esc(x.name)}<button data-anpick="${i}" title="Remove">×</button></span>`).join("");
+    const run = $("anRun");
+    if (run) run.disabled = $("anScope").value === "named" && !anNamed.length;
+    const hint = $("anNamedHint");
+    if (hint) {
+      hint.textContent = anNamed.length
+        ? "A group is expanded to its members, nested groups included — the scan judges people, not groups."
+        : "Name at least one user or group. Nothing is read tenant-wide in this mode.";
+    }
+  }
+  $("anScope").addEventListener("change", (e) => {
+    $("anNamed").style.display = e.target.value === "named" ? "" : "none";
+    anRenderPicks();
+  });
+  let anNamedTimer = null;
+  $("anNamedSearch").addEventListener("input", (e) => {
+    const v = e.target.value.trim();
+    clearTimeout(anNamedTimer);
+    if (v.length < 2 || isDemo) return;
+    anNamedTimer = setTimeout(async () => {
+      try {
+        const f = v.replace(/'/g, "''");
+        const [u, g] = await Promise.all([
+          Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=id,displayName,userPrincipalName&$top=7`).catch(() => null),
+          Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=id,displayName&$top=7`).catch(() => null),
+        ]);
+        anNamedMap = new Map();
+        const rows = [];
+        ((u && u.value) || []).forEach((x) => {
+          const label = x.userPrincipalName || x.displayName;
+          anNamedMap.set(label.toLowerCase(), { kind: "user", id: x.id, name: x.displayName || label });
+          rows.push(`<option value="${esc(label)}" label="👤 ${esc(x.displayName || "")}"></option>`);
+        });
+        ((g && g.value) || []).forEach((x) => {
+          anNamedMap.set((x.displayName || "").toLowerCase(), { kind: "group", id: x.id, name: x.displayName });
+          rows.push(`<option value="${esc(x.displayName || "")}" label="👥 group"></option>`);
+        });
+        $("anNamedList").innerHTML = rows.join("");
+      } catch (err) { console.warn("gap analyse: pick suggest failed", err.message); }
+    }, 250);
+  });
+  function anAddPick() {
+    const v = $("anNamedSearch").value.trim();
+    if (!v) return;
+    const hit = anNamedMap.get(v.toLowerCase());
+    if (!hit) { toast("Pick a <span>user or group</span> from the list"); return; }
+    if (anNamed.some((x) => x.id === hit.id)) { toast("Already in the list"); return; }
+    anNamed.push(hit);
+    $("anNamedSearch").value = "";
+    anRenderPicks();
+  }
+  $("anNamedAdd").addEventListener("click", anAddPick);
+  $("anNamedSearch").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); anAddPick(); } });
+  $("anNamedPicks").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-anpick]");
+    if (!b) return;
+    anNamed.splice(+b.dataset.anpick, 1);
+    anRenderPicks();
+  });
   $("anType").addEventListener("change", (e) => { anType = e.target.value; anPage = 0; renderAnalysis(); });
   $("anGroupAdd").addEventListener("click", async () => {
     const val = $("anGroupInput").value.trim(); if (!val || !anReport) return;
@@ -11019,7 +11153,8 @@ max@contoso.com,"Global, DevOps"</pre>
       tenant: tenantName || "tenant",
       date: new Date().toISOString().slice(0, 10),
       policies: anPols.length,
-      scope: `${$("anScope").value} users${$("anReportOnly").checked ? ", incl. report-only" : ""}`
+      scope: (anScopedTo ? `only ${anScopedTo.join(", ")}` : `${$("anScope").value} users`)
+        + ($("anReportOnly").checked ? ", incl. report-only" : "")
         + (filterBits.length ? ` | filtered: ${filterBits.join(", ")} (${subset.length} of ${anReport.length} users)` : ""),
     };
     const html = Analyzer.exportHtml(meta, subset, anPols, anGroups);

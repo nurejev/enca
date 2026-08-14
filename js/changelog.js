@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 280, date: "2026-08-14", title: "Scan only who you asked about, and add the group that belongs here",
+    items: [
+      { kind: "new", tool: "Gap analyse", text: "Scope → \"Only these users or groups\" names principals before the scan and judges only those: the same policies, the same verdicts, a fraction of the reads. The matrix was always the right output; the scope was not. A named group is expanded to its members, nested groups included — the scan judges people, not groups, because a group being in scope of one policy says nothing about a member another policy excludes. In this mode nothing is read tenant-wide." },
+      { kind: "improved", tool: "Gap analyse", text: "The result says what it was scoped to, on screen above the counts and in the exported report. \"No risky bypasses\" over four named people and over the whole tenant are different answers that otherwise render identically — and the scoped one is the easier of the two to mistake for the other." },
+      { kind: "improved", tool: "Restricted AUs", text: "Adding a member to a persona vault was a free-text box over every group in the tenant, which makes the right answer exactly as hard to reach as the wrong one. The unit already knows its persona, so the groups whose CA number maps to it are offered by name, one click each — the same shape granting a scoped administrator has. Groups already in the unit are not offered again, and when none are left the row says so. Any other group is still typed in below, and while you type the suggestion list puts this persona's groups first with the rest of the baseline after. Break-glass units match by intent rather than by CA number, as everywhere else." },
+    ],
+  },
+  {
     build: 279, date: "2026-08-14", title: "Local release time, external user types, and What-If gets usable",
     items: [
       { kind: "improved", tool: "All tools", text: "The build stamp on the sign-in screen shows the release time where you are — 2026-08-14 14:05 GMT+2 in Amsterdam rather than 12:05Z. The value is still recorded once in UTC, because a build is cut at one instant; but \"when was this last updated?\" is asked by somebody sitting in a timezone. Hovering gives the UTC original and names the timezone it was converted to, so a screenshot from another country still reconciles with a note in a ticket." },
