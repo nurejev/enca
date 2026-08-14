@@ -9203,6 +9203,7 @@ max@contoso.com,"Global, DevOps"</pre>
     ["wiUser", "wiIp", "wiCountry", "wiAppId"].forEach((id) => $(id).value = "");
     ["wiDevice", "wiSignInRisk", "wiUserRisk", "wiInsiderRisk", "wiFlow"].forEach((id) => $(id).value = "");
     $("wiApp").value = "00000002-0000-0ff1-ce00-000000000000"; $("wiAppIdWrap").style.display = "none";
+    $("wiAppList").innerHTML = ""; wiAppMap.clear(); wiAppSay("");
     $("wiPlatform").value = "windows"; $("wiClient").value = "browser";
     wiResult = null; $("wiBody").innerHTML = ""; $("wiMd").style.display = "none";
   });
@@ -9217,6 +9218,57 @@ max@contoso.com,"Global, DevOps"</pre>
         const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
         $("wiUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
       } catch (err) { console.warn("what-if: suggest failed", err.message); }
+    }, 250);
+  });
+
+  // ---- R31: search the tenant's apps, not their GUIDs ----------------
+  // "Other — enter an App ID" asked for a raw GUID. Nobody knows their apps by
+  // GUID, and a mistyped one does not fail: it quietly describes a sign-in to
+  // an app nobody has. So: type a name, get the id. A pasted GUID keeps
+  // working and is resolved to a name for confirmation — but an id with no
+  // service principal here is still legitimate (a policy can reference one,
+  // which Import already has to handle), so it is reported, never refused.
+  const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let wiAppMap = new Map();     // lowercased display name -> { appId, name }
+  let wiAppTimer = null;
+  function wiAppSay(text, cls) {
+    const el = $("wiAppFound");
+    if (!el) return;
+    el.textContent = text || "";
+    el.className = `mini wi-appfound${cls ? " " + cls : ""}`;
+  }
+  async function wiResolveAppId(guid) {
+    if (isDemo) return null;
+    try {
+      const r = await Graph.gget(`/servicePrincipals?$filter=appId eq '${guid}'&$select=appId,displayName&$top=1`);
+      return ((r && r.value) || [])[0] || null;
+    } catch (e) { console.warn("what-if: app id lookup failed", e.message); return null; }
+  }
+  $("wiAppId").addEventListener("input", (e) => {
+    const v = e.target.value.trim();
+    clearTimeout(wiAppTimer);
+    if (!v) { wiAppSay(""); return; }
+    // a name picked from the list resolves locally, no round trip
+    const hit = wiAppMap.get(v.toLowerCase());
+    if (hit) { wiAppSay(`→ ${hit.name} · ${hit.appId}`, "ok"); return; }
+    wiAppTimer = setTimeout(async () => {
+      if (GUID_RE.test(v)) {
+        const sp = await wiResolveAppId(v);
+        if (sp) { wiAppMap.set((sp.displayName || "").toLowerCase(), { appId: sp.appId, name: sp.displayName }); wiAppSay(`→ ${sp.displayName}`, "ok"); }
+        else wiAppSay("No service principal with this id in this tenant — a policy can still name it, so the run will use it as typed", "warn");
+        return;
+      }
+      if (v.length < 2 || isDemo) return;
+      try {
+        const f = v.replace(/'/g, "''");
+        const r = await Graph.gget(`/servicePrincipals?$filter=startswith(displayName,'${f}')&$select=appId,displayName&$top=10`);
+        const rows = (r && r.value) || [];
+        rows.forEach((sp) => wiAppMap.set((sp.displayName || "").toLowerCase(), { appId: sp.appId, name: sp.displayName }));
+        // the NAME is the value, because that is what somebody is typing; the
+        // id rides along as the label so the choice is still verifiable
+        $("wiAppList").innerHTML = rows.map((sp) => `<option value="${esc(sp.displayName || "")}" label="${esc(sp.appId || "")}"></option>`).join("");
+        wiAppSay(rows.length ? `${rows.length} match${rows.length === 1 ? "" : "es"} — pick one` : "No application in this tenant starts with that", rows.length ? "" : "warn");
+      } catch (err) { console.warn("what-if: app suggest failed", err.message); }
     }, 250);
   });
 
@@ -9247,9 +9299,15 @@ max@contoso.com,"Global, DevOps"</pre>
       // ---- target resource ----
       const appSel = $("wiApp").value;
       if (appSel.startsWith("action:")) { sc.userAction = appSel.slice(7); sc.appName = "User action"; }
-      else if (appSel === "custom") { sc.appId = $("wiAppId").value.trim(); sc.appName = sc.appId || "(App ID)"; }
+      else if (appSel === "custom") {
+        const typed = $("wiAppId").value.trim();
+        const known = wiAppMap.get(typed.toLowerCase());
+        if (known) { sc.appId = known.appId; sc.appName = known.name; }
+        else if (GUID_RE.test(typed)) { sc.appId = typed; sc.appName = typed; }
+        else if (typed) { toast("Pick an <span>application</span> from the list, or paste an App ID"); return; }
+      }
       else { sc.appId = appSel; sc.appName = $("wiApp").selectedOptions[0].textContent; }
-      if (!sc.userAction && !sc.appId) { toast("Enter an <span>App ID</span>"); return; }
+      if (!sc.userAction && !sc.appId) { toast("Pick an <span>application</span> — type its name, or paste an App ID"); return; }
       // ---- the rest of the sign-in ----
       sc.platform = $("wiPlatform").value;
       sc.clientApp = $("wiClient").value;

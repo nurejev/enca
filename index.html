@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25094"></script>
+<script src="js/popup-guard.js?v=25095"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25094">
+<link rel="stylesheet" href="css/app.css?v=25095">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25094"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25094"></script>
+<script src="js/counter.js?v=25095"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25095"></script>
 </head>
 <body>
 
@@ -650,12 +650,14 @@
             <option value="00000003-0000-0000-c000-000000000000">Microsoft Graph</option>
             <option value="797f4846-ba00-4fd7-ba43-dac1f8f63013">Windows Azure Service Management API</option>
             <option value="0000000c-0000-0000-c000-000000000000">My Apps portal</option>
-            <option value="custom">Other — enter an App ID…</option>
+            <option value="custom">Other — search this tenant’s apps…</option>
             <option value="action:urn:user:registersecurityinfo">User action: register security information</option>
             <option value="action:urn:user:registerdevice">User action: register or join devices</option>
           </select></label>
-        <label class="wi-f" id="wiAppIdWrap" style="display:none"><span>App ID</span>
-          <input id="wiAppId" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false"></label>
+        <label class="wi-f" id="wiAppIdWrap" style="display:none"><span>Application</span>
+          <input id="wiAppId" list="wiAppList" placeholder="Search by name, or paste an App ID…" autocomplete="off" spellcheck="false">
+          <datalist id="wiAppList"></datalist>
+          <span class="mini wi-appfound" id="wiAppFound"></span></label>
         <label class="wi-f"><span>Device platform <b class="req">*</b></span>
           <select id="wiPlatform">
             <option value="windows">Windows</option><option value="macOS">macOS</option>
@@ -780,7 +782,7 @@
             <option value="00000003-0000-0000-c000-000000000000">Microsoft Graph</option>
             <option value="797f4846-ba00-4fd7-ba43-dac1f8f63013">Windows Azure Service Management API</option>
             <option value="0000000c-0000-0000-c000-000000000000">My Apps portal</option>
-            <option value="custom">Other — enter an App ID…</option>
+            <option value="custom">Other — search this tenant’s apps…</option>
           </select></label>
         <label class="wi-f" id="cuAppIdWrap" style="display:none"><span>App ID</span>
           <input id="cuAppId" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false"></label>
@@ -1078,6 +1080,11 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+<div class="list-card rm-card" data-shipped="25095">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R31</span> <a href="#" class="md-tool" data-tool="toolWhatIf">🧪 What-If</a> — search the tenant's apps, not their GUIDs <span class="tag grant">live · build 25095</span></h4>
+            <p class="mini" style="margin:0">Target resource offers the well-known apps by name and then <b>Other — enter an App ID</b>, which asks for a raw GUID. Nobody knows their apps by GUID, so answering it means leaving the tool, finding the enterprise application in the portal, copying the id back — and a mistyped GUID does not fail, it silently describes a sign-in to an app nobody has, which is the same class of mistake as a wrong country code.</p>
+            <p class="mini" style="margin:6px 0 0">The plan is a type-ahead over the tenant's own <b>service principals</b>, matching on display name and filling the id in, the way <a href="#" class="md-tool" data-tool="toolLocations">🌐 Named locations</a> will do for countries. A pasted GUID must keep working: a policy can reference an application that has no service principal here — 📥 Import already has to deal with exactly that — so an id ENCA cannot name is still a legitimate answer, and should be marked <i>not found in this tenant</i> rather than rejected.</p>
+          </div>
 <div class="list-card rm-card" data-shipped="25065">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R08</span> 🌐 Type the country, get the code <span class="tag grant">live · build 25065</span></h4>
             <p class="mini" style="margin:0">A country named location takes <b>two-letter ISO 3166-1 codes</b>, typed by hand into a free-text box. The failure mode is silent and total: a wrong code is still a <i>valid</i> code, so the policy saves, looks right in the portal, and quietly covers the wrong country until somebody is blocked or — worse — is not. Ireland is <code>IE</code>; <code>IR</code> is Iran. Austria is <code>AT</code>, Australia <code>AU</code>. Sweden is <code>SE</code>, Switzerland <code>CH</code>.</p>
@@ -1125,12 +1132,7 @@
               <br><b>Done:</b> new groups are ordinary security groups (assigned or dynamic) with an optional restricted-AU placement at creation; the role-assignable checkbox and the ↻ Recreate-role-assignable action are gone; the ① Check drift flag is inverted, so a plain group is correct and a role-assignable one is what gets flagged; <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> moves existing ones across.
               <br><b>Still to do:</b> the bundled group templates and the baseline catalog still describe an estate built on role-assignable groups; the MS Learn and CIS checks, Group Analyzer and the documentation exports still mention it as the expected shape; and the persona <b>import</b> path should create protected groups directly rather than leaving protection as a later step. Production keeps creating role-assignable groups until this lands there.</p>
           </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R31</span> <a href="#" class="md-tool" data-tool="toolWhatIf">🧪 What-If</a> — search the tenant's apps, not their GUIDs <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Target resource offers the well-known apps by name and then <b>Other — enter an App ID</b>, which asks for a raw GUID. Nobody knows their apps by GUID, so answering it means leaving the tool, finding the enterprise application in the portal, copying the id back — and a mistyped GUID does not fail, it silently describes a sign-in to an app nobody has, which is the same class of mistake as a wrong country code.</p>
-            <p class="mini" style="margin:6px 0 0">The plan is a type-ahead over the tenant's own <b>service principals</b>, matching on display name and filling the id in, the way <a href="#" class="md-tool" data-tool="toolLocations">🌐 Named locations</a> will do for countries. A pasted GUID must keep working: a policy can reference an application that has no service principal here — 📥 Import already has to deal with exactly that — so an id ENCA cannot name is still a legitimate answer, and should be marked <i>not found in this tenant</i> rather than rejected.</p>
-          </div>
-          <div class="list-card rm-card">
+                    <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R30</span> <a href="#" class="md-tool" data-tool="toolWhatIf">🧪 What-If</a> — filter the policies that did not apply <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">A run against a real tenant answers with two policies that apply and <b>107 that do not</b>, each with its reason. That list is the honest answer and it is also unreadable: the question behind it is almost never “show me everything”, it is <i>why did none of the Admins policies apply to this admin</i> — a persona question — or <i>what happened to CA103</i>, a number question.</p>
             <p class="mini" style="margin:6px 0 0">The plan is to filter that list by <b>persona</b> and by <b>CA number</b>, the same grouping 🗂 List Policies already uses, so the ranges stay one idea across the toolset rather than two. Worth adding at the same time: a count per <b>reason</b> — “94 out of scope, 8 wrong platform, 5 excluded” — because when a policy you expected is missing, the reason is what you are hunting for, and filtering to it beats scrolling for it. The reasons must stay per policy either way; a summary that replaced them would answer a different question.</p>
@@ -2289,47 +2291,47 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25094"></script>
-<script src="js/version.js?v=25094"></script>
-<script src="js/promote.js?v=25094"></script>
-<script src="js/authConfig.js?v=25094"></script>
-<script src="js/labels.js?v=25094"></script>
-<script src="js/graph.js?v=25094"></script>
-<script src="js/model.js?v=25094"></script>
-<script src="js/render.js?v=25094"></script>
-<script src="js/analyze.js?v=25094"></script>
-<script src="js/whatif.js?v=25094"></script>
-<script src="js/mslearn.js?v=25094"></script>
-<script src="js/gapcheck.js?v=25094"></script>
-<script src="js/cisdata.js?v=25094"></script>
-<script src="js/cischeck.js?v=25094"></script>
-<script src="js/exclusions.js?v=25094"></script>
-<script src="js/validator.js?v=25094"></script>
-<script src="js/whatifeval.js?v=25094"></script>
-<script src="js/compare.js?v=25094"></script>
-<script src="js/groupuse.js?v=25094"></script>
-<script src="js/iso3166.js?v=25094"></script>
-<script src="js/locations.js?v=25094"></script>
-<script src="js/authcontexts.js?v=25094"></script>
-<script src="js/authstrengths.js?v=25094"></script>
-<script src="js/recycle.js?v=25094"></script>
-<script src="js/rmau.js?v=25094"></script>
-<script src="js/termsofuse.js?v=25094"></script>
-<script src="js/audit.js?v=25094"></script>
-<script src="js/drift.js?v=25094"></script>
-<script src="js/guide.js?v=25094"></script>
-<script src="js/signins.js?v=25094"></script>
-<script src="js/reportimpact.js?v=25094"></script>
-<script src="js/changelog.js?v=25094"></script>
-<script src="js/baselineData.js?v=25094"></script>
-<script src="js/baselineJoeyData.js?v=25094"></script>
-<script src="js/baseline.js?v=25094"></script>
-<script src="js/groupTemplates.js?v=25094"></script>
-<script src="js/assign.js?v=25094"></script>
-<script src="js/cagroups.js?v=25094"></script>
-<script src="js/import.js?v=25094"></script>
-<script src="js/export.js?v=25094"></script>
-<script src="js/demo.js?v=25094"></script>
-<script src="js/app.js?v=25094"></script>
+<script src="js/branding.js?v=25095"></script>
+<script src="js/version.js?v=25095"></script>
+<script src="js/promote.js?v=25095"></script>
+<script src="js/authConfig.js?v=25095"></script>
+<script src="js/labels.js?v=25095"></script>
+<script src="js/graph.js?v=25095"></script>
+<script src="js/model.js?v=25095"></script>
+<script src="js/render.js?v=25095"></script>
+<script src="js/analyze.js?v=25095"></script>
+<script src="js/whatif.js?v=25095"></script>
+<script src="js/mslearn.js?v=25095"></script>
+<script src="js/gapcheck.js?v=25095"></script>
+<script src="js/cisdata.js?v=25095"></script>
+<script src="js/cischeck.js?v=25095"></script>
+<script src="js/exclusions.js?v=25095"></script>
+<script src="js/validator.js?v=25095"></script>
+<script src="js/whatifeval.js?v=25095"></script>
+<script src="js/compare.js?v=25095"></script>
+<script src="js/groupuse.js?v=25095"></script>
+<script src="js/iso3166.js?v=25095"></script>
+<script src="js/locations.js?v=25095"></script>
+<script src="js/authcontexts.js?v=25095"></script>
+<script src="js/authstrengths.js?v=25095"></script>
+<script src="js/recycle.js?v=25095"></script>
+<script src="js/rmau.js?v=25095"></script>
+<script src="js/termsofuse.js?v=25095"></script>
+<script src="js/audit.js?v=25095"></script>
+<script src="js/drift.js?v=25095"></script>
+<script src="js/guide.js?v=25095"></script>
+<script src="js/signins.js?v=25095"></script>
+<script src="js/reportimpact.js?v=25095"></script>
+<script src="js/changelog.js?v=25095"></script>
+<script src="js/baselineData.js?v=25095"></script>
+<script src="js/baselineJoeyData.js?v=25095"></script>
+<script src="js/baseline.js?v=25095"></script>
+<script src="js/groupTemplates.js?v=25095"></script>
+<script src="js/assign.js?v=25095"></script>
+<script src="js/cagroups.js?v=25095"></script>
+<script src="js/import.js?v=25095"></script>
+<script src="js/export.js?v=25095"></script>
+<script src="js/demo.js?v=25095"></script>
+<script src="js/app.js?v=25095"></script>
 </body>
 </html>

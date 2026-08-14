@@ -1329,3 +1329,11 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .rm-when{font-size:11.5px;font-weight:500;color:var(--muted);margin-left:6px}
 .rm-card{margin:0 0 10px;padding:14px 16px}
 .rm-more{position:relative;color:var(--muted);font-size:12px;margin:2px 0 0}
+
+/* What-If: the resolved application under the app search box. A GUID that
+   resolves to a name is the whole point of the field; a GUID that does not is
+   still legitimate (a policy can name an app with no service principal here),
+   so it is reported rather than refused. */
+.wi-appfound { display:block; margin-top:4px; min-height:1em; }
+.wi-appfound.ok { color:var(--on); }
+.wi-appfound.warn { color:var(--warn, #b26a00); }

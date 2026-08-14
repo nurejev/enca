@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.277",
-  betaBuild: "v1.0.250-beta.94",
+  betaBuild: "v1.0.250-beta.95",
 
   items: [
+    {
+      n: 42,
+      title: "What-If searches the tenant's apps (R31)",
+      tools: ["What-If"],
+      builds: [25095],
+      risk: "medium",
+      what: "Target resource → Other is a type-ahead over the tenant's service principals: type a name, get the id. A pasted GUID still works and is resolved to a name for confirmation; an id with no service principal here is reported rather than refused.",
+      why: "Production asks for a raw GUID, and a mistyped GUID does not fail — it describes a sign-in to an app nobody has, so the answer looks valid and is about nothing.",
+      files: ["index.html", "js/app.js", "css/app.css"],
+    },
     {
       n: 41,
       title: "Policy cards name the external user types",

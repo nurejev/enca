@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25095, date: "2026-08-14", title: "What-If searches your apps, not their GUIDs (R31)",
+    items: [
+      { kind: "new", tool: "What-If", text: "R31 — Target resource → Other now searches the tenant's own applications by name and fills the id in, instead of asking for a raw GUID. Nobody knows their apps by GUID, so answering that meant leaving the tool, finding the enterprise application in the portal and copying the id back; and a mistyped GUID did not fail, it quietly described a sign-in to an app nobody has — the same class of mistake as a wrong country code, and the reason R08 exists." },
+      { kind: "improved", tool: "What-If", text: "A pasted App ID keeps working and is resolved to a name underneath the box, so the choice is verifiable before the run. An id with no service principal in this tenant is reported — \"a policy can still name it, so the run will use it as typed\" — rather than refused: 📥 Import already has to handle exactly that, so an id ENCA cannot name is legitimate, not invalid. What is refused is a typed word that matches no application, because that is neither a name nor an id and would otherwise be evaluated as a resource nobody has." },
+    ],
+  },
+  {
     build: 25094, date: "2026-08-14", title: "Which external users, not just \"external users\"",
     items: [
       { kind: "improved", tool: "List Policies", text: "A policy card showed − Guests & external users and stopped there, so the exclusion that decides whether a policy reaches your CSP partner's delegated admins read the same as one that does not. The selection is six independent types and the card now names them: \"Guests & external users: B2B collaboration guests · NOT service providers\". When all six are selected it says so — \"all types, incl. service providers\" — because the collapsed form still has to answer the question. A selection scoped to named tenants says how many, since an exclusion covering two partner tenants does not cover a third." },
