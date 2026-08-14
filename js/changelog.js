@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25077, date: "2026-08-13", title: "Report-only impact had no Help section",
+    items: [
+      { kind: "fixed", tool: "Report-only impact", text: "The tool has never had a Help section — it graduated out of BETA without one, and the Help contents list is built from those headings, so it was simply absent from Help. Added: per policy versus per user and why both exist, the new why-a-user-was-interrupted explanation, and the point that matters most about a forecast — a verdict is only as good as its window, and a policy with no evidence is called out rather than counted as safe, because “nobody was affected” and “nobody signed in” look identical in a summary and only one is a reason to go live. This is the second tool found missing its Help section in two days; the check now compares the tool tiles against the Help headings instead of trusting that a new tool arrived with one." },
+    ],
+  },
+  {
     build: 25076, date: "2026-08-13", title: "Why that user would be interrupted",
     items: [
       { kind: "new", tool: "Report-only impact", text: "A policy named LowMediumUserRisk reporting “3 interrupted” invites exactly one question — low, or medium? — and the answer was in the sign-in records all along and being discarded. The drill-down now reads “user risk low ×2, user risk medium ×1”, in both the per-user and the per-policy views. Counted per level rather than summarised, because two lows and one medium is a different go-live decision from three mediums." },

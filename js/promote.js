@@ -34,16 +34,16 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.271",
-  betaBuild: "v1.0.250-beta.76",
+  betaBuild: "v1.0.250-beta.77",
 
   items: [
     {
       n: 31,
       title: "Report-only impact says WHY a user was interrupted",
       tools: ["Report-only impact"],
-      builds: [25076],
+      builds: [25076, 25077],
       risk: "low",
-      what: "The per-user and per-policy drill-downs show the risk levels behind each verdict — user risk low x2, medium x1 — with user and sign-in risk labelled separately and 'hidden' distinguished from 'none'.",
+      what: "The per-user and per-policy drill-downs show the risk levels behind each verdict — user risk low x2, medium x1 — with user and sign-in risk labelled separately and 'hidden' distinguished from 'none'. Also adds the Help section the tool never had.",
       why: "Read-only, and it uses data the tool already fetched and threw away. Production reports a count with no way to tell which risk level triggered it, which is the question a go-live decision turns on.",
       files: ["js/reportimpact.js", "js/app.js", "index.html"],
     },
