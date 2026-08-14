@@ -5760,7 +5760,7 @@ max@contoso.com,"Global, DevOps"</pre>
         </div>` : `<div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="ruBaseMd">📄 Report</button></div>`}
       ${results}
       <div id="ruBaseLog" class="mini" style="margin-top:8px">${(t.log || []).join("")}</div>
-    </div>` + ruBulkAdminPanel();
+    </div>`;
   }
 
   function renderRmau() {
@@ -5782,8 +5782,8 @@ max@contoso.com,"Global, DevOps"</pre>
     const rows = (ruList || []).filter((a) => (ruFilter === "all" || Rmau.isRestricted(a))
       && (!q || `${a.displayName} ${a.description || ""}`.toLowerCase().includes(q)))
       .sort((a, b) => (Rmau.isRestricted(b) ? 1 : 0) - (Rmau.isRestricted(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
-    if (!rows.length) { $("ruBody").innerHTML = ruBaselinePanel() + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
-    $("ruBody").innerHTML = ruBaselinePanel() + `<div class="lo-grid">` + rows.map((au) => {
+    if (!rows.length) { $("ruBody").innerHTML = ruBaselinePanel() + ruBulkAdminPanel() + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
+    $("ruBody").innerHTML = ruBaselinePanel() + ruBulkAdminPanel() + `<div class="lo-grid">` + rows.map((au) => {
       const open = ruOpen.has(au.id);
       const d = ruDetails[au.id];
       let detail = "";
@@ -6008,8 +6008,15 @@ max@contoso.com,"Global, DevOps"</pre>
     if (restricted.length < 2) return "";      // nothing to do in bulk
     const t = ruBulkAdmin;
     if (!t || !t.open) {
-      return `<div style="margin:10px 0 0"><button class="btn" id="ruBAOpen">👤 Grant scoped administrators across units…</button>
-        <span class="mini muted"> — one set of people, several units, each grant reported on its own.</span></div>`;
+      // A closed state that reads as a feature. It used to be one line of small
+      // print at the foot of the baseline checklist, below eleven rows — which
+      // is to say invisible, whatever the roadmap claimed had shipped.
+      const naked = restricted.filter((au) => { const d = ruDetails[au.id]; return d && d.scoped && !d.scoped.length; }).length;
+      return `<div class="cg-panel">
+        <h4>👤 SCOPED ADMINISTRATORS ACROSS UNITS</h4>
+        <p class="mini" style="margin:0 0 8px">One set of people, several units, applied as a grid — each unit × administrator its own outcome. A restricted unit with nobody scoped to it is a unit whose members <b>nobody</b> can change${naked ? `, and <b style="color:var(--off)">${naked}</b> of the ${restricted.length} opened so far ${naked === 1 ? "is" : "are"} in that state` : ""}.</p>
+        <button class="btn primary" id="ruBAOpen">👤 Grant across ${restricted.length} restricted units…</button>
+      </div>`;
     }
     const rows = restricted.map((au) => {
       const d = ruDetails[au.id];
@@ -6306,7 +6313,7 @@ max@contoso.com,"Global, DevOps"</pre>
       renderRmau();
       return;
     }
-    if (e.target.id === "ruBAOpen") {
+    if (e.target.id === "ruBAOpen" || e.target.id === "ruBAOpenTop") {
       ruBulkAdmin = { open: true, sel: new Set((ruList || []).filter(Rmau.isRestricted).map((a) => a.id)),
         upns: "", role: Rmau.ROLE_TEMPLATES[0].id, busy: false, results: null, log: null };
       renderRmau();
@@ -6447,6 +6454,13 @@ max@contoso.com,"Global, DevOps"</pre>
       toast(`<span>${esc(ruDeleting.displayName)}</span> deleted${isDemo ? " (simulated)" : ""}`);
       await openRmauTool(true);
     } catch (e) { toast(`Delete failed: <span>${esc(e.message || e)}</span>`); btn.disabled = false; }
+  });
+  $("ruBAOpenTop").addEventListener("click", () => {
+    ruBulkAdmin = { open: true, sel: new Set((ruList || []).filter(Rmau.isRestricted).map((a) => a.id)),
+      upns: "", role: Rmau.ROLE_TEMPLATES[0].id, busy: false, results: null, log: null };
+    renderRmau();
+    const el = $("ruBAPanel");
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
   });
   $("ruMd").addEventListener("click", async (e) => {
     if (!ruList) return;

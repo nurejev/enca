@@ -23,6 +23,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25081, date: "2026-08-13", title: "The bulk grant was there and nobody could find it",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "R07 shipped in build 25068 and was effectively invisible: its entry point was one line of small print at the FOOT of the baseline checklist, below eleven rows of units. It rendered, it worked, and it was in a place nobody scrolls to — which for a feature is the same as not shipping it. It is now its own panel with a heading, above the unit cards, and there is a 👤 Scoped admins across units button in the toolbar next to ⟳ Refresh and ＋ New restricted AU, where actions live." },
+      { kind: "fixed", tool: "Restricted AUs", text: "The panel no longer hangs off the baseline checklist at all, so it exists on a tenant whose units are not the baseline's — before this, no baseline meant no bulk grant, for no reason anybody chose. It hides itself when there is only one restricted unit, since a grid over one row is a form with extra steps." },
+      { kind: "improved", tool: "Restricted AUs", text: "The closed panel counts the units it has read that have NOBODY scoped to them — the state where a unit's members cannot be changed by anyone — because that is the reason to open it." },
+      { kind: "fixed", tool: "Restricted AUs", text: "The new toolbar button first did nothing: the toolbar sits outside the panel body whose click handler I attached it to. Third time that shape of mistake has appeared in this tool; it is wired directly now, through the same code path rather than a copy." },
+    ],
+  },
+  {
     build: 25080, date: "2026-08-13", title: "A release stamp you can trust",
     items: [
       { kind: "new", tool: "All tools", text: "The sign-in screen shows the version AND the time the build was cut, in UTC. The date alone cannot separate two releases on the same day, which is precisely when somebody needs to know whether what they pushed is live — that is a question about minutes. UTC on purpose: a shared answer beats a local one when the person asking and the person who pushed are in different places." },

@@ -38,6 +38,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 35,
+      title: "Make the bulk scoped-admin grant findable (R07)",
+      tools: ["Restricted AUs"],
+      builds: [25081],
+      risk: "low",
+      what: "R07's entry point moves out of the foot of the baseline checklist into its own panel and a toolbar button, and no longer depends on the baseline panel existing at all.",
+      why: "R07 is not in production yet, so this travels with it — but the lesson stands on its own: a feature at the bottom of a list nobody scrolls has not shipped.",
+      files: ["js/app.js", "index.html"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],
