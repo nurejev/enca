@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25103, date: "2026-08-14", title: "Search for the people you are granting, in bulk too",
+    items: [
+      { kind: "improved", tool: "Restricted AUs", text: "👤 Grant scoped administrators across units took a comma-separated list of UPNs, which assumes you already know them — so the fastest route was to leave the tool and go look them up, which is the same complaint that made adding a group a picker. Search a person by name, pick, and they join the list as a chip you can take back off." },
+      { kind: "improved", tool: "Restricted AUs", text: "Pasting a list still works, and both routes feed ONE list: the picker writes the same field the paste box holds rather than keeping its own array. Two sources of truth for who is being granted is how somebody ends up holding a role they had been removed from. The grant count under the units reads that same list, so it never disagrees with what is about to happen." },
+    ],
+  },
+  {
     build: 25102, date: "2026-08-14", title: "Items 40-43 reached production (279)",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue items 40 (local release time), 41 (external user types named on a policy card), 42 (What-If searches the tenant's apps) and 43 (filter the policies that did not apply) are live in production build 279. Removed from the promotion queue; the numbers are retired rather than reused." },

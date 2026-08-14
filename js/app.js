@@ -5910,6 +5910,25 @@ max@contoso.com,"Global, DevOps"</pre>
     // would never see them — a mistake worth naming, because the field would
     // look alive and simply never record anything.
     if (e.target.id === "ruBAUpns" && ruBulkAdmin) { ruBulkAdmin.upns = e.target.value; return; }
+    // The bulk search box feeds the SAME list the paste field holds — one
+    // source of truth, so picking and pasting cannot disagree about who is
+    // being granted. It reuses the per-unit user datalist below.
+    if (e.target.id === "ruBASearch") {
+      const term = String(e.target.value || "").trim();
+      clearTimeout(ruSugTimer);
+      const dl = $("ruUserSug");
+      if (dl && [...dl.options].some((o) => o.value === term)) return;   // came from the list
+      if (term.length < 2 || isDemo) return;
+      ruSugTimer = setTimeout(async () => {
+        const f = term.replace(/'/g, "''");
+        try {
+          const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
+          if (dl) dl.innerHTML = ((r && r.value) || [])
+            .map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+        } catch (err) { console.warn("Restricted AUs: bulk admin suggest failed", err.message); }
+      }, 250);
+      return;
+    }
     const isGroup = e.target.matches("[data-ruaddbox]");
     const isUser = e.target.matches("[data-ruadminbox]");
     if (!isGroup && !isUser) return;
@@ -5953,6 +5972,11 @@ max@contoso.com,"Global, DevOps"</pre>
     }, 250);
   }
   $("ruBody").addEventListener("input", ruSuggest);
+  $("ruBody").addEventListener("keydown", (e) => {
+    if (e.target.id !== "ruBASearch" || e.key !== "Enter") return;
+    e.preventDefault();
+    if (ruBulkAdmin) ruBAAddPick();
+  });
   // The datalist is shared, so seed it for the unit whose box has focus:
   // this persona's groups first, then the rest of the baseline. Otherwise the
   // dropdown is 200 names in alphabetical order and the four that belong here
@@ -6061,6 +6085,19 @@ max@contoso.com,"Global, DevOps"</pre>
   // tool that assumed otherwise would quietly undo the per-persona split.
   let ruBulkAdmin = null;   // { open, sel:Set(auId), upns, role, busy, results }
 
+  // One list, two ways in: search a name, or paste UPNs. The picker appends to
+  // the same string the paste field holds rather than keeping its own array —
+  // two sources of truth for "who is being granted" is how somebody grants a
+  // role to a person they had removed.
+  function ruBAAddPick() {
+    const box = $("ruBASearch");
+    const v = box ? box.value.trim() : "";
+    if (!v) { toast("Search a <span>person</span> first"); return; }
+    const cur = CaGroups.adminList(ruBulkAdmin.upns);
+    if (cur.some((u) => u.toLowerCase() === v.toLowerCase())) { toast("Already in the list"); return; }
+    ruBulkAdmin.upns = [...cur, v].join(", ");
+    renderRmau();
+  }
   function ruBulkAdminPanel() {
     const restricted = (ruList || []).filter(Rmau.isRestricted);
     if (restricted.length < 2) return "";      // nothing to do in bulk
@@ -6100,7 +6137,18 @@ max@contoso.com,"Global, DevOps"</pre>
     return `<div class="cg-panel" id="ruBAPanel">
       <h4>GRANT SCOPED ADMINISTRATORS ACROSS UNITS</h4>
       <p class="mini" style="margin:0 0 8px">Each unit × each administrator is a separate grant and a separate outcome — a partial success has to be readable rather than rounded to “done”.</p>
-      <label class="mini" style="display:block;margin:0 0 4px">Administrators <span class="muted">— UPNs, separated by commas</span></label>
+      <label class="mini" style="display:block;margin:0 0 4px">Administrators</label>
+      <div class="ru-basearch">
+        <input id="ruBASearch" list="ruUserSug" class="btn" style="cursor:text;flex:1;min-width:240px" placeholder="Search a person by name — or paste UPNs below" autocomplete="off" spellcheck="false">
+        <button class="btn sm" id="ruBASearchAdd">＋ Add</button>
+      </div>
+      ${(() => {
+        const picked = CaGroups.adminList(t.upns);
+        return picked.length
+          ? `<div class="ru-bapicks">${picked.map((u) => `<span class="an-pick">👤 ${esc(u)}<button data-rubadel="${esc(u)}" title="Remove">×</button></span>`).join("")}</div>`
+          : `<p class="mini muted" style="margin:6px 0 0">Nobody picked yet. Search above, or paste a list.</p>`;
+      })()}
+      <label class="mini" style="display:block;margin:10px 0 4px">…or paste them <span class="muted">— UPNs, separated by commas</span></label>
       <input id="ruBAUpns" class="txt" value="${esc(t.upns)}" placeholder="someone@contoso.com, someone.else@contoso.com" autocomplete="off" spellcheck="false" style="max-width:560px;letter-spacing:normal;font-weight:400">
       <label class="mini" style="display:block;margin:10px 0 4px">Role</label>
       <select id="ruBARole" class="btn" style="cursor:pointer;width:auto">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}"${t.role === r.id ? " selected" : ""}>${esc(r.name)}</option>`).join("")}</select>
@@ -6385,6 +6433,15 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
     if (e.target.id === "ruBAGo") { await ruBulkAdminRun(e.target); return; }
+    // add the searched person to the list, and take one back off it
+    if (e.target.id === "ruBASearchAdd" && ruBulkAdmin) { ruBAAddPick(); return; }
+    const bad = e.target.closest("[data-rubadel]");
+    if (bad && ruBulkAdmin) {
+      const drop = bad.dataset.rubadel.toLowerCase();
+      ruBulkAdmin.upns = CaGroups.adminList(ruBulkAdmin.upns).filter((u) => u.toLowerCase() !== drop).join(", ");
+      renderRmau();
+      return;
+    }
     const bk = e.target.closest("[data-rubulk]");
     if (bk) { await ruBulkScan(bk.dataset.rubulk); return; }
     const bka = e.target.closest("[data-rubulkall]");

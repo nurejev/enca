@@ -1361,3 +1361,9 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
    what belongs here first, anything else still possible. */
 .ru-pg { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:6px 0; }
 .btn.sm.ru-pgchip { padding:3px 9px; font-size:.82rem; }
+
+/* Restricted AUs: search-and-pick for the bulk scoped-administrator grant.
+   Same shape as the persona group chips — find people by name, paste still
+   works, and both feed one list. */
+.ru-basearch { display:flex; gap:8px; flex-wrap:wrap; align-items:center; max-width:560px; }
+.ru-bapicks { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }

@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.279",
-  betaBuild: "v1.0.250-beta.102",
+  betaBuild: "v1.0.250-beta.103",
 
   items: [
+    {
+      n: 48,
+      title: "Search for scoped administrators in the bulk grant",
+      tools: ["Restricted AUs"],
+      builds: [25103],
+      risk: "low",
+      what: "The bulk scoped-administrator panel gains a type-ahead over the tenant's users: pick by name, chips you can remove, Enter to add. Pasting UPNs still works and both write the same list.",
+      why: "Production only takes typed UPNs, so granting to somebody whose UPN you do not know means leaving the tool to find it.",
+      files: ["js/app.js", "css/app.css", "index.html"],
+    },
     {
       n: 47,
       title: "Persona groups offered when adding to a restricted unit",
