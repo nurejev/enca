@@ -9286,9 +9286,17 @@ max@contoso.com,"Global, DevOps"</pre>
       `- Device platform: ${sc.platform} · Client app: ${sc.clientApp}`,
       `- IP: ${sc.ip || "—"} · Country: ${sc.country || "—"} · Device state: ${sc.deviceState || "not specified"}`,
       `- Sign-in risk: ${sc.signInRisk || "not specified"} · User risk: ${sc.userRisk || "not specified"}`, "",
-      `**Result:** ${r.blocked ? "access would be BLOCKED" : "access granted after satisfying the controls below"}`, "",
+      // The report carries the same obligation as the screen: name the cause.
+      // A document that says BLOCKED and leaves the reader to find the policy
+      // in a list of ten is the version that gets pasted into a ticket.
+      `**Result:** ${r.blocked
+        ? `access would be **BLOCKED** by ${(r.blockers || []).map((b) => b.name).join(", ")}`
+        : "access granted after satisfying the controls below"}`,
+      ...((r.blockersReportOnly || []).length
+        ? [`**Report-only:** ${r.blockersReportOnly.map((b) => b.name).join(", ")} would block once enforced — ${r.blocked ? "in addition to the above" : "today this sign-in succeeds"}.`]
+        : []), "",
       `## Policies that apply (${r.applied.length})`, ""];
-    r.applied.forEach((p) => L.push(`- **${p.name}**${p.state === "enabledForReportingButNotEnforced" ? " *(report-only)*" : ""} — grant: ${(p.grant || []).map(wiCtrl).join(", ") || "none"}${(p.session || []).length ? `; session: ${p.session.join(" · ")}` : ""}`));
+    r.applied.forEach((p) => L.push(`- **${p.name}**${p.state === "enabledForReportingButNotEnforced" ? " *(report-only)*" : ""}${(p.grant || []).includes("block") ? (p.state === "enabledForReportingButNotEnforced" ? " ⛔ *would block once enforced*" : " ⛔ **this is the block**") : ""} — grant: ${(p.grant || []).map(wiCtrl).join(", ") || "none"}${(p.session || []).length ? `; session: ${p.session.join(" · ")}` : ""}`));
     L.push("", `## Policies that do not apply (${r.notApplied.length})`, "");
     r.notApplied.forEach((p) => L.push(`- ${p.name} — ${p.reason}`));
     if (r.notEvaluated.length) { L.push("", `## Not evaluated (Off)`, ""); r.notEvaluated.forEach((p) => L.push(`- ${p.name}`)); }

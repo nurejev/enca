@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25084, date: "2026-08-14", title: "The What-If report names the blocker too",
+    items: [
+      { kind: "improved", tool: "What-If", text: "The Markdown export said “access would be BLOCKED” and left the reader to find which of ten policies did it — the same fault the screen had, in the artefact that actually gets pasted into a ticket. It now names the blocking policies in the result line, marks them in the policy list, and states separately when a report-only policy would block once enforced (including the case where today's answer is that the sign-in succeeds)." },
+    ],
+  },
+  {
     build: 25083, date: "2026-08-14", title: "Which policy would block this sign-in",
     items: [
       { kind: "fixed", tool: "What-If", text: "The verdict counted REPORT-ONLY policies as blocking. A report-only policy records what it would have done and changes nothing, so a scenario whose only Block policy was staged came back as “Access would be blocked” for a sign-in that in fact succeeds today — the opposite of the answer being asked for. The verdict now comes from the enforced policies alone, and a report-only block is reported separately as “would block once enforced”. Grant controls are split the same way: what you must satisfy comes from the enforced policies, with the report-only ones listed as what would additionally be required." },

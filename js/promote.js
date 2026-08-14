@@ -34,16 +34,16 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.273",
-  betaBuild: "v1.0.250-beta.83",
+  betaBuild: "v1.0.250-beta.84",
 
   items: [
     {
       n: 37,
       title: "What-If: which policy blocks, and report-only excluded from the verdict",
       tools: ["What-If"],
-      builds: [25083],
+      builds: [25083, 25084],
       risk: "medium",
-      what: "The verdict names the blocking policies and links to them, marks them in the list, and no longer counts report-only policies as blocking — those are reported as 'would block once enforced'.",
+      what: "The verdict names the blocking policies and links to them, marks them in the list, and no longer counts report-only policies as blocking — those are reported as 'would block once enforced'. The Markdown export carries the same, since that is the copy that reaches a ticket.",
       why: "Production returns 'Access would be blocked' for a sign-in that succeeds today whenever the only Block policy is staged in report-only. That is a wrong answer, not a missing one, which is why this is not low.",
       files: ["js/whatifeval.js", "js/app.js", "index.html", "css/app.css"],
     },
