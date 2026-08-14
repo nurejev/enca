@@ -678,7 +678,14 @@
   let helpTocBuilt = false;
   function buildHelpToc() {
     if (helpTocBuilt) return;
-    const secs = [...document.querySelectorAll("#screen-help .help-sec > h4")];
+    // The promotion queue renders TWO h4s into its own .help-sec — its title and
+    // "Staying on this channel" — and both were becoming contents entries, one
+    // of them for a subsection rather than a section. It is also injected after
+    // this runs on some paths, so what the list contains depended on timing.
+    // Excluded outright: the contents list is of TOOLS, and the queue is a
+    // beta-channel note about the gap between builds.
+    const secs = [...document.querySelectorAll("#screen-help .help-sec > h4")]
+      .filter((h) => !h.closest("#helpPromote"));
     secs.forEach((h, i) => { h.id = h.id || `help-sec-${i}`; });
     $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}">${h.textContent.replace(/\s+(BETA|NEW|writes to tenant)\b/gi, "").trim()}</a>`).join("");
     // Scroll-spy: highlight the chip for the section currently in view, and keep
@@ -7378,7 +7385,7 @@ max@contoso.com,"Global, DevOps"</pre>
               <td>${u.failure ? `<span class="au-n rem">${u.failure}</span>` : '<span class="mini muted">—</span>'}</td>
               <td>${u.interrupted ? `<span class="au-n upd">${u.interrupted}</span>` : '<span class="mini muted">—</span>'}</td>
               <td class="mini">${u.success || "—"}</td>
-              <td class="mini">${esc([...u.apps].slice(0, 3).join(", "))}${u.apps.size > 3 ? ` +${u.apps.size - 3}` : ""}</td>
+              <td class="mini">${esc([...u.apps].slice(0, 3).join(", "))}${u.apps.size > 3 ? ` +${u.apps.size - 3}` : ""}${riRiskWhy(u)}</td>
               <td class="mini">${esc(auAgo(u.last))}</td></tr>`).join("")}</tbody></table>
             ${users.length > 60 ? `<p class="mini muted">Showing 60 of ${users.length} affected users — the Markdown export has them all.</p>` : ""}`
             : '<p class="mini muted" style="margin:6px 0">No user would notice this policy going live in this window.</p>'}
@@ -7414,7 +7421,7 @@ max@contoso.com,"Global, DevOps"</pre>
         const open = riOpen.has("u:" + u.upn);
         const detail = open ? `<tr class="au-sumdet"><td colspan="6"><ul class="wi-list" style="margin:6px 0">
           ${u.policies.map((x) => `<li><div class="wi-pn"><span class="pol-link" data-polid="${esc(x.id || "")}" title="Open the policy card">${esc(x.name)}</span></div>
-            <div class="wi-why">${[x.failure ? `${x.failure} would deny` : "", x.interrupted ? `${x.interrupted} interrupted` : "", x.success ? `${x.success} pass` : ""].filter(Boolean).join(" · ")}</div></li>`).join("")}
+            <div class="wi-why">${[x.failure ? `${x.failure} would deny` : "", x.interrupted ? `${x.interrupted} interrupted` : "", x.success ? `${x.success} pass` : ""].filter(Boolean).join(" · ")}${riRiskWhy(x)}</div></li>`).join("")}
         </ul></td></tr>` : "";
         return `<tr class="au-sumrow" data-riuser="${esc(u.upn)}">
           <td><b>${esc(u.name)}</b>${u.upn !== u.name ? ` <span class="mini muted">${esc(u.upn)}</span>` : ""}</td>
@@ -7428,6 +7435,14 @@ max@contoso.com,"Global, DevOps"</pre>
       ${users.length > 200 ? `<p class="mini muted" style="margin-top:8px">Showing 200 of ${users.length} users — the Markdown export has them all.</p>` : ""}
       <p class="mini muted" style="margin-top:8px">Worst case first: a user is 🔴 if any staged policy would deny any of their sign-ins. Click a row for the per-policy split.</p>`;
   }
+
+  // A policy named LowMediumUserRisk reporting "3 interrupted" invites exactly
+  // one question — low, or medium? — and the sign-in record carries the answer.
+  // Shown per level rather than summarised, because a run that was two lows and
+  // one medium is a different go-live decision from three mediums.
+  const riRiskWhy = (x) => (x.riskWhy || []).length
+    ? ` — <span title="From the sign-in records behind this verdict">${x.riskWhy.map((r) => `${esc(r.what)} ×${r.n}`).join(", ")}</span>`
+    : "";
 
   // ---- targeting context: what the policy aims at, and why a user is hit --
   // The verdicts come from the log; the SCOPE comes from the policy already

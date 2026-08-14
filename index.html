@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=271"></script>
+<script src="js/popup-guard.js?v=272"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=271">
+<link rel="stylesheet" href="css/app.css?v=272">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=271"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=271"></script>
+<script src="js/counter.js?v=272"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=272"></script>
 </head>
 <body>
 
@@ -154,7 +154,7 @@
         <p>Which sign-ins Conditional Access failed and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. Enforced and report-only, with CSV export and a one-click replay in What-If.</p>
       </div>
       <div class="tool" id="toolImpact">
-        <div class="tool-ic">🎚</div><h3>Report-only impact</h3>
+        <div class="tool-ic">🎚</div><h3>Report-only impact <span class="tag upd">UPDATED</span></h3>
         <p>What happens the day a report-only policy goes live — per policy: who would be denied, who just gets an extra prompt, who passes unchanged; per user: the combined effect of everything in report-only. The evidence for the go-live decision, from the sign-in log.</p>
       </div>
     </div>
@@ -1375,6 +1375,18 @@
     </section>
 
     <section class="help-sec">
+      <h4>🎚 Report-only impact</h4>
+      <p>The go-live forecast. Every policy sitting in <b>report-only</b> is judged against the sign-in log: who would be <b>denied</b> the day it is enforced, who is <b>interrupted</b> for an extra step, and who passes unchanged. Report-only writes a verdict into each sign-in without acting on it, so this is evidence rather than simulation.</p>
+      <ul>
+        <li><b>Per policy</b> — is it safe to switch THIS one on. <b>Per user</b> — what happens to THIS person when everything staged goes live at once, which is the question nobody can answer policy by policy.</li>
+        <li><b>Why a user was interrupted</b> — a policy called <code>LowMediumUserRisk</code> reporting “3 interrupted” invites exactly one question, and the sign-in records behind the verdict carry the answer: the drill-down reads <i>user risk low ×2, user risk medium ×1</i>. Counted per level rather than summarised, because two lows and one medium is a different decision from three mediums. <b>User risk</b> and <b>sign-in risk</b> are shown separately — a policy can key off either, and merging them would be right about half the time. Where the tenant has no Entra ID P2 the value arrives as <b>hidden</b>, and is reported as hidden rather than as no risk: not knowing is not the same as nothing.</li>
+        <li><b>A verdict is only as good as its window.</b> The range and the number of sign-ins read are stated up front, and a truncated read says so — a policy with <b>no evidence</b> is called out rather than counted as safe, because "nobody was affected" and "nobody signed in" look identical in a summary and only one of them is a reason to go live.</li>
+        <li><b>Export MD</b> — the forecast with every affected user, for the change record or the go-live approval.</li>
+      </ul>
+      <p class="help-x">Read-only. Needs <code>AuditLog.Read.All</code> (requested when you run it) and a reader role such as Reports Reader, Security Reader or Security Administrator. Audit retention is licence-bound — roughly 30 days on Entra ID P1/P2 — so the window is what Microsoft still holds, not all history.</p>
+    </section>
+
+    <section class="help-sec">
       <h4>🚪 Exclusion analyzer</h4>
       <p>Every exclusion across all policies in one place.</p>
       <ul>
@@ -2120,43 +2132,43 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=271"></script>
-<script src="js/version.js?v=271"></script>
-<script src="js/authConfig.js?v=271"></script>
-<script src="js/labels.js?v=271"></script>
-<script src="js/graph.js?v=271"></script>
-<script src="js/model.js?v=271"></script>
-<script src="js/render.js?v=271"></script>
-<script src="js/analyze.js?v=271"></script>
-<script src="js/whatif.js?v=271"></script>
-<script src="js/mslearn.js?v=271"></script>
-<script src="js/gapcheck.js?v=271"></script>
-<script src="js/exclusions.js?v=271"></script>
-<script src="js/validator.js?v=271"></script>
-<script src="js/whatifeval.js?v=271"></script>
-<script src="js/compare.js?v=271"></script>
-<script src="js/groupuse.js?v=271"></script>
-<script src="js/iso3166.js?v=271"></script>
-<script src="js/locations.js?v=271"></script>
-<script src="js/authcontexts.js?v=271"></script>
-<script src="js/authstrengths.js?v=271"></script>
-<script src="js/recycle.js?v=271"></script>
-<script src="js/termsofuse.js?v=271"></script>
-<script src="js/rmau.js?v=271"></script>
-<script src="js/audit.js?v=271"></script>
-<script src="js/drift.js?v=271"></script>
-<script src="js/signins.js?v=271"></script>
-<script src="js/reportimpact.js?v=271"></script>
-<script src="js/changelog.js?v=271"></script>
-<script src="js/baselineData.js?v=271"></script>
-<script src="js/baselineJoeyData.js?v=271"></script>
-<script src="js/baseline.js?v=271"></script>
-<script src="js/groupTemplates.js?v=271"></script>
-<script src="js/assign.js?v=271"></script>
-<script src="js/cagroups.js?v=271"></script>
-<script src="js/import.js?v=271"></script>
-<script src="js/export.js?v=271"></script>
-<script src="js/demo.js?v=271"></script>
-<script src="js/app.js?v=271"></script>
+<script src="js/branding.js?v=272"></script>
+<script src="js/version.js?v=272"></script>
+<script src="js/authConfig.js?v=272"></script>
+<script src="js/labels.js?v=272"></script>
+<script src="js/graph.js?v=272"></script>
+<script src="js/model.js?v=272"></script>
+<script src="js/render.js?v=272"></script>
+<script src="js/analyze.js?v=272"></script>
+<script src="js/whatif.js?v=272"></script>
+<script src="js/mslearn.js?v=272"></script>
+<script src="js/gapcheck.js?v=272"></script>
+<script src="js/exclusions.js?v=272"></script>
+<script src="js/validator.js?v=272"></script>
+<script src="js/whatifeval.js?v=272"></script>
+<script src="js/compare.js?v=272"></script>
+<script src="js/groupuse.js?v=272"></script>
+<script src="js/iso3166.js?v=272"></script>
+<script src="js/locations.js?v=272"></script>
+<script src="js/authcontexts.js?v=272"></script>
+<script src="js/authstrengths.js?v=272"></script>
+<script src="js/recycle.js?v=272"></script>
+<script src="js/termsofuse.js?v=272"></script>
+<script src="js/rmau.js?v=272"></script>
+<script src="js/audit.js?v=272"></script>
+<script src="js/drift.js?v=272"></script>
+<script src="js/signins.js?v=272"></script>
+<script src="js/reportimpact.js?v=272"></script>
+<script src="js/changelog.js?v=272"></script>
+<script src="js/baselineData.js?v=272"></script>
+<script src="js/baselineJoeyData.js?v=272"></script>
+<script src="js/baseline.js?v=272"></script>
+<script src="js/groupTemplates.js?v=272"></script>
+<script src="js/assign.js?v=272"></script>
+<script src="js/cagroups.js?v=272"></script>
+<script src="js/import.js?v=272"></script>
+<script src="js/export.js?v=272"></script>
+<script src="js/demo.js?v=272"></script>
+<script src="js/app.js?v=272"></script>
 </body>
 </html>

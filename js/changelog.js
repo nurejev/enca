@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 272, date: "2026-08-13", title: "Why that user would be interrupted",
+    items: [
+      { kind: "new", tool: "Report-only impact", text: "A policy named LowMediumUserRisk reporting “3 interrupted” invites exactly one question — low, or medium? — and the answer was in the sign-in records all along and being discarded. The drill-down now reads “user risk low ×2, user risk medium ×1”, in both the per-user and the per-policy views. Counted per level rather than summarised, because two lows and one medium is a different go-live decision from three mediums." },
+      { kind: "improved", tool: "Report-only impact", text: "User risk and sign-in risk are kept separate and labelled, since a policy can key off either and merging them would be right about half the time. A tenant without Entra ID P2 gets “hidden” from Graph, and that is reported as hidden rather than quietly as no risk — the difference between “no risk was involved” and “you cannot see whether it was” is the whole value of the verdict. A sign-in that passed adds no explanation, because there is nothing to explain." },
+      { kind: "fixed", tool: "Report-only impact", text: "The tool has never had a Help section — it graduated out of BETA without one, and the Help contents list is built from those headings, so it was absent from Help entirely. Added, including the point that matters most about a forecast: a verdict is only as good as its window, and a policy with no evidence is called out rather than counted as safe, because “nobody was affected” and “nobody signed in” look identical in a summary and only one is a reason to go live." },
+      { kind: "fixed", tool: "All tools", text: "The Help contents list no longer includes the beta channel's promotion queue, which on that channel was contributing two entries — its own title and a subsection. The list is of tools; production never renders the queue, so this changes nothing here, but the two files should not drift." },
+    ],
+  },
+  {
     build: 271, date: "2026-08-13", title: "The roadmap reference chips were unstyled",
     items: [
       { kind: "fixed", tool: "Roadmap", text: "Build 269 brought the roadmap's Rnn reference chips across but not the CSS that draws them, so 27 of them rendered as bare text run together with the titles. Build 270 then tried to insert the Shipped-before styling next to the missing rule, found nothing to anchor to, and silently did nothing — one omission hiding the next. Both rules are in now. The lesson is already familiar: a replace that finds no anchor should fail rather than succeed quietly, which is what a verification step is for." },
