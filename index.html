@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=280"></script>
+<script src="js/popup-guard.js?v=281"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=280">
+<link rel="stylesheet" href="css/app.css?v=281">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=280"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=280"></script>
+<script src="js/counter.js?v=281"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=281"></script>
 </head>
 <body>
 
@@ -95,7 +95,7 @@
            UPDATED  an existing tool that changed in this release
          Clear UPDATED at the start of the next cycle — a stale flag takes a slot
          from something that genuinely changed. -->
-    <h2 class="home-title">What do you want to do?</h2>
+    <h2 class="home-title">What do you want to do? <span class="home-count" id="homeCount"></span></h2>
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
     <div class="tools">
       <div class="tool" id="toolDrift">
@@ -1066,8 +1066,8 @@
             <p class="mini" style="margin:0">Past twenty-odd tools, a tile grid stops being the fastest way in. <b>Ctrl/Cmd&nbsp;+&nbsp;K</b> anywhere opens a search box: type a few letters and land in the tool, or type a CA number or policy name and land on the policy card. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bbc</code> finds Best-practice &amp; bypass checks.</p>
           </div>
           <div class="list-card rm-card" data-shipped="268">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R09</span> 🔝 Flagged tiles first in a collapsed section <span class="tag grant">live · build 268</span></h4>
-            <p class="mini" style="margin:0">A collapsed home section shows four tiles, and anything flagged <b>NEW</b>, <b>BETA</b> or <b>UPDATED</b> claims those slots ahead of the rest — but it claims them <i>in page order</i>, so a flagged tile that sits ninth is visible while still appearing after unflagged ones, and with five flagged tiles in a section one of them drops below the fold. Flagged tiles now lift to the <b>top</b> of the collapsed view, newest first, so what changed is the first thing read rather than merely somewhere on screen. Expanding restores the normal order, because the grid's grouping is meaningful and shuffling it permanently would cost more than it gains.</p>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R09</span> 🔝 Flagged tiles first in a collapsed section <span class="tag grant">live · build 268 · 281</span></h4>
+            <p class="mini" style="margin:0">A collapsed home section shows four tiles, and anything flagged <b>NEW</b>, <b>BETA</b> or <b>UPDATED</b> claims those slots ahead of the rest — but it claims them <i>in page order</i>, so a flagged tile that sits ninth is visible while still appearing after unflagged ones, and with five flagged tiles in a section one of them drops below the fold. Flagged tiles now lift to the <b>top</b> of the collapsed view, <b>newest first</b> — the ranking is read from the changelog, the build number of the newest entry naming that tool, so a tool changed in this build outranks a BETA tag that has been sitting there for weeks. Before that the tie was broken by page order, which buried the most recent change under the oldest badge. Expanding restores the normal order, because the grid's grouping is meaningful and shuffling it permanently would cost more than it gains.</p>
           </div>
           <div class="list-card rm-card" data-shipped="269">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R07</span> 👤 Bulk grant scoped administrators <span class="tag grant">live · build 269</span></h4>
@@ -1354,6 +1354,7 @@
         <li><b>＋ Bulk add &lt;persona&gt; groups</b> — on a baseline persona unit, gathers this tenant's security groups whose CA number falls in that persona's range and adds the ticked ones in one run. Matched by the same rule ⑥ Protect routes by, so the two cannot disagree. Adding twenty groups one at a time through the type-ahead is the same decision twenty times, and the failure mode is not noticing you stopped at nineteen.</li>
         <li><b>What cannot go in is shown as prominently as what can</b>, because those rows need a different action rather than another attempt: a <b>role-assignable</b> group (would be frozen — convert it with ⑦ Migrate first), a <b>Microsoft 365</b>, <b>mail-enabled security</b> or <b>distribution</b> group (only cloud security groups may be members), one <b>already in this unit</b>, and one <b>already in another restricted unit</b> — that last is not a duplicate but a widening, since a scoped administrator on <i>any</i> unit an object belongs to can manage it.</li>
               <li><b>Adding a group works like granting a scoped administrator.</b> A unit already knows its persona, so the groups whose CA number maps to it are offered by name, one click each — nobody should have to remember that <code>CAB-SEC-U-CA101-Exclusion</code> is the Admins one. Groups already in the unit are not offered again, and when there are none left it says so rather than showing an empty row. <b>Any other group is still typed in</b> below, and while you are typing there the suggestion list puts this persona's groups first and the rest of the baseline after — a flat alphabetical list of every group in the tenant makes the right answer exactly as hard to reach as the wrong one.</li>
+        <li><b>Granting scoped administrators in bulk is searchable too.</b> 👤 Grant across restricted units took a comma-separated list of UPNs, which assumes you already know them — so it was faster to leave and look them up. Search a person by name, pick, and they join the list as a chip you can take back off. Pasting a list still works and both feed <b>one</b> list: the picker writes the same field the paste box holds, because two sources of truth for who is being granted is how somebody ends up with a role they had removed.</li>
 </ul>
       <p class="help-x">Writes to the tenant, and asks for each permission on the click. Creating one needs <b>Privileged Role Administrator</b>; granting a scoped role also needs <code>RoleManagement.ReadWrite.Directory</code>. Directory writes are not read-your-writes consistent, so a unit you just created may take a moment to appear in the list below — the creation log above it is the record of what actually happened.</p>
     </section>
@@ -2214,43 +2215,43 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=280"></script>
-<script src="js/version.js?v=280"></script>
-<script src="js/authConfig.js?v=280"></script>
-<script src="js/labels.js?v=280"></script>
-<script src="js/graph.js?v=280"></script>
-<script src="js/model.js?v=280"></script>
-<script src="js/render.js?v=280"></script>
-<script src="js/analyze.js?v=280"></script>
-<script src="js/whatif.js?v=280"></script>
-<script src="js/mslearn.js?v=280"></script>
-<script src="js/gapcheck.js?v=280"></script>
-<script src="js/exclusions.js?v=280"></script>
-<script src="js/validator.js?v=280"></script>
-<script src="js/whatifeval.js?v=280"></script>
-<script src="js/compare.js?v=280"></script>
-<script src="js/groupuse.js?v=280"></script>
-<script src="js/iso3166.js?v=280"></script>
-<script src="js/locations.js?v=280"></script>
-<script src="js/authcontexts.js?v=280"></script>
-<script src="js/authstrengths.js?v=280"></script>
-<script src="js/recycle.js?v=280"></script>
-<script src="js/termsofuse.js?v=280"></script>
-<script src="js/rmau.js?v=280"></script>
-<script src="js/audit.js?v=280"></script>
-<script src="js/drift.js?v=280"></script>
-<script src="js/signins.js?v=280"></script>
-<script src="js/reportimpact.js?v=280"></script>
-<script src="js/changelog.js?v=280"></script>
-<script src="js/baselineData.js?v=280"></script>
-<script src="js/baselineJoeyData.js?v=280"></script>
-<script src="js/baseline.js?v=280"></script>
-<script src="js/groupTemplates.js?v=280"></script>
-<script src="js/assign.js?v=280"></script>
-<script src="js/cagroups.js?v=280"></script>
-<script src="js/import.js?v=280"></script>
-<script src="js/export.js?v=280"></script>
-<script src="js/demo.js?v=280"></script>
-<script src="js/app.js?v=280"></script>
+<script src="js/branding.js?v=281"></script>
+<script src="js/version.js?v=281"></script>
+<script src="js/authConfig.js?v=281"></script>
+<script src="js/labels.js?v=281"></script>
+<script src="js/graph.js?v=281"></script>
+<script src="js/model.js?v=281"></script>
+<script src="js/render.js?v=281"></script>
+<script src="js/analyze.js?v=281"></script>
+<script src="js/whatif.js?v=281"></script>
+<script src="js/mslearn.js?v=281"></script>
+<script src="js/gapcheck.js?v=281"></script>
+<script src="js/exclusions.js?v=281"></script>
+<script src="js/validator.js?v=281"></script>
+<script src="js/whatifeval.js?v=281"></script>
+<script src="js/compare.js?v=281"></script>
+<script src="js/groupuse.js?v=281"></script>
+<script src="js/iso3166.js?v=281"></script>
+<script src="js/locations.js?v=281"></script>
+<script src="js/authcontexts.js?v=281"></script>
+<script src="js/authstrengths.js?v=281"></script>
+<script src="js/recycle.js?v=281"></script>
+<script src="js/termsofuse.js?v=281"></script>
+<script src="js/rmau.js?v=281"></script>
+<script src="js/audit.js?v=281"></script>
+<script src="js/drift.js?v=281"></script>
+<script src="js/signins.js?v=281"></script>
+<script src="js/reportimpact.js?v=281"></script>
+<script src="js/changelog.js?v=281"></script>
+<script src="js/baselineData.js?v=281"></script>
+<script src="js/baselineJoeyData.js?v=281"></script>
+<script src="js/baseline.js?v=281"></script>
+<script src="js/groupTemplates.js?v=281"></script>
+<script src="js/assign.js?v=281"></script>
+<script src="js/cagroups.js?v=281"></script>
+<script src="js/import.js?v=281"></script>
+<script src="js/export.js?v=281"></script>
+<script src="js/demo.js?v=281"></script>
+<script src="js/app.js?v=281"></script>
 </body>
 </html>

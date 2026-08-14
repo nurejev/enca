@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 281, date: "2026-08-14", title: "Several administrators at once, and the tile that just changed comes first",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "The per-unit scoped-administrator field accepts a ;-separated list and did not work as one. The type-ahead searched the WHOLE field, so the moment a separator was typed the term became \"adm-irse@contoso.com;tula\" and matched nobody — the field looked broken exactly when it was being used the way it invites. And the grant itself sent the whole string as a single UPN, so a list failed as one unresolvable user rather than succeeding twice. The search now reads the entry being typed and puts a pick back after what precedes it — choosing from a datalist replaces the whole value, which would otherwise eat the names already entered — and each person is a separate grant with its own outcome, reported as a fraction with the failures named." },
+      { kind: "improved", tool: "Restricted AUs", text: "👤 Grant scoped administrators across units is searchable: find people by name instead of having to know their UPN, picks appear as chips you can take back off, Enter adds. Pasting a list still works and both routes write ONE list — two sources of truth for who is being granted is how somebody ends up holding a role they had been removed from." },
+      { kind: "fixed", tool: "All tools", text: "A collapsed home section has four slots, ✍️ Manage the tenant has five flagged tiles, and page order decided which one was buried — so a tool changed in the current build lost its slot to a BETA badge that had been there for weeks. Flagged tiles are now ranked by recency, read from the changelog: the build number of the newest entry naming that tool, newest leftmost. A tool the changelog has never named sorts last among the flagged, because no date is not a recent date." },
+      { kind: "new", tool: "All tools", text: "\"What do you want to do?\" says how many tools there are to do it with — counted from the tiles rather than written down, so it cannot drift from what is on the page. Help cards are excluded: they explain the tools rather than being them. Hovering gives how many are new or in beta." },
+    ],
+  },
+  {
     build: 280, date: "2026-08-14", title: "Scan only who you asked about, and add the group that belongs here",
     items: [
       { kind: "new", tool: "Gap analyse", text: "Scope → \"Only these users or groups\" names principals before the scan and judges only those: the same policies, the same verdicts, a fraction of the reads. The matrix was always the right output; the scope was not. A named group is expanded to its members, nested groups included — the scan judges people, not groups, because a group being in scope of one policy says nothing about a member another policy excludes. In this mode nothing is read tenant-wide." },

@@ -344,6 +344,42 @@
       // tools that stopped the section collapsing at all. Order never changes;
       // only which tiles are shown.
       const flagged = (t) => !!t.querySelector(".tag.new, .tag.upd");
+      // When more tiles are flagged than there are slots, DOM order decided who
+      // got one — so a tool changed in the current build lost its place to a
+      // BETA tag that had been sitting there for weeks, which is precisely
+      // backwards. Rank the flagged by RECENCY instead, read from the changelog:
+      // the build number of the newest entry naming that tool. The changelog
+      // records tools by their display name, which is the tile's heading, so the
+      // two are matched on that. A tool the changelog has never named sorts last
+      // among the flagged rather than first — no date is not a recent date.
+      const toolName = (t) => {
+        const h = t.querySelector("h3");
+        if (!h) return "";
+        return [...h.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(" ").replace(/\s+/g, " ").trim();
+      };
+      const lastBuild = (() => {
+        const cache = new Map();
+        return (t) => {
+          const name = toolName(t);
+          if (!name) return -1;
+          if (cache.has(name)) return cache.get(name);
+          let best = -1;
+          try {
+            for (const entry of (typeof CHANGELOG !== "undefined" ? CHANGELOG : [])) {
+              if ((entry.items || []).some((i) => String(i.tool || "").toLowerCase() === name.toLowerCase())) {
+                best = Math.max(best, +entry.build || -1);
+              }
+            }
+          } catch { /* changelog optional */ }
+          cache.set(name, best);
+          return best;
+        };
+      })();
+      // most recently changed first; ties keep their authored order
+      const byRecency = tiles.filter(flagged)
+        .map((t, i) => ({ t, i, b: lastBuild(t) }))
+        .sort((a, b) => b.b - a.b || a.i - b.i)
+        .map((x) => x.t);
       const paint = () => {
         const open = homeExpanded.has(key);
         // The visible budget is HOME_VISIBLE in total. Flagged tiles claim those
@@ -353,7 +389,7 @@
         // Anything flagged that still does not fit is counted on the button, so it
         // is announced rather than silently buried.
         const keep = new Set();
-        for (const t of tiles) { if (keep.size >= HOME_VISIBLE) break; if (flagged(t)) keep.add(t); }
+        for (const t of byRecency) { if (keep.size >= HOME_VISIBLE) break; keep.add(t); }
         for (const t of tiles) { if (keep.size >= HOME_VISIBLE) break; keep.add(t); }
         const hidden = [];
         tiles.forEach((t) => {
@@ -365,14 +401,17 @@
           // Order is a CSS property here, not a DOM move — nothing is
           // reparented, so expanding restores the authored order exactly, and
           // the grid's grouping (which is meaningful) survives untouched.
-          t.style.order = open ? "" : (flagged(t) ? "-1" : "");
+          // Newest first among the flagged, so the tile you are looking for is
+          // the leftmost one rather than somewhere among the badges.
+          const rank = byRecency.indexOf(t);
+          t.style.order = open ? "" : (rank >= 0 ? String(rank - byRecency.length) : "");
           if (!show) hidden.push(t);
         });
         const buried = hidden.filter(flagged).length;
         btn.style.display = hidden.length || open ? "" : "none";
         btn.textContent = open
           ? "▲ Show fewer"
-          : `▼ Show ${hidden.length} more${buried ? ` · ${buried} new or beta` : ""}`;
+          : `▼ Show ${hidden.length} more${buried ? ` · ${buried} new, beta or updated` : ""}`;
         btn.setAttribute("aria-expanded", open ? "true" : "false");
       };
       btn.addEventListener("click", () => {
@@ -384,6 +423,28 @@
     });
   }
   initHomeSections();
+
+  // How many tools there are, counted from the tiles themselves rather than
+  // written down — a hand-maintained number is wrong one release after it is
+  // typed, and this one sits next to the question it answers.
+  (function homeToolCount() {
+    const el = $("homeCount");
+    if (!el) return;
+    const tiles = [...document.querySelectorAll("#screen-home .tool")];
+    // The Help section is navigation, not tooling; counting it would inflate
+    // the number with the three cards that explain the other ones.
+    const isHelp = (t) => {
+      const grid = t.closest(".tools");
+      const head = grid && grid.previousElementSibling;
+      return !!(head && /help/i.test(head.textContent || ""));
+    };
+    const tools = tiles.filter((t) => !isHelp(t));
+    const beta = tools.filter((t) => t.querySelector(".tag.new")).length;
+    el.textContent = `${tools.length} tools`;
+    el.title = beta
+      ? `${tools.length} tools on this build, ${beta} of them new or in beta`
+      : `${tools.length} tools on this build`;
+  })();
 
   // ---------- theme: Auto (device) → Light → Dark ----------
   // Auto leaves data-theme off so the CSS prefers-color-scheme block decides;
@@ -5748,7 +5809,7 @@ max@contoso.com,"Global, DevOps"</pre>
             ${ruBulkPanel(au)}
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Scoped role members (${(d.scoped || []).length})${d.scopedError ? ` <span class="muted" style="font-weight:400;text-transform:none">— ${esc(d.scopedError)}</span>` : ""}</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 6px"><select data-rurole="${esc(au.id)}" class="btn" style="cursor:pointer">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select>
-              <input data-ruadminbox="${esc(au.id)}" list="ruUserSug" placeholder="UPN of the scoped administrator — start typing a name" spellcheck="false" autocomplete="off" style="flex:1;min-width:180px"><button class="btn sm" data-ruadmin="${esc(au.id)}">+ Grant</button></div>
+              <input data-ruadminbox="${esc(au.id)}" list="ruUserSug" placeholder="Start typing a name — several at once, separated by ;" spellcheck="false" autocomplete="off" style="flex:1;min-width:180px"><button class="btn sm" data-ruadmin="${esc(au.id)}">+ Grant</button></div>
             <ul class="wi-list" style="margin:0">${scoped || '<li><div class="wi-why">No scoped role grants — nobody can manage the members except by tenant-unscoped rules. Grant one above.</div></li>'}</ul>
           </div>`;
         }
@@ -5817,16 +5878,58 @@ max@contoso.com,"Global, DevOps"</pre>
       .map((n) => `<option value="${esc(n)}"></option>`).join("");
   }
   let ruSugTimer = null;
+  // what was typed before the entry currently being searched, per field
+  const ruAdminPrefix = new WeakMap();
   function ruSuggest(e) {
     // The bulk-grant fields live in this tool, so they are handled by THIS
     // listener. rmauInput is bound to the CA-groups and Protect panels and
     // would never see them — a mistake worth naming, because the field would
     // look alive and simply never record anything.
     if (e.target.id === "ruBAUpns" && ruBulkAdmin) { ruBulkAdmin.upns = e.target.value; return; }
+    // The bulk search box feeds the SAME list the paste field holds — one
+    // source of truth, so picking and pasting cannot disagree about who is
+    // being granted. It reuses the per-unit user datalist below.
+    if (e.target.id === "ruBASearch") {
+      const term = String(e.target.value || "").trim();
+      clearTimeout(ruSugTimer);
+      const dl = $("ruUserSug");
+      if (dl && [...dl.options].some((o) => o.value === term)) return;   // came from the list
+      if (term.length < 2 || isDemo) return;
+      ruSugTimer = setTimeout(async () => {
+        const f = term.replace(/'/g, "''");
+        try {
+          const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
+          if (dl) dl.innerHTML = ((r && r.value) || [])
+            .map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+        } catch (err) { console.warn("Restricted AUs: bulk admin suggest failed", err.message); }
+      }, 250);
+      return;
+    }
     const isGroup = e.target.matches("[data-ruaddbox]");
     const isUser = e.target.matches("[data-ruadminbox]");
     if (!isGroup && !isUser) return;
-    const term = String(e.target.value || "").trim();
+    const raw = String(e.target.value || "");
+    // The admin field takes a LIST. Searching the whole string meant that the
+    // moment a separator was typed the term became "a@x.com;tul" and matched
+    // nothing — the field looked broken exactly when it was being used as
+    // designed. Search the entry being typed, and remember what precedes it so
+    // a pick from the list can be put back after it: choosing from a datalist
+    // replaces the whole value, which would otherwise eat the names already
+    // entered.
+    let prefix = "";
+    let term = raw.trim();
+    if (isUser) {
+      const cut = Math.max(raw.lastIndexOf(";"), raw.lastIndexOf(","));
+      if (cut >= 0) { prefix = raw.slice(0, cut + 1); term = raw.slice(cut + 1).trim(); }
+      const dlU = $("ruUserSug");
+      // a pick landed: restore the entries that came before it
+      if (prefix === "" && dlU && [...dlU.options].some((o) => o.value === term) && ruAdminPrefix.get(e.target)) {
+        e.target.value = ruAdminPrefix.get(e.target) + term;
+        ruAdminPrefix.delete(e.target);
+        return;
+      }
+      if (prefix) ruAdminPrefix.set(e.target, prefix); else ruAdminPrefix.delete(e.target);
+    }
     clearTimeout(ruSugTimer);
     // Selecting from a <datalist> fires `input` just like typing does. Without
     // this the pick re-runs the query, the options are rewritten, and the
@@ -5867,6 +5970,11 @@ max@contoso.com,"Global, DevOps"</pre>
     }, 250);
   }
   $("ruBody").addEventListener("input", ruSuggest);
+  $("ruBody").addEventListener("keydown", (e) => {
+    if (e.target.id !== "ruBASearch" || e.key !== "Enter") return;
+    e.preventDefault();
+    if (ruBulkAdmin) ruBAAddPick();
+  });
   // The datalist is shared, so seed it for the unit whose box has focus:
   // this persona's groups first, then the rest of the baseline. Otherwise the
   // dropdown is 200 names in alphabetical order and the four that belong here
@@ -5975,6 +6083,19 @@ max@contoso.com,"Global, DevOps"</pre>
   // tool that assumed otherwise would quietly undo the per-persona split.
   let ruBulkAdmin = null;   // { open, sel:Set(auId), upns, role, busy, results }
 
+  // One list, two ways in: search a name, or paste UPNs. The picker appends to
+  // the same string the paste field holds rather than keeping its own array —
+  // two sources of truth for "who is being granted" is how somebody grants a
+  // role to a person they had removed.
+  function ruBAAddPick() {
+    const box = $("ruBASearch");
+    const v = box ? box.value.trim() : "";
+    if (!v) { toast("Search a <span>person</span> first"); return; }
+    const cur = CaGroups.adminList(ruBulkAdmin.upns);
+    if (cur.some((u) => u.toLowerCase() === v.toLowerCase())) { toast("Already in the list"); return; }
+    ruBulkAdmin.upns = [...cur, v].join(", ");
+    renderRmau();
+  }
   function ruBulkAdminPanel() {
     const restricted = (ruList || []).filter(Rmau.isRestricted);
     if (restricted.length < 2) return "";      // nothing to do in bulk
@@ -6014,7 +6135,18 @@ max@contoso.com,"Global, DevOps"</pre>
     return `<div class="cg-panel" id="ruBAPanel">
       <h4>GRANT SCOPED ADMINISTRATORS ACROSS UNITS</h4>
       <p class="mini" style="margin:0 0 8px">Each unit × each administrator is a separate grant and a separate outcome — a partial success has to be readable rather than rounded to “done”.</p>
-      <label class="mini" style="display:block;margin:0 0 4px">Administrators <span class="muted">— UPNs, separated by commas</span></label>
+      <label class="mini" style="display:block;margin:0 0 4px">Administrators</label>
+      <div class="ru-basearch">
+        <input id="ruBASearch" list="ruUserSug" class="btn" style="cursor:text;flex:1;min-width:240px" placeholder="Search a person by name — or paste UPNs below" autocomplete="off" spellcheck="false">
+        <button class="btn sm" id="ruBASearchAdd">＋ Add</button>
+      </div>
+      ${(() => {
+        const picked = CaGroups.adminList(t.upns);
+        return picked.length
+          ? `<div class="ru-bapicks">${picked.map((u) => `<span class="an-pick">👤 ${esc(u)}<button data-rubadel="${esc(u)}" title="Remove">×</button></span>`).join("")}</div>`
+          : `<p class="mini muted" style="margin:6px 0 0">Nobody picked yet. Search above, or paste a list.</p>`;
+      })()}
+      <label class="mini" style="display:block;margin:10px 0 4px">…or paste them <span class="muted">— UPNs, separated by commas</span></label>
       <input id="ruBAUpns" class="txt" value="${esc(t.upns)}" placeholder="someone@contoso.com, someone.else@contoso.com" autocomplete="off" spellcheck="false" style="max-width:560px;letter-spacing:normal;font-weight:400">
       <label class="mini" style="display:block;margin:10px 0 4px">Role</label>
       <select id="ruBARole" class="btn" style="cursor:pointer;width:auto">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}"${t.role === r.id ? " selected" : ""}>${esc(r.name)}</option>`).join("")}</select>
@@ -6219,6 +6351,38 @@ max@contoso.com,"Global, DevOps"</pre>
       if (box) box.value = "";                       // the entry is on the list now
     } catch (e) { toast(`Add failed: <span>${esc(e.message || e)}</span>`); }
   }
+  // Several people at once. The field has always looked like it took a list —
+  // and the bulk panel across units does — but this one granted the whole
+  // string as a single UPN, so "a@x.com;b@x.com" failed as one unresolvable
+  // user rather than succeeding twice. Each person is a separate grant and a
+  // separate outcome; a partial success has to be readable, not rounded.
+  async function ruGrantAdmins(auId, roleTemplateId, raw) {
+    const list = CaGroups.adminList(raw);
+    if (!list.length) { toast("Type the administrator's UPN"); return; }
+    if (list.length === 1) return ruGrantAdmin(auId, roleTemplateId, list[0]);
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE, ...RU_ROLE_WRITE])) return;
+    const done = [], failed = [];
+    for (const upn of list) {
+      try {
+        if (!isDemo) {
+          const role = await ensureDirectoryRole(roleTemplateId);
+          const u = await Graph.gget(`/users/${encodeURIComponent(upn)}?$select=id`);
+          await Graph.gpost(`/administrativeUnits/${auId}/scopedRoleMembers`, { roleId: role.id, roleMemberInfo: { id: u.id } });
+          ruRoleNames = null;
+        }
+        done.push(upn);
+      } catch (e) {
+        failed.push(`${upn} — ${/conflicting object|already exist/i.test(e.message || "") ? "already holds that role" : (e.message || e)}`);
+      }
+    }
+    toast(`<span>${done.length}/${list.length}</span> granted${isDemo ? " (simulated)" : ""}`
+      + (failed.length ? ` · ${esc(failed.join("; "))}` : ""));
+    delete ruDetails[auId];
+    await ruLoadDetail(auId);
+    renderRmau();
+    const gbox = document.querySelector(`[data-ruadminbox="${auId}"]`);
+    if (gbox) gbox.value = "";
+  }
   async function ruGrantAdmin(auId, roleTemplateId, upn) {
     const t = upn.trim();
     if (!t) { toast("Type the administrator's UPN"); return; }
@@ -6299,6 +6463,15 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
     if (e.target.id === "ruBAGo") { await ruBulkAdminRun(e.target); return; }
+    // add the searched person to the list, and take one back off it
+    if (e.target.id === "ruBASearchAdd" && ruBulkAdmin) { ruBAAddPick(); return; }
+    const bad = e.target.closest("[data-rubadel]");
+    if (bad && ruBulkAdmin) {
+      const drop = bad.dataset.rubadel.toLowerCase();
+      ruBulkAdmin.upns = CaGroups.adminList(ruBulkAdmin.upns).filter((u) => u.toLowerCase() !== drop).join(", ");
+      renderRmau();
+      return;
+    }
     const bk = e.target.closest("[data-rubulk]");
     if (bk) { await ruBulkScan(bk.dataset.rubulk); return; }
     const bka = e.target.closest("[data-rubulkall]");
@@ -6346,7 +6519,7 @@ max@contoso.com,"Global, DevOps"</pre>
       const id = ga.dataset.ruadmin;
       const role = document.querySelector(`[data-rurole="${id}"]`);
       const box = document.querySelector(`[data-ruadminbox="${id}"]`);
-      await ruGrantAdmin(id, role ? role.value : Rmau.ROLE_TEMPLATES[0].id, box ? box.value : "");
+      await ruGrantAdmins(id, role ? role.value : Rmau.ROLE_TEMPLATES[0].id, box ? box.value : "");
       return;
     }
     const mr = e.target.closest("[data-rumrm]");
