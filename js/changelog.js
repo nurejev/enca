@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25092, date: "2026-08-14", title: "Service provider checks reached production",
+    items: [
+      { kind: "improved", tool: "MS Learn checks", text: "Queue item 39 — the five service provider (CSP / GDAP) exclusion checks — is live in production build 277. Removed from the promotion queue; the number is retired rather than reused." },
+    ],
+  },
+  {
     build: 25091, date: "2026-08-14", title: "The release time reads in your own timezone",
     items: [
       { kind: "improved", tool: "All tools", text: "The build stamp on the sign-in screen shows the release time where you are — 2026-08-14 14:05 GMT+2 in Amsterdam rather than 12:05Z. The value is still recorded once in UTC, because a build is cut at one instant; but \"when was this last updated?\" is asked by somebody sitting in a timezone, and an ISO Z stamp made every one of them do the arithmetic. Hovering gives the UTC original and names the timezone it was converted to, so a screenshot taken in another country still reconciles with a note in a ticket." },

@@ -33,8 +33,8 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.275",
-  betaBuild: "v1.0.250-beta.91",
+  productionBuild: "v1.0.277",
+  betaBuild: "v1.0.250-beta.92",
 
   items: [
     {
@@ -46,16 +46,6 @@ const PROMOTE = {
       what: "The sign-in build stamp converts the recorded UTC release time to the browser's timezone and names the offset; the UTC original moves to the tooltip along with the zone it was converted to.",
       why: "Production shows 12:05Z, so everybody outside UTC does the arithmetic to answer \"is what I pushed live?\".",
       files: ["js/version.js", "js/app.js"],
-    },
-    {
-      n: 39,
-      title: "Service provider (CSP / GDAP) exclusion checks",
-      tools: ["MS Learn checks"],
-      builds: [25090],
-      risk: "medium",
-      what: "Five MS Learn checks for the partner administering the tenant on your behalf: an external-user exclusion that omits Service provider users, a Block policy in their scope, a device requirement they cannot meet without cross-tenant device trust, grant controls documented as unsupported for external users, and a guest MFA policy that leaves them out. Reads /policies/crossTenantAccessPolicy/partners (Policy.Read.All, already granted) to name the partner, suppress the device finding when their claims are trusted, and skip all five in a tenant with no partner.",
-      why: "Production has no way to see a policy that locks out its own CSP — the exclusion that would prevent it cannot be expressed as a group, so nothing else in the app looks for it.",
-      files: ["js/mslearn.js", "js/graph.js", "js/app.js", "js/demo.js", "index.html"],
     },
     {
       n: 34,
