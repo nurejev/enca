@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25096, date: "2026-08-14", title: "Filter the policies that did not apply (R30)",
+    items: [
+      { kind: "new", tool: "What-If", text: "R30 — a run against a real tenant answers with two policies that apply and 107 that do not, each with its reason. That is the honest answer and it is unreadable as one block, because the question behind it is almost never \"show me everything\": it is a persona question — why did no Admins policy apply to this admin — or a number question, what happened to CA103. The list now filters by persona and by CA number, using the same CA ranges 🗂 List Policies groups by through the same helper, so the ranges stay one idea across the toolset rather than two implementations that drift." },
+      { kind: "new", tool: "What-If", text: "A count per reason comes first — \"94 user out of scope · 8 platform not in scope · 5 user excluded\" — and each count is a filter. When a policy you expected is missing, the reason is what you are hunting for, so it should be the thing you can click. The counts travel into the Markdown export as well." },
+      { kind: "improved", tool: "What-If", text: "\"Scenario does not say\" is its own reason rather than a kind of out-of-scope. A policy that scopes sign-in risk when the scenario left risk blank was not ruled out — the run simply could not evaluate it, and that is a prompt to fill a field in, not a finding about the policy. Grouping the two together made an incomplete scenario look like a clean result." },
+    ],
+  },
+  {
     build: 25095, date: "2026-08-14", title: "What-If searches your apps, not their GUIDs (R31)",
     items: [
       { kind: "new", tool: "What-If", text: "R31 — Target resource → Other now searches the tenant's own applications by name and fills the id in, instead of asking for a raw GUID. Nobody knows their apps by GUID, so answering that meant leaving the tool, finding the enterprise application in the portal and copying the id back; and a mistyped GUID did not fail, it quietly described a sign-in to an app nobody has — the same class of mistake as a wrong country code, and the reason R08 exists." },

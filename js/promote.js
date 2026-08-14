@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.277",
-  betaBuild: "v1.0.250-beta.95",
+  betaBuild: "v1.0.250-beta.96",
 
   items: [
+    {
+      n: 43,
+      title: "Filter the policies that did not apply (R30)",
+      tools: ["What-If"],
+      builds: [25096],
+      risk: "medium",
+      what: "The non-applying list filters by persona (same CA ranges as List Policies, same helper), by CA number or name, and by reason — with a count per reason shown first and each count clickable. \"Scenario does not say\" is separated from genuine out-of-scope. Reason counts also go into the Markdown export.",
+      why: "Production shows a flat list of ~107 entries with no way in, so the one policy you were looking for is found by reading.",
+      files: ["js/app.js", "js/whatifeval.js", "css/app.css", "index.html"],
+    },
     {
       n: 42,
       title: "What-If searches the tenant's apps (R31)",

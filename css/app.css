@@ -1337,3 +1337,12 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .wi-appfound { display:block; margin-top:4px; min-height:1em; }
 .wi-appfound.ok { color:var(--on); }
 .wi-appfound.warn { color:var(--warn, #b26a00); }
+
+/* What-If: filters over the policies that did not apply (R30). A run against a
+   real tenant answers with a hundred of them; the list is only usable if the
+   reason, the persona and the CA number are all reachable without reading it. */
+.wi-nafilters { margin:8px 0 10px; display:flex; flex-direction:column; gap:6px; }
+.wi-narow { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.btn.wi-nachip { padding:3px 9px; font-size:.82rem; }
+.btn.wi-nachip.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn.wi-nachip .mini { opacity:.7; margin-left:3px; }
