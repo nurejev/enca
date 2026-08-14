@@ -5820,7 +5820,17 @@ max@contoso.com,"Global, DevOps"</pre>
           // reach the one control that does something.
           detail = `<div style="margin-top:8px">
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Members (${(d.members || []).length})${nFrozen ? ` <span class="tag block" style="text-transform:none;letter-spacing:normal">🧊 ${nFrozen} frozen</span>` : ""}</div>
-            <div style="display:flex;gap:6px;margin:6px 0 6px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="Add member — baseline group name, any group, or user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
+            ${(() => {
+              const pg = ruPersonaGroups(au, d);
+              if (!pg.code) return "";
+              return `<div class="ru-pg">
+                <span class="mini muted">${pg.names.length
+                  ? `${esc(pg.entry ? pg.entry.label : pg.code)} groups for this unit — click to add:`
+                  : `No ${esc(pg.entry ? pg.entry.label : pg.code)} group is left to add${(d.members || []).length ? " — they are all in already" : ""}. Add any other group below.`}</span>
+                ${pg.names.map((n) => `<button class="btn sm ru-pgchip" data-rupg="${esc(au.id)}|${esc(n)}">＋ ${esc(n)}</button>`).join("")}
+              </div>`;
+            })()}
+            <div style="display:flex;gap:6px;margin:6px 0 6px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="…or any other group, by name — or a user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
             <ul class="wi-list" style="margin:0 0 12px">${mems || '<li><div class="wi-why">No members.</div></li>'}</ul>
             ${ruBulkPanel(au)}
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Scoped role members (${(d.scoped || []).length})${d.scopedError ? ` <span class="muted" style="font-weight:400;text-transform:none">— ${esc(d.scopedError)}</span>` : ""}</div>
@@ -5869,6 +5879,23 @@ max@contoso.com,"Global, DevOps"</pre>
     const present = new Set();
     try { for (const r of (cgRes ? cgRes.rows : [])) if (r.id && r.name) present.add(r.name); } catch {}
     return [...new Set([...present, ...out])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }
+  // Adding a group should work the way granting a scoped administrator does:
+  // the tool offers what belongs here first, and typing something else is
+  // still allowed. The unit already knows its persona, so the groups whose CA
+  // number maps to it can be offered by name — nobody should have to remember
+  // that CAB-SEC-U-CA101-Exclusion is the Admins one, and a free-text box over
+  // every group in the tenant makes the right answer as hard to reach as the
+  // wrong one.
+  function ruPersonaGroups(au, d) {
+    const code = Rmau.codeForAu(au.displayName);
+    if (!code) return { code: null, entry: null, names: [] };
+    const entry = Rmau.BASELINE_AUS.find((a) => a.code === code) || null;
+    const already = new Set(((d && d.members) || [])
+      .map((m) => String(m.displayName || "").toLowerCase()).filter(Boolean));
+    const names = ruBaselineGroups()
+      .filter((n) => Rmau.codeForGroup(n) === code && !already.has(n.toLowerCase()));
+    return { code, entry, names };
   }
   function ruSeedGroupSug() {
     const dl = $("ruGroupSug");
@@ -5926,6 +5953,23 @@ max@contoso.com,"Global, DevOps"</pre>
     }, 250);
   }
   $("ruBody").addEventListener("input", ruSuggest);
+  // The datalist is shared, so seed it for the unit whose box has focus:
+  // this persona's groups first, then the rest of the baseline. Otherwise the
+  // dropdown is 200 names in alphabetical order and the four that belong here
+  // are somewhere in the middle of it.
+  $("ruBody").addEventListener("focusin", (e) => {
+    if (!e.target.matches("[data-ruaddbox]")) return;
+    const au = (ruList || []).find((a) => a.id === e.target.dataset.ruaddbox);
+    const dl = $("ruGroupSug");
+    if (!au || !dl) return;
+    const pg = ruPersonaGroups(au, ruDetails[au.id]);
+    const mine = new Set(pg.names.map((n) => n.toLowerCase()));
+    const rest = ruBaselineGroups().filter((n) => !mine.has(n.toLowerCase()));
+    dl.innerHTML = [
+      ...pg.names.map((n) => `<option value="${esc(n)}" label="${esc(pg.entry ? pg.entry.label : pg.code)} — belongs here"></option>`),
+      ...rest.slice(0, 200).map((n) => `<option value="${esc(n)}"></option>`),
+    ].join("");
+  });
   $("ruBody").addEventListener("change", (e) => {
     if (e.target.id === "ruBARole" && ruBulkAdmin) { ruBulkAdmin.role = e.target.value; return; }
     const bau = e.target.closest("[data-ruba]");
@@ -6376,6 +6420,13 @@ max@contoso.com,"Global, DevOps"</pre>
     const dl = e.target.closest("[data-rudel]"); if (dl) { openRuDelete(ruList.find((x) => x.id === dl.dataset.rudel)); return; }
     const ad = e.target.closest("[data-ruadd]");
     if (ad) { const box = document.querySelector(`[data-ruaddbox="${ad.dataset.ruadd}"]`); await ruAddMember(ad.dataset.ruadd, box ? box.value : ""); return; }
+    // one click for a group that belongs to this unit's persona
+    const pg = e.target.closest("[data-rupg]");
+    if (pg) {
+      const i = pg.dataset.rupg.indexOf("|");
+      await ruAddMember(pg.dataset.rupg.slice(0, i), pg.dataset.rupg.slice(i + 1));
+      return;
+    }
     const ga = e.target.closest("[data-ruadmin]");
     if (ga) {
       const id = ga.dataset.ruadmin;

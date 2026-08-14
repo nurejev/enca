@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.277",
-  betaBuild: "v1.0.250-beta.100",
+  betaBuild: "v1.0.250-beta.101",
 
   items: [
+    {
+      n: 47,
+      title: "Persona groups offered when adding to a restricted unit",
+      tools: ["Restricted AUs"],
+      builds: [25101],
+      risk: "medium",
+      what: "The member picker offers the groups whose CA number maps to this unit's persona as one-click chips, hides ones already in, and seeds the type-ahead persona-first. Manual entry of any other group is unchanged.",
+      why: "Production offers a free-text box over every group in the tenant, so adding the right group takes the same effort as adding the wrong one.",
+      files: ["js/app.js", "css/app.css", "index.html"],
+    },
     {
       n: 44,
       title: "Gap analyse scans only named users or groups (R29)",

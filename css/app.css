@@ -1355,3 +1355,9 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .an-pick button:hover { opacity:1; }
 .an-scoped { margin:0 0 10px; padding:8px 12px; border-radius:8px; font-size:.9rem;
   background:var(--warn-bg, rgba(255,176,32,.14)); border:1px solid var(--warn, #b26a00); }
+
+/* Restricted AUs: the persona's own groups, offered before the free-text box.
+   Adding a group should work the way granting a scoped administrator does —
+   what belongs here first, anything else still possible. */
+.ru-pg { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:6px 0; }
+.btn.sm.ru-pgchip { padding:3px 9px; font-size:.82rem; }

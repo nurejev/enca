@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25101, date: "2026-08-14", title: "Adding a group works like granting a scoped administrator",
+    items: [
+      { kind: "improved", tool: "Restricted AUs", text: "Adding a member to a persona vault was a free-text box over every group in the tenant, which makes the right answer exactly as hard to reach as the wrong one. The unit already knows its persona, so the groups whose CA number maps to it are now offered by name, one click each — the same shape granting a scoped administrator already has, where what belongs here comes first and anything else is still possible. Nobody should have to remember that CAB-SEC-U-CA101-Exclusion is the Admins one." },
+      { kind: "improved", tool: "Restricted AUs", text: "Groups already in the unit are not offered again, and when none are left the row says so instead of sitting there empty. Any other group is still typed in below — and while you type, the suggestion list puts this persona's groups first, labelled as belonging here, with the rest of the baseline after. Break-glass units match by intent rather than by CA number, as everywhere else." },
+    ],
+  },
+  {
     build: 25100, date: "2026-08-14", title: "R27 and R28 reverted — the wrong reading of both",
     items: [
       { kind: "fixed", tool: "Restricted AUs", text: "Builds 25098 (R28) and 25099 (R27) are reverted in full. R28 was built as a stored mapping in each unit's description, and R27 as a second Markdown document; neither is what was asked for. Queue items 45 and 46 are withdrawn and their numbers retired — a number is never reused, including when the work it named is taken back. Both roadmap cards return to Next as planned, with their references intact." },
