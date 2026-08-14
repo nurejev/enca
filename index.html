@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25071"></script>
+<script src="js/popup-guard.js?v=25072"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25071">
+<link rel="stylesheet" href="css/app.css?v=25072">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25071"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25071"></script>
+<script src="js/counter.js?v=25072"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25072"></script>
 </head>
 <body>
 
@@ -1120,6 +1120,11 @@
               <br><b>Still to do:</b> the bundled group templates and the baseline catalog still describe an estate built on role-assignable groups; the MS Learn and CIS checks, Group Analyzer and the documentation exports still mention it as the expected shape; and the persona <b>import</b> path should create protected groups directly rather than leaving protection as a later step. Production keeps creating role-assignable groups until this lands there.</p>
           </div>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R29</span> <a href="#" class="md-tool" data-tool="toolAnalyze">🔍 Gap analyse</a> — scan only who you asked about <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Gap analyse builds a users × policies matrix for <b>every</b> user it can read. On a tenant of any size that is a long read producing a wide answer, when the question was usually narrow: <i>is this contractor covered</i>, <i>what does the finance team bypass</i>, <i>did that one exclusion group leave anybody exposed</i>. The matrix is the right output; the scope is not.</p>
+            <p class="mini" style="margin:6px 0 0">The plan is to name <b>users or groups</b> before the scan and judge only those — the same policies, the same verdicts, fewer rows and a fraction of the reads. Two things it has to get right: a group means <b>its members</b>, including nested ones, or the answer is about a group rather than about people; and the report must say <b>what was scoped</b> as prominently as what it found, because a clean matrix over eleven users looks exactly like a clean matrix over the tenant, and only one of those is reassuring.</p>
+          </div>
+          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R28</span> 🏷 Custom groups in the persona vaults <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Everything that routes a group to a vault reads the <b>CA number in its name</b>. That works for the baseline and for nothing else: a tenant's own exclusion group — <code>SEC-VIP-Exceptions</code>, <code>Contractors-NoMFA</code> — matches no persona, so ⑥ Protect skips it unless a fallback unit is chosen by hand, ＋ Bulk add never offers it, and the break-glass case had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them the naming is wrong is not a feature.</p>
             <p class="mini" style="margin:6px 0 0">The plan is a <b>per-tenant mapping</b> — say once that <code>Contractors-NoMFA</code> belongs to Externals, and every tool routes it there afterwards: ⑥ Protect files it, ＋ Bulk add offers it, 📄 the documentation counts it. Kept with the tenant rather than in the code, so it survives a release and does not become our list of everybody's group names. Two things it must not do: guess (a mapping nobody stated is how a group ends up in the wrong vault silently), and hide the unmapped — a group with no persona should stay visible as <i>unmapped</i> rather than quietly dropping out of every list.</p>
@@ -2209,47 +2214,47 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25071"></script>
-<script src="js/version.js?v=25071"></script>
-<script src="js/promote.js?v=25071"></script>
-<script src="js/authConfig.js?v=25071"></script>
-<script src="js/labels.js?v=25071"></script>
-<script src="js/graph.js?v=25071"></script>
-<script src="js/model.js?v=25071"></script>
-<script src="js/render.js?v=25071"></script>
-<script src="js/analyze.js?v=25071"></script>
-<script src="js/whatif.js?v=25071"></script>
-<script src="js/mslearn.js?v=25071"></script>
-<script src="js/gapcheck.js?v=25071"></script>
-<script src="js/cisdata.js?v=25071"></script>
-<script src="js/cischeck.js?v=25071"></script>
-<script src="js/exclusions.js?v=25071"></script>
-<script src="js/validator.js?v=25071"></script>
-<script src="js/whatifeval.js?v=25071"></script>
-<script src="js/compare.js?v=25071"></script>
-<script src="js/groupuse.js?v=25071"></script>
-<script src="js/iso3166.js?v=25071"></script>
-<script src="js/locations.js?v=25071"></script>
-<script src="js/authcontexts.js?v=25071"></script>
-<script src="js/authstrengths.js?v=25071"></script>
-<script src="js/recycle.js?v=25071"></script>
-<script src="js/rmau.js?v=25071"></script>
-<script src="js/termsofuse.js?v=25071"></script>
-<script src="js/audit.js?v=25071"></script>
-<script src="js/drift.js?v=25071"></script>
-<script src="js/guide.js?v=25071"></script>
-<script src="js/signins.js?v=25071"></script>
-<script src="js/reportimpact.js?v=25071"></script>
-<script src="js/changelog.js?v=25071"></script>
-<script src="js/baselineData.js?v=25071"></script>
-<script src="js/baselineJoeyData.js?v=25071"></script>
-<script src="js/baseline.js?v=25071"></script>
-<script src="js/groupTemplates.js?v=25071"></script>
-<script src="js/assign.js?v=25071"></script>
-<script src="js/cagroups.js?v=25071"></script>
-<script src="js/import.js?v=25071"></script>
-<script src="js/export.js?v=25071"></script>
-<script src="js/demo.js?v=25071"></script>
-<script src="js/app.js?v=25071"></script>
+<script src="js/branding.js?v=25072"></script>
+<script src="js/version.js?v=25072"></script>
+<script src="js/promote.js?v=25072"></script>
+<script src="js/authConfig.js?v=25072"></script>
+<script src="js/labels.js?v=25072"></script>
+<script src="js/graph.js?v=25072"></script>
+<script src="js/model.js?v=25072"></script>
+<script src="js/render.js?v=25072"></script>
+<script src="js/analyze.js?v=25072"></script>
+<script src="js/whatif.js?v=25072"></script>
+<script src="js/mslearn.js?v=25072"></script>
+<script src="js/gapcheck.js?v=25072"></script>
+<script src="js/cisdata.js?v=25072"></script>
+<script src="js/cischeck.js?v=25072"></script>
+<script src="js/exclusions.js?v=25072"></script>
+<script src="js/validator.js?v=25072"></script>
+<script src="js/whatifeval.js?v=25072"></script>
+<script src="js/compare.js?v=25072"></script>
+<script src="js/groupuse.js?v=25072"></script>
+<script src="js/iso3166.js?v=25072"></script>
+<script src="js/locations.js?v=25072"></script>
+<script src="js/authcontexts.js?v=25072"></script>
+<script src="js/authstrengths.js?v=25072"></script>
+<script src="js/recycle.js?v=25072"></script>
+<script src="js/rmau.js?v=25072"></script>
+<script src="js/termsofuse.js?v=25072"></script>
+<script src="js/audit.js?v=25072"></script>
+<script src="js/drift.js?v=25072"></script>
+<script src="js/guide.js?v=25072"></script>
+<script src="js/signins.js?v=25072"></script>
+<script src="js/reportimpact.js?v=25072"></script>
+<script src="js/changelog.js?v=25072"></script>
+<script src="js/baselineData.js?v=25072"></script>
+<script src="js/baselineJoeyData.js?v=25072"></script>
+<script src="js/baseline.js?v=25072"></script>
+<script src="js/groupTemplates.js?v=25072"></script>
+<script src="js/assign.js?v=25072"></script>
+<script src="js/cagroups.js?v=25072"></script>
+<script src="js/import.js?v=25072"></script>
+<script src="js/export.js?v=25072"></script>
+<script src="js/demo.js?v=25072"></script>
+<script src="js/app.js?v=25072"></script>
 </body>
 </html>

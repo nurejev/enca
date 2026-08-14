@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25072, date: "2026-08-13", title: "Roadmap: scope Gap analyse to who you asked about",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Added R29 🔍 Gap analyse — scan only who you asked about. It builds a users × policies matrix for every user it can read, which on any real tenant is a long read producing a wide answer when the question was narrow: is this contractor covered, what does the finance team bypass. The matrix is the right output; the scope is not. The card records the two things a scoped scan has to get right — a group must mean its MEMBERS including nested ones, or the answer is about a group rather than about people, and the report must state what was scoped as prominently as what it found, because a clean matrix over eleven users looks exactly like a clean matrix over the tenant and only one of those is reassuring." },
+    ],
+  },
+  {
     build: 25071, date: "2026-08-13", title: "Roadmap: custom groups in the persona vaults",
     items: [
       { kind: "improved", tool: "Roadmap", text: "Added R28 🏷 Custom groups in the persona vaults. Everything that routes a group to a vault reads the CA number in its name, which works for the baseline and nothing else — a tenant's own exclusion group matches no persona, so ⑥ Protect skips it without a fallback chosen by hand, ＋ Bulk add never offers it, and break-glass had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them their naming is wrong is not a feature. The card records a per-tenant mapping, kept with the tenant rather than in the code, and the two things it must not do: guess, and hide the unmapped." },
