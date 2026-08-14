@@ -34,16 +34,16 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.277",
-  betaBuild: "v1.0.250-beta.92",
+  betaBuild: "v1.0.250-beta.93",
 
   items: [
     {
       n: 40,
       title: "Release time in the reader's own timezone",
       tools: ["All tools"],
-      builds: [25091],
+      builds: [25091, 25093],
       risk: "low",
-      what: "The sign-in build stamp converts the recorded UTC release time to the browser's timezone and names the offset; the UTC original moves to the tooltip along with the zone it was converted to.",
+      what: "The sign-in build stamp converts the recorded UTC release time to the browser's timezone and names the offset; the UTC original moves to the tooltip along with the zone it was converted to. Includes the 25093 correction: the released field is set from the clock, never typed, after three builds carried a local time in a field documented as UTC.",
       why: "Production shows 12:05Z, so everybody outside UTC does the arithmetic to answer \"is what I pushed live?\".",
       files: ["js/version.js", "js/app.js"],
     },

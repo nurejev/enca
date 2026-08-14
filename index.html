@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25092"></script>
+<script src="js/popup-guard.js?v=25093"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25092">
+<link rel="stylesheet" href="css/app.css?v=25093">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25092"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25092"></script>
+<script src="js/counter.js?v=25093"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25093"></script>
 </head>
 <body>
 
@@ -1078,6 +1078,11 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+<div class="list-card rm-card" data-shipped="25065">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R08</span> 🌐 Type the country, get the code <span class="tag grant">live · build 25065</span></h4>
+            <p class="mini" style="margin:0">A country named location takes <b>two-letter ISO 3166-1 codes</b>, typed by hand into a free-text box. The failure mode is silent and total: a wrong code is still a <i>valid</i> code, so the policy saves, looks right in the portal, and quietly covers the wrong country until somebody is blocked or — worse — is not. Ireland is <code>IE</code>; <code>IR</code> is Iran. Austria is <code>AT</code>, Australia <code>AU</code>. Sweden is <code>SE</code>, Switzerland <code>CH</code>.</p>
+            <p class="mini" style="margin:6px 0 0">It types the <b>name</b> and fills the code in — a type-ahead over the full ISO list, matching on country name, adding the code as a chip you can see and remove. Codes typed directly keep working, but anything that is not a real ISO code is rejected at entry rather than accepted and discovered later. Worth doing for the same reason the CA-number routing exists: the tool knows the right answer, so the human should not have to be the one who remembers it.</p>
+          </div>
           <div class="list-card rm-card">
             <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · <a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a>, <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> and the <b>⌨️ command palette</b> (all out of BETA) · 🔒 the <a href="#" id="rmSecLink">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
           </div>
@@ -1151,12 +1156,7 @@
             <p class="mini" style="margin:6px 0 0"><b>And with a host of your own, somewhere to keep things.</b> Today nothing survives the tab closing, by design — there is no server to keep it on, so a Drift snapshot is a file you download and a report is a file you save. A self-hosted instance changes what is possible: an optional <b>SQLite</b> store alongside the container could hold drift snapshots, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having had to keep track of a JSON file. Strictly opt-in and self-hosted only — the hosted site keeps storing nothing, because "nothing is kept anywhere" is a promise worth more than the convenience. Tokens would stay out of it regardless: they belong in the browser session and nowhere else.</p>
             <p class="mini" style="margin:6px 0 0">The plan is a published image (nginx over the built files) plus a <code>docker compose</code> example, so <code>docker run</code> gives a working instance. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. The one thing that cannot be automated is the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, so the documentation has to lead with that rather than bury it, since it is the step that produces the confusing sign-in error when missed.</p>
           </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R08</span> 🌐 Type the country, get the code <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">A country named location takes <b>two-letter ISO 3166-1 codes</b>, typed by hand into a free-text box. The failure mode is silent and total: a wrong code is still a <i>valid</i> code, so the policy saves, looks right in the portal, and quietly covers the wrong country until somebody is blocked or — worse — is not. Ireland is <code>IE</code>; <code>IR</code> is Iran. Austria is <code>AT</code>, Australia <code>AU</code>. Sweden is <code>SE</code>, Switzerland <code>CH</code>.</p>
-            <p class="mini" style="margin:6px 0 0">The plan is to type the <b>name</b> and have the code filled in — a type-ahead over the full ISO list, matching on country name, adding the code as a chip you can see and remove. Codes typed directly keep working, but anything that is not a real ISO code is rejected at entry rather than accepted and discovered later. Worth doing for the same reason the CA-number routing exists: the tool knows the right answer, so the human should not have to be the one who remembers it.</p>
-          </div>
-          <div class="list-card rm-card">
+                    <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R11</span> 🖥 Compliant-device reality check <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — and nothing checks the other half today. Read the compliance policies and their assignments, then flag every Conditional Access policy whose protection rests on a persona that no compliance policy actually covers. The same blind spot exists for app-protection policies behind “require approved client app”.</p>
           </div>
@@ -2289,47 +2289,47 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25092"></script>
-<script src="js/version.js?v=25092"></script>
-<script src="js/promote.js?v=25092"></script>
-<script src="js/authConfig.js?v=25092"></script>
-<script src="js/labels.js?v=25092"></script>
-<script src="js/graph.js?v=25092"></script>
-<script src="js/model.js?v=25092"></script>
-<script src="js/render.js?v=25092"></script>
-<script src="js/analyze.js?v=25092"></script>
-<script src="js/whatif.js?v=25092"></script>
-<script src="js/mslearn.js?v=25092"></script>
-<script src="js/gapcheck.js?v=25092"></script>
-<script src="js/cisdata.js?v=25092"></script>
-<script src="js/cischeck.js?v=25092"></script>
-<script src="js/exclusions.js?v=25092"></script>
-<script src="js/validator.js?v=25092"></script>
-<script src="js/whatifeval.js?v=25092"></script>
-<script src="js/compare.js?v=25092"></script>
-<script src="js/groupuse.js?v=25092"></script>
-<script src="js/iso3166.js?v=25092"></script>
-<script src="js/locations.js?v=25092"></script>
-<script src="js/authcontexts.js?v=25092"></script>
-<script src="js/authstrengths.js?v=25092"></script>
-<script src="js/recycle.js?v=25092"></script>
-<script src="js/rmau.js?v=25092"></script>
-<script src="js/termsofuse.js?v=25092"></script>
-<script src="js/audit.js?v=25092"></script>
-<script src="js/drift.js?v=25092"></script>
-<script src="js/guide.js?v=25092"></script>
-<script src="js/signins.js?v=25092"></script>
-<script src="js/reportimpact.js?v=25092"></script>
-<script src="js/changelog.js?v=25092"></script>
-<script src="js/baselineData.js?v=25092"></script>
-<script src="js/baselineJoeyData.js?v=25092"></script>
-<script src="js/baseline.js?v=25092"></script>
-<script src="js/groupTemplates.js?v=25092"></script>
-<script src="js/assign.js?v=25092"></script>
-<script src="js/cagroups.js?v=25092"></script>
-<script src="js/import.js?v=25092"></script>
-<script src="js/export.js?v=25092"></script>
-<script src="js/demo.js?v=25092"></script>
-<script src="js/app.js?v=25092"></script>
+<script src="js/branding.js?v=25093"></script>
+<script src="js/version.js?v=25093"></script>
+<script src="js/promote.js?v=25093"></script>
+<script src="js/authConfig.js?v=25093"></script>
+<script src="js/labels.js?v=25093"></script>
+<script src="js/graph.js?v=25093"></script>
+<script src="js/model.js?v=25093"></script>
+<script src="js/render.js?v=25093"></script>
+<script src="js/analyze.js?v=25093"></script>
+<script src="js/whatif.js?v=25093"></script>
+<script src="js/mslearn.js?v=25093"></script>
+<script src="js/gapcheck.js?v=25093"></script>
+<script src="js/cisdata.js?v=25093"></script>
+<script src="js/cischeck.js?v=25093"></script>
+<script src="js/exclusions.js?v=25093"></script>
+<script src="js/validator.js?v=25093"></script>
+<script src="js/whatifeval.js?v=25093"></script>
+<script src="js/compare.js?v=25093"></script>
+<script src="js/groupuse.js?v=25093"></script>
+<script src="js/iso3166.js?v=25093"></script>
+<script src="js/locations.js?v=25093"></script>
+<script src="js/authcontexts.js?v=25093"></script>
+<script src="js/authstrengths.js?v=25093"></script>
+<script src="js/recycle.js?v=25093"></script>
+<script src="js/rmau.js?v=25093"></script>
+<script src="js/termsofuse.js?v=25093"></script>
+<script src="js/audit.js?v=25093"></script>
+<script src="js/drift.js?v=25093"></script>
+<script src="js/guide.js?v=25093"></script>
+<script src="js/signins.js?v=25093"></script>
+<script src="js/reportimpact.js?v=25093"></script>
+<script src="js/changelog.js?v=25093"></script>
+<script src="js/baselineData.js?v=25093"></script>
+<script src="js/baselineJoeyData.js?v=25093"></script>
+<script src="js/baseline.js?v=25093"></script>
+<script src="js/groupTemplates.js?v=25093"></script>
+<script src="js/assign.js?v=25093"></script>
+<script src="js/cagroups.js?v=25093"></script>
+<script src="js/import.js?v=25093"></script>
+<script src="js/export.js?v=25093"></script>
+<script src="js/demo.js?v=25093"></script>
+<script src="js/app.js?v=25093"></script>
 </body>
 </html>

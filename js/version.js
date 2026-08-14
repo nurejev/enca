@@ -16,12 +16,17 @@ const APP_BUILD = {
   // and consolidate the cycle's changelog entries into one entry (build NNN).
   // The What's-new overlay compares numerically per origin, and both series
   // are monotone on their own origin, so nothing else changes.
-  build: 25092,
+  build: 25093,
   date: "2026-08-13",
-  // When this build was cut, UTC. Shown on the sign-in screen with the version:
+  // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
+  // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time
+  // in this field, so the sign-in stamp read over an hour into the future:
+  // typing a local time into a field labelled UTC is the same mistake the
+  // local-time display exists to stop somebody making.
+  // Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
-  released: "2026-08-14T13:00Z",
+  released: "2026-08-14T11:54Z",
   get isBeta() { return this.build >= 10000; },
   // Stored UTC, shown in the reader's own timezone with the offset named.
   // A build is cut once, so one absolute instant is the right thing to record —
