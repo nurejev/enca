@@ -33,8 +33,8 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.277",
-  betaBuild: "v1.0.250-beta.101",
+  productionBuild: "v1.0.279",
+  betaBuild: "v1.0.250-beta.102",
 
   items: [
     {
@@ -56,46 +56,6 @@ const PROMOTE = {
       what: "A scope mode that names users or groups before the run: groups expanded to their transitive members, no tenant-wide /users read, and the scoped-ness reported on screen and in the export.",
       why: "Production reads every user in the tenant to answer a question about one contractor, which on a large tenant is minutes of reads for a wide answer nobody asked for.",
       files: ["index.html", "js/app.js", "js/analyze.js", "css/app.css"],
-    },
-    {
-      n: 43,
-      title: "Filter the policies that did not apply (R30)",
-      tools: ["What-If"],
-      builds: [25096],
-      risk: "medium",
-      what: "The non-applying list filters by persona (same CA ranges as List Policies, same helper), by CA number or name, and by reason — with a count per reason shown first and each count clickable. \"Scenario does not say\" is separated from genuine out-of-scope. Reason counts also go into the Markdown export.",
-      why: "Production shows a flat list of ~107 entries with no way in, so the one policy you were looking for is found by reading.",
-      files: ["js/app.js", "js/whatifeval.js", "css/app.css", "index.html"],
-    },
-    {
-      n: 42,
-      title: "What-If searches the tenant's apps (R31)",
-      tools: ["What-If"],
-      builds: [25095],
-      risk: "medium",
-      what: "Target resource → Other is a type-ahead over the tenant's service principals: type a name, get the id. A pasted GUID still works and is resolved to a name for confirmation; an id with no service principal here is reported rather than refused.",
-      why: "Production asks for a raw GUID, and a mistyped GUID does not fail — it describes a sign-in to an app nobody has, so the answer looks valid and is about nothing.",
-      files: ["index.html", "js/app.js", "css/app.css"],
-    },
-    {
-      n: 41,
-      title: "Policy cards name the external user types",
-      tools: ["List Policies"],
-      builds: [25094],
-      risk: "medium",
-      what: "A guest/external include or exclude lists which of the six user types it holds, calls out an omitted service provider as NOT service providers, says \"all types, incl. service providers\" when all six are selected, and reports a selection scoped to named tenants.",
-      why: "Production collapses the whole selection to \"Guests & external users\", so a card cannot show whether a policy reaches the CSP partner's delegated admins — which is what the new service provider checks are about. The check finds it; the card should show it.",
-      files: ["js/model.js"],
-    },
-    {
-      n: 40,
-      title: "Release time in the reader's own timezone",
-      tools: ["All tools"],
-      builds: [25091, 25093],
-      risk: "low",
-      what: "The sign-in build stamp converts the recorded UTC release time to the browser's timezone and names the offset; the UTC original moves to the tooltip along with the zone it was converted to. Includes the 25093 correction: the released field is set from the clock, never typed, after three builds carried a local time in a field documented as UTC.",
-      why: "Production shows 12:05Z, so everybody outside UTC does the arithmetic to answer \"is what I pushed live?\".",
-      files: ["js/version.js", "js/app.js"],
     },
     {
       n: 34,

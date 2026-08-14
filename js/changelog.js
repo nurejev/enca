@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25102, date: "2026-08-14", title: "Items 40-43 reached production (279)",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue items 40 (local release time), 41 (external user types named on a policy card), 42 (What-If searches the tenant's apps) and 43 (filter the policies that did not apply) are live in production build 279. Removed from the promotion queue; the numbers are retired rather than reused." },
+    ],
+  },
+  {
     build: 25101, date: "2026-08-14", title: "Adding a group works like granting a scoped administrator",
     items: [
       { kind: "improved", tool: "Restricted AUs", text: "Adding a member to a persona vault was a free-text box over every group in the tenant, which makes the right answer exactly as hard to reach as the wrong one. The unit already knows its persona, so the groups whose CA number maps to it are now offered by name, one click each — the same shape granting a scoped administrator already has, where what belongs here comes first and anything else is still possible. Nobody should have to remember that CAB-SEC-U-CA101-Exclusion is the Admins one." },
