@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.279",
-  betaBuild: "v1.0.250-beta.104",
+  betaBuild: "v1.0.250-beta.105",
 
   items: [
+    {
+      n: 50,
+      title: "Per-unit scoped-admin field takes several people",
+      tools: ["Restricted AUs"],
+      builds: [25105],
+      risk: "high",
+      what: "The type-ahead searches the entry being typed rather than the whole field, a pick is appended instead of replacing what was there, and the grant loops over the list with a per-person outcome.",
+      why: "In production the field accepts a ;-separated list, finds nobody once you type the separator, and then sends the whole string as one UPN — so it fails and looks like the tenant is at fault.",
+      files: ["js/app.js"],
+    },
     {
       n: 49,
       title: "Flagged home tiles ranked by recency, not page order",

@@ -424,6 +424,28 @@
   }
   initHomeSections();
 
+  // How many tools there are, counted from the tiles themselves rather than
+  // written down — a hand-maintained number is wrong one release after it is
+  // typed, and this one sits next to the question it answers.
+  (function homeToolCount() {
+    const el = $("homeCount");
+    if (!el) return;
+    const tiles = [...document.querySelectorAll("#screen-home .tool")];
+    // The Help section is navigation, not tooling; counting it would inflate
+    // the number with the three cards that explain the other ones.
+    const isHelp = (t) => {
+      const grid = t.closest(".tools");
+      const head = grid && grid.previousElementSibling;
+      return !!(head && /help/i.test(head.textContent || ""));
+    };
+    const tools = tiles.filter((t) => !isHelp(t));
+    const beta = tools.filter((t) => t.querySelector(".tag.new")).length;
+    el.textContent = `${tools.length} tools`;
+    el.title = beta
+      ? `${tools.length} tools on this build, ${beta} of them new or in beta`
+      : `${tools.length} tools on this build`;
+  })();
+
   // ---------- promotion queue (beta channel only) ----------
   // What is on this channel and not yet in production, numbered so it can be
   // referred to out loud: "push number 3 to main". Rendered only on a
@@ -5874,7 +5896,7 @@ max@contoso.com,"Global, DevOps"</pre>
             ${ruBulkPanel(au)}
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Scoped role members (${(d.scoped || []).length})${d.scopedError ? ` <span class="muted" style="font-weight:400;text-transform:none">— ${esc(d.scopedError)}</span>` : ""}</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 6px"><select data-rurole="${esc(au.id)}" class="btn" style="cursor:pointer">${Rmau.ROLE_TEMPLATES.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select>
-              <input data-ruadminbox="${esc(au.id)}" list="ruUserSug" placeholder="UPN of the scoped administrator — start typing a name" spellcheck="false" autocomplete="off" style="flex:1;min-width:180px"><button class="btn sm" data-ruadmin="${esc(au.id)}">+ Grant</button></div>
+              <input data-ruadminbox="${esc(au.id)}" list="ruUserSug" placeholder="Start typing a name — several at once, separated by ;" spellcheck="false" autocomplete="off" style="flex:1;min-width:180px"><button class="btn sm" data-ruadmin="${esc(au.id)}">+ Grant</button></div>
             <ul class="wi-list" style="margin:0">${scoped || '<li><div class="wi-why">No scoped role grants — nobody can manage the members except by tenant-unscoped rules. Grant one above.</div></li>'}</ul>
           </div>`;
         }
@@ -5943,6 +5965,8 @@ max@contoso.com,"Global, DevOps"</pre>
       .map((n) => `<option value="${esc(n)}"></option>`).join("");
   }
   let ruSugTimer = null;
+  // what was typed before the entry currently being searched, per field
+  const ruAdminPrefix = new WeakMap();
   function ruSuggest(e) {
     // The bulk-grant fields live in this tool, so they are handled by THIS
     // listener. rmauInput is bound to the CA-groups and Protect panels and
@@ -5971,7 +5995,28 @@ max@contoso.com,"Global, DevOps"</pre>
     const isGroup = e.target.matches("[data-ruaddbox]");
     const isUser = e.target.matches("[data-ruadminbox]");
     if (!isGroup && !isUser) return;
-    const term = String(e.target.value || "").trim();
+    const raw = String(e.target.value || "");
+    // The admin field takes a LIST. Searching the whole string meant that the
+    // moment a separator was typed the term became "a@x.com;tul" and matched
+    // nothing — the field looked broken exactly when it was being used as
+    // designed. Search the entry being typed, and remember what precedes it so
+    // a pick from the list can be put back after it: choosing from a datalist
+    // replaces the whole value, which would otherwise eat the names already
+    // entered.
+    let prefix = "";
+    let term = raw.trim();
+    if (isUser) {
+      const cut = Math.max(raw.lastIndexOf(";"), raw.lastIndexOf(","));
+      if (cut >= 0) { prefix = raw.slice(0, cut + 1); term = raw.slice(cut + 1).trim(); }
+      const dlU = $("ruUserSug");
+      // a pick landed: restore the entries that came before it
+      if (prefix === "" && dlU && [...dlU.options].some((o) => o.value === term) && ruAdminPrefix.get(e.target)) {
+        e.target.value = ruAdminPrefix.get(e.target) + term;
+        ruAdminPrefix.delete(e.target);
+        return;
+      }
+      if (prefix) ruAdminPrefix.set(e.target, prefix); else ruAdminPrefix.delete(e.target);
+    }
     clearTimeout(ruSugTimer);
     // Selecting from a <datalist> fires `input` just like typing does. Without
     // this the pick re-runs the query, the options are rewritten, and the
@@ -6392,6 +6437,38 @@ max@contoso.com,"Global, DevOps"</pre>
       if (box) box.value = "";                       // the entry is on the list now
     } catch (e) { toast(`Add failed: <span>${esc(e.message || e)}</span>`); }
   }
+  // Several people at once. The field has always looked like it took a list —
+  // and the bulk panel across units does — but this one granted the whole
+  // string as a single UPN, so "a@x.com;b@x.com" failed as one unresolvable
+  // user rather than succeeding twice. Each person is a separate grant and a
+  // separate outcome; a partial success has to be readable, not rounded.
+  async function ruGrantAdmins(auId, roleTemplateId, raw) {
+    const list = CaGroups.adminList(raw);
+    if (!list.length) { toast("Type the administrator's UPN"); return; }
+    if (list.length === 1) return ruGrantAdmin(auId, roleTemplateId, list[0]);
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE, ...RU_ROLE_WRITE])) return;
+    const done = [], failed = [];
+    for (const upn of list) {
+      try {
+        if (!isDemo) {
+          const role = await ensureDirectoryRole(roleTemplateId);
+          const u = await Graph.gget(`/users/${encodeURIComponent(upn)}?$select=id`);
+          await Graph.gpost(`/administrativeUnits/${auId}/scopedRoleMembers`, { roleId: role.id, roleMemberInfo: { id: u.id } });
+          ruRoleNames = null;
+        }
+        done.push(upn);
+      } catch (e) {
+        failed.push(`${upn} — ${/conflicting object|already exist/i.test(e.message || "") ? "already holds that role" : (e.message || e)}`);
+      }
+    }
+    toast(`<span>${done.length}/${list.length}</span> granted${isDemo ? " (simulated)" : ""}`
+      + (failed.length ? ` · ${esc(failed.join("; "))}` : ""));
+    delete ruDetails[auId];
+    await ruLoadDetail(auId);
+    renderRmau();
+    const gbox = document.querySelector(`[data-ruadminbox="${auId}"]`);
+    if (gbox) gbox.value = "";
+  }
   async function ruGrantAdmin(auId, roleTemplateId, upn) {
     const t = upn.trim();
     if (!t) { toast("Type the administrator's UPN"); return; }
@@ -6528,7 +6605,7 @@ max@contoso.com,"Global, DevOps"</pre>
       const id = ga.dataset.ruadmin;
       const role = document.querySelector(`[data-rurole="${id}"]`);
       const box = document.querySelector(`[data-ruadminbox="${id}"]`);
-      await ruGrantAdmin(id, role ? role.value : Rmau.ROLE_TEMPLATES[0].id, box ? box.value : "");
+      await ruGrantAdmins(id, role ? role.value : Rmau.ROLE_TEMPLATES[0].id, box ? box.value : "");
       return;
     }
     const mr = e.target.closest("[data-rumrm]");

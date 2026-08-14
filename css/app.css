@@ -1367,3 +1367,8 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
    works, and both feed one list. */
 .ru-basearch { display:flex; gap:8px; flex-wrap:wrap; align-items:center; max-width:560px; }
 .ru-bapicks { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+
+/* Home: how many tools there are, next to the question it answers. Counted
+   from the tiles, so it cannot drift from what is actually on the page. */
+.home-count { font-size:.55em; font-weight:500; color:var(--muted); vertical-align:middle;
+  border:1px solid var(--line, rgba(127,127,127,.3)); border-radius:999px; padding:2px 9px; margin-left:8px; }

@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25105, date: "2026-08-14", title: "The scoped-admin field really does take several people",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "Typing a second administrator after a ; found nobody. The type-ahead searched the WHOLE field, so the moment a separator was typed the search term became \"adm-irse@devcf.onmicrosoft.com;tula\" and matched nothing — the field looked broken exactly when it was being used the way it invites. It now searches the entry being typed, remembers what precedes it, and puts a pick from the list back after it: choosing from a datalist replaces the whole value, which would otherwise have eaten the names already entered." },
+      { kind: "fixed", tool: "Restricted AUs", text: "And the grant itself only ever granted one. \"a@x.com;b@x.com\" was sent as a single UPN, so it failed as one unresolvable user rather than succeeding twice — the field has looked like a list for months without being one. Each person is now a separate grant with its own outcome, reported as a fraction with the failures named, consent asked once rather than per person, and the unit re-read once at the end." },
+    ],
+  },
+  {
     build: 25104, date: "2026-08-14", title: "The tile that just changed comes first",
     items: [
       { kind: "fixed", tool: "All tools", text: "A collapsed home section has four slots and ✍️ Manage the tenant has five flagged tiles, so one is always buried — and page order decided which. 🛡 Restricted AUs, changed in the build before this one, lost its slot to a BETA badge that had been sitting there for weeks. Flagged tiles are now ranked by RECENCY, read from the changelog: the build number of the newest entry naming that tool. A tool the changelog has never named sorts last among the flagged rather than first, because no date is not a recent date." },
