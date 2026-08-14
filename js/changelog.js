@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 279, date: "2026-08-14", title: "Local release time, external user types, and What-If gets usable",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The build stamp on the sign-in screen shows the release time where you are — 2026-08-14 14:05 GMT+2 in Amsterdam rather than 12:05Z. The value is still recorded once in UTC, because a build is cut at one instant; but \"when was this last updated?\" is asked by somebody sitting in a timezone. Hovering gives the UTC original and names the timezone it was converted to, so a screenshot from another country still reconciles with a note in a ticket." },
+      { kind: "improved", tool: "List Policies", text: "A policy card showed − Guests & external users and stopped there, so an exclusion that decides whether a policy reaches your CSP partner's delegated admins read the same as one that does not. The selection is six independent types and the card now names them, calls out an omitted service provider as NOT service providers, says \"all types, incl. service providers\" when all six are selected, and reports a selection scoped to named tenants — an exclusion covering two partner tenants does not cover a third. Include and exclude use one formatter, so the two halves compare without translating." },
+      { kind: "new", tool: "What-If", text: "Target resource → Other searches the tenant's own applications by name and fills the id in, instead of asking for a raw GUID. Nobody knows their apps by GUID, and a mistyped one did not fail — it quietly described a sign-in to an app nobody has. A pasted App ID keeps working and is resolved to a name for confirmation; an id with no service principal here is reported rather than refused, because a policy can legitimately name one." },
+      { kind: "new", tool: "What-If", text: "The policies that did not apply now filter by persona and CA number — the same ranges 🗂 List Policies groups by, through the same helper — with a count per reason shown first and each count clickable. A run against a real tenant answers with two that apply and a hundred that do not; the question behind that list is a persona question or a number question, never \"show me everything\". \"Scenario does not say\" is separated from genuine out-of-scope: that is a prompt to fill a field in, not a finding about the policy. The reason counts travel into the Markdown export." },
+    ],
+  },
+  {
     build: 278, date: "2026-08-14", title: "The release time on the sign-in screen was wrong",
     items: [
       { kind: "fixed", tool: "All tools", text: "Build 277 recorded a local Amsterdam time in a field documented as UTC, so the sign-in screen claimed a release time more than an hour into the future. The field is now set from the clock rather than typed by hand. Nothing else about 277 changes — the build number moves because the stamp exists to answer \"is what I pushed live?\", and a stamp that has to be corrected in place cannot answer it." },

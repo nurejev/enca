@@ -81,6 +81,20 @@ const WhatIfEval = (() => {
   const nonEmpty = (a) => Array.isArray(a) && a.length > 0;
 
   // ---- evaluate ONE policy; returns {applies:true, grant, session} or {applies:false, reason} ----
+  // A reason is prose written for a person; `why` is the same fact as a code,
+  // so the list of policies that did not apply can be counted and filtered by
+  // it. "unspecified" is deliberately its own category rather than a kind of
+  // out-of-scope: the policy was not ruled out, the scenario simply did not
+  // say enough to evaluate it, and that is a prompt to fill a field in — not
+  // a finding about the policy.
+  const WHY_LABEL = {
+    scope: "user out of scope", excluded: "user excluded", app: "resource not in scope",
+    platform: "platform not in scope", client: "client app not in scope",
+    location: "location not in scope", risk: "risk level not in scope",
+    authflow: "authentication flow not in scope", device: "device filter",
+    unspecified: "scenario does not say",
+  };
+
   function evalPolicy(p, sc, ctx) {
     const c = p.conditions || {};
     const u = c.users || {}, a = c.applications || {};
@@ -92,81 +106,81 @@ const WhatIfEval = (() => {
     const incGrp = (u.includeGroups || []).some((g) => gids.has(g));
     const incRole = (u.includeRoles || []).some((r) => rids.has(r));
     const incGuest = !!u.includeGuestsOrExternalUsers && !!sc.isGuest;
-    if (!(incAll || incMe || incGrp || incRole || incGuest)) return { applies: false, reason: "User is not in scope of this policy" };
-    if (has(u.excludeUsers, sc.userId)) return { applies: false, reason: "User is excluded" };
+    if (!(incAll || incMe || incGrp || incRole || incGuest)) return { applies: false, why: "scope", reason: "User is not in scope of this policy" };
+    if (has(u.excludeUsers, sc.userId)) return { applies: false, why: "excluded", reason: "User is excluded" };
     const exGrp = (u.excludeGroups || []).find((g) => gids.has(g));
-    if (exGrp) return { applies: false, reason: `User is excluded via group ${ctx.name(exGrp)}` };
+    if (exGrp) return { applies: false, why: "excluded", reason: `User is excluded via group ${ctx.name(exGrp)}` };
     const exRole = (u.excludeRoles || []).find((r) => rids.has(r));
-    if (exRole) return { applies: false, reason: `User is excluded via role ${ctx.name(exRole)}` };
-    if (u.excludeGuestsOrExternalUsers && sc.isGuest) return { applies: false, reason: "Guest / external users are excluded" };
+    if (exRole) return { applies: false, why: "excluded", reason: `User is excluded via role ${ctx.name(exRole)}` };
+    if (u.excludeGuestsOrExternalUsers && sc.isGuest) return { applies: false, why: "excluded", reason: "Guest / external users are excluded" };
 
     // 2. target resource ---------------------------------------------------
     const userActions = a.includeUserActions || [], authCtx = a.includeAuthenticationContextClassReferences || [];
     if (sc.userAction) {
-      if (!has(userActions, sc.userAction)) return { applies: false, reason: "This user action is not in scope" };
+      if (!has(userActions, sc.userAction)) return { applies: false, why: "app", reason: "This user action is not in scope" };
     } else if (sc.authContext) {
-      if (!has(authCtx, sc.authContext)) return { applies: false, reason: "This authentication context is not in scope" };
+      if (!has(authCtx, sc.authContext)) return { applies: false, why: "app", reason: "This authentication context is not in scope" };
     } else {
-      if (nonEmpty(userActions) || nonEmpty(authCtx)) return { applies: false, reason: "Policy targets a user action / authentication context, not a cloud app" };
+      if (nonEmpty(userActions) || nonEmpty(authCtx)) return { applies: false, why: "app", reason: "Policy targets a user action / authentication context, not a cloud app" };
       const inc = a.includeApplications || [];
       // Per the What-If API: app *groups* (Office365, MicrosoftAdminPortals) do
       // not match — only "All" or the specific app id.
       if (!(has(inc, "All") || has(inc, sc.appId))) {
-        return { applies: false, reason: has(inc, "Office365") || has(inc, "MicrosoftAdminPortals")
+        return { applies: false, why: "app", reason: has(inc, "Office365") || has(inc, "MicrosoftAdminPortals")
           ? "Cloud app not in scope (policy targets an app group, which does not match by design)"
           : "Cloud app is not in scope of this policy" };
       }
-      if (has(a.excludeApplications, sc.appId)) return { applies: false, reason: "Cloud app is excluded" };
+      if (has(a.excludeApplications, sc.appId)) return { applies: false, why: "app", reason: "Cloud app is excluded" };
     }
 
     // 3. client app --------------------------------------------------------
     const cat = c.clientAppTypes || [];
     if (nonEmpty(cat) && !has(cat, "all") && !has(cat, sc.clientApp)) {
-      return { applies: false, reason: `Client app ${LABEL[sc.clientApp] || sc.clientApp} is not in scope` };
+      return { applies: false, why: "client", reason: `Client app ${LABEL[sc.clientApp] || sc.clientApp} is not in scope` };
     }
 
     // 4. device platform ---------------------------------------------------
     const pl = c.platforms || {};
     if (nonEmpty(pl.includePlatforms)) {
       if (!(has(pl.includePlatforms, "all") || has(pl.includePlatforms, sc.platform))) {
-        return { applies: false, reason: `Device platform ${LABEL[sc.platform] || sc.platform} is not in scope` };
+        return { applies: false, why: "platform", reason: `Device platform ${LABEL[sc.platform] || sc.platform} is not in scope` };
       }
     }
-    if (has(pl.excludePlatforms, sc.platform)) return { applies: false, reason: `Device platform ${LABEL[sc.platform] || sc.platform} is excluded` };
+    if (has(pl.excludePlatforms, sc.platform)) return { applies: false, why: "platform", reason: `Device platform ${LABEL[sc.platform] || sc.platform} is excluded` };
 
     // 5. location ----------------------------------------------------------
     const loc = c.locations || {};
     if (nonEmpty(loc.includeLocations) || nonEmpty(loc.excludeLocations)) {
-      if (!sc.ip && !sc.country) return { applies: false, reason: "Policy has a location condition, but no IP address or country was supplied" };
+      if (!sc.ip && !sc.country) return { applies: false, why: "unspecified", reason: "Policy has a location condition, but no IP address or country was supplied" };
       const here = locationsFor(sc, ctx.namedLocations);
       const incL = loc.includeLocations || [];
       const inIncluded = has(incL, "All") || (has(incL, "AllTrusted") && here.trusted) || incL.some((id) => here.ids.has(id));
-      if (nonEmpty(incL) && !inIncluded) return { applies: false, reason: "Sign-in location is not in scope" };
+      if (nonEmpty(incL) && !inIncluded) return { applies: false, why: "location", reason: "Sign-in location is not in scope" };
       const excL = loc.excludeLocations || [];
       const inExcluded = (has(excL, "AllTrusted") && here.trusted) || excL.some((id) => here.ids.has(id));
-      if (inExcluded) return { applies: false, reason: "Sign-in location is excluded" };
+      if (inExcluded) return { applies: false, why: "location", reason: "Sign-in location is excluded" };
     }
 
     // 6. sign-in / user risk ----------------------------------------------
     if (nonEmpty(c.signInRiskLevels)) {
-      if (!sc.signInRisk) return { applies: false, reason: "Policy has a sign-in risk condition, but no sign-in risk was supplied" };
-      if (!has(c.signInRiskLevels, sc.signInRisk)) return { applies: false, reason: `Sign-in risk ${sc.signInRisk} is not in scope` };
+      if (!sc.signInRisk) return { applies: false, why: "unspecified", reason: "Policy has a sign-in risk condition, but no sign-in risk was supplied" };
+      if (!has(c.signInRiskLevels, sc.signInRisk)) return { applies: false, why: "risk", reason: `Sign-in risk ${sc.signInRisk} is not in scope` };
     }
     if (nonEmpty(c.userRiskLevels)) {
-      if (!sc.userRisk) return { applies: false, reason: "Policy has a user risk condition, but no user risk was supplied" };
-      if (!has(c.userRiskLevels, sc.userRisk)) return { applies: false, reason: `User risk ${sc.userRisk} is not in scope` };
+      if (!sc.userRisk) return { applies: false, why: "unspecified", reason: "Policy has a user risk condition, but no user risk was supplied" };
+      if (!has(c.userRiskLevels, sc.userRisk)) return { applies: false, why: "risk", reason: `User risk ${sc.userRisk} is not in scope` };
     }
     if (nonEmpty(c.insiderRiskLevels)) {
-      if (!sc.insiderRisk) return { applies: false, reason: "Policy has an insider risk condition, but no insider risk was supplied" };
-      if (!has(c.insiderRiskLevels, sc.insiderRisk)) return { applies: false, reason: `Insider risk ${sc.insiderRisk} is not in scope` };
+      if (!sc.insiderRisk) return { applies: false, why: "unspecified", reason: "Policy has an insider risk condition, but no insider risk was supplied" };
+      if (!has(c.insiderRiskLevels, sc.insiderRisk)) return { applies: false, why: "risk", reason: `Insider risk ${sc.insiderRisk} is not in scope` };
     }
 
     // 7. authentication flow (device code / auth transfer) -----------------
     const flows = c.authenticationFlows && c.authenticationFlows.transferMethods;
     if (flows) {
       const list = String(flows).split(",").map((x) => x.trim()).filter(Boolean);
-      if (!sc.authFlow) return { applies: false, reason: "Policy has an authentication flow condition, but no flow was supplied" };
-      if (!list.includes(sc.authFlow)) return { applies: false, reason: `Authentication flow ${sc.authFlow} is not in scope` };
+      if (!sc.authFlow) return { applies: false, why: "unspecified", reason: "Policy has an authentication flow condition, but no flow was supplied" };
+      if (!list.includes(sc.authFlow)) return { applies: false, why: "authflow", reason: `Authentication flow ${sc.authFlow} is not in scope` };
     }
 
     // 8. device filter -----------------------------------------------------
@@ -178,7 +192,7 @@ const WhatIfEval = (() => {
       else {
         const isInclude = (df.mode || "include") === "include";
         const inScope = isInclude ? v.match : !v.match;
-        if (!inScope) return { applies: false, reason: "Device does not match the policy's device filter" };
+        if (!inScope) return { applies: false, why: "device", reason: "Device does not match the policy's device filter" };
       }
     }
 
@@ -216,7 +230,7 @@ const WhatIfEval = (() => {
       const r = evalPolicy(p, sc, c);
       const base = { id: p.id, name: p.displayName, state: p.state };
       if (r.applies) applied.push({ ...base, grant: r.grant, session: r.session, operator: r.operator, warnings: r.warnings });
-      else notApplied.push({ ...base, reason: r.reason });
+      else notApplied.push({ ...base, reason: r.reason, why: r.why || "other" });
     }
     return {
       applied, notApplied, notEvaluated,
@@ -236,5 +250,5 @@ const WhatIfEval = (() => {
     };
   }
 
-  return { evaluate, evalPolicy, ipInCidr, matchesLocation, RISK, PLATFORMS, CLIENT_APPS, DEVICE_STATES, LABEL };
+  return { evaluate, evalPolicy, WHY_LABEL, ipInCidr, matchesLocation, RISK, PLATFORMS, CLIENT_APPS, DEVICE_STATES, LABEL };
 })();

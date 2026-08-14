@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=278"></script>
+<script src="js/popup-guard.js?v=279"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=278">
+<link rel="stylesheet" href="css/app.css?v=279">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=278"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=278"></script>
+<script src="js/counter.js?v=279"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=279"></script>
 </head>
 <body>
 
@@ -622,12 +622,14 @@
             <option value="00000003-0000-0000-c000-000000000000">Microsoft Graph</option>
             <option value="797f4846-ba00-4fd7-ba43-dac1f8f63013">Windows Azure Service Management API</option>
             <option value="0000000c-0000-0000-c000-000000000000">My Apps portal</option>
-            <option value="custom">Other — enter an App ID…</option>
+            <option value="custom">Other — search this tenant’s apps…</option>
             <option value="action:urn:user:registersecurityinfo">User action: register security information</option>
             <option value="action:urn:user:registerdevice">User action: register or join devices</option>
           </select></label>
-        <label class="wi-f" id="wiAppIdWrap" style="display:none"><span>App ID</span>
-          <input id="wiAppId" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false"></label>
+        <label class="wi-f" id="wiAppIdWrap" style="display:none"><span>Application</span>
+          <input id="wiAppId" list="wiAppList" placeholder="Search by name, or paste an App ID…" autocomplete="off" spellcheck="false">
+          <datalist id="wiAppList"></datalist>
+          <span class="mini wi-appfound" id="wiAppFound"></span></label>
         <label class="wi-f"><span>Device platform <b class="req">*</b></span>
           <select id="wiPlatform">
             <option value="windows">Windows</option><option value="macOS">macOS</option>
@@ -752,7 +754,7 @@
             <option value="00000003-0000-0000-c000-000000000000">Microsoft Graph</option>
             <option value="797f4846-ba00-4fd7-ba43-dac1f8f63013">Windows Azure Service Management API</option>
             <option value="0000000c-0000-0000-c000-000000000000">My Apps portal</option>
-            <option value="custom">Other — enter an App ID…</option>
+            <option value="custom">Other — search this tenant’s apps…</option>
           </select></label>
         <label class="wi-f" id="cuAppIdWrap" style="display:none"><span>App ID</span>
           <input id="cuAppId" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false"></label>
@@ -1258,6 +1260,8 @@
         <li><b>Required conditions</b> — user, target resource, device platform and client app. Everything else (IP, country, device state, sign-in/user/insider risk, authentication flow) is optional.</li>
         <li><b>Policies that apply</b> — each with the <b>grant</b> controls (and/or) and <b>session</b> controls that must be satisfied. A verdict line at the top says whether access ends up blocked or granted-with-controls.</li>
         <li><b>Policies that do not apply</b> — each with the <b>first condition that wasn't met</b> (user excluded via a group, wrong client app, location out of scope, …).</li>
+        <li><b>Filter that list, because on a real tenant it is a hundred long.</b> The honest answer to a run is two policies that apply and 107 that do not, which is unreadable as one block — and the question behind it is almost never "show me everything". It is a <b>persona</b> question (why did no Admins policy apply to this admin?) or a <b>number</b> question (what happened to CA103?), so the list filters by both, using the same CA ranges 🗂 List Policies groups by. A <b>count per reason</b> comes first — "94 user out of scope, 8 platform not in scope, 5 user excluded" — because when a policy you expected is missing, the reason is what you are hunting for. The reason counts travel into the Markdown export too.</li>
+        <li><b>Search this tenant's applications by name.</b> Target resource → Other searches your own service principals and fills the id in, rather than asking for a raw GUID. A pasted App ID still works and is resolved to a name underneath the box so the choice is verifiable; an id with no service principal here is <i>reported</i>, not refused, because a policy can legitimately name one — what is refused is a typed word matching no application, since that is neither a name nor an id.</li>
         <li><b>Unspecified conditions</b> — if a policy scopes something your scenario leaves blank (say sign-in risk), it can't be evaluated and so does not apply. Fill the field in to test it, exactly as the Microsoft evaluation API behaves.</li>
         <li><b>App groups don't match</b> — a policy targeting the <i>Office 365</i> group won't match by design; pick the specific app. Only <b>enabled</b> and <b>report-only</b> policies are evaluated; Off policies are listed separately.</li>
         <li><b>Export MD</b> — the scenario and both lists as Markdown.</li>
@@ -2194,43 +2198,43 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=278"></script>
-<script src="js/version.js?v=278"></script>
-<script src="js/authConfig.js?v=278"></script>
-<script src="js/labels.js?v=278"></script>
-<script src="js/graph.js?v=278"></script>
-<script src="js/model.js?v=278"></script>
-<script src="js/render.js?v=278"></script>
-<script src="js/analyze.js?v=278"></script>
-<script src="js/whatif.js?v=278"></script>
-<script src="js/mslearn.js?v=278"></script>
-<script src="js/gapcheck.js?v=278"></script>
-<script src="js/exclusions.js?v=278"></script>
-<script src="js/validator.js?v=278"></script>
-<script src="js/whatifeval.js?v=278"></script>
-<script src="js/compare.js?v=278"></script>
-<script src="js/groupuse.js?v=278"></script>
-<script src="js/iso3166.js?v=278"></script>
-<script src="js/locations.js?v=278"></script>
-<script src="js/authcontexts.js?v=278"></script>
-<script src="js/authstrengths.js?v=278"></script>
-<script src="js/recycle.js?v=278"></script>
-<script src="js/termsofuse.js?v=278"></script>
-<script src="js/rmau.js?v=278"></script>
-<script src="js/audit.js?v=278"></script>
-<script src="js/drift.js?v=278"></script>
-<script src="js/signins.js?v=278"></script>
-<script src="js/reportimpact.js?v=278"></script>
-<script src="js/changelog.js?v=278"></script>
-<script src="js/baselineData.js?v=278"></script>
-<script src="js/baselineJoeyData.js?v=278"></script>
-<script src="js/baseline.js?v=278"></script>
-<script src="js/groupTemplates.js?v=278"></script>
-<script src="js/assign.js?v=278"></script>
-<script src="js/cagroups.js?v=278"></script>
-<script src="js/import.js?v=278"></script>
-<script src="js/export.js?v=278"></script>
-<script src="js/demo.js?v=278"></script>
-<script src="js/app.js?v=278"></script>
+<script src="js/branding.js?v=279"></script>
+<script src="js/version.js?v=279"></script>
+<script src="js/authConfig.js?v=279"></script>
+<script src="js/labels.js?v=279"></script>
+<script src="js/graph.js?v=279"></script>
+<script src="js/model.js?v=279"></script>
+<script src="js/render.js?v=279"></script>
+<script src="js/analyze.js?v=279"></script>
+<script src="js/whatif.js?v=279"></script>
+<script src="js/mslearn.js?v=279"></script>
+<script src="js/gapcheck.js?v=279"></script>
+<script src="js/exclusions.js?v=279"></script>
+<script src="js/validator.js?v=279"></script>
+<script src="js/whatifeval.js?v=279"></script>
+<script src="js/compare.js?v=279"></script>
+<script src="js/groupuse.js?v=279"></script>
+<script src="js/iso3166.js?v=279"></script>
+<script src="js/locations.js?v=279"></script>
+<script src="js/authcontexts.js?v=279"></script>
+<script src="js/authstrengths.js?v=279"></script>
+<script src="js/recycle.js?v=279"></script>
+<script src="js/termsofuse.js?v=279"></script>
+<script src="js/rmau.js?v=279"></script>
+<script src="js/audit.js?v=279"></script>
+<script src="js/drift.js?v=279"></script>
+<script src="js/signins.js?v=279"></script>
+<script src="js/reportimpact.js?v=279"></script>
+<script src="js/changelog.js?v=279"></script>
+<script src="js/baselineData.js?v=279"></script>
+<script src="js/baselineJoeyData.js?v=279"></script>
+<script src="js/baseline.js?v=279"></script>
+<script src="js/groupTemplates.js?v=279"></script>
+<script src="js/assign.js?v=279"></script>
+<script src="js/cagroups.js?v=279"></script>
+<script src="js/import.js?v=279"></script>
+<script src="js/export.js?v=279"></script>
+<script src="js/demo.js?v=279"></script>
+<script src="js/app.js?v=279"></script>
 </body>
 </html>

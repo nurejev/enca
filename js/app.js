@@ -136,7 +136,17 @@
     // Version AND release time, before sign-in. The date alone cannot separate
     // two releases on the same day, which is exactly when somebody asks whether
     // what they pushed is live.
-    if (stamp) stamp.textContent = APP_BUILD.stamp || `${APP_BUILD.label} · ${APP_BUILD.date}`;
+    if (stamp) {
+      stamp.textContent = APP_BUILD.stamp || `${APP_BUILD.label} · ${APP_BUILD.date}`;
+      // The time reads in this browser's timezone; the tooltip keeps the UTC
+      // original and names the zone, so a screenshot from another country and
+      // a note in a ticket can still be reconciled.
+      if (APP_BUILD.releasedUtc) {
+        stamp.title = `Released ${APP_BUILD.releasedUtc}`
+          + (APP_BUILD.timeZone ? ` — shown in your local time (${APP_BUILD.timeZone})` : " — shown in your local time")
+          + ". Build number matches the asset version; if this is not the version you pushed, hard-refresh.";
+      }
+    }
     if (foot) {
       // the build number is the natural way in to "what changed"
       foot.textContent = APP_BUILD.label;
@@ -8931,6 +8941,8 @@ max@contoso.com,"Global, DevOps"</pre>
 
   // ---------- What-If (Entra Conditional Access What If tool) ----------
   let wiResult = null, wiScenario = null, wiLocations = null, wiNames = {};
+  // filters over the policies that did NOT apply (R30)
+  let wiNaPersona = "all", wiNaWhy = "all", wiNaNum = "";
   function openWhatIf() {
     crumb("🧪 What-If");
     show("screen-whatif");
@@ -8946,6 +8958,7 @@ max@contoso.com,"Global, DevOps"</pre>
     ["wiUser", "wiIp", "wiCountry", "wiAppId"].forEach((id) => $(id).value = "");
     ["wiDevice", "wiSignInRisk", "wiUserRisk", "wiInsiderRisk", "wiFlow"].forEach((id) => $(id).value = "");
     $("wiApp").value = "00000002-0000-0ff1-ce00-000000000000"; $("wiAppIdWrap").style.display = "none";
+    $("wiAppList").innerHTML = ""; wiAppMap.clear(); wiAppSay("");
     $("wiPlatform").value = "windows"; $("wiClient").value = "browser";
     wiResult = null; $("wiBody").innerHTML = ""; $("wiMd").style.display = "none";
   });
@@ -8960,6 +8973,57 @@ max@contoso.com,"Global, DevOps"</pre>
         const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
         $("wiUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
       } catch (err) { console.warn("what-if: suggest failed", err.message); }
+    }, 250);
+  });
+
+  // ---- R31: search the tenant's apps, not their GUIDs ----------------
+  // "Other — enter an App ID" asked for a raw GUID. Nobody knows their apps by
+  // GUID, and a mistyped one does not fail: it quietly describes a sign-in to
+  // an app nobody has. So: type a name, get the id. A pasted GUID keeps
+  // working and is resolved to a name for confirmation — but an id with no
+  // service principal here is still legitimate (a policy can reference one,
+  // which Import already has to handle), so it is reported, never refused.
+  const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let wiAppMap = new Map();     // lowercased display name -> { appId, name }
+  let wiAppTimer = null;
+  function wiAppSay(text, cls) {
+    const el = $("wiAppFound");
+    if (!el) return;
+    el.textContent = text || "";
+    el.className = `mini wi-appfound${cls ? " " + cls : ""}`;
+  }
+  async function wiResolveAppId(guid) {
+    if (isDemo) return null;
+    try {
+      const r = await Graph.gget(`/servicePrincipals?$filter=appId eq '${guid}'&$select=appId,displayName&$top=1`);
+      return ((r && r.value) || [])[0] || null;
+    } catch (e) { console.warn("what-if: app id lookup failed", e.message); return null; }
+  }
+  $("wiAppId").addEventListener("input", (e) => {
+    const v = e.target.value.trim();
+    clearTimeout(wiAppTimer);
+    if (!v) { wiAppSay(""); return; }
+    // a name picked from the list resolves locally, no round trip
+    const hit = wiAppMap.get(v.toLowerCase());
+    if (hit) { wiAppSay(`→ ${hit.name} · ${hit.appId}`, "ok"); return; }
+    wiAppTimer = setTimeout(async () => {
+      if (GUID_RE.test(v)) {
+        const sp = await wiResolveAppId(v);
+        if (sp) { wiAppMap.set((sp.displayName || "").toLowerCase(), { appId: sp.appId, name: sp.displayName }); wiAppSay(`→ ${sp.displayName}`, "ok"); }
+        else wiAppSay("No service principal with this id in this tenant — a policy can still name it, so the run will use it as typed", "warn");
+        return;
+      }
+      if (v.length < 2 || isDemo) return;
+      try {
+        const f = v.replace(/'/g, "''");
+        const r = await Graph.gget(`/servicePrincipals?$filter=startswith(displayName,'${f}')&$select=appId,displayName&$top=10`);
+        const rows = (r && r.value) || [];
+        rows.forEach((sp) => wiAppMap.set((sp.displayName || "").toLowerCase(), { appId: sp.appId, name: sp.displayName }));
+        // the NAME is the value, because that is what somebody is typing; the
+        // id rides along as the label so the choice is still verifiable
+        $("wiAppList").innerHTML = rows.map((sp) => `<option value="${esc(sp.displayName || "")}" label="${esc(sp.appId || "")}"></option>`).join("");
+        wiAppSay(rows.length ? `${rows.length} match${rows.length === 1 ? "" : "es"} — pick one` : "No application in this tenant starts with that", rows.length ? "" : "warn");
+      } catch (err) { console.warn("what-if: app suggest failed", err.message); }
     }, 250);
   });
 
@@ -8990,9 +9054,15 @@ max@contoso.com,"Global, DevOps"</pre>
       // ---- target resource ----
       const appSel = $("wiApp").value;
       if (appSel.startsWith("action:")) { sc.userAction = appSel.slice(7); sc.appName = "User action"; }
-      else if (appSel === "custom") { sc.appId = $("wiAppId").value.trim(); sc.appName = sc.appId || "(App ID)"; }
+      else if (appSel === "custom") {
+        const typed = $("wiAppId").value.trim();
+        const known = wiAppMap.get(typed.toLowerCase());
+        if (known) { sc.appId = known.appId; sc.appName = known.name; }
+        else if (GUID_RE.test(typed)) { sc.appId = typed; sc.appName = typed; }
+        else if (typed) { toast("Pick an <span>application</span> from the list, or paste an App ID"); return; }
+      }
       else { sc.appId = appSel; sc.appName = $("wiApp").selectedOptions[0].textContent; }
-      if (!sc.userAction && !sc.appId) { toast("Enter an <span>App ID</span>"); return; }
+      if (!sc.userAction && !sc.appId) { toast("Pick an <span>application</span> — type its name, or paste an App ID"); return; }
       // ---- the rest of the sign-in ----
       sc.platform = $("wiPlatform").value;
       sc.clientApp = $("wiClient").value;
@@ -9017,6 +9087,7 @@ max@contoso.com,"Global, DevOps"</pre>
         }
       } catch (e) { /* names are cosmetic */ }
       wiScenario = sc;
+      wiNaPersona = "all"; wiNaWhy = "all"; wiNaNum = "";
       wiResult = WhatIfEval.evaluate(policies.map((p) => p.raw), sc, { namedLocations: wiLocations, names: wiNames });
       renderWhatIf();
     } catch (e) {
@@ -9071,9 +9142,40 @@ max@contoso.com,"Global, DevOps"</pre>
           ${(p.warnings || []).length ? `<span class="wi-w">⚠ ${esc(p.warnings.join("; "))}</span>` : ""}
         </div></li>`).join("") : '<li class="mini muted">No policy applies to this sign-in.</li>';
 
-    const notApplied = r.notApplied.map((p) => `<li>
+    // R30 — the honest answer is 2 policies that apply and 107 that do not,
+    // each with its reason, and that list is unreadable as one block. The
+    // question behind it is a persona question ("why did no Admins policy
+    // apply to this admin?") or a number question ("what happened to CA103?"),
+    // so it filters by both — the same CA ranges 🗂 List Policies groups by,
+    // through the same Render.caGroup, so the ranges stay one idea. The count
+    // per reason comes first: when a policy you expected is missing, the
+    // reason is what you are hunting for.
+    const naAll = r.notApplied.map((p) => ({ ...p, ca: Render.caGroup(p.name) }));
+    const naPersonas = [...new Map(naAll.map((p) => [p.ca.key, p.ca])).entries()]
+      .sort((a, b) => a[0] - b[0]).map(([key, ca]) => ({ key: String(key), label: ca.label.replace(/\s*\(.*\)$/, ""), n: naAll.filter((x) => x.ca.key === key).length }));
+    const naReasons = [...new Set(naAll.map((p) => p.why))]
+      .map((w) => ({ w, n: naAll.filter((x) => x.why === w).length }))
+      .sort((a, b) => b.n - a.n);
+    const num = wiNaNum.trim();
+    const naShown = naAll.filter((p) =>
+      (wiNaPersona === "all" || String(p.ca.key) === wiNaPersona)
+      && (wiNaWhy === "all" || p.why === wiNaWhy)
+      && (!num || (p.ca.num != null && String(p.ca.num).includes(num)) || p.name.toLowerCase().includes(num.toLowerCase())));
+    const chip = (on, key, attr, label, n) =>
+      `<button class="btn sm wi-nachip ${on ? "on" : ""}" data-${attr}="${esc(key)}">${esc(label)}${n != null ? ` <span class="mini">${n}</span>` : ""}</button>`;
+    const naFilters = naAll.length ? `<div class="wi-nafilters">
+        <div class="wi-narow">${chip(wiNaWhy === "all", "all", "wina-why", "Every reason", naAll.length)}
+          ${naReasons.map((x) => chip(wiNaWhy === x.w, x.w, "wina-why", WhatIfEval.WHY_LABEL[x.w] || x.w, x.n)).join("")}</div>
+        <div class="wi-narow">${chip(wiNaPersona === "all", "all", "wina-persona", "Every persona")}
+          ${naPersonas.map((x) => chip(wiNaPersona === x.key, x.key, "wina-persona", x.label, x.n)).join("")}</div>
+        <div class="wi-narow"><input id="wiNaNum" class="btn" style="cursor:text;min-width:200px" placeholder="CA number or name…" value="${esc(wiNaNum)}">
+          ${wiNaPersona !== "all" || wiNaWhy !== "all" || num ? `<button class="btn sm" id="wiNaClear">Clear filters</button>` : ""}
+          <span class="mini muted">showing ${naShown.length} of ${naAll.length}</span></div>
+      </div>` : "";
+    const notApplied = naShown.map((p) => `<li>
         <div class="wi-pn"><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span></div>
-        <div class="wi-why">${esc(p.reason)}</div></li>`).join("");
+        <div class="wi-why">${esc(p.reason)}</div></li>`).join("")
+      || (naAll.length ? '<li class="mini muted">No policy matches these filters.</li>' : "");
 
     $("wiBody").innerHTML = `
       <div class="list-card wi-res">
@@ -9086,12 +9188,26 @@ max@contoso.com,"Global, DevOps"</pre>
       </div>
       <div class="list-card wi-res">
         <h4 class="wi-h">Policies that do not apply <span class="mini muted">${r.notApplied.length}</span></h4>
+        ${naFilters}
         <ul class="wi-list dim">${notApplied || '<li class="mini muted">None — every evaluated policy applies.</li>'}</ul>
       </div>
       ${r.notEvaluated.length ? `<p class="mini muted" style="margin-top:10px">Not evaluated (Off): ${r.notEvaluated.map((p) => esc(p.name)).join(", ")}</p>` : ""}`;
   }
   $("wiBody").addEventListener("click", (e) => {
+    const per = e.target.closest("[data-wina-persona]");
+    if (per) { wiNaPersona = per.dataset.winaPersona; renderWhatIf(); return; }
+    const why = e.target.closest("[data-wina-why]");
+    if (why) { wiNaWhy = why.dataset.winaWhy; renderWhatIf(); return; }
+    if (e.target.id === "wiNaClear") { wiNaPersona = "all"; wiNaWhy = "all"; wiNaNum = ""; renderWhatIf(); return; }
     const pl = e.target.closest(".pol-link"); if (pl) showDetail(pl.dataset.polid);
+  });
+  // a re-render replaces the input, so keep the caret where it was
+  $("wiBody").addEventListener("input", (e) => {
+    if (e.target.id !== "wiNaNum") return;
+    wiNaNum = e.target.value;
+    renderWhatIf();
+    const el = $("wiNaNum");
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
   });
   $("wiMd").addEventListener("click", () => {
     const r = wiResult, sc = wiScenario; if (!r) return;
@@ -9113,7 +9229,12 @@ max@contoso.com,"Global, DevOps"</pre>
         : []), "",
       `## Policies that apply (${r.applied.length})`, ""];
     r.applied.forEach((p) => L.push(`- **${p.name}**${p.state === "enabledForReportingButNotEnforced" ? " *(report-only)*" : ""}${(p.grant || []).includes("block") ? (p.state === "enabledForReportingButNotEnforced" ? " ⛔ *would block once enforced*" : " ⛔ **this is the block**") : ""} — grant: ${(p.grant || []).map(wiCtrl).join(", ") || "none"}${(p.session || []).length ? `; session: ${p.session.join(" · ")}` : ""}`));
+    const naBy = {};
+    r.notApplied.forEach((p) => { naBy[p.why || "other"] = (naBy[p.why || "other"] || 0) + 1; });
     L.push("", `## Policies that do not apply (${r.notApplied.length})`, "");
+    const naSum = Object.entries(naBy).sort((a, b) => b[1] - a[1])
+      .map(([w, n]) => `${n} ${(WhatIfEval.WHY_LABEL || {})[w] || w}`).join(" · ");
+    if (naSum) L.push(`_${naSum}_`, "");
     r.notApplied.forEach((p) => L.push(`- ${p.name} — ${p.reason}`));
     if (r.notEvaluated.length) { L.push("", `## Not evaluated (Off)`, ""); r.notEvaluated.forEach((p) => L.push(`- ${p.name}`)); }
     showReport("🧪 What-If report", "CA-WhatIf", L.join("\n"));

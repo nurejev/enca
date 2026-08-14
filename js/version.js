@@ -8,19 +8,43 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 278,
+  build: 279,
   date: "2026-08-13",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Build 277 carried a local Amsterdam time in this field, so
-  // the sign-in stamp claimed a release time over an hour in the future.
+  // the sign-in stamp claimed a release time over an hour in the future; the
+  // stamp is rendered in the reader's own timezone, which makes a wrong value
+  // here wrong twice.
   // Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
   // UTC deliberately — a shared answer beats a local one when the person
   // asking and the person who pushed are in different places.
-  released: "2026-08-14T11:55Z",
+  released: "2026-08-14T12:31Z",
+  // Stored UTC, shown in the reader's own timezone with the offset named.
+  // A build is cut once, so one absolute instant is the right thing to record —
+  // but "when was this last updated?" is asked by somebody sitting in a
+  // timezone, and an ISO Z stamp makes every one of them do the arithmetic.
+  // The UTC original stays reachable in the element's tooltip.
+  get stamp() { return `${this.label} · ${this.releasedLocal}`; },
+  get releasedLocal() {
+    const raw = String(this.released || "");
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw.replace("T", " ");    // unparseable — show it raw rather than "Invalid Date"
+    try {
+      const parts = new Intl.DateTimeFormat(undefined, {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short",
+      }).formatToParts(d);
+      const g = (t) => (parts.find((x) => x.type === t) || {}).value || "";
+      if (!g("year")) return raw.replace("T", " ");
+      const zone = g("timeZoneName");
+      return `${g("year")}-${g("month")}-${g("day")} ${g("hour")}:${g("minute")}${zone ? ` ${zone}` : ""}`;
+    } catch { return raw.replace("T", " "); }                 // Intl is optional in principle
+  },
+  get releasedUtc() { return String(this.released || "").replace("T", " ").replace("Z", " UTC"); },
+  get timeZone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; } },
   get label() { return `v${this.version}.${this.build}`; },
-  get stamp() { return `${this.label} · ${String(this.released).replace("T", " ")}`; },
   get full() { return `${this.label} · ${this.date}`; },
 };
 
@@ -33,13 +57,13 @@ const APP_BUILD = {
 // it is the BETA chip, not the version number, that says "still proving
 // itself". Only beta-channel-only tools stay below 1.0.
 const TOOL_VERSIONS = {
-  toolPolicies:     { v: "2.4", note: "the per-policy what-if flow closes with a 🎯 CA result card: the actual sign-in verdict (denied / succeeds after which controls / session shaping) plus the tenant reality — Enforced today, report-only (recorded, not enforced) or Off (becomes real when switched On);list and summary say how many more include entries there are instead of showing only the first;usable on a phone — non-sticky toolbar, single-column policy cards, scrolling state filters, scrolling list table, two-row action bar;cards / list / settings matrix, persona grouping, dependency inspector, full-screen matrix, selection actions, delete with typed confirmation, per-policy what-if flow, per-persona apply flow, housekeeping (delete superseded Off versions)" },
+  toolPolicies:     { v: "2.5", note: "2.5: a guest/external selection names its user types instead of collapsing to one line — which of the six are in it decides whether the policy reaches your CSP partner's delegated admins, and an omitted service provider is called out as NOT service providers; a selection scoped to named tenants says how many;the per-policy what-if flow closes with a 🎯 CA result card: the actual sign-in verdict (denied / succeeds after which controls / session shaping) plus the tenant reality — Enforced today, report-only (recorded, not enforced) or Off (becomes real when switched On);list and summary say how many more include entries there are instead of showing only the first;usable on a phone — non-sticky toolbar, single-column policy cards, scrolling state filters, scrolling list table, two-row action bar;cards / list / settings matrix, persona grouping, dependency inspector, full-screen matrix, selection actions, delete with typed confirmation, per-policy what-if flow, per-persona apply flow, housekeeping (delete superseded Off versions)" },
   toolDocument:     { v: "1.4", note: "Word, PDF, PNG and PNG-bundle export with tenant branding" },
   toolAnalyze:      { v: "1.6", note: "users × policies impact matrix, group filters, standalone HTML report, scoped matrix columns" },
   toolGapCheck:     { v: "1.7", note: "scorecard pillars and signals are clickable and filter the findings list to their related categories (severity chips count the filtered view, ✕ chip or All clears);legacy-auth per-policy finding correlates with the tenant's dedicated block — LOW when an enabled tenant-wide block covers it, MEDIUM when the block is narrower, HIGH when there is none — and the scorecard signal mirrors it (100 full / 70 partial / 50 report-only / 0);Zero Trust scorecard (3 pillars, weighted 0-100 signals) on the summary and in the Markdown export; 7 new checks: risk-based-policy gaps, Microsoft-managed policy detection (incl. disabled phantom drafts), platform-scoping without an unknown-platform block, named-location hygiene, MFA client-app-type coverage, disabled resilience defaults, authentication-context / Protected Actions validation; bypass checks, persona × control matrix, deployed-but-Off state, Markdown export" },
   toolExclusions:   { v: "1.6", note: "exclusion × policy matrix (default, unmerged), effective-user view and risk review (governance flags per policy, patterns after Tiago S. Carvalho), click-to-filter rows and columns, group member list, CSV and Markdown" },
   toolValidator:    { v: "1.6", note: "per-policy sign-in simulation report ported from Jasper Baes' Conditional Access Validator — expected control per user/app/client/location/platform/risk, inverted 'no control' for excluded scope, report-only toggle, filter/search, Markdown export (no Maester code, representative placeholder users), click a policy name to open its card — out of BETA" },
-  toolWhatIf:       { v: "1.1", note: "1.1: the verdict names the policy that would BLOCK — clickable, and marked in the list — and no longer counts report-only policies as blocking: a scenario whose only Block policy was staged came back as \u201caccess would be blocked\u201d for a sign-in that succeeds today. Report-only blocks are reported as \u201cwould block once enforced\u201d, and the Markdown export carries the same. Entra Conditional Access What If tool re-implementation — simulate a sign-in (identity, resource, platform, client app, IP/country, device state, risks, auth flow) and get the policies that apply with their grant/session controls plus the policies that don't and the first unmet condition; named-location CIDR and country matching, Markdown export" },
+  toolWhatIf:       { v: "1.3", note: "1.3 (R30): the policies that did not apply filter by persona, CA number and reason, with a count per reason first — the same CA ranges List Policies groups by, through the same helper;1.2 (R31): the target resource is searched by name over the tenant's own service principals instead of asking for a raw GUID; a pasted id is resolved to a name for confirmation, and an id with no service principal here is reported rather than refused because a policy can legitimately name one;1.1: the verdict names the policy that would BLOCK — clickable, and marked in the list — and no longer counts report-only policies as blocking: a scenario whose only Block policy was staged came back as \u201caccess would be blocked\u201d for a sign-in that succeeds today. Report-only blocks are reported as \u201cwould block once enforced\u201d, and the Markdown export carries the same. Entra Conditional Access What If tool re-implementation — simulate a sign-in (identity, resource, platform, client app, IP/country, device state, risks, auth flow) and get the policies that apply with their grant/session controls plus the policies that don't and the first unmet condition; named-location CIDR and country matching, Markdown export" },
   toolGroupUse:     { v: "1.0", note: "out of BETA — where an Entra group is actually used: 23 services across Entra ID (nesting, administrative units, directory roles incl. PIM eligibility, enterprise apps, group-based licensing, authentication methods policy, Conditional Access, access packages, admin-consent reviewers, registration state), Intune (enrolment restrictions, compliance, configuration profiles, scripts, app protection, app configuration, app assignments, Autopilot, Windows update profiles), Microsoft 365 (M365 group / Team) and Azure RBAC across subscriptions and management groups; one group or user, or a tenant-wide sweep with an unused-groups view; parent-group inheritance shown per hit; per-area consent; Markdown, standalone HTML and CSV export. 0.2: sweep rows open a popup built from the sweep data instead of re-scanning (with Deep analyze for parent expansion), HTML report added, Intune scripts now request DeviceManagementScripts.Read.All and entitlement management uses single-level expands with a candidate ladder (both were failing), and every failure says which permission and which role it needs. 0.3: sweep can be narrowed by name prefix / suffix / substring, and drilling into a group keeps the sweep loaded behind a Back button. 0.4: default sweep scope is the groups Conditional Access actually assigns — taken from the policies already in memory, no directory enumeration — with dangling references (an id a policy names but the directory no longer has) kept and flagged; summary chips ride in a sticky strip so the counts and filters stay reachable on a long result. After Jasper Baes' Microsoft Cloud Group Analyzer" },
   toolCompare:      { v: "1.0", note: "two or more users side by side: per-policy assignment (included / excluded and why / not targeted) with differences flagged, group and role membership diff, optional What-If sign-in scenario evaluated per user, differences-only toggle, Markdown export — out of BETA" },
   toolAudit:        { v: "1.5", note: "directory audit log of Conditional Access changes — policy, named location, authentication strength/context and terms-of-use edits with a field-level diff of what moved, actor and IP, kind/action filters, 7/30/90-day window, Markdown export, JSON snapshot export/compare, summary view — out of BETA" },
