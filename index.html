@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25078"></script>
+<script src="js/popup-guard.js?v=25079"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25078">
+<link rel="stylesheet" href="css/app.css?v=25079">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25078"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25078"></script>
+<script src="js/counter.js?v=25079"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25079"></script>
 </head>
 <body>
 
@@ -1495,6 +1495,19 @@
     </section>
 
     <section class="help-sec">
+      <h4>📐 CIS Benchmark <span class="tag new">BETA</span></h4>
+      <p>The tenant's Conditional Access policies scored against section <b>5.2.2</b> of the CIS Microsoft 365 Foundations Benchmark v7.0.0 — all 17 automated recommendations, each expressed as the machine criteria from the benchmark's own "audit using the Microsoft Graph API" procedure.</p>
+      <ul>
+        <li><b>Four outcomes, not two.</b> A control <b>passes</b> when at least one <i>enabled</i> policy meets every criterion; a policy that meets them all but runs in <b>report-only</b> is reported as such; one that meets them all while <b>Off</b> gets its own tier — the benchmark's audit requires the policy to be enabled, so it is not scored as a pass, but calling it a plain failure would hide the fact that the work is done.</li>
+        <li><b>Nearest-miss policies</b> are listed for every failure with exactly which criteria they lack. That is the remediation map: usually one condition away, and knowing which one is the difference between a score and a task.</li>
+        <li><b>Licence-aware</b> — the three Identity Protection controls drop to "not licensed" rather than failing when the tenant has no Entra ID P2, because failing a control you cannot implement is noise.</li>
+        <li><b>L1 / L2 profile filter</b>, an overall and per-level compliance score, and a Markdown compliance report.</li>
+        <li><b>What it cannot judge</b>, and says so: the benchmark also asks per control that exclusions are documented and reviewed annually. That is inherently manual and is carried as such rather than assumed.</li>
+      </ul>
+      <p class="help-x">Read-only. The benchmark catalog carries its own revision stamp, shown in the header and the report, so the CIS content is versioned separately from the app. Recommendation numbers and titles are referenced from the CIS Benchmark (© Center for Internet Security); the assessment logic is implemented from the published Graph audit procedures — the benchmark text itself is not reproduced.</p>
+    </section>
+
+    <section class="help-sec">
       <h4>🗄 Backup (JSON)</h4>
       <p>Select policies (or take all) and download their raw JSON in a zip — dependencies (groups, named locations, auth strengths/contexts) and any Terms-of-use PDFs are included, so the backup is importable.</p>
       <p class="help-x">Read-only download.</p>
@@ -1559,6 +1572,59 @@
         <li><b>⇄ Compare…</b> — load an earlier JSON export and see what moved since: locations whose <b>ranges, countries or trusted flag</b> changed, ones in the file that are gone from the tenant, and ones created since. Matched by display name, because an id from another tenant means nothing here. A flipped trusted flag is the one worth looking at first — it silently changes which policies match.</li>
       </ul>
       <p class="help-x">Reading is read-only; create, edit and delete write to the tenant and ask for Policy.ReadWrite.ConditionalAccess when you run them.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🎫 Authentication contexts <span class="tag block">writes to tenant</span></h4>
+      <p>The named step-up requirements, <code>c1</code>–<code>c99</code>. An app, a Protected Action or a Purview label asks for "c1", and whichever Conditional Access policy is scoped to c1 is what enforces it. Every defined context is listed with its publish state and the policies that consume it.</p>
+      <ul>
+        <li><b>The id is the contract</b>, and the tool treats it as one. <code>c1</code> is what applications request and what the ACRS claim carries, so a context can be renamed and republished freely but its id can never change. Renaming is safe; renumbering is not possible, and nothing here pretends otherwise.</li>
+        <li><b>Publish / unpublish</b> in one click — that is the <code>isAvailable</code> flag, which is what decides whether the context can be selected at all.</li>
+        <li><b>Delete follows Graph's own rules</b>, surfaced before you try rather than as a raw error: an unpublished context can be deleted, a published one is refused with a 403, and one a policy still references is refused with a 400 whatever its publish state. Repoint or retire the policy first. The delete itself takes a typed confirmation.</li>
+        <li><b>Free slots</b> are counted, because c1–c99 is a fixed range and running out is a thing that happens quietly.</li>
+        <li><b>Export MD</b> — every context, its state and what enforces it.</li>
+      </ul>
+      <p class="help-x">Writes need <code>Policy.ReadWrite.ConditionalAccess</code>, the same scope every other Conditional Access write uses, asked for on the click. Create and update are the same call — Graph treats it as an upsert on the id.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>💪 Authentication strengths <span class="tag block">writes to tenant</span></h4>
+      <p>A strength is a set of allowed authentication method <b>combinations</b>, and it is what a policy grants when it demands more than "MFA". The three built-in strengths — Multifactor, Passwordless MFA, Phishing-resistant MFA — are Microsoft-managed and read-only here; custom strengths are yours to create, rename, re-combine and delete.</p>
+      <ul>
+        <li><b>Classified by their weakest combination</b> — phishing-resistant, MFA, or allows-single-factor. A strength is only as strong as the easiest way to satisfy it, and that is the number worth seeing on the card rather than the name somebody gave it.</li>
+        <li><b>Advanced options, as in the portal</b> — restrict Passkeys (FIDO2) to specific AAGUIDs (Microsoft Authenticator and Windows Hello presets, or any custom AAGUID) and certificate-based authentication to specific issuer SKIs and policy OIDs. Shown on the cards and in the report, because a strength with restrictions is a different control from one without.</li>
+        <li><b>Per-strength policy usage</b> — which policies grant it, so you can see what a change would touch before making it.</li>
+        <li><b>Delete is blocked while any policy grants the strength</b>, and typed-confirmed otherwise. A dangling grant control is a policy that cannot be evaluated.</li>
+        <li><b>Export MD</b> — every strength with its combinations, restrictions and consumers.</li>
+      </ul>
+      <p class="help-x">Writes need <code>Policy.ReadWrite.ConditionalAccess</code>. Changing the combinations is its own Graph action (<code>updateAllowedCombinations</code>) rather than part of the update — sending them in a normal edit is rejected — so the tool issues both calls and reports them separately. The valid-combination catalog is read live from Graph, with a bundled fallback when that read is refused.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>📜 Terms of use <span class="tag block">writes to tenant</span></h4>
+      <p>The agreements a Conditional Access policy can require before granting access. Each one is shown with its behaviour settings — view before accepting, per-device acceptance, re-accept schedule, expiration — its PDFs per language, and the policies that require it.</p>
+      <ul>
+        <li><b>The PDFs are actually there</b> — with a direct download per language, and the default marked. The list endpoint does not return file content, so each agreement is fetched individually to get them; a list that showed no languages was reporting the API's shape rather than the tenant's.</li>
+        <li><b>Create takes a PDF</b>, uploaded inline. Behaviour settings that the create API does not accept are applied immediately afterwards, which is invisible unless it fails — and if it does, it says which half succeeded.</li>
+        <li><b>Acceptance summary on demand</b> — accepted and declined counts with the most recent, per agreement. It is a separate permission (<code>AgreementAcceptance.Read.All</code>) and is therefore requested only when you ask for it, not at sign-in.</li>
+        <li><b>Delete is blocked while a policy requires the agreement.</b> Deleting it anyway would leave that policy with a grant control pointing at nothing; repoint the policy first. Otherwise typed-confirmed.</li>
+        <li><b>Export MD</b> — every agreement, its settings, languages and consumers.</li>
+      </ul>
+      <p class="help-x">Reads need <code>Agreement.Read.All</code>, writes <code>Agreement.ReadWrite.All</code>, acceptances <code>AgreementAcceptance.Read.All</code> — all delegated-only, with Conditional Access Administrator or Security Administrator. Replacing a PDF or adding a language is deliberately not in scope: that is a new file localisation and belongs in the portal.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>♻ Recycle bin <span class="tag block">writes to tenant</span></h4>
+      <p>Conditional Access has a soft-delete window: a deleted <b>policy</b> or <b>named location</b> sits for <b>30 days</b> and can be restored, after which it is gone for good. Each item shows what it did, the state it was in when deleted, when it went and how many days remain.</p>
+      <ul>
+        <li><b>A policy comes back in the state it was deleted in.</b> One that was <b>On</b> when it went enforces again the moment it is restored — not after a review, not in report-only. That restore therefore demands a typed <code>RESTORE</code>, and the stored state is shown before you commit rather than discovered afterwards.</li>
+        <li><b>Name collisions are flagged</b> against the live set, since a restore does not rename anything and two policies with one name is its own kind of confusion.</li>
+        <li><b>Restoring a trusted named location warns you</b> that every policy using "All trusted locations" follows it again immediately — the location is restored with its trusted flag intact, so the blast radius is wider than the one object.</li>
+        <li><b>Expiring soon</b> filter, because the useful question is usually "what am I about to lose".</li>
+        <li>After a policy is restored the live policy set is reloaded, so every other tool sees it without a manual refresh.</li>
+        <li><b>Export MD</b> — the bin's contents with their deadlines.</li>
+      </ul>
+      <p class="help-x">Reads and restores need <code>Policy.ReadWrite.ConditionalAccess</code>, asked for on the click. Nothing here can delete anything — the only write is a restore.</p>
     </section>
 
     <section class="help-sec">
@@ -2215,47 +2281,47 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25078"></script>
-<script src="js/version.js?v=25078"></script>
-<script src="js/promote.js?v=25078"></script>
-<script src="js/authConfig.js?v=25078"></script>
-<script src="js/labels.js?v=25078"></script>
-<script src="js/graph.js?v=25078"></script>
-<script src="js/model.js?v=25078"></script>
-<script src="js/render.js?v=25078"></script>
-<script src="js/analyze.js?v=25078"></script>
-<script src="js/whatif.js?v=25078"></script>
-<script src="js/mslearn.js?v=25078"></script>
-<script src="js/gapcheck.js?v=25078"></script>
-<script src="js/cisdata.js?v=25078"></script>
-<script src="js/cischeck.js?v=25078"></script>
-<script src="js/exclusions.js?v=25078"></script>
-<script src="js/validator.js?v=25078"></script>
-<script src="js/whatifeval.js?v=25078"></script>
-<script src="js/compare.js?v=25078"></script>
-<script src="js/groupuse.js?v=25078"></script>
-<script src="js/iso3166.js?v=25078"></script>
-<script src="js/locations.js?v=25078"></script>
-<script src="js/authcontexts.js?v=25078"></script>
-<script src="js/authstrengths.js?v=25078"></script>
-<script src="js/recycle.js?v=25078"></script>
-<script src="js/rmau.js?v=25078"></script>
-<script src="js/termsofuse.js?v=25078"></script>
-<script src="js/audit.js?v=25078"></script>
-<script src="js/drift.js?v=25078"></script>
-<script src="js/guide.js?v=25078"></script>
-<script src="js/signins.js?v=25078"></script>
-<script src="js/reportimpact.js?v=25078"></script>
-<script src="js/changelog.js?v=25078"></script>
-<script src="js/baselineData.js?v=25078"></script>
-<script src="js/baselineJoeyData.js?v=25078"></script>
-<script src="js/baseline.js?v=25078"></script>
-<script src="js/groupTemplates.js?v=25078"></script>
-<script src="js/assign.js?v=25078"></script>
-<script src="js/cagroups.js?v=25078"></script>
-<script src="js/import.js?v=25078"></script>
-<script src="js/export.js?v=25078"></script>
-<script src="js/demo.js?v=25078"></script>
-<script src="js/app.js?v=25078"></script>
+<script src="js/branding.js?v=25079"></script>
+<script src="js/version.js?v=25079"></script>
+<script src="js/promote.js?v=25079"></script>
+<script src="js/authConfig.js?v=25079"></script>
+<script src="js/labels.js?v=25079"></script>
+<script src="js/graph.js?v=25079"></script>
+<script src="js/model.js?v=25079"></script>
+<script src="js/render.js?v=25079"></script>
+<script src="js/analyze.js?v=25079"></script>
+<script src="js/whatif.js?v=25079"></script>
+<script src="js/mslearn.js?v=25079"></script>
+<script src="js/gapcheck.js?v=25079"></script>
+<script src="js/cisdata.js?v=25079"></script>
+<script src="js/cischeck.js?v=25079"></script>
+<script src="js/exclusions.js?v=25079"></script>
+<script src="js/validator.js?v=25079"></script>
+<script src="js/whatifeval.js?v=25079"></script>
+<script src="js/compare.js?v=25079"></script>
+<script src="js/groupuse.js?v=25079"></script>
+<script src="js/iso3166.js?v=25079"></script>
+<script src="js/locations.js?v=25079"></script>
+<script src="js/authcontexts.js?v=25079"></script>
+<script src="js/authstrengths.js?v=25079"></script>
+<script src="js/recycle.js?v=25079"></script>
+<script src="js/rmau.js?v=25079"></script>
+<script src="js/termsofuse.js?v=25079"></script>
+<script src="js/audit.js?v=25079"></script>
+<script src="js/drift.js?v=25079"></script>
+<script src="js/guide.js?v=25079"></script>
+<script src="js/signins.js?v=25079"></script>
+<script src="js/reportimpact.js?v=25079"></script>
+<script src="js/changelog.js?v=25079"></script>
+<script src="js/baselineData.js?v=25079"></script>
+<script src="js/baselineJoeyData.js?v=25079"></script>
+<script src="js/baseline.js?v=25079"></script>
+<script src="js/groupTemplates.js?v=25079"></script>
+<script src="js/assign.js?v=25079"></script>
+<script src="js/cagroups.js?v=25079"></script>
+<script src="js/import.js?v=25079"></script>
+<script src="js/export.js?v=25079"></script>
+<script src="js/demo.js?v=25079"></script>
+<script src="js/app.js?v=25079"></script>
 </body>
 </html>

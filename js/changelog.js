@@ -23,6 +23,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25079, date: "2026-08-13", title: "The five tools with no Help section",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "🎫 Authentication contexts, 💪 Authentication strengths, 📜 Terms of use, ♻ Recycle bin and 📐 CIS Benchmark had no Help section at all — and since the Help contents list is built from those headings, they were absent from Help entirely rather than merely thin. Every tile now has one. The check added in build 25077 compares the tool tiles against the Help headings, which is how these were found; before that, a tool could ship, graduate out of BETA and never acquire documentation with nothing to notice." },
+      { kind: "improved", tool: "Authentication contexts", text: "The new section leads with the thing that bites: the id is the contract. c1 is what applications request and what the ACRS claim carries, so a context can be renamed freely and never renumbered — and delete follows Graph's own rules, which are stated before you try rather than arriving as a raw 403 or 400." },
+      { kind: "improved", tool: "Authentication strengths", text: "Documents that a strength is classified by its WEAKEST combination — it is only as strong as the easiest way to satisfy it, which is the number worth reading rather than the name somebody gave it — and that changing the combinations is its own Graph action rather than part of an edit." },
+      { kind: "improved", tool: "Recycle bin", text: "States the one thing that matters on a restore: a policy comes back IN THE STATE IT WAS DELETED IN. One that was On enforces again the moment it is restored — not after a review — which is why that restore demands a typed confirmation and shows the stored state first. Restoring a trusted named location is called out too: every policy using All trusted locations follows it again immediately, so the blast radius is wider than the one object." },
+      { kind: "improved", tool: "CIS Benchmark", text: "Documents the four outcomes rather than pass/fail — a policy that meets every criterion while Off has done the work but cannot be scored as a pass, because the benchmark's audit requires it enabled — and what the tool cannot judge: the benchmark also asks that exclusions are documented and reviewed annually, which is manual and is carried as such rather than assumed." },
+    ],
+  },
+  {
     build: 25078, date: "2026-08-13", title: "A tool in production is at least 1.0",
     items: [
       { kind: "improved", tool: "All tools", text: "🛡 Restricted AUs (0.8), 📉 Drift watch (0.3), 💪 Authentication strengths (0.2) and 📜 Terms of use (0.2) were all shipping to customers while numbered as though they were experiments. Something a customer can open is not a 0.x thing, whatever it accumulated on the beta channel — and it is the BETA chip, not the version number, that says “still proving itself”. All four are 1.0. Only 📐 CIS Benchmark and 📖 Baseline guide stay below, because those really are beta-channel-only, and the rule is now written where the versions are edited so the next graduation does not forget it." },

@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.272",
-  betaBuild: "v1.0.250-beta.79",
+  betaBuild: "v1.0.250-beta.80",
 
   items: [
+    {
+      n: 33,
+      title: "Help sections for the four undocumented production tools",
+      tools: ["Authentication contexts", "Authentication strengths", "Terms of use", "Recycle bin"],
+      builds: [25079],
+      risk: "low",
+      what: "Help sections for the four production tools that had none, so each appears in the Help contents. CIS Benchmark's section is beta-only and stays here.",
+      why: "Documentation only. Production ships four tools that are absent from its own Help page, including two that write to the tenant.",
+      files: ["index.html"],
+    },
     {
       n: 32,
       title: "Tools that reached production are at least 1.0",
