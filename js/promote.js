@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.279",
-  betaBuild: "v1.0.250-beta.105",
+  betaBuild: "v1.0.250-beta.106",
 
   items: [
+    {
+      n: 51,
+      title: "Tool count beside \"What do you want to do?\"",
+      tools: ["All tools"],
+      builds: [25106],
+      risk: "low",
+      what: "A counted-from-the-page badge next to the home heading, Help cards excluded, with new/beta count in the tooltip.",
+      why: "Nothing on the home screen says how much is there, and the two channels have different totals.",
+      files: ["index.html", "js/app.js", "css/app.css"],
+    },
     {
       n: 50,
       title: "Per-unit scoped-admin field takes several people",

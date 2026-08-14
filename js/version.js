@@ -16,7 +16,7 @@ const APP_BUILD = {
   // and consolidate the cycle's changelog entries into one entry (build NNN).
   // The What's-new overlay compares numerically per origin, and both series
   // are monotone on their own origin, so nothing else changes.
-  build: 25105,
+  build: 25106,
   date: "2026-08-13",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time

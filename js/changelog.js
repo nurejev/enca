@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25106, date: "2026-08-14", title: "How many tools there are, next to the question",
+    items: [
+      { kind: "new", tool: "All tools", text: "\"What do you want to do?\" now says how many tools there are to do it with. The number is counted from the tiles on the page rather than written down, so it cannot drift from what is actually there — a hand-maintained count is wrong one release after it is typed. Help cards are excluded: they explain the tools rather than being them, and counting them would inflate the number by three. Hovering gives how many are new or in beta." },
+    ],
+  },
+  {
     build: 25105, date: "2026-08-14", title: "The scoped-admin field really does take several people",
     items: [
       { kind: "fixed", tool: "Restricted AUs", text: "Typing a second administrator after a ; found nobody. The type-ahead searched the WHOLE field, so the moment a separator was typed the search term became \"adm-irse@devcf.onmicrosoft.com;tula\" and matched nothing — the field looked broken exactly when it was being used the way it invites. It now searches the entry being typed, remembers what precedes it, and puts a pick from the list back after it: choosing from a datalist replaces the whole value, which would otherwise have eaten the names already entered." },
