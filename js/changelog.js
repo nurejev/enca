@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 275, date: "2026-08-14", title: "One sign-in window for two tools, and the evidence behind a verdict",
+    items: [
+      { kind: "fixed", tool: "Sign-in failures", text: "In report-only mode this tool and 🎚 Report-only impact issue the byte-for-byte SAME Graph read — the entire window, unfiltered, because report-only verdicts cannot be filtered server-side. Switching between them read it twice: ten thousand records and minutes of waiting, twice, for one answer. Whichever runs second now reuses what the first read and says so, with the age of the data. ⟳ Rescan always re-reads the tenant, and the truncation flag travels with the records — a window that was cut short is a different fact from a complete one. Enforced-failure mode keeps its own server-filtered read, since serving it from the shared window would mean filtering ten thousand records in the browser to answer a question Graph answers cheaply." },
+      { kind: "new", tool: "Report-only impact", text: "A would-deny row now carries up to three of the ACTUAL sign-ins behind it, in the same shape 🚦 Sign-in failures uses: the controls the policy demanded, then the client, OS, location and device state. Where the sign-in also failed for an enforced reason the failure reason and error code are there — “Device authentication is required. (50097)”. Where it did not, the row says the sign-in itself succeeded and this policy only recorded what it would have done, because that absence is the meaning of report-only rather than missing data." },
+      { kind: "improved", tool: "All tools", text: "Six per-tool versions had not moved for changes already shipped, so tiles carried the UPDATED chip beside the version they shipped with — which tells a reviewer nothing changed, the one thing that number exists to say. What-If 1.1, Report-only impact 1.2, Sign-in failures 1.7, Named locations 1.5, Conditional Access groups 3.5 and Restricted AUs 1.1, with the rule now stated in capitals where the versions are edited." },
+    ],
+  },
+  {
     build: 274, date: "2026-08-14", title: "Which policy blocks, why a user is denied, and a findable bulk grant",
     items: [
       { kind: "fixed", tool: "What-If", text: "The verdict counted REPORT-ONLY policies as blocking. A report-only policy records what it would have done and changes nothing, so a scenario whose only Block policy was staged came back as “Access would be blocked” for a sign-in that in fact succeeds today — a wrong answer, not a missing one, and a common state during a rollout. The verdict now comes from the enforced policies alone, and a report-only block is reported separately as “would block once enforced”. Grant controls are split the same way: what you must satisfy comes from the enforced policies." },
