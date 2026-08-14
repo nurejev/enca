@@ -7242,6 +7242,39 @@ max@contoso.com,"Global, DevOps"</pre>
   // succeeds), so that mode reads the whole window. This cap keeps a busy
   // tenant from turning the read into a half-hour of paging.
   const SI_MAX = 10000;
+  // ---------- one sign-in window, two tools ----------
+  // 🚦 Sign-in failures in REPORT-ONLY mode and 🎚 Report-only impact issue the
+  // byte-for-byte same Graph read: the whole window, unfiltered, because
+  // report-only verdicts cannot be filtered server-side. On a real tenant that
+  // is ten thousand records and minutes of waiting, and doing it twice because
+  // the reader switched tools is a cost with nothing behind it.
+  //
+  // Shared ONLY where the query is identical. Enforced mode adds
+  // conditionalAccessStatus eq 'failure' server-side, so it keeps its own read
+  // — serving it from this cache would mean filtering 10k records client-side
+  // to answer a question Graph already answers cheaply.
+  //
+  // The cap travels with the records. A truncated window is a different fact
+  // from a complete one, and a tool that inherited the rows without inheriting
+  // "this was cut short" would overstate what it knows.
+  let logCache = null;   // { days, records, capped, at }
+  const LOG_CACHE_MAX_AGE = 10 * 60 * 1000;   // beyond this, offer it but say so
+
+  function logCacheAge() { return logCache ? Date.now() - logCache.at : Infinity; }
+  function logCacheUsable(days) { return !!logCache && logCache.days === days; }
+
+  // force: a Rescan means the reader wants the tenant re-read, not our copy.
+  async function readSignInWindow(days, prog, force) {
+    if (!force && logCacheUsable(days)) return { ...logCache, reused: true };
+    const records = await prog.fetchAll(ReportImpact.query(days), SI_MAX, "sign-ins");
+    logCache = { days, records, capped: !!prog.st.capped, at: Date.now() };
+    return { ...logCache, reused: false };
+  }
+  const logAgeLabel = () => {
+    const m = Math.round(logCacheAge() / 60000);
+    return m < 1 ? "just now" : m === 1 ? "a minute ago" : `${m} minutes ago`;
+  };
+
   let siRes = null, siFilter = "all", siQuery = "", siDays = 7, siMode = "enforced", siView = "signins";
   // The range selects carry days; sub-day ranges are fractions (1h = 1/24).
   // One label helper for every place the window is written out.
@@ -7304,12 +7337,13 @@ max@contoso.com,"Global, DevOps"</pre>
     if (siRes) { renderSignins(); return; }
     $("siHead").innerHTML = `<h3>🚦 Sign-in failures</h3>
       <p style="margin-bottom:4px">Which sign-ins Conditional Access failed, and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. The log-side counterpart of What-If.</p>
-      <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> failures are filtered by Graph; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins.</p>`;
+      <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> failures are filtered by Graph; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins — and shared with <b>🎚 Report-only impact</b>, which reads exactly the same window.</p>
+        ${siReused ? `<p class="mini muted" style="margin:6px 0 0">↺ Reused the sign-in window <b>🎚 Report-only impact</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}`;
     $("siChips").innerHTML = "";
     $("siBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-sirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
   }
   $("toolSignins").addEventListener("click", () => openSignins());
-  $("siRescan").addEventListener("click", () => runSignins());
+  $("siRescan").addEventListener("click", () => runSignins(true));
   $("siDays").addEventListener("change", (e) => { siDays = +e.target.value; if (siRes) runSignins(); });
   $("siModeSeg").addEventListener("click", (e) => {
     const b = e.target.closest("[data-simode]"); if (!b) return;
@@ -7321,17 +7355,26 @@ max@contoso.com,"Global, DevOps"</pre>
 
   // The capped pager lives in siProg (shared fetch-progress visual).
 
-  async function runSignins() {
+  let siReused = false;
+  async function runSignins(force) {
     if (siBusy) return;                       // already reading — don't start a second pass
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
     siBusy = true; siCapped = false;
     $("siRescan").style.display = "none";
     $("siBody").innerHTML = siBusyPanel();
     try {
-      const records = isDemo
-        ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [])
-        : await siProg.fetchAll(Signins.query(siDays, siMode), SI_MAX, "sign-ins");
-      if (!isDemo) siCapped = siProg.st.capped;
+      let records, reused = false;
+      if (isDemo) {
+        records = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [];
+      } else if (siMode === "reportonly") {
+        // Same window, same query as 🎚 Report-only impact.
+        const w = await readSignInWindow(siDays, siProg, force);
+        records = w.records; siCapped = w.capped; reused = w.reused;
+      } else {
+        records = await siProg.fetchAll(Signins.query(siDays, siMode), SI_MAX, "sign-ins");
+        siCapped = siProg.st.capped;
+      }
+      siReused = reused;
       siRes = Signins.build(records, siMode);
       siOpen.clear(); siFilter = "all";
       siBusy = false;
@@ -7569,20 +7612,25 @@ max@contoso.com,"Global, DevOps"</pre>
     $("riBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-rirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
   }
   $("toolImpact").addEventListener("click", () => openImpact());
-  $("riRescan").addEventListener("click", () => runImpact());
+  $("riRescan").addEventListener("click", () => runImpact(true));
   $("riDays").addEventListener("change", (e) => { riDays = +e.target.value; if (riRes) runImpact(); });
 
-  async function runImpact() {
+  let riReused = false;
+  async function runImpact(force) {
     if (riBusy) return;
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
     riBusy = true; riCapped = false;
     $("riRescan").style.display = "none";
     $("riBody").innerHTML = riBusyPanel();
     try {
-      const records = isDemo
-        ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [])
-        : await riProg.fetchAll(ReportImpact.query(riDays), SI_MAX, "sign-ins");
-      if (!isDemo) riCapped = riProg.st.capped;
+      let records, reused = false;
+      if (isDemo) {
+        records = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [];
+      } else {
+        const w = await readSignInWindow(riDays, riProg, force);
+        records = w.records; riCapped = w.capped; reused = w.reused;
+      }
+      riReused = reused;
       riRes = ReportImpact.build(records, riTenantRo());
       riOpen.clear(); riFilter = "all";
       riBusy = false;
@@ -7617,6 +7665,7 @@ max@contoso.com,"Global, DevOps"</pre>
       <div style="flex:1;min-width:280px">
         <h3>🎚 Report-only impact</h3>
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
+        ${riReused ? `<p class="mini muted" style="margin:0 0 4px">↺ Reused the sign-in window <b>🚦 Sign-in failures</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}
         <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read${riCapped ? `, <span style="color:var(--off)">truncated at ${SI_MAX.toLocaleString()}</span>` : ""}.</p>
       </div>
       <div style="text-align:right">

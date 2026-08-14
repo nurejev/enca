@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25085"></script>
+<script src="js/popup-guard.js?v=25086"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25085">
+<link rel="stylesheet" href="css/app.css?v=25086">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25085"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25085"></script>
+<script src="js/counter.js?v=25086"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25086"></script>
 </head>
 <body>
 
@@ -1452,6 +1452,7 @@
         <li><b>Why a user was interrupted</b> — a policy called <code>LowMediumUserRisk</code> reporting “3 interrupted” invites exactly one question, and the sign-in records behind the verdict carry the answer: the drill-down reads <i>user risk low ×2, user risk medium ×1</i>. Counted per level rather than summarised, because two lows and one medium is a different decision from three mediums. <b>User risk</b> and <b>sign-in risk</b> are shown separately — a policy can key off either, and merging them would be right about half the time. Where the tenant has no Entra ID P2 the value arrives as <b>hidden</b>, and is reported as hidden rather than as no risk: not knowing is not the same as nothing.</li>
         <li><b>Why it would say no</b> — not just why the policy looked at the user. The scope line explains the assignment; this explains the refusal: what the policy demands and what the sign-in actually brought — <i>needs a compliant device — device NOT compliant, Azure AD joined, Windows</i>. Stated as evidence rather than as a diagnosis, because Graph does not return a per-control verdict: a device with <b>no</b> compliance state on the record is reported as unregistered rather than as non-compliant, which is a different problem with a different fix. Only a <b>denial</b> gets one — an interruption was satisfied by doing the extra step, so calling it a refusal would be wrong — and a <b>Block</b> policy says it blocks outright, since nothing the user does would help.</li>
         <li><b>A verdict is only as good as its window.</b> The range and the number of sign-ins read are stated up front, and a truncated read says so — a policy with <b>no evidence</b> is called out rather than counted as safe, because "nobody was affected" and "nobody signed in" look identical in a summary and only one of them is a reason to go live.</li>
+        <li><b>One read, two tools.</b> 🚦 Sign-in failures in report-only mode issues byte-for-byte the same Graph query as this tool — the whole window, because report-only verdicts cannot be filtered server-side. Whichever runs second reuses what the first read and says so, rather than spending another multi-minute pass over ten thousand records; <b>⟳ Rescan</b> always re-reads the tenant. Enforced-failure mode keeps its own server-filtered read, since that is a different and much cheaper query.</li>
         <li><b>Export MD</b> — the forecast with every affected user, for the change record or the go-live approval.</li>
       </ul>
       <p class="help-x">Read-only. Needs <code>AuditLog.Read.All</code> (requested when you run it) and a reader role such as Reports Reader, Security Reader or Security Administrator. Audit retention is licence-bound — roughly 30 days on Entra ID P1/P2 — so the window is what Microsoft still holds, not all history.</p>
@@ -2285,47 +2286,47 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25085"></script>
-<script src="js/version.js?v=25085"></script>
-<script src="js/promote.js?v=25085"></script>
-<script src="js/authConfig.js?v=25085"></script>
-<script src="js/labels.js?v=25085"></script>
-<script src="js/graph.js?v=25085"></script>
-<script src="js/model.js?v=25085"></script>
-<script src="js/render.js?v=25085"></script>
-<script src="js/analyze.js?v=25085"></script>
-<script src="js/whatif.js?v=25085"></script>
-<script src="js/mslearn.js?v=25085"></script>
-<script src="js/gapcheck.js?v=25085"></script>
-<script src="js/cisdata.js?v=25085"></script>
-<script src="js/cischeck.js?v=25085"></script>
-<script src="js/exclusions.js?v=25085"></script>
-<script src="js/validator.js?v=25085"></script>
-<script src="js/whatifeval.js?v=25085"></script>
-<script src="js/compare.js?v=25085"></script>
-<script src="js/groupuse.js?v=25085"></script>
-<script src="js/iso3166.js?v=25085"></script>
-<script src="js/locations.js?v=25085"></script>
-<script src="js/authcontexts.js?v=25085"></script>
-<script src="js/authstrengths.js?v=25085"></script>
-<script src="js/recycle.js?v=25085"></script>
-<script src="js/rmau.js?v=25085"></script>
-<script src="js/termsofuse.js?v=25085"></script>
-<script src="js/audit.js?v=25085"></script>
-<script src="js/drift.js?v=25085"></script>
-<script src="js/guide.js?v=25085"></script>
-<script src="js/signins.js?v=25085"></script>
-<script src="js/reportimpact.js?v=25085"></script>
-<script src="js/changelog.js?v=25085"></script>
-<script src="js/baselineData.js?v=25085"></script>
-<script src="js/baselineJoeyData.js?v=25085"></script>
-<script src="js/baseline.js?v=25085"></script>
-<script src="js/groupTemplates.js?v=25085"></script>
-<script src="js/assign.js?v=25085"></script>
-<script src="js/cagroups.js?v=25085"></script>
-<script src="js/import.js?v=25085"></script>
-<script src="js/export.js?v=25085"></script>
-<script src="js/demo.js?v=25085"></script>
-<script src="js/app.js?v=25085"></script>
+<script src="js/branding.js?v=25086"></script>
+<script src="js/version.js?v=25086"></script>
+<script src="js/promote.js?v=25086"></script>
+<script src="js/authConfig.js?v=25086"></script>
+<script src="js/labels.js?v=25086"></script>
+<script src="js/graph.js?v=25086"></script>
+<script src="js/model.js?v=25086"></script>
+<script src="js/render.js?v=25086"></script>
+<script src="js/analyze.js?v=25086"></script>
+<script src="js/whatif.js?v=25086"></script>
+<script src="js/mslearn.js?v=25086"></script>
+<script src="js/gapcheck.js?v=25086"></script>
+<script src="js/cisdata.js?v=25086"></script>
+<script src="js/cischeck.js?v=25086"></script>
+<script src="js/exclusions.js?v=25086"></script>
+<script src="js/validator.js?v=25086"></script>
+<script src="js/whatifeval.js?v=25086"></script>
+<script src="js/compare.js?v=25086"></script>
+<script src="js/groupuse.js?v=25086"></script>
+<script src="js/iso3166.js?v=25086"></script>
+<script src="js/locations.js?v=25086"></script>
+<script src="js/authcontexts.js?v=25086"></script>
+<script src="js/authstrengths.js?v=25086"></script>
+<script src="js/recycle.js?v=25086"></script>
+<script src="js/rmau.js?v=25086"></script>
+<script src="js/termsofuse.js?v=25086"></script>
+<script src="js/audit.js?v=25086"></script>
+<script src="js/drift.js?v=25086"></script>
+<script src="js/guide.js?v=25086"></script>
+<script src="js/signins.js?v=25086"></script>
+<script src="js/reportimpact.js?v=25086"></script>
+<script src="js/changelog.js?v=25086"></script>
+<script src="js/baselineData.js?v=25086"></script>
+<script src="js/baselineJoeyData.js?v=25086"></script>
+<script src="js/baseline.js?v=25086"></script>
+<script src="js/groupTemplates.js?v=25086"></script>
+<script src="js/assign.js?v=25086"></script>
+<script src="js/cagroups.js?v=25086"></script>
+<script src="js/import.js?v=25086"></script>
+<script src="js/export.js?v=25086"></script>
+<script src="js/demo.js?v=25086"></script>
+<script src="js/app.js?v=25086"></script>
 </body>
 </html>

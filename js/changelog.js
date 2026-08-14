@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25086, date: "2026-08-14", title: "One sign-in window, two tools — and the versions that were never bumped",
+    items: [
+      { kind: "fixed", tool: "Sign-in failures", text: "In report-only mode this tool and 🎚 Report-only impact issue the byte-for-byte SAME Graph read — the entire window, unfiltered, because report-only verdicts cannot be filtered server-side. Switching between them read it twice: on a real tenant, ten thousand records and minutes of waiting, twice, for one answer. Whichever runs second now reuses what the first read and says so, with the age of the data. ⟳ Rescan always re-reads the tenant, and the truncation flag travels with the records — a window that was cut short is a different fact from a complete one, and inheriting the rows without inheriting that would overstate what the second tool knows." },
+      { kind: "improved", tool: "Sign-in failures", text: "Enforced-failure mode deliberately keeps its own read: it adds conditionalAccessStatus eq 'failure' server-side, so serving it from the shared window would mean filtering ten thousand records in the browser to answer a question Graph answers cheaply. Shared only where the query is identical." },
+      { kind: "fixed", tool: "All tools", text: "Six tools changed today without their per-tool version moving — What-If, Report-only impact, Sign-in failures, Named locations, Conditional Access groups and Restricted AUs — so tiles carried the UPDATED chip while still showing the version they shipped with, which tells a reviewer nothing changed. That is the one thing the number exists to say. All six are bumped, and the rule now sits in capitals where the versions are edited: if a changelog entry names a tool, that tool's version moves, in the same commit." },
+    ],
+  },
+  {
     build: 25085, date: "2026-08-14", title: "Items 35, 36 and 37 reached production",
     items: [
       { kind: "improved", tool: "All tools", text: "Production is build 274: the findable bulk scoped-admin grant (35), why Report-only impact would deny a user (36), and What-If naming its blockers while no longer counting report-only policies as blocking (37). Item 34 stayed behind on purpose — it is the Help section for 📐 CIS Benchmark, and that tool is beta-only; a Help entry for a tile nobody has would be a lie, so it travels with the tool. The gap is 24 and 34, both waiting on beta-only tools." },
