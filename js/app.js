@@ -344,6 +344,42 @@
       // tools that stopped the section collapsing at all. Order never changes;
       // only which tiles are shown.
       const flagged = (t) => !!t.querySelector(".tag.new, .tag.upd");
+      // When more tiles are flagged than there are slots, DOM order decided who
+      // got one — so a tool changed in the current build lost its place to a
+      // BETA tag that had been sitting there for weeks, which is precisely
+      // backwards. Rank the flagged by RECENCY instead, read from the changelog:
+      // the build number of the newest entry naming that tool. The changelog
+      // records tools by their display name, which is the tile's heading, so the
+      // two are matched on that. A tool the changelog has never named sorts last
+      // among the flagged rather than first — no date is not a recent date.
+      const toolName = (t) => {
+        const h = t.querySelector("h3");
+        if (!h) return "";
+        return [...h.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(" ").replace(/\s+/g, " ").trim();
+      };
+      const lastBuild = (() => {
+        const cache = new Map();
+        return (t) => {
+          const name = toolName(t);
+          if (!name) return -1;
+          if (cache.has(name)) return cache.get(name);
+          let best = -1;
+          try {
+            for (const entry of (typeof CHANGELOG !== "undefined" ? CHANGELOG : [])) {
+              if ((entry.items || []).some((i) => String(i.tool || "").toLowerCase() === name.toLowerCase())) {
+                best = Math.max(best, +entry.build || -1);
+              }
+            }
+          } catch { /* changelog optional */ }
+          cache.set(name, best);
+          return best;
+        };
+      })();
+      // most recently changed first; ties keep their authored order
+      const byRecency = tiles.filter(flagged)
+        .map((t, i) => ({ t, i, b: lastBuild(t) }))
+        .sort((a, b) => b.b - a.b || a.i - b.i)
+        .map((x) => x.t);
       const paint = () => {
         const open = homeExpanded.has(key);
         // The visible budget is HOME_VISIBLE in total. Flagged tiles claim those
@@ -353,7 +389,7 @@
         // Anything flagged that still does not fit is counted on the button, so it
         // is announced rather than silently buried.
         const keep = new Set();
-        for (const t of tiles) { if (keep.size >= HOME_VISIBLE) break; if (flagged(t)) keep.add(t); }
+        for (const t of byRecency) { if (keep.size >= HOME_VISIBLE) break; keep.add(t); }
         for (const t of tiles) { if (keep.size >= HOME_VISIBLE) break; keep.add(t); }
         const hidden = [];
         tiles.forEach((t) => {
@@ -365,14 +401,17 @@
           // Order is a CSS property here, not a DOM move — nothing is
           // reparented, so expanding restores the authored order exactly, and
           // the grid's grouping (which is meaningful) survives untouched.
-          t.style.order = open ? "" : (flagged(t) ? "-1" : "");
+          // Newest first among the flagged, so the tile you are looking for is
+          // the leftmost one rather than somewhere among the badges.
+          const rank = byRecency.indexOf(t);
+          t.style.order = open ? "" : (rank >= 0 ? String(rank - byRecency.length) : "");
           if (!show) hidden.push(t);
         });
         const buried = hidden.filter(flagged).length;
         btn.style.display = hidden.length || open ? "" : "none";
         btn.textContent = open
           ? "▲ Show fewer"
-          : `▼ Show ${hidden.length} more${buried ? ` · ${buried} new or beta` : ""}`;
+          : `▼ Show ${hidden.length} more${buried ? ` · ${buried} new, beta or updated` : ""}`;
         btn.setAttribute("aria-expanded", open ? "true" : "false");
       };
       btn.addEventListener("click", () => {

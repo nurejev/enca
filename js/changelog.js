@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25104, date: "2026-08-14", title: "The tile that just changed comes first",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "A collapsed home section has four slots and ✍️ Manage the tenant has five flagged tiles, so one is always buried — and page order decided which. 🛡 Restricted AUs, changed in the build before this one, lost its slot to a BETA badge that had been sitting there for weeks. Flagged tiles are now ranked by RECENCY, read from the changelog: the build number of the newest entry naming that tool. A tool the changelog has never named sorts last among the flagged rather than first, because no date is not a recent date." },
+      { kind: "improved", tool: "All tools", text: "The newest is also leftmost rather than merely on screen, and the count on the button now says \"new, beta or updated\" — it always counted UPDATED tiles, and calling them \"new or beta\" made the number look wrong to anybody who checked it." },
+    ],
+  },
+  {
     build: 25103, date: "2026-08-14", title: "Search for the people you are granting, in bulk too",
     items: [
       { kind: "improved", tool: "Restricted AUs", text: "👤 Grant scoped administrators across units took a comma-separated list of UPNs, which assumes you already know them — so the fastest route was to leave the tool and go look them up, which is the same complaint that made adding a group a picker. Search a person by name, pick, and they join the list as a chip you can take back off." },

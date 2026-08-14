@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.279",
-  betaBuild: "v1.0.250-beta.103",
+  betaBuild: "v1.0.250-beta.104",
 
   items: [
+    {
+      n: 49,
+      title: "Flagged home tiles ranked by recency, not page order",
+      tools: ["All tools"],
+      builds: [25104],
+      risk: "medium",
+      what: "When more tiles are flagged than a collapsed section has slots, the ones changed most recently claim them — ranked by the newest changelog build naming that tool — and the newest sits leftmost. The button label now says new, beta or updated.",
+      why: "Production buries the tool changed in the current build under a BETA badge from weeks ago, which is the opposite of what the collapsed view is for.",
+      files: ["js/app.js", "index.html"],
+    },
     {
       n: 48,
       title: "Search for scoped administrators in the bulk grant",

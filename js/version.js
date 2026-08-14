@@ -16,7 +16,7 @@ const APP_BUILD = {
   // and consolidate the cycle's changelog entries into one entry (build NNN).
   // The What's-new overlay compares numerically per origin, and both series
   // are monotone on their own origin, so nothing else changes.
-  build: 25103,
+  build: 25104,
   date: "2026-08-13",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time
@@ -26,7 +26,7 @@ const APP_BUILD = {
   // Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
-  released: "2026-08-14T12:47Z",
+  released: "2026-08-14T12:54Z",
   get isBeta() { return this.build >= 10000; },
   // Stored UTC, shown in the reader's own timezone with the offset named.
   // A build is cut once, so one absolute instant is the right thing to record —
