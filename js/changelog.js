@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25088, date: "2026-08-14", title: "Item 38 reached production",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Production is build 275: the shared sign-in window between 🚦 Sign-in failures and 🎚 Report-only impact, the actual sign-ins shown behind a would-deny verdict, and the six per-tool versions that had not moved for changes already shipped. The gap is 24 and 34 — both Help or tool work waiting on a beta-only tool, so neither can travel on its own." },
+    ],
+  },
+  {
     build: 25087, date: "2026-08-14", title: "Report-only impact shows the sign-ins, not just the count",
     items: [
       { kind: "new", tool: "Report-only impact", text: "🚦 Sign-in failures shows a failed sign-in in full — which policies failed and on which controls, the failure reason and error code, the client and device. Report-only impact gave a count and a derived explanation, which is thinner than the record that produced it. A would-deny row now carries up to three of the ACTUAL sign-ins behind it, in the same shape: the controls the policy demanded, then the client, OS, location and device state. Capped at three deliberately — this is evidence for a reader, not a log, and keeping all of them would hold the window in memory twice over." },

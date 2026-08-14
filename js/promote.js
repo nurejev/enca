@@ -33,20 +33,10 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.274",
-  betaBuild: "v1.0.250-beta.87",
+  productionBuild: "v1.0.275",
+  betaBuild: "v1.0.250-beta.88",
 
   items: [
-    {
-      n: 38,
-      title: "One sign-in window shared by two tools, and six stale tool versions",
-      tools: ["Sign-in failures", "Report-only impact", "All tools"],
-      builds: [25086, 25087],
-      risk: "medium",
-      what: "Sign-in failures in report-only mode and Report-only impact share the identical window read instead of issuing it twice; the cap travels with the records and Rescan always re-reads. Plus six per-tool versions that were never bumped for changes already shipped.",
-      why: "Production reads the same ten-thousand-record window twice whenever somebody looks at both tools — minutes of waiting for nothing. Medium because it changes when a read happens, which is worth a beta pass first.",
-      files: ["js/app.js", "js/version.js", "index.html"],
-    },
     {
       n: 34,
       title: "CIS Benchmark Help section",
