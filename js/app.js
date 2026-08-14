@@ -470,7 +470,7 @@
 
       el.innerHTML = `
         <h4>🚚 Waiting for production <span class="tag new">BETA CHANNEL</span></h4>
-        <p>Production is <b>${esc2(PROMOTE.productionBuild)}</b>; this site is <b>${esc2(PROMOTE.betaBuild)}</b>.
+        <p>Production is <b>${esc2(PROMOTE.productionBuild)}</b>; this site is <b>${esc2(APP_BUILD.label)}</b>.
           <b>This is the gap, and only the gap</b> — what exists here and not there. Nothing that has already
           shipped appears below; for that, read <b>📋 What's new</b>. Each row is one promotable <b>change to the
           tools</b> with a <b>stable number</b>, so <i>“push number 3 to main”</i> means exactly one thing.

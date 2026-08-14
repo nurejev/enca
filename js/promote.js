@@ -32,9 +32,14 @@
 // is the whole point of numbering it: "push 19" has to mean one decision, not
 // three that happened to be written on the same day.
 // ======================================================================
+// `betaBuild` USED TO LIVE HERE and has been removed on purpose: this site's
+// own version is not a judgement call, it is APP_BUILD.label, and the header
+// now reads it from there. Hand-maintaining it meant it could disagree with
+// the footer of the same page — which it did, printing v1.0.250-beta.112 while
+// the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
+// because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
   productionBuild: "v1.0.281",
-  betaBuild: "v1.0.250-beta.112",
 
   items: [
     {

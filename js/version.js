@@ -10,13 +10,27 @@ const APP_BUILD = {
   version: "1.0",
   // Two number series, one per channel. Production builds are plain integers
   // (…, 226, 227) on main. Beta-channel builds are five digits, NNNII — NNN
-  // is the production build this beta cycle will become, II the iteration —
-  // so 22701 renders as v1.0.227-beta.1 and can never collide with a
-  // production number. On release: merge beta into main, set build to NNN,
-  // and consolidate the cycle's changelog entries into one entry (build NNN).
-  // The What's-new overlay compares numerically per origin, and both series
-  // are monotone on their own origin, so nothing else changes.
-  build: 25112,
+  // the cycle, II the iteration — so 22701 renders as v1.0.227-beta.1 and can
+  // never collide with a production number. On release: merge beta into main,
+  // set build to a production integer, and consolidate the cycle's changelog
+  // entries into one entry. The What's-new overlay compares numerically per
+  // origin, and both series are monotone on their own origin.
+  //
+  // `cycle` IS NOT DERIVED FROM `build`, and that is the whole point. It used
+  // to be — Math.floor(build / 100) — which silently rolled over the moment a
+  // cycle passed its 99th iteration: 25100 rendered as v1.0.251-beta.0, so
+  // from build 25100 to 25112 the sign-in screen announced a beta of v1.0.251,
+  // a production build that had already shipped 30 releases earlier. Stating
+  // the cycle outright makes the iteration count unbounded (beta.112, beta.250,
+  // as far as a cycle runs) and the rollover impossible. Set it once per cycle,
+  // when the first beta build after a production release is cut.
+  //
+  // A note on what `cycle` means now: it was originally read as "the production
+  // build this cycle will become", which stopped being true once items began
+  // graduating to production one queue number at a time — production walked
+  // 250 → 281 while this cycle stayed 250. It is a cycle NAME, not a promise.
+  cycle: 250,
+  build: 25113,
   date: "2026-08-13",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time
@@ -26,7 +40,7 @@ const APP_BUILD = {
   // Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
-  released: "2026-08-14T16:53Z",
+  released: "2026-08-14T17:06Z",
   get isBeta() { return this.build >= 10000; },
   // Stored UTC, shown in the reader's own timezone with the offset named.
   // A build is cut once, so one absolute instant is the right thing to record —
@@ -51,9 +65,16 @@ const APP_BUILD = {
   },
   get releasedUtc() { return String(this.released || "").replace("T", " ").replace("Z", " UTC"); },
   get timeZone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; } },
+  // The iteration is whatever is left above the cycle's base, so it keeps
+  // counting past 99 instead of wrapping into the next hundred. `cycle` is
+  // missing on nothing that ships, but fall back to the old division rather
+  // than print NaN if it ever is.
+  get iteration() {
+    return this.cycle ? this.build - this.cycle * 100 : this.build % 100;
+  },
   get label() {
     return this.isBeta
-      ? `v${this.version}.${Math.floor(this.build / 100)}-beta.${this.build % 100}`
+      ? `v${this.version}.${this.cycle || Math.floor(this.build / 100)}-beta.${this.iteration}`
       : `v${this.version}.${this.build}`;
   },
   get full() { return `${this.label} · ${this.date}`; },
