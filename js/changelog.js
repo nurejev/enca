@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 278, date: "2026-08-14", title: "The release time on the sign-in screen was wrong",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Build 277 recorded a local Amsterdam time in a field documented as UTC, so the sign-in screen claimed a release time more than an hour into the future. The field is now set from the clock rather than typed by hand. Nothing else about 277 changes — the build number moves because the stamp exists to answer \"is what I pushed live?\", and a stamp that has to be corrected in place cannot answer it." },
+    ],
+  },
+  {
     build: 277, date: "2026-08-14", title: "Which exclusions a service provider needs",
     items: [
       { kind: "new", tool: "MS Learn checks", text: "Five checks for the partner who administers this tenant on your behalf. A CSP or GDAP delegated admin is matched by the Service provider users external user type and by nothing else — they hold no account, no group membership and no device here, so the break-glass exclusion and the persona groups never reach them. The checks find: an external-user exclusion listing the other five types but not this one; a Block policy their sign-in falls into (the documented cause of a partner losing admin-on-behalf-of); a compliant or hybrid-joined device requirement they cannot satisfy without cross-tenant device trust (AADSTS530004); grant controls documented as unsupported for external users — approved client app, app protection policy, password change; and a guest MFA policy that omits the one external identity holding admin roles here. Exclusions scoped to named tenants are read as named: an exclusion covering two partner tenants does not cover a third." },
