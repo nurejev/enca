@@ -222,8 +222,17 @@ const WhatIfEval = (() => {
       applied, notApplied, notEvaluated,
       total: (raws || []).length,
       evaluated: applied.length + notApplied.length,
-      // a block wins over everything else
-      blocked: applied.some((x) => (x.grant || []).includes("block")),
+      // A block wins over everything else — but only if the policy is actually
+      // ENFORCED. A report-only policy records what it would have done and
+      // changes nothing, so counting it here produced a verdict of "access
+      // would be blocked" for a sign-in that would in fact succeed today.
+      // Both are reported, separately, because "blocked" and "blocked the day
+      // you enforce that policy" are different answers to different questions.
+      blockers: applied.filter((x) => (x.grant || []).includes("block")
+        && x.state !== "enabledForReportingButNotEnforced"),
+      blockersReportOnly: applied.filter((x) => (x.grant || []).includes("block")
+        && x.state === "enabledForReportingButNotEnforced"),
+      get blocked() { return this.blockers.length > 0; },
     };
   }
 

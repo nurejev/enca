@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25083, date: "2026-08-14", title: "Which policy would block this sign-in",
+    items: [
+      { kind: "fixed", tool: "What-If", text: "The verdict counted REPORT-ONLY policies as blocking. A report-only policy records what it would have done and changes nothing, so a scenario whose only Block policy was staged came back as “Access would be blocked” for a sign-in that in fact succeeds today — the opposite of the answer being asked for. The verdict now comes from the enforced policies alone, and a report-only block is reported separately as “would block once enforced”. Grant controls are split the same way: what you must satisfy comes from the enforced policies, with the report-only ones listed as what would additionally be required." },
+      { kind: "improved", tool: "What-If", text: "“Access would be blocked” with ten applying policies left you to work out which one did it. The blockers are now named in the verdict and clickable straight through to the policy, and marked in the list below — ⛔ this is the block, or “would block once enforced” for a staged one. The verdict states its cause rather than making the reader hunt for it." },
+    ],
+  },
+  {
     build: 25082, date: "2026-08-14", title: "Why the policy would say no",
     items: [
       { kind: "new", tool: "Report-only impact", text: "A user's “why” explained why the policy was IN SCOPE — member of an included group, no exclude caught them — which is not the question a go-live turns on. A row reading “59 would be denied” under a policy called Windows-Compliant leaves you guessing that the device was not compliant. It now says so: “needs a compliant device — device NOT compliant, Azure AD joined, Windows”. The facts were in the sign-in record; the tool was reading only the applied-policy verdict." },

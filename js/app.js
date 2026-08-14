@@ -9225,15 +9225,29 @@ max@contoso.com,"Global, DevOps"</pre>
       sc.deviceState ? WhatIfEval.LABEL[sc.deviceState] : "", sc.signInRisk ? `sign-in risk ${sc.signInRisk}` : "",
       sc.userRisk ? `user risk ${sc.userRisk}` : "", sc.authFlow ? esc(sc.authFlow) : ""].filter(Boolean).join(" · ");
 
-    const allControls = [...new Set(r.applied.flatMap((p) => p.grant || []))];
-    const verdict = r.blocked
-      ? `<div class="wi-verdict block">⛔ Access would be <b>blocked</b></div>`
+    // "Blocked" with ten applying policies leaves you to work out WHICH one
+    // said no. Name them, and make them clickable — with report-only kept
+    // separate, because a report-only block changes nothing today and saying
+    // otherwise is the difference between a verdict and a guess.
+    const nameList = (xs) => xs.map((b) => `<span class="wi-blocker pol-link" data-polid="${esc(b.id)}">${esc(b.name)}</span>`).join(" ");
+    const enforced = r.applied.filter((p) => p.state !== "enabledForReportingButNotEnforced");
+    const allControls = [...new Set(enforced.flatMap((p) => p.grant || []))].filter((c) => c !== "block");
+    const roControls = [...new Set(r.applied.filter((p) => p.state === "enabledForReportingButNotEnforced")
+      .flatMap((p) => p.grant || []))].filter((c) => c !== "block");
+    const roNote = (r.blockersReportOnly || []).length || roControls.length
+      ? `<div class="wi-verdict-sub">Report-only, so not enforced today: ${
+          (r.blockersReportOnly || []).length ? `<b>would block</b> once enforced — ${nameList(r.blockersReportOnly)}` : ""}${
+          (r.blockersReportOnly || []).length && roControls.length ? " · " : ""}${
+          roControls.length ? `would also require ${esc(roControls.map(wiCtrl).join(", "))}` : ""}</div>`
+      : "";
+    const verdict = (r.blocked
+      ? `<div class="wi-verdict block">⛔ Access would be <b>blocked</b> by ${(r.blockers || []).length === 1 ? "" : `${r.blockers.length} policies: `}${nameList(r.blockers || [])}</div>`
       : allControls.length
         ? `<div class="wi-verdict grant">✅ Access granted after satisfying: <b>${esc(allControls.map(wiCtrl).join(", "))}</b></div>`
-        : `<div class="wi-verdict none">✅ No grant control required by any applying policy</div>`;
+        : `<div class="wi-verdict none">✅ No grant control required by any enforced policy</div>`) + roNote;
 
     const applied = r.applied.length ? r.applied.map((p) => `<li>
-        <div class="wi-pn"><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">report-only</span>' : ""}</div>
+        <div class="wi-pn"><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">report-only</span>' : ""}${(p.grant || []).includes("block") ? (p.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">would block once enforced</span>' : ' <span class="tag block">⛔ this is the block</span>') : ""}</div>
         <div class="wi-ctrls">
           ${(p.grant || []).length ? `<span class="wi-g">Grant: ${esc((p.grant || []).map(wiCtrl).join(p.operator === "OR" ? " or " : " and "))}</span>` : ""}
           ${(p.session || []).length ? `<span class="wi-s">Session: ${esc((p.session || []).join(" · "))}</span>` : ""}
