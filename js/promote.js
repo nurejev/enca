@@ -33,40 +33,10 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.273",
-  betaBuild: "v1.0.250-beta.84",
+  productionBuild: "v1.0.274",
+  betaBuild: "v1.0.250-beta.85",
 
   items: [
-    {
-      n: 37,
-      title: "What-If: which policy blocks, and report-only excluded from the verdict",
-      tools: ["What-If"],
-      builds: [25083, 25084],
-      risk: "medium",
-      what: "The verdict names the blocking policies and links to them, marks them in the list, and no longer counts report-only policies as blocking — those are reported as 'would block once enforced'. The Markdown export carries the same, since that is the copy that reaches a ticket.",
-      why: "Production returns 'Access would be blocked' for a sign-in that succeeds today whenever the only Block policy is staged in report-only. That is a wrong answer, not a missing one, which is why this is not low.",
-      files: ["js/whatifeval.js", "js/app.js", "index.html", "css/app.css"],
-    },
-    {
-      n: 36,
-      title: "Report-only impact says why a policy would DENY",
-      tools: ["Report-only impact"],
-      builds: [25082],
-      risk: "low",
-      what: "A would-deny row states what the policy demands and what the sign-in brought — needs a compliant device, device NOT compliant, Azure AD joined. Evidence rather than diagnosis: an unregistered device is not called non-compliant, only denials get a reason, and a Block policy says it blocks outright.",
-      why: "Read-only, from data the tool already fetched. Production explains why a user was in SCOPE and leaves the actual refusal to guesswork, which is the question a go-live decision turns on.",
-      files: ["js/reportimpact.js", "js/app.js", "index.html"],
-    },
-    {
-      n: 35,
-      title: "Make the bulk scoped-admin grant findable (R07)",
-      tools: ["Restricted AUs"],
-      builds: [25081],
-      risk: "low",
-      what: "R07's entry point moves out of the foot of the baseline checklist into its own panel and a toolbar button, and no longer depends on the baseline panel existing at all.",
-      why: "R07 is not in production yet, so this travels with it — but the lesson stands on its own: a feature at the bottom of a list nobody scrolls has not shipped.",
-      files: ["js/app.js", "index.html"],
-    },
     {
       n: 34,
       title: "CIS Benchmark Help section",
@@ -74,7 +44,7 @@ const PROMOTE = {
       builds: [25079],
       risk: "low",
       what: "The Help section written for 📐 CIS Benchmark, held back from production because the tool is beta-only — a Help entry for a tile nobody has would be a lie.",
-      why: "Travels with the CIS Benchmark tool whenever that graduates; it is not promotable on its own.",
+      why: "NOT promotable on its own — 📐 CIS Benchmark is beta-only, and a Help entry for a tile nobody has is a lie. It travels with the tool whenever that graduates.",
       files: ["index.html"],
     },
     {

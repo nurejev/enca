@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25085, date: "2026-08-14", title: "Items 35, 36 and 37 reached production",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Production is build 274: the findable bulk scoped-admin grant (35), why Report-only impact would deny a user (36), and What-If naming its blockers while no longer counting report-only policies as blocking (37). Item 34 stayed behind on purpose — it is the Help section for 📐 CIS Benchmark, and that tool is beta-only; a Help entry for a tile nobody has would be a lie, so it travels with the tool. The gap is 24 and 34, both waiting on beta-only tools." },
+    ],
+  },
+  {
     build: 25084, date: "2026-08-14", title: "The What-If report names the blocker too",
     items: [
       { kind: "improved", tool: "What-If", text: "The Markdown export said “access would be BLOCKED” and left the reader to find which of ten policies did it — the same fault the screen had, in the artefact that actually gets pasted into a ticket. It now names the blocking policies in the result line, marks them in the policy list, and states separately when a report-only policy would block once enforced (including the case where today's answer is that the sign-in succeeds)." },
