@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25073, date: "2026-08-13", title: "Help had two of everything",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The Help page carried a SECOND copy of its own opening — heading, contents container and the List Policies section — giving the document two elements with id=\"screen-help\" and two with id=\"helpToc\", and List Policies twice in the contents. I introduced it in build 25070: a port copied a block out of the production file using an end marker that matched further down than intended, so the roadmap change dragged a slice of the Help page along with it. Removed, and the check now looks for duplicate element ids across the whole document rather than only for balanced tags — a duplicate id is valid-looking HTML that quietly breaks getElementById." },
+      { kind: "fixed", tool: "All tools", text: "The 🚚 Waiting for production panel was putting two entries into the Help contents — its own title and “Staying on this channel”, the second of which is a subsection rather than a section. The contents list is of TOOLS; the queue is a beta-channel note about the gap between builds, and it is now excluded outright rather than depending on whether it happened to be injected before the list was built." },
+    ],
+  },
+  {
     build: 25072, date: "2026-08-13", title: "Roadmap: scope Gap analyse to who you asked about",
     items: [
       { kind: "improved", tool: "Roadmap", text: "Added R29 🔍 Gap analyse — scan only who you asked about. It builds a users × policies matrix for every user it can read, which on any real tenant is a long read producing a wide answer when the question was narrow: is this contractor covered, what does the finance team bypass. The matrix is the right output; the scope is not. The card records the two things a scoped scan has to get right — a group must mean its MEMBERS including nested ones, or the answer is about a group rather than about people, and the report must state what was scoped as prominently as what it found, because a clean matrix over eleven users looks exactly like a clean matrix over the tenant and only one of those is reassuring." },

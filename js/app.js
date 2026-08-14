@@ -747,7 +747,14 @@
   let helpTocBuilt = false;
   function buildHelpToc() {
     if (helpTocBuilt) return;
-    const secs = [...document.querySelectorAll("#screen-help .help-sec > h4")];
+    // The promotion queue renders TWO h4s into its own .help-sec — its title and
+    // "Staying on this channel" — and both were becoming contents entries, one
+    // of them for a subsection rather than a section. It is also injected after
+    // this runs on some paths, so what the list contains depended on timing.
+    // Excluded outright: the contents list is of TOOLS, and the queue is a
+    // beta-channel note about the gap between builds.
+    const secs = [...document.querySelectorAll("#screen-help .help-sec > h4")]
+      .filter((h) => !h.closest("#helpPromote"));
     secs.forEach((h, i) => { h.id = h.id || `help-sec-${i}`; });
     $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}">${h.textContent.replace(/\s+(BETA|NEW|writes to tenant)\b/gi, "").trim()}</a>`).join("");
     // Scroll-spy: highlight the chip for the section currently in view, and keep

@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.271",
-  betaBuild: "v1.0.250-beta.72",
+  betaBuild: "v1.0.250-beta.73",
 
   items: [
+    {
+      n: 30,
+      title: "Help contents: exclude the promotion queue",
+      tools: ["All tools"],
+      builds: [25073],
+      risk: "low",
+      what: "The Help contents list skips the beta-channel promotion queue, which was contributing two entries including one for a subsection.",
+      why: "Production never renders the queue, so the visible symptom is beta-only — but the filter belongs in both so the two files do not drift.",
+      files: ["js/app.js"],
+    },
     {
       n: 24,
       title: "📖 Baseline usage guide (R05)",
