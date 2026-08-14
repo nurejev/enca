@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25076, date: "2026-08-13", title: "Why that user would be interrupted",
+    items: [
+      { kind: "new", tool: "Report-only impact", text: "A policy named LowMediumUserRisk reporting “3 interrupted” invites exactly one question — low, or medium? — and the answer was in the sign-in records all along and being discarded. The drill-down now reads “user risk low ×2, user risk medium ×1”, in both the per-user and the per-policy views. Counted per level rather than summarised, because two lows and one medium is a different go-live decision from three mediums." },
+      { kind: "improved", tool: "Report-only impact", text: "User risk and sign-in risk are kept separate and labelled, since a policy can key off either and merging them into one number would be right about half the time. A tenant without Entra ID P2 gets “hidden” from Graph, and that is reported as hidden rather than quietly as no risk — the difference between “no risk was involved” and “you cannot see whether it was” is the whole value of the verdict. A sign-in that passed adds no explanation, because there is nothing to explain." },
+    ],
+  },
+  {
     build: 25075, date: "2026-08-13", title: "Roadmap: search apps by name in What-If",
     items: [
       { kind: "improved", tool: "Roadmap", text: "Added R31 🧪 What-If — search the tenant's apps, not their GUIDs. “Other — enter an App ID” asks for a raw GUID, so answering it means leaving the tool, finding the enterprise application in the portal and copying the id back; and a mistyped GUID does not fail, it quietly describes a sign-in to an app nobody has — the same class of mistake as a wrong country code. The card records a type-ahead over the tenant's service principals, and the constraint that a pasted GUID must keep working: a policy can reference an application with no service principal here, which 📥 Import already has to handle, so an id ENCA cannot name is still legitimate and should be marked “not found in this tenant” rather than rejected." },

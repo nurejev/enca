@@ -53,6 +53,24 @@ const ReportImpact = (() => {
     return "nodata";
   }
 
+  // Graph reports two different risks and a policy can key off either, so both
+  // are kept and labelled rather than merged into one number that would be
+  // right half the time. "hidden" is what a tenant without Entra ID P2 gets —
+  // it is not the same as "none", and saying so is the difference between
+  // "no risk was involved" and "you cannot see whether it was".
+  const RISK_LABEL = { none: "no risk", low: "low", medium: "medium", high: "high",
+    hidden: "hidden (needs Entra ID P2)", unknownFutureValue: "unknown" };
+  const riskWord = (v) => RISK_LABEL[v] || (v ? String(v) : null);
+  function riskOf(rec) {
+    const out = [];
+    const u = riskWord(rec.riskLevelAggregated);
+    const s = riskWord(rec.riskLevelDuringSignIn);
+    if (u && u !== "no risk") out.push(`user risk ${u}`);
+    if (s && s !== "no risk") out.push(`sign-in risk ${s}`);
+    return out.length ? out.join(" · ") : null;
+  }
+  const bump = (m, k) => { if (k) m.set(k, (m.get(k) || 0) + 1); };
+
   // roPolicies: [{id, name}] — the tenant's report-only policies from the
   // already-loaded policy list, so a policy with zero log traffic still
   // shows up (as "no data" — the one answer that should stop a go-live).
@@ -86,8 +104,13 @@ const ReportImpact = (() => {
         if (kind === "notApplied") continue;       // out of scope: no user/app impact
         const upn = rec.userPrincipalName || rec.userDisplayName || "(unknown)";
         let u = e.users.get(upn);
-        if (!u) { u = { upn, name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "" }; e.users.set(upn, u); }
+        if (!u) { u = { upn, name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "", risk: new Map() }; e.users.set(upn, u); }
         u[kind]++;
+        // WHY the policy bit. A verdict of "3 interrupted" on a policy called
+        // LowMediumUserRisk raises the obvious question — low, or medium? —
+        // and the answer was in the record all along and being discarded.
+        // Counted per level so a mixture reads as a mixture.
+        if (kind !== "success") bump(u.risk, riskOf(rec));
         if (when > u.last) u.last = when;
         const app = rec.appDisplayName || rec.resourceDisplayName || "(app)";
         u.apps.add(app);
@@ -100,14 +123,18 @@ const ReportImpact = (() => {
         if (when > g.last) g.last = when;
         g.apps.add(app);
         let gp = g.policies.get(e.key);
-        if (!gp) { gp = { key: e.key, id: e.id, name: e.name, success: 0, interrupted: 0, failure: 0 }; g.policies.set(e.key, gp); }
+        if (!gp) { gp = { key: e.key, id: e.id, name: e.name, success: 0, interrupted: 0, failure: 0, risk: new Map() }; g.policies.set(e.key, gp); }
         gp[kind]++;
+        if (kind !== "success") bump(gp.risk, riskOf(rec));
       }
     }
 
     const ORDER = { block: 0, prompt: 1, clean: 2, scoped: 3, nodata: 4 };
+    const riskList = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ what: k, n }));
     const policies = [...pol.values()].map((e) => {
-      const users = [...e.users.values()].sort((a, b) => (b.failure - a.failure) || (b.interrupted - a.interrupted) || (b.success - a.success));
+      const users = [...e.users.values()]
+        .map((u) => ({ ...u, riskWhy: riskList(u.risk) }))
+        .sort((a, b) => (b.failure - a.failure) || (b.interrupted - a.interrupted) || (b.success - a.success));
       const evaluated = e.success + e.interrupted + e.failure;
       return {
         ...e,
@@ -125,7 +152,9 @@ const ReportImpact = (() => {
     const users = [...usr.values()].map((g) => ({
       ...g,
       apps: [...g.apps],
-      policies: [...g.policies.values()].sort((a, b) => b.failure - a.failure || b.interrupted - a.interrupted),
+      policies: [...g.policies.values()]
+        .map((x) => ({ ...x, riskWhy: riskList(x.risk) }))
+        .sort((a, b) => b.failure - a.failure || b.interrupted - a.interrupted),
       worst: g.failure ? "block" : g.interrupted ? "prompt" : "clean",
     })).sort((a, b) => ORDER[a.worst] - ORDER[b.worst] || b.failure - a.failure || b.interrupted - a.interrupted);
 
