@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25078, date: "2026-08-13", title: "A tool in production is at least 1.0",
+    items: [
+      { kind: "improved", tool: "All tools", text: "🛡 Restricted AUs (0.8), 📉 Drift watch (0.3), 💪 Authentication strengths (0.2) and 📜 Terms of use (0.2) were all shipping to customers while numbered as though they were experiments. Something a customer can open is not a 0.x thing, whatever it accumulated on the beta channel — and it is the BETA chip, not the version number, that says “still proving itself”. All four are 1.0. Only 📐 CIS Benchmark and 📖 Baseline guide stay below, because those really are beta-channel-only, and the rule is now written where the versions are edited so the next graduation does not forget it." },
+    ],
+  },
+  {
     build: 25077, date: "2026-08-13", title: "Report-only impact had no Help section",
     items: [
       { kind: "fixed", tool: "Report-only impact", text: "The tool has never had a Help section — it graduated out of BETA without one, and the Help contents list is built from those headings, so it was simply absent from Help. Added: per policy versus per user and why both exist, the new why-a-user-was-interrupted explanation, and the point that matters most about a forecast — a verdict is only as good as its window, and a policy with no evidence is called out rather than counted as safe, because “nobody was affected” and “nobody signed in” look identical in a summary and only one is a reason to go live. This is the second tool found missing its Help section in two days; the check now compares the tool tiles against the Help headings instead of trusting that a new tool arrived with one." },

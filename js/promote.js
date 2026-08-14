@@ -33,29 +33,19 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.271",
-  betaBuild: "v1.0.250-beta.77",
+  productionBuild: "v1.0.272",
+  betaBuild: "v1.0.250-beta.79",
 
   items: [
     {
-      n: 31,
-      title: "Report-only impact says WHY a user was interrupted",
-      tools: ["Report-only impact"],
-      builds: [25076, 25077],
-      risk: "low",
-      what: "The per-user and per-policy drill-downs show the risk levels behind each verdict — user risk low x2, medium x1 — with user and sign-in risk labelled separately and 'hidden' distinguished from 'none'. Also adds the Help section the tool never had.",
-      why: "Read-only, and it uses data the tool already fetched and threw away. Production reports a count with no way to tell which risk level triggered it, which is the question a go-live decision turns on.",
-      files: ["js/reportimpact.js", "js/app.js", "index.html"],
-    },
-    {
-      n: 30,
-      title: "Help contents: exclude the promotion queue",
+      n: 32,
+      title: "Tools that reached production are at least 1.0",
       tools: ["All tools"],
-      builds: [25073],
+      builds: [25078],
       risk: "low",
-      what: "The Help contents list skips the beta-channel promotion queue, which was contributing two entries including one for a subsection.",
-      why: "Production never renders the queue, so the visible symptom is beta-only — but the filter belongs in both so the two files do not drift.",
-      files: ["js/app.js"],
+      what: "Restricted AUs, Drift watch, Authentication strengths and Terms of use move from 0.x to 1.0, and the rule is stated where the versions are edited.",
+      why: "Production shows customers 0.2 and 0.3 on tools it ships. Labelling only — no behaviour changes.",
+      files: ["js/version.js"],
     },
     {
       n: 24,
