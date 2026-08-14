@@ -125,6 +125,88 @@ const MSLearn = (() => {
     return !!(s.secureSignInSession?.isEnabled || s.tokenProtection?.signInSessionTokenProtection?.isEnabled);
   };
 
+
+  // ---- guest / external user types ------------------------------------
+  // Six documented external user types. "GuestsOrExternalUsers" in
+  // includeUsers/excludeUsers is the legacy "All guest and external users"
+  // selection, which Entra now treats as all six sub-types.
+  // "Service provider users" are the ones that matter for a CSP: partner
+  // admins reaching this tenant through delegated admin privileges (GDAP).
+  // They are NOT ordinary B2B guests, they are not in your directory, and no
+  // group exclusion reaches them — the only lever is this user type.
+  const SP = "serviceProvider";
+  const EXT_TYPE_LABEL = {
+    b2bCollaborationGuest: "B2B collaboration guest users",
+    b2bCollaborationMember: "B2B collaboration member users",
+    b2bDirectConnectUser: "B2B direct connect users",
+    internalGuest: "Local guest users",
+    serviceProvider: "Service provider users",
+    otherExternalUser: "Other external users",
+  };
+  const extLabel = (t) => EXT_TYPE_LABEL[t] || t;
+  // externalTenants.membershipKind is "all" or "enumerated"; an enumerated
+  // selection only reaches the tenants it names, so an exclusion listing
+  // Service provider users for two tenants still leaves every other partner
+  // tenant in scope. That distinction is the whole point of reading it.
+  function extSel(sel) {
+    if (!sel) return null;
+    const et = sel.externalTenants || {};
+    return {
+      types: String(sel.guestOrExternalUserTypes || "").split(",").map((s) => s.trim()).filter(Boolean),
+      allTenants: (et.membershipKind || "all") !== "enumerated",
+      tenants: et.members || [],
+    };
+  }
+  const incExt = (p) => extSel(U(p).includeGuestsOrExternalUsers);
+  const excExt = (p) => extSel(U(p).excludeGuestsOrExternalUsers);
+  const legacyIncExt = (p) => (U(p).includeUsers || []).includes("GuestsOrExternalUsers");
+  const legacyExcExt = (p) => (U(p).excludeUsers || []).includes("GuestsOrExternalUsers");
+  // Does this policy enforce anything? An exclusion gap on a policy with no
+  // controls at all is not worth anybody's attention.
+  const enforces = (p) => grants(p).length > 0 || G(p).authenticationStrength != null
+    || (G(p).customAuthenticationFactors || []).length > 0 || (G(p).termsOfUse || []).length > 0;
+
+  // Is a service provider admin inside this policy's scope, and how?
+  // null when they are out of scope. `partial` records an exclusion that
+  // names Service provider users but only for specific tenants.
+  function spScope(p) {
+    const inc = incExt(p), exc = excExt(p);
+    let via = null;
+    if (allUsers(p)) via = "All users";
+    else if (legacyIncExt(p)) via = "Guests and external users (the legacy all-types selection)";
+    else if (inc && inc.types.includes(SP)) {
+      via = inc.allTenants ? "Service provider users, all tenants"
+        : `Service provider users from ${inc.tenants.length} named tenant${inc.tenants.length === 1 ? "" : "s"}`;
+    }
+    if (!via) return null;
+    if (legacyExcExt(p)) return null;                                  // all six types excluded
+    if (exc && exc.types.includes(SP) && exc.allTenants) return null;  // fully carved out
+    const partial = exc && exc.types.includes(SP) ? exc : null;
+    return { via, exc, partial };
+  }
+
+  // Add the service provider type to an existing include/exclude selection.
+  function addSpType(sel) {
+    const types = String(sel.guestOrExternalUserTypes || "").split(",").map((s) => s.trim()).filter(Boolean);
+    if (types.includes(SP)) return false;
+    types.push(SP);
+    sel.guestOrExternalUserTypes = types.join(",");
+    return true;
+  }
+
+  // Which service provider partners are configured in cross-tenant access
+  // settings, and do they carry the inbound trust a device control needs?
+  // ctx.partners is { ok, list } when the read succeeded, or absent/ok:false
+  // when it did not — in which case nothing is assumed and the checks run.
+  const spPartners = (ctx) => (ctx && ctx.partners && ctx.partners.ok ? ctx.partners.list || [] : null);
+  const spNames = (ctx) => (spPartners(ctx) || []).map((x) => x.name || x.tenantId);
+  // partners that do NOT accept the given inbound trust claim
+  function spWithoutTrust(ctx, key) {
+    const list = spPartners(ctx);
+    if (!list) return null;                       // unknown — cannot rule anything out
+    return list.filter((x) => !(x.inboundTrust && x.inboundTrust[key] === true));
+  }
+
   // ---- checks database ----
   const CHECKS = [
     // ── Emergency access / break-glass ────────────────────────────────
@@ -596,6 +678,166 @@ const MSLearn = (() => {
         };
       },
     },
+    // ── Service providers (CSP / GDAP partner admins) ─────────────────
+    // A partner reaching this tenant through delegated admin privileges is
+    // matched by the "Service provider users" external user type and by
+    // nothing else: they hold no account and no device here, so excluding a
+    // group or naming a break-glass account does not reach them. Every check
+    // below is about that one lever.
+    {
+      id: "sp-exclusion-incomplete",
+      title: "External-user exclusion leaves service provider admins in scope",
+      appliesWhen: "Policy carves guests and external users out of scope, but the carve-out does not list Service provider users",
+      requirement: "When guests and external users are excluded from a policy, Microsoft's guidance is to select every external user type — B2B collaboration guest and member, B2B direct connect, local guest, service provider and other external users. Leaving Service provider users out of an otherwise complete exclusion keeps your CSP partner's delegated admins in scope of a policy the rest of your external identities were deliberately taken out of.",
+      severity: "high",
+      needsServiceProvider: true,
+      docUrl: "https://learn.microsoft.com/security/zero-trust/zero-trust-identity-device-access-policies-guest-access",
+      remediation: "Add Service provider users to the Guest or external users exclusion. Choose all tenants unless you deliberately want the carve-out limited to named partner tenants.",
+      fix: (d) => {
+        const sel = d.conditions?.users?.excludeGuestsOrExternalUsers;
+        if (!sel) return null;
+        if (!addSpType(sel)) return [];
+        const enumerated = (sel.externalTenants?.membershipKind || "all") === "enumerated";
+        return [`Added "Service provider users" to the guest/external exclusion`
+          + (enumerated ? " — the exclusion names specific tenants, so it still only reaches partners in those tenants" : "")];
+      },
+      detect: (p, ctx) => {
+        if (!isActive(p) || !enforces(p)) return null;
+        const exc = excExt(p);
+        if (!exc || !exc.types.length || exc.types.includes(SP)) return null;
+        const sc = spScope(p);
+        if (!sc) return null;
+        const names = spNames(ctx);
+        return {
+          detail: `Policy "${p.displayName}" excludes ${exc.types.length} external user type${exc.types.length === 1 ? "" : "s"} (${exc.types.map(extLabel).join(", ")}) but not Service provider users, while its scope is ${sc.via}. Delegated admins from your CSP partner are still evaluated by this policy — the one category of external identity that cannot fix the problem from their side.`,
+          impactedResources: [
+            "CSP / partner delegated admins (GDAP)",
+            ...(names.length ? names.map((n) => `Service provider tenant: ${n}`) : []),
+            "Admin-on-behalf-of support sessions",
+          ],
+        };
+      },
+    },
+    {
+      id: "sp-blocked",
+      title: "Access blocked for service provider (CSP / GDAP) admins",
+      appliesWhen: "Policy grants Block and its user scope reaches Service provider users",
+      requirement: "A Block policy whose scope covers external users also blocks a Cloud Solution Provider's delegated admins, which is the documented cause of partners losing admin-on-behalf-of access to a customer tenant. Microsoft's remedy is to exclude the CSP using the Service provider user external user type.",
+      severity: "high",
+      needsServiceProvider: true,
+      docUrl: "https://learn.microsoft.com/partner-center/customers/gdap-faq",
+      remediation: "If you use a CSP or delegated-administration partner, exclude Service provider users — for all tenants, or for your partner's tenant ID specifically. If you have no partner and want them blocked, this is working as intended.",
+      detect: (p, ctx) => {
+        if (!isActive(p) || !hasBlock(p)) return null;
+        const sc = spScope(p);
+        if (!sc) return null;
+        const names = spNames(ctx);
+        const partial = sc.partial
+          ? ` The policy does exclude Service provider users, but only for ${sc.partial.tenants.length} named tenant${sc.partial.tenants.length === 1 ? "" : "s"} — partners in any other tenant are still blocked.`
+          : "";
+        return {
+          detail: `Policy "${p.displayName}" blocks access and its scope is ${sc.via}, so a partner signing in through delegated admin privileges is denied.${partial}`
+            + (names.length ? ` This tenant has ${names.length} service provider partner${names.length === 1 ? "" : "s"} configured (${names.join(", ")}).` : ""),
+          impactedResources: [
+            "CSP / partner delegated admins (GDAP)",
+            ...(names.length ? names.map((n) => `Service provider tenant: ${n}`) : []),
+            "Admin-on-behalf-of support sessions",
+          ],
+        };
+      },
+    },
+    {
+      id: "sp-device-grant-needs-trust",
+      title: "Device control in scope of service providers without inbound device trust",
+      appliesWhen: "Policy requires a compliant or Microsoft Entra hybrid joined device and its scope reaches Service provider users, with no alternative control",
+      requirement: "A device can only be managed by its owner's home tenant, so an external user cannot register a device with your organization. Requiring a compliant or hybrid joined device works for them only when your cross-tenant access settings trust device claims from their tenant — without that, sign-in fails with AADSTS530004. Microsoft does not recommend requiring managed devices of external users unless you are willing to trust those claims.",
+      severity: "high",
+      needsServiceProvider: true,
+      docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access#device-compliance-and-microsoft-entra-hybrid-joined-device-policies",
+      remediation: "Either trust compliant-device and hybrid-join claims from the partner tenant in cross-tenant access settings, or exclude Service provider users from this policy, or add an alternative control with the OR operator so MFA satisfies it instead.",
+      detect: (p, ctx) => {
+        if (!isActive(p)) return null;
+        const wantsCompliant = hasCompliance(p), wantsHybrid = grants(p).includes("domainJoinedDevice");
+        if (!wantsCompliant && !wantsHybrid) return null;
+        // "compliant device OR MFA" is satisfiable without a device — not a lockout
+        if (G(p).operator === "OR" && (hasMfa(p) || grants(p).length > (wantsCompliant && wantsHybrid ? 2 : 1))) return null;
+        const sc = spScope(p);
+        if (!sc) return null;
+        // If every service provider partner already has the matching inbound
+        // trust configured, the control IS satisfiable and there is nothing to
+        // report. Only claim that when the partner list was actually read.
+        const noCompliantTrust = wantsCompliant ? spWithoutTrust(ctx, "isCompliantDeviceAccepted") : [];
+        const noHybridTrust = wantsHybrid ? spWithoutTrust(ctx, "isHybridAzureADJoinedDeviceAccepted") : [];
+        if (noCompliantTrust !== null && noHybridTrust !== null
+            && !noCompliantTrust.length && !noHybridTrust.length) return null;
+        const untrusted = [...new Set([...(noCompliantTrust || []), ...(noHybridTrust || [])].map((x) => x.name || x.tenantId))];
+        const control = wantsCompliant && wantsHybrid ? "a compliant or Microsoft Entra hybrid joined device"
+          : wantsCompliant ? "a compliant device" : "a Microsoft Entra hybrid joined device";
+        return {
+          detail: `Policy "${p.displayName}" requires ${control} and its scope is ${sc.via}. A partner's device is managed in their own tenant, so the requirement can only be met if this tenant trusts device claims from theirs.`
+            + (untrusted.length ? ` Inbound device trust is not configured for: ${untrusted.join(", ")}.`
+              : " Cross-tenant access settings could not be read, so the trust configuration was not verified."),
+          impactedResources: [
+            "CSP / partner delegated admins (GDAP)",
+            ...untrusted.map((n) => `No device trust from: ${n}`),
+            "AADSTS530004 — AcceptCompliantDevice not configured",
+          ],
+        };
+      },
+    },
+    {
+      id: "sp-unsupported-grant",
+      title: "Grant control external users cannot satisfy is in scope of service providers",
+      appliesWhen: "Policy requires an approved client app, an app protection policy or a password change, with Service provider users in scope",
+      requirement: "Require approved client app, Require app protection policy and Require password change are documented as not supported for B2B collaboration and B2B direct connect users. They depend on an app registration or a credential in this tenant, which a service provider's admins reaching it through delegated privileges do not have — the control cannot be satisfied, so access is denied.",
+      severity: "high",
+      needsServiceProvider: true,
+      docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access#conditional-access-for-external-users",
+      remediation: "Exclude Service provider users (and the other external user types) from this policy and cover internal users with it instead. These controls are for identities managed in this tenant.",
+      detect: (p) => {
+        if (!isActive(p)) return null;
+        const UNSUPPORTED = { approvedApplication: "Require approved client app", compliantApplication: "Require app protection policy", passwordChange: "Require password change" };
+        const hit = grants(p).filter((g) => UNSUPPORTED[g]);
+        if (!hit.length) return null;
+        if (G(p).operator === "OR" && grants(p).length > hit.length) return null;   // another control can satisfy it
+        const sc = spScope(p);
+        if (!sc) return null;
+        return {
+          detail: `Policy "${p.displayName}" requires ${hit.map((g) => `"${UNSUPPORTED[g]}"`).join(" and ")} and its scope is ${sc.via}. External identities cannot satisfy ${hit.length === 1 ? "that control" : "those controls"}, so a partner's delegated admins are denied rather than challenged.`,
+          impactedResources: ["CSP / partner delegated admins (GDAP)", "B2B collaboration users", "B2B direct connect users"],
+        };
+      },
+    },
+    {
+      id: "sp-not-in-external-mfa",
+      title: "MFA policy for external users skips service provider admins",
+      appliesWhen: "Policy requires MFA for selected guest or external user types, and Service provider users is not one of them",
+      requirement: "Microsoft's starting-point guidance for guest and external access is to require MFA for all six external user types, Service provider users included. Partner admins reaching this tenant through delegated privileges hold administrative roles here — leaving them out of the MFA policy protecting every other external identity inverts the risk.",
+      severity: "medium",
+      needsServiceProvider: true,
+      docUrl: "https://learn.microsoft.com/security/zero-trust/zero-trust-identity-device-access-policies-guest-access",
+      remediation: "Add Service provider users to the Guest or external users selection, so partner delegated admins face the same authentication requirement as your other external identities.",
+      fix: (d) => {
+        const sel = d.conditions?.users?.includeGuestsOrExternalUsers;
+        if (!sel) return null;
+        if (!addSpType(sel)) return [];
+        return [`Added "Service provider users" to the guest/external user types this policy applies to`];
+      },
+      detect: (p, ctx) => {
+        if (!isActive(p) || !hasMfa(p) || hasBlock(p)) return null;
+        if (allUsers(p) || legacyIncExt(p)) return null;
+        const inc = incExt(p);
+        if (!inc || !inc.types.length || inc.types.includes(SP)) return null;
+        const names = spNames(ctx);
+        return {
+          detail: `Policy "${p.displayName}" requires multifactor authentication for ${inc.types.map(extLabel).join(", ")} but not for Service provider users. Delegated admins from a partner tenant sign in without the requirement this policy exists to impose — while holding more privilege here than the guests it does cover.`,
+          impactedResources: [
+            "CSP / partner delegated admins (GDAP)",
+            ...(names.length ? names.map((n) => `Service provider tenant: ${n}`) : []),
+          ],
+        };
+      },
+    },
   ];
 
   // ---- run every check against every policy ----
@@ -604,14 +846,21 @@ const MSLearn = (() => {
   // opts.groups: the convention groups already resolved in the tenant
   // ({ breakGlass, sharedDevices }). Without them every needsGroup check fires
   // even on policies that already carry the exclusion it would add.
-  let LAST_SUPPRESSED = 0;
+  // opts.partners: { ok, list } from cross-tenant access settings. When the
+  // read succeeded and the tenant has no service provider partner at all, the
+  // CSP checks are skipped rather than answered — there is no partner to lock
+  // out, and a page of findings about one is how a tool loses its reader.
+  const SP_CHECKS = CHECKS.filter((c) => c.needsServiceProvider).length;
+  let LAST_SUPPRESSED = 0, LAST_NO_SP = 0;
   function run(rawPolicies, strengths, opts = {}) {
     INCLUDE_DISABLED = !!opts.includeDisabled;
     const findings = [];
-    const ctx = { strengths: strengths || new Map(), ...(opts.groups || {}) };
-    let suppressed = 0;
+    const ctx = { strengths: strengths || new Map(), partners: opts.partners || null, ...(opts.groups || {}) };
+    const noServiceProvider = !!(ctx.partners && ctx.partners.ok && !(ctx.partners.list || []).length);
+    let suppressed = 0, skippedSp = 0;
     for (const p of rawPolicies) {
       for (const chk of CHECKS) {
+        if (chk.needsServiceProvider && noServiceProvider) { skippedSp++; continue; }
         let res = null;
         try { res = chk.detect(p, ctx); } catch (e) { console.warn(`MS Learn check ${chk.id} failed on ${p.displayName}:`, e); }
         if (!res) continue;
@@ -620,6 +869,7 @@ const MSLearn = (() => {
       }
     }
     LAST_SUPPRESSED = suppressed;
+    LAST_NO_SP = noServiceProvider ? SP_CHECKS : 0;
     return findings;
   }
   const suppressedCount = () => LAST_SUPPRESSED;
@@ -649,8 +899,8 @@ const MSLearn = (() => {
       <div style="flex:1;min-width:260px">
         <h3>📘 MS Learn: documented exclusion checks</h3>
         <p style="margin-bottom:0">Your policies, checked against exclusions, limitations and upcoming behavior changes documented on learn.microsoft.com —
-        missing break-glass exclusions, token protection limits, Teams Rooms / Surface Hub impact, required app exclusions and control retirements.
-        ${checksTotal} checks ran against your ${scope} policies.</p>
+        missing break-glass exclusions, token protection limits, Teams Rooms / Surface Hub impact, service provider (CSP / GDAP) exclusions, required app exclusions and control retirements.
+        ${checksTotal - LAST_NO_SP} checks ran against your ${scope} policies.${LAST_NO_SP ? ` The ${LAST_NO_SP} service provider checks were skipped: cross-tenant access settings list no CSP or delegated-administration partner for this tenant.` : ""}</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${groups.length}<span class="mini" style="font-weight:400"> finding${groups.length === 1 ? "" : "s"}</span></div>

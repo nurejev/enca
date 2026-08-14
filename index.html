@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=276"></script>
+<script src="js/popup-guard.js?v=277"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=276">
+<link rel="stylesheet" href="css/app.css?v=277">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=276"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=276"></script>
+<script src="js/counter.js?v=277"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=277"></script>
 </head>
 <body>
 
@@ -1425,9 +1425,12 @@
 
     <section class="help-sec">
       <h4>📘 MS Learn checks</h4>
-      <p>Checks policies against documented Microsoft Learn exclusions and limitations — break-glass, token protection, Teams Rooms, retired features.</p>
+      <p>Checks policies against documented Microsoft Learn exclusions and limitations — break-glass, token protection, Teams Rooms, service providers, retired features.</p>
       <ul>
         <li><b>Findings</b> tab lists what conflicts with the docs; <b>Refresh</b> re-runs after you fix something.</li>
+        <li><b>Service provider (CSP / GDAP) exclusions</b> — five checks covering the partner who administers this tenant on your behalf. They are matched by the <b>Service provider users</b> external user type and by nothing else: a partner admin arriving through delegated privileges holds no account, no group membership and no device here, so a group exclusion or a named break-glass account never reaches them. The checks find an external-user exclusion that lists the other five types but not this one; a Block policy their sign-in falls into; a compliant or hybrid-joined device requirement they cannot meet unless cross-tenant access settings trust device claims from their tenant; grant controls documented as unsupported for external users (approved client app, app protection policy, password change); and a guest MFA policy that leaves out the one external identity holding admin roles here. Exclusions naming specific tenants are read as such — an exclusion for two partner tenants does not cover a third.</li>
+        <li><b>Read once, judged against your tenant.</b> Cross-tenant access settings are read to see which partners are flagged as service providers and whether this tenant accepts their MFA and device claims. A partner whose compliant-device claims you already trust does not raise a device finding, and a tenant with no partner at all has the five checks skipped rather than answered — the summary says so. If the settings cannot be read the checks still run and say the trust configuration was not verified, which is not the same as saying there is nothing there.</li>
+
         <li><b>Buildable fixes</b> — where a documented fix exists, apply it in the tenant (creating a service principal or group if the fix needs one). <span class="tag block">writes to tenant</span></li>
       </ul>
       <p class="help-x">Checks are read-only; applying a fix writes, and produces a change report.</p>
@@ -2191,43 +2194,43 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=276"></script>
-<script src="js/version.js?v=276"></script>
-<script src="js/authConfig.js?v=276"></script>
-<script src="js/labels.js?v=276"></script>
-<script src="js/graph.js?v=276"></script>
-<script src="js/model.js?v=276"></script>
-<script src="js/render.js?v=276"></script>
-<script src="js/analyze.js?v=276"></script>
-<script src="js/whatif.js?v=276"></script>
-<script src="js/mslearn.js?v=276"></script>
-<script src="js/gapcheck.js?v=276"></script>
-<script src="js/exclusions.js?v=276"></script>
-<script src="js/validator.js?v=276"></script>
-<script src="js/whatifeval.js?v=276"></script>
-<script src="js/compare.js?v=276"></script>
-<script src="js/groupuse.js?v=276"></script>
-<script src="js/iso3166.js?v=276"></script>
-<script src="js/locations.js?v=276"></script>
-<script src="js/authcontexts.js?v=276"></script>
-<script src="js/authstrengths.js?v=276"></script>
-<script src="js/recycle.js?v=276"></script>
-<script src="js/termsofuse.js?v=276"></script>
-<script src="js/rmau.js?v=276"></script>
-<script src="js/audit.js?v=276"></script>
-<script src="js/drift.js?v=276"></script>
-<script src="js/signins.js?v=276"></script>
-<script src="js/reportimpact.js?v=276"></script>
-<script src="js/changelog.js?v=276"></script>
-<script src="js/baselineData.js?v=276"></script>
-<script src="js/baselineJoeyData.js?v=276"></script>
-<script src="js/baseline.js?v=276"></script>
-<script src="js/groupTemplates.js?v=276"></script>
-<script src="js/assign.js?v=276"></script>
-<script src="js/cagroups.js?v=276"></script>
-<script src="js/import.js?v=276"></script>
-<script src="js/export.js?v=276"></script>
-<script src="js/demo.js?v=276"></script>
-<script src="js/app.js?v=276"></script>
+<script src="js/branding.js?v=277"></script>
+<script src="js/version.js?v=277"></script>
+<script src="js/authConfig.js?v=277"></script>
+<script src="js/labels.js?v=277"></script>
+<script src="js/graph.js?v=277"></script>
+<script src="js/model.js?v=277"></script>
+<script src="js/render.js?v=277"></script>
+<script src="js/analyze.js?v=277"></script>
+<script src="js/whatif.js?v=277"></script>
+<script src="js/mslearn.js?v=277"></script>
+<script src="js/gapcheck.js?v=277"></script>
+<script src="js/exclusions.js?v=277"></script>
+<script src="js/validator.js?v=277"></script>
+<script src="js/whatifeval.js?v=277"></script>
+<script src="js/compare.js?v=277"></script>
+<script src="js/groupuse.js?v=277"></script>
+<script src="js/iso3166.js?v=277"></script>
+<script src="js/locations.js?v=277"></script>
+<script src="js/authcontexts.js?v=277"></script>
+<script src="js/authstrengths.js?v=277"></script>
+<script src="js/recycle.js?v=277"></script>
+<script src="js/termsofuse.js?v=277"></script>
+<script src="js/rmau.js?v=277"></script>
+<script src="js/audit.js?v=277"></script>
+<script src="js/drift.js?v=277"></script>
+<script src="js/signins.js?v=277"></script>
+<script src="js/reportimpact.js?v=277"></script>
+<script src="js/changelog.js?v=277"></script>
+<script src="js/baselineData.js?v=277"></script>
+<script src="js/baselineJoeyData.js?v=277"></script>
+<script src="js/baseline.js?v=277"></script>
+<script src="js/groupTemplates.js?v=277"></script>
+<script src="js/assign.js?v=277"></script>
+<script src="js/cagroups.js?v=277"></script>
+<script src="js/import.js?v=277"></script>
+<script src="js/export.js?v=277"></script>
+<script src="js/demo.js?v=277"></script>
+<script src="js/app.js?v=277"></script>
 </body>
 </html>

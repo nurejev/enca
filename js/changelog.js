@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 277, date: "2026-08-14", title: "Which exclusions a service provider needs",
+    items: [
+      { kind: "new", tool: "MS Learn checks", text: "Five checks for the partner who administers this tenant on your behalf. A CSP or GDAP delegated admin is matched by the Service provider users external user type and by nothing else — they hold no account, no group membership and no device here, so the break-glass exclusion and the persona groups never reach them. The checks find: an external-user exclusion listing the other five types but not this one; a Block policy their sign-in falls into (the documented cause of a partner losing admin-on-behalf-of); a compliant or hybrid-joined device requirement they cannot satisfy without cross-tenant device trust (AADSTS530004); grant controls documented as unsupported for external users — approved client app, app protection policy, password change; and a guest MFA policy that omits the one external identity holding admin roles here. Exclusions scoped to named tenants are read as named: an exclusion covering two partner tenants does not cover a third." },
+      { kind: "new", tool: "MS Learn checks", text: "The checks are judged against the tenant rather than in the abstract. Cross-tenant access settings are read once for partners flagged isServiceProvider and their inbound trust: a partner whose compliant-device claims you already accept raises no device finding, and a tenant with no service provider partner has all five checks skipped rather than answered — the summary says which and why. When the settings cannot be read the checks still run and state that the trust configuration was not verified, because that is a different sentence from there being no partner." },
+      { kind: "improved", tool: "MS Learn checks", text: "Two of the five build a fix: adding Service provider users to an existing include or exclude selection is mechanical. The other three need a decision — trust the partner's device claims, or exclude them — and decline rather than guess. 17 checks became 22." },
+    ],
+  },
+  {
     build: 276, date: "2026-08-14", title: "Best-practice checks move to Compare against a baseline",
     items: [
       { kind: "improved", tool: "All tools", text: "🛡 Best-practice & bypass checks moves from 🔍 Analyse & simulate into 🧬 Compare against a baseline. It measures the tenant against a reference standard, which is exactly what that section is for; it sat with the simulators because that is where it was written, not because that is where somebody would look for it. No behaviour changes and no version bump — the tool is untouched, only its home." },

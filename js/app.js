@@ -9935,7 +9935,17 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     ctx.sharedDevices = await findGroupByConvention(MSLearn.CONVENTION.sharedDevices);
 
-    const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx });
+    // Which partners hold delegated administration here, and does this tenant
+    // trust their MFA and device claims? The service provider checks use it
+    // twice: to name the partner in a finding, and to stay quiet altogether in
+    // a tenant that has no CSP relationship. { ok: false } means "not read" —
+    // the checks then run and say the trust settings were not verified, which
+    // is different from saying there is no partner.
+    let partners = { ok: false, list: [], error: "not read" };
+    if (isDemo) partners = { ok: true, list: DEMO_DATA.serviceProviders || [] };
+    else partners = await Graph.serviceProviderPartners();
+
+    const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners });
     mlGroups = MSLearn.group(findings);
     mlFilter = "all"; mlExpanded.clear();
     renderMsLearn();
