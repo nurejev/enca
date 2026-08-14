@@ -16,7 +16,7 @@ const APP_BUILD = {
   // and consolidate the cycle's changelog entries into one entry (build NNN).
   // The What's-new overlay compares numerically per origin, and both series
   // are monotone on their own origin, so nothing else changes.
-  build: 25073,
+  build: 25074,
   date: "2026-08-13",
   get isBeta() { return this.build >= 10000; },
   get label() {

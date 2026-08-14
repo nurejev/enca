@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25074, date: "2026-08-13", title: "Roadmap: filter What-If's non-matches",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Added R30 🧪 What-If — filter the policies that did not apply. A run against a real tenant answers with two policies that apply and 107 that do not, each with its reason: honest, and unreadable. The question behind that list is a persona question (why did none of the Admins policies apply to this admin) or a number question (what happened to CA103), so the card records filtering by persona and CA number using the same ranges 🗂 List Policies already groups by — one idea across the toolset rather than two. It also records a count per reason, since when an expected policy is missing the reason is what you are hunting for; the per-policy reasons stay either way, because a summary replacing them would answer a different question." },
+    ],
+  },
+  {
     build: 25073, date: "2026-08-13", title: "Help had two of everything",
     items: [
       { kind: "fixed", tool: "All tools", text: "The Help page carried a SECOND copy of its own opening — heading, contents container and the List Policies section — giving the document two elements with id=\"screen-help\" and two with id=\"helpToc\", and List Policies twice in the contents. I introduced it in build 25070: a port copied a block out of the production file using an end marker that matched further down than intended, so the roadmap change dragged a slice of the Help page along with it. Removed, and the check now looks for duplicate element ids across the whole document rather than only for balanced tags — a duplicate id is valid-looking HTML that quietly breaks getElementById." },

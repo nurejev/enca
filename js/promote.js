@@ -34,7 +34,7 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.271",
-  betaBuild: "v1.0.250-beta.73",
+  betaBuild: "v1.0.250-beta.74",
 
   items: [
     {
