@@ -23,19 +23,9 @@
 // ======================================================================
 const CHANGELOG = [
   {
-    build: 25099, date: "2026-08-14", title: "Documentation for the restricted units (R27)",
+    build: 25100, date: "2026-08-14", title: "R27 and R28 reverted — the wrong reading of both",
     items: [
-      { kind: "new", tool: "Restricted AUs", text: "R27 — 📄 Documentation gives the units the treatment 📄 Create documentation gives the policies. Export MD was the raw material: what each unit holds and who may manage it, which is a list rather than a document. This is written in the order a reviewer arrives with the questions — what the unit protects, which Conditional Access policies depend on each group, who may change them, and what changing them would do." },
-      { kind: "new", tool: "Restricted AUs", text: "The two questions that decide whether the control is real get their own sections. WHO COULD WIDEN AN EXCLUSION: in a restricted unit the answer is not \"the Global Administrators\" — tenant-wide roles are blocked by design, so the scoped list is the complete answer, given by name with what each role actually permits in plain words. WHAT WOULD HAPPEN IF THEY DID: the policies each protected group is excluded from, so \"adding a member to this group removes them from these three policies, with no change to the policies and no approval step\" is a sentence somebody can check rather than a risk they have to imagine." },
-      { kind: "new", tool: "Restricted AUs", text: "The two failure states lead the document rather than hiding in it: a unit with nobody scoped to it — a vault that cannot be opened, which is not a stronger control but an unusable one — and a frozen group, role-assignable inside a restricted unit so that neither a scoped nor a tenant-wide administrator can change it. Neither is visible from the portal, and both are exactly what a review is for. A group no policy references is called out too: protected but not load-bearing, which is worth a question." },
-    ],
-  },
-  {
-    build: 25098, date: "2026-08-14", title: "Your own groups can live in a persona vault (R28)",
-    items: [
-      { kind: "new", tool: "Restricted AUs", text: "R28 — everything that routes a group to a vault read the CA number in its name, which works for the baseline and for nothing else. A tenant's own exclusion group — Contractors-NoMFA, SEC-VIP-Exceptions — matched no persona, so ⑥ Protect skipped it unless a fallback unit was picked by hand, ＋ Bulk add never offered it, and break-glass had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them their naming is wrong is not a feature. Say once, on the unit, that a group belongs there and every tool routes it there afterwards." },
-      { kind: "new", tool: "Restricted AUs", text: "The mapping is stored in the administrative unit's own description as [enca:extra=Name;Name] — with the tenant rather than in this app, so it survives a release, is readable in the portal, and never becomes our list of everybody's group names. The human text in the description is preserved; only the token is rewritten." },
-      { kind: "improved", tool: "Restricted AUs", text: "A stated mapping outranks the CA number, because somebody said it out loud and a number in a name is at best a convention. Two things the feature deliberately does not do: guess a persona nobody stated — that is how a group ends up in the wrong vault silently — and hide what is unmapped, which stays visible as unmapped rather than dropping quietly out of every list." },
+      { kind: "fixed", tool: "Restricted AUs", text: "Builds 25098 (R28) and 25099 (R27) are reverted in full. R28 was built as a stored mapping in each unit's description, and R27 as a second Markdown document; neither is what was asked for. Queue items 45 and 46 are withdrawn and their numbers retired — a number is never reused, including when the work it named is taken back. Both roadmap cards return to Next as planned, with their references intact." },
     ],
   },
   {

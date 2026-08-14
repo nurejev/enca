@@ -1355,8 +1355,3 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .an-pick button:hover { opacity:1; }
 .an-scoped { margin:0 0 10px; padding:8px 12px; border-radius:8px; font-size:.9rem;
   background:var(--warn-bg, rgba(255,176,32,.14)); border:1px solid var(--warn, #b26a00); }
-
-/* Restricted AUs: the custom groups a tenant has filed into a persona vault
-   by hand (R28). Shown on the unit it applies to, not in a settings page. */
-.ru-extra { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:6px; }
-.ru-extra-in { font-size:.85rem; padding:3px 8px; }

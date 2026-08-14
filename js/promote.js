@@ -33,30 +33,10 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.278",
-  betaBuild: "v1.0.250-beta.99",
+  productionBuild: "v1.0.277",
+  betaBuild: "v1.0.250-beta.100",
 
   items: [
-    {
-      n: 46,
-      title: "Documentation for the restricted units (R27)",
-      tools: ["Restricted AUs"],
-      builds: [25099],
-      risk: "low",
-      what: "📄 Documentation — a per-unit document: what it protects, which CA policies depend on each group, who could widen an exclusion (by name, with what their role permits) and what would happen if they did. Orphaned and frozen units lead it.",
-      why: "Production has Export MD, which is a listing. The two facts a review needs — who can widen an exclusion here, and what that would do — are not derivable from it, and neither is visible from the portal.",
-      files: ["js/rmau.js", "js/app.js", "index.html"],
-    },
-    {
-      n: 45,
-      title: "Custom groups in the persona vaults (R28)",
-      tools: ["Restricted AUs"],
-      builds: [25098],
-      risk: "medium",
-      what: "A tenant's own groups can be filed into a persona vault, stated in the unit's description as [enca:extra=...] and honoured by every tool that routes a group. Never guesses, never hides the unmapped, and a stated mapping outranks the CA number.",
-      why: "Production routes only by the CA number, so a group that predates the baseline matches no persona and quietly falls out of Protect and Bulk add.",
-      files: ["js/rmau.js", "js/app.js", "css/app.css", "index.html"],
-    },
     {
       n: 44,
       title: "Gap analyse scans only named users or groups (R29)",
