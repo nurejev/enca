@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25108"></script>
+<script src="js/popup-guard.js?v=25109"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25108">
+<link rel="stylesheet" href="css/app.css?v=25109">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25108"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25108"></script>
+<script src="js/counter.js?v=25109"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25109"></script>
 </head>
 <body>
 
@@ -144,6 +144,10 @@
       <div class="tool" id="toolExclusions">
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer</h3>
         <p>Every exclusion across all policies — users, groups (expanded to members), roles, guest types, apps and locations — in an exclusion × policy matrix.</p>
+      </div>
+      <div class="tool" id="toolDevCheck">
+        <div class="tool-ic">🖥</div><h3>Device reality check <span class="tag new">BETA</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
+        <p>A grant demanding a compliant device is only worth what Intune's compliance policies are worth — and nothing checks the other half. Per CA policy and per platform: is the scope actually assigned a compliance policy, or does it fall through to the tenant default? Same check for app protection behind “require approved client app”. <span class="tag grant">extra permissions</span></p>
       </div>
       <div class="tool" id="toolAudit">
         <div class="tool-ic">🕓</div><h3>Change audit</h3>
@@ -1086,6 +1090,18 @@
     <div id="ugBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ COMPLIANT-DEVICE REALITY CHECK (R11) ============ -->
+  <section id="screen-devcheck" class="screen">
+    <div class="list-card readme" id="dvHead" style="margin-top:0"></div>
+    <div class="toolbar" id="dvToolbar" style="margin-top:14px">
+      <div class="tb-actions">
+        <button class="btn primary" id="dvRun">▶ Check the coverage</button>
+        <button class="btn" id="dvMd">Export MD</button>
+      </div>
+    </div>
+    <div id="dvBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ ROADMAP — where ENCA is heading, as a timeline ============ -->
   <section id="screen-roadmap" class="screen">
     <div class="help-page">
@@ -1094,6 +1110,10 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+<div class="list-card rm-card" data-shipped="25109">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R11</span> <a href="#" class="md-tool" data-tool="toolDevCheck">🖥 Compliant-device reality check</a> <span class="tag grant">live · beta 25109</span></h4>
+            <p class="mini" style="margin:0">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — and until now nothing checked the other half. The tool reads the compliance policies with their assignments and flags, per CA policy and <b>per platform</b>, every scope that no compliance policy actually covers — with the tenant default for policy-less devices read first, because that single Intune toggle decides whether a gap means <i>silently unprotected</i> (marked Compliant) or <i>users blocked</i> (marked Not compliant). The same check runs for app-protection policies behind “require approved client app”, which is flagged as unsatisfiable outside iOS and Android. OR-alternatives are named, coverage is proven from assignments or honestly reported as not proven, and the verdicts export as Markdown. Beta-site only for now.</p>
+          </div>
 <div class="list-card rm-card" data-shipped="25097">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R29</span> <a href="#" class="md-tool" data-tool="toolAnalyze">🔍 Gap analyse</a> — scan only who you asked about <span class="tag grant">live · build 25097</span></h4>
             <p class="mini" style="margin:0">Gap analyse builds a users × policies matrix for <b>every</b> user it can read. On a tenant of any size that is a long read producing a wide answer, when the question was usually narrow: <i>is this contractor covered</i>, <i>what does the finance team bypass</i>, <i>did that one exclusion group leave anybody exposed</i>. The matrix is the right output; the scope is not.</p>
@@ -1171,10 +1191,6 @@
             <p class="mini" style="margin:0">ENCA is static files and a browser — no server, no database, nothing stored anywhere. That makes it trivially self-hostable, and some tenants will require it: a security tool that reads Conditional Access is exactly the kind of thing an organisation wants served from its own infrastructure rather than from someone else's GitHub Pages, whatever the code does.</p>
             <p class="mini" style="margin:6px 0 0"><b>And with a host of your own, somewhere to keep things.</b> Today nothing survives the tab closing, by design — there is no server to keep it on, so a Drift snapshot is a file you download and a report is a file you save. A self-hosted instance changes what is possible: an optional <b>SQLite</b> store alongside the container could hold drift snapshots, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having had to keep track of a JSON file. Strictly opt-in and self-hosted only — the hosted site keeps storing nothing, because "nothing is kept anywhere" is a promise worth more than the convenience. Tokens would stay out of it regardless: they belong in the browser session and nowhere else.</p>
             <p class="mini" style="margin:6px 0 0">The plan is a published image (nginx over the built files) plus a <code>docker compose</code> example, so <code>docker run</code> gives a working instance. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. The one thing that cannot be automated is the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, so the documentation has to lead with that rather than bury it, since it is the step that produces the confusing sign-in error when missed.</p>
-          </div>
-                    <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R11</span> 🖥 Compliant-device reality check <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — and nothing checks the other half today. Read the compliance policies and their assignments, then flag every Conditional Access policy whose protection rests on a persona that no compliance policy actually covers. The same blind spot exists for app-protection policies behind “require approved client app”.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R12</span> ↩️ Undo for writes <span class="tag">planned</span></h4>
@@ -1660,6 +1676,20 @@
       <h4>🎚 Set Policy state <span class="tag block">writes to tenant</span></h4>
       <p>Switch selected policies between <b>On</b> (enabled), <b>Report-only</b> (logged, not enforced) and <b>Off</b> (disabled).</p>
       <p class="help-x">Writes the new state to the tenant after you confirm.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🖥 Device reality check <span class="tag new">BETA</span></h4>
+      <p>The other half of the <b>require compliant device</b> grant. The CA side names <i>who</i> must present a compliant device; the Intune side decides <i>which devices can ever be one</i> — and neither portal checks that the two halves meet. Per CA policy and per platform: is the policy's scope actually assigned an Intune compliance policy, or does it fall through to a tenant default almost nobody has read?</p>
+      <ul>
+        <li><b>The tenant default comes first</b>, because it decides what every gap <i>means</i>: Intune's “Mark devices with no compliance policy assigned as” toggle. Set to <b>Compliant</b>, an uncovered device passes the CA grant silently — the policy enforces nothing for that scope. Set to <b>Not compliant</b>, the same gap surfaces as blocked users instead: loud, but not silent.</li>
+        <li><b>Per platform, not per tenant</b> — compliance policies are per-platform, so a CA policy scoped to “any platform” can be covered on Windows and wide open on macOS. Settings-catalog compliance policies are read too (Linux only exists there).</li>
+        <li><b>Coverage is proven from assignments</b>: All devices / All users is proof; a CA include group directly assigned a compliance policy is proof; anything else is honestly <b>not proven</b> rather than assumed — group-assigned Intune policies against an “All users” CA policy leave everyone outside those groups on the default.</li>
+        <li><b>OR-alternatives are named</b> — a policy granting <i>compliant device OR MFA</i> does not block an uncovered device, it just lets the sign-in through on MFA. That is a gap in what the policy name promises, not in availability, and the card says which it is.</li>
+        <li><b>Same check for app protection</b> behind “require approved client app / app protection policy” — an iOS-and-Android mechanism, so a CA policy demanding it on Windows or macOS is flagged as a control that can never be satisfied there.</li>
+        <li><b>📄 Export MD</b> — the verdicts as Markdown for the review record.</li>
+      </ul>
+      <p class="help-x">Read-only. Needs <code>DeviceManagementConfiguration.Read.All</code> and <code>DeviceManagementApps.Read.All</code>, asked once on the click, plus an Intune RBAC role that can read the workload (e.g. Read Only Operator). Coverage is judged by <b>assignment targets</b>, not by expanding group memberships — where overlap cannot be proven from assignments the tool says “not proven” instead of guessing.</p>
     </section>
 
     <section class="help-sec">
@@ -2310,47 +2340,48 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25108"></script>
-<script src="js/version.js?v=25108"></script>
-<script src="js/promote.js?v=25108"></script>
-<script src="js/authConfig.js?v=25108"></script>
-<script src="js/labels.js?v=25108"></script>
-<script src="js/graph.js?v=25108"></script>
-<script src="js/model.js?v=25108"></script>
-<script src="js/render.js?v=25108"></script>
-<script src="js/analyze.js?v=25108"></script>
-<script src="js/whatif.js?v=25108"></script>
-<script src="js/mslearn.js?v=25108"></script>
-<script src="js/gapcheck.js?v=25108"></script>
-<script src="js/cisdata.js?v=25108"></script>
-<script src="js/cischeck.js?v=25108"></script>
-<script src="js/exclusions.js?v=25108"></script>
-<script src="js/validator.js?v=25108"></script>
-<script src="js/whatifeval.js?v=25108"></script>
-<script src="js/compare.js?v=25108"></script>
-<script src="js/groupuse.js?v=25108"></script>
-<script src="js/iso3166.js?v=25108"></script>
-<script src="js/locations.js?v=25108"></script>
-<script src="js/authcontexts.js?v=25108"></script>
-<script src="js/authstrengths.js?v=25108"></script>
-<script src="js/recycle.js?v=25108"></script>
-<script src="js/rmau.js?v=25108"></script>
-<script src="js/termsofuse.js?v=25108"></script>
-<script src="js/audit.js?v=25108"></script>
-<script src="js/drift.js?v=25108"></script>
-<script src="js/guide.js?v=25108"></script>
-<script src="js/signins.js?v=25108"></script>
-<script src="js/reportimpact.js?v=25108"></script>
-<script src="js/changelog.js?v=25108"></script>
-<script src="js/baselineData.js?v=25108"></script>
-<script src="js/baselineJoeyData.js?v=25108"></script>
-<script src="js/baseline.js?v=25108"></script>
-<script src="js/groupTemplates.js?v=25108"></script>
-<script src="js/assign.js?v=25108"></script>
-<script src="js/cagroups.js?v=25108"></script>
-<script src="js/import.js?v=25108"></script>
-<script src="js/export.js?v=25108"></script>
-<script src="js/demo.js?v=25108"></script>
-<script src="js/app.js?v=25108"></script>
+<script src="js/branding.js?v=25109"></script>
+<script src="js/version.js?v=25109"></script>
+<script src="js/promote.js?v=25109"></script>
+<script src="js/authConfig.js?v=25109"></script>
+<script src="js/labels.js?v=25109"></script>
+<script src="js/graph.js?v=25109"></script>
+<script src="js/model.js?v=25109"></script>
+<script src="js/render.js?v=25109"></script>
+<script src="js/analyze.js?v=25109"></script>
+<script src="js/whatif.js?v=25109"></script>
+<script src="js/mslearn.js?v=25109"></script>
+<script src="js/gapcheck.js?v=25109"></script>
+<script src="js/cisdata.js?v=25109"></script>
+<script src="js/cischeck.js?v=25109"></script>
+<script src="js/exclusions.js?v=25109"></script>
+<script src="js/validator.js?v=25109"></script>
+<script src="js/whatifeval.js?v=25109"></script>
+<script src="js/compare.js?v=25109"></script>
+<script src="js/groupuse.js?v=25109"></script>
+<script src="js/iso3166.js?v=25109"></script>
+<script src="js/locations.js?v=25109"></script>
+<script src="js/authcontexts.js?v=25109"></script>
+<script src="js/authstrengths.js?v=25109"></script>
+<script src="js/recycle.js?v=25109"></script>
+<script src="js/rmau.js?v=25109"></script>
+<script src="js/termsofuse.js?v=25109"></script>
+<script src="js/audit.js?v=25109"></script>
+<script src="js/drift.js?v=25109"></script>
+<script src="js/guide.js?v=25109"></script>
+<script src="js/devcheck.js?v=25109"></script>
+<script src="js/signins.js?v=25109"></script>
+<script src="js/reportimpact.js?v=25109"></script>
+<script src="js/changelog.js?v=25109"></script>
+<script src="js/baselineData.js?v=25109"></script>
+<script src="js/baselineJoeyData.js?v=25109"></script>
+<script src="js/baseline.js?v=25109"></script>
+<script src="js/groupTemplates.js?v=25109"></script>
+<script src="js/assign.js?v=25109"></script>
+<script src="js/cagroups.js?v=25109"></script>
+<script src="js/import.js?v=25109"></script>
+<script src="js/export.js?v=25109"></script>
+<script src="js/demo.js?v=25109"></script>
+<script src="js/app.js?v=25109"></script>
 </body>
 </html>

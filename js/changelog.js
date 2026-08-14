@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25109, date: "2026-08-14", title: "The other half of “require compliant device” (R11)",
+    items: [
+      { kind: "new", tool: "Device reality check", text: "🖥 Compliant-device reality check — roadmap item R11, beta-site only. A grant control demanding a compliant device is only worth what Intune's compliance policies are worth: the CA side names WHO must present a compliant device, the Intune side decides WHICH devices can ever be one, and neither portal checks that the two halves meet. The tool reads the compliance policies (settings catalog included — Linux only exists there) with their assignments and gives a verdict per CA policy and PER PLATFORM, because compliance is per-platform and “covered on Windows, wide open on macOS” is exactly the shape of the gap. What is read FIRST is the tenant default for devices with no compliance policy at all — Intune's “Mark devices with no compliance policy assigned as” toggle — because that single setting decides what every gap means: Compliant → an uncovered device passes the CA grant silently; Not compliant → the same gap surfaces as blocked users, loud but not silent. Coverage is proven from assignment targets (All devices / All users, or the CA include group directly assigned) and everything else is reported as “not proven” rather than assumed — memberships are not expanded and the tool says so. OR-alternatives are named per policy, since compliant-device-OR-MFA does not block an uncovered device, it just waves it through on MFA — a gap in what the policy name promises, not in availability. The same check runs for app protection behind “require approved client app”, flagged as unsatisfiable outside iOS and Android. Policy names open the policy card; Markdown report; demo mode. Reads only — DeviceManagementConfiguration.Read.All and DeviceManagementApps.Read.All, asked once on the click." },
+    ],
+  },
+  {
     build: 25108, date: "2026-08-14", title: "Items 48-51 reached production (281)",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue items 48 (searchable bulk scoped-admin grant), 49 (flagged home tiles ranked by recency), 50 (the per-unit scoped-admin field really takes several people) and 51 (tool count on the home heading) are live in production build 281. Removed from the queue; the numbers are retired rather than reused. Only the two beta-only tools remain queued, and neither can move without its tool." },

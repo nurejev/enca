@@ -71,7 +71,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-devcheck", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -1386,6 +1386,7 @@
     ["toolSignins", "🚦 Sign-in failures"],
     ["toolImpact", "🎚 Report-only impact"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
+    ["toolDevCheck", "🖥 Device reality check"],
     ["toolBaseline", "🧬 Baseline Policies"],
     ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
     ["toolMsLearn", "📘 MS Learn checks"],
@@ -7474,6 +7475,184 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("📖 Baseline usage guide", "CA-BaselineReadiness", Guide.toMd(ugRes, { tenantName }));
   });
 
+  // ---------- Compliant-device reality check (roadmap R11) ----------
+  // The analysis lives in js/devcheck.js as pure functions; this wiring
+  // reads the Intune side on demand (two on-demand scopes), pairs it with
+  // the CA policies already in memory, and renders the verdicts. Reads
+  // only. The one number that changes what every gap MEANS — the tenant
+  // default for devices with no compliance policy — is read from
+  // /deviceManagement/settings and shown first, never assumed.
+  let dvRes = null, dvBusy = false;
+  const dvProg = makeProgress("dv");
+  const DV_COMP_READ = ["DeviceManagementConfiguration.Read.All"];
+  const DV_APP_READ = ["DeviceManagementApps.Read.All"];
+  const DV_AREAS = [
+    { key: "comp",     icon: "🖥", label: "compliance policies" },
+    { key: "compSC",   icon: "🗂", label: "compliance policies (settings catalog)" },
+    { key: "appPols",  icon: "📱", label: "app-protection policies" },
+    { key: "settings", icon: "⚙", label: "tenant compliance default" },
+  ];
+
+  const DV_DEMO = {
+    comp: [
+      { "@odata.type": "#microsoft.graph.windows10CompliancePolicy", displayName: "Windows — baseline compliance",
+        assignments: [{ target: { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" } }] },
+      { "@odata.type": "#microsoft.graph.iosCompliancePolicy", displayName: "iOS compliance (HR pilot)",
+        assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-hr" } }] },
+    ],
+    compSC: [],
+    appPols: [
+      { platform: "iOS", name: "iOS app protection (HR pilot)",
+        assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-hr" } }] },
+    ],
+    settings: { secureByDefault: false },
+  };
+
+  async function dvRead(key) {
+    if (isDemo) return DV_DEMO[key];
+    if (key === "comp")
+      return Graph.ggetAll("/deviceManagement/deviceCompliancePolicies?$expand=assignments");
+    if (key === "compSC") {
+      // Settings-catalog compliance is where Linux lives; a tenant that
+      // rejects the endpoint (no licence, old cloud) is an empty list,
+      // not a failure of the whole run.
+      try { return await Graph.ggetAll("/deviceManagement/compliancePolicies?$expand=assignments"); }
+      catch { return []; }
+    }
+    if (key === "appPols") {
+      const fams = [
+        ["/deviceAppManagement/iosManagedAppProtections?$expand=assignments", "iOS"],
+        ["/deviceAppManagement/androidManagedAppProtections?$expand=assignments", "android"],
+        ["/deviceAppManagement/windowsManagedAppProtections?$expand=assignments", "windows"],
+      ];
+      const out = [];
+      for (const [url, platform] of fams) {
+        try { for (const p of await Graph.ggetAll(url)) out.push({ platform, name: p.displayName || p.name, assignments: p.assignments }); }
+        catch { /* family missing on this cloud — the others still count */ }
+      }
+      return out;
+    }
+    if (key === "settings") {
+      // null = not read; the analysis then says "not read" instead of
+      // guessing which way the tenant default points.
+      try { return (await Graph.gget("/deviceManagement/settings")) || null; }
+      catch { return null; }
+    }
+    return [];
+  }
+
+  async function dvRun() {
+    if (dvBusy) return;
+    dvBusy = true;
+    dvProg.start(DV_AREAS.length, "objects", "area");
+    $("dvBody").innerHTML = dvProg.panel("Reading the Intune side of the device grants…",
+      "Compliance policies with their assignments, app-protection policies, and the tenant default for devices with no policy — reads only, nothing is written.");
+    try {
+      if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...DV_COMP_READ, ...DV_APP_READ])) {
+        $("dvBody").innerHTML = '<div class="list-card"><p class="mini">Reading Intune needs DeviceManagementConfiguration.Read.All and DeviceManagementApps.Read.All — asked once, on this click. Without them the other half of the device grant stays unreadable.</p></div>';
+        dvBusy = false;
+        return;
+      }
+      const ctx = { policies: policies.map((p) => p.raw), names: {} };
+      let done = 0, count = 0;
+      for (const a of DV_AREAS) {
+        const t = $("dvPgTxt"); if (t) t.textContent = `${a.icon} ${a.label}…`;
+        ctx[a.key] = await dvRead(a.key);
+        count += Array.isArray(ctx[a.key]) ? ctx[a.key].length : 0;
+        dvProg.tick(count, ++done);
+      }
+      // Names for every group id the verdicts may mention — CA includes and
+      // Intune assignments both speak in GUIDs.
+      const gids = [...new Set([
+        ...ctx.policies.flatMap((r) => ((r.conditions || {}).users || {}).includeGroups || []),
+        ...[...(ctx.comp || []), ...(ctx.compSC || []), ...(ctx.appPols || [])]
+          .flatMap((p) => (p.assignments || []).map((as) => (as.target || {}).groupId).filter(Boolean)),
+      ])];
+      if (isDemo) { for (const g of gids) ctx.names[g] = (DEMO_DATA.names || {})[g] || g; }
+      else {
+        for (let i = 0; i < gids.length; i += 900) {
+          try {
+            const j = await Graph.gpost("/directoryObjects/getByIds", { ids: gids.slice(i, i + 900), types: ["group"] });
+            for (const o of j.value || []) ctx.names[o.id] = o.displayName;
+          } catch { /* names stay GUIDs — the verdicts still hold */ }
+        }
+      }
+      dvRes = DevCheck.analyze(ctx);
+    } catch (e) {
+      $("dvBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading Intune failed: ${esc(e.message || e)}</p></div>`;
+      dvBusy = false;
+      return;
+    }
+    dvBusy = false;
+    renderDevCheck();
+  }
+
+  const DV_STATE = {
+    covered:   { cls: "ok",    word: "covered" },
+    partial:   { cls: "new",   word: "not proven" },
+    uncovered: { cls: "block", word: "uncovered" },
+    na:        { cls: "",      word: "n/a" },
+  };
+  const dvChip = (v) => `<span class="tag ${DV_STATE[v].cls}">${DevCheck.V_ICON[v]} ${DV_STATE[v].word}</span>`;
+  const dvStateTag = (s) => s === "enabled" ? '<span class="tag block">Enforced</span>'
+    : s === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
+
+  function renderDevCheck() {
+    $("dvHead").innerHTML = `<h3>🖥 Compliant-device reality check <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:4px">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — the CA side names <b>who</b> must present a compliant device, the Intune side decides <b>which devices can ever be one</b>, and nothing else checks that the two halves meet. Per CA policy and per platform: is the scope actually assigned a compliance policy? Same check for app-protection behind “require approved client app”.</p>
+      <p class="mini muted" style="margin:0">Reads only — Intune compliance and app-protection policies with their assignments, and the tenant default that decides what an uncovered device becomes.</p>`;
+    if (dvBusy) return;   // the run panel owns dvBody until the read finishes
+
+    if (!dvRes) {
+      $("dvBody").innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-dvrun>▶ Check the coverage</button>
+        <p class="mini muted">Pairs the ${policies.length} policies already loaded with the Intune side. Needs DeviceManagementConfiguration.Read.All and DeviceManagementApps.Read.All — asked once, on this click.</p>
+      </div>`;
+      return;
+    }
+
+    const r = dvRes;
+    // The tenant default first: it is the difference between "gap = silently
+    // unprotected" and "gap = users blocked", and it colours every card below.
+    const secure = r.secure === null
+      ? `<p class="mini" style="margin:0">⚙ Tenant default for devices with <b>no compliance policy</b>: <b>not read</b> — the verdicts below still hold, but what an uncovered device <i>becomes</i> is unknown.</p>`
+      : r.secure
+      ? `<p class="mini" style="margin:0">⚙ Tenant default: devices with no compliance policy are marked <b>Not compliant</b>. A coverage gap below surfaces as <b>blocked users</b> — loud, but not silent.</p>`
+      : `<p class="mini" style="color:var(--off);margin:0">⚙ Tenant default: devices with no compliance policy are marked <b>COMPLIANT</b>. Every coverage gap below <b>passes the device check silently</b> — this single Intune toggle (Compliance policy settings → “Mark devices with no compliance policy assigned as”) decides what all the gaps mean.</p>`;
+    const head = `<div class="list-card" style="padding:14px 16px">
+      ${secure}
+      <p class="mini muted" style="margin:8px 0 0">${r.summary.compCount} compliance polic${r.summary.compCount === 1 ? "y" : "ies"} (${r.summary.perPlat.map((x) => `${esc(x.label)}: ${x.n}`).join(" · ")}) · ${r.summary.appCount} app-protection · ${r.results.length} CA polic${r.results.length === 1 ? "y" : "ies"} using device grants · <b>${r.summary.flagged} flagged</b></p>
+    </div>`;
+
+    if (!r.results.length) {
+      $("dvBody").innerHTML = head + `<div class="list-card" style="padding:14px 16px;margin-top:12px"><p class="mini" style="margin:0">No Conditional Access policy grants <b>compliantDevice</b>, <b>approvedApplication</b> or <b>compliantApplication</b> — there is no device-grant coverage to check in this tenant.</p></div>`;
+      return;
+    }
+
+    $("dvBody").innerHTML = head + r.results.map((p) => `
+      <div class="list-card" style="padding:14px 16px;margin-top:12px">
+        <h4 style="margin:0 0 6px">${dvChip(p.worst)} <b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b> ${dvStateTag(p.state)}</h4>
+        ${p.alt.length ? `<p class="mini muted" style="margin:0 0 6px">OR-alternatives present (${esc(p.alt.join(", "))}) — a user on an uncovered device is not blocked, they simply satisfy the policy <i>without</i> the device check. The gap is in what the policy name promises, not in availability.</p>` : ""}
+        ${p.legs.map((leg) => `<p class="mini" style="margin:6px 0 2px"><b>${esc(leg.label)}</b></p>
+          <ul class="mini" style="margin:0 0 0 2px;padding-left:18px">
+            ${leg.rows.map((row) => `<li>${DevCheck.V_ICON[row.verdict]} <b>${esc(DevCheck.PLAT[row.plat])}</b> — ${esc(row.detail)}${row.via.length ? ` <span class="muted">(${esc(row.via.join(", "))})</span>` : ""}</li>`).join("")}
+          </ul>`).join("")}
+      </div>`).join("");
+  }
+
+  function openDevCheck() { crumb("🖥 Device reality check"); show("screen-devcheck"); renderDevCheck(); }
+  $("toolDevCheck").addEventListener("click", openDevCheck);
+  $("dvRun").addEventListener("click", dvRun);
+  $("dvBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-dvrun]")) { dvRun(); return; }
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+  $("dvMd").addEventListener("click", () => {
+    if (!dvRes) { toast("Run the check first — the report is the coverage verdicts."); return; }
+    showReport("🖥 Compliant-device reality check", "CA-DeviceRealityCheck", DevCheck.toMd(dvRes, { tenantName }));
+  });
+
   // ---------- Sign-in failures (sign-in log × CA verdicts) ----------
   const SI_READ = ["AuditLog.Read.All"];
   // Report-only failures cannot be filtered server-side (the sign-in itself
@@ -11741,7 +11920,7 @@ max@contoso.com,"Global, DevOps"</pre>
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
     siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
-    drHead: "toolDrift", ugHead: "toolGuide",
+    drHead: "toolDrift", ugHead: "toolGuide", dvHead: "toolDevCheck",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

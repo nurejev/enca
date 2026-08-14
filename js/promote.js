@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.281",
-  betaBuild: "v1.0.250-beta.108",
+  betaBuild: "v1.0.250-beta.109",
 
   items: [
+    {
+      n: 35,
+      title: "🖥 Compliant-device reality check (R11)",
+      tools: ["Device reality check"],
+      builds: [25109],
+      risk: "low",
+      what: "New beta-only tool: per CA policy and per platform, is the scope of a compliant-device / approved-client-app grant actually assigned an Intune compliance or app-protection policy — with the tenant default for policy-less devices read first, OR-alternatives named, and unprovable overlap reported as 'not proven' rather than assumed. New js/devcheck.js plus tile, screen, Help section and wiring.",
+      why: "Reads only (two on-demand Intune scopes), but its verdicts accuse a tenant of silent gaps — that must be right against enough real Intune estates before a customer sees it, so it graduates once the coverage logic has proven itself.",
+      files: ["js/devcheck.js", "js/app.js", "index.html", "js/version.js"],
+    },
     {
       n: 34,
       title: "CIS Benchmark Help section",
