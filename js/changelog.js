@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25097, date: "2026-08-14", title: "Gap analyse can scan only who you asked about (R29)",
+    items: [
+      { kind: "new", tool: "Gap analyse", text: "R29 — Scope → \"Only these users or groups\" names principals before the scan and judges only those: the same policies, the same verdicts, a fraction of the reads. The matrix was always the right output; the scope was not. The question is usually narrow — is this contractor covered, what does the finance team bypass, did that exclusion group leave anybody exposed — and answering it should not mean reading every user in the tenant first." },
+      { kind: "new", tool: "Gap analyse", text: "A named group is expanded to its members, nested groups included. The scan judges people, not groups: a group being in scope of one policy says nothing about a member another policy excludes, and a row per group would answer a question nobody asked." },
+      { kind: "improved", tool: "Gap analyse", text: "The result says what it was scoped to, on screen above the counts and in the exported report. \"No risky bypasses\" over four named people and over the whole tenant are different answers that otherwise render identically — and the scoped one is the easier of the two to mistake for the other." },
+    ],
+  },
+  {
     build: 25096, date: "2026-08-14", title: "Filter the policies that did not apply (R30)",
     items: [
       { kind: "new", tool: "What-If", text: "R30 — a run against a real tenant answers with two policies that apply and 107 that do not, each with its reason. That is the honest answer and it is unreadable as one block, because the question behind it is almost never \"show me everything\": it is a persona question — why did no Admins policy apply to this admin — or a number question, what happened to CA103. The list now filters by persona and by CA number, using the same CA ranges 🗂 List Policies groups by through the same helper, so the ranges stay one idea across the toolset rather than two implementations that drift." },

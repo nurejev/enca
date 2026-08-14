@@ -36,6 +36,10 @@
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
   let anPols = [], anMaps = [], anTab = "users", anPage = 0;
   let anGroups = [], anGroupSel = "";   // persona/scope group filter
+  // R29 — the principals a scan is limited to, and what it actually judged
+  let anNamed = [];          // [{ kind:"user"|"group", id, name }]
+  let anNamedMap = new Map();  // lowercased label -> pick
+  let anScopedTo = null;     // what the LAST run was scoped to, for the report
   let anType = "";                       // post-run user-type filter: "" | member | guest
   let toolMode = "document";             // action of the lemon toolbar button: document | backup
   const AN_PAGE_SIZE = 50;
@@ -11242,13 +11246,20 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       const { lookup, users, scopeGroups, ctx } = isDemo
         ? Analyzer.collectDemo(vms)
-        : await Analyzer.collect(vms, scope, status);
+        : await Analyzer.collect(vms, scope, status, scope === "named" ? {
+            users: anNamed.filter((x) => x.kind === "user"),
+            groups: anNamed.filter((x) => x.kind === "group"),
+          } : null);
       status(`Evaluating ${users.length} users × ${lookup.length} policies…`);
       await new Promise(r => setTimeout(r, 30)); // let the status paint
       anReport = Analyzer.evaluate(lookup, users, ctx);
       anPols = Analyzer.policyMeta(lookup);
       anMaps = Analyzer.buildMatrixMaps(anReport);
       anGroups = scopeGroups || []; anGroupSel = "";
+      // what was scoped has to be as prominent as what was found: a clean
+      // result over four people is not a clean result over the tenant
+      anScopedTo = scope === "named" && anNamed.length
+        ? anNamed.map((x) => `${x.kind === "group" ? "👥" : "👤"} ${x.name}`) : null;
       refreshGroupSelect();
       anFilter = "all"; anQuery = ""; anPage = 0; anType = ""; $("anSearch").value = ""; $("anType").value = "";
       renderAnalysis();
@@ -11270,6 +11281,16 @@ max@contoso.com,"Global, DevOps"</pre>
   function renderAnalysis() {
     if (!anReport) return;
     const s = Analyzer.summary(anReport);
+    // What was scanned, said as loudly as what was found. "No risky bypasses"
+    // over four named people and over the whole tenant are different answers
+    // that otherwise render identically.
+    const sb = $("anScopeBanner");
+    if (sb) {
+      sb.style.display = anScopedTo ? "" : "none";
+      sb.innerHTML = anScopedTo
+        ? `<b>Scoped run</b> — these findings cover ${anReport.length} user${anReport.length === 1 ? "" : "s"} from ${anScopedTo.length} named principal${anScopedTo.length === 1 ? "" : "s"} only, not the tenant: ${anScopedTo.map(esc).join(" · ")}`
+        : "";
+    }
     $("anCards").innerHTML = [
       ["all", s.users, "Users", ""],
       ["risky", s.risky, "Risky bypasses", "risk"],
@@ -11317,6 +11338,68 @@ max@contoso.com,"Global, DevOps"</pre>
   $("anMPrev").addEventListener("click", () => { anPage--; renderAnalysis(); });
   $("anMNext").addEventListener("click", () => { anPage++; renderAnalysis(); });
   $("anGroup").addEventListener("change", (e) => { anGroupSel = e.target.value; anPage = 0; renderAnalysis(); });
+  // ---- R29: scan only who you asked about --------------------------------
+  function anRenderPicks() {
+    $("anNamedPicks").innerHTML = anNamed.map((x, i) =>
+      `<span class="an-pick">${x.kind === "group" ? "👥" : "👤"} ${esc(x.name)}<button data-anpick="${i}" title="Remove">×</button></span>`).join("");
+    const run = $("anRun");
+    if (run) run.disabled = $("anScope").value === "named" && !anNamed.length;
+    const hint = $("anNamedHint");
+    if (hint) {
+      hint.textContent = anNamed.length
+        ? "A group is expanded to its members, nested groups included — the scan judges people, not groups."
+        : "Name at least one user or group. Nothing is read tenant-wide in this mode.";
+    }
+  }
+  $("anScope").addEventListener("change", (e) => {
+    $("anNamed").style.display = e.target.value === "named" ? "" : "none";
+    anRenderPicks();
+  });
+  let anNamedTimer = null;
+  $("anNamedSearch").addEventListener("input", (e) => {
+    const v = e.target.value.trim();
+    clearTimeout(anNamedTimer);
+    if (v.length < 2 || isDemo) return;
+    anNamedTimer = setTimeout(async () => {
+      try {
+        const f = v.replace(/'/g, "''");
+        const [u, g] = await Promise.all([
+          Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=id,displayName,userPrincipalName&$top=7`).catch(() => null),
+          Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=id,displayName&$top=7`).catch(() => null),
+        ]);
+        anNamedMap = new Map();
+        const rows = [];
+        ((u && u.value) || []).forEach((x) => {
+          const label = x.userPrincipalName || x.displayName;
+          anNamedMap.set(label.toLowerCase(), { kind: "user", id: x.id, name: x.displayName || label });
+          rows.push(`<option value="${esc(label)}" label="👤 ${esc(x.displayName || "")}"></option>`);
+        });
+        ((g && g.value) || []).forEach((x) => {
+          anNamedMap.set((x.displayName || "").toLowerCase(), { kind: "group", id: x.id, name: x.displayName });
+          rows.push(`<option value="${esc(x.displayName || "")}" label="👥 group"></option>`);
+        });
+        $("anNamedList").innerHTML = rows.join("");
+      } catch (err) { console.warn("gap analyse: pick suggest failed", err.message); }
+    }, 250);
+  });
+  function anAddPick() {
+    const v = $("anNamedSearch").value.trim();
+    if (!v) return;
+    const hit = anNamedMap.get(v.toLowerCase());
+    if (!hit) { toast("Pick a <span>user or group</span> from the list"); return; }
+    if (anNamed.some((x) => x.id === hit.id)) { toast("Already in the list"); return; }
+    anNamed.push(hit);
+    $("anNamedSearch").value = "";
+    anRenderPicks();
+  }
+  $("anNamedAdd").addEventListener("click", anAddPick);
+  $("anNamedSearch").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); anAddPick(); } });
+  $("anNamedPicks").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-anpick]");
+    if (!b) return;
+    anNamed.splice(+b.dataset.anpick, 1);
+    anRenderPicks();
+  });
   $("anType").addEventListener("change", (e) => { anType = e.target.value; anPage = 0; renderAnalysis(); });
   $("anGroupAdd").addEventListener("click", async () => {
     const val = $("anGroupInput").value.trim(); if (!val || !anReport) return;
@@ -11373,7 +11456,8 @@ max@contoso.com,"Global, DevOps"</pre>
       tenant: tenantName || "tenant",
       date: new Date().toISOString().slice(0, 10),
       policies: anPols.length,
-      scope: `${$("anScope").value} users${$("anReportOnly").checked ? ", incl. report-only" : ""}`
+      scope: (anScopedTo ? `only ${anScopedTo.join(", ")}` : `${$("anScope").value} users`)
+        + ($("anReportOnly").checked ? ", incl. report-only" : "")
         + (filterBits.length ? ` | filtered: ${filterBits.join(", ")} (${subset.length} of ${anReport.length} users)` : ""),
     };
     const html = Analyzer.exportHtml(meta, subset, anPols, anGroups);

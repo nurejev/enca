@@ -34,9 +34,19 @@
 // ======================================================================
 const PROMOTE = {
   productionBuild: "v1.0.277",
-  betaBuild: "v1.0.250-beta.96",
+  betaBuild: "v1.0.250-beta.97",
 
   items: [
+    {
+      n: 44,
+      title: "Gap analyse scans only named users or groups (R29)",
+      tools: ["Gap analyse"],
+      builds: [25097],
+      risk: "medium",
+      what: "A scope mode that names users or groups before the run: groups expanded to their transitive members, no tenant-wide /users read, and the scoped-ness reported on screen and in the export.",
+      why: "Production reads every user in the tenant to answer a question about one contractor, which on a large tenant is minutes of reads for a wide answer nobody asked for.",
+      files: ["index.html", "js/app.js", "js/analyze.js", "css/app.css"],
+    },
     {
       n: 43,
       title: "Filter the policies that did not apply (R30)",
