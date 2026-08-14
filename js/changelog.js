@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 276, date: "2026-08-14", title: "Best-practice checks move to Compare against a baseline",
+    items: [
+      { kind: "improved", tool: "All tools", text: "🛡 Best-practice & bypass checks moves from 🔍 Analyse & simulate into 🧬 Compare against a baseline. It measures the tenant against a reference standard, which is exactly what that section is for; it sat with the simulators because that is where it was written, not because that is where somebody would look for it. No behaviour changes and no version bump — the tool is untouched, only its home." },
+    ],
+  },
+  {
     build: 275, date: "2026-08-14", title: "One sign-in window for two tools, and the evidence behind a verdict",
     items: [
       { kind: "fixed", tool: "Sign-in failures", text: "In report-only mode this tool and 🎚 Report-only impact issue the byte-for-byte SAME Graph read — the entire window, unfiltered, because report-only verdicts cannot be filtered server-side. Switching between them read it twice: ten thousand records and minutes of waiting, twice, for one answer. Whichever runs second now reuses what the first read and says so, with the age of the data. ⟳ Rescan always re-reads the tenant, and the truncation flag travels with the records — a window that was cut short is a different fact from a complete one. Enforced-failure mode keeps its own server-filtered read, since serving it from the shared window would mean filtering ten thousand records in the browser to answer a question Graph answers cheaply." },

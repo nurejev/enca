@@ -8,14 +8,14 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 275,
+  build: 276,
   date: "2026-08-13",
   // When this build was cut, UTC. Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
   // UTC deliberately — a shared answer beats a local one when the person
   // asking and the person who pushed are in different places.
-  released: "2026-08-14T10:20Z",
+  released: "2026-08-14T11:24Z",
   get label() { return `v${this.version}.${this.build}`; },
   get stamp() { return `${this.label} · ${String(this.released).replace("T", " ")}`; },
   get full() { return `${this.label} · ${this.date}`; },
