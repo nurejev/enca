@@ -13,10 +13,27 @@
     not change: every tenant that already consented is bound to it.
   - Idempotent: safe to run again (updates the existing app).
   - Grants admin consent in your own tenant (skip with -SkipAdminConsent).
+  - Optionally restricts the app to named users/groups (-RequireAssignment):
+    sets "Assignment required" on the enterprise application and assigns the
+    creator first, so the tool is usable only by you until you widen it.
   - Patches js/authConfig.js with the client ID when found next to this script.
 
 .EXAMPLE
   ./New-EncaAppRegistration.ps1
+
+.EXAMPLE
+  # Lock the app to yourself while you evaluate it, then widen later from the portal.
+  ./New-EncaAppRegistration.ps1 -RequireAssignment
+
+.EXAMPLE
+  # Yourself plus a team, by UPN or group display name.
+  ./New-EncaAppRegistration.ps1 -RequireAssignment -AssignTo "sec-team@contoso.com","CA Administrators"
+
+.EXAMPLE
+  # High-assurance: register ENCA in YOUR tenant only, for your own hosted copy.
+  ./New-EncaAppRegistration.ps1 -SingleTenant -SingleTenantRedirectUris "https://enca.contoso.example"
+  # Prints the clientId + authority to paste into js/authConfig.local.js.
+  # Full walkthrough: SINGLE-TENANT.md
 
 .NOTES
   Requires: Microsoft.Graph.Applications module, and a role that can create
@@ -36,6 +53,25 @@ param(
   # cadoc.limon-it.nl stays listed while the old domain still redirects - drop
   # it once nobody reaches the app on the old host any more.
   [string[]]$RedirectUris = @("https://enca.limon-it.nl", "https://cadoc.limon-it.nl", "http://localhost:8080"),
+  # Register the app for THIS TENANT ONLY (AzureADMyOrg) instead of multi-tenant.
+  # This is the high-assurance route: you own the registration, its consent
+  # record and its audit trail, and no directory but yours can use it. Pair it
+  # with your own hosted copy of the app and set the client ID + authority it
+  # prints into js/authConfig.local.js. See SINGLE-TENANT.md.
+  [switch]$SingleTenant,
+  # Where your own copy is served from. Ignored unless -SingleTenant.
+  [string[]]$SingleTenantRedirectUris = @("http://localhost:8080"),
+  # Lock the app down to named people. Sets "Assignment required" on the
+  # enterprise application (servicePrincipal.appRoleAssignmentRequired) so that
+  # ANYONE not explicitly assigned is refused at sign-in with AADSTS50105, and
+  # assigns YOU so you are not locked out of your own registration. Add others
+  # with -AssignTo. Read the caveats in SINGLE-TENANT.md: this gates who may
+  # OPEN the tool; it does not reduce what an assigned person can do, which is
+  # still bounded by their own directory roles.
+  [switch]$RequireAssignment,
+  # Extra principals to assign, by UPN or group display name. Groups must be
+  # assigned DIRECTLY - Entra does not honour nested groups for app assignment.
+  [string[]]$AssignTo = @(),
   # Policy.ReadWrite.ConditionalAccess is only used by the Assign-groups tool;
   # Group.ReadWrite.All + RoleManagement.ReadWrite.Directory only when creating
   # role-assignable persona groups. All are requested on demand in the app but
@@ -77,6 +113,8 @@ $GraphAppId = "00000003-0000-0000-c000-000000000000" # Microsoft Graph
 #--- 1. Connect (reuse existing session when possible) -------------------
 $requiredScopes = @("Application.ReadWrite.All")
 if (-not $SkipAdminConsent) { $requiredScopes += "DelegatedPermissionGrant.ReadWrite.All" }
+# Assigning users/groups to the enterprise app needs its own scope.
+if ($RequireAssignment) { $requiredScopes += "AppRoleAssignment.ReadWrite.All" }
 
 $ctx = Get-MgContext
 $missing = if ($ctx) { $requiredScopes | Where-Object { $_ -notin $ctx.Scopes } } else { $requiredScopes }
@@ -99,9 +137,17 @@ $resourceAccess = foreach ($name in $DelegatedScopes) {
 $requiredResourceAccess = @(@{ ResourceAppId = $GraphAppId; ResourceAccess = $resourceAccess })
 
 #--- 3. Create or update the app registration ---------------------------
+if ($SingleTenant) {
+  # Your own tenant only. The redirect URIs must point at YOUR copy of the app;
+  # the Limon-IT hosts are meaningless in a registration you own.
+  $RedirectUris = $SingleTenantRedirectUris
+  if ($AppName -eq "ENCA (Limon-IT)") { $AppName = "ENCA" }
+}
+$audience = if ($SingleTenant) { "AzureADMyOrg" } else { "AzureADMultipleOrgs" }
+
 $appParams = @{
   DisplayName            = $AppName
-  SignInAudience         = "AzureADMultipleOrgs"                  # multi-tenant
+  SignInAudience         = $audience
   Spa                    = @{ RedirectUris = $RedirectUris }       # SPA = auth code + PKCE, no secret
   RequiredResourceAccess = $requiredResourceAccess
   Web                    = @{ ImplicitGrantSettings = @{ EnableAccessTokenIssuance = $false; EnableIdTokenIssuance = $false } }
@@ -130,6 +176,87 @@ if ($app) {
 #--- 4. Ensure a service principal exists in this tenant ----------------
 $sp = Get-MgServicePrincipal -Filter "appId eq '$($app.AppId)'" | Select-Object -First 1
 if (-not $sp) { $sp = New-MgServicePrincipal -AppId $app.AppId }
+
+#--- 4b. Restrict who may open the app ----------------------------------
+# "Assignment required" is enforced by Entra at sign-in, before any token is
+# issued: an unassigned user gets AADSTS50105 and never reaches the app. It is
+# a gate on WHO MAY OPEN the tool, not on what they can do once inside - that
+# is still bounded by their own directory roles and by consent.
+#
+# The creator is assigned FIRST and unconditionally. Turning on the requirement
+# without assigning anybody would lock every human out of the app, including
+# the person who just created it.
+if ($RequireAssignment) {
+  # An app that exposes no app roles uses the well-known "default access" role.
+  $defaultAccessRole = "00000000-0000-0000-0000-000000000000"
+
+  $assignedNames = @()
+  $failed = @()
+
+  function Add-EncaAssignment {
+    param([string]$PrincipalId, [string]$Label)
+    $existing = Get-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $sp.Id -All |
+                Where-Object { $_.PrincipalId -eq $PrincipalId }
+    if ($existing) { Write-Host "  . $Label - already assigned" -ForegroundColor DarkGray; return $true }
+    try {
+      New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $sp.Id -BodyParameter @{
+        principalId = $PrincipalId; resourceId = $sp.Id; appRoleId = $defaultAccessRole
+      } | Out-Null
+      Write-Host "  + $Label" -ForegroundColor Green
+      return $true
+    } catch {
+      Write-Host "  x $Label - $($_.Exception.Message)" -ForegroundColor Red
+      return $false
+    }
+  }
+
+  Write-Host ""
+  Write-Host "Restricting the app to assigned principals..." -ForegroundColor Cyan
+
+  # 1) the person running this script
+  $meUpn = (Get-MgContext).Account
+  $me = $null
+  try { $me = Get-MgUser -UserId $meUpn -Property Id,DisplayName,UserPrincipalName -ErrorAction Stop } catch {}
+  if ($me) {
+    if (Add-EncaAssignment -PrincipalId $me.Id -Label "$($me.DisplayName) <$($me.UserPrincipalName)>  (you)") {
+      $assignedNames += $me.UserPrincipalName
+    } else { $failed += $meUpn }
+  } else {
+    Write-Host "  ! Could not resolve the signed-in account '$meUpn' as a user object." -ForegroundColor Yellow
+    Write-Host "    Assignment required will NOT be enabled - that would lock everyone out." -ForegroundColor Yellow
+    $failed += $meUpn
+  }
+
+  # 2) anyone else named on the command line, by UPN or group display name
+  foreach ($name in $AssignTo) {
+    $n = $name.Trim(); if (-not $n) { continue }
+    $principal = $null; $label = $n
+    if ($n -like "*@*") {
+      try { $u = Get-MgUser -UserId $n -Property Id,DisplayName -ErrorAction Stop
+            $principal = $u.Id; $label = "$($u.DisplayName) <$n>  (user)" } catch {}
+    }
+    if (-not $principal) {
+      # Escape on its own line: a $() holding double quotes inside a double-quoted
+      # string is legal PowerShell but a trap for anyone editing it later.
+      $safe = $n.Replace("'", "''")
+      $filter = "displayName eq '" + $safe + "'"
+      $g = @(Get-MgGroup -Filter $filter -Property Id,DisplayName)
+      if ($g.Count -gt 1) { Write-Host "  x $n - several groups share that name; assign it in the portal" -ForegroundColor Red; $failed += $n; continue }
+      if ($g.Count -eq 1) { $principal = $g[0].Id; $label = "$($g[0].DisplayName)  (group - members must be DIRECT, nested groups are ignored by Entra)" }
+    }
+    if (-not $principal) { Write-Host "  x $n - no user or group found" -ForegroundColor Red; $failed += $n; continue }
+    if (Add-EncaAssignment -PrincipalId $principal -Label $label) { $assignedNames += $n } else { $failed += $n }
+  }
+
+  # 3) only now flip the switch, and only if somebody can actually get in
+  if ($assignedNames.Count -gt 0) {
+    Update-MgServicePrincipal -ServicePrincipalId $sp.Id -AppRoleAssignmentRequired:$true
+    Write-Host "Assignment required: ON - everyone else is refused at sign-in (AADSTS50105)." -ForegroundColor Green
+  } else {
+    Write-Host "Assignment required: LEFT OFF - nobody could be assigned, and enabling it now would lock the app to nobody." -ForegroundColor Red
+  }
+  if ($failed.Count) { Write-Host "Not assigned: $($failed -join ', ')" -ForegroundColor Yellow }
+}
 
 #--- 5. Admin consent for this tenant -----------------------------------
 if (-not $SkipAdminConsent) {
@@ -160,10 +287,35 @@ Write-Host "==================== ENCA app registration ====================" -Fo
 Write-Host "  Display name : $($app.DisplayName)"
 Write-Host "  Client ID    : $($app.AppId)"
 Write-Host "  Object ID    : $($app.Id)"
-Write-Host "  Audience     : multi-tenant (AzureADMultipleOrgs)"
+Write-Host "  Audience     : $(if ($SingleTenant) { 'THIS TENANT ONLY (AzureADMyOrg)' } else { 'multi-tenant (AzureADMultipleOrgs)' })"
 Write-Host "  SPA redirects: $($RedirectUris -join ', ')"
 Write-Host "  Permissions  : $($DelegatedScopes -join ', ') (delegated)"
+if ($RequireAssignment) {
+  $spNow = Get-MgServicePrincipal -ServicePrincipalId $sp.Id -Property AppRoleAssignmentRequired,Id
+  $who = @(Get-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $sp.Id -All | Select-Object -ExpandProperty PrincipalDisplayName)
+  Write-Host "  Access       : $(if ($spNow.AppRoleAssignmentRequired) { 'ASSIGNED PRINCIPALS ONLY' } else { 'anyone in the tenant (assignment NOT required)' })"
+  Write-Host "  Assigned     : $(if ($who) { $who -join ', ' } else { '(nobody)' })"
+  Write-Host "  Add more     : Entra ID > Enterprise applications > $($app.DisplayName) > Users and groups"
+}
 Write-Host ""
-Write-Host "  Customer tenant admin-consent URL:" -ForegroundColor Cyan
-Write-Host "  https://login.microsoftonline.com/organizations/adminconsent?client_id=$($app.AppId)&redirect_uri=$([uri]::EscapeDataString($RedirectUris[0]))"
+if ($SingleTenant) {
+  $tenantId = (Get-MgContext).TenantId
+  Write-Host "  Paste this into js/authConfig.local.js of your copy:" -ForegroundColor Cyan
+  Write-Host ""
+  Write-Host "    window.ENCA_AUTH = {"
+  Write-Host "      clientId:  `"$($app.AppId)`","
+  Write-Host "      authority: `"https://login.microsoftonline.com/$tenantId`","
+  Write-Host "    };"
+  Write-Host ""
+  Write-Host "  ...and reference it in index.html just before js/authConfig.js:" -ForegroundColor Cyan
+  Write-Host "    <script src=`"js/authConfig.local.js`"></script>"
+  Write-Host ""
+  Write-Host "  Admin-consent URL (this tenant):" -ForegroundColor Cyan
+  Write-Host "  https://login.microsoftonline.com/$tenantId/adminconsent?client_id=$($app.AppId)&redirect_uri=$([uri]::EscapeDataString($RedirectUris[0]))"
+  Write-Host ""
+  Write-Host "  Full walkthrough: SINGLE-TENANT.md" -ForegroundColor Cyan
+} else {
+  Write-Host "  Customer tenant admin-consent URL:" -ForegroundColor Cyan
+  Write-Host "  https://login.microsoftonline.com/organizations/adminconsent?client_id=$($app.AppId)&redirect_uri=$([uri]::EscapeDataString($RedirectUris[0]))"
+}
 Write-Host "=================================================================="

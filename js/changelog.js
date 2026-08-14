@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 273, date: "2026-08-13", title: "Your own app registration, and a release stamp you can trust",
+    items: [
+      { kind: "new", tool: "All tools", text: "Your own single-tenant app registration. New-EncaAppRegistration.ps1 gains -SingleTenant and -RequireAssignment, js/authConfig.local.js works as an override, and SINGLE-TENANT.md documents the route end to end including where to host it. Additive: nothing behaves differently for anyone who ignores it, and it is the documented answer for a tenant that will not sign in to somebody else's registration." },
+      { kind: "new", tool: "All tools", text: "The sign-in screen now shows the version AND the time the build was cut, in UTC. The date alone cannot separate two releases on the same day, which is precisely when somebody needs to know whether what they pushed is live — that is a question about minutes. UTC on purpose: a shared answer beats a local one when the person asking and the person who pushed are in different places." },
+      { kind: "fixed", tool: "All tools", text: "🎫 Authentication contexts, 💪 Authentication strengths, 📜 Terms of use and ♻ Recycle bin had no Help section at all, and since the Help contents list is built from those headings they were absent from Help entirely — two of them tools that write to the tenant. Each was written from its module rather than summarised from the tile: the context id is a contract that can be renamed but never renumbered; a strength is only as strong as its weakest combination; a restored policy comes back in the state it was deleted in and enforces immediately." },
+      { kind: "improved", tool: "All tools", text: "🛡 Restricted AUs, 📉 Drift watch, 💪 Authentication strengths and 📜 Terms of use move from 0.x to 1.0. Something a customer can open is not a 0.x thing, whatever it accumulated on the beta channel — and it is the BETA chip, not the version number, that says “still proving itself”." },
+    ],
+  },
+  {
     build: 272, date: "2026-08-13", title: "Why that user would be interrupted",
     items: [
       { kind: "new", tool: "Report-only impact", text: "A policy named LowMediumUserRisk reporting “3 interrupted” invites exactly one question — low, or medium? — and the answer was in the sign-in records all along and being discarded. The drill-down now reads “user risk low ×2, user risk medium ×1”, in both the per-user and the per-policy views. Counted per level rather than summarised, because two lows and one medium is a different go-live decision from three mediums." },

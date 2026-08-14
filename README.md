@@ -200,6 +200,29 @@ call is the count ping itself, and blocking it changes nothing about how ENCA
 works. Everything else remains as it always was: no backend, no database, and
 no policy data ever leaves the user's session.
 
+## Running it on your own app registration
+
+High-assurance tenants can register ENCA inside their own directory
+(`AzureADMyOrg`) and serve their own reviewed copy, so no application outside
+the tenant holds a delegated grant. The sign-in mechanism is unchanged — a SPA
+using authorization code + PKCE with no secret — only the owner of the
+registration differs.
+
+```powershell
+./New-EncaAppRegistration.ps1 -SingleTenant -SingleTenantRedirectUris "https://enca.contoso.example"
+```
+
+Add `-RequireAssignment` to gate the app to named people — it sets *Assignment
+required* on the enterprise application and assigns you first, so only you can
+open it until you widen it:
+
+```powershell
+./New-EncaAppRegistration.ps1 -RequireAssignment -AssignTo "sec-team@contoso.com","CA Administrators"
+```
+
+Full walkthrough, including keeping a pinned copy current:
+**[SINGLE-TENANT.md](SINGLE-TENANT.md)**.
+
 ## Rebranding a fork
 
 All of it lives in **`js/branding.js`** — one object, no other file hard-codes the name, the organisation or the colours:
