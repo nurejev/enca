@@ -6556,6 +6556,26 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     showReport("🛡 Restricted AUs", "CA-RestrictedAUs", Rmau.toMd(ruList, ruDetails, { tenantName }));
   });
+  // R27 — the same treatment 📄 Create documentation gives the policies. The
+  // report above is the raw material; this answers what a reviewer asks.
+  $("ruDoc").addEventListener("click", async (e) => {
+    if (!ruList) return;
+    // A document written from whatever happened to be cached is a document
+    // about which cards somebody clicked, so read every unit first.
+    const missing = ruList.filter((au) => Rmau.isRestricted(au) && !ruDetails[au.id]);
+    if (missing.length && !isDemo) {
+      const btn = e.target; const label = btn.textContent;
+      btn.disabled = true;
+      try {
+        for (let i = 0; i < missing.length; i++) {
+          btn.textContent = `Reading ${i + 1}/${missing.length}…`;
+          await ruLoadDetail(missing[i].id);
+        }
+      } finally { btn.disabled = false; btn.textContent = label; }
+    }
+    showReport("📄 Restricted unit documentation", "CA-RestrictedAU-Documentation",
+      Rmau.docMd(ruList, ruDetails, { tenantName }));
+  });
 
   // ---------- shared fetch-progress visual ----------
   // ONE busy visual for every long read: spinner, message, count-up bar,

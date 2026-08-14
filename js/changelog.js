@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25099, date: "2026-08-14", title: "Documentation for the restricted units (R27)",
+    items: [
+      { kind: "new", tool: "Restricted AUs", text: "R27 — 📄 Documentation gives the units the treatment 📄 Create documentation gives the policies. Export MD was the raw material: what each unit holds and who may manage it, which is a list rather than a document. This is written in the order a reviewer arrives with the questions — what the unit protects, which Conditional Access policies depend on each group, who may change them, and what changing them would do." },
+      { kind: "new", tool: "Restricted AUs", text: "The two questions that decide whether the control is real get their own sections. WHO COULD WIDEN AN EXCLUSION: in a restricted unit the answer is not \"the Global Administrators\" — tenant-wide roles are blocked by design, so the scoped list is the complete answer, given by name with what each role actually permits in plain words. WHAT WOULD HAPPEN IF THEY DID: the policies each protected group is excluded from, so \"adding a member to this group removes them from these three policies, with no change to the policies and no approval step\" is a sentence somebody can check rather than a risk they have to imagine." },
+      { kind: "new", tool: "Restricted AUs", text: "The two failure states lead the document rather than hiding in it: a unit with nobody scoped to it — a vault that cannot be opened, which is not a stronger control but an unusable one — and a frozen group, role-assignable inside a restricted unit so that neither a scoped nor a tenant-wide administrator can change it. Neither is visible from the portal, and both are exactly what a review is for. A group no policy references is called out too: protected but not load-bearing, which is worth a question." },
+    ],
+  },
+  {
     build: 25098, date: "2026-08-14", title: "Your own groups can live in a persona vault (R28)",
     items: [
       { kind: "new", tool: "Restricted AUs", text: "R28 — everything that routes a group to a vault read the CA number in its name, which works for the baseline and for nothing else. A tenant's own exclusion group — Contractors-NoMFA, SEC-VIP-Exceptions — matched no persona, so ⑥ Protect skipped it unless a fallback unit was picked by hand, ＋ Bulk add never offered it, and break-glass had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them their naming is wrong is not a feature. Say once, on the unit, that a group belongs there and every tool routes it there afterwards." },

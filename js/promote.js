@@ -33,10 +33,20 @@
 // three that happened to be written on the same day.
 // ======================================================================
 const PROMOTE = {
-  productionBuild: "v1.0.277",
-  betaBuild: "v1.0.250-beta.98",
+  productionBuild: "v1.0.278",
+  betaBuild: "v1.0.250-beta.99",
 
   items: [
+    {
+      n: 46,
+      title: "Documentation for the restricted units (R27)",
+      tools: ["Restricted AUs"],
+      builds: [25099],
+      risk: "low",
+      what: "📄 Documentation — a per-unit document: what it protects, which CA policies depend on each group, who could widen an exclusion (by name, with what their role permits) and what would happen if they did. Orphaned and frozen units lead it.",
+      why: "Production has Export MD, which is a listing. The two facts a review needs — who can widen an exclusion here, and what that would do — are not derivable from it, and neither is visible from the portal.",
+      files: ["js/rmau.js", "js/app.js", "index.html"],
+    },
     {
       n: 45,
       title: "Custom groups in the persona vaults (R28)",
