@@ -7578,6 +7578,53 @@ max@contoso.com,"Global, DevOps"</pre>
         }
       }
       dvRes = DevCheck.analyze(ctx);
+      // Second pass: a DIFFERENT group name does not mean a user is not
+      // covered. Where assignment alone left a verdict unproven, expand the
+      // memberships of the CA include groups and the Intune-assigned groups
+      // (transitive, so nesting counts) and match the actual users. Only
+      // runs when something is flagged — a tenant whose assignments already
+      // prove everything never pays for it.
+      if (!isDemo && dvRes.summary.flagged) {
+        const DV_GROUP_CAP = 80;         // groups expanded per run
+        const DV_MEMBER_PAGES = 10;      // ~10k members per group
+        const all = DevCheck.expandCandidates(ctx);
+        const ids = all.slice(0, DV_GROUP_CAP);
+        if (ids.length) {
+          dvProg.start(ids.length, "members", "group");
+          $("dvBody").innerHTML = dvProg.panel("Assignment names could not prove coverage everywhere — matching the members themselves…",
+            "A user reached through a differently-named Intune group is still covered; this pass expands the group memberships (nesting included) and matches the users.");
+          ctx.members = {};
+          let mDone = 0, mCount = 0;
+          for (const id of ids) {
+            const t = $("dvPgTxt"); if (t) t.textContent = `👥 ${ctx.names[id] || id}…`;
+            const rec = { users: [], devices: 0, capped: false };
+            try {
+              let next = `/groups/${id}/transitiveMembers?$select=id&$top=999`, pages = 0;
+              while (next && pages < DV_MEMBER_PAGES) {
+                const j = await Graph.gget(next);
+                for (const m of j.value || []) {
+                  const ty = String(m["@odata.type"] || "");
+                  if (ty.endsWith(".user")) rec.users.push(m.id);
+                  else if (ty.endsWith(".device")) rec.devices++;
+                }
+                next = j["@odata.nextLink"] || null;
+                pages++;
+              }
+              rec.capped = !!next;
+              // Only a successful read lands in the map — an unreadable
+              // group must stay ABSENT, because an empty entry would read
+              // as "fetched, zero members" and turn a read failure into a
+              // false "none covered". Absent → the verdict falls back to
+              // assignment names, which never lies.
+              ctx.members[id] = rec;
+              mCount += rec.users.length;
+            } catch { /* absent on purpose — see above */ }
+            dvProg.tick(mCount, ++mDone);
+          }
+          ctx.memberCap = Math.max(0, all.length - ids.length);
+          dvRes = DevCheck.analyze(ctx);
+        }
+      }
     } catch (e) {
       $("dvBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading Intune failed: ${esc(e.message || e)}</p></div>`;
       dvBusy = false;
@@ -7621,7 +7668,7 @@ max@contoso.com,"Global, DevOps"</pre>
       : `<p class="mini" style="color:var(--off);margin:0">⚙ Tenant default: devices with no compliance policy are marked <b>COMPLIANT</b>. Every coverage gap below <b>passes the device check silently</b> — this single Intune toggle (Compliance policy settings → “Mark devices with no compliance policy assigned as”) decides what all the gaps mean.</p>`;
     const head = `<div class="list-card" style="padding:14px 16px">
       ${secure}
-      <p class="mini muted" style="margin:8px 0 0">${r.summary.compCount} compliance polic${r.summary.compCount === 1 ? "y" : "ies"} (${r.summary.perPlat.map((x) => `${esc(x.label)}: ${x.n}`).join(" · ")}) · ${r.summary.appCount} app-protection · ${r.results.length} CA polic${r.results.length === 1 ? "y" : "ies"} using device grants · <b>${r.summary.flagged} flagged</b></p>
+      <p class="mini muted" style="margin:8px 0 0">${r.summary.compCount} compliance polic${r.summary.compCount === 1 ? "y" : "ies"} (${r.summary.perPlat.map((x) => `${esc(x.label)}: ${x.n}`).join(" · ")}) · ${r.summary.appCount} app-protection · ${r.results.length} CA polic${r.results.length === 1 ? "y" : "ies"} using device grants · <b>${r.summary.flagged} flagged</b>${r.summary.membersExpanded ? ` · memberships matched across ${r.summary.membersExpanded} group${r.summary.membersExpanded === 1 ? "" : "s"}${r.summary.memberCap ? ` <span style="color:var(--off)">(${r.summary.memberCap} more not expanded — over the read cap; those verdicts rest on assignment names alone)</span>` : ""}` : ""}</p>
     </div>`;
 
     if (!r.results.length) {
@@ -7635,7 +7682,7 @@ max@contoso.com,"Global, DevOps"</pre>
         ${p.alt.length ? `<p class="mini muted" style="margin:0 0 6px">OR-alternatives present (${esc(p.alt.join(", "))}) — a user on an uncovered device is not blocked, they simply satisfy the policy <i>without</i> the device check. The gap is in what the policy name promises, not in availability.</p>` : ""}
         ${p.legs.map((leg) => `<p class="mini" style="margin:6px 0 2px"><b>${esc(leg.label)}</b></p>
           <ul class="mini" style="margin:0 0 0 2px;padding-left:18px">
-            ${leg.rows.map((row) => `<li>${DevCheck.V_ICON[row.verdict]} <b>${esc(DevCheck.PLAT[row.plat])}</b> — ${esc(row.detail)}${row.via.length ? ` <span class="muted">(${esc(row.via.join(", "))})</span>` : ""}</li>`).join("")}
+            ${leg.rows.map((row) => `<li>${DevCheck.V_ICON[row.verdict]} <b>${esc(DevCheck.PLAT[row.plat])}</b> — ${esc(row.detail)}${row.via.length ? `<ul class="muted" style="margin:2px 0 4px;padding-left:16px">${row.via.map((v) => `<li>${esc(v)}</li>`).join("")}</ul>` : ""}</li>`).join("")}
           </ul>`).join("")}
       </div>`).join("");
   }
