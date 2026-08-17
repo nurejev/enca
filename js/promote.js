@@ -63,6 +63,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 59,
+      title: "Import finds role-assignable groups before importing (R04)",
+      tools: ["Import"],
+      builds: [25128],
+      risk: "medium",
+      what: "The \ud83d\udce5 Import preflight reads the groups the file brings, in one batch, and names any that already exist in the tenant as role-assignable \u2014 with what happens either way, and a hand-off to \u2466 Migrate for the conversion rather than a second copy of the recreate.",
+      why: "In production a baseline carrying role-assignable groups imports cleanly onto them and the protection step skips those groups without saying so, which is the one outcome the restricted-AU work exists to prevent.",
+      files: ["js/app.js", "index.html"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],

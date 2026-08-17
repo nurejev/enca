@@ -1787,7 +1787,7 @@
   const imWidBlocked = (p) => p.wid && imLic.known && !imLic.licensed;
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
-    imBundle = null; imPlan = null; imAu = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
+    imBundle = null; imPlan = null; imAu = null; imRa = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -1825,6 +1825,70 @@
     } catch (e) {
       imAu.error = e.message || String(e);
     }
+  }
+
+  // ---- R04: role-assignable groups the import is about to build on ---------
+  // A baseline exported from a tenant that still used the role-assignable flag
+  // brings those groups with it. Importing on top of them is not neutral: the
+  // flag is IMMUTABLE, it forbids nesting control, and it cannot be combined
+  // with a restricted management administrative unit — a group carrying both
+  // has nobody who can change its members. So the policies would import fine
+  // and land on groups the baseline has deliberately moved away from, and the
+  // 🛡 PROTECTION step above would quietly skip exactly those groups.
+  //
+  // This preflight finds them and says so BEFORE the import. It does not do the
+  // conversion itself: converting means recreating the group (rename aside,
+  // create plain + nesting disabled, copy members, repoint every policy) behind
+  // a typed confirmation, and that already exists in ⑦ Migrate. A second copy
+  // of a destructive operation is how the two drift apart — so this hands over
+  // to it rather than reimplementing it.
+  let imRa = null;   // { rows, busy, error, checked }
+
+  async function imLoadRoleAssignable() {
+    imRa = { rows: [], busy: false, error: null, checked: false };
+    const names = [...new Set((imBundle?.groups || []).map((g) => g.displayName).filter(Boolean))];
+    if (!names.length) return;
+    if (isDemo) {
+      imRa.checked = true;
+      imRa.rows = names.filter((n) => /CA101|Admins/i.test(n)).slice(0, 1)
+        .map((n) => ({ name: n, id: "demo-ra-" + n }));
+      return;
+    }
+    try {
+      // One batch, one request per name: displayName is not filterable with
+      // `in`, and a name with an apostrophe has to survive the quoting.
+      const reqs = names.map((n, i) => ({ id: String(i),
+        url: `/groups?$filter=displayName eq '${n.replace(/'/g, "''")}'&$select=id,displayName,isAssignableToRole&$top=1` }));
+      const res = await Graph.gbatch(reqs);
+      for (const r of (res || [])) {
+        const g = ((r.body && r.body.value) || [])[0];
+        if (g && g.isAssignableToRole === true) imRa.rows.push({ id: g.id, name: g.displayName });
+      }
+      imRa.checked = true;
+    } catch (e) {
+      imRa.error = e.message || String(e);
+    }
+  }
+
+  function imRaPanel() {
+    if (!imRa) return "";
+    if (imRa.error) {
+      return `<div class="cg-panel"><h4>🧹 ROLE-ASSIGNABLE GROUPS — COULD NOT CHECK</h4>
+        <p class="mini" style="margin:0">The groups in this file could not be read (${esc(imRa.error)}), so it is not known whether any of them are role-assignable in this tenant. <b>The import will run regardless</b> — but check ⑦ Migrate afterwards, because a role-assignable group cannot be placed in a restricted administrative unit and will have been skipped by the protection step.</p></div>`;
+    }
+    if (!imRa.rows.length) return "";
+    const n = imRa.rows.length;
+    return `<div class="cg-panel">
+      <h4>🧹 ROLE-ASSIGNABLE — ${n} GROUP${n === 1 ? "" : "S"} THIS IMPORT WOULD BUILD ON</h4>
+      <p class="mini" style="margin:0 0 8px">${n === 1 ? "One group" : `${n} groups`} in this file already ${n === 1 ? "exists" : "exist"} here as <b>role-assignable</b>. The baseline has moved off that flag: it was only ever used to keep membership away from tenant-wide group administrators, and a <b>restricted management administrative unit</b> does that better — it names <i>who</i> may manage the group, and it can be undone.</p>
+      <p class="mini" style="margin:0 0 8px">Left as they are, the import still works, but these groups <b>cannot be protected</b>: the flag is immutable, it forbids controlling nesting, and it cannot be combined with a restricted unit — a group carrying both has nobody who can change its members. So the 🛡 PROTECTION step above will skip exactly ${n === 1 ? "this one" : "these"}.</p>
+      <div class="cg-pick">${imRa.rows.map((r) => `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b> <span class="tag block">role-assignable</span></div></div>`).join("")}</div>
+      <p class="mini muted" style="margin:8px 0 0">Converting means <b>recreating</b> each one — rename the original aside, create a plain security group with nesting disabled, copy the members, repoint every policy that references it, then place it in the restricted unit. That runs in <b>⑦ Migrate</b>, behind its own typed confirmation and with its own report and rollback; it is not repeated here, so there is only ever one implementation of it.</p>
+      <div class="row" style="justify-content:flex-start;margin-top:10px">
+        <button class="btn" id="imRaGo">⑦ Convert ${n === 1 ? "it" : "them"} first — open Migrate</button>
+        <span class="mini muted">or import now and convert later; the report will list them as unprotected</span>
+      </div>
+    </div>`;
   }
 
   function imAuPanel() {
@@ -1869,6 +1933,7 @@
       ? (isDemo ? { known: true, licensed: false, sku: null } : await Importer.workloadIdLicence())
       : { known: false, licensed: false, sku: null };
     await imLoadAu();
+    await imLoadRoleAssignable();
     imRenderList();
     $("imPick").style.display = "none";
   }
@@ -1900,6 +1965,7 @@
     };
 
     $("imBody").innerHTML = `
+      ${imRaPanel()}
       ${imAuPanel()}
       <div class="im-mode" role="radiogroup" aria-label="Assignment mode">
         <label class="im-mode-opt${!replace ? " on" : ""}"><input type="radio" name="imMode" value="deploy" ${!replace ? "checked" : ""}>
@@ -1959,6 +2025,14 @@
       return;
     }
     if (e.target.id === "imAuGo") { await imAuCreate(e.target); return; }
+    if (e.target.id === "imRaGo") {
+      // ⑦ Migrate scans for role-assignable baseline groups itself, so these
+      // land among its candidates — no second selection to keep in step.
+      toast("Convert them in ⑦ <span>Migrate</span>, then come back and import");
+      await openCaGroups();
+      cgTab = "migrate"; renderCaGroups();
+      return;
+    }
     const chip = e.target.closest("[data-im-persona]");
     if (chip) {
       imSelectPersona(chip.dataset.imPersona);

@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25128, date: "2026-08-17", title: "Import finds the role-assignable groups a file would build on (R04)",
+    items: [
+      { kind: "new", tool: "Import", text: "R04 \u2014 a baseline exported from a tenant that still used the role-assignable flag brings those groups with it, and importing on top of them is not neutral. The flag is immutable, it forbids controlling nesting, and it cannot be combined with a restricted management administrative unit \u2014 a group carrying both has nobody who can change its members. So the policies would import cleanly, land on groups the baseline has deliberately moved away from, and the \ud83d\udee1 protection step would silently skip exactly those. The preflight now reads the groups THIS FILE brings, one batch, and names any that already exist here as role-assignable." },
+      { kind: "improved", tool: "Import", text: "It does not do the conversion itself, and says why. Converting means recreating the group \u2014 rename the original aside, create a plain security group with nesting disabled, copy the members, repoint every referencing policy, then place it in the restricted unit \u2014 which already exists in \u2466 Migrate behind a typed confirmation, with its own report and the archived original as the rollback. A second copy of a destructive operation is how the two drift apart, so this hands over instead. Importing now and converting later stays a choice; the report lists them as unprotected." },
+      { kind: "improved", tool: "Import", text: "A failed read is reported as \"could not check\", never as clean \u2014 the same rule the restricted-AU preflight follows. Finding none renders nothing rather than an empty panel, and the panel sits ABOVE \ud83d\udee1 PROTECTION because it decides whether protection can work at all." },
+    ],
+  },
+  {
     build: 25127, date: "2026-08-17", title: "Promoting is four steps, and the queue now says so",
     items: [
       { kind: "improved", tool: "All tools", text: "The eight cards that drifted in 25126 drifted because the routine was written down as one step \u2014 remove the row, bump the production build \u2014 when it is four. The promotion queue's header rules and the rendered \ud83d\udea6 Waiting for production section now both spell them out: remove the row and bump productionBuild; set the roadmap card on MAIN to live \u00b7 build NNN; set the SAME card on beta to live \u00b7 beta NNNNN \u00b7 production NNN; add the changelog entry on both channels." },
