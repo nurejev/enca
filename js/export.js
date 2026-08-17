@@ -53,6 +53,22 @@ const Exporter = (() => {
 
   const safe = (s) => s.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").slice(0, 60);
 
+  // Optional R27 pages supplied by the pure RmauDoc module. Keeping this as a
+  // small adapter means the policy exporters do not know how the data was read,
+  // and a missing/broken integration simply yields no supplemental pages.
+  function restrictedPages(opts = {}) {
+    const doc = opts.restrictedDoc;
+    if (!doc || typeof RmauDoc === "undefined") return [];
+    const out = [];
+    try { out.push({ name: "Restricted administrative units — overview", html: RmauDoc.overviewHtml(doc) }); }
+    catch (e) { console.error("Restricted-unit overview could not be rendered", e); }
+    for (const unit of (doc.units || [])) {
+      try { out.push({ name: unit.name || unit.id || "Restricted administrative unit", html: RmauDoc.unitHtml(doc, unit) }); }
+      catch (e) { console.error(`Restricted-unit page ${unit.name || unit.id || ""} could not be rendered`, e); }
+    }
+    return out.filter((p) => p.html);
+  }
+
   async function loadImg(src) {
     const img = new Image();
     await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = src; });
@@ -122,7 +138,7 @@ const Exporter = (() => {
     }
   }
 
-  async function policiesPdf(policies, tenantName, includeMatrix, onProgress, logo) {
+  async function policiesPdf(policies, tenantName, includeMatrix, onProgress, logo, opts = {}) {
     const pdf = new jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
     await addCover(pdf, tenantName, policies.length, logo);
 
@@ -157,6 +173,34 @@ const Exporter = (() => {
     }
     if (failed.length === policies.length) throw new Error("all policy cards failed to render: " + (failed.join(", ")));
 
+    // Supplemental pages are isolated one by one. An image-rendering problem
+    // in an optional AU page is written onto that page and never aborts the
+    // policy document or the remaining AU pages.
+    const rpages = restrictedPages(opts);
+    if (rpages.length) {
+      pdf.addPage();
+      pdf.setFillColor(241, 242, 248); pdf.rect(0, 0, A4.w, A4.h, "F");
+      pdf.setFillColor(50, 63, 75); pdf.rect(0, 90, A4.w, 26, "F");
+      pdf.setTextColor(255, 255, 255); pdf.setFontSize(22); pdf.setFont("helvetica", "bold");
+      pdf.text("Restricted administrative units", MARGIN, 107);
+      pdf.setFont("helvetica", "normal");
+      for (let i = 0; i < rpages.length; i++) {
+        const page = rpages[i];
+        onProgress?.(`Rendering restricted unit ${i + 1}/${rpages.length}…`);
+        const st = stage(page.html);
+        try {
+          pdf.addPage();
+          await addImagePaged(pdf, st.firstElementChild);
+          pdf.setFontSize(8); pdf.setTextColor(120, 130, 140);
+          pdf.text(page.name.slice(0, 120), MARGIN, A4.h - 4);
+        } catch (e) {
+          console.error(`PDF: ${page.name} failed`, e);
+          pdf.setFontSize(12); pdf.setTextColor(176, 74, 58);
+          pdf.text(`${page.name}\n\nThis optional restricted-unit page could not be rendered (${e.message || e}).\nThe policy documentation is unaffected.`, MARGIN, 30);
+        } finally { st.remove(); }
+      }
+    }
+
     if (includeMatrix) {
       onProgress?.("Rendering settings matrix…");
       const st = stage(`<div class="matrix-wrap" style="width:2000px"><table class="matrix">${Render.matrix(policies, { full: true })}</table></div>`);
@@ -173,7 +217,7 @@ const Exporter = (() => {
   }
 
   // ---------- bulk PNG bundle (.zip): every card as a separate high-res PNG ----------
-  async function policiesZip(policies, tenantName, logo, onProgress) {
+  async function policiesZip(policies, tenantName, logo, onProgress, opts = {}) {
     const zip = new JSZip();
     for (let i = 0; i < policies.length; i++) {
       onProgress?.(`Rendering ${policies[i].seq} (${i + 1}/${policies.length})…`);
@@ -183,6 +227,17 @@ const Exporter = (() => {
         const folder = safe(Render.caGroup(policies[i].name).label); // persona folder per CA range
         zip.file(`${folder}/${policies[i].seq}-${safe(policies[i].name)}.png`, url.split(",")[1], { base64: true });
       } catch (e) { console.error(`ZIP: ${policies[i].seq} failed`, e); }
+      finally { st.remove(); }
+    }
+    const rpages = restrictedPages(opts);
+    for (let i = 0; i < rpages.length; i++) {
+      const page = rpages[i];
+      onProgress?.(`Rendering restricted unit ${i + 1}/${rpages.length}…`);
+      const st = stage(page.html);
+      try {
+        const url = await nodeToPng(st.firstElementChild);
+        zip.file(`Restricted-administrative-units/${String(i).padStart(2, "0")}-${safe(page.name)}.png`, url.split(",")[1], { base64: true });
+      } catch (e) { console.error(`ZIP: ${page.name} failed`, e); }
       finally { st.remove(); }
     }
     onProgress?.("Building zip…");
@@ -230,7 +285,7 @@ const Exporter = (() => {
     ].join("\n");
   }
 
-  function policiesMarkdown(policies, tenantName) {
+  function policiesMarkdown(policies, tenantName, opts = {}) {
     const date = new Date().toISOString().slice(0, 10);
     const out = [`# Conditional Access documentation`, ``, `**Tenant:** ${mdCell(tenantName || "tenant")}  `, `**Date:** ${date}  `, `**Policies:** ${policies.length}`, ``];
     // summary table of all policies
@@ -244,12 +299,19 @@ const Exporter = (() => {
       if (g.label !== lastGroup) { lastGroup = g.label; out.push(`## ${g.label}`, ``); }
       out.push(policyTable(p));
     });
+    if (opts.restrictedDoc && typeof RmauDoc !== "undefined") {
+      try { out.push(``, RmauDoc.markdown(opts.restrictedDoc), ``); }
+      catch (e) {
+        console.error("Markdown: restricted-unit appendix failed", e);
+        out.push(``, `## Restricted administrative units`, ``, `> Optional appendix could not be rendered: ${mdCell(e.message || e)}`, ``);
+      }
+    }
     out.push(`---`, `Generated ${date} — Conditional Access documentation`);
     return out.join("\n");
   }
 
-  async function policiesMd(policies, tenantName) {
-    const md = policiesMarkdown(policies, tenantName);
+  async function policiesMd(policies, tenantName, opts = {}) {
+    const md = policiesMarkdown(policies, tenantName, opts);
     const blob = new Blob([md], { type: "text/markdown" });
     download(URL.createObjectURL(blob), `ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.md`);
   }
@@ -354,7 +416,7 @@ ${body.join("\n")}
     return zip;
   }
 
-  async function policiesDocx(policies, tenantName, logo, onProgress) {
+  async function policiesDocx(policies, tenantName, logo, onProgress, opts = {}) {
     const images = [];
     let lastGroup = null;
     for (let i = 0; i < policies.length; i++) {
@@ -367,6 +429,19 @@ ${body.join("\n")}
         const img = await loadImg(url);
         images.push({ name: `${policies[i].seq} — ${policies[i].name}`, base64: url.split(",")[1], wPx: img.width / 2, hPx: img.height / 2 });
       } catch (e) { console.error(`DOCX: ${policies[i].seq} failed`, e); }
+      finally { st.remove(); }
+    }
+    const rpages = restrictedPages(opts);
+    if (rpages.length) images.push({ heading: "Restricted administrative units" });
+    for (let i = 0; i < rpages.length; i++) {
+      const page = rpages[i];
+      onProgress?.(`Rendering restricted unit ${i + 1}/${rpages.length}…`);
+      const st = stage(page.html);
+      try {
+        const url = await nodeToPng(st.firstElementChild);
+        const img = await loadImg(url);
+        images.push({ name: page.name, base64: url.split(",")[1], wPx: img.width / 2, hPx: img.height / 2 });
+      } catch (e) { console.error(`DOCX: ${page.name} failed`, e); }
       finally { st.remove(); }
     }
     if (!images.some(x => x.base64)) throw new Error("no policy cards could be rendered");

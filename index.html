@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=282"></script>
+<script src="js/popup-guard.js?v=283"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=282">
+<link rel="stylesheet" href="css/app.css?v=283">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=282"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=282"></script>
+<script src="js/counter.js?v=283"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=283"></script>
 </head>
 <body>
 
@@ -71,7 +71,7 @@
         Runs entirely in your browser — no policy data leaves your session.
       </div>
       <div class="login-note"><a href="?demo=1">View a demo with sample policies →</a></div>
-      <div class="login-note"><a href="#" id="secLinkLogin">🔒 How secure is this? Read the security &amp; risk documentation →</a></div>
+      <div class="login-note"><a href="SECURITY.md" id="secLinkLogin" target="_blank" rel="noopener">🔒 How secure is this? Read the security &amp; risk documentation →</a></div>
       <div class="build-stamp" id="buildStamp" title="Build number matches the asset version — if this is not the version you pushed, hard-refresh"></div>
     </div>
   </section>
@@ -107,8 +107,8 @@
         <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona.</p>
       </div>
       <div class="tool" id="toolDocument">
-        <div class="tool-ic">📄</div><h3>Create documentation</h3>
-        <p>Select policies (or take all) and generate documentation — Word, PDF, PNG or a PNG bundle.</p>
+        <div class="tool-ic">📄</div><h3>Create documentation <span class="tag upd">UPDATED</span></h3>
+        <p>Select policies (or take all) and generate documentation — Word, PDF, PNG or a PNG bundle, with optional auditor-ready pages for the restricted units protecting exclusion groups.</p>
       </div>
       <div class="tool" id="toolJson">
         <div class="tool-ic">🗄</div><h3>Backup (JSON)</h3>
@@ -1074,13 +1074,18 @@
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
           <div class="list-card rm-card">
-            <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · <a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a>, <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> and the <b>⌨️ command palette</b> (all out of BETA) · 🔒 the <a href="#" id="rmSecLink">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
+            <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · <a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a>, <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> and the <b>⌨️ command palette</b> (all out of BETA) · 🔒 the <a href="SECURITY.md" id="rmSecLink" target="_blank" rel="noopener">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="283">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R27</span> <a href="#" class="md-tool" data-tool="toolDocument">📄 Documentation for the restricted units</a> <span class="tag grant">live · build 283</span></h4>
+            <p class="mini" style="margin:0">📄 Create documentation can now add the restricted administrative units to the <b>same document</b> as the Conditional Access policies. Each unit gets an auditor-ready page naming its persona, the groups it protects, every policy that includes or excludes those groups, the people scoped to it and whether their role can change group membership.</p>
+            <p class="mini" style="margin:6px 0 0">The review starts with the questions that decide whether the control is real: <b>who could widen an exclusion</b>, <b>what would happen if they did</b>, whether a unit has <b>nobody</b> scoped to it, and whether it holds a <b>frozen</b> role-assignable group. The integration is optional and fail-soft: Create documentation reads the units for itself; an absent, denied or broken restricted-unit read is reported and the policy document still exports.</p>
           </div>
           <div class="list-card rm-card" data-shipped="273">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R14</span> 🏢 Your own single-tenant app registration <span class="tag grant">live · build 273</span></h4>
             <p class="mini" style="margin:0">Every tenant signs in through <b>one multi-tenant</b> app registration owned by Limon-IT by default — the same application ID, and therefore an application outside your directory holding a delegated grant on your data. <b>You can run ENCA on your own instead:</b> a <b>single-tenant</b> SPA (<code>AzureADMyOrg</code>) registered inside your tenant, with your own client ID, consent record, redirect URIs and audit trail — nothing to trust but the code you reviewed. The sign-in mechanism stays authorization code + PKCE with no client secret; only the owner changes.
               <br><br><b>Shipped:</b> <code>./New-EncaAppRegistration.ps1 -SingleTenant</code> creates the registration and prints what to paste; <code>js/authConfig.local.js</code> points your copy at it without editing a file upstream also changes. <code>-RequireAssignment</code> can restrict the enterprise application after assigning you first, so the script cannot seal you out.
-              <br>📖 <b><a href="#" id="stLink">Read the setup manual</a></b> — prerequisites, the five steps, verification, and keeping a pinned copy current. Also in <a href="#" id="rmSecLink2">Security &amp; risk</a>.</p>
+              <br>📖 <b><a href="SINGLE-TENANT.md" id="stLink" target="_blank" rel="noopener">Read the setup manual</a></b> — prerequisites, the five steps, verification, and keeping a pinned copy current. Also in <a href="SECURITY.md" id="rmSecLink2" target="_blank" rel="noopener">Security &amp; risk</a>.</p>
           </div>
           <div class="list-card rm-card" data-shipped="282">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R11</span> <a href="#" class="md-tool" data-tool="toolDevCheck">🖥 Compliant-device reality check</a> <span class="tag grant">live · build 282</span></h4>
@@ -1144,11 +1149,6 @@
             <p class="mini" style="margin:0">The baseline is moving off role-assignable groups: the flag was only ever used for a side effect — membership reachable by Global Administrator or Privileged Role Administrator only — and a restricted management administrative unit does that better, names <i>who</i> may manage the group, and can be undone. It also cannot be combined with one: a group carrying both has nobody who can change its members.
               <br><b>Done:</b> new groups are ordinary security groups (assigned or dynamic) with an optional restricted-AU placement at creation; the role-assignable checkbox and the ↻ Recreate-role-assignable action are gone; the ① Check drift flag is inverted, so a plain group is correct and a role-assignable one is what gets flagged; <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> moves existing ones across.
               <br><b>Still to do:</b> the bundled group templates and the baseline catalog still describe an estate built on role-assignable groups; the MS Learn and CIS checks, Group Analyzer and the documentation exports still mention it as the expected shape; and the persona <b>import</b> path should create protected groups directly rather than leaving protection as a later step. Production keeps creating role-assignable groups until this lands there.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R27</span> 📄 Documentation for the restricted units <span class="tag ok">in beta today · pending item 53</span></h4>
-            <p class="mini" style="margin:0">On the beta channel, 📄 Create documentation can add the restricted administrative units to the <b>same document</b> as the Conditional Access policies. Each unit gets an auditor-ready page naming its persona, the groups it protects, every policy that includes or excludes those groups, the people scoped to it and whether their role can change group membership.</p>
-            <p class="mini" style="margin:6px 0 0">The review asks <b>who could widen an exclusion</b>, <b>what would happen if they did</b>, whether a unit has <b>nobody</b> scoped to it, and whether it holds a <b>frozen</b> role-assignable group. The integration is optional and fail-soft: the documentation tool reads the units for itself; an absent, denied or broken restricted-unit read is reported and the policy document still exports. Production keeps its existing policy-only documentation until promotion item 53 is selected.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R28</span> 🏷 Custom groups in the persona vaults <span class="tag">planned</span></h4>
@@ -1273,14 +1273,16 @@
 
     <section class="help-sec">
       <h4>📄 Create documentation</h4>
-      <p>Turn all or selected policies into shareable documentation carrying your tenant's branding.</p>
+      <p>Turn all or selected policies into shareable documentation carrying your tenant's branding. For a full control hand-off, the same document can include the restricted administrative units that protect the exclusion groups.</p>
       <ul>
         <li><b>Word (.docx)</b> — an editable document, one section per policy.</li>
         <li><b>PDF</b> — the same, print-ready.</li>
         <li><b>PNG</b> — a single image of the selection.</li>
         <li><b>PNG bundle</b> — a zip with one image per policy.</li>
+        <li><b>Include restricted administrative units</b> — available for Word, PDF, Markdown and the PNG bundle. It adds an overview plus one page per restricted unit: persona and CA range, protected groups, every tenant policy that includes or excludes them, scoped administrators and whether the role definition can change group membership. Findings name a unit with nobody scoped, an empty unit, a frozen role-assignable group, and anything that could not be read.</li>
+        <li><b>The integration is optional and fails soft.</b> Create documentation reads the units itself; it never depends on the Restricted AUs screen having run. If the unit list, one unit, scoped roles or role definitions are unavailable, the unknown part is labelled rather than guessed. The Conditional Access policy document still exports — an optional appendix may lose detail, but it cannot break the main tool.</li>
       </ul>
-      <p class="help-x">Produces a download. Nothing is written to the tenant.</p>
+      <p class="help-x">Read-only and produces a download. Nothing is written to the tenant. Restricted-unit pages use all loaded tenant policies for their impact references, even when only a subset of policy pages is selected, so the document cannot understate what widening an exclusion would affect.</p>
     </section>
 
     <section class="help-sec">
@@ -1389,6 +1391,7 @@
       <h4>🛡 Restricted AUs</h4>
       <p>Restricted management administrative units — the vaults that shield your Conditional Access exclusion groups from tenant-wide administrators. Members of a restricted AU answer <b>only</b> to roles scoped to that AU; a Global Administrator can read them but not change their membership.</p>
       <ul>
+        <li><b>A group that cannot go in says so, instead of being offered.</b> The persona chips were built from the group NAMES the baseline knows about, which offered two things it should not: groups this tenant does not have, and groups it has that cannot be protected. Clicking a <b>role-assignable</b> one produced exactly the frozen group this tool exists to prevent. The chips are now backed by the same bounded scan ＋ Bulk add runs, through the same verdict function — so what can be added is a click, and what cannot is listed with the reason: role-assignable (with a route to ⑦ Migrate), a Microsoft 365 group, a mail-enabled security or distribution group, already in this unit, or already in another restricted unit — which <i>widens</i> who can reach it rather than narrowing it. The type-ahead below carries the same verdicts on its options.</li>
         <li><b>The baseline check comes first.</b> The tool opens with a panel that looks for the nine units the baseline expects — <code>CAB-SEC-RMAU-GLO / ADM / INT / EXT / GUESTUSERS / GUESTAdmins / SA / WLI / DevOps / FW-Exclusions</code> plus <code>CAB-SEC-RMAU-BreakGlass</code> — and marks each one <i>present</i>, <i>missing</i>, or a name clash. <b>One unit per persona</b> is the whole point: with a single shared vault, whoever may manage the Admins exclusions may equally manage the Externals exclusions, and the separation you built the personas for stops at the AU boundary.</li>
         <li><b>Create the missing ones</b> — tick them, or take all. Each is created with the restricted flag set, and <b>you are granted Groups Administrator scoped to it in the same step</b>. That second half is not a convenience: an administrative unit with no scoped administrator is a vault nobody can open, because the restricted flag is precisely what shuts out the tenant-wide roles. Creation and the role grant are reported separately, so a unit that exists but has no administrator is visible as the half-outcome it is rather than counted as a success.</li>
         <li><b>A name clash is refused, not skipped</b> — if an AU already carries an expected name but is <b>not</b> restricted, it is shown as <i>name taken — not restricted</i> and is left alone. The flag is immutable, so that unit cannot be upgraded into the one you want; rename it and create a restricted replacement, or give the persona a different name.</li>
@@ -1693,7 +1696,7 @@
   <div class="fwrap">
     <span><span id="brandFoot">© 2026 Limon-IT · ENCA</span> <span id="buildStampFoot"></span></span>
     <div class="spacer"></div>
-    <a href="#" id="secLinkFoot" title="Architecture, permissions, residual risks and recommendations — the full security documentation">🔒 Security</a>
+    <a href="SECURITY.md" id="secLinkFoot" target="_blank" rel="noopener" title="Architecture, permissions, residual risks and recommendations — the full security documentation">🔒 Security</a>
     <a id="brandOrgLink" href="https://limon-it.nl">limon-it.nl</a>
   </div>
 </footer>
@@ -1743,6 +1746,10 @@
       <div class="exp-ic json">JSON</div>
       <div><b>JSON backup (.zip)</b><div class="mini">Raw policy definitions, one file per policy — for backup/restore</div></div>
     </div>
+    <label class="chk" id="expRmauWrap" style="display:none;align-items:flex-start;gap:8px">
+      <input type="checkbox" id="expRmau" checked>
+      <span><b>Include restricted administrative units</b><span class="mini" style="display:block">Optional auditor pages: protected groups, dependent policies and scoped administrators. If this read is unavailable, the policy document still exports.</span></span>
+    </label>
     <label class="chk" id="expMatrixWrap" style="display:none"><input type="checkbox" id="expMatrix"> Include settings matrix as appendix</label>
     <div class="row">
       <button class="btn" id="expCancel">Cancel</button>
@@ -2291,44 +2298,45 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=282"></script>
-<script src="js/version.js?v=282"></script>
-<script src="js/authConfig.js?v=282"></script>
-<script src="js/labels.js?v=282"></script>
-<script src="js/graph.js?v=282"></script>
-<script src="js/model.js?v=282"></script>
-<script src="js/render.js?v=282"></script>
-<script src="js/analyze.js?v=282"></script>
-<script src="js/whatif.js?v=282"></script>
-<script src="js/mslearn.js?v=282"></script>
-<script src="js/gapcheck.js?v=282"></script>
-<script src="js/exclusions.js?v=282"></script>
-<script src="js/validator.js?v=282"></script>
-<script src="js/whatifeval.js?v=282"></script>
-<script src="js/compare.js?v=282"></script>
-<script src="js/groupuse.js?v=282"></script>
-<script src="js/iso3166.js?v=282"></script>
-<script src="js/locations.js?v=282"></script>
-<script src="js/authcontexts.js?v=282"></script>
-<script src="js/authstrengths.js?v=282"></script>
-<script src="js/recycle.js?v=282"></script>
-<script src="js/termsofuse.js?v=282"></script>
-<script src="js/rmau.js?v=282"></script>
-<script src="js/audit.js?v=282"></script>
-<script src="js/drift.js?v=282"></script>
-<script src="js/devcheck.js?v=282"></script>
-<script src="js/signins.js?v=282"></script>
-<script src="js/reportimpact.js?v=282"></script>
-<script src="js/changelog.js?v=282"></script>
-<script src="js/baselineData.js?v=282"></script>
-<script src="js/baselineJoeyData.js?v=282"></script>
-<script src="js/baseline.js?v=282"></script>
-<script src="js/groupTemplates.js?v=282"></script>
-<script src="js/assign.js?v=282"></script>
-<script src="js/cagroups.js?v=282"></script>
-<script src="js/import.js?v=282"></script>
-<script src="js/export.js?v=282"></script>
-<script src="js/demo.js?v=282"></script>
-<script src="js/app.js?v=282"></script>
+<script src="js/branding.js?v=283"></script>
+<script src="js/version.js?v=283"></script>
+<script src="js/authConfig.js?v=283"></script>
+<script src="js/labels.js?v=283"></script>
+<script src="js/graph.js?v=283"></script>
+<script src="js/model.js?v=283"></script>
+<script src="js/render.js?v=283"></script>
+<script src="js/analyze.js?v=283"></script>
+<script src="js/whatif.js?v=283"></script>
+<script src="js/mslearn.js?v=283"></script>
+<script src="js/gapcheck.js?v=283"></script>
+<script src="js/exclusions.js?v=283"></script>
+<script src="js/validator.js?v=283"></script>
+<script src="js/whatifeval.js?v=283"></script>
+<script src="js/compare.js?v=283"></script>
+<script src="js/groupuse.js?v=283"></script>
+<script src="js/iso3166.js?v=283"></script>
+<script src="js/locations.js?v=283"></script>
+<script src="js/authcontexts.js?v=283"></script>
+<script src="js/authstrengths.js?v=283"></script>
+<script src="js/recycle.js?v=283"></script>
+<script src="js/termsofuse.js?v=283"></script>
+<script src="js/rmau.js?v=283"></script>
+<script src="js/rmaudoc.js?v=283"></script>
+<script src="js/audit.js?v=283"></script>
+<script src="js/drift.js?v=283"></script>
+<script src="js/devcheck.js?v=283"></script>
+<script src="js/signins.js?v=283"></script>
+<script src="js/reportimpact.js?v=283"></script>
+<script src="js/changelog.js?v=283"></script>
+<script src="js/baselineData.js?v=283"></script>
+<script src="js/baselineJoeyData.js?v=283"></script>
+<script src="js/baseline.js?v=283"></script>
+<script src="js/groupTemplates.js?v=283"></script>
+<script src="js/assign.js?v=283"></script>
+<script src="js/cagroups.js?v=283"></script>
+<script src="js/import.js?v=283"></script>
+<script src="js/export.js?v=283"></script>
+<script src="js/demo.js?v=283"></script>
+<script src="js/app.js?v=283"></script>
 </body>
 </html>
