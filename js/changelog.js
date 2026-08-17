@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25133, date: "2026-08-17", title: "Items 59 and 60 reached production (285)",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue items 59 (\ud83d\udce5 Import finds the role-assignable groups a file would build on, and spells out what a reused group inherits \u2014 R04) and 60 (\u2466 Migrate survives navigating away and verifies the old group is gone, \ud83e\uddf9 Archived groups gains a safe select all, and five delete flows keep the scroll position) are live in production build 285. Removed from the queue; the numbers are retired rather than reused. Roadmap card R04 records the Import preflight as beta 25128 \u00b7 production 285, \ud83d\udc65 CA groups is v4.1 and \ud83d\udce5 Import v2.5 on both channels. Only the two beta-only tools remain queued, and neither can move without its tool." },
+    ],
+  },
+  {
     build: 25132, date: "2026-08-17", title: "Migrate removes the old group from every policy, and proves it",
     items: [
       { kind: "fixed", tool: "CA groups", text: "\u2466 Migrate repointed policies using the reference list from the SCAN, so a policy edited since — by somebody else, or by an earlier group in the same run — was missed. That is not cosmetic: the old group stays assigned, and when the archive is tidied up later the policy is left naming an object id the directory no longer has. That is exactly what a dangling reference in \u2460 Check is, and how a tidy-up turns into a policy pointing at nothing. References are now re-read from the live policies at the moment of the repoint, and any found beyond what the scan knew about are reported." },

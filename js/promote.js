@@ -59,29 +59,9 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.284",
+  productionBuild: "v1.0.285",
 
   items: [
-    {
-      n: 60,
-      title: "A migration survives navigating away, and deleting keeps your place",
-      tools: ["CA groups", "All tools"],
-      builds: [25130, 25131, 25132],
-      risk: "high",
-      what: "\u2466 Migrate re-reads policy references at repoint time and verifies the old group is gone, naming the policies when it is not. \ud83e\uddf9 Archived groups gains select all / deselect all that ticks only the rows safe to delete. \u2466 Migrate's progress lives with the run instead of the panel's elements, a corner badge shows it from any screen with a way back, closing the tab mid-run warns, Rescan refuses while busy, and five delete flows keep the scroll position across their re-render.",
-      why: "In production, navigating away from a running migration leaves it writing into detached nodes: you come back to an empty panel and cannot tell whether it stopped \u2014 while the recreate has already renamed groups aside. Deleting from any list also throws you to the top of it.",
-      files: ["js/app.js", "css/app.css", "index.html"],
-    },
-    {
-      n: 59,
-      title: "Import: role-assignable groups found, and reused groups explained (R04)",
-      tools: ["Import"],
-      builds: [25128, 25129],
-      risk: "medium",
-      what: "The \ud83d\udce5 Import preflight also lists every group that will be REUSED with what it inherits \u2014 nesting, protection, Microsoft 365, and a dynamic/assigned shape mismatch nothing checked before. It reads the groups the file brings, in one batch, and names any that already exist in the tenant as role-assignable \u2014 with what happens either way, and a hand-off to \u2466 Migrate for the conversion rather than a second copy of the recreate.",
-      why: "In production a baseline carrying role-assignable groups imports cleanly onto them and the protection step skips those groups without saying so, which is the one outcome the restricted-AU work exists to prevent.",
-      files: ["js/app.js", "index.html"],
-    },
     {
       n: 34,
       title: "CIS Benchmark Help section",
