@@ -495,6 +495,7 @@
           <h4 style="margin-top:18px">Staying on this channel</h4>
           <p class="mini muted" style="margin:0 0 6px">Also part of the gap, but permanently: these exist here and are not going to production.</p>
           <ul>${PROMOTE.staying.map((sv) => `<li><b>${esc2(sv.title)}</b> — ${esc2(sv.why)}</li>`).join("")}</ul>` : ""}
+        <p class="mini muted" style="margin-top:14px"><b>Promoting one of these is four steps, not one:</b> remove the row and bump the production build here; set the roadmap card on <b>main</b> to <code>live · build NNN</code>; set the <b>same card on this channel</b> to <code>live · beta NNNNN · production NNN</code>; and add the changelog entry on both. The third is the one that gets missed — each channel carries its own roadmap, so promoting touches main's copy and this one keeps claiming the work is beta-only. A shipped card here that says <code>live · beta NNNNN</code> with no production clause is either a tool that genuinely has not been promoted, or that step being skipped.</p>
         <p class="help-x">This list is written by hand — the app is static files in a browser and cannot read git or diff two branches. It is maintained alongside <b>📋 What's new</b>; if an entry looks stale, trust the changelog and the build numbers over this table.</p>`;
       el.style.display = "";
     } catch (e) { console.warn("promotion queue not rendered:", e.message); }

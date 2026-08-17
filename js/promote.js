@@ -13,7 +13,27 @@
 // HOUSEKEEPING, every time a change lands on beta:
 //   * add it to an existing item if it belongs to one, or open a new item
 //   * put the beta builds it spans in `builds`
-//   * when it reaches production, delete the item and bump `productionBuild`
+//
+// PROMOTING AN ITEM — all four, or the two channels start disagreeing:
+//   1. delete the item here and bump `productionBuild`
+//   2. update the roadmap card ON MAIN: `live · build NNN`
+//   3. update the SAME card ON BETA: `live · beta NNNNN · production NNN`
+//   4. add the changelog entry on both channels
+//
+// Step 3 is the one that gets missed, because the port is finished and working
+// by then. Each channel carries its own copy of index.html, so promoting only
+// touches main's roadmap — beta's card goes on claiming the work is beta-only.
+// On 2026-08-17 EIGHT cards had drifted that way: R27 read "live · beta 25115"
+// while it had been in production since 283, so the roadmap said beta-only and
+// the queue, correctly, showed no gap at all. Two sources of truth, one of them
+// updated. R07, R08, R09, R10, R29, R30 and R31 were in the same state.
+//
+// A card that says "live · beta NNNNN" with NO production clause therefore
+// means one of two things, and only one of them is right: the tool is genuinely
+// beta-only (R05 today, whose tool has not been promoted), or somebody skipped
+// step 3. Write "beta NNNNN · production NNN" — never "build 250xx", which uses
+// production wording for a five-digit beta number and reads as a release to
+// anybody who does not know the two series apart.
 //
 // `n` is a stable hand-assigned number so it can be referred to out loud —
 // "push number 3 to main". Numbers are NOT reused after an item ships;

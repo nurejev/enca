@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25127, date: "2026-08-17", title: "Promoting is four steps, and the queue now says so",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The eight cards that drifted in 25126 drifted because the routine was written down as one step \u2014 remove the row, bump the production build \u2014 when it is four. The promotion queue's header rules and the rendered \ud83d\udea6 Waiting for production section now both spell them out: remove the row and bump productionBuild; set the roadmap card on MAIN to live \u00b7 build NNN; set the SAME card on beta to live \u00b7 beta NNNNN \u00b7 production NNN; add the changelog entry on both channels." },
+      { kind: "improved", tool: "All tools", text: "It also records WHICH step gets missed and why, because that is the part a rule cannot enforce: the third, since the port is finished and working by then, and each channel carries its own index.html so promoting only ever touches main's roadmap. And it states how to read the symptom \u2014 a shipped card saying \"live \u00b7 beta NNNNN\" with no production clause is either a tool that genuinely has not been promoted, or that step being skipped." },
+    ],
+  },
+  {
     build: 25126, date: "2026-08-17", title: "Eight roadmap cards still called themselves beta-only after reaching production",
     items: [
       { kind: "fixed", tool: "Roadmap", text: "R27 read \"live \u00b7 beta 25115\" on the beta channel while being in production since build 283 \u2014 so the roadmap said beta-only and the promotion queue, correctly, showed no gap. The two disagreed because each channel carries its own roadmap: promoting an item updates main's copy of the card, and nothing updated beta's. R07, R08, R09, R10, R29, R30 and R31 had drifted the same way. All eight now name the production build they reached, in the form R11 and R14 already used." },
