@@ -71,7 +71,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-devcheck", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -1128,8 +1128,8 @@
     { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
     { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting on a group so no group can be added as a member (beta)", tools: "CA groups (disable nesting)", onDemand: true },
     { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "Group Analyzer", onDemand: true },
-    { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer", onDemand: true },
-    { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer", onDemand: true },
+    { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer, Device reality check", onDemand: true },
+    { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementServiceConfig.Read.All", use: "Read Intune enrolment restrictions and Autopilot deployment profiles", tools: "Group Analyzer", onDemand: true },
     { scope: "DeviceManagementScripts.Read.All", use: "Read Intune PowerShell scripts, macOS shell scripts and remediations — a separate scope, not covered by DeviceManagementConfiguration.Read.All", tools: "Group Analyzer", onDemand: true },
   ];
@@ -1317,6 +1317,7 @@
     ["toolSignins", "🚦 Sign-in failures"],
     ["toolImpact", "🎚 Report-only impact"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
+    ["toolDevCheck", "🖥 Device reality check"],
     ["toolBaseline", "🧬 Baseline Policies"],
     ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
     ["toolMsLearn", "📘 MS Learn checks"],
@@ -6678,6 +6679,18 @@ max@contoso.com,"Global, DevOps"</pre>
     return { st, panel, start, tick, fetchAll };
   }
 
+  // The selector stores days; sub-day incident windows are fractions.
+  // Keep one human label for the screen, snapshots and exported reports.
+  const auRangeLabel = (d) => {
+    const days = Number(d);
+    if (!Number.isFinite(days) || days <= 0) return "30 days";
+    if (days <= 1) {
+      const hours = Math.round(days * 24);
+      return `${hours} hour${hours === 1 ? "" : "s"}`;
+    }
+    return `${days} day${days === 1 ? "" : "s"}`;
+  };
+
   // ---------- Change audit (directory audit log) ----------
   const AU_READ = ["AuditLog.Read.All"];
   const AU_MAX = 10000;
@@ -6697,7 +6710,7 @@ max@contoso.com,"Global, DevOps"</pre>
     // Run prompt reappears and it looks like the read was cancelled.
     if (auBusy) { $("auBody").innerHTML = auBusyPanel(); return; }
     if (auRes) { renderAudit(); return; }
-    $("auHead").innerHTML = `<h3>🕓 Change audit <span class="tag new">NEW</span></h3>
+    $("auHead").innerHTML = `<h3>🕓 Change audit <span class="tag upd">UPDATED</span></h3>
       <p style="margin-bottom:4px">Who changed which Conditional Access resource, when, and exactly what changed — policies, named locations, authentication strengths and contexts, and terms of use.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>directory audit log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise.</p>`;
     $("auChips").innerHTML = "";
@@ -6820,8 +6833,8 @@ max@contoso.com,"Global, DevOps"</pre>
     const K = Audit.KIND;
     $("auHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🕓 Change audit <span class="tag new">NEW</span></h3>
-        <p style="margin-bottom:4px">Every Conditional Access change in the window, newest first — expand one to see the exact fields that moved.</p>
+        <h3>🕓 Change audit <span class="tag upd">UPDATED</span></h3>
+        <p style="margin-bottom:4px">Every Conditional Access change in the last ${auRangeLabel(auDays)}, newest first — expand one to see the exact fields that moved.</p>
         <p class="mini muted" style="margin:0">From the Entra directory audit log. Retention is licence-bound (≈30 days on P1/P2), so this is a rolling window, not a full history.</p>
       </div>
       <div style="text-align:right">
@@ -6830,7 +6843,7 @@ max@contoso.com,"Global, DevOps"</pre>
         ${r.failures ? `<div class="mini" style="color:var(--off)">${r.failures} failed</div>` : ""}
       </div></div>
       ${auSnap ? `<div class="va-targetbar">📌 Compared with the snapshot from <b>${esc(String(auSnap.meta.generated).slice(0, 16).replace("T", " "))}</b>
-        (${auSnap.meta.count} changes${auSnap.meta.windowDays ? `, ${auSnap.meta.windowDays}-day window` : ""}) —
+        (${auSnap.meta.count} changes${auSnap.meta.windowDays ? `, ${auRangeLabel(auSnap.meta.windowDays)} window` : ""}) —
         <b>${auSnap.cmp.newSince.length} new</b> since then, ${auSnap.cmp.common} already seen${auSnap.cmp.aged.length ? `, ${auSnap.cmp.aged.length} aged out of the log` : ""}.
         <button class="fchip" data-auclearsnap="1">✕ Clear</button></div>` : ""}`;
 
@@ -6914,7 +6927,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const r = auRes; if (!r) return;
     const L = [`# Conditional Access change audit — ${tenantName || "tenant"}`, "",
       Brand.generatedBy("Generated"), "",
-      `- Window: last ${auDays} days${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""}`,
+      `- Window: last ${auRangeLabel(auDays)}${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""}`,
       `- Changes: **${r.total}** — ${Object.entries(r.byAction).map(([k, n]) => `${n} ${k}`).join(", ") || "none"}`,
       `- Most active: ${r.actors.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`,
       `- Most changed: ${r.targets.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`, ""];
@@ -7225,6 +7238,266 @@ max@contoso.com,"Global, DevOps"</pre>
     const k = b.dataset.drtog;
     if (drOpen.has(k)) drOpen.delete(k); else drOpen.add(k);
     renderDrift();
+  });
+
+  // ---------- Compliant-device reality check (roadmap R11) ----------
+  // The analysis lives in js/devcheck.js as pure functions; this wiring
+  // reads the Intune side on demand (two on-demand scopes), pairs it with
+  // the CA policies already in memory, and renders the verdicts. Reads
+  // only. The one number that changes what every gap MEANS — the tenant
+  // default for devices with no compliance policy — is read from
+  // /deviceManagement/settings and shown first, never assumed.
+  let dvRes = null, dvBusy = false;
+  const dvProg = makeProgress("dv");
+  const DV_COMP_READ = ["DeviceManagementConfiguration.Read.All"];
+  const DV_APP_READ = ["DeviceManagementApps.Read.All"];
+  const DV_AREAS = [
+    { key: "comp",     icon: "🖥", label: "compliance policies" },
+    { key: "compSC",   icon: "🗂", label: "compliance policies (settings catalog)" },
+    { key: "appPols",  icon: "📱", label: "app-protection policies" },
+    { key: "settings", icon: "⚙", label: "tenant compliance default" },
+  ];
+
+  const DV_DEMO = {
+    comp: [
+      { "@odata.type": "#microsoft.graph.windows10CompliancePolicy", displayName: "Windows — baseline compliance",
+        assignments: [{ target: { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" } }] },
+      { "@odata.type": "#microsoft.graph.iosCompliancePolicy", displayName: "iOS compliance (HR pilot)",
+        assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-hr" } }] },
+    ],
+    compSC: [],
+    appPols: [
+      { platform: "iOS", name: "iOS app protection (HR pilot)",
+        assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-hr" } }] },
+    ],
+    settings: { secureByDefault: false },
+  };
+
+  // The list-level $expand=assignments is not reliable: on real tenants it
+  // comes back EMPTY for some families (app protections notoriously, and
+  // some compliance policies), and an empty answer is indistinguishable
+  // from a genuinely unassigned policy. Nothing may be called "assigned to
+  // nothing" on that evidence — so any policy whose expand yielded nothing
+  // gets its assignments re-read individually before the analysis sees it.
+  async function dvFillAssignments(list, base) {
+    for (const p of list) {
+      if ((p.assignments || []).length) { p.assignmentsKnown = true; continue; }
+      if (!p.id) { p.assignmentsKnown = false; continue; }
+      try {
+        p.assignments = (await Graph.gget(`${base}/${p.id}/assignments`)).value || [];
+        p.assignmentsKnown = true; // a successful empty read really is unassigned
+      } catch {
+        p.assignmentsKnown = false; // unknown is not the same thing as empty
+      }
+    }
+    return list;
+  }
+
+  async function dvRead(key) {
+    if (isDemo) return DV_DEMO[key];
+    if (key === "comp")
+      return dvFillAssignments(await Graph.ggetAll("/deviceManagement/deviceCompliancePolicies?$expand=assignments"),
+        "/deviceManagement/deviceCompliancePolicies");
+    if (key === "compSC") {
+      // Settings-catalog compliance is where Linux lives; a tenant that
+      // rejects the endpoint (no licence, old cloud) is an empty list,
+      // not a failure of the whole run.
+      try {
+        return await dvFillAssignments(await Graph.ggetAll("/deviceManagement/compliancePolicies?$expand=assignments"),
+          "/deviceManagement/compliancePolicies");
+      } catch { return []; }
+    }
+    if (key === "appPols") {
+      const fams = [
+        ["/deviceAppManagement/iosManagedAppProtections", "iOS"],
+        ["/deviceAppManagement/androidManagedAppProtections", "android"],
+        ["/deviceAppManagement/windowsManagedAppProtections", "windows"],
+      ];
+      const out = [];
+      for (const [base, platform] of fams) {
+        try {
+          const list = await dvFillAssignments(await Graph.ggetAll(`${base}?$expand=assignments`), base);
+          for (const p of list) out.push({ platform, name: p.displayName || p.name,
+            assignments: p.assignments, assignmentsKnown: p.assignmentsKnown });
+        } catch { /* family missing on this cloud — the others still count */ }
+      }
+      return out;
+    }
+    if (key === "settings") {
+      // null = not read; the analysis then says "not read" instead of
+      // guessing which way the tenant default points.
+      try { return (await Graph.gget("/deviceManagement/settings")) || null; }
+      catch { return null; }
+    }
+    return [];
+  }
+
+  async function dvRun() {
+    if (dvBusy) return;
+    dvBusy = true;
+    dvProg.start(DV_AREAS.length, "objects", "area");
+    $("dvBody").innerHTML = dvProg.panel("Reading the Intune side of the device grants…",
+      "Compliance policies with their assignments, app-protection policies, and the tenant default for devices with no policy — reads only, nothing is written.");
+    try {
+      if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...DV_COMP_READ, ...DV_APP_READ])) {
+        $("dvBody").innerHTML = '<div class="list-card"><p class="mini">Reading Intune needs DeviceManagementConfiguration.Read.All and DeviceManagementApps.Read.All — asked once, on this click. Without them the other half of the device grant stays unreadable.</p></div>';
+        dvBusy = false;
+        return;
+      }
+      const ctx = { policies: policies.map((p) => p.raw), names: {} };
+      let done = 0, count = 0;
+      for (const a of DV_AREAS) {
+        const t = $("dvPgTxt"); if (t) t.textContent = `${a.icon} ${a.label}…`;
+        ctx[a.key] = await dvRead(a.key);
+        count += Array.isArray(ctx[a.key]) ? ctx[a.key].length : 0;
+        dvProg.tick(count, ++done);
+      }
+      // Names for every group id the verdicts may mention — CA includes and
+      // Intune assignments both speak in GUIDs.
+      const gids = [...new Set([
+        ...ctx.policies.flatMap((r) => ((r.conditions || {}).users || {}).includeGroups || []),
+        ...[...(ctx.comp || []), ...(ctx.compSC || []), ...(ctx.appPols || [])]
+          .flatMap((p) => (p.assignments || []).map((as) => (as.target || {}).groupId).filter(Boolean)),
+      ])];
+      if (isDemo) { for (const g of gids) ctx.names[g] = (DEMO_DATA.names || {})[g] || g; }
+      else {
+        for (let i = 0; i < gids.length; i += 900) {
+          try {
+            const j = await Graph.gpost("/directoryObjects/getByIds", { ids: gids.slice(i, i + 900), types: ["group"] });
+            for (const o of j.value || []) ctx.names[o.id] = o.displayName;
+          } catch { /* names stay GUIDs — the verdicts still hold */ }
+        }
+      }
+      dvRes = DevCheck.analyze(ctx);
+      // Second pass: a DIFFERENT group name does not mean a user is not
+      // covered. Where assignment alone left a verdict unproven, expand the
+      // memberships of the CA include groups and the Intune-assigned groups
+      // (transitive, so nesting counts) and match the actual users. Only
+      // runs when something is flagged — a tenant whose assignments already
+      // prove everything never pays for it.
+      if (!isDemo && dvRes.summary.flagged) {
+        const DV_GROUP_CAP = 80;         // groups expanded per run
+        const DV_MEMBER_PAGES = 10;      // ~10k members per group
+        const all = DevCheck.expandCandidates(ctx);
+        const ids = all.slice(0, DV_GROUP_CAP);
+        if (ids.length) {
+          dvProg.start(ids.length, "members", "group");
+          $("dvBody").innerHTML = dvProg.panel("Assignment names could not prove coverage everywhere — matching the members themselves…",
+            "A user reached through a differently-named Intune group is still covered; this pass expands the group memberships (nesting included) and matches the users.");
+          ctx.members = {};
+          let mDone = 0, mCount = 0;
+          for (const id of ids) {
+            const t = $("dvPgTxt"); if (t) t.textContent = `👥 ${ctx.names[id] || id}…`;
+            const rec = { users: [], devices: 0, capped: false };
+            try {
+              let next = `/groups/${id}/transitiveMembers?$select=id&$top=999`, pages = 0;
+              while (next && pages < DV_MEMBER_PAGES) {
+                const j = await Graph.gget(next);
+                for (const m of j.value || []) {
+                  const ty = String(m["@odata.type"] || "");
+                  if (ty.endsWith(".user")) rec.users.push(m.id);
+                  else if (ty.endsWith(".device")) rec.devices++;
+                }
+                next = j["@odata.nextLink"] || null;
+                pages++;
+              }
+              rec.capped = !!next;
+              // Only a successful read lands in the map — an unreadable
+              // group must stay ABSENT, because an empty entry would read
+              // as "fetched, zero members" and turn a read failure into a
+              // false "none covered". Absent → the verdict falls back to
+              // assignment names, which never lies.
+              ctx.members[id] = rec;
+              mCount += rec.users.length;
+            } catch { /* absent on purpose — see above */ }
+            dvProg.tick(mCount, ++mDone);
+          }
+          ctx.memberCap = Math.max(0, all.length - ids.length);
+          dvRes = DevCheck.analyze(ctx);
+        }
+      }
+    } catch (e) {
+      $("dvBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading Intune failed: ${esc(e.message || e)}</p></div>`;
+      dvBusy = false;
+      return;
+    }
+    dvBusy = false;
+    renderDevCheck();
+  }
+
+  const DV_STATE = {
+    covered:   { cls: "ok",    word: "covered" },
+    partial:   { cls: "new",   word: "not proven" },
+    uncovered: { cls: "block", word: "uncovered" },
+    na:        { cls: "",      word: "n/a" },
+  };
+  const dvChip = (v) => `<span class="tag ${DV_STATE[v].cls}">${DevCheck.V_ICON[v]} ${DV_STATE[v].word}</span>`;
+  const dvStateTag = (s) => s === "enabled" ? '<span class="tag block">Enforced</span>'
+    : s === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
+
+  function renderDevCheck() {
+    $("dvHead").innerHTML = `<h3>🖥 Compliant-device reality check <span class="tag new">NEW</span></h3>
+      <p style="margin-bottom:4px">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — the CA side names <b>who</b> must present a compliant device, the Intune side decides <b>which devices can ever be one</b>, and nothing else checks that the two halves meet. Per CA policy and per platform: is the scope actually assigned a compliance policy? Same check for app-protection behind “require approved client app”.</p>
+      <p class="mini muted" style="margin:0">Reads only — Intune compliance and app-protection policies with their assignments, and the tenant default that decides what an uncovered device becomes.</p>`;
+    if (dvBusy) return;   // the run panel owns dvBody until the read finishes
+
+    if (!dvRes) {
+      $("dvBody").innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-dvrun>▶ Check the coverage</button>
+        <p class="mini muted">Pairs the ${policies.length} policies already loaded with the Intune side. Needs DeviceManagementConfiguration.Read.All and DeviceManagementApps.Read.All — asked once, on this click.</p>
+      </div>`;
+      return;
+    }
+
+    const r = dvRes;
+    // The tenant default first: it is the difference between "gap = silently
+    // unprotected" and "gap = users blocked", and it colours every card below.
+    const secure = r.secure === null
+      ? `<p class="mini" style="margin:0">⚙ Tenant default for devices with <b>no compliance policy</b>: <b>not read</b> — the verdicts below still hold, but what an uncovered device <i>becomes</i> is unknown.</p>`
+      : r.secure
+      ? `<p class="mini" style="margin:0">⚙ Tenant default: devices with no compliance policy are marked <b>Not compliant</b>. A coverage gap below surfaces as <b>blocked users</b> — loud, but not silent.</p>`
+      : `<p class="mini" style="color:var(--off);margin:0">⚙ Tenant default: devices with no compliance policy are marked <b>COMPLIANT</b>. Every coverage gap below <b>passes the device check silently</b> — this single Intune toggle (Compliance policy settings → “Mark devices with no compliance policy assigned as”) decides what all the gaps mean.</p>`;
+    // The verdict words carry the whole result, so they are defined where
+    // they are read — not only in Help.
+    const legend = `<div class="mini" style="margin:10px 0 0;display:grid;gap:3px">
+      <div>${dvChip("covered")} proof found — an All-devices / All-users assignment, the CA include group assigned directly, or every member of the CA scope matched inside assigned groups.</div>
+      <div>${dvChip("partial")} Intune policies exist for the platform, but coverage could not be <i>proven</i>: the CA scope cannot be enumerated (All users, guests, roles), only some members matched, the assignment is a device group, or the included group is empty. Not necessarily a gap — the tool refuses to guess.</div>
+      <div>${dvChip("uncovered")} a proven gap as far as reads go: no Intune policy exists for the platform, or none of the CA scope's members is in any assigned group. What an uncovered device becomes is the tenant default above.</div>
+      <div>${dvChip("na")} the control cannot exist on this platform — approved client app / app protection is an iOS-and-Android mechanism, so demanding it elsewhere can never be satisfied.</div>
+    </div>`;
+    const head = `<div class="list-card" style="padding:14px 16px">
+      ${secure}
+      ${legend}
+      <p class="mini muted" style="margin:8px 0 0">${r.summary.compCount} compliance polic${r.summary.compCount === 1 ? "y" : "ies"} (${r.summary.perPlat.map((x) => `${esc(x.label)}: ${x.n}`).join(" · ")}) · ${r.summary.appCount} app-protection · ${r.results.length} CA polic${r.results.length === 1 ? "y" : "ies"} using device grants · <b>${r.summary.flagged} flagged</b>${r.summary.membersExpanded ? ` · memberships matched across ${r.summary.membersExpanded} group${r.summary.membersExpanded === 1 ? "" : "s"}${r.summary.memberCap ? ` <span style="color:var(--off)">(${r.summary.memberCap} more not expanded — over the read cap; those verdicts rest on assignment names alone)</span>` : ""}` : ""}</p>
+    </div>`;
+
+    if (!r.results.length) {
+      $("dvBody").innerHTML = head + `<div class="list-card" style="padding:14px 16px;margin-top:12px"><p class="mini" style="margin:0">No Conditional Access policy grants <b>compliantDevice</b>, <b>approvedApplication</b> or <b>compliantApplication</b> — there is no device-grant coverage to check in this tenant.</p></div>`;
+      return;
+    }
+
+    $("dvBody").innerHTML = head + r.results.map((p) => `
+      <div class="list-card" style="padding:14px 16px;margin-top:12px">
+        <h4 style="margin:0 0 6px">${dvChip(p.worst)} <b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b> ${dvStateTag(p.state)}</h4>
+        ${p.alt.length ? `<p class="mini muted" style="margin:0 0 6px">OR-alternatives present (${esc(p.alt.join(", "))}) — a user on an uncovered device is not blocked, they simply satisfy the policy <i>without</i> the device check. The gap is in what the policy name promises, not in availability.</p>` : ""}
+        ${p.legs.map((leg) => `<p class="mini" style="margin:6px 0 2px"><b>${esc(leg.label)}</b></p>
+          <ul class="mini" style="margin:0 0 0 2px;padding-left:18px">
+            ${leg.rows.map((row) => `<li>${DevCheck.V_ICON[row.verdict]} <b>${esc(DevCheck.PLAT[row.plat])}</b> — ${esc(row.detail)}${row.via.length ? `<ul class="muted" style="margin:2px 0 4px;padding-left:16px">${row.via.map((v) => `<li>${esc(v)}</li>`).join("")}</ul>` : ""}</li>`).join("")}
+          </ul>`).join("")}
+      </div>`).join("");
+  }
+
+  function openDevCheck() { crumb("🖥 Device reality check"); show("screen-devcheck"); renderDevCheck(); }
+  $("toolDevCheck").addEventListener("click", openDevCheck);
+  $("dvRun").addEventListener("click", dvRun);
+  $("dvBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-dvrun]")) { dvRun(); return; }
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+  $("dvMd").addEventListener("click", () => {
+    if (!dvRes) { toast("Run the check first — the report is the coverage verdicts."); return; }
+    showReport("🖥 Compliant-device reality check", "CA-DeviceRealityCheck", DevCheck.toMd(dvRes, { tenantName }));
   });
 
   // ---------- Sign-in failures (sign-in log × CA verdicts) ----------
@@ -11387,7 +11660,7 @@ max@contoso.com,"Global, DevOps"</pre>
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
     siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr", rcHead: "toolRecycle",
     ruHead: "toolRmau",
-    drHead: "toolDrift",
+    drHead: "toolDrift", dvHead: "toolDevCheck",
     tuHead: "toolTou", riHead: "toolImpact",
   };
   function stampHeadVersion(el, toolId) {

@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=281"></script>
+<script src="js/popup-guard.js?v=282"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=281">
+<link rel="stylesheet" href="css/app.css?v=282">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=281"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=281"></script>
+<script src="js/counter.js?v=282"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=282"></script>
 </head>
 <body>
 
@@ -141,8 +141,12 @@
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer</h3>
         <p>Every exclusion across all policies — users, groups (expanded to members), roles, guest types, apps and locations — in an exclusion × policy matrix.</p>
       </div>
+      <div class="tool" id="toolDevCheck">
+        <div class="tool-ic">🖥</div><h3>Device reality check <span class="tag new">NEW</span></h3>
+        <p>A grant demanding a compliant device is only worth what Intune's compliance policies are worth — and nothing checks the other half. Per CA policy and per platform: is the scope actually assigned a compliance policy, or does it fall through to the tenant default? Same check for app protection behind “require approved client app”. <span class="tag grant">extra permissions</span></p>
+      </div>
       <div class="tool" id="toolAudit">
-        <div class="tool-ic">🕓</div><h3>Change audit</h3>
+        <div class="tool-ic">🕓</div><h3>Change audit <span class="tag upd">UPDATED</span></h3>
         <p>Who changed which Conditional Access resource, when, and exactly what changed — a field-level diff of every policy, named location and authentication strength edit from the Entra audit log.</p>
       </div>
       <div class="tool" id="toolSignins">
@@ -223,7 +227,7 @@
         <p>Everything added or changed in ENCA, newest first — the full changelog behind the overlay you get after signing in.</p>
       </div>
       <div class="tool tool-help" id="toolRoadmap">
-        <div class="tool-ic">🗺</div><h3>Roadmap</h3>
+        <div class="tool-ic">🗺</div><h3>Roadmap <span class="tag upd">UPDATED</span></h3>
         <p>Where ENCA is heading next — the ideas being worked toward, in the open, so you know what to expect and can say what matters most.</p>
       </div>
       <div class="tool tool-help" id="toolHelp">
@@ -916,6 +920,9 @@
       <div class="chip-filter" id="auChips"></div>
       <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px"><span>Range</span>
         <select id="auDays" style="width:auto">
+          <option value="0.0416667">Last 1 hour</option>
+          <option value="0.1666667">Last 4 hours</option>
+          <option value="1">Last 24 hours</option>
           <option value="7" selected>Last 7 days</option>
           <option value="30">Last 30 days</option>
           <option value="90">Last 90 days</option>
@@ -1046,16 +1053,53 @@
     <div id="drBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ COMPLIANT-DEVICE REALITY CHECK (R11) ============ -->
+  <section id="screen-devcheck" class="screen">
+    <div class="list-card readme" id="dvHead" style="margin-top:0"></div>
+    <div class="toolbar" id="dvToolbar" style="margin-top:14px">
+      <div class="tb-actions">
+        <button class="btn primary" id="dvRun">▶ Check the coverage</button>
+        <button class="btn" id="dvMd">Export MD</button>
+      </div>
+    </div>
+    <div id="dvBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ ROADMAP — where ENCA is heading, as a timeline ============ -->
   <section id="screen-roadmap" class="screen">
     <div class="help-page">
       <h2 class="home-title" style="margin:0 0 8px">🗺 Roadmap</h2>
-      <p class="mini muted" style="margin:0 0 18px">Where ENCA is heading, laid out in time. Order and scope may change — real-tenant feedback decides what lands first. Suggestions are welcome as GitHub issues.</p>
+      <p class="mini muted" style="margin:0 0 18px">Where ENCA is heading, laid out in time. Order and scope may change — real-tenant feedback decides what lands first. Suggestions are welcome as GitHub issues.<br><b>Each item carries a reference</b> (<span class="rm-ref">Rnn</span>) so it can be pointed at without quoting the title. A reference belongs to that item permanently: it is never reused once the item ships, and the numbers are not a priority order. An item that ships <b>moves from Next to Now</b> with its reference intact — it is not deleted, because a roadmap that forgets what it delivered is only a wish list.</p>
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
           <div class="list-card rm-card">
             <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · <a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a>, <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> and the <b>⌨️ command palette</b> (all out of BETA) · 🔒 the <a href="#" id="rmSecLink">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="273">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R14</span> 🏢 Your own single-tenant app registration <span class="tag grant">live · build 273</span></h4>
+            <p class="mini" style="margin:0">Every tenant signs in through <b>one multi-tenant</b> app registration owned by Limon-IT by default — the same application ID, and therefore an application outside your directory holding a delegated grant on your data. <b>You can run ENCA on your own instead:</b> a <b>single-tenant</b> SPA (<code>AzureADMyOrg</code>) registered inside your tenant, with your own client ID, consent record, redirect URIs and audit trail — nothing to trust but the code you reviewed. The sign-in mechanism stays authorization code + PKCE with no client secret; only the owner changes.
+              <br><br><b>Shipped:</b> <code>./New-EncaAppRegistration.ps1 -SingleTenant</code> creates the registration and prints what to paste; <code>js/authConfig.local.js</code> points your copy at it without editing a file upstream also changes. <code>-RequireAssignment</code> can restrict the enterprise application after assigning you first, so the script cannot seal you out.
+              <br>📖 <b><a href="#" id="stLink">Read the setup manual</a></b> — prerequisites, the five steps, verification, and keeping a pinned copy current. Also in <a href="#" id="rmSecLink2">Security &amp; risk</a>.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="282">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R11</span> <a href="#" class="md-tool" data-tool="toolDevCheck">🖥 Compliant-device reality check</a> <span class="tag grant">live · build 282</span></h4>
+            <p class="mini" style="margin:0">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — and until now nothing checked the other half. The tool reads the compliance policies with their assignments and flags, per CA policy and <b>per platform</b>, every scope that no compliance policy actually covers — with the tenant default for policy-less devices read first, because that single Intune toggle decides whether a gap means <i>silently unprotected</i> (marked Compliant) or <i>users blocked</i> (marked Not compliant). The same check runs for app-protection policies behind “require approved client app”, which is flagged as unsatisfiable outside iOS and Android. OR-alternatives are named, coverage is proven first from assignments and then from transitive group-membership overlap where names alone cannot prove it, unreadable scopes stay honestly <i>not proven</i>, and the verdicts export as Markdown.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="280">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R29</span> <a href="#" class="md-tool" data-tool="toolAnalyze">🔍 Gap analyse</a> — scan only who you asked about <span class="tag grant">live · build 280</span></h4>
+            <p class="mini" style="margin:0">Gap analyse builds a users × policies matrix for <b>every</b> user it can read. On a tenant of any size that is a long read producing a wide answer, when the question was usually narrow: <i>is this contractor covered</i>, <i>what does the finance team bypass</i>, <i>did that one exclusion group leave anybody exposed</i>. The matrix is the right output; the scope was not.</p>
+            <p class="mini" style="margin:6px 0 0">It names <b>users or groups</b> before the scan and judges only those — the same policies, the same verdicts, fewer rows and a fraction of the reads. A group means <b>its members</b>, including nested ones, because the answer is about people rather than group objects; and the report says <b>what was scoped</b> as prominently as what it found, because a clean matrix over eleven users and one over the whole tenant are not the same assurance.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="279">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R30</span> <a href="#" class="md-tool" data-tool="toolWhatIf">🧪 What-If</a> — filter the policies that did not apply <span class="tag grant">live · build 279</span></h4>
+            <p class="mini" style="margin:0">A run against a real tenant can answer with two policies that apply and <b>107 that do not</b>, each with its reason. That list is the honest answer and it is also unreadable: the question behind it is almost never “show me everything”, it is <i>why did none of the Admins policies apply to this admin</i> — a persona question — or <i>what happened to CA103</i>, a number question.</p>
+            <p class="mini" style="margin:6px 0 0">The list now filters by <b>persona</b>, <b>CA number</b> and <b>reason</b>, through the same CA ranges List Policies uses, with a count per reason first — so finding the missing policy no longer means scrolling through every unrelated one.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="279">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R31</span> <a href="#" class="md-tool" data-tool="toolWhatIf">🧪 What-If</a> — search the tenant's apps, not their GUIDs <span class="tag grant">live · build 279</span></h4>
+            <p class="mini" style="margin:0">Target resource once offered the well-known apps by name and then <b>Other — enter an App ID</b>, which asked for a raw GUID. Nobody knows their apps by GUID, so answering it meant leaving the tool, finding the enterprise application in the portal and copying the id back — while a mistyped GUID quietly described a sign-in to an app nobody has.</p>
+            <p class="mini" style="margin:6px 0 0">It now searches the tenant's own <b>service principals</b> by display name and fills in the App ID. A pasted GUID keeps working and is resolved for confirmation; an id ENCA cannot name is marked <i>not found in this tenant</i> rather than rejected, because a policy can legitimately reference an application without a local service principal.</p>
           </div>
           <div class="list-card rm-card" data-shipped="267">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R02</span> <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> <span class="tag grant">live · build 267</span></h4>
@@ -1077,7 +1121,7 @@
           <div class="list-card rm-card" data-shipped="269">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R08</span> 🌐 Type the country, get the code <span class="tag grant">live · build 269</span></h4>
             <p class="mini" style="margin:0">A country named location takes <b>two-letter ISO 3166-1 codes</b>, typed by hand into a free-text box. The failure mode is silent and total: a wrong code is still a <i>valid</i> code, so the policy saves, looks right in the portal, and quietly covers the wrong country until somebody is blocked or — worse — is not. Ireland is <code>IE</code>; <code>IR</code> is Iran. Austria is <code>AT</code>, Australia <code>AU</code>. Sweden is <code>SE</code>, Switzerland <code>CH</code>.</p>
-            <p class="mini" style="margin:6px 0 0">The plan is to type the <b>name</b> and have the code filled in — a type-ahead over the full ISO list, matching on country name, adding the code as a chip you can see and remove. Codes typed directly keep working, but anything that is not a real ISO code is rejected at entry rather than accepted and discovered later. Worth doing for the same reason the CA-number routing exists: the tool knows the right answer, so the human should not have to be the one who remembers it.</p>
+            <p class="mini" style="margin:6px 0 0">It types the <b>name</b> and fills the code in — a type-ahead over the full ISO list, matching on country name, adding the code as a chip you can see and remove. Codes typed directly keep working, but anything that is not a real ISO code is rejected at entry rather than accepted and discovered later. Worth doing for the same reason the CA-number routing exists: the tool knows the right answer, so the human should not have to be the one who remembers it.</p>
           </div>
           <div class="list-card rm-card" data-shipped="269">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R10</span> 🎛 Group actions where you are already looking <span class="tag grant">live · build 269</span></h4>
@@ -1089,7 +1133,7 @@
           <h3>Next <span class="rm-when">being worked toward</span></h3>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R05</span> 📖 Baseline usage guide <span class="tag ok">in beta today</span></h4>
-            <p class="mini" style="margin:0">The toolset could build the baseline; it could not tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge lived in whoever has done it before, which is the least durable place to keep it. Now it is a tool: the deployment order as six steps, each with the <b>reason</b> it sits where it does — the persona model and its CA ranges, groups and restricted units before the policies that target them, named locations, authentication strengths and contexts before the policies that reference them, Terms of use (which has no create API) before import, policies imported Off, then Off → report-only → 🎚 forecast → enforced, Global last. 🔎 <b>Read the tenant</b> turns every step into a readiness check that names what is missing <i>before</i> the step is run instead of after. Graduates to production once the step texts have proven themselves against enough real deployments.  Running on the beta channel now; graduates once it has proven itself against enough real tenants.</p>
+            <p class="mini" style="margin:0">The toolset could build the baseline; it could not tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge lived in whoever has done it before, which is the least durable place to keep it. Now it is a beta tool: the deployment order as six steps, each with the <b>reason</b> it sits where it does — the persona model and its CA ranges, groups and restricted units before the policies that target them, named locations, authentication strengths and contexts before the policies that reference them, Terms of use (which has no create API) before import, policies imported Off, then Off → report-only → 🎚 forecast → enforced, Global last. 🔎 <b>Read the tenant</b> turns every step into a readiness check that names what is missing <i>before</i> the step is run instead of after. It graduates once the step texts have proven themselves against enough real deployments.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> 📐 CIS Benchmark alignment <span class="tag ok">in beta today</span></h4>
@@ -1102,9 +1146,14 @@
               <br><b>Still to do:</b> the bundled group templates and the baseline catalog still describe an estate built on role-assignable groups; the MS Learn and CIS checks, Group Analyzer and the documentation exports still mention it as the expected shape; and the persona <b>import</b> path should create protected groups directly rather than leaving protection as a later step. Production keeps creating role-assignable groups until this lands there.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R27</span> 📄 Documentation for the restricted units <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">📄 Create documentation turns the Conditional Access policies into something you can hand to an auditor. The <b>restricted administrative units</b> deserve the same and do not have it: the Markdown export lists what each unit holds and who may manage it, which is the raw material, but it is a list rather than a document.</p>
-            <p class="mini" style="margin:6px 0 0">The plan is the same treatment the policies get — a per-persona page saying what the unit protects, which CA policies depend on those groups, who is scoped to it and what that lets them do, and the questions an auditor actually asks: <b>who could widen an exclusion</b>, and <b>what would happen if they did</b>. Plus the two failure states worth a document of their own — a unit with <b>nobody</b> scoped to it, and a <b>frozen</b> group nobody can edit — because those are exactly what a review is for and neither is visible from the portal.</p>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R27</span> 📄 Documentation for the restricted units <span class="tag ok">in beta today · pending item 53</span></h4>
+            <p class="mini" style="margin:0">On the beta channel, 📄 Create documentation can add the restricted administrative units to the <b>same document</b> as the Conditional Access policies. Each unit gets an auditor-ready page naming its persona, the groups it protects, every policy that includes or excludes those groups, the people scoped to it and whether their role can change group membership.</p>
+            <p class="mini" style="margin:6px 0 0">The review asks <b>who could widen an exclusion</b>, <b>what would happen if they did</b>, whether a unit has <b>nobody</b> scoped to it, and whether it holds a <b>frozen</b> role-assignable group. The integration is optional and fail-soft: the documentation tool reads the units for itself; an absent, denied or broken restricted-unit read is reported and the policy document still exports. Production keeps its existing policy-only documentation until promotion item 53 is selected.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R28</span> 🏷 Custom groups in the persona vaults <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Everything that routes a group to a vault reads the <b>CA number in its name</b>. That works for the baseline and for nothing else: a tenant's own exclusion group — <code>SEC-VIP-Exceptions</code>, <code>Contractors-NoMFA</code> — matches no persona, so ⑥ Protect skips it unless a fallback unit is chosen by hand, ＋ Bulk add never offers it, and the break-glass case had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them the naming is wrong is not a feature.</p>
+            <p class="mini" style="margin:6px 0 0">The plan is a <b>per-tenant mapping</b> — say once that <code>Contractors-NoMFA</code> belongs to Externals, and every tool routes it there afterwards: ⑥ Protect files it, ＋ Bulk add offers it, 📄 the documentation counts it. Kept with the tenant rather than in the code, so it survives a release and does not become our list of everybody's group names. Two things it must not do: guess (a mapping nobody stated is how a group ends up in the wrong vault silently), and hide the unmapped — a group with no persona should stay visible as <i>unmapped</i> rather than quietly dropping out of every list.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R06</span> 🐳 Self-hosting with Docker <span class="tag">planned</span></h4>
@@ -1113,23 +1162,12 @@
             <p class="mini" style="margin:6px 0 0">The plan is a published image (nginx over the built files) plus a <code>docker compose</code> example, so <code>docker run</code> gives a working instance. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. The one thing that cannot be automated is the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, so the documentation has to lead with that rather than bury it, since it is the step that produces the confusing sign-in error when missed.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R11</span> 🖥 Compliant-device reality check <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — and nothing checks the other half today. Read the compliance policies and their assignments, then flag every Conditional Access policy whose protection rests on a persona that no compliance policy actually covers. The same blind spot exists for app-protection policies behind “require approved client app”.</p>
-          </div>
-          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R12</span> ↩️ Undo for writes <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Every write tool already produces a change report of exactly what it did. Make it replayable in reverse: one action that puts back the state before the run, with the same typed-confirmation discipline as the original write. It lowers the cost of every write tool already shipped, and it is the natural safety net under <i>Editable Conditional Access policies</i> further down this map.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R13</span> 🔐 Improve security <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R14</span> 🏢 Your own single-tenant app registration <span class="tag ok">available now</span></h4>
-            <p class="mini" style="margin:0">Every tenant signs in through <b>one multi-tenant</b> app registration owned by Limon-IT by default — the same application ID, and therefore an application outside your directory holding a delegated grant on your data. <b>You can now run ENCA on your own instead:</b> a <b>single-tenant</b> SPA (<code>AzureADMyOrg</code>) registered inside your tenant, with your own client ID, consent record, redirect URIs and audit trail — nothing to trust but the code you reviewed. The sign-in <i>mechanism</i> is unchanged (a SPA using authorization code + PKCE, no client secret); what changes is who owns the registration, and so who can review, audit and revoke it.
-              <br><br><b>Shipped:</b> <code>./New-EncaAppRegistration.ps1 -SingleTenant</code> creates the registration and prints what to paste; <code>js/authConfig.local.js</code> points your copy at it without editing a file upstream also changes, so later releases still merge cleanly.
-              <br><b>Also shipped:</b> <code>-RequireAssignment</code> sets <i>Assignment required</i> on the enterprise application and assigns you first, so only you can open the tool until you widen it — the requirement is switched on only after somebody is successfully assigned, so the script cannot seal you out.
-              <br>📖 <b><a href="#" id="stLink">Read the setup manual</a></b> — prerequisites, the five steps, verification, and the part people skip: keeping a pinned copy current. Also in <a href="#" id="rmSecLink2">Security &amp; risk</a>.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R15</span> 🍴 Fork detection and update-from-upstream <span class="tag">planned</span></h4>
@@ -1184,6 +1222,21 @@
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R26</span> 🇳🇱 Dutch interface <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">The exported documentation is the part non-administrators actually read, and for a Dutch organisation that reads better in Dutch. The tool is built for it — one labels file, no build step — so the work is translation and keeping it honest, not plumbing.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R32</span> 🧩 Every tool runs on its own <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Today most tools quietly lean on the rest of the app having run first: the policy list a tool judges against was loaded by sign-in, the group names it prints were resolved by another tool's pass, the shared wiring holds state a tool assumes is there. It mostly works because the app loads everything up front — which means the dependency is invisible until the day it is not (a deep link straight into a tool, a tool opened before a slow read finished, a tool lifted out of this app entirely).</p>
+            <p class="mini" style="margin:6px 0 0">The rule this item works toward: <b>every tool must be able to run with nothing but a signed-in session</b>. Whatever its core result needs, it reads itself — or states plainly that it is waiting, instead of rendering from state that happens to be lying around. Connections to other ENCA tools — shared results, deep links and one-click hand-offs — are welcome conveniences, never prerequisites. Each connection is capability-checked and <b>fails soft</b>: if the other tool is absent, unfinished, denied or broken, the core tool still performs its own read and produces its result; only the shortcut or enrichment may be unavailable. Independence is also the precondition for <span class="rm-ref">R34</span> — a tool that cannot run alone cannot move alone.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R33</span> 🔢 Tool reference numbers, in order of introduction <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The roadmap items carry <span class="rm-ref">Rnn</span> references so one can be pointed at without quoting its title; the tools themselves still go by name and emoji, which drift (tools get renamed, retitled, translated — 🇳🇱 <span class="rm-ref">R26</span> will rename every one of them). The plan is the same discipline for the tools: a permanent <b>T-number</b> per tool, assigned in the order each tool entered ENCA, never reused — not even when a tool is retired or folded into another, because a recycled number makes every older note about it wrong.</p>
+            <p class="mini" style="margin:6px 0 0">Shown in the tool header next to the per-tool version that is already there, findable in the command palette, and used in the changelog, the Help page and the promotion queue — so “T07 misbehaves on this tenant” means one thing across both channels, every build, and any future language.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R34</span> 📦 Every tool easy to port to other applications <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The newer tools already follow a pattern worth making a rule: the logic lives in its own file as pure functions over a plain data contract — no DOM, no globals, no Graph calls — and the app contributes only a thin wiring layer that fills the contract and renders the result. That split is why the Restricted-AUs checks, the guide and the device check can be tested with <code>node</code> alone, and it is exactly what makes a tool liftable: another application (a customer's own portal, a CLI in a pipeline, a scheduled report) reimplements the small wiring and takes the logic file as-is.</p>
+            <p class="mini" style="margin:6px 0 0">This item makes that the standard for <b>every</b> tool: each one a logic module with a documented contract (what goes in, what comes out, which reads the host must supply), thin host wiring, and optional integrations behind adapters <b>outside the core contract</b>. A host may supply another tool's result or expose a hand-off, but it may omit every integration and the module must still work. Tests run the core with integrations absent and throwing: an integration failure may remove convenience, never break the main tool. Portability is the honest test of <span class="rm-ref">R32</span>.</p>
           </div>
         </div>
         <div class="rm-more">→ and further, steered by what you ask for</div>
@@ -1319,13 +1372,14 @@
     </section>
 
     <section class="help-sec">
-      <h4>🕓 Change audit</h4>
+      <h4>🕓 Change audit <span class="tag upd">UPDATED</span></h4>
       <p>Who changed which Conditional Access resource, when, and exactly what changed — read from the Entra directory audit log.</p>
       <ul>
         <li><b>Covers</b> policies, named locations, authentication strengths and contexts, and terms of use — add, update and delete.</li>
         <li><b>Field-level diff</b> — expand an entry and you get the fields that actually moved (<code>state: report-only → enabled</code>, a group added to <code>excludeGroups</code>), not a wall of JSON. Assignment lists are compared as sets, so you see the one group that changed rather than the whole array.</li>
         <li><b>Who and from where</b> — the user or application that made the change, with the source IP, plus the result if it failed.</li>
-        <li><b>Filters</b> — by resource kind, plus search across resource, person and changed field name; pick a 7, 30 or 90-day window.</li>
+        <li><b>Range</b> — use the last <b>1 hour</b>, <b>4 hours</b> or <b>24 hours</b> to verify a fresh rollout or investigate an incident without paging through a week of unrelated changes. The 7, 30 and 90-day windows remain for reviews; Entra returns only what its retention still holds.</li>
+        <li><b>Filters</b> — by resource kind, plus search across resource, person and changed field name.</li>
         <li><b>Export MD</b> — the whole change set with per-entry diff tables, for a review or a ticket.</li>
       </ul>
       <p class="help-x">Read-only. Needs <code>AuditLog.Read.All</code> (requested when you run it) and a reader role such as Reports Reader, Security Reader or Security Administrator. Audit retention is licence-bound — roughly 30 days on Entra ID P1/P2, 7 days otherwise — so this is a rolling window, not full history.</p>
@@ -1372,14 +1426,14 @@
 
     <section class="help-sec">
       <h4>📉 Drift watch</h4>
-      <p>What moved in the Conditional Access configuration since a snapshot you took earlier. Change audit answers <i>who changed this in the last 30 days</i>; Drift watch answers <i>does the tenant still look like it did when we signed it off</i> — with no time limit, because the history is a file you keep rather than a log Microsoft ages out.</p>
+      <p>What moved in the Conditional Access configuration since a snapshot you took earlier. Change audit answers <i>who changed this inside the selected audit window</i> — from the last hour up to the history Entra still retains; Drift watch answers <i>does the tenant still look like it did when we signed it off</i> — with no time limit, because the history is a file you keep rather than a log Microsoft ages out.</p>
       <ul>
         <li><b>📸 Take snapshot</b> — reads the policies, named locations, authentication strengths and authentication contexts and downloads them as one JSON file. Store it with your review files. Nothing is uploaded and nothing is kept server-side.</li>
         <li><b>📂 Load snapshot &amp; compare</b> — pick that file back up days, months or a year later. The tenant is re-read and the two are compared object by object.</li>
         <li><b>Ranked by severity</b> — a policy switched Off or to report-only, an exclusion widened, a location turned trusted rank <b>Critical</b>, because that is how protection disappears without anyone deleting a policy. A rename ranks Low. The highest severity present is shown up front.</li>
         <li><b>Readable diffs</b> — GUIDs resolve to group and location names, and fields that move on their own (<code>modifiedDateTime</code>) are ignored, so a policy nobody touched reads as unchanged rather than as noise.</li>
         <li><b>Honest gaps</b> — an area that could not be read is reported as <i>not captured</i>, never as “no drift”. A clean bill of health is only given for what was actually compared.</li>
-        <li><b>Who, where known</b> — run 🕓 Change audit first and each drifted object also names the person who changed it, for changes still inside Entra's audit retention. Older drift is shown without attribution rather than with a guess.</li>
+        <li><b>Who, where known</b> — run 🕓 Change audit first and choose a window that reaches back before the suspected change: 1, 4 or 24 hours for fresh drift, longer for older drift. Each drifted object then names the person who changed it while that event is still inside Entra's audit retention. Older drift is shown without attribution rather than with a guess.</li>
         <li><b>Export MD</b> — the drift report for a review, a ticket or a customer's change file.</li>
       </ul>
       <p class="help-x">Read-only, and uses the permissions the session already has. The snapshot contains your Conditional Access configuration — treat the file with the same care as any policy export.</p>
@@ -1580,6 +1634,28 @@
       <h4>🎚 Set Policy state <span class="tag block">writes to tenant</span></h4>
       <p>Switch selected policies between <b>On</b> (enabled), <b>Report-only</b> (logged, not enforced) and <b>Off</b> (disabled).</p>
       <p class="help-x">Writes the new state to the tenant after you confirm.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🖥 Device reality check <span class="tag new">NEW</span></h4>
+      <p>The other half of the <b>require compliant device</b> grant. The CA side names <i>who</i> must present a compliant device; the Intune side decides <i>which devices can ever be one</i> — and neither portal checks that the two halves meet. Per CA policy and per platform: is the policy's scope actually assigned an Intune compliance policy, or does it fall through to a tenant default almost nobody has read?</p>
+      <p style="margin-bottom:4px"><b>The four verdicts</b> — one per platform, and the policy card wears the worst of them:</p>
+      <ul>
+        <li><b>✅ covered</b> — proof was found: a compliance / app-protection policy for that platform is assigned to <b>All devices</b> or <b>All users</b>, or the CA policy's include group is <b>assigned directly</b>, or every <b>member</b> of the CA scope was matched inside the assigned groups (the membership pass). Covered means <i>the check has someone to answer for this scope</i> — it says nothing about how strict that compliance policy is.</li>
+        <li><b>⚠️ not proven</b> — Intune policies exist for the platform, but coverage could not be <i>proven</i>, and the tool refuses to guess. The reasons it says so: the CA scope cannot be enumerated (<b>All users</b>, guests, roles — there is no member list to match); only <b>some</b> members of the scope matched (“n of m covered”); an assigned group is a <b>device group</b>, which cannot be matched against the users of the CA scope; or the included group is <b>empty</b> today. Not proven is not the same as broken — it is “nobody can show you this works”, which for an audit is usually the same problem.</li>
+        <li><b>❌ uncovered</b> — a proven gap as far as reads go: <b>no Intune policy exists</b> for the platform at all, or <b>none of the members</b> of the CA scope is in any assigned group. What happens next is the tenant default above: marked-Compliant means the CA grant passes silently for exactly the people the policy names; marked-Not-compliant means those people get blocked instead.</li>
+        <li><b>🚫 n/a</b> — the control cannot exist on this platform. Approved client app / app protection is an iOS-and-Android mechanism; a CA policy demanding it on Windows or macOS has written a condition no sign-in from those platforms can ever satisfy.</li>
+      </ul>
+      <ul>
+        <li><b>The tenant default comes first</b>, because it decides what every gap <i>means</i>: Intune's “Mark devices with no compliance policy assigned as” toggle. Set to <b>Compliant</b>, an uncovered device passes the CA grant silently — the policy enforces nothing for that scope. Set to <b>Not compliant</b>, the same gap surfaces as blocked users instead: loud, but not silent.</li>
+        <li><b>Per platform, not per tenant</b> — compliance policies are per-platform, so a CA policy scoped to “any platform” can be covered on Windows and wide open on macOS. Settings-catalog compliance policies are read too (Linux only exists there).</li>
+        <li><b>Coverage is proven from assignments first</b>: All devices / All users is proof; a CA include group directly assigned a compliance policy is proof. Each Intune policy on a verdict is listed with <b>the groups it is assigned to</b> (and its exclusion groups), because <i>which</i> groups decides who falls through.</li>
+        <li><b>Then the members themselves</b> — a different group name does not mean a user is not covered: the CA policy can include a persona group while Intune assigns a BYOD group, and if the same people are in both, the coverage is real. Where assignment names could not prove it, the tool expands the memberships (transitive, so nesting counts) of the CA include groups and the Intune-assigned groups and matches the <b>users</b>: all matched → covered by membership, some → “n of m covered”, none → uncovered. Per-policy Intune exclusions count against that policy only. Scopes that cannot be enumerated (All users, guests, roles) stay honestly “not proven”, an Intune policy assigned a <b>device group</b> is flagged as unmatchable to users rather than counted as a gap, and an unreadable or over-cap group falls back to assignment names instead of pretending to be empty.</li>
+        <li><b>OR-alternatives are named</b> — a policy granting <i>compliant device OR MFA</i> does not block an uncovered device, it just lets the sign-in through on MFA. That is a gap in what the policy name promises, not in availability, and the card says which it is.</li>
+        <li><b>Same check for app protection</b> behind “require approved client app / app protection policy” — an iOS-and-Android mechanism, so a CA policy demanding it on Windows or macOS is flagged as a control that can never be satisfied there.</li>
+        <li><b>📄 Export MD</b> — the verdicts as Markdown for the review record.</li>
+      </ul>
+      <p class="help-x">Read-only. Needs <code>DeviceManagementConfiguration.Read.All</code> and <code>DeviceManagementApps.Read.All</code>, asked once on the click, plus an Intune RBAC role that can read the workload (e.g. Read Only Operator). Assignment targets are checked first; where names alone cannot prove overlap, the tool expands transitive group memberships and matches the users. An unreadable, unenumerable or over-cap scope stays <b>not proven</b> rather than being guessed empty or uncovered.</p>
     </section>
 
     <section class="help-sec">
@@ -2215,43 +2291,44 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=281"></script>
-<script src="js/version.js?v=281"></script>
-<script src="js/authConfig.js?v=281"></script>
-<script src="js/labels.js?v=281"></script>
-<script src="js/graph.js?v=281"></script>
-<script src="js/model.js?v=281"></script>
-<script src="js/render.js?v=281"></script>
-<script src="js/analyze.js?v=281"></script>
-<script src="js/whatif.js?v=281"></script>
-<script src="js/mslearn.js?v=281"></script>
-<script src="js/gapcheck.js?v=281"></script>
-<script src="js/exclusions.js?v=281"></script>
-<script src="js/validator.js?v=281"></script>
-<script src="js/whatifeval.js?v=281"></script>
-<script src="js/compare.js?v=281"></script>
-<script src="js/groupuse.js?v=281"></script>
-<script src="js/iso3166.js?v=281"></script>
-<script src="js/locations.js?v=281"></script>
-<script src="js/authcontexts.js?v=281"></script>
-<script src="js/authstrengths.js?v=281"></script>
-<script src="js/recycle.js?v=281"></script>
-<script src="js/termsofuse.js?v=281"></script>
-<script src="js/rmau.js?v=281"></script>
-<script src="js/audit.js?v=281"></script>
-<script src="js/drift.js?v=281"></script>
-<script src="js/signins.js?v=281"></script>
-<script src="js/reportimpact.js?v=281"></script>
-<script src="js/changelog.js?v=281"></script>
-<script src="js/baselineData.js?v=281"></script>
-<script src="js/baselineJoeyData.js?v=281"></script>
-<script src="js/baseline.js?v=281"></script>
-<script src="js/groupTemplates.js?v=281"></script>
-<script src="js/assign.js?v=281"></script>
-<script src="js/cagroups.js?v=281"></script>
-<script src="js/import.js?v=281"></script>
-<script src="js/export.js?v=281"></script>
-<script src="js/demo.js?v=281"></script>
-<script src="js/app.js?v=281"></script>
+<script src="js/branding.js?v=282"></script>
+<script src="js/version.js?v=282"></script>
+<script src="js/authConfig.js?v=282"></script>
+<script src="js/labels.js?v=282"></script>
+<script src="js/graph.js?v=282"></script>
+<script src="js/model.js?v=282"></script>
+<script src="js/render.js?v=282"></script>
+<script src="js/analyze.js?v=282"></script>
+<script src="js/whatif.js?v=282"></script>
+<script src="js/mslearn.js?v=282"></script>
+<script src="js/gapcheck.js?v=282"></script>
+<script src="js/exclusions.js?v=282"></script>
+<script src="js/validator.js?v=282"></script>
+<script src="js/whatifeval.js?v=282"></script>
+<script src="js/compare.js?v=282"></script>
+<script src="js/groupuse.js?v=282"></script>
+<script src="js/iso3166.js?v=282"></script>
+<script src="js/locations.js?v=282"></script>
+<script src="js/authcontexts.js?v=282"></script>
+<script src="js/authstrengths.js?v=282"></script>
+<script src="js/recycle.js?v=282"></script>
+<script src="js/termsofuse.js?v=282"></script>
+<script src="js/rmau.js?v=282"></script>
+<script src="js/audit.js?v=282"></script>
+<script src="js/drift.js?v=282"></script>
+<script src="js/devcheck.js?v=282"></script>
+<script src="js/signins.js?v=282"></script>
+<script src="js/reportimpact.js?v=282"></script>
+<script src="js/changelog.js?v=282"></script>
+<script src="js/baselineData.js?v=282"></script>
+<script src="js/baselineJoeyData.js?v=282"></script>
+<script src="js/baseline.js?v=282"></script>
+<script src="js/groupTemplates.js?v=282"></script>
+<script src="js/assign.js?v=282"></script>
+<script src="js/cagroups.js?v=282"></script>
+<script src="js/import.js?v=282"></script>
+<script src="js/export.js?v=282"></script>
+<script src="js/demo.js?v=282"></script>
+<script src="js/app.js?v=282"></script>
 </body>
 </html>
