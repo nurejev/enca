@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25124, date: "2026-08-17", title: "Items 56-58 reached production (284)",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue items 56 (policy ID on the expanded card), 57 (every create path disables group nesting, and says whether it took) and 58 (the create panels describe what they actually create) are live in production build 284. Removed from the queue; the numbers are retired rather than reused. Only the two beta-only tools remain queued, and neither can move without its tool." },
+    ],
+  },
+  {
     build: 25123, date: "2026-08-17", title: "The create panels stopped describing a group they no longer make",
     items: [
       { kind: "fixed", tool: "CA groups", text: "Four places still told you that groups are created as role-assignable security groups, that membership can then only be changed by a Privileged Role Administrator, and that creation requires that role — none of which has been true since build 25026, when role-assignable creation was retired. The Assign wizard footnote, the batch-create panel, its per-row label and the scope table now describe what actually happens: a plain security group with nesting disabled, protected by a restricted administrative unit if you want membership out of reach, with 🔒 Protect as the route." },

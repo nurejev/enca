@@ -39,39 +39,9 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.283",
+  productionBuild: "v1.0.284",
 
   items: [
-    {
-      n: 58,
-      title: "Create panels describe what they actually create",
-      tools: ["CA groups", "Assign groups"],
-      builds: [25123],
-      risk: "medium",
-      what: "Removes four stale claims that groups are created role-assignable and require Privileged Role Administrator, plus a Help entry describing the removed ↻ Recreate role-assignable action. Replaced with what happens now: plain security group, nesting disabled, restricted AU for protection.",
-      why: "Production tells the operator the create needs a role it does not need, and that the group will be protected by a flag it does not get — which is how somebody decides not to click, or clicks and mis-reports what the tenant now contains.",
-      files: ["js/app.js", "index.html"],
-    },
-    {
-      n: 57,
-      title: "Every create path disables group nesting",
-      tools: ["CA groups", "Assign groups", "Import", "Restricted AUs"],
-      builds: [25121, 25122],
-      risk: "high",
-      what: "The create result reports whether nesting was disabled, per group, and names the reason when it was not. disableNesting is sent by every group-create path, in the POST body and confirmed by PATCH, read back by name, with the create retried without it when the tenant refuses the field and the group reported as \"nesting still allowed\" when it could not be set. Adds Group-NestingSupport.ReadWrite.All to the create flows' consent.",
-      why: "Production creates groups with nesting allowed on eight of ten paths, so a nested group is an open route into a Conditional Access assignment — and the only later fix is the destructive recreate of a group policies already reference.",
-      files: ["js/assign.js", "js/app.js", "index.html"],
-    },
-    {
-      n: 56,
-      title: "Policy ID on the expanded card",
-      tools: ["List Policies"],
-      builds: [25120],
-      risk: "low",
-      what: "The expanded policy card carries the policy ID in its footer, on screen and in the exported/PNG version, selectable in one click. Also escapes the five attributes built from a policy id.",
-      why: "Production drops the id the moment you open a policy — on exactly the card people screenshot and paste into tickets.",
-      files: ["js/render.js", "css/app.css", "index.html"],
-    },
     {
       n: 34,
       title: "CIS Benchmark Help section",
