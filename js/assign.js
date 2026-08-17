@@ -151,6 +151,12 @@ const Assign = (() => {
   // role-assignable, so that is the only thing forced here. For a baseline
   // template with no explicit roleAssignable, keep the historical default:
   // assigned groups are role-assignable, dynamic ones are not.
+  // Group-NestingSupport.ReadWrite.All is what Learn names as the least
+  // privileged permission for updating disableNesting; Group.ReadWrite.All
+  // comes along because the same token reads the group back.
+  const NEST_SCOPES = [...(typeof AUTH_CONFIG !== "undefined" ? AUTH_CONFIG.scopes : []),
+                       "Group-NestingSupport.ReadWrite.All", "Group.ReadWrite.All"];
+
   function buildGroupPayload(t) {
     const nickname = (String(t.mailNickname || t.displayName || "grp").replace(/[^A-Za-z0-9]/g, "").slice(0, 60)) || "CADSECgroup";
     const dynamic = !!t.dynamic;
@@ -180,9 +186,23 @@ const Assign = (() => {
       p.membershipRuleProcessingState = "On";
     }
     if (roleAssignable) p.isAssignableToRole = true;
-    // beta-only: no group may be added as a member of this one. Only settable
-    // at creation today, which is why the CA groups tool has a recreate path.
-    if (t.disableNesting) p.disableNesting = true;
+    // beta-only: no group may be added as a member of this one.
+    //
+    // DEFAULT CHANGED: every group this tool creates now asks for it, because a
+    // nested group is an invisible route into a Conditional Access assignment —
+    // somebody adds a group to a group and a policy's scope changes without the
+    // policy being touched. The persona design assumes membership is deliberate.
+    // Pass disableNesting:false to opt a create out.
+    //
+    // It goes in the POST body AND is confirmed by PATCH afterwards (see
+    // createGroup): field reports say it only takes at creation, while Learn
+    // documents it as patchable with Group-NestingSupport.ReadWrite.All. Doing
+    // both means whichever is true in this tenant, the group ends up right.
+    // Redundant on two shapes, so not sent for them: a DYNAMIC group's members
+    // are rule-driven and can only be users or devices, and a ROLE-ASSIGNABLE
+    // group already has group-in-group refused by Entra.
+    const wantsNesting = t.disableNesting !== false && !dynamic && !roleAssignable;
+    if (wantsNesting) p.disableNesting = true;
     return p;
   }
 
@@ -195,10 +215,55 @@ const Assign = (() => {
   async function createGroup(template, opts = {}) {
     const existing = opts.mustCreate ? null : await findGroup(template.displayName);
     if (existing) return { ...existing, created: false };
-    const payload = buildGroupPayload(template);
-    const g = await Graph.gpostGroupCreate("/groups", payload);
-    return { id: g.id, name: g.displayName, created: true,
+    let payload = buildGroupPayload(template);
+    const wanted = payload.disableNesting === true;
+    let g;
+    try {
+      g = await Graph.gpostGroupCreate("/groups", payload);
+    } catch (e) {
+      // A tenant that does not know the property must still get its group. Only
+      // retry when the create actually complained about THIS field — retrying
+      // blindly would swallow a real validation error and create a group the
+      // caller did not describe.
+      if (!wanted || !/disablenesting|unknown|not recognized|invalid propert/i.test(e.message || "")) throw e;
+      payload = { ...payload }; delete payload.disableNesting;
+      g = await Graph.gpostGroupCreate("/groups", payload);
+      const out = { id: g.id, name: g.displayName, created: true,
+        dynamic: !!template.dynamic, roleAssignable: !!payload.isAssignableToRole };
+      return { ...out, ...(await confirmNesting(out, e.message)) };
+    }
+    const out = { id: g.id, name: g.displayName, created: true,
       dynamic: !!template.dynamic, roleAssignable: !!payload.isAssignableToRole };
+    if (!wanted) return { ...out, nesting: "n/a" };
+    return { ...out, ...(await confirmNesting(out, null)) };
+  }
+
+  // Did the create actually take disableNesting? A plain GET never returns the
+  // property, so it has to be asked for by name — and "absent" is ambiguous:
+  // either not set, or a tenant without the feature. When it is not confirmed
+  // we PATCH once (the route Learn documents) and read it back again.
+  //
+  // Nothing here is allowed to lose the group: every failure returns the group
+  // with nesting: "failed" and the reason, so the caller can report it and the
+  // ⑧ Disable nesting step can finish the job. A group that exists with nesting
+  // allowed is a smaller problem than a create that threw.
+  async function confirmNesting(group, createNote) {
+    const read = async () => {
+      try {
+        const r = await Graph.gget(`/groups/${group.id}?$select=id,disableNesting`, NEST_SCOPES);
+        return r && r.disableNesting === true;
+      } catch { return null; }          // null = could not tell
+    };
+    if (await read()) return { nesting: "disabled" };
+    try {
+      await Graph.gpatch(`/groups/${group.id}`, { disableNesting: true }, NEST_SCOPES);
+    } catch (e) {
+      return { nesting: "failed", nestingError: e.message || String(e), nestingNote: createNote || null };
+    }
+    if (await read()) return { nesting: "disabled" };
+    return { nesting: "failed",
+      nestingError: "the tenant accepted the change but does not report disableNesting as set — it may not have the feature yet",
+      nestingNote: createNote || null };
   }
 
   function templates() { return typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []; }
@@ -335,5 +400,5 @@ const Assign = (() => {
     return results;
   }
 
-  return { ACTIONS, ROLE_ACTIONS, actionsFor, ADMIN_ROLE_NAMES, roleTemplates, isAdminRole, NEEDS_GROUPS, REMOVE_ACTIONS, PERSONAS, personasWithGroup, templateFor, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, templates };
+  return { ACTIONS, ROLE_ACTIONS, actionsFor, ADMIN_ROLE_NAMES, roleTemplates, isAdminRole, NEEDS_GROUPS, REMOVE_ACTIONS, PERSONAS, personasWithGroup, templateFor, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, confirmNesting, NEST_SCOPES, templates };
 })();

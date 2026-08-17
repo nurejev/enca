@@ -43,6 +43,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 57,
+      title: "Every create path disables group nesting",
+      tools: ["CA groups", "Assign groups", "Import", "Restricted AUs"],
+      builds: [25121],
+      risk: "high",
+      what: "disableNesting is sent by every group-create path, in the POST body and confirmed by PATCH, read back by name, with the create retried without it when the tenant refuses the field and the group reported as \"nesting still allowed\" when it could not be set. Adds Group-NestingSupport.ReadWrite.All to the create flows' consent.",
+      why: "Production creates groups with nesting allowed on eight of ten paths, so a nested group is an open route into a Conditional Access assignment — and the only later fix is the destructive recreate of a group policies already reference.",
+      files: ["js/assign.js", "js/app.js", "index.html"],
+    },
+    {
       n: 56,
       title: "Policy ID on the expanded card",
       tools: ["List Policies"],

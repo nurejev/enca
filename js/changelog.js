@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25121, date: "2026-08-17", title: "Every group this tool creates has nesting disabled",
+    items: [
+      { kind: "fixed", tool: "CA groups", text: "disableNesting was set by exactly two of the ten create paths — ⑦ Migrate and the nesting recreate. ① Create missing groups, 👥 Assign groups or roles, 📥 Import, create-by-name and the Restricted AUs baseline all created groups with nesting ALLOWED, and none of the 100 group templates set it either. So the one moment the property reliably takes — creation — was the moment every ordinary create skipped, and fixing it afterwards meant the destructive recreate: archiving a group that policies already reference. Every create path now asks for it." },
+      { kind: "improved", tool: "CA groups", text: "It is requested twice and then verified. The property goes in the create body AND is confirmed by a PATCH afterwards, because the field reports say it only takes at creation while Microsoft documents it as patchable with Group-NestingSupport.ReadWrite.All — doing both means whichever is true in this tenant, the group ends up right. A plain GET never returns the property, so it is read back by name; \"absent\" is ambiguous and is not read as success." },
+      { kind: "improved", tool: "CA groups", text: "Nothing here is allowed to cost you the group. A tenant that rejects the property on create has the create retried without it — but only when the error actually names that field, so an unrelated validation error still fails loudly instead of being swallowed. A group whose nesting could not be set comes back marked nesting still allowed, with the reason, rather than reported as done; the ⑧ Disable nesting step can then finish it. Dynamic groups (members are rule-driven, and only users and devices may be members) and role-assignable ones (Entra already refuses group-in-group) are skipped as redundant." },
+    ],
+  },
+  {
     build: 25120, date: "2026-08-17", title: "The policy ID survives opening the card",
     items: [
       { kind: "fixed", tool: "List Policies", text: "The compact card showed the policy ID and the expanded one did not, so opening a policy to look at it properly took away the one string that identifies it — on the card that gets exported, screenshotted and pasted into a ticket. Two policies can share a name, a version and a persona; the portal is reached by id. It now sits in the footer of both, on the exported card as well, and one click selects the whole GUID because the reason to read an id is to paste it somewhere." },

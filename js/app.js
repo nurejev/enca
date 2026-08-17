@@ -1299,7 +1299,7 @@
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable; grant scoped directory roles", tools: "CA groups (create), Restricted AUs", onDemand: true },
     { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
-    { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting on a group so no group can be added as a member (beta)", tools: "CA groups (disable nesting)", onDemand: true },
+    { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting so no group can be added as a member of a group (beta) — asked for by every path that CREATES a group, and by the ⑧ Disable nesting step", tools: "CA groups (create, disable nesting), Assign groups, Import, Restricted AUs", onDemand: true },
     { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "Group Analyzer", onDemand: true },
     { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer, Device reality check", onDemand: true },
@@ -2538,7 +2538,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const t = cgCsv; if (!t || t.busy) return;
     const adds = t.plan.filter((x) => x.state === "add");
     if (!adds.length) return;
-    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All"])) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
     t.busy = true; btn.disabled = true; t.log = null;
     const bar = $("cgCsvBar"), log = $("cgCsvLog");
     bar.style.display = "block";
@@ -3514,7 +3514,7 @@ max@contoso.com,"Global, DevOps"</pre>
       const can = CaGroups.creatable(cgRes);
       const picked = [...document.querySelectorAll("[data-cgcreate]:checked")].map(cb => can[+cb.dataset.cgcreate]).filter(Boolean);
       if (!picked.length) { toast("Nothing selected to create"); return; }
-      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
       e.target.disabled = true;
       const bar = $("cgCreateBar"), log = $("cgCreateLog");
       bar.style.display = "block";
@@ -3576,7 +3576,7 @@ max@contoso.com,"Global, DevOps"</pre>
   async function cgCreateOne(name, btn) {
     const r = cgRes && cgRes.rows.find((x) => x.name === name && x.status === "missing" && x.template);
     if (!r) return;
-    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
     if (btn) { btn.disabled = true; btn.textContent = "…"; }
     try {
       const g = isDemo ? { id: "g-" + name, name, created: true } : await Assign.createGroup(r.template);
@@ -4044,7 +4044,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const rule = dynamic ? $("cgmRule").value.trim() : "";
     if (dynamic && !rule) { toast("A dynamic group needs a membership rule"); $("cgmRule").focus(); return; }
     const roleAssignable = false;   // retired — see the note in the builder
-    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
     btn.disabled = true;
     const log = $("cgmLog");
     try {
@@ -4185,7 +4185,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
     cgAddGroup = gName;
 
-    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All"])) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
     say("Adding…");
     try {
       let user = { id: "demo-" + upn, displayName: upn };
@@ -4604,7 +4604,7 @@ max@contoso.com,"Global, DevOps"</pre>
         <p class="mini muted" style="margin-bottom:6px">Add the group for a persona — created from its baseline template if it is missing.</p>
         <div class="persona-row">${personaChips}</div>
         <h4 class="mini" style="margin:16px 0 8px">TARGET GROUPS</h4>` +
-        (asGroups.map((g, i) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asg="${i}" ${g.checked ? "checked" : ""}> ${assignEsc(g.name)}${g.created ? ' <span class="tag grant">created</span>' : ""}</label>`).join("") || '<p class="mini">No predefined persona groups found in this tenant yet — create them from a template below.</p>') +
+        (asGroups.map((g, i) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asg="${i}" ${g.checked ? "checked" : ""}> ${assignEsc(g.name)}${g.created ? ' <span class="tag grant">created</span>' : ""}${g.nesting === "disabled" ? ' <span class="tag ok" title="No group can be added as a member of this one">🚫 nesting disabled</span>' : ""}${g.nesting === "failed" ? ` <span class="tag block" title="${assignEsc(g.nestingError || "")}">nesting still allowed</span>` : ""}</label>`).join("") || '<p class="mini">No predefined persona groups found in this tenant yet — create them from a template below.</p>') +
         `<h4 class="mini" style="margin:16px 0 6px">ANY OTHER GROUP</h4>
         <div style="display:flex;gap:8px">
           <input id="asCustom" class="btn" style="flex:1;cursor:text" placeholder="Search any group by name or paste an object ID…">
@@ -4755,7 +4755,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "asTplCreate") {
       const tpls = Assign.templates().filter(t => !asGroups.some(g => g.name === t.displayName));
       const t = tpls[+($("asTpl").value || 0)]; if (!t) return;
-      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
       e.target.disabled = true;
       try {
         const g = isDemo
@@ -4771,7 +4771,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     if (e.target.id === "asNewCreate") {
       const name = $("asNewName").value.trim(); if (!name) return;
-      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
       e.target.disabled = true;
       try {
         const g = isDemo

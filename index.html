@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25120"></script>
+<script src="js/popup-guard.js?v=25121"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25120">
+<link rel="stylesheet" href="css/app.css?v=25121">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25120"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25120"></script>
+<script src="js/counter.js?v=25121"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25121"></script>
 </head>
 <body>
 
@@ -1596,7 +1596,9 @@
         <li><b>⑥ Protect <span class="tag new">NEW</span></b> — place the CA <b>exclusion</b> groups in a <b>restricted management administrative unit</b>. Membership of an exclusion group is a CA bypass, and any tenant-level Groups/User Administrator can hand it out; with the groups in a restricted AU (<code>isMemberManagementRestricted</code>, immutable at creation) only roles <b>scoped to that AU</b> can change members — Global Administrator included. Shows which exclusion groups are already protected, pre-selects the unprotected <b>assigned</b> exclusion groups (dynamic groups are opt-in — their membership follows a rule), creates or reuses the restricted AU, and optionally grants one account Groups Administrator <b>scoped to the AU</b> so membership stays manageable (do this — otherwise member changes need a new scoped assignment first). Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and P1. Only cloud security groups can be added; note that ⑤ Import members will afterwards need an AU-scoped role for these groups. <b>Role-assignable groups are refused here</b> — their membership is already limited to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two, so a group with both protections has nobody who can edit its members. Choose one or the other.</li>
         <li><b>⑤ Import members <span class="tag new">NEW</span></b> — bulk-add deployment-test users from a CSV. A <b>UPN column</b> is enough; with a <b>Persona column</b> (multi-persona cells split on <code>, ; |</code> or spaces) each user is auto-routed to the mapped group, pre-matched against the tenant’s group names — abbreviated conventions included (<code>internals → …-INT</code>). Only <b>baseline</b> groups (templates + active catalogs) are offered by default; ad-hoc groups that policies merely reference need an explicit opt-in checkbox. Users are resolved and existing memberships pre-checked (already-members are skipped), the plan is shown per group for review, and only then are members added. Dynamic groups are excluded — their membership is rule-managed. Ends with a Markdown change report.</li>
         <li><b>Protection column</b> — ① Check now shows where each group actually lives: <code>🔒 &lt;unit&gt;</code>, <b>not in a unit</b>, or <b>🧊 frozen in &lt;unit&gt;</b> when the group is role-assignable and restricted at once, which means nobody can change its members. A dash means the administrative units could not be read, which is not the same as “not protected”.</li>
-      </ul>
+              <li><b>Every group this tool creates has nesting disabled.</b> A nested group is an invisible route into a Conditional Access assignment — somebody adds a group to a group and a policy's scope changes without the policy being touched — and the persona design assumes membership is deliberate. So <code>disableNesting</code> is now set by <b>every</b> create path: ① Create missing groups, 👥 Assign groups or roles, 📥 Import and the Restricted AUs baseline. It used to be set only by ⑦ Migrate and the nesting recreate, which meant the one moment the property reliably takes — creation — was the moment every ordinary create skipped, leaving the destructive recreate as the only way to fix it later.</li>
+        <li><b>It is asked for twice and then verified.</b> The property goes in the create body <i>and</i> is confirmed by a PATCH afterwards, because field reports say it only takes at creation while Microsoft documents it as patchable — doing both means whichever is true in your tenant, the group ends up right. Nothing is allowed to cost you the group: a tenant that rejects the property on create has the create retried without it, an unrelated create error still fails loudly, and a group whose nesting could not be set is marked <b>nesting still allowed</b> with the reason rather than reported as done. Not sent for dynamic groups (members are rule-driven, and only users and devices can be members) or role-assignable ones (Entra already refuses group-in-group).</li>
+</ul>
         <li><b>Add a member</b> — the matrix carries an <b>＋ Add</b> bar: type two letters and the directory suggests users, pick one of the loaded groups, and the member is added and the group re-read so the matrix shows the result rather than merely claiming it. Adding someone who is already in the group says so instead of failing.</li>
         <li><b>What you can do with it</b> — click a group in ① Check and the overlay lists the actions that apply <i>to that group</i>, each carrying it across: read its members, assign it to policies, protect it, or convert it. Only what makes sense is offered — a group that does not exist yet cannot have members read, a role-assignable one cannot be protected, and one already in a vault is not offered protection again. Every one of these was reachable before by opening the right tab and finding the row a second time; the tab strip just never said which of the seven applied to the group in front of you.</li>
         <li><b>⑦ Migrate <span class="tag new">BETA</span></b> — move the baseline off <b>role-assignable</b> groups and onto a <b>restricted management administrative unit</b>. Role-assignable was only ever used here for its side effect: membership reachable only by Global Administrator or Privileged Role Administrator. A restricted AU does that <i>and</i> lets you name who may manage the groups, and it drops the role-assignable costs (500-per-tenant cap, no dynamic membership, no nesting control). The two cannot be combined — a restricted AU blocks GA and PRA, so a role-assignable group inside one has <b>nobody</b> who can change its members.
@@ -2374,49 +2376,49 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25120"></script>
-<script src="js/version.js?v=25120"></script>
-<script src="js/promote.js?v=25120"></script>
-<script src="js/authConfig.js?v=25120"></script>
-<script src="js/labels.js?v=25120"></script>
-<script src="js/graph.js?v=25120"></script>
-<script src="js/model.js?v=25120"></script>
-<script src="js/render.js?v=25120"></script>
-<script src="js/analyze.js?v=25120"></script>
-<script src="js/whatif.js?v=25120"></script>
-<script src="js/mslearn.js?v=25120"></script>
-<script src="js/gapcheck.js?v=25120"></script>
-<script src="js/cisdata.js?v=25120"></script>
-<script src="js/cischeck.js?v=25120"></script>
-<script src="js/exclusions.js?v=25120"></script>
-<script src="js/validator.js?v=25120"></script>
-<script src="js/whatifeval.js?v=25120"></script>
-<script src="js/compare.js?v=25120"></script>
-<script src="js/groupuse.js?v=25120"></script>
-<script src="js/iso3166.js?v=25120"></script>
-<script src="js/locations.js?v=25120"></script>
-<script src="js/authcontexts.js?v=25120"></script>
-<script src="js/authstrengths.js?v=25120"></script>
-<script src="js/recycle.js?v=25120"></script>
-<script src="js/rmau.js?v=25120"></script>
-<script src="js/rmaudoc.js?v=25120"></script>
-<script src="js/termsofuse.js?v=25120"></script>
-<script src="js/audit.js?v=25120"></script>
-<script src="js/drift.js?v=25120"></script>
-<script src="js/guide.js?v=25120"></script>
-<script src="js/devcheck.js?v=25120"></script>
-<script src="js/signins.js?v=25120"></script>
-<script src="js/reportimpact.js?v=25120"></script>
-<script src="js/changelog.js?v=25120"></script>
-<script src="js/baselineData.js?v=25120"></script>
-<script src="js/baselineJoeyData.js?v=25120"></script>
-<script src="js/baseline.js?v=25120"></script>
-<script src="js/groupTemplates.js?v=25120"></script>
-<script src="js/assign.js?v=25120"></script>
-<script src="js/cagroups.js?v=25120"></script>
-<script src="js/import.js?v=25120"></script>
-<script src="js/export.js?v=25120"></script>
-<script src="js/demo.js?v=25120"></script>
-<script src="js/app.js?v=25120"></script>
+<script src="js/branding.js?v=25121"></script>
+<script src="js/version.js?v=25121"></script>
+<script src="js/promote.js?v=25121"></script>
+<script src="js/authConfig.js?v=25121"></script>
+<script src="js/labels.js?v=25121"></script>
+<script src="js/graph.js?v=25121"></script>
+<script src="js/model.js?v=25121"></script>
+<script src="js/render.js?v=25121"></script>
+<script src="js/analyze.js?v=25121"></script>
+<script src="js/whatif.js?v=25121"></script>
+<script src="js/mslearn.js?v=25121"></script>
+<script src="js/gapcheck.js?v=25121"></script>
+<script src="js/cisdata.js?v=25121"></script>
+<script src="js/cischeck.js?v=25121"></script>
+<script src="js/exclusions.js?v=25121"></script>
+<script src="js/validator.js?v=25121"></script>
+<script src="js/whatifeval.js?v=25121"></script>
+<script src="js/compare.js?v=25121"></script>
+<script src="js/groupuse.js?v=25121"></script>
+<script src="js/iso3166.js?v=25121"></script>
+<script src="js/locations.js?v=25121"></script>
+<script src="js/authcontexts.js?v=25121"></script>
+<script src="js/authstrengths.js?v=25121"></script>
+<script src="js/recycle.js?v=25121"></script>
+<script src="js/rmau.js?v=25121"></script>
+<script src="js/rmaudoc.js?v=25121"></script>
+<script src="js/termsofuse.js?v=25121"></script>
+<script src="js/audit.js?v=25121"></script>
+<script src="js/drift.js?v=25121"></script>
+<script src="js/guide.js?v=25121"></script>
+<script src="js/devcheck.js?v=25121"></script>
+<script src="js/signins.js?v=25121"></script>
+<script src="js/reportimpact.js?v=25121"></script>
+<script src="js/changelog.js?v=25121"></script>
+<script src="js/baselineData.js?v=25121"></script>
+<script src="js/baselineJoeyData.js?v=25121"></script>
+<script src="js/baseline.js?v=25121"></script>
+<script src="js/groupTemplates.js?v=25121"></script>
+<script src="js/assign.js?v=25121"></script>
+<script src="js/cagroups.js?v=25121"></script>
+<script src="js/import.js?v=25121"></script>
+<script src="js/export.js?v=25121"></script>
+<script src="js/demo.js?v=25121"></script>
+<script src="js/app.js?v=25121"></script>
 </body>
 </html>
