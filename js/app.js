@@ -3251,7 +3251,28 @@ max@contoso.com,"Global, DevOps"</pre>
           say(`<div>&nbsp;&nbsp;✓ ${mm.moved}/${mm.total} members copied${mm.failed.length ? ` — ${mm.failed.length} failed` : ""}</div>`);
         } else { res.membersMoved = res.memberTotal || 0; }
         // 4./5. add the new group everywhere, then remove the old one
-        const incIds = x.refs.include.map((q) => q.id), excIds = x.refs.exclude.map((q) => q.id);
+        //
+        // The reference list came from the SCAN. A policy edited since then —
+        // by somebody else, or by an earlier group in this very run — would be
+        // missed, and a missed removal is not cosmetic: the old group stays
+        // assigned, and when the archive is tidied up later that policy is left
+        // naming an id the directory no longer has. So re-read the references
+        // now, from the live policies, and use those.
+        let incIds = x.refs.include.map((q) => q.id), excIds = x.refs.exclude.map((q) => q.id);
+        if (!isDemo) {
+          try {
+            const live = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,conditions");
+            const inc = [], exc = [];
+            for (const pol of live) {
+              const u = (pol.conditions && pol.conditions.users) || {};
+              if ((u.includeGroups || []).some((g) => String(g).toLowerCase() === String(x.id).toLowerCase())) inc.push(pol.id);
+              if ((u.excludeGroups || []).some((g) => String(g).toLowerCase() === String(x.id).toLowerCase())) exc.push(pol.id);
+            }
+            const extra = (inc.length + exc.length) - (incIds.length + excIds.length);
+            if (extra > 0) say(`<div>&nbsp;&nbsp;· ${extra} more reference${extra === 1 ? "" : "s"} found than the scan knew about</div>`);
+            incIds = inc; excIds = exc;
+          } catch (e) { say(`<div style="color:var(--report)">&nbsp;&nbsp;⚠ could not re-read the policies (${esc(e.message || e)}) — using the scan's list</div>`); }
+        }
         const apply = async (ids, action, id) => {
           if (!ids.length || isDemo) return;
           const r = await Assign.apply(ids, action, [id]);
@@ -3264,6 +3285,27 @@ max@contoso.com,"Global, DevOps"</pre>
         await apply(excIds, 6, x.id);
         res.refsMoved = incIds.length + excIds.length;
         if (res.refsMoved) say(`<div>&nbsp;&nbsp;✓ ${res.refsMoved} policy assignment${res.refsMoved === 1 ? "" : "s"} repointed</div>`);
+        // VERIFY the removal. Entra keeps a group id in a policy after the group
+        // is gone, so a removal that quietly did not take leaves a reference
+        // that only breaks later, when the archived group is deleted — which is
+        // exactly how a tidy-up turns into a policy pointing at nothing. Read
+        // it back and say so rather than reporting a clean migration.
+        if (!isDemo && res.refsMoved) {
+          try {
+            const after = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,conditions");
+            const left = after.filter((pol) => {
+              const u = (pol.conditions && pol.conditions.users) || {};
+              return [...(u.includeGroups || []), ...(u.excludeGroups || [])]
+                .some((g) => String(g).toLowerCase() === String(x.id).toLowerCase());
+            });
+            if (left.length) {
+              res.staleLeft = left.map((pol) => pol.displayName || pol.id);
+              say(`<div style="color:var(--off)">&nbsp;&nbsp;⚠ the old group is STILL referenced by ${left.length} polic${left.length === 1 ? "y" : "ies"}: ${esc(res.staleLeft.join(", "))} — do NOT delete the archived group yet, or those policies will name an id that no longer exists</div>`);
+            } else {
+              say(`<div>&nbsp;&nbsp;✓ verified: no policy still references the old group</div>`);
+            }
+          } catch (e) { say(`<div style="color:var(--report)">&nbsp;&nbsp;⚠ could not verify the removal (${esc(e.message || e)}) — check ① Check for a dangling reference before deleting the archive</div>`); }
+        }
         // 6. LAST: into the restricted AU — or deliberately not
         if (toAu) {
           if (!isDemo) {

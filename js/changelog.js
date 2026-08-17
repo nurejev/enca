@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25132, date: "2026-08-17", title: "Migrate removes the old group from every policy, and proves it",
+    items: [
+      { kind: "fixed", tool: "CA groups", text: "\u2466 Migrate repointed policies using the reference list from the SCAN, so a policy edited since — by somebody else, or by an earlier group in the same run — was missed. That is not cosmetic: the old group stays assigned, and when the archive is tidied up later the policy is left naming an object id the directory no longer has. That is exactly what a dangling reference in \u2460 Check is, and how a tidy-up turns into a policy pointing at nothing. References are now re-read from the live policies at the moment of the repoint, and any found beyond what the scan knew about are reported." },
+      { kind: "new", tool: "CA groups", text: "The removal is then VERIFIED by reading the policies back. Entra keeps a group id in a policy after the group is gone, so a removal that quietly did not take is invisible until the archive is deleted. If the old group is still referenced the run names the policies and warns not to delete the archived group yet; if the verification itself fails it says so rather than reporting a clean migration. Nothing here is reported as done unless it was checked." },
+    ],
+  },
+  {
     build: 25131, date: "2026-08-17", title: "Select all in Archived groups, and it will not tick the dangerous ones",
     items: [
       { kind: "new", tool: "CA groups", text: "\ud83e\uddf9 Archived groups gains select all / deselect all. A tenant that has been through a few recreates can hold ninety of them, and ticking those one at a time is not a review, it is an endurance test." },
