@@ -1244,9 +1244,9 @@
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create a restricted management administrative unit and place the CA exclusion groups in it", tools: "CA groups (protect)", onDemand: true },
-    { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable", tools: "CA groups (create)", onDemand: true },
+    { scope: "RoleManagement.ReadWrite.Directory", use: "Grant a directory role scoped to a restricted administrative unit. No longer used to create role-assignable groups — nothing creates those any more — but still requested by the create flows for the scoped-role grant that can follow", tools: "Restricted AUs, CA groups (protect)", onDemand: true },
     { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
-    { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting on a group so no group can be added as a member (beta)", tools: "CA groups (disable nesting)", onDemand: true },
+    { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting so no group can be added as a member of a group (beta) — asked for by every path that CREATES a group, and by the ⑧ Disable nesting step", tools: "CA groups (create, disable nesting), Assign groups, Import, Restricted AUs", onDemand: true },
     { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "Group Analyzer", onDemand: true },
     { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer, Device reality check", onDemand: true },
@@ -2177,11 +2177,12 @@
     const cannot = CaGroups.missingNoTemplate(cgRes);
     const batch = (can.length || cannot.length) ? `<div class="cg-panel">
       <h4>CREATE MISSING BASELINE GROUPS (${can.length})</h4>
-      <p class="mini">From the bundled templates. Assigned templates are created <b>role-assignable</b>; templates with a membership rule are created <b>dynamic</b>.
-        A group that already exists under the same name is reused, never duplicated.</p>
+      <p class="mini">From the bundled templates, as plain <b>security groups with nesting disabled</b> — templates with a membership rule are created <b>dynamic</b> instead, and nesting is not sent for those.
+        Nothing is created role-assignable any more: a <b>restricted management administrative unit</b> keeps membership away from tenant-wide group administrators without the immutability, and 🔒 Protect places them in one.
+        A group that already exists under the same name is reused, never duplicated, and is left exactly as it is.</p>
       <div class="cg-pick">${can.map((r, i) =>
         `<label class="chk" style="margin:5px 0"><input type="checkbox" data-cgcreate="${i}" checked> ${esc(r.name)}
-          <span class="mini muted">${r.template.membershipRule ? "dynamic" : "role-assignable"}</span></label>`).join("")
+          <span class="mini muted">${r.template.membershipRule ? "dynamic" : "assigned · nesting disabled"}</span></label>`).join("")
         || '<p class="mini muted">No creatable missing groups.</p>'}</div>
       <div class="cg-progress" id="cgCreateBar" style="display:none"><div style="width:0%"></div></div>
       <div id="cgCreateLog" class="mini" style="margin-top:8px"></div>
@@ -2225,7 +2226,7 @@
       <div class="row" style="justify-content:flex-start;margin-top:12px">
         <button class="btn primary" id="cgmCreate">Create group${isDemo ? " (simulated)" : ""}</button>
       </div>
-      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled. Consents <code>Group.ReadWrite.All</code> on demand, plus <code>AdministrativeUnit.ReadWrite.All</code> if you protect it. An existing group with the same name is reused.</p>
+      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled, <b>with group nesting disabled</b> — no other group can be made a member, so nobody widens a policy's scope by nesting a group inside this one. Consents <code>Group.ReadWrite.All</code> and <code>Group-NestingSupport.ReadWrite.All</code> on demand, plus <code>AdministrativeUnit.ReadWrite.All</code> if you protect it. An existing group with the same name is reused — and is left exactly as it is, including its nesting setting.</p>
     </div>`;
 
     $("cgBody").innerHTML = batch + manual;
@@ -2482,7 +2483,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const t = cgCsv; if (!t || t.busy) return;
     const adds = t.plan.filter((x) => x.state === "add");
     if (!adds.length) return;
-    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All"])) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
     t.busy = true; btn.disabled = true;
     const bar = $("cgCsvBar"), log = $("cgCsvLog");
     bar.style.display = "block";
@@ -3455,7 +3456,7 @@ max@contoso.com,"Global, DevOps"</pre>
       const can = CaGroups.creatable(cgRes);
       const picked = [...document.querySelectorAll("[data-cgcreate]:checked")].map(cb => can[+cb.dataset.cgcreate]).filter(Boolean);
       if (!picked.length) { toast("Nothing selected to create"); return; }
-      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
       e.target.disabled = true;
       const bar = $("cgCreateBar"), log = $("cgCreateLog");
       bar.style.display = "block";
@@ -3469,7 +3470,10 @@ max@contoso.com,"Global, DevOps"</pre>
             ? { id: "g-" + r.name, name: r.name, created: true }
             : await Assign.createGroup(r.template);
           ok++;
-          lines.push(`<div>${g.created ? "✓ created" : "• already existed, reused"} <b>${esc(r.name)}</b></div>`);
+          lines.push(`<div>${g.created ? "✓ created" : "• already existed, reused"} <b>${esc(r.name)}</b>`
+            + (g.created && g.nesting === "disabled" ? ' <span class="mini" style="color:var(--on)">🚫 nesting disabled</span>' : "")
+            + (g.created && g.nesting === "failed" ? ` <span class="mini" style="color:var(--off)">⚠ nesting still allowed — ${esc(g.nestingError || "")}</span>` : "")
+            + `</div>`);
         } catch (err) {
           failed++;
           lines.push(`<div style="color:var(--off)">✗ <b>${esc(r.name)}</b> — ${esc(err.message || err)}</div>`);
@@ -3517,7 +3521,7 @@ max@contoso.com,"Global, DevOps"</pre>
   async function cgCreateOne(name, btn) {
     const r = cgRes && cgRes.rows.find((x) => x.name === name && x.status === "missing" && x.template);
     if (!r) return;
-    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
     if (btn) { btn.disabled = true; btn.textContent = "…"; }
     try {
       const g = isDemo ? { id: "g-" + name, name, created: true } : await Assign.createGroup(r.template);
@@ -3973,13 +3977,13 @@ max@contoso.com,"Global, DevOps"</pre>
     const rule = dynamic ? $("cgmRule").value.trim() : "";
     if (dynamic && !rule) { toast("A dynamic group needs a membership rule"); $("cgmRule").focus(); return; }
     const roleAssignable = false;   // retired — see the note in the builder
-    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
     btn.disabled = true;
     const log = $("cgmLog");
     try {
       const spec = { displayName: name, description: $("cgmDesc").value.trim(), dynamic, membershipRule: rule, roleAssignable };
       const g = isDemo
-        ? { id: "g-" + name, name, created: true, dynamic, roleAssignable }
+        ? { id: "g-" + name, name, created: true, dynamic, roleAssignable, nesting: dynamic ? "n/a" : "disabled" }
         : await Assign.createGroup(spec);
       // Protection LAST, and only after the group exists — the same ordering
       // the migration wizard uses, for the same reason: once it is in the AU,
@@ -4007,7 +4011,19 @@ max@contoso.com,"Global, DevOps"</pre>
           g.protectError = e.message || String(e);
         }
       }
-      const kind = g.dynamic ? "dynamic" : "assigned";
+      // "assigned" on its own read as "assigned TO something". It is the
+      // MEMBERSHIP TYPE — the radio above — so it says so.
+      const kind = g.dynamic ? "dynamic membership" : "assigned membership (you add the members)";
+      // A security setting applied silently is indistinguishable from one that
+      // was not applied. Say which happened, every time.
+      const nest = !g.created ? ""
+        : g.nesting === "disabled"
+          ? `<div style="color:var(--on)">🚫 nesting disabled — no group can be added as a member of this one</div>`
+          : g.nesting === "failed"
+            ? `<div style="color:var(--off)">⚠ nesting could NOT be disabled — ${esc(g.nestingError || "unknown reason")}. The group exists and a group could be nested inside it; fix it from ⑧ Disable nesting.</div>`
+            : g.nesting === "n/a"
+              ? `<div class="muted">nesting: not applicable — ${g.dynamic ? "a dynamic group's members come from its rule, and only users and devices can match" : "Entra already refuses to nest a group inside a role-assignable one"}</div>`
+              : "";
       const prot = g.protectError
         ? `<div style="color:var(--off)">✗ but it could NOT be placed in the restricted AU — ${esc(g.protectError)}. The group exists; protect it from ⑥ Protect.</div>`
         : g.protected
@@ -4015,9 +4031,11 @@ max@contoso.com,"Global, DevOps"</pre>
           : "";
       cgmMsg = (g.created
         ? `<span style="color:var(--on)">✓ created <b>${esc(g.name)}</b> — ${kind}</span>`
-        : `<span style="color:var(--report)">• <b>${esc(g.name)}</b> already existed — reused</span>`) + prot;
+        : `<span style="color:var(--report)">• <b>${esc(g.name)}</b> already existed — reused, and left as it is</span>`) + nest + prot;
       log.innerHTML = cgmMsg;
-      toast(g.created ? `<span>${esc(g.name)}</span> created (${kind})${isDemo ? " (simulated)" : ""}` : `<span>${esc(g.name)}</span> already existed — reused`);
+      toast(g.created
+        ? `<span>${esc(g.name)}</span> created${g.nesting === "disabled" ? ", nesting disabled" : g.nesting === "failed" ? " — but nesting is still ALLOWED" : ""}${isDemo ? " (simulated)" : ""}`
+        : `<span>${esc(g.name)}</span> already existed — reused`);
       // fold the new group into the scan so Check shows it without a refresh
       cgRes = null;
       await openCaGroups(true);
@@ -4114,7 +4132,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
     cgAddGroup = gName;
 
-    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All"])) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
     say("Adding…");
     try {
       let user = { id: "demo-" + upn, displayName: upn };
@@ -4533,7 +4551,7 @@ max@contoso.com,"Global, DevOps"</pre>
         <p class="mini muted" style="margin-bottom:6px">Add the group for a persona — created from its baseline template if it is missing.</p>
         <div class="persona-row">${personaChips}</div>
         <h4 class="mini" style="margin:16px 0 8px">TARGET GROUPS</h4>` +
-        (asGroups.map((g, i) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asg="${i}" ${g.checked ? "checked" : ""}> ${assignEsc(g.name)}${g.created ? ' <span class="tag grant">created</span>' : ""}</label>`).join("") || '<p class="mini">No predefined persona groups found in this tenant yet — create them from a template below.</p>') +
+        (asGroups.map((g, i) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asg="${i}" ${g.checked ? "checked" : ""}> ${assignEsc(g.name)}${g.created ? ' <span class="tag grant">created</span>' : ""}${g.nesting === "disabled" ? ' <span class="tag ok" title="No group can be added as a member of this one">🚫 nesting disabled</span>' : ""}${g.nesting === "failed" ? ` <span class="tag block" title="${assignEsc(g.nestingError || "")}">nesting still allowed</span>` : ""}</label>`).join("") || '<p class="mini">No predefined persona groups found in this tenant yet — create them from a template below.</p>') +
         `<h4 class="mini" style="margin:16px 0 6px">ANY OTHER GROUP</h4>
         <div style="display:flex;gap:8px">
           <input id="asCustom" class="btn" style="flex:1;cursor:text" placeholder="Search any group by name or paste an object ID…">
@@ -4551,10 +4569,12 @@ max@contoso.com,"Global, DevOps"</pre>
           <input id="asNewName" class="btn" style="flex:1;cursor:text" placeholder="…or create a custom group by name (e.g. CAD-SEC-U-DG-CUSTOM)">
           <button class="btn primary" id="asNewCreate">Create</button>
         </div>
-        <p class="mini" style="margin-top:10px">Groups are created directly via Graph as <b>role-assignable</b> security groups (immutable, set at creation) —
-          membership can then only be changed by Privileged Role Administrators or delegated owners. Dynamic templates keep their membership rule instead
-          (Graph does not allow role-assignable + dynamic). Creation requires the Privileged Role Administrator role and consents
-          <code>Group.ReadWrite.All</code> + <code>RoleManagement.ReadWrite.Directory</code> on demand. Existing groups with the same name are reused, never duplicated.</p>`;
+        <p class="mini" style="margin-top:10px">Groups are created directly via Graph as plain <b>security groups</b> with <b>group nesting disabled</b> — no other group can be made a member,
+          so nobody widens a policy's scope by nesting a group inside one. They are <b>not</b> role-assignable: that flag was only ever used to keep membership away from
+          tenant-wide group administrators, and a <b>restricted management administrative unit</b> does that better — it names who may manage the group, and it can be undone.
+          Protect them from <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> once they exist. Dynamic templates keep their membership rule instead,
+          and nesting is not sent for those (a rule can only match users and devices). Consents <code>Group.ReadWrite.All</code> + <code>Group-NestingSupport.ReadWrite.All</code>
+          on demand. Existing groups with the same name are reused, never duplicated — and are left exactly as they are, including their nesting setting.</p>`;
     } else if (asStep === 2) {
       next.textContent = "Review →";
       const gsel = asGroups.filter(g => g.checked);
@@ -4684,7 +4704,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "asTplCreate") {
       const tpls = Assign.templates().filter(t => !asGroups.some(g => g.name === t.displayName));
       const t = tpls[+($("asTpl").value || 0)]; if (!t) return;
-      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
       e.target.disabled = true;
       try {
         const g = isDemo
@@ -4700,7 +4720,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     if (e.target.id === "asNewCreate") {
       const name = $("asNewName").value.trim(); if (!name) return;
-      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"])) return;
+      if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
       e.target.disabled = true;
       try {
         const g = isDemo
