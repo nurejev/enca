@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25122, date: "2026-08-17", title: "Say that nesting was disabled, and say what \"assigned\" meant",
+    items: [
+      { kind: "fixed", tool: "CA groups", text: "25121 made every create disable group nesting, and then said nothing about it — so a security setting that WAS applied looked identical to one that was not, and a create where it failed looked like a clean success. The ② Create result line and the ① Create missing groups list now report the outcome per group: 🚫 nesting disabled, or ⚠ nesting could NOT be disabled with the reason and a pointer to ⑧ Disable nesting. The panel also says up front that a group is created with nesting disabled, and names the extra consent, so it is expected rather than discovered." },
+      { kind: "fixed", tool: "CA groups", text: "\"✓ created testGroupsMM — assigned\" read as assigned TO something. It was the membership type — the radio button above — so it now says \"assigned membership (you add the members)\" or \"dynamic membership\". A reused group says \"reused, and left as it is\", including its nesting setting: an existing group is not silently reconfigured." },
+    ],
+  },
+  {
     build: 25121, date: "2026-08-17", title: "Every group this tool creates has nesting disabled",
     items: [
       { kind: "fixed", tool: "CA groups", text: "disableNesting was set by exactly two of the ten create paths — ⑦ Migrate and the nesting recreate. ① Create missing groups, 👥 Assign groups or roles, 📥 Import, create-by-name and the Restricted AUs baseline all created groups with nesting ALLOWED, and none of the 100 group templates set it either. So the one moment the property reliably takes — creation — was the moment every ordinary create skipped, and fixing it afterwards meant the destructive recreate: archiving a group that policies already reference. Every create path now asks for it." },

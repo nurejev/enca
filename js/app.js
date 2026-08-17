@@ -2281,7 +2281,7 @@
       <div class="row" style="justify-content:flex-start;margin-top:12px">
         <button class="btn primary" id="cgmCreate">Create group${isDemo ? " (simulated)" : ""}</button>
       </div>
-      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled. Consents <code>Group.ReadWrite.All</code> on demand, plus <code>AdministrativeUnit.ReadWrite.All</code> if you protect it. An existing group with the same name is reused.</p>
+      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled, <b>with group nesting disabled</b> — no other group can be made a member, so nobody widens a policy's scope by nesting a group inside this one. Consents <code>Group.ReadWrite.All</code> and <code>Group-NestingSupport.ReadWrite.All</code> on demand, plus <code>AdministrativeUnit.ReadWrite.All</code> if you protect it. An existing group with the same name is reused — and is left exactly as it is, including its nesting setting.</p>
     </div>`;
 
     $("cgBody").innerHTML = batch + manual;
@@ -3528,7 +3528,10 @@ max@contoso.com,"Global, DevOps"</pre>
             ? { id: "g-" + r.name, name: r.name, created: true }
             : await Assign.createGroup(r.template);
           ok++;
-          lines.push(`<div>${g.created ? "✓ created" : "• already existed, reused"} <b>${esc(r.name)}</b></div>`);
+          lines.push(`<div>${g.created ? "✓ created" : "• already existed, reused"} <b>${esc(r.name)}</b>`
+            + (g.created && g.nesting === "disabled" ? ' <span class="mini" style="color:var(--on)">🚫 nesting disabled</span>' : "")
+            + (g.created && g.nesting === "failed" ? ` <span class="mini" style="color:var(--off)">⚠ nesting still allowed — ${esc(g.nestingError || "")}</span>` : "")
+            + `</div>`);
         } catch (err) {
           failed++;
           lines.push(`<div style="color:var(--off)">✗ <b>${esc(r.name)}</b> — ${esc(err.message || err)}</div>`);
@@ -4050,7 +4053,7 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       const spec = { displayName: name, description: $("cgmDesc").value.trim(), dynamic, membershipRule: rule, roleAssignable };
       const g = isDemo
-        ? { id: "g-" + name, name, created: true, dynamic, roleAssignable }
+        ? { id: "g-" + name, name, created: true, dynamic, roleAssignable, nesting: dynamic ? "n/a" : "disabled" }
         : await Assign.createGroup(spec);
       // Protection LAST, and only after the group exists — the same ordering
       // the migration wizard uses, for the same reason: once it is in the AU,
@@ -4078,7 +4081,19 @@ max@contoso.com,"Global, DevOps"</pre>
           g.protectError = e.message || String(e);
         }
       }
-      const kind = g.dynamic ? "dynamic" : "assigned";
+      // "assigned" on its own read as "assigned TO something". It is the
+      // MEMBERSHIP TYPE — the radio above — so it says so.
+      const kind = g.dynamic ? "dynamic membership" : "assigned membership (you add the members)";
+      // A security setting applied silently is indistinguishable from one that
+      // was not applied. Say which happened, every time.
+      const nest = !g.created ? ""
+        : g.nesting === "disabled"
+          ? `<div style="color:var(--on)">🚫 nesting disabled — no group can be added as a member of this one</div>`
+          : g.nesting === "failed"
+            ? `<div style="color:var(--off)">⚠ nesting could NOT be disabled — ${esc(g.nestingError || "unknown reason")}. The group exists and a group could be nested inside it; fix it from ⑧ Disable nesting.</div>`
+            : g.nesting === "n/a"
+              ? `<div class="muted">nesting: not applicable — ${g.dynamic ? "a dynamic group's members come from its rule, and only users and devices can match" : "Entra already refuses to nest a group inside a role-assignable one"}</div>`
+              : "";
       const prot = g.protectError
         ? `<div style="color:var(--off)">✗ but it could NOT be placed in the restricted AU — ${esc(g.protectError)}. The group exists; protect it from ⑥ Protect.</div>`
         : g.protected
@@ -4086,9 +4101,11 @@ max@contoso.com,"Global, DevOps"</pre>
           : "";
       cgmMsg = (g.created
         ? `<span style="color:var(--on)">✓ created <b>${esc(g.name)}</b> — ${kind}</span>`
-        : `<span style="color:var(--report)">• <b>${esc(g.name)}</b> already existed — reused</span>`) + prot;
+        : `<span style="color:var(--report)">• <b>${esc(g.name)}</b> already existed — reused, and left as it is</span>`) + nest + prot;
       log.innerHTML = cgmMsg;
-      toast(g.created ? `<span>${esc(g.name)}</span> created (${kind})${isDemo ? " (simulated)" : ""}` : `<span>${esc(g.name)}</span> already existed — reused`);
+      toast(g.created
+        ? `<span>${esc(g.name)}</span> created${g.nesting === "disabled" ? ", nesting disabled" : g.nesting === "failed" ? " — but nesting is still ALLOWED" : ""}${isDemo ? " (simulated)" : ""}`
+        : `<span>${esc(g.name)}</span> already existed — reused`);
       // fold the new group into the scan so Check shows it without a refresh
       cgRes = null;
       await openCaGroups(true);
