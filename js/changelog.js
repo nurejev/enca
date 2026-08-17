@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25123, date: "2026-08-17", title: "The create panels stopped describing a group they no longer make",
+    items: [
+      { kind: "fixed", tool: "CA groups", text: "Four places still told you that groups are created as role-assignable security groups, that membership can then only be changed by a Privileged Role Administrator, and that creation requires that role — none of which has been true since build 25026, when role-assignable creation was retired. The Assign wizard footnote, the batch-create panel, its per-row label and the scope table now describe what actually happens: a plain security group with nesting disabled, protected by a restricted administrative unit if you want membership out of reach, with 🔒 Protect as the route." },
+      { kind: "fixed", tool: "CA groups", text: "The Help entry still described ↻ Recreate role-assignable, an action removed in 3.3, and framed a non-role-assignable group as the problem. It is the other way round: the flag is retired, so a plain group is correct and a role-assignable one is what gets flagged, with ⑦ Migrate as the way out. Documentation that describes a button nobody can find is worse than none — it sends somebody looking." },
+    ],
+  },
+  {
     build: 25122, date: "2026-08-17", title: "Say that nesting was disabled, and say what \"assigned\" meant",
     items: [
       { kind: "fixed", tool: "CA groups", text: "25121 made every create disable group nesting, and then said nothing about it — so a security setting that WAS applied looked identical to one that was not, and a create where it failed looked like a clean success. The ② Create result line and the ① Create missing groups list now report the outcome per group: 🚫 nesting disabled, or ⚠ nesting could NOT be disabled with the reason and a pointer to ⑧ Disable nesting. The panel also says up front that a group is created with nesting disabled, and names the extra consent, so it is expected rather than discovered." },

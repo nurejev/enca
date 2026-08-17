@@ -43,6 +43,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 58,
+      title: "Create panels describe what they actually create",
+      tools: ["CA groups", "Assign groups"],
+      builds: [25123],
+      risk: "medium",
+      what: "Removes four stale claims that groups are created role-assignable and require Privileged Role Administrator, plus a Help entry describing the removed ↻ Recreate role-assignable action. Replaced with what happens now: plain security group, nesting disabled, restricted AU for protection.",
+      why: "Production tells the operator the create needs a role it does not need, and that the group will be protected by a flag it does not get — which is how somebody decides not to click, or clicks and mis-reports what the tenant now contains.",
+      files: ["js/app.js", "index.html"],
+    },
+    {
       n: 57,
       title: "Every create path disables group nesting",
       tools: ["CA groups", "Assign groups", "Import", "Restricted AUs"],

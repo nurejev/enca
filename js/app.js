@@ -1297,7 +1297,7 @@
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
-    { scope: "RoleManagement.ReadWrite.Directory", use: "Create groups as role-assignable; grant scoped directory roles", tools: "CA groups (create), Restricted AUs", onDemand: true },
+    { scope: "RoleManagement.ReadWrite.Directory", use: "Grant a directory role scoped to a restricted administrative unit. No longer used to create role-assignable groups — nothing creates those any more — but still requested by the create flows for the scoped-role grant that can follow", tools: "Restricted AUs, CA groups (protect)", onDemand: true },
     { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
     { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting so no group can be added as a member of a group (beta) — asked for by every path that CREATES a group, and by the ⑧ Disable nesting step", tools: "CA groups (create, disable nesting), Assign groups, Import, Restricted AUs", onDemand: true },
     { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "Group Analyzer", onDemand: true },
@@ -2226,18 +2226,21 @@
 
   // ---- ② create ----
   // Two ways to create, both here and both separate from Assign: batch-create
-  // the missing baseline groups, or hand-build one group with full control over
-  // role-assignable and static/dynamic.
+  // the missing baseline groups, or hand-build one group choosing assigned or
+  // dynamic membership and whether to place it in a restricted AU. Neither
+  // creates role-assignable groups any more (retired in build 25026), and both
+  // create with nesting disabled (25121).
   function renderCgCreate() {
     const can = CaGroups.creatable(cgRes);
     const cannot = CaGroups.missingNoTemplate(cgRes);
     const batch = (can.length || cannot.length) ? `<div class="cg-panel">
       <h4>CREATE MISSING BASELINE GROUPS (${can.length})</h4>
-      <p class="mini">From the bundled templates. Assigned templates are created <b>role-assignable</b>; templates with a membership rule are created <b>dynamic</b>.
-        A group that already exists under the same name is reused, never duplicated.</p>
+      <p class="mini">From the bundled templates, as plain <b>security groups with nesting disabled</b> — templates with a membership rule are created <b>dynamic</b> instead, and nesting is not sent for those.
+        Nothing is created role-assignable any more: a <b>restricted management administrative unit</b> keeps membership away from tenant-wide group administrators without the immutability, and 🔒 Protect places them in one.
+        A group that already exists under the same name is reused, never duplicated, and is left exactly as it is.</p>
       <div class="cg-pick">${can.map((r, i) =>
         `<label class="chk" style="margin:5px 0"><input type="checkbox" data-cgcreate="${i}" checked> ${esc(r.name)}
-          <span class="mini muted">${r.template.membershipRule ? "dynamic" : "role-assignable"}</span></label>`).join("")
+          <span class="mini muted">${r.template.membershipRule ? "dynamic" : "assigned · nesting disabled"}</span></label>`).join("")
         || '<p class="mini muted">No creatable missing groups.</p>'}</div>
       <div class="cg-progress" id="cgCreateBar" style="display:none"><div style="width:0%"></div></div>
       <div id="cgCreateLog" class="mini" style="margin-top:8px"></div>
@@ -4639,10 +4642,12 @@ max@contoso.com,"Global, DevOps"</pre>
           <input id="asNewName" class="btn" style="flex:1;cursor:text" placeholder="…or create a custom group by name (e.g. CAD-SEC-U-DG-CUSTOM)">
           <button class="btn primary" id="asNewCreate">Create</button>
         </div>
-        <p class="mini" style="margin-top:10px">Groups are created directly via Graph as <b>role-assignable</b> security groups (immutable, set at creation) —
-          membership can then only be changed by Privileged Role Administrators or delegated owners. Dynamic templates keep their membership rule instead
-          (Graph does not allow role-assignable + dynamic). Creation requires the Privileged Role Administrator role and consents
-          <code>Group.ReadWrite.All</code> + <code>RoleManagement.ReadWrite.Directory</code> on demand. Existing groups with the same name are reused, never duplicated.</p>`;
+        <p class="mini" style="margin-top:10px">Groups are created directly via Graph as plain <b>security groups</b> with <b>group nesting disabled</b> — no other group can be made a member,
+          so nobody widens a policy's scope by nesting a group inside one. They are <b>not</b> role-assignable: that flag was only ever used to keep membership away from
+          tenant-wide group administrators, and a <b>restricted management administrative unit</b> does that better — it names who may manage the group, and it can be undone.
+          Protect them from <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> once they exist. Dynamic templates keep their membership rule instead,
+          and nesting is not sent for those (a rule can only match users and devices). Consents <code>Group.ReadWrite.All</code> + <code>Group-NestingSupport.ReadWrite.All</code>
+          on demand. Existing groups with the same name are reused, never duplicated — and are left exactly as they are, including their nesting setting.</p>`;
     } else if (asStep === 2) {
       next.textContent = "Review →";
       const gsel = asGroups.filter(g => g.checked);
