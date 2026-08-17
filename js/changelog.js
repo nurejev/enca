@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25126, date: "2026-08-17", title: "Eight roadmap cards still called themselves beta-only after reaching production",
+    items: [
+      { kind: "fixed", tool: "Roadmap", text: "R27 read \"live \u00b7 beta 25115\" on the beta channel while being in production since build 283 \u2014 so the roadmap said beta-only and the promotion queue, correctly, showed no gap. The two disagreed because each channel carries its own roadmap: promoting an item updates main's copy of the card, and nothing updated beta's. R07, R08, R09, R10, R29, R30 and R31 had drifted the same way. All eight now name the production build they reached, in the form R11 and R14 already used." },
+      { kind: "improved", tool: "Roadmap", text: "The wording is consistent too: four of them said \"live \u00b7 build 250xx\", using \"build\" for a five-digit beta number, which reads like a production release to anybody who does not know the two series apart. Every shipped card now reads \"live \u00b7 beta NNNNN \u00b7 production NNN\", or beta alone when the tool genuinely has not been promoted \u2014 R05, whose tool is still beta-only, correctly says beta alone." },
+    ],
+  },
+  {
     build: 25125, date: "2026-08-17", title: "Roadmap R35 and R36 — the baseline gets a new name and a second one gets equal standing",
     items: [
       { kind: "new", tool: "Roadmap", text: "R35 \u2014 the bundled baseline is renamed from Limon-IT baseline \u2014 R26.6 (v3.x) to CloudFellows baseline \u2014 R26.6 (v3.x). The card records that a rename is not one string: it appears in the tool header, the catalog label and line, the Help section, and the documentation and Markdown exports that stamp which baseline a tenant was measured against. It also records the two things it must NOT touch \u2014 the catalog id, which saved state and Drift watch snapshots key on, and the CAB-SEC / CAD-SEC group names, which are the tenant's objects and not ours to rename. Display name everywhere, identifiers nowhere." },
