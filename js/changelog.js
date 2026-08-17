@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25119, date: "2026-08-17", title: "Reconcile production 283",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue items 53 (restricted-unit documentation pages), 54 (persona group suggestions carry the protection check) and 55 (the baseline report stops answering a question it never asked) are live in production build 283 — verified against main file by file, not taken from the commit message. Removed from the queue and productionBuild moved to v1.0.283; the numbers are retired rather than reused. Only the two beta-only tools remain queued, and neither can move without its tool. A queue that still lists what has shipped is worse than no queue, because promoting from it re-applies live changes." },
+    ],
+  },
+  {
     build: 25118, date: "2026-08-17", title: "A column that was never read, and a link that went nowhere",
     items: [
       { kind: "fixed", tool: "Restricted AUs", text: "The persona baseline report printed a <b>Scoped admin</b> column it never populated. Scoped administrators were only known for units the tool created in that same run; for a unit that already existed there was no record, so the cell printed an em dash — and the footnote about a vault nobody can open turned that silence into a finding. A tenant with four Groups Administrators scoped to its break-glass unit was documented as having none. The report never called scopedRoleMembers at all. The column is gone rather than half-filled, and the report now states what it covers: whether each persona's unit exists and is restricted, nothing more. A grant made while creating a unit is still reported, on the row it belongs to." },

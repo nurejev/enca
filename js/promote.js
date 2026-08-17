@@ -39,39 +39,9 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.282",
+  productionBuild: "v1.0.283",
 
   items: [
-    {
-      n: 55,
-      title: "The baseline report stops answering a question it never asked",
-      tools: ["Restricted AUs", "All tools"],
-      builds: [25118],
-      risk: "low",
-      what: "🛡 Restricted AUs' persona baseline report drops the Scoped admin column and states its own scope: it checks whether each persona's unit exists and is restricted, and says outright that it reads no scoped administrators and lists no unit outside the baseline. A grant made while creating a unit is kept, on the row it belongs to. Separately, the 📖 Read the setup manual and 🔒 Security & risk links are delegated instead of bound once at load, and carry real file paths instead of href=\"#\".",
-      why: "The column had no data behind it on ANY channel: scoped administrators were only recorded for units created in the same run, so a pre-existing unit printed an em dash, and the footnote about vaults nobody can open read that silence as a finding — a tenant with four scoped Groups Administrators was documented as having none. Production has the same report and the same defect. One commit, so the report fix and the link fix cannot be promoted apart.",
-      files: ["js/rmau.js", "js/app.js", "index.html", "js/changelog.js", "js/version.js"],
-    },
-    {
-      n: 54,
-      title: "Persona group suggestions carry the protection check",
-      tools: ["Restricted AUs"],
-      builds: [25117],
-      risk: "high",
-      what: "The per-unit chips are backed by the same tenant scan and the same verdict function as ＋ Bulk add: addable groups are clicks, the rest are listed with the reason (role-assignable, M365, mail-enabled, distribution, already elsewhere), and the type-ahead carries the verdicts too.",
-      why: "In production the chips are name-based, so they offer groups the tenant does not have AND role-assignable groups whose one-click add produces a frozen group nobody can manage — the exact outcome the tool exists to prevent.",
-      files: ["js/app.js", "css/app.css", "index.html"],
-    },
-    {
-      n: 53,
-      title: "📄 Restricted-unit documentation pages (R27)",
-      tools: ["Create documentation"],
-      builds: [25115],
-      risk: "low",
-      what: "Create documentation can append an auditor-ready restricted-administrative-unit overview and one page per unit to Word, PDF, Markdown and the PNG bundle. Each page names the persona, protected objects, every CA policy that includes or excludes each group, scoped administrators and role-definition-verified membership capability; no-admin, empty, frozen and unreadable states are explicit. New pure js/rmaudoc.js model/render contract plus thin Graph and exporter adapters.",
-      why: "Read-only and optional. The appendix owns its reads and every integration boundary fails soft: a denied, unavailable or broken restricted-unit read or supplemental-page render never blocks the policy documentation. It should prove the reviewer wording and role-capability interpretation on real estates before production.",
-      files: ["js/rmaudoc.js", "js/export.js", "js/app.js", "index.html", "js/version.js"],
-    },
     {
       n: 34,
       title: "CIS Benchmark Help section",
