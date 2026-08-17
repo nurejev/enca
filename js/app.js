@@ -6765,6 +6765,19 @@ max@contoso.com,"Global, DevOps"</pre>
     return { st, panel, start, tick, fetchAll };
   }
 
+  // The audit range selector stores days; sub-day ranges are fractions (1h = 1/24).
+  // Keep one human label for the screen, snapshots and exported reports. The
+  // value 1 is deliberately "24 hours": that is the choice the UI offers.
+  const auRangeLabel = (d) => {
+    const days = Number(d);
+    if (!Number.isFinite(days) || days <= 0) return "30 days";
+    if (days <= 1) {
+      const hours = Math.round(days * 24);
+      return `${hours} hour${hours === 1 ? "" : "s"}`;
+    }
+    return `${days} day${days === 1 ? "" : "s"}`;
+  };
+
   // ---------- Change audit (directory audit log) ----------
   const AU_READ = ["AuditLog.Read.All"];
   const AU_MAX = 10000;
@@ -6908,7 +6921,7 @@ max@contoso.com,"Global, DevOps"</pre>
     $("auHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
         <h3>🕓 Change audit <span class="tag new">NEW</span></h3>
-        <p style="margin-bottom:4px">Every Conditional Access change in the window, newest first — expand one to see the exact fields that moved.</p>
+        <p style="margin-bottom:4px">Every Conditional Access change in the last ${auRangeLabel(auDays)}, newest first — expand one to see the exact fields that moved.</p>
         <p class="mini muted" style="margin:0">From the Entra directory audit log. Retention is licence-bound (≈30 days on P1/P2), so this is a rolling window, not a full history.</p>
       </div>
       <div style="text-align:right">
@@ -6917,7 +6930,7 @@ max@contoso.com,"Global, DevOps"</pre>
         ${r.failures ? `<div class="mini" style="color:var(--off)">${r.failures} failed</div>` : ""}
       </div></div>
       ${auSnap ? `<div class="va-targetbar">📌 Compared with the snapshot from <b>${esc(String(auSnap.meta.generated).slice(0, 16).replace("T", " "))}</b>
-        (${auSnap.meta.count} changes${auSnap.meta.windowDays ? `, ${auSnap.meta.windowDays}-day window` : ""}) —
+        (${auSnap.meta.count} changes${auSnap.meta.windowDays ? `, ${auRangeLabel(auSnap.meta.windowDays)} window` : ""}) —
         <b>${auSnap.cmp.newSince.length} new</b> since then, ${auSnap.cmp.common} already seen${auSnap.cmp.aged.length ? `, ${auSnap.cmp.aged.length} aged out of the log` : ""}.
         <button class="fchip" data-auclearsnap="1">✕ Clear</button></div>` : ""}`;
 
@@ -7001,7 +7014,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const r = auRes; if (!r) return;
     const L = [`# Conditional Access change audit — ${tenantName || "tenant"}`, "",
       Brand.generatedBy("Generated"), "",
-      `- Window: last ${auDays} days${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""}`,
+      `- Window: last ${auRangeLabel(auDays)}${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""}`,
       `- Changes: **${r.total}** — ${Object.entries(r.byAction).map(([k, n]) => `${n} ${k}`).join(", ") || "none"}`,
       `- Most active: ${r.actors.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`,
       `- Most changed: ${r.targets.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`, ""];

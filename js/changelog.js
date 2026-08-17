@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25114, date: "2026-08-17", title: "Change audit can zoom in to the last hour",
+    items: [
+      { kind: "improved", tool: "Change audit", text: "The audit window now goes down to the last <b>1 hour</b>, <b>4 hours</b> or <b>24 hours</b>, alongside 7, 30 and 90 days. A fresh policy rollout or active incident no longer means reading and paging through a week of unrelated directory changes just to answer who touched it. The filter is applied in the Graph query, so a shorter choice also means less data read; changing the range after a result immediately re-reads that window." },
+      { kind: "improved", tool: "Change audit", text: "Short windows stay human everywhere: the result heading, Markdown report and a loaded snapshot say “1 hour”, “4 hours” or “24 hours”, never a fractional number of days. Help now explains the incident-versus-review ranges and tells Drift watch users to choose an audit window that reaches back before the suspected drift if they want actor attribution." },
+    ],
+  },
+  {
     build: 25113, date: "2026-08-14", title: "This site had been announcing the wrong version for 13 builds",
     items: [
       { kind: "fixed", tool: "All tools", text: "The sign-in screen and footer read <b>v1.0.251-beta.12</b>. They should have read v1.0.250-beta.112. The version label derived its cycle by dividing the build number by 100, which works right up until a cycle passes its 99th iteration — and this one did, at build 25100, thirteen builds ago. Everything after that rolled over into the next hundred, so the site announced itself as a beta of production build <b>251</b>: a release that had already shipped thirty builds earlier. The cycle is now stated outright rather than derived, which makes the iteration count unbounded (beta.100, beta.112, beta.250 — as far as a cycle runs) and the rollover impossible to repeat. Nothing about the build numbers themselves changes." },

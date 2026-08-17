@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25113"></script>
+<script src="js/popup-guard.js?v=25114"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25113">
+<link rel="stylesheet" href="css/app.css?v=25114">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25113"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25113"></script>
+<script src="js/counter.js?v=25114"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25114"></script>
 </head>
 <body>
 
@@ -971,6 +971,9 @@
       <div class="chip-filter" id="auChips"></div>
       <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px"><span>Range</span>
         <select id="auDays" style="width:auto">
+          <option value="0.0416667">Last 1 hour</option>
+          <option value="0.1666667">Last 4 hours</option>
+          <option value="1">Last 24 hours</option>
           <option value="7" selected>Last 7 days</option>
           <option value="30">Last 30 days</option>
           <option value="90">Last 90 days</option>
@@ -1421,7 +1424,8 @@
         <li><b>Covers</b> policies, named locations, authentication strengths and contexts, and terms of use — add, update and delete.</li>
         <li><b>Field-level diff</b> — expand an entry and you get the fields that actually moved (<code>state: report-only → enabled</code>, a group added to <code>excludeGroups</code>), not a wall of JSON. Assignment lists are compared as sets, so you see the one group that changed rather than the whole array.</li>
         <li><b>Who and from where</b> — the user or application that made the change, with the source IP, plus the result if it failed.</li>
-        <li><b>Filters</b> — by resource kind, plus search across resource, person and changed field name; pick a 7, 30 or 90-day window.</li>
+        <li><b>Range</b> — use the last <b>1 hour</b>, <b>4 hours</b> or <b>24 hours</b> to verify a fresh rollout or investigate an incident without paging through a week of unrelated changes. The 7, 30 and 90-day windows remain for reviews; Entra returns only what its retention still holds.</li>
+        <li><b>Filters</b> — by resource kind, plus search across resource, person and changed field name.</li>
         <li><b>Export MD</b> — the whole change set with per-entry diff tables, for a review or a ticket.</li>
       </ul>
       <p class="help-x">Read-only. Needs <code>AuditLog.Read.All</code> (requested when you run it) and a reader role such as Reports Reader, Security Reader or Security Administrator. Audit retention is licence-bound — roughly 30 days on Entra ID P1/P2, 7 days otherwise — so this is a rolling window, not full history.</p>
@@ -1469,7 +1473,7 @@
 
     <section class="help-sec">
       <h4>📉 Drift watch</h4>
-      <p>What moved in the Conditional Access configuration since a snapshot you took earlier. Change audit answers <i>who changed this in the last 30 days</i>; Drift watch answers <i>does the tenant still look like it did when we signed it off</i> — with no time limit, because the history is a file you keep rather than a log Microsoft ages out.</p>
+      <p>What moved in the Conditional Access configuration since a snapshot you took earlier. Change audit answers <i>who changed this inside the selected audit window</i> — from the last hour up to the history Entra still retains; Drift watch answers <i>does the tenant still look like it did when we signed it off</i> — with no time limit, because the history is a file you keep rather than a log Microsoft ages out.</p>
       <ul>
         <li><b>📸 Take snapshot</b> — reads the policies, named locations, authentication strengths, authentication contexts and <b>administrative units</b> and downloads them as one JSON file. Store it with your review files. Nothing is uploaded and nothing is kept server-side.</li>
         <li><b>📂 Load snapshot &amp; compare</b> — pick that file back up days, months or a year later. The tenant is re-read and the two are compared object by object.</li>
@@ -1477,7 +1481,7 @@
         <li><b>Ranked by severity</b> — a policy switched Off or to report-only, an exclusion widened, a location turned trusted rank <b>Critical</b>, because that is how protection disappears without anyone deleting a policy. A rename ranks Low. The highest severity present is shown up front.</li>
         <li><b>Readable diffs</b> — GUIDs resolve to group and location names, and fields that move on their own (<code>modifiedDateTime</code>) are ignored, so a policy nobody touched reads as unchanged rather than as noise.</li>
         <li><b>Honest gaps</b> — an area that could not be read is reported as <i>not captured</i>, never as “no drift”. A clean bill of health is only given for what was actually compared.</li>
-        <li><b>Who, where known</b> — run 🕓 Change audit first and each drifted object also names the person who changed it, for changes still inside Entra's audit retention. Older drift is shown without attribution rather than with a guess.</li>
+        <li><b>Who, where known</b> — run 🕓 Change audit first and choose a window that reaches back before the suspected change: 1, 4 or 24 hours for fresh drift, longer for older drift. Each drifted object then names the person who changed it while that event is still inside Entra's audit retention. Older drift is shown without attribution rather than with a guess.</li>
         <li><b>Export MD</b> — the drift report for a review, a ticket or a customer's change file.</li>
       </ul>
       <p class="help-x">Read-only, and uses the permissions the session already has. The snapshot contains your Conditional Access configuration — treat the file with the same care as any policy export.</p>
@@ -2363,48 +2367,48 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25113"></script>
-<script src="js/version.js?v=25113"></script>
-<script src="js/promote.js?v=25113"></script>
-<script src="js/authConfig.js?v=25113"></script>
-<script src="js/labels.js?v=25113"></script>
-<script src="js/graph.js?v=25113"></script>
-<script src="js/model.js?v=25113"></script>
-<script src="js/render.js?v=25113"></script>
-<script src="js/analyze.js?v=25113"></script>
-<script src="js/whatif.js?v=25113"></script>
-<script src="js/mslearn.js?v=25113"></script>
-<script src="js/gapcheck.js?v=25113"></script>
-<script src="js/cisdata.js?v=25113"></script>
-<script src="js/cischeck.js?v=25113"></script>
-<script src="js/exclusions.js?v=25113"></script>
-<script src="js/validator.js?v=25113"></script>
-<script src="js/whatifeval.js?v=25113"></script>
-<script src="js/compare.js?v=25113"></script>
-<script src="js/groupuse.js?v=25113"></script>
-<script src="js/iso3166.js?v=25113"></script>
-<script src="js/locations.js?v=25113"></script>
-<script src="js/authcontexts.js?v=25113"></script>
-<script src="js/authstrengths.js?v=25113"></script>
-<script src="js/recycle.js?v=25113"></script>
-<script src="js/rmau.js?v=25113"></script>
-<script src="js/termsofuse.js?v=25113"></script>
-<script src="js/audit.js?v=25113"></script>
-<script src="js/drift.js?v=25113"></script>
-<script src="js/guide.js?v=25113"></script>
-<script src="js/devcheck.js?v=25113"></script>
-<script src="js/signins.js?v=25113"></script>
-<script src="js/reportimpact.js?v=25113"></script>
-<script src="js/changelog.js?v=25113"></script>
-<script src="js/baselineData.js?v=25113"></script>
-<script src="js/baselineJoeyData.js?v=25113"></script>
-<script src="js/baseline.js?v=25113"></script>
-<script src="js/groupTemplates.js?v=25113"></script>
-<script src="js/assign.js?v=25113"></script>
-<script src="js/cagroups.js?v=25113"></script>
-<script src="js/import.js?v=25113"></script>
-<script src="js/export.js?v=25113"></script>
-<script src="js/demo.js?v=25113"></script>
-<script src="js/app.js?v=25113"></script>
+<script src="js/branding.js?v=25114"></script>
+<script src="js/version.js?v=25114"></script>
+<script src="js/promote.js?v=25114"></script>
+<script src="js/authConfig.js?v=25114"></script>
+<script src="js/labels.js?v=25114"></script>
+<script src="js/graph.js?v=25114"></script>
+<script src="js/model.js?v=25114"></script>
+<script src="js/render.js?v=25114"></script>
+<script src="js/analyze.js?v=25114"></script>
+<script src="js/whatif.js?v=25114"></script>
+<script src="js/mslearn.js?v=25114"></script>
+<script src="js/gapcheck.js?v=25114"></script>
+<script src="js/cisdata.js?v=25114"></script>
+<script src="js/cischeck.js?v=25114"></script>
+<script src="js/exclusions.js?v=25114"></script>
+<script src="js/validator.js?v=25114"></script>
+<script src="js/whatifeval.js?v=25114"></script>
+<script src="js/compare.js?v=25114"></script>
+<script src="js/groupuse.js?v=25114"></script>
+<script src="js/iso3166.js?v=25114"></script>
+<script src="js/locations.js?v=25114"></script>
+<script src="js/authcontexts.js?v=25114"></script>
+<script src="js/authstrengths.js?v=25114"></script>
+<script src="js/recycle.js?v=25114"></script>
+<script src="js/rmau.js?v=25114"></script>
+<script src="js/termsofuse.js?v=25114"></script>
+<script src="js/audit.js?v=25114"></script>
+<script src="js/drift.js?v=25114"></script>
+<script src="js/guide.js?v=25114"></script>
+<script src="js/devcheck.js?v=25114"></script>
+<script src="js/signins.js?v=25114"></script>
+<script src="js/reportimpact.js?v=25114"></script>
+<script src="js/changelog.js?v=25114"></script>
+<script src="js/baselineData.js?v=25114"></script>
+<script src="js/baselineJoeyData.js?v=25114"></script>
+<script src="js/baseline.js?v=25114"></script>
+<script src="js/groupTemplates.js?v=25114"></script>
+<script src="js/assign.js?v=25114"></script>
+<script src="js/cagroups.js?v=25114"></script>
+<script src="js/import.js?v=25114"></script>
+<script src="js/export.js?v=25114"></script>
+<script src="js/demo.js?v=25114"></script>
+<script src="js/app.js?v=25114"></script>
 </body>
 </html>

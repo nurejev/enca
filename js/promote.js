@@ -43,6 +43,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 52,
+      title: "🕓 Change audit short incident windows",
+      tools: ["Change audit"],
+      builds: [25114],
+      risk: "low",
+      what: "The range selector adds the last 1 hour, 4 hours and 24 hours alongside the existing 7/30/90-day windows. The directory-audit query is narrowed at Graph, and the result heading, Markdown export and snapshot comparison name the short window in hours. Help explains when to use the short windows and how the selected audit window supplies attribution to Drift watch.",
+      why: "Read-only and only narrows an existing audit-log read. Production starts at seven days, which adds avoidable paging and unrelated changes when the question is who touched a policy during a fresh rollout or incident.",
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 35,
       title: "🖥 Compliant-device reality check (R11)",
       tools: ["Device reality check"],
