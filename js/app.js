@@ -132,6 +132,50 @@
     try { show(target); } finally { navSuppress = false; }
   });
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  // Deleting the 30th row in a list re-renders the panel, and the page jumps to
+  // the top — so working through a list means scrolling back down after every
+  // single action. Capture the scroll position, re-render, put it back. The
+  // browser clamps it when the content got shorter, which is the right answer
+  // for deleting the last row.
+  // A long write that you can navigate away from has to be visible from
+  // wherever you went. ⑦ Migrate recreates groups one at a time — renaming the
+  // original aside first — so "is it still going?" is not idle curiosity: if it
+  // stopped halfway, some groups are sitting under their archive name. A fixed
+  // badge shows progress from any screen and takes you back to the panel.
+  let runState = null;   // { label, done, total, back }
+  function runBadge(state) {
+    runState = state;
+    let el = document.getElementById("runBadge");
+    if (!state) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement("button");
+      el.id = "runBadge";
+      el.className = "run-badge";
+      el.title = "Still running — click to go back to it";
+      el.addEventListener("click", () => { if (runState && runState.back) runState.back(); });
+      document.body.appendChild(el);
+    }
+    const pct = state.total ? Math.round((state.done / state.total) * 100) : 0;
+    el.innerHTML = `<span class="run-dot"></span>${esc(state.label)} <b>${state.done}/${state.total}</b>`
+      + `<span class="run-track"><span style="width:${pct}%"></span></span>`;
+  }
+  // Closing the tab mid-migration leaves renamed groups behind, so say so.
+  window.addEventListener("beforeunload", (e) => {
+    if (!runState) return;
+    e.preventDefault();
+    e.returnValue = "A migration is still running. Closing now can leave a group renamed aside with its replacement half-built.";
+    return e.returnValue;
+  });
+
+  function keepScroll(render) {
+    const el = document.scrollingElement || document.documentElement;
+    const y = window.scrollY || el.scrollTop || 0;
+    const restore = () => { window.scrollTo(0, y); };
+    const out = render();
+    if (out && typeof out.then === "function") return out.then((v) => { requestAnimationFrame(restore); return v; });
+    requestAnimationFrame(restore);
+    return out;
+  }
   // ---------- build stamp ----------
   // Shown before sign-in so a stale deploy (or a cached tab) is obvious.
   (function showBuild() {
@@ -1730,7 +1774,7 @@
   const imWidBlocked = (p) => p.wid && imLic.known && !imLic.licensed;
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
-    imBundle = null; imPlan = null; imAu = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
+    imBundle = null; imPlan = null; imAu = null; imRa = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -1768,6 +1812,135 @@
     } catch (e) {
       imAu.error = e.message || String(e);
     }
+  }
+
+  // ---- R04: role-assignable groups the import is about to build on ---------
+  // A baseline exported from a tenant that still used the role-assignable flag
+  // brings those groups with it. Importing on top of them is not neutral: the
+  // flag is IMMUTABLE, it forbids nesting control, and it cannot be combined
+  // with a restricted management administrative unit — a group carrying both
+  // has nobody who can change its members. So the policies would import fine
+  // and land on groups the baseline has deliberately moved away from, and the
+  // 🛡 PROTECTION step above would quietly skip exactly those groups.
+  //
+  // This preflight finds them and says so BEFORE the import. It does not do the
+  // conversion itself: converting means recreating the group (rename aside,
+  // create plain + nesting disabled, copy members, repoint every policy) behind
+  // a typed confirmation, and that already exists in ⑦ Migrate. A second copy
+  // of a destructive operation is how the two drift apart — so this hands over
+  // to it rather than reimplementing it.
+  let imRa = null;   // { rows, busy, error, checked }
+
+  async function imLoadRoleAssignable() {
+    imRa = { rows: [], existing: [], busy: false, error: null, checked: false };
+    const names = [...new Set((imBundle?.groups || []).map((g) => g.displayName).filter(Boolean))];
+    if (!names.length) return;
+    if (isDemo) {
+      imRa.checked = true;
+      imRa.rows = names.filter((n) => /CA101|Admins/i.test(n)).slice(0, 1)
+        .map((n) => ({ name: n, id: "demo-ra-" + n }));
+      imRa.existing = imRa.rows.map((r) => ({ ...r, roleAssignable: true, nesting: "allowed", typeMismatch: null, m365: false, protectedIn: null }));
+      return;
+    }
+    try {
+      // One batch, one request per name: displayName is not filterable with
+      // `in`, and a name with an apostrophe has to survive the quoting.
+      const reqs = names.map((n, i) => ({ id: String(i),
+        url: `/groups?$filter=displayName eq '${n.replace(/'/g, "''")}'&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled,disableNesting&$top=1` }));
+      const res = await Graph.gbatch(reqs);
+      const found = new Map();
+      for (const r of (res || [])) {
+        const g = ((r.body && r.body.value) || [])[0];
+        if (g) found.set(String(g.displayName || "").toLowerCase(), g);
+      }
+      // Where the tenant's protected groups already live — one call for all of
+      // them, not one per group.
+      let prot = new Map();
+      try { prot = await readProtectionMap(); } catch { /* leave protection unknown */ }
+      for (const src of (imBundle.groups || [])) {
+        const g = found.get(String(src.displayName || "").toLowerCase());
+        if (!g) continue;                                  // not here yet — it will be created
+        const wantDynamic = (src.groupTypes || []).includes("DynamicMembership");
+        const isDynamic = (g.groupTypes || []).includes("DynamicMembership");
+        const row = {
+          id: g.id, name: g.displayName,
+          roleAssignable: g.isAssignableToRole === true,
+          // A plain GET does not return disableNesting; this select does, but
+          // only where it is set — so absent means "allowed, or this tenant has
+          // not got the feature", which is not the same as allowed.
+          nesting: g.disableNesting === true ? "disabled" : g.disableNesting === false ? "allowed" : "unreported",
+          typeMismatch: wantDynamic !== isDynamic ? (wantDynamic ? "the file expects a DYNAMIC group with a membership rule; this one is assigned, and the rule will not be applied" : "the file expects an ASSIGNED group; this one is dynamic, so its rule keeps deciding the members") : null,
+          m365: (g.groupTypes || []).includes("Unified"),
+          protectedIn: prot.get(g.id) || null,
+        };
+        imRa.existing.push(row);
+        if (row.roleAssignable) imRa.rows.push({ id: g.id, name: g.displayName });
+      }
+      imRa.checked = true;
+    } catch (e) {
+      imRa.error = e.message || String(e);
+    }
+  }
+
+  function imRaPanel() {
+    if (!imRa) return "";
+    if (imRa.error) {
+      return `<div class="cg-panel"><h4>🧹 ROLE-ASSIGNABLE GROUPS — COULD NOT CHECK</h4>
+        <p class="mini" style="margin:0">The groups in this file could not be read (${esc(imRa.error)}), so it is not known whether any of them are role-assignable in this tenant. <b>The import will run regardless</b> — but check ⑦ Migrate afterwards, because a role-assignable group cannot be placed in a restricted administrative unit and will have been skipped by the protection step.</p></div>`;
+    }
+    if (!imRa.rows.length) return "";
+    const n = imRa.rows.length;
+    return `<div class="cg-panel">
+      <h4>🧹 ROLE-ASSIGNABLE — ${n} GROUP${n === 1 ? "" : "S"} THIS IMPORT WOULD BUILD ON</h4>
+      <p class="mini" style="margin:0 0 8px">${n === 1 ? "One group" : `${n} groups`} in this file already ${n === 1 ? "exists" : "exist"} here as <b>role-assignable</b>. The baseline has moved off that flag: it was only ever used to keep membership away from tenant-wide group administrators, and a <b>restricted management administrative unit</b> does that better — it names <i>who</i> may manage the group, and it can be undone.</p>
+      <p class="mini" style="margin:0 0 8px">Left as they are, the import still works, but these groups <b>cannot be protected</b>: the flag is immutable, it forbids controlling nesting, and it cannot be combined with a restricted unit — a group carrying both has nobody who can change its members. So the 🛡 PROTECTION step above will skip exactly ${n === 1 ? "this one" : "these"}.</p>
+      <div class="cg-pick">${imRa.rows.map((r) => `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b> <span class="tag block">role-assignable</span></div></div>`).join("")}</div>
+      <p class="mini muted" style="margin:8px 0 0">Converting means <b>recreating</b> each one — rename the original aside, create a plain security group with nesting disabled, copy the members, repoint every policy that references it, then place it in the restricted unit. That runs in <b>⑦ Migrate</b>, behind its own typed confirmation and with its own report and rollback; it is not repeated here, so there is only ever one implementation of it.</p>
+      <div class="row" style="justify-content:flex-start;margin-top:10px">
+        <button class="btn" id="imRaGo">⑦ Convert ${n === 1 ? "it" : "them"} first — open Migrate</button>
+        <span class="mini muted">or import now and convert later; the report will list them as unprotected</span>
+      </div>
+    </div>`;
+  }
+
+  // A tenant that PARTLY has the groups is the normal case, not an edge one,
+  // and the two halves are treated very differently:
+  //
+  //   created  -> nesting disabled, placed in its persona vault
+  //   reused   -> left exactly as it is, and placement is deliberately skipped
+  //               ("a group that already existed may be somewhere deliberately")
+  //
+  // That skip is a reasonable decision and it was an invisible one: a reused
+  // group appeared in the report's `reused` list as a bare name, so its nesting,
+  // its protection and whether it even matches the shape the file expects were
+  // all unstated. Silence there reads as "fine". This says what is actually
+  // being inherited, before the import runs.
+  function imExPanel() {
+    if (!imRa || imRa.error || !(imRa.existing || []).length) return "";
+    const rows = imRa.existing;
+    const notable = rows.filter((r) => r.typeMismatch || r.m365 || (!r.roleAssignable && (r.nesting !== "disabled" || !r.protectedIn)));
+    const line = (r) => {
+      const bits = [];
+      if (r.typeMismatch) bits.push(`<span style="color:var(--off)">⚠ ${esc(r.typeMismatch)}</span>`);
+      if (r.m365) bits.push(`<span style="color:var(--off)">⚠ Microsoft 365 group — it cannot go in a restricted unit at all</span>`);
+      if (r.roleAssignable) bits.push(`<span class="tag block">role-assignable</span> handled above`);
+      else {
+        bits.push(r.nesting === "disabled" ? `🚫 nesting already disabled`
+          : r.nesting === "allowed" ? `<span style="color:var(--off)">↪ nesting allowed — a group can be nested inside it, and the import will not change that</span>`
+          : `<span class="muted">nesting not reported by this tenant — it may be allowed</span>`);
+        bits.push(r.protectedIn ? `🔒 already in ${esc(r.protectedIn.auName)}`
+          : `<span style="color:var(--off)">unprotected — and the import will NOT file an existing group into a vault</span>`);
+      }
+      return `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b></div>
+        <div class="mini">${bits.join(" · ")}</div></div>`;
+    };
+    return `<div class="cg-panel">
+      <h4>♻️ ALREADY HERE — ${rows.length} OF THIS FILE'S GROUPS WILL BE REUSED</h4>
+      <p class="mini" style="margin:0 0 8px">The policies will bind to the ${rows.length === 1 ? "group" : "groups"} already in this tenant — nothing is duplicated, and nothing about ${rows.length === 1 ? "it" : "them"} is changed. That is the safe default: a group that already exists may hold members and sit somewhere deliberately, and an import is not the place to decide otherwise.</p>
+      <p class="mini" style="margin:0 0 8px">It does mean a reused group <b>inherits none of the hardening a created one gets</b>. A group created by this import gets nesting disabled and is filed into its persona vault; a reused one keeps whatever it has${notable.length ? ` — and ${notable.length} of ${rows.length} ${notable.length === 1 ? "has" : "have"} something worth seeing first` : ""}.</p>
+      <div class="cg-pick">${rows.map(line).join("")}</div>
+      <p class="mini muted" style="margin:8px 0 0">Finish the job afterwards from <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> (file them into their vaults) and 👥 CA groups <b>⑧ Disable nesting</b>. Both are safe on a group that already has members.</p>
+    </div>`;
   }
 
   function imAuPanel() {
@@ -1812,6 +1985,7 @@
       ? (isDemo ? { known: true, licensed: false, sku: null } : await Importer.workloadIdLicence())
       : { known: false, licensed: false, sku: null };
     await imLoadAu();
+    await imLoadRoleAssignable();
     imRenderList();
     $("imPick").style.display = "none";
   }
@@ -1843,6 +2017,8 @@
     };
 
     $("imBody").innerHTML = `
+      ${imRaPanel()}
+      ${imExPanel()}
       ${imAuPanel()}
       <div class="im-mode" role="radiogroup" aria-label="Assignment mode">
         <label class="im-mode-opt${!replace ? " on" : ""}"><input type="radio" name="imMode" value="deploy" ${!replace ? "checked" : ""}>
@@ -1902,6 +2078,14 @@
       return;
     }
     if (e.target.id === "imAuGo") { await imAuCreate(e.target); return; }
+    if (e.target.id === "imRaGo") {
+      // ⑦ Migrate scans for role-assignable baseline groups itself, so these
+      // land among its candidates — no second selection to keep in step.
+      toast("Convert them in ⑦ <span>Migrate</span>, then come back and import");
+      await openCaGroups();
+      cgTab = "migrate"; renderCaGroups();
+      return;
+    }
     const chip = e.target.closest("[data-im-persona]");
     if (chip) {
       imSelectPersona(chip.dataset.imPersona);
@@ -2702,6 +2886,7 @@ max@contoso.com,"Global, DevOps"</pre>
   function migBody() { return $("cgBody"); }
 
   async function cgMigScan() {
+    if (cgMig && cgMig.busy) { toast("A migration is <span>still running</span> — let it finish first"); return; }
     if (cgMigBusy) return;
     cgMigBusy = true;
     migBody().innerHTML = migBusyPanel();
@@ -2823,8 +3008,8 @@ max@contoso.com,"Global, DevOps"</pre>
           <button class="btn primary" id="cgMigGo">Migrate</button>
           <button class="btn" id="cgMigRescan">⟳ Rescan</button>
         </div>
-        <div id="cgMigBar2" style="display:none;width:100%;margin-top:12px"></div>
-        <div id="cgMigLog" class="mini" style="margin-top:8px"></div>
+        <div id="cgMigBar2" style="${t.busy || (t.log || []).length ? "" : "display:none;"}width:100%;margin-top:12px">${t.busy ? progInline(t.done || 0, t.total || 0) : ""}</div>
+        <div id="cgMigLog" class="mini" style="margin-top:8px">${(t.log || []).join("")}</div>
         </div>
       </div>` : `<div class="cg-panel">
         <h4>NOTHING TO MIGRATE</h4>
@@ -2939,10 +3124,26 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!isDemo && !await preConsent(scopes)) return;
 
     t.busy = true; btn.disabled = true;
-    const bar = $("cgMigBar2"), log = $("cgMigLog");
+    // The log and the bar were captured ONCE here. Navigating away and back
+    // re-renders this panel, which throws those two elements away — so the run
+    // carried on writing into detached nodes and you came back to an empty
+    // panel with no way to tell whether anything was happening. Keep the lines
+    // on the state and re-find the element on every write: the panel can be
+    // destroyed and rebuilt as often as it likes, and progress survives it.
+    t.log = []; t.done = 0; t.total = picked.length;
+    const paint = () => {
+      const l = $("cgMigLog"); if (l) l.innerHTML = t.log.join("");
+      const b = $("cgMigBar2");
+      if (b) { b.style.display = "block"; b.innerHTML = progInline(t.done, t.total); }
+      runBadge({ label: "⑦ Migrating", done: t.done, total: t.total,
+        back: () => { openCaGroups().then(() => { cgTab = "migrate"; renderCaGroups(); }); } });
+    };
+    paint();
+    const results = [];
+    const say = (html) => { t.log.push(html); paint(); };
+    const bar = { set innerHTML(v) { const b = $("cgMigBar2"); if (b) { b.style.display = "block"; b.innerHTML = v; } },
+                  style: { set display(v) { const b = $("cgMigBar2"); if (b) b.style.display = v; } } };
     bar.style.display = "block";
-    const lines = [], results = [];
-    const say = (html) => { lines.push(html); log.innerHTML = lines.join(""); };
 
     // The AU must exist before the first group finishes, but create it once —
     // and not at all if the placement step was switched off.
@@ -2960,11 +3161,12 @@ max@contoso.com,"Global, DevOps"</pre>
       }
     } catch (err) {
       say(`<div style="color:var(--off)">✗ could not create the restricted AU — ${esc(err.message || err)}. Nothing was migrated.</div>`);
-      t.busy = false; btn.disabled = false; return;
+      t.busy = false; btn.disabled = false; runBadge(null); return;
     }
 
     for (let i = 0; i < picked.length; i++) {
       const x = picked[i];
+      t.done = i;
       bar.innerHTML = progInline(i, picked.length);
       const res = { name: x.name, ok: false, memberTotal: x.memberTotal, archiveName: x.archiveName };
       try {
@@ -2991,7 +3193,28 @@ max@contoso.com,"Global, DevOps"</pre>
           say(`<div>&nbsp;&nbsp;✓ ${mm.moved}/${mm.total} members copied${mm.failed.length ? ` — ${mm.failed.length} failed` : ""}</div>`);
         } else { res.membersMoved = res.memberTotal || 0; }
         // 4./5. add the new group everywhere, then remove the old one
-        const incIds = x.refs.include.map((q) => q.id), excIds = x.refs.exclude.map((q) => q.id);
+        //
+        // The reference list came from the SCAN. A policy edited since then —
+        // by somebody else, or by an earlier group in this very run — would be
+        // missed, and a missed removal is not cosmetic: the old group stays
+        // assigned, and when the archive is tidied up later that policy is left
+        // naming an id the directory no longer has. So re-read the references
+        // now, from the live policies, and use those.
+        let incIds = x.refs.include.map((q) => q.id), excIds = x.refs.exclude.map((q) => q.id);
+        if (!isDemo) {
+          try {
+            const live = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,conditions");
+            const inc = [], exc = [];
+            for (const pol of live) {
+              const u = (pol.conditions && pol.conditions.users) || {};
+              if ((u.includeGroups || []).some((g) => String(g).toLowerCase() === String(x.id).toLowerCase())) inc.push(pol.id);
+              if ((u.excludeGroups || []).some((g) => String(g).toLowerCase() === String(x.id).toLowerCase())) exc.push(pol.id);
+            }
+            const extra = (inc.length + exc.length) - (incIds.length + excIds.length);
+            if (extra > 0) say(`<div>&nbsp;&nbsp;· ${extra} more reference${extra === 1 ? "" : "s"} found than the scan knew about</div>`);
+            incIds = inc; excIds = exc;
+          } catch (e) { say(`<div style="color:var(--report)">&nbsp;&nbsp;⚠ could not re-read the policies (${esc(e.message || e)}) — using the scan's list</div>`); }
+        }
         const apply = async (ids, action, id) => {
           if (!ids.length || isDemo) return;
           const r = await Assign.apply(ids, action, [id]);
@@ -3004,6 +3227,27 @@ max@contoso.com,"Global, DevOps"</pre>
         await apply(excIds, 6, x.id);
         res.refsMoved = incIds.length + excIds.length;
         if (res.refsMoved) say(`<div>&nbsp;&nbsp;✓ ${res.refsMoved} policy assignment${res.refsMoved === 1 ? "" : "s"} repointed</div>`);
+        // VERIFY the removal. Entra keeps a group id in a policy after the group
+        // is gone, so a removal that quietly did not take leaves a reference
+        // that only breaks later, when the archived group is deleted — which is
+        // exactly how a tidy-up turns into a policy pointing at nothing. Read
+        // it back and say so rather than reporting a clean migration.
+        if (!isDemo && res.refsMoved) {
+          try {
+            const after = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,conditions");
+            const left = after.filter((pol) => {
+              const u = (pol.conditions && pol.conditions.users) || {};
+              return [...(u.includeGroups || []), ...(u.excludeGroups || [])]
+                .some((g) => String(g).toLowerCase() === String(x.id).toLowerCase());
+            });
+            if (left.length) {
+              res.staleLeft = left.map((pol) => pol.displayName || pol.id);
+              say(`<div style="color:var(--off)">&nbsp;&nbsp;⚠ the old group is STILL referenced by ${left.length} polic${left.length === 1 ? "y" : "ies"}: ${esc(res.staleLeft.join(", "))} — do NOT delete the archived group yet, or those policies will name an id that no longer exists</div>`);
+            } else {
+              say(`<div>&nbsp;&nbsp;✓ verified: no policy still references the old group</div>`);
+            }
+          } catch (e) { say(`<div style="color:var(--report)">&nbsp;&nbsp;⚠ could not verify the removal (${esc(e.message || e)}) — check ① Check for a dangling reference before deleting the archive</div>`); }
+        }
         // 6. LAST: into the restricted AU — or deliberately not
         if (toAu) {
           if (!isDemo) {
@@ -3024,7 +3268,9 @@ max@contoso.com,"Global, DevOps"</pre>
       results.push(res);
     }
     bar.innerHTML = progInline(picked.length, picked.length);
+    t.done = picked.length;
     t.results = results; t.busy = false; btn.disabled = false;
+    runBadge(null);                      // finished: the badge must not linger
     cgRes = null;                        // the scan is stale now
     renderCgMigrate();
   }
@@ -3674,6 +3920,20 @@ max@contoso.com,"Global, DevOps"</pre>
       <p class="mini muted" style="margin:0 0 10px">A deleted group is <b>soft-deleted and restorable for 30 days</b>. Even so, check
         <a href="#" class="md-tool" data-tool="toolGroupUse">Group Analyzer</a> first — Conditional Access is moved for you by a recreate,
         but app assignments, Intune, licensing and Azure RBAC are not, and they would still be pointing at the old id.</p>
+      ${(() => {
+        // 95 rows and a checkbox each. Select-all ticks only what is SAFE to
+        // delete — a group still referenced by a policy is left alone, because
+        // one careless click across a list this long is exactly how a policy
+        // ends up pointing at nothing. The referenced ones stay individually
+        // tickable, deliberately, which the note below the table already says.
+        const safe = arcRows.filter((r) => r.refCount === 0);
+        const ticked = arcRows.filter((r) => r.checked).length;
+        const allSafeOn = safe.length > 0 && safe.every((r) => r.checked);
+        return `<div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 8px;flex-wrap:wrap">
+          <button class="btn sm" id="arcAll" ${safe.length ? "" : "disabled"}>${allSafeOn ? "☐ Deselect all" : `☑ Select all ${safe.length} safe`}</button>
+          <span class="mini muted" id="arcCount"><b>${ticked}</b> of ${arcRows.length} ticked${stillUsed ? ` · ${stillUsed} referenced, never ticked by Select all` : ""}</span>
+        </div>`;
+      })()}
       <div class="gu-tw"><table class="plist">
         <thead><tr><th></th><th>Archived group</th><th>Replaced by</th><th class="gu-num">Members</th><th>Still referenced</th></tr></thead>
         <tbody>${arcRows.map((r, i) => `<tr>
@@ -3691,13 +3951,43 @@ max@contoso.com,"Global, DevOps"</pre>
       ${arcRows.some((r) => r.members) ? `<p class="mini" style="margin-top:6px;color:var(--report)">⚠ An archived group with members is one whose members were never carried across.
         Check the replacement has them before deleting.</p>` : ""}`;
   }
+  // The typed confirmation and the tick count both gate the button, so they
+  // are decided in one place — a bulk toggle used to leave it stale.
+  function arcSyncGo() {
+    const typed = ($("arcOk").value || "").trim().toUpperCase() === "DELETE";
+    $("arcGo").disabled = !typed || !arcRows.some((r) => r.checked);
+  }
+  // Update the toolbar WITHOUT re-rendering the table: with 95 rows a full
+  // re-render on every tick would throw away the scroll position inside the
+  // modal, which is the same annoyance the delete lists just had fixed.
+  function arcSyncBar() {
+    const safe = arcRows.filter((r) => r.refCount === 0);
+    const stillUsed = arcRows.length - safe.length;
+    const allSafeOn = safe.length > 0 && safe.every((r) => r.checked);
+    const btn = $("arcAll");
+    if (btn) btn.textContent = allSafeOn ? "☐ Deselect all" : `☑ Select all ${safe.length} safe`;
+    const c = $("arcCount");
+    if (c) c.innerHTML = `<b>${arcRows.filter((r) => r.checked).length}</b> of ${arcRows.length} ticked`
+      + (stillUsed ? ` · ${stillUsed} referenced, never ticked by Select all` : "");
+  }
   $("arcBody").addEventListener("change", (e) => {
     const cb = e.target.closest("[data-arc]"); if (!cb) return;
     arcRows[+cb.dataset.arc].checked = cb.checked;
+    arcSyncBar(); arcSyncGo();
   });
-  $("arcOk").addEventListener("input", (e) => {
-    $("arcGo").disabled = e.target.value.trim().toUpperCase() !== "DELETE" || !arcRows.some((r) => r.checked);
+  $("arcBody").addEventListener("click", (e) => {
+    if (e.target.id !== "arcAll") return;
+    const safe = arcRows.filter((r) => r.refCount === 0);
+    const allSafeOn = safe.length > 0 && safe.every((r) => r.checked);
+    // Deselect clears everything, including any referenced row ticked by hand;
+    // select never touches them.
+    if (allSafeOn) arcRows.forEach((r) => { r.checked = false; });
+    else safe.forEach((r) => { r.checked = true; });
+    // Reflect the model onto the inputs in place — no table rebuild.
+    $("arcBody").querySelectorAll("[data-arc]").forEach((cb) => { cb.checked = !!arcRows[+cb.dataset.arc].checked; });
+    arcSyncBar(); arcSyncGo();
   });
+  $("arcOk").addEventListener("input", arcSyncGo);
   $("arcCancel").addEventListener("click", () => $("arcModal").classList.remove("open"));
   $("arcGo").addEventListener("click", async () => {
     const picked = arcRows.filter((r) => r.checked);
@@ -6842,7 +7132,7 @@ max@contoso.com,"Global, DevOps"</pre>
       if (!isDemo) await Graph.gdelete(`/administrativeUnits/${ruDeleting.id}`);
       $("ruDelModal").classList.remove("open");
       toast(`<span>${esc(ruDeleting.displayName)}</span> deleted${isDemo ? " (simulated)" : ""}`);
-      await openRmauTool(true);
+      await keepScroll(() => openRmauTool(true));
     } catch (e) { toast(`Delete failed: <span>${esc(e.message || e)}</span>`); btn.disabled = false; }
   });
   $("ruBAOpenTop").addEventListener("click", () => {
@@ -8790,7 +9080,7 @@ max@contoso.com,"Global, DevOps"</pre>
         toast(`<span>${esc(loDeleting.displayName)}</span> deleted`);
       }
       $("loDelModal").classList.remove("open");
-      await openLocations(true);
+      await keepScroll(() => openLocations(true));
     } catch (e) {
       console.error("Delete named location failed:", e);
       toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
@@ -8983,7 +9273,7 @@ max@contoso.com,"Global, DevOps"</pre>
         toast(`<span>${esc(acDeleting.id)}</span> deleted`);
       }
       $("acDelModal").classList.remove("open");
-      await openAuthCtx(true);
+      await keepScroll(() => openAuthCtx(true));
     } catch (e) {
       console.error("Delete authentication context failed:", e);
       toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
@@ -9260,7 +9550,7 @@ max@contoso.com,"Global, DevOps"</pre>
         toast(`<span>${esc(asDeleting.displayName)}</span> deleted`);
       }
       $("asDelModal").classList.remove("open");
-      await openAuthStr(true);
+      await keepScroll(() => openAuthStr(true));
     } catch (e) {
       console.error("Delete authentication strength failed:", e);
       toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
@@ -9515,7 +9805,7 @@ max@contoso.com,"Global, DevOps"</pre>
         toast(`<span>${esc(tuDeleting.displayName)}</span> deleted`);
       }
       $("tuDelModal").classList.remove("open");
-      await openTou(true);
+      await keepScroll(() => openTou(true));
     } catch (e) {
       console.error("Delete agreement failed:", e);
       toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
