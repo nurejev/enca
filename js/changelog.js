@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25125, date: "2026-08-17", title: "Roadmap R35 and R36 — the baseline gets a new name and a second one gets equal standing",
+    items: [
+      { kind: "new", tool: "Roadmap", text: "R35 \u2014 the bundled baseline is renamed from Limon-IT baseline \u2014 R26.6 (v3.x) to CloudFellows baseline \u2014 R26.6 (v3.x). The card records that a rename is not one string: it appears in the tool header, the catalog label and line, the Help section, and the documentation and Markdown exports that stamp which baseline a tenant was measured against. It also records the two things it must NOT touch \u2014 the catalog id, which saved state and Drift watch snapshots key on, and the CAB-SEC / CAD-SEC group names, which are the tenant's objects and not ours to rename. Display name everywhere, identifiers nowhere." },
+      { kind: "new", tool: "Roadmap", text: "R36 \u2014 the Joey Verlinden baseline becomes a first-class baseline instead of comparison-only. Group checks, group creation, persona checks and restricted-AU creation all stop at the bundled catalog today; the plan is that picking a baseline changes what every downstream tool works against. Plus fetching the latest release from his repository rather than shipping a transcription \u2014 the catalog here is a hand-checked snapshot pinned at commit 38469a4, accurate the day it was written and stale the day he pushes." },
+      { kind: "new", tool: "Roadmap", text: "R36 names the three things that make it more than plumbing, so it is not picked up as a small job. His exclusion groups are named after the policy rather than by CA number, and every routing decision in Protect, Bulk add and the RMAU baseline reads a CA number out of a group name \u2014 the same gap R28 opens for a tenant's own groups. His personas differ and do not map onto our CA ranges at all, so the persona vaults are per-baseline rather than a rename of ours. And a live fetch is a trust boundary: unauthenticated GitHub is rate-limited and a release can be malformed, so the bundled snapshot stays as the fallback and the tool has to say which of the two it used rather than failing quietly to the old one." },
+    ],
+  },
+  {
     build: 25124, date: "2026-08-17", title: "Items 56-58 reached production (284)",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue items 56 (policy ID on the expanded card), 57 (every create path disables group nesting, and says whether it took) and 58 (the create panels describe what they actually create) are live in production build 284. Removed from the queue; the numbers are retired rather than reused. Only the two beta-only tools remain queued, and neither can move without its tool." },
