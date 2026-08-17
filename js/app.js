@@ -5970,16 +5970,7 @@ max@contoso.com,"Global, DevOps"</pre>
           // reach the one control that does something.
           detail = `<div style="margin-top:8px">
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Members (${(d.members || []).length})${nFrozen ? ` <span class="tag block" style="text-transform:none;letter-spacing:normal">🧊 ${nFrozen} frozen</span>` : ""}</div>
-            ${(() => {
-              const pg = ruPersonaGroups(au, d);
-              if (!pg.code) return "";
-              return `<div class="ru-pg">
-                <span class="mini muted">${pg.names.length
-                  ? `${esc(pg.entry ? pg.entry.label : pg.code)} groups for this unit — click to add:`
-                  : `No ${esc(pg.entry ? pg.entry.label : pg.code)} group is left to add${(d.members || []).length ? " — they are all in already" : ""}. Add any other group below.`}</span>
-                ${pg.names.map((n) => `<button class="btn sm ru-pgchip" data-rupg="${esc(au.id)}|${esc(n)}">＋ ${esc(n)}</button>`).join("")}
-              </div>`;
-            })()}
+            ${ruPgRow(au, d)}
             <div style="display:flex;gap:6px;margin:6px 0 6px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="…or any other group, by name — or a user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
             <ul class="wi-list" style="margin:0 0 12px">${mems || '<li><div class="wi-why">No members.</div></li>'}</ul>
             ${ruBulkPanel(au)}
@@ -6037,6 +6028,36 @@ max@contoso.com,"Global, DevOps"</pre>
   // that CAB-SEC-U-CA101-Exclusion is the Admins one, and a free-text box over
   // every group in the tenant makes the right answer as hard to reach as the
   // wrong one.
+  // What this unit's persona has in the tenant, with the protection check
+  // applied — so a group that cannot go in is shown WITH THE REASON rather
+  // than offered as a click that fails. The check is the same one the bulk
+  // panel runs, through the same function.
+  function ruPgRow(au, d) {
+    const code = Rmau.codeForAu(au.displayName);
+    if (!code) return "";
+    const entry = Rmau.BASELINE_AUS.find((a) => a.code === code) || null;
+    const label = esc(entry ? entry.label : code);
+    const scan = ruPg.get(code);
+    if (!scan) return `<div class="ru-pg"><span class="mini muted">Checking which ${label} groups this tenant has…</span></div>`;
+    if (scan.busy) return `<div class="ru-pg"><div class="spinner" style="width:14px;height:14px"></div><span class="mini muted">Checking which ${label} groups can go in…</span></div>`;
+    if (scan.error) return `<div class="ru-pg"><span class="mini" style="color:var(--off)">Could not read this persona's groups: ${esc(scan.error)}. Add by name below.</span></div>`;
+    const already = new Set(((d && d.members) || []).map((m) => m.id));
+    const rows = scan.groups.map((g) => ruWhyNot(g, au.id, already, scan.prot))
+      .sort((a, b) => (a.why ? 1 : 0) - (b.why ? 1 : 0) || String(a.name).localeCompare(String(b.name)));
+    const can = rows.filter((r) => !r.why);
+    const cannot = rows.filter((r) => r.why && r.why !== "already a member of this unit");
+    const inAlready = rows.filter((r) => r.why === "already a member of this unit").length;
+    if (!rows.length) {
+      return `<div class="ru-pg"><span class="mini muted">This tenant has no ${label} group yet. Add any group by name below, or create the baseline groups in 👥 Conditional Access groups.</span></div>`;
+    }
+    return `<div class="ru-pg">
+      <span class="mini muted">${can.length
+        ? `${label} groups for this unit — click to add:`
+        : `No ${label} group can be added${inAlready ? ` — ${inAlready} ${inAlready === 1 ? "is" : "are"} in already` : ""}${cannot.length ? `, and ${cannot.length} cannot go in` : ""}.`}</span>
+      ${can.map((r) => `<button class="btn sm ru-pgchip" data-rupg="${esc(au.id)}|${esc(r.name)}">＋ ${esc(r.name)}</button>`).join("")}
+      </div>
+      ${cannot.length ? `<div class="ru-pgno">${cannot.map((r) => `<div class="mini"><b>${esc(r.name)}</b> <span class="tag block">cannot</span> ${esc(r.why)}${r.roleAssignable ? ` <button class="btn sm" data-rumigrate="${esc(r.id)}">⑦ Migrate it</button>` : ""}</div>`).join("")}</div>` : ""}`;
+  }
   function ruPersonaGroups(au, d) {
     const code = Rmau.codeForAu(au.displayName);
     if (!code) return { code: null, entry: null, names: [] };
@@ -6159,13 +6180,30 @@ max@contoso.com,"Global, DevOps"</pre>
     const au = (ruList || []).find((a) => a.id === e.target.dataset.ruaddbox);
     const dl = $("ruGroupSug");
     if (!au || !dl) return;
-    const pg = ruPersonaGroups(au, ruDetails[au.id]);
-    const mine = new Set(pg.names.map((n) => n.toLowerCase()));
+    // Once this persona has been scanned, the type-ahead uses the SAME verdicts
+    // the chips do: what can go in is labelled as belonging here, what cannot
+    // says why on the option itself. Before the scan lands it falls back to the
+    // baseline names, which is a guess about the tenant and is labelled softly.
+    const code = Rmau.codeForAu(au.displayName);
+    const scan = code ? ruPg.get(code) : null;
+    const entry = code ? Rmau.BASELINE_AUS.find((x) => x.code === code) : null;
+    const label = entry ? entry.label : (code || "");
+    let opts = [];
+    let mine = new Set();
+    if (scan && !scan.busy && !scan.error) {
+      const already = new Set(((ruDetails[au.id] || {}).members || []).map((m) => m.id));
+      const rows = scan.groups.map((g) => ruWhyNot(g, au.id, already, scan.prot));
+      mine = new Set(rows.map((r) => String(r.name).toLowerCase()));
+      opts = rows
+        .sort((a, b) => (a.why ? 1 : 0) - (b.why ? 1 : 0) || String(a.name).localeCompare(String(b.name)))
+        .map((r) => `<option value="${esc(r.name)}" label="${r.why ? `cannot — ${esc(r.why.split(" — ")[0])}` : `${esc(label)} — belongs here`}"></option>`);
+    } else {
+      const pg = ruPersonaGroups(au, ruDetails[au.id]);
+      mine = new Set(pg.names.map((n) => n.toLowerCase()));
+      opts = pg.names.map((n) => `<option value="${esc(n)}" label="${esc(label)} — belongs here"></option>`);
+    }
     const rest = ruBaselineGroups().filter((n) => !mine.has(n.toLowerCase()));
-    dl.innerHTML = [
-      ...pg.names.map((n) => `<option value="${esc(n)}" label="${esc(pg.entry ? pg.entry.label : pg.code)} — belongs here"></option>`),
-      ...rest.slice(0, 200).map((n) => `<option value="${esc(n)}"></option>`),
-    ].join("");
+    dl.innerHTML = [...opts, ...rest.slice(0, 200).map((n) => `<option value="${esc(n)}"></option>`)].join("");
   });
   $("ruBody").addEventListener("change", (e) => {
     if (e.target.id === "ruBARole" && ruBulkAdmin) { ruBulkAdmin.role = e.target.value; return; }
@@ -6412,6 +6450,60 @@ max@contoso.com,"Global, DevOps"</pre>
   const RU_BULK_PREFIXES = ["CAB-SEC", "CAD-SEC"];
   const RU_BULK_EXTRA = { BreakGlass: ["Emergency", "BreakGlass", "Break-Glass", "BG-"] };
 
+  // Can this group go into this restricted unit, and if not, why not? One
+  // function, because the answer is now given in two places — the bulk panel
+  // and the per-unit chips — and two copies of it would disagree the first
+  // time one was corrected. Order matters: the reasons are not equally
+  // interesting, and "role-assignable" is the one that leaves a group frozen.
+  function ruWhyNot(g, auId, already, prot) {
+    const m365 = (g.groupTypes || []).includes("Unified");
+    const mailSec = g.mailEnabled === true && g.securityEnabled === true;
+    const dist = g.mailEnabled === true && g.securityEnabled === false;
+    const elsewhere = (prot || new Map()).get(g.id);
+    const row = { id: g.id, name: g.displayName, roleAssignable: g.isAssignableToRole === true };
+    if (already && already.has(g.id)) row.why = "already a member of this unit";
+    else if (m365) row.why = "Microsoft 365 group — only SECURITY groups can be members of a restricted unit";
+    else if (mailSec) row.why = "mail-enabled security group — only cloud security groups can be members";
+    else if (dist) row.why = "distribution group — only security groups can be members";
+    else if (row.roleAssignable) row.why = "role-assignable — putting it in a restricted unit would leave NOBODY able to change its members. Convert it with ⑦ Migrate first";
+    else if (elsewhere && elsewhere.auId !== auId) row.why = `already in ${elsewhere.auName} — an object can sit in several restricted units, and a scoped administrator on ANY of them can manage it, so adding it here widens who can reach it rather than narrowing it`;
+    return row;
+  }
+
+  // The persona chips used to be built from group NAMES the baseline knows
+  // about, which offered two things it should not: groups this tenant does not
+  // have, and groups it has that cannot go in — a role-assignable one clicks
+  // through to a frozen group, which is the one outcome this tool exists to
+  // prevent. So the same bounded scan the bulk panel runs backs the chips,
+  // cached per persona because several units never share one.
+  const ruPg = new Map();          // code -> { busy, groups, prot, error }
+  async function ruPgLoad(au) {
+    const code = Rmau.codeForAu(au.displayName);
+    if (!code || ruPg.has(code)) return;
+    ruPg.set(code, { busy: true, groups: [], prot: new Map(), error: null });
+    renderRmau();
+    const entry = { busy: false, groups: [], prot: new Map(), error: null };
+    try {
+      if (isDemo) {
+        entry.groups = [
+          { id: "d1", displayName: "CAB-SEC-U-CA101-Exclusion", securityEnabled: true },
+          { id: "d2", displayName: "CAB-SEC-U-CA102-Exclusion", securityEnabled: true, isAssignableToRole: true },
+        ].filter((g) => Rmau.codeForGroup(g.displayName) === code);
+      } else {
+        const seen = new Set();
+        for (const p of [...RU_BULK_PREFIXES, ...(RU_BULK_EXTRA[code] || [])]) {
+          try {
+            const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
+            for (const g of r) if (!seen.has(g.id) && Rmau.codeForGroup(g.displayName) === code) { seen.add(g.id); entry.groups.push(g); }
+          } catch (e) { console.warn("persona chips: prefix", p, "failed:", e.message || e); }
+        }
+        try { entry.prot = await readProtectionMap(); } catch { /* leave it unknown */ }
+      }
+    } catch (e) { entry.error = e.message || String(e); }
+    ruPg.set(code, entry);
+    renderRmau();
+  }
+
   async function ruBulkScan(auId) {
     const au = (ruList || []).find((a) => a.id === auId);
     const code = au ? Rmau.codeForAu(au.displayName) : null;
@@ -6445,18 +6537,7 @@ max@contoso.com,"Global, DevOps"</pre>
       const rows = [];
       for (const g of groups) {
         if (Rmau.codeForGroup(g.displayName) !== code) continue;
-        const m365 = (g.groupTypes || []).includes("Unified");
-        const mailSec = g.mailEnabled === true && g.securityEnabled === true;
-        const dist = g.mailEnabled === true && g.securityEnabled === false;
-        const elsewhere = prot.get(g.id);
-        const row = { id: g.id, name: g.displayName, roleAssignable: g.isAssignableToRole === true };
-        if (already.has(g.id)) row.why = "already a member of this unit";
-        else if (m365) row.why = "Microsoft 365 group — only SECURITY groups can be members of a restricted unit";
-        else if (mailSec) row.why = "mail-enabled security group — only cloud security groups can be members";
-        else if (dist) row.why = "distribution group — only security groups can be members";
-        else if (row.roleAssignable) row.why = "role-assignable — putting it in a restricted unit would leave NOBODY able to change its members. Convert it with ⑦ Migrate first";
-        else if (elsewhere && elsewhere.auId !== auId) row.why = `already in ${elsewhere.auName} — an object can sit in several restricted units, and a scoped administrator on ANY of them can manage it, so adding it here widens who can reach it rather than narrowing it`;
-        rows.push(row);
+        rows.push(ruWhyNot(g, auId, already, prot));
       }
       rows.sort((a, b) => (a.why ? 1 : 0) - (b.why ? 1 : 0) || String(a.name).localeCompare(String(b.name)));
       ruBulk.rows = rows;
@@ -6595,6 +6676,13 @@ max@contoso.com,"Global, DevOps"</pre>
       const id = op.dataset.ruopen;
       ruOpen.has(id) ? ruOpen.delete(id) : ruOpen.add(id);
       renderRmau();
+      // Opening a persona unit is the moment its groups become worth checking:
+      // the chips claim "click to add", so they have to have been verified
+      // first. Cached per persona, so re-opening costs nothing.
+      if (ruOpen.has(id)) {
+        const au = (ruList || []).find((a) => a.id === id);
+        if (au && Rmau.isRestricted(au)) ruPgLoad(au);
+      }
       if (ruOpen.has(id)) { await ruLoadDetail(id); renderRmau(); }
       return;
     }
@@ -6682,6 +6770,15 @@ max@contoso.com,"Global, DevOps"</pre>
     const dl = e.target.closest("[data-rudel]"); if (dl) { openRuDelete(ruList.find((x) => x.id === dl.dataset.rudel)); return; }
     const ad = e.target.closest("[data-ruadd]");
     if (ad) { const box = document.querySelector(`[data-ruaddbox="${ad.dataset.ruadd}"]`); await ruAddMember(ad.dataset.ruadd, box ? box.value : ""); return; }
+    // A role-assignable candidate needs converting before it can be protected,
+    // and the tool that does it is two screens away — so the reason carries the
+    // way out rather than only the diagnosis.
+    const mig = e.target.closest("[data-rumigrate]");
+    if (mig) {
+      toast("Convert it in 👥 <span>Conditional Access groups</span> → ⑦ Migrate, then re-open this unit");
+      openCaGroups();
+      return;
+    }
     // one click for a group that belongs to this unit's persona
     const pg = e.target.closest("[data-rupg]");
     if (pg) {

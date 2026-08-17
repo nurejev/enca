@@ -43,6 +43,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 54,
+      title: "Persona group suggestions carry the protection check",
+      tools: ["Restricted AUs"],
+      builds: [25117],
+      risk: "high",
+      what: "The per-unit chips are backed by the same tenant scan and the same verdict function as ＋ Bulk add: addable groups are clicks, the rest are listed with the reason (role-assignable, M365, mail-enabled, distribution, already elsewhere), and the type-ahead carries the verdicts too.",
+      why: "In production the chips are name-based, so they offer groups the tenant does not have AND role-assignable groups whose one-click add produces a frozen group nobody can manage — the exact outcome the tool exists to prevent.",
+      files: ["js/app.js", "css/app.css", "index.html"],
+    },
+    {
       n: 53,
       title: "📄 Restricted-unit documentation pages (R27)",
       tools: ["Create documentation"],

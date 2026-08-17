@@ -1372,3 +1372,9 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
    from the tiles, so it cannot drift from what is actually on the page. */
 .home-count { font-size:.55em; font-weight:500; color:var(--muted); vertical-align:middle;
   border:1px solid var(--line, rgba(127,127,127,.3)); border-radius:999px; padding:2px 9px; margin-left:8px; }
+
+/* Restricted AUs: the persona candidates that CANNOT go in, with the reason.
+   Offered-and-fails is worse than not offered: a role-assignable group clicks
+   through to a frozen one, which is the outcome this tool exists to prevent. */
+.ru-pgno { margin:6px 0 2px; display:flex; flex-direction:column; gap:4px; }
+.ru-pgno .mini { opacity:.85; }

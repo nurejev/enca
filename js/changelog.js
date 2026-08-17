@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25117, date: "2026-08-17", title: "A group that cannot go in says so, instead of being offered",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "The persona chips were built from the group NAMES the baseline knows about, so they offered two things they should not: groups this tenant does not have, and groups it has that cannot be protected. Clicking a role-assignable one produced exactly the frozen group — editable by nobody — that this tool exists to prevent. The chips are now backed by the same bounded scan ＋ Bulk add runs: what can be added is a click, and what cannot is listed with the reason." },
+      { kind: "improved", tool: "Restricted AUs", text: "There is now ONE verdict function behind both the bulk panel and the chips. It was duplicated logic in two places, which would have disagreed the first time either was corrected — and the reasons are ordered deliberately: already a member, then Microsoft 365 group, mail-enabled security, distribution, role-assignable, then already in another restricted unit. A role-assignable candidate carries a route to ⑦ Migrate rather than only a diagnosis, and a group already in a DIFFERENT unit explains that adding it here widens who can reach it rather than narrowing it." },
+      { kind: "improved", tool: "Restricted AUs", text: "The type-ahead under the chips carries the same verdicts on its options, so the manual route cannot offer what the chips just refused. The scan is cached per persona and starts when the unit is opened; until it lands the row says it is checking, and if it fails it says so and leaves the manual box working rather than pretending the tenant has nothing." },
+    ],
+  },
+  {
     build: 25116, date: "2026-08-17", title: "Device reality and short audit windows reach production 282",
     items: [
       { kind: "improved", tool: "Device reality check", text: "Promotion item 35 reached production build 282. Device reality check is now v1.0 and out of BETA, carrying NEW on both channels: per CA policy and platform it joins the Conditional Access device grant to its Intune compliance or app-protection assignment, reads the tenant default first, names OR alternatives and exports the evidence as Markdown." },
