@@ -1378,3 +1378,10 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
    through to a frozen one, which is the outcome this tool exists to prevent. */
 .ru-pgno { margin:6px 0 2px; display:flex; flex-direction:column; gap:4px; }
 .ru-pgno .mini { opacity:.85; }
+
+/* The policy id on the expanded card. `.pcard-foot .mini{flex:1}` would have
+   made the id share the stretch with the stamp and split the footer in half,
+   so it is pinned; and one click selects the whole GUID, because the reason to
+   read an id is to paste it into the portal or a ticket. */
+.pcard-foot .pcard-id{flex:0 0 auto;opacity:.85}
+.pcard-foot .pcard-id code{user-select:all;font-size:.95em}

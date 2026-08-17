@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25120, date: "2026-08-17", title: "The policy ID survives opening the card",
+    items: [
+      { kind: "fixed", tool: "List Policies", text: "The compact card showed the policy ID and the expanded one did not, so opening a policy to look at it properly took away the one string that identifies it — on the card that gets exported, screenshotted and pasted into a ticket. Two policies can share a name, a version and a persona; the portal is reached by id. It now sits in the footer of both, on the exported card as well, and one click selects the whole GUID because the reason to read an id is to paste it somewhere." },
+      { kind: "fixed", tool: "List Policies", text: "While adding it: five attributes were built from the policy id without escaping it — data-card, data-png, data-open and two checkboxes. A policy id is a GUID from Graph, so this was defence in depth rather than a live hole, but an attribute built from data is either escaped or it is not, and \"it happens to be a GUID today\" is not a rule. Found by the test written for the new footer, not by reading." },
+    ],
+  },
+  {
     build: 25119, date: "2026-08-17", title: "Reconcile production 283",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue items 53 (restricted-unit documentation pages), 54 (persona group suggestions carry the protection check) and 55 (the baseline report stops answering a question it never asked) are live in production build 283 — verified against main file by file, not taken from the commit message. Removed from the queue and productionBuild moved to v1.0.283; the numbers are retired rather than reused. Only the two beta-only tools remain queued, and neither can move without its tool. A queue that still lists what has shipped is worse than no queue, because promoting from it re-applies live changes." },

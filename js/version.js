@@ -30,7 +30,7 @@ const APP_BUILD = {
   // graduating to production one queue number at a time — production walked
   // 250 → 281 while this cycle stayed 250. It is a cycle NAME, not a promise.
   cycle: 250,
-  build: 25119,
+  build: 25120,
   date: "2026-08-17",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time
@@ -40,7 +40,7 @@ const APP_BUILD = {
   // Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
-  released: "2026-08-17T10:00Z",
+  released: "2026-08-17T10:49Z",
   get isBeta() { return this.build >= 10000; },
   // Stored UTC, shown in the reader's own timezone with the offset named.
   // A build is cut once, so one absolute instant is the right thing to record —
@@ -89,7 +89,7 @@ const APP_BUILD = {
 // it is the BETA chip, not the version number, that says "still proving
 // itself". Only beta-channel-only tools stay below 1.0.
 const TOOL_VERSIONS = {
-  toolPolicies:     { v: "2.5", note: "2.5: a guest/external selection names its user types instead of collapsing to one line — which of the six are in it decides whether the policy reaches your CSP partner's delegated admins, and an omitted service provider is called out as NOT service providers; a selection scoped to named tenants says how many;the per-policy what-if flow closes with a 🎯 CA result card: the actual sign-in verdict (denied / succeeds after which controls / session shaping) plus the tenant reality — Enforced today, report-only (recorded, not enforced) or Off (becomes real when switched On);list and summary say how many more include entries there are instead of showing only the first;usable on a phone — non-sticky toolbar, single-column policy cards, scrolling state filters, scrolling list table, two-row action bar;cards / list / settings matrix, persona grouping, dependency inspector, full-screen matrix, selection actions, delete with typed confirmation, per-policy what-if flow, per-persona apply flow, housekeeping (delete superseded Off versions)" },
+  toolPolicies:     { v: "2.6", note: "the expanded card carries the policy id, and every attribute built from an id is escaped;2.5: a guest/external selection names its user types instead of collapsing to one line — which of the six are in it decides whether the policy reaches your CSP partner's delegated admins, and an omitted service provider is called out as NOT service providers; a selection scoped to named tenants says how many;the per-policy what-if flow closes with a 🎯 CA result card: the actual sign-in verdict (denied / succeeds after which controls / session shaping) plus the tenant reality — Enforced today, report-only (recorded, not enforced) or Off (becomes real when switched On);list and summary say how many more include entries there are instead of showing only the first;usable on a phone — non-sticky toolbar, single-column policy cards, scrolling state filters, scrolling list table, two-row action bar;cards / list / settings matrix, persona grouping, dependency inspector, full-screen matrix, selection actions, delete with typed confirmation, per-policy what-if flow, per-persona apply flow, housekeeping (delete superseded Off versions)" },
   toolDocument:     { v: "1.5", note: "1.5 (R27): Word, PDF, Markdown and the PNG bundle can include auditor-ready restricted-administrative-unit pages in the same document as the policies — per unit: persona, protected groups, every CA include/exclude dependency, scoped administrators and role-definition-verified group-membership capability, with no-admin, empty, frozen and unreadable states called out. The appendix reads its own data and fails soft: a denied or broken optional integration never blocks the policy document. Word, PDF, PNG and PNG-bundle export with tenant branding" },
   toolAnalyze:      { v: "1.7", note: "1.7 (R29): a run can be scoped to named users or groups — a group expanded to its members, nothing read tenant-wide, and the result says what it was scoped to;users × policies impact matrix, group filters, standalone HTML report, scoped matrix columns" },
   toolGapCheck:     { v: "1.7", note: "scorecard pillars and signals are clickable and filter the findings list to their related categories (severity chips count the filtered view, ✕ chip or All clears);legacy-auth per-policy finding correlates with the tenant's dedicated block — LOW when an enabled tenant-wide block covers it, MEDIUM when the block is narrower, HIGH when there is none — and the scorecard signal mirrors it (100 full / 70 partial / 50 report-only / 0);Zero Trust scorecard (3 pillars, weighted 0-100 signals) on the summary and in the Markdown export; 7 new checks: risk-based-policy gaps, Microsoft-managed policy detection (incl. disabled phantom drafts), platform-scoping without an unknown-platform block, named-location hygiene, MFA client-app-type coverage, disabled resilience defaults, authentication-context / Protected Actions validation; bypass checks, persona × control matrix, deployed-but-Off state, Markdown export" },

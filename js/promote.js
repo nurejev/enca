@@ -43,6 +43,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 56,
+      title: "Policy ID on the expanded card",
+      tools: ["List Policies"],
+      builds: [25120],
+      risk: "low",
+      what: "The expanded policy card carries the policy ID in its footer, on screen and in the exported/PNG version, selectable in one click. Also escapes the five attributes built from a policy id.",
+      why: "Production drops the id the moment you open a policy — on exactly the card people screenshot and paste into tickets.",
+      files: ["js/render.js", "css/app.css", "index.html"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],
