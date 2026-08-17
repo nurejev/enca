@@ -1063,6 +1063,72 @@
   });
 
   // ---------- export ----------
+  // R27 lives inside Create documentation, not as another report hanging off
+  // the Restricted AUs tool. This adapter deliberately owns its reads: opening
+  // Restricted AUs first is never a prerequisite, and none of its ruList /
+  // ruDetails state is reused. The pure RmauDoc module receives plain data and
+  // can therefore be lifted into another host without this app.
+  async function readRestrictedDocumentation(onProgress) {
+    const rawPolicies = policies.map((p) => p.raw).filter(Boolean); // ALL tenant policies, not only the export selection
+    if (isDemo) {
+      const demo = (typeof DEMO_DATA !== "undefined" && DEMO_DATA) || {};
+      return RmauDoc.build({
+        units: (demo.adminUnits || []).map((a) => ({ ...a })),
+        detailsById: Object.fromEntries(Object.entries(demo.adminUnitDetails || {}).map(([id, d]) => [id, {
+          ...d,
+          members: Array.isArray(d.members) ? d.members.map((m) => ({ ...m })) : d.members,
+          scoped: Array.isArray(d.scoped) ? d.scoped.map((r) => ({ ...r, roleMemberInfo: r.roleMemberInfo ? { ...r.roleMemberInfo } : r.roleMemberInfo })) : d.scoped,
+        }])),
+        rawPolicies, directoryRoles: [], roleDefinitions: [],
+        tenant: tenantName, build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS,
+      });
+    }
+
+    let units;
+    try {
+      onProgress?.("Reading restricted administrative units…");
+      units = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,isMemberManagementRestricted");
+    } catch (e) {
+      return RmauDoc.build({ units: null, readError: e.message || String(e), rawPolicies,
+        tenant: tenantName, build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS });
+    }
+
+    // Role metadata is enrichment. A tenant or account that cannot read it
+    // still gets the unit pages, with capability marked unverified rather than
+    // guessed from a friendly role name.
+    let directoryRoles = [], roleDefinitions = [], directoryRolesError = "", roleDefinitionsError = "";
+    await Promise.all([
+      Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId")
+        .then((v) => { directoryRoles = v; })
+        .catch((e) => { directoryRolesError = e.message || String(e); }),
+      Graph.ggetAll("/roleManagement/directory/roleDefinitions?$select=id,displayName,templateId,rolePermissions")
+        .then((v) => { roleDefinitions = v; })
+        .catch((e) => { roleDefinitionsError = e.message || String(e); }),
+    ]);
+
+    const restricted = units.filter((a) => a.isMemberManagementRestricted === true);
+    const detailsById = {};
+    for (let i = 0; i < restricted.length; i++) {
+      const au = restricted[i];
+      onProgress?.(`Reading restricted unit ${i + 1}/${restricted.length}…`);
+      const detail = { members: null, scoped: null, membersError: "", scopedError: "" };
+      const [members, scoped] = await Promise.allSettled([
+        Graph.ggetAll(`/administrativeUnits/${au.id}/members?$select=id,displayName,userPrincipalName,isAssignableToRole`),
+        Graph.ggetAll(`/administrativeUnits/${au.id}/scopedRoleMembers`),
+      ]);
+      if (members.status === "fulfilled") detail.members = members.value.map((m) => ({ ...m }));
+      else detail.membersError = members.reason?.message || String(members.reason || "Members could not be read");
+      if (scoped.status === "fulfilled") detail.scoped = scoped.value.map((r) => ({ ...r,
+        roleMemberInfo: r.roleMemberInfo ? { ...r.roleMemberInfo } : r.roleMemberInfo }));
+      else detail.scopedError = scoped.reason?.message || String(scoped.reason || "Scoped roles could not be read");
+      detailsById[au.id] = detail;
+    }
+
+    return RmauDoc.build({ units, detailsById, rawPolicies, directoryRoles, roleDefinitions,
+      directoryRolesError, roleDefinitionsError, tenant: tenantName,
+      build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS });
+  }
+
   function openExport() {
     currentExport = selected.size ? [...selected] : visible().map(p => p.id);
     if (!currentExport.length) return;
@@ -1078,12 +1144,34 @@
   function syncFmt() {
     ["Png", "Pdf", "Docx", "Zip", "Md", "Json"].forEach(f => $("expOpt" + f).classList.toggle("sel", fmt === f.toLowerCase()));
     $("expMatrixWrap").style.display = fmt === "pdf" ? "flex" : "none"; // appendix only applies to PDF
+    // A single PNG is exactly one policy image and JSON is a backup. The
+    // restricted-unit pages belong to the multi-page / multi-file documents.
+    $("expRmauWrap").style.display = ["pdf", "docx", "zip", "md"].includes(fmt) ? "flex" : "none";
   }
   async function doExport() {
     $("exportModal").classList.remove("open");
     // export in persona order (CA number ranges): Global, Admins, Internals, …
     const ps = exportOrder(currentExport.map(id => policies.find(p => p.id === id)));
     try {
+      const wantsRestricted = $("expRmau").checked && ["pdf", "docx", "zip", "md"].includes(fmt);
+      let restrictedDoc = null;
+      if (wantsRestricted) {
+        try {
+          restrictedDoc = await readRestrictedDocumentation((m) => toast(m));
+          if (restrictedDoc.readError) toast("Restricted-unit appendix <span>not captured</span> — policy documentation continues");
+        } catch (e) {
+          // Optional integration: even a bug in its adapter cannot break the
+          // policy export. Preserve the omission inside the deliverable when
+          // the pure module is still available; otherwise continue without it.
+          console.warn("Restricted-unit documentation unavailable:", e);
+          try {
+            restrictedDoc = RmauDoc.build({ units: null, readError: e.message || String(e),
+              tenant: tenantName, build: APP_BUILD.label });
+          } catch { restrictedDoc = null; }
+          toast("Restricted-unit appendix <span>unavailable</span> — exporting the policies anyway");
+        }
+      }
+      const docOpts = { restrictedDoc };
       if (fmt === "png") {
         for (const p of ps) {
           toast(`Exporting <span>${p.seq}.png</span>…`);
@@ -1091,19 +1179,19 @@
         }
         toast("PNG export <span>done</span>");
       } else if (fmt === "docx") {
-        await Exporter.policiesDocx(ps, tenantName, tenantLogo, (m) => toast(m));
+        await Exporter.policiesDocx(ps, tenantName, tenantLogo, (m) => toast(m), docOpts);
         toast("Word export <span>done</span> — images can be copied straight into other documents");
       } else if (fmt === "zip") {
-        await Exporter.policiesZip(ps, tenantName, tenantLogo, (m) => toast(m));
+        await Exporter.policiesZip(ps, tenantName, tenantLogo, (m) => toast(m), docOpts);
         toast("PNG bundle <span>done</span>");
       } else if (fmt === "md") {
-        await Exporter.policiesMd(ps, tenantName);
+        await Exporter.policiesMd(ps, tenantName, docOpts);
         toast("Markdown export <span>done</span>");
       } else if (fmt === "json") {
         await Exporter.policiesJson(ps, tenantName);
         toast("JSON backup <span>done</span>");
       } else {
-        await Exporter.policiesPdf(ps, tenantName, $("expMatrix").checked, (m) => toast(m), tenantLogo);
+        await Exporter.policiesPdf(ps, tenantName, $("expMatrix").checked, (m) => toast(m), tenantLogo, docOpts);
         toast("PDF export <span>done</span>");
       }
     } catch (e) {
@@ -1197,8 +1285,8 @@
     { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
     { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting on a group so no group can be added as a member (beta)", tools: "CA groups (disable nesting)", onDemand: true },
     { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "Group Analyzer", onDemand: true },
-    { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer", onDemand: true },
-    { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer", onDemand: true },
+    { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer, Device reality check", onDemand: true },
+    { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementServiceConfig.Read.All", use: "Read Intune enrolment restrictions and Autopilot deployment profiles", tools: "Group Analyzer", onDemand: true },
     { scope: "DeviceManagementScripts.Read.All", use: "Read Intune PowerShell scripts, macOS shell scripts and remediations — a separate scope, not covered by DeviceManagementConfiguration.Read.All", tools: "Group Analyzer", onDemand: true },
   ];
@@ -6797,7 +6885,7 @@ max@contoso.com,"Global, DevOps"</pre>
     // Run prompt reappears and it looks like the read was cancelled.
     if (auBusy) { $("auBody").innerHTML = auBusyPanel(); return; }
     if (auRes) { renderAudit(); return; }
-    $("auHead").innerHTML = `<h3>🕓 Change audit <span class="tag new">NEW</span></h3>
+    $("auHead").innerHTML = `<h3>🕓 Change audit <span class="tag upd">UPDATED</span></h3>
       <p style="margin-bottom:4px">Who changed which Conditional Access resource, when, and exactly what changed — policies, named locations, authentication strengths and contexts, and terms of use.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>directory audit log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise.</p>`;
     $("auChips").innerHTML = "";
@@ -6920,7 +7008,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const K = Audit.KIND;
     $("auHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🕓 Change audit <span class="tag new">NEW</span></h3>
+        <h3>🕓 Change audit <span class="tag upd">UPDATED</span></h3>
         <p style="margin-bottom:4px">Every Conditional Access change in the last ${auRangeLabel(auDays)}, newest first — expand one to see the exact fields that moved.</p>
         <p class="mini muted" style="margin:0">From the Entra directory audit log. Retention is licence-bound (≈30 days on P1/P2), so this is a rolling window, not a full history.</p>
       </div>

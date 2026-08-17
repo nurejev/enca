@@ -43,10 +43,20 @@ const PROMOTE = {
 
   items: [
     {
+      n: 53,
+      title: "📄 Restricted-unit documentation pages (R27)",
+      tools: ["Create documentation"],
+      builds: [25115],
+      risk: "low",
+      what: "Create documentation can append an auditor-ready restricted-administrative-unit overview and one page per unit to Word, PDF, Markdown and the PNG bundle. Each page names the persona, protected objects, every CA policy that includes or excludes each group, scoped administrators and role-definition-verified membership capability; no-admin, empty, frozen and unreadable states are explicit. New pure js/rmaudoc.js model/render contract plus thin Graph and exporter adapters.",
+      why: "Read-only and optional. The appendix owns its reads and every integration boundary fails soft: a denied, unavailable or broken restricted-unit read or supplemental-page render never blocks the policy documentation. It should prove the reviewer wording and role-capability interpretation on real estates before production.",
+      files: ["js/rmaudoc.js", "js/export.js", "js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 52,
       title: "🕓 Change audit short incident windows",
       tools: ["Change audit"],
-      builds: [25114],
+      builds: [25114, 25115],
       risk: "low",
       what: "The range selector adds the last 1 hour, 4 hours and 24 hours alongside the existing 7/30/90-day windows. The directory-audit query is narrowed at Graph, and the result heading, Markdown export and snapshot comparison name the short window in hours. Help explains when to use the short windows and how the selected audit window supplies attribution to Drift watch.",
       why: "Read-only and only narrows an existing audit-log read. Production starts at seven days, which adds avoidable paging and unrelated changes when the question is who touched a policy during a fresh rollout or incident.",
@@ -56,7 +66,7 @@ const PROMOTE = {
       n: 35,
       title: "🖥 Compliant-device reality check (R11)",
       tools: ["Device reality check"],
-      builds: [25109, 25110, 25111],
+      builds: [25109, 25110, 25111, 25115],
       risk: "low",
       what: "New beta-only tool: per CA policy and per platform, is the scope of a compliant-device / approved-client-app grant actually assigned an Intune compliance or app-protection policy — with the tenant default for policy-less devices read first, OR-alternatives named, every Intune policy listed with the groups it is assigned to, and a membership-matching pass (transitive) that catches coverage through differently-named groups before anything is called uncovered. New js/devcheck.js plus tile, screen, Help section and wiring.",
       why: "Reads only (two on-demand Intune scopes), but its verdicts accuse a tenant of silent gaps — that must be right against enough real Intune estates before a customer sees it, so it graduates once the coverage logic has proven itself.",
