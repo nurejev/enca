@@ -16,9 +16,9 @@
 // (or demo data):
 //   ctx = {
 //     policies:  [conditionalAccessPolicy raws],
-//     comp:      [deviceCompliancePolicy raws, $expand=assignments],
-//     compSC:    [settings-catalog compliancePolicies raws, $expand=assignments],
-//     appPols:   [{ platform:"iOS"|"android"|"windows", name, assignments }],
+//     comp:      [deviceCompliancePolicy raws, assignments + assignmentsKnown],
+//     compSC:    [settings-catalog compliancePolicies raws, assignments + assignmentsKnown],
+//     appPols:   [{ platform:"iOS"|"android"|"windows", name, assignments, assignmentsKnown }],
 //     settings:  deviceManagementSettings | null   (null = not read),
 //     names:     { id → displayName } for every group id involved,
 //   }
@@ -71,11 +71,13 @@ const DevCheck = (() => {
     const out = [];
     for (const p of ctx.comp || []) {
       const plat = platformOf(p);
-      if (plat) out.push({ name: p.displayName || p.name || "(unnamed)", platform: plat, t: targetsOf(p.assignments) });
+      if (plat) out.push({ name: p.displayName || p.name || "(unnamed)", platform: plat,
+        t: targetsOf(p.assignments), assignmentsKnown: p.assignmentsKnown !== false });
     }
     for (const p of ctx.compSC || []) {
       const plat = platformOf(p);
-      if (plat) out.push({ name: p.name || p.displayName || "(unnamed)", platform: plat, t: targetsOf(p.assignments) });
+      if (plat) out.push({ name: p.name || p.displayName || "(unnamed)", platform: plat,
+        t: targetsOf(p.assignments), assignmentsKnown: p.assignmentsKnown !== false });
     }
     return out;
   }
@@ -140,7 +142,9 @@ const DevCheck = (() => {
     const asgIds = [...new Set(onPlat.flatMap((p) => p.t.groups))];
     const excIds = [...new Set(onPlat.flatMap((p) => p.t.exclude))];
     if (!scope.groups.length && !scope.users.length) return null;
-    if (!scope.groups.every(have) || !asgIds.every(have) || !excIds.every(have)) return null;
+    const relevant = [...new Set([...scope.groups, ...asgIds, ...excIds])];
+    const missing = relevant.filter((id) => !have(id));
+    if (missing.length) return { unknown: true, missing, cappedIds: [] };
     const caUsers = new Set(scope.groups.flatMap((g) => members[g].users));
     for (const u of scope.users) caUsers.add(u);
     const covered = new Set();
@@ -150,9 +154,9 @@ const DevCheck = (() => {
     }
     const uncov = [...caUsers].filter((u) => !covered.has(u));
     const deviceGroups = asgIds.filter((g) => (members[g] || {}).devices > 0);
-    const capped = [...scope.groups, ...asgIds, ...excIds].some((g) => (members[g] || {}).capped);
+    const cappedIds = relevant.filter((g) => (members[g] || {}).capped);
     const contributing = onPlat.filter((p) => p.t.groups.some((g) => (members[g] || { users: [] }).users.some((u) => caUsers.has(u))));
-    return { total: caUsers.size, uncovered: uncov.length, deviceGroups, capped, contributing };
+    return { total: caUsers.size, uncovered: uncov.length, deviceGroups, cappedIds, contributing };
   }
 
   function platformVerdict(pols, plat, scope, ctx) {
@@ -163,16 +167,19 @@ const DevCheck = (() => {
     // via entry therefore names the policy AND its assigned groups (and its
     // exclusion groups, because an exclusion is how coverage leaks too).
     const withGroups = (p) => {
+      if (p.assignmentsKnown === false) return `${p.name} → (assignments could not be read)`;
       const g = p.t.allDevices ? ["All devices"] : p.t.allUsers ? ["All users"] : p.t.groups.map(nm);
       const ex = p.t.exclude.length ? ` excl. ${p.t.exclude.map(nm).join(", ")}` : "";
       return `${p.name} → ${g.length ? g.join(", ") : "(assigned to nothing)"}${ex}`;
     };
     const onPlat = pols.filter((p) => p.platform === plat);
     if (!onPlat.length) return { plat, verdict: "uncovered", via: [], detail: `no Intune policy exists for ${PLAT[plat]}` };
-    const broad = onPlat.filter((p) => p.t.allDevices || p.t.allUsers);
+    const knownOnPlat = onPlat.filter((p) => p.assignmentsKnown !== false);
+    const unknownAssignments = onPlat.filter((p) => p.assignmentsKnown === false);
+    const broad = knownOnPlat.filter((p) => p.t.allDevices || p.t.allUsers);
     if (broad.length) return { plat, verdict: "covered", via: broad.map(withGroups),
       detail: `assigned to ${broad[0].t.allDevices ? "All devices" : "All users"}` };
-    const assigned = new Set(onPlat.flatMap((p) => p.t.groups));
+    const assigned = new Set(knownOnPlat.flatMap((p) => p.t.groups));
     if (scope.all || scope.guests || scope.roles.length) {
       // "All users" (or roles / guests) against group-assigned Intune
       // policies: that scope cannot be enumerated, so whoever is outside
@@ -187,29 +194,38 @@ const DevCheck = (() => {
         detail: "every included group is directly assigned a policy" };
 
     // Assignment alone could not prove it — try the members themselves.
-    const mv = memberVerdict(onPlat, scope, ctx);
+    const mv = memberVerdict(knownOnPlat, scope, ctx);
     if (mv) {
-      const capNote = mv.capped ? " (a membership was truncated at the read cap — treat the count as a floor)" : "";
+      if (mv.unknown) return { plat, verdict: "partial", via: onPlat.map(withGroups),
+        detail: `membership could not be read safely for ${mv.missing.map(nm).join(", ")} — assignment names alone do not prove coverage` };
+      if (mv.cappedIds.length) return { plat, verdict: "partial", via: onPlat.map(withGroups),
+        detail: `membership hit the read cap for ${mv.cappedIds.map(nm).join(", ")} — the observed overlap is incomplete, so coverage cannot be proven` };
       if (!mv.total)
         return { plat, verdict: "partial", via: onPlat.map(withGroups),
           detail: "the included scope has no members today — nothing to cover, and nothing protected" };
       if (!mv.uncovered)
         return { plat, verdict: "covered", via: mv.contributing.map(withGroups),
-          detail: `no group is assigned by name, but all ${mv.total} member${mv.total === 1 ? "" : "s"} of the CA scope sit inside assigned groups — matched by membership${capNote}` };
+          detail: `no group is assigned by name, but all ${mv.total} member${mv.total === 1 ? "" : "s"} of the CA scope sit inside assigned groups — matched by membership` };
       const devNote = mv.deviceGroups.length
         ? ` — and ${mv.deviceGroups.length} assigned group${mv.deviceGroups.length === 1 ? " is a DEVICE group" : "s are DEVICE groups"} (${mv.deviceGroups.map(nm).join(", ")}), which cannot be matched to the users of the CA scope, so the real coverage may be higher`
         : "";
       if (mv.uncovered < mv.total)
         return { plat, verdict: "partial", via: onPlat.map(withGroups),
-          detail: `${mv.total - mv.uncovered} of ${mv.total} members of the CA scope ${mv.total - mv.uncovered === 1 ? "is" : "are"} covered by membership; ${mv.uncovered} ${mv.uncovered === 1 ? "is" : "are"} in no assigned group${devNote}${capNote}` };
+          detail: `${mv.total - mv.uncovered} of ${mv.total} members of the CA scope ${mv.total - mv.uncovered === 1 ? "is" : "are"} covered by membership; ${mv.uncovered} ${mv.uncovered === 1 ? "is" : "are"} in no assigned group${devNote}` };
+      if (unknownAssignments.length)
+        return { plat, verdict: "partial", via: onPlat.map(withGroups),
+          detail: `none of the ${mv.total} observed member${mv.total === 1 ? "" : "s"} is in a policy whose assignments were readable, but ${unknownAssignments.length} polic${unknownAssignments.length === 1 ? "y's assignments were" : "ies' assignments were"} not read — coverage cannot be proven either way` };
       return { plat, verdict: mv.deviceGroups.length ? "partial" : "uncovered", via: onPlat.map(withGroups),
-        detail: `none of the ${mv.total} member${mv.total === 1 ? "" : "s"} of the CA scope is in any assigned group${devNote}${capNote}` };
+        detail: `none of the ${mv.total} member${mv.total === 1 ? "" : "s"} of the CA scope is in any assigned group${devNote}` };
     }
 
     // No membership data — fall back to what assignments alone can say.
     if (matched.length)
       return { plat, verdict: "partial", via: onPlat.map(withGroups),
         detail: `assigned for ${matched.map(nm).join(", ")} — NOT for ${unmatched.map(nm).join(", ")}` };
+    if (unknownAssignments.length)
+      return { plat, verdict: "partial", via: onPlat.map(withGroups),
+        detail: `${unknownAssignments.length} ${unknownAssignments.length === 1 ? "policy has" : "policies have"} assignments that could not be read — coverage is not proven` };
     return { plat, verdict: "uncovered", via: onPlat.map(withGroups),
       detail: `${PLAT[plat]} policies exist but none is assigned to ${scope.groups.length ? unmatched.map(nm).join(", ") : "this scope"}` };
   }
@@ -221,7 +237,8 @@ const DevCheck = (() => {
   function analyze(ctx) {
     const comp = compliancePolicies(ctx);
     const appByPlat = { iOS: [], android: [], windows: [] };
-    for (const p of ctx.appPols || []) if (appByPlat[p.platform]) appByPlat[p.platform].push({ name: p.name, platform: p.platform, t: targetsOf(p.assignments) });
+    for (const p of ctx.appPols || []) if (appByPlat[p.platform]) appByPlat[p.platform].push({ name: p.name,
+      platform: p.platform, t: targetsOf(p.assignments), assignmentsKnown: p.assignmentsKnown !== false });
 
     const results = [];
     for (const raw of ctx.policies || []) {

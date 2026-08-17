@@ -7617,9 +7617,14 @@ max@contoso.com,"Global, DevOps"</pre>
   // gets its assignments re-read individually before the analysis sees it.
   async function dvFillAssignments(list, base) {
     for (const p of list) {
-      if ((p.assignments || []).length || !p.id) continue;
-      try { p.assignments = (await Graph.gget(`${base}/${p.id}/assignments`)).value || []; }
-      catch { /* stays as the list said — empty */ }
+      if ((p.assignments || []).length) { p.assignmentsKnown = true; continue; }
+      if (!p.id) { p.assignmentsKnown = false; continue; }
+      try {
+        p.assignments = (await Graph.gget(`${base}/${p.id}/assignments`)).value || [];
+        p.assignmentsKnown = true; // a successful empty read really is unassigned
+      } catch {
+        p.assignmentsKnown = false; // unknown is not the same thing as empty
+      }
     }
     return list;
   }
@@ -7648,7 +7653,8 @@ max@contoso.com,"Global, DevOps"</pre>
       for (const [base, platform] of fams) {
         try {
           const list = await dvFillAssignments(await Graph.ggetAll(`${base}?$expand=assignments`), base);
-          for (const p of list) out.push({ platform, name: p.displayName || p.name, assignments: p.assignments });
+          for (const p of list) out.push({ platform, name: p.displayName || p.name,
+            assignments: p.assignments, assignmentsKnown: p.assignmentsKnown });
         } catch { /* family missing on this cloud — the others still count */ }
       }
       return out;
@@ -7766,7 +7772,7 @@ max@contoso.com,"Global, DevOps"</pre>
     : s === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
 
   function renderDevCheck() {
-    $("dvHead").innerHTML = `<h3>🖥 Compliant-device reality check <span class="tag new">BETA</span></h3>
+    $("dvHead").innerHTML = `<h3>🖥 Compliant-device reality check <span class="tag new">NEW</span></h3>
       <p style="margin-bottom:4px">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — the CA side names <b>who</b> must present a compliant device, the Intune side decides <b>which devices can ever be one</b>, and nothing else checks that the two halves meet. Per CA policy and per platform: is the scope actually assigned a compliance policy? Same check for app-protection behind “require approved client app”.</p>
       <p class="mini muted" style="margin:0">Reads only — Intune compliance and app-protection policies with their assignments, and the tenant default that decides what an uncovered device becomes.</p>`;
     if (dvBusy) return;   // the run panel owns dvBody until the read finishes

@@ -23,6 +23,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25116, date: "2026-08-17", title: "Device reality and short audit windows reach production 282",
+    items: [
+      { kind: "improved", tool: "Device reality check", text: "Promotion item 35 reached production build 282. Device reality check is now v1.0 and out of BETA, carrying NEW on both channels: per CA policy and platform it joins the Conditional Access device grant to its Intune compliance or app-protection assignment, reads the tenant default first, names OR alternatives and exports the evidence as Markdown." },
+      { kind: "fixed", tool: "Device reality check", text: "Incomplete evidence can no longer become a confident verdict. If an Intune policy's assignments cannot be re-read, a relevant membership cannot be read, or a membership hits the read cap, the result is <b>not proven</b> — never “assigned to nothing,” covered from a truncated list, or uncovered from a failed read. Direct assignments and complete transitive membership overlap still prove coverage." },
+      { kind: "improved", tool: "Change audit", text: "Promotion item 52 reached production build 282. The 1-, 4- and 24-hour incident windows, their human-readable screen/export labels, and the matching Drift watch guidance are now the same on beta and production." },
+      { kind: "improved", tool: "Roadmap", text: "R11 now records production build 282. R27 remains the next independent promotable change — item 53 — and its optional, fail-soft restricted-unit pages stay on beta until that number is selected." },
+      { kind: "improved", tool: "All tools", text: "The beta promotion queue now compares against production v1.0.282 and removes exactly rows 35 and 52. The remaining numbered gap is 53 (R27), 34 (CIS Help, inseparable from the beta-only CIS tool) and 24 (Baseline guide)." },
+    ],
+  },
+  {
     build: 25115, date: "2026-08-17", title: "Restricted-unit pages belong in the document (R27)",
     items: [
       { kind: "new", tool: "Create documentation", text: "R27 is now the thing its roadmap card asked for: <b>restricted administrative units are optional pages inside the same Word, PDF, Markdown or PNG-bundle documentation as the Conditional Access policies</b>, not a second Markdown report in the Restricted AUs tool. The appendix opens with a review summary and gives every restricted unit its own page: persona and CA range, the objects it protects, every policy that includes or excludes each protected group, the people scoped to the unit, and whether the actual directory role definition contains a group-membership update action." },
