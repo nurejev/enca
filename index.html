@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25128"></script>
+<script src="js/popup-guard.js?v=25129"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25128">
+<link rel="stylesheet" href="css/app.css?v=25129">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25128"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25128"></script>
+<script src="js/counter.js?v=25129"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25129"></script>
 </head>
 <body>
 
@@ -1763,6 +1763,7 @@
         <li><b>Only groups this run created are placed</b> — a group that already existed is left where it is, because it may be somewhere on purpose and that is not the import's call to make. A group used by <b>two personas</b> is not placed either, and the report says why: an object may sit in several restricted units and a scoped administrator on <i>any</i> of them can manage it, so filing a shared group under one persona hands that persona's admin control of the other's exclusions, and filing it under both hands it to either. Split it per persona, or place it by hand knowing who can reach it.</li>
         <li><b>An unreadable check says so</b> — if the tenant's administrative units cannot be read, the panel reports that it could not check rather than reporting everything present, and the import proceeds unprotected with each group named in the report.</li>
               <li><b>Role-assignable groups in the file are found before the import, not after.</b> A baseline exported from a tenant that still used the role-assignable flag brings those groups with it, and importing on top of them is not neutral: the flag is <b>immutable</b>, it forbids controlling nesting, and it cannot be combined with a restricted management administrative unit — a group carrying both has nobody who can change its members. So the policies would import cleanly and land on groups the baseline has deliberately moved away from, and the 🛡 protection step would silently skip exactly those. The preflight now names them and says what will happen either way. Converting means recreating each one — rename aside, plain security group with nesting disabled, members copied, every referencing policy repointed — which runs in <b>⑦ Migrate</b> behind its own typed confirmation and report, and is deliberately not reimplemented here: one destructive operation, one implementation. Import now and convert later is still a choice; the report lists them as unprotected.</li>
+        <li><b>A tenant that partly has the groups is the normal case, and the two halves are treated differently.</b> Groups the file brings that already exist here are <b>reused</b> — the policies bind to them, nothing is duplicated, and nothing about them is changed. That is the safe default: an existing group may hold members and sit somewhere deliberately, and an import is not the place to overrule that. But it means a reused group <b>inherits none of the hardening a created one gets</b>: a created group has nesting disabled and is filed into its persona vault, a reused one keeps whatever it has, and the placement step skips it on purpose. That skip used to be invisible — a reused group appeared in the report as a bare name. The preflight now lists them with what is actually being inherited: nesting disabled, allowed, or not reported by this tenant; already in a restricted unit or unprotected; a Microsoft 365 group that can never go in one; and a <b>shape mismatch</b>, where the file expects a dynamic group with a membership rule and the tenant has an assigned group of that name — the rule is not applied, and that would otherwise pass unnoticed. Finish the job afterwards from 🔒 Protect exclusions and ⑧ Disable nesting; both are safe on a group that already has members.</li>
 </ul>
       <p class="help-x">Writes; a change report is shown on screen and downloadable. Creating administrative units is a separate click from Import, and needs <code>AdministrativeUnit.ReadWrite.All</code> plus <b>Privileged Role Administrator</b>.</p>
     </section>
@@ -2390,49 +2391,49 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25128"></script>
-<script src="js/version.js?v=25128"></script>
-<script src="js/promote.js?v=25128"></script>
-<script src="js/authConfig.js?v=25128"></script>
-<script src="js/labels.js?v=25128"></script>
-<script src="js/graph.js?v=25128"></script>
-<script src="js/model.js?v=25128"></script>
-<script src="js/render.js?v=25128"></script>
-<script src="js/analyze.js?v=25128"></script>
-<script src="js/whatif.js?v=25128"></script>
-<script src="js/mslearn.js?v=25128"></script>
-<script src="js/gapcheck.js?v=25128"></script>
-<script src="js/cisdata.js?v=25128"></script>
-<script src="js/cischeck.js?v=25128"></script>
-<script src="js/exclusions.js?v=25128"></script>
-<script src="js/validator.js?v=25128"></script>
-<script src="js/whatifeval.js?v=25128"></script>
-<script src="js/compare.js?v=25128"></script>
-<script src="js/groupuse.js?v=25128"></script>
-<script src="js/iso3166.js?v=25128"></script>
-<script src="js/locations.js?v=25128"></script>
-<script src="js/authcontexts.js?v=25128"></script>
-<script src="js/authstrengths.js?v=25128"></script>
-<script src="js/recycle.js?v=25128"></script>
-<script src="js/rmau.js?v=25128"></script>
-<script src="js/rmaudoc.js?v=25128"></script>
-<script src="js/termsofuse.js?v=25128"></script>
-<script src="js/audit.js?v=25128"></script>
-<script src="js/drift.js?v=25128"></script>
-<script src="js/guide.js?v=25128"></script>
-<script src="js/devcheck.js?v=25128"></script>
-<script src="js/signins.js?v=25128"></script>
-<script src="js/reportimpact.js?v=25128"></script>
-<script src="js/changelog.js?v=25128"></script>
-<script src="js/baselineData.js?v=25128"></script>
-<script src="js/baselineJoeyData.js?v=25128"></script>
-<script src="js/baseline.js?v=25128"></script>
-<script src="js/groupTemplates.js?v=25128"></script>
-<script src="js/assign.js?v=25128"></script>
-<script src="js/cagroups.js?v=25128"></script>
-<script src="js/import.js?v=25128"></script>
-<script src="js/export.js?v=25128"></script>
-<script src="js/demo.js?v=25128"></script>
-<script src="js/app.js?v=25128"></script>
+<script src="js/branding.js?v=25129"></script>
+<script src="js/version.js?v=25129"></script>
+<script src="js/promote.js?v=25129"></script>
+<script src="js/authConfig.js?v=25129"></script>
+<script src="js/labels.js?v=25129"></script>
+<script src="js/graph.js?v=25129"></script>
+<script src="js/model.js?v=25129"></script>
+<script src="js/render.js?v=25129"></script>
+<script src="js/analyze.js?v=25129"></script>
+<script src="js/whatif.js?v=25129"></script>
+<script src="js/mslearn.js?v=25129"></script>
+<script src="js/gapcheck.js?v=25129"></script>
+<script src="js/cisdata.js?v=25129"></script>
+<script src="js/cischeck.js?v=25129"></script>
+<script src="js/exclusions.js?v=25129"></script>
+<script src="js/validator.js?v=25129"></script>
+<script src="js/whatifeval.js?v=25129"></script>
+<script src="js/compare.js?v=25129"></script>
+<script src="js/groupuse.js?v=25129"></script>
+<script src="js/iso3166.js?v=25129"></script>
+<script src="js/locations.js?v=25129"></script>
+<script src="js/authcontexts.js?v=25129"></script>
+<script src="js/authstrengths.js?v=25129"></script>
+<script src="js/recycle.js?v=25129"></script>
+<script src="js/rmau.js?v=25129"></script>
+<script src="js/rmaudoc.js?v=25129"></script>
+<script src="js/termsofuse.js?v=25129"></script>
+<script src="js/audit.js?v=25129"></script>
+<script src="js/drift.js?v=25129"></script>
+<script src="js/guide.js?v=25129"></script>
+<script src="js/devcheck.js?v=25129"></script>
+<script src="js/signins.js?v=25129"></script>
+<script src="js/reportimpact.js?v=25129"></script>
+<script src="js/changelog.js?v=25129"></script>
+<script src="js/baselineData.js?v=25129"></script>
+<script src="js/baselineJoeyData.js?v=25129"></script>
+<script src="js/baseline.js?v=25129"></script>
+<script src="js/groupTemplates.js?v=25129"></script>
+<script src="js/assign.js?v=25129"></script>
+<script src="js/cagroups.js?v=25129"></script>
+<script src="js/import.js?v=25129"></script>
+<script src="js/export.js?v=25129"></script>
+<script src="js/demo.js?v=25129"></script>
+<script src="js/app.js?v=25129"></script>
 </body>
 </html>

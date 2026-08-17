@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25129, date: "2026-08-17", title: "Importing into a tenant that partly has the groups says what it inherits",
+    items: [
+      { kind: "new", tool: "Import", text: "A tenant that already has some of a file's groups is the normal case, and the two halves are treated very differently. Groups that exist are REUSED \u2014 policies bind to them, nothing is duplicated, nothing about them changes \u2014 while groups that are created get nesting disabled and get filed into their persona vault. Placement deliberately skips an existing group, because it may hold members and sit somewhere on purpose. All defensible; all previously invisible, because a reused group appeared in the report as a bare name. Its nesting, its protection and whether it even matched the shape the file expects were unstated, and silence there reads as \"fine\"." },
+      { kind: "new", tool: "Import", text: "The preflight now lists every group that will be reused with what is actually inherited: nesting disabled, allowed, or NOT REPORTED by this tenant (which is not the same as allowed \u2014 a plain read does not return the property); already in a restricted unit, or unprotected with the note that the import will not file an existing group into a vault; and a Microsoft 365 group, which can never go in one." },
+      { kind: "new", tool: "Import", text: "It also catches a SHAPE MISMATCH nothing checked before: the file expects a dynamic group with a membership rule and the tenant has an assigned group of that name, so the rule is never applied and the group keeps whatever members it has \u2014 or the reverse, where the file expects assigned and the tenant's dynamic rule goes on deciding the membership. Both would have imported cleanly and quietly. No extra requests for any of it: the same batch that finds role-assignable groups now selects the other fields, and protection comes from one tenant-wide read." },
+    ],
+  },
+  {
     build: 25128, date: "2026-08-17", title: "Import finds the role-assignable groups a file would build on (R04)",
     items: [
       { kind: "new", tool: "Import", text: "R04 \u2014 a baseline exported from a tenant that still used the role-assignable flag brings those groups with it, and importing on top of them is not neutral. The flag is immutable, it forbids controlling nesting, and it cannot be combined with a restricted management administrative unit \u2014 a group carrying both has nobody who can change its members. So the policies would import cleanly, land on groups the baseline has deliberately moved away from, and the \ud83d\udee1 protection step would silently skip exactly those. The preflight now reads the groups THIS FILE brings, one batch, and names any that already exist here as role-assignable." },

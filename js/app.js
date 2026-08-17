@@ -1845,24 +1845,49 @@
   let imRa = null;   // { rows, busy, error, checked }
 
   async function imLoadRoleAssignable() {
-    imRa = { rows: [], busy: false, error: null, checked: false };
+    imRa = { rows: [], existing: [], busy: false, error: null, checked: false };
     const names = [...new Set((imBundle?.groups || []).map((g) => g.displayName).filter(Boolean))];
     if (!names.length) return;
     if (isDemo) {
       imRa.checked = true;
       imRa.rows = names.filter((n) => /CA101|Admins/i.test(n)).slice(0, 1)
         .map((n) => ({ name: n, id: "demo-ra-" + n }));
+      imRa.existing = imRa.rows.map((r) => ({ ...r, roleAssignable: true, nesting: "allowed", typeMismatch: null, m365: false, protectedIn: null }));
       return;
     }
     try {
       // One batch, one request per name: displayName is not filterable with
       // `in`, and a name with an apostrophe has to survive the quoting.
       const reqs = names.map((n, i) => ({ id: String(i),
-        url: `/groups?$filter=displayName eq '${n.replace(/'/g, "''")}'&$select=id,displayName,isAssignableToRole&$top=1` }));
+        url: `/groups?$filter=displayName eq '${n.replace(/'/g, "''")}'&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled,disableNesting&$top=1` }));
       const res = await Graph.gbatch(reqs);
+      const found = new Map();
       for (const r of (res || [])) {
         const g = ((r.body && r.body.value) || [])[0];
-        if (g && g.isAssignableToRole === true) imRa.rows.push({ id: g.id, name: g.displayName });
+        if (g) found.set(String(g.displayName || "").toLowerCase(), g);
+      }
+      // Where the tenant's protected groups already live — one call for all of
+      // them, not one per group.
+      let prot = new Map();
+      try { prot = await readProtectionMap(); } catch { /* leave protection unknown */ }
+      for (const src of (imBundle.groups || [])) {
+        const g = found.get(String(src.displayName || "").toLowerCase());
+        if (!g) continue;                                  // not here yet — it will be created
+        const wantDynamic = (src.groupTypes || []).includes("DynamicMembership");
+        const isDynamic = (g.groupTypes || []).includes("DynamicMembership");
+        const row = {
+          id: g.id, name: g.displayName,
+          roleAssignable: g.isAssignableToRole === true,
+          // A plain GET does not return disableNesting; this select does, but
+          // only where it is set — so absent means "allowed, or this tenant has
+          // not got the feature", which is not the same as allowed.
+          nesting: g.disableNesting === true ? "disabled" : g.disableNesting === false ? "allowed" : "unreported",
+          typeMismatch: wantDynamic !== isDynamic ? (wantDynamic ? "the file expects a DYNAMIC group with a membership rule; this one is assigned, and the rule will not be applied" : "the file expects an ASSIGNED group; this one is dynamic, so its rule keeps deciding the members") : null,
+          m365: (g.groupTypes || []).includes("Unified"),
+          protectedIn: prot.get(g.id) || null,
+        };
+        imRa.existing.push(row);
+        if (row.roleAssignable) imRa.rows.push({ id: g.id, name: g.displayName });
       }
       imRa.checked = true;
     } catch (e) {
@@ -1888,6 +1913,46 @@
         <button class="btn" id="imRaGo">⑦ Convert ${n === 1 ? "it" : "them"} first — open Migrate</button>
         <span class="mini muted">or import now and convert later; the report will list them as unprotected</span>
       </div>
+    </div>`;
+  }
+
+  // A tenant that PARTLY has the groups is the normal case, not an edge one,
+  // and the two halves are treated very differently:
+  //
+  //   created  -> nesting disabled, placed in its persona vault
+  //   reused   -> left exactly as it is, and placement is deliberately skipped
+  //               ("a group that already existed may be somewhere deliberately")
+  //
+  // That skip is a reasonable decision and it was an invisible one: a reused
+  // group appeared in the report's `reused` list as a bare name, so its nesting,
+  // its protection and whether it even matches the shape the file expects were
+  // all unstated. Silence there reads as "fine". This says what is actually
+  // being inherited, before the import runs.
+  function imExPanel() {
+    if (!imRa || imRa.error || !(imRa.existing || []).length) return "";
+    const rows = imRa.existing;
+    const notable = rows.filter((r) => r.typeMismatch || r.m365 || (!r.roleAssignable && (r.nesting !== "disabled" || !r.protectedIn)));
+    const line = (r) => {
+      const bits = [];
+      if (r.typeMismatch) bits.push(`<span style="color:var(--off)">⚠ ${esc(r.typeMismatch)}</span>`);
+      if (r.m365) bits.push(`<span style="color:var(--off)">⚠ Microsoft 365 group — it cannot go in a restricted unit at all</span>`);
+      if (r.roleAssignable) bits.push(`<span class="tag block">role-assignable</span> handled above`);
+      else {
+        bits.push(r.nesting === "disabled" ? `🚫 nesting already disabled`
+          : r.nesting === "allowed" ? `<span style="color:var(--off)">↪ nesting allowed — a group can be nested inside it, and the import will not change that</span>`
+          : `<span class="muted">nesting not reported by this tenant — it may be allowed</span>`);
+        bits.push(r.protectedIn ? `🔒 already in ${esc(r.protectedIn.auName)}`
+          : `<span style="color:var(--off)">unprotected — and the import will NOT file an existing group into a vault</span>`);
+      }
+      return `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b></div>
+        <div class="mini">${bits.join(" · ")}</div></div>`;
+    };
+    return `<div class="cg-panel">
+      <h4>♻️ ALREADY HERE — ${rows.length} OF THIS FILE'S GROUPS WILL BE REUSED</h4>
+      <p class="mini" style="margin:0 0 8px">The policies will bind to the ${rows.length === 1 ? "group" : "groups"} already in this tenant — nothing is duplicated, and nothing about ${rows.length === 1 ? "it" : "them"} is changed. That is the safe default: a group that already exists may hold members and sit somewhere deliberately, and an import is not the place to decide otherwise.</p>
+      <p class="mini" style="margin:0 0 8px">It does mean a reused group <b>inherits none of the hardening a created one gets</b>. A group created by this import gets nesting disabled and is filed into its persona vault; a reused one keeps whatever it has${notable.length ? ` — and ${notable.length} of ${rows.length} ${notable.length === 1 ? "has" : "have"} something worth seeing first` : ""}.</p>
+      <div class="cg-pick">${rows.map(line).join("")}</div>
+      <p class="mini muted" style="margin:8px 0 0">Finish the job afterwards from <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> (file them into their vaults) and 👥 CA groups <b>⑧ Disable nesting</b>. Both are safe on a group that already has members.</p>
     </div>`;
   }
 
@@ -1966,6 +2031,7 @@
 
     $("imBody").innerHTML = `
       ${imRaPanel()}
+      ${imExPanel()}
       ${imAuPanel()}
       <div class="im-mode" role="radiogroup" aria-label="Assignment mode">
         <label class="im-mode-opt${!replace ? " on" : ""}"><input type="radio" name="imMode" value="deploy" ${!replace ? "checked" : ""}>
