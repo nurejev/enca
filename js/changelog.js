@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25134, date: "2026-08-17", title: "Roadmap R04 was describing a tenant nobody has had since production 254",
+    items: [
+      { kind: "fixed", tool: "Roadmap", text: "R04\u2019s \"Still to do\" list had gone stale item by item and ended on a flat untruth: \"Production keeps creating role-assignable groups until this lands there.\" Production dropped the role-assignable checkbox in build <b>254</b>, and the last panels describing it went in 284 \u2014 so the card was telling a reader that the thing it exists to retire was still being created for them. The rest of the list was no better: the bundled group templates and both baseline catalogs stopped asking for the flag, the MS Learn and CIS checks and the documentation exports never mention it, Group Analyzer only REPORTS it on a group it finds (which is the point of a group analyzer, not a leftover expectation), and \ud83d\udce5 Import already files the groups it creates into their persona vault." },
+      { kind: "improved", tool: "Roadmap", text: "What is actually left is now what the card says: a group the import REUSES is left exactly as it is \u2014 the preflight added in build 285 says what it inherits, but filing it into its vault and disabling its nesting are still separate steps in \ud83d\udd12 Protect exclusions and \u2467 Disable nesting \u2014 and the flag only truly leaves a tenant once \u2466 Migrate has been run there, because nothing retires a group this app did not create. Roadmap prose is documentation, so it is not queued for promotion: it travels with the next port of index.html." },
+    ],
+  },
+  {
     build: 25133, date: "2026-08-17", title: "Items 59 and 60 reached production (285)",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue items 59 (\ud83d\udce5 Import finds the role-assignable groups a file would build on, and spells out what a reused group inherits \u2014 R04) and 60 (\u2466 Migrate survives navigating away and verifies the old group is gone, \ud83e\uddf9 Archived groups gains a safe select all, and five delete flows keep the scroll position) are live in production build 285. Removed from the queue; the numbers are retired rather than reused. Roadmap card R04 records the Import preflight as beta 25128 \u00b7 production 285, \ud83d\udc65 CA groups is v4.1 and \ud83d\udce5 Import v2.5 on both channels. Only the two beta-only tools remain queued, and neither can move without its tool." },
