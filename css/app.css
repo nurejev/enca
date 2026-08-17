@@ -1385,3 +1385,15 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
    read an id is to paste it into the portal or a ticket. */
 .pcard-foot .pcard-id{flex:0 0 auto;opacity:.85}
 .pcard-foot .pcard-id code{user-select:all;font-size:.95em}
+
+/* A write that outlives the panel it started on. ⑦ Migrate renames a group
+   aside before recreating it, so "did it stop halfway?" has a real answer in
+   the tenant — the badge means you never have to guess from another screen. */
+.run-badge { position:fixed; right:18px; bottom:18px; z-index:60; display:flex; align-items:center; gap:8px;
+  padding:9px 14px; border-radius:999px; border:1px solid var(--accent); background:var(--card, #fff);
+  box-shadow:0 6px 20px rgba(0,0,0,.18); font-size:.86rem; cursor:pointer; }
+.run-badge:hover { border-color:var(--accent2, var(--accent)); }
+.run-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:run-pulse 1.2s infinite; }
+@keyframes run-pulse { 0%,100% { opacity:1 } 50% { opacity:.25 } }
+.run-track { display:inline-block; width:64px; height:5px; border-radius:3px; background:var(--soft2, rgba(127,127,127,.2)); overflow:hidden; }
+.run-track > span { display:block; height:100%; background:var(--accent); transition:width .2s; }

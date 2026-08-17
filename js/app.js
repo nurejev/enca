@@ -132,6 +132,50 @@
     try { show(target); } finally { navSuppress = false; }
   });
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  // Deleting the 30th row in a list re-renders the panel, and the page jumps to
+  // the top — so working through a list means scrolling back down after every
+  // single action. Capture the scroll position, re-render, put it back. The
+  // browser clamps it when the content got shorter, which is the right answer
+  // for deleting the last row.
+  // A long write that you can navigate away from has to be visible from
+  // wherever you went. ⑦ Migrate recreates groups one at a time — renaming the
+  // original aside first — so "is it still going?" is not idle curiosity: if it
+  // stopped halfway, some groups are sitting under their archive name. A fixed
+  // badge shows progress from any screen and takes you back to the panel.
+  let runState = null;   // { label, done, total, back }
+  function runBadge(state) {
+    runState = state;
+    let el = document.getElementById("runBadge");
+    if (!state) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement("button");
+      el.id = "runBadge";
+      el.className = "run-badge";
+      el.title = "Still running — click to go back to it";
+      el.addEventListener("click", () => { if (runState && runState.back) runState.back(); });
+      document.body.appendChild(el);
+    }
+    const pct = state.total ? Math.round((state.done / state.total) * 100) : 0;
+    el.innerHTML = `<span class="run-dot"></span>${esc(state.label)} <b>${state.done}/${state.total}</b>`
+      + `<span class="run-track"><span style="width:${pct}%"></span></span>`;
+  }
+  // Closing the tab mid-migration leaves renamed groups behind, so say so.
+  window.addEventListener("beforeunload", (e) => {
+    if (!runState) return;
+    e.preventDefault();
+    e.returnValue = "A migration is still running. Closing now can leave a group renamed aside with its replacement half-built.";
+    return e.returnValue;
+  });
+
+  function keepScroll(render) {
+    const el = document.scrollingElement || document.documentElement;
+    const y = window.scrollY || el.scrollTop || 0;
+    const restore = () => { window.scrollTo(0, y); };
+    const out = render();
+    if (out && typeof out.then === "function") return out.then((v) => { requestAnimationFrame(restore); return v; });
+    requestAnimationFrame(restore);
+    return out;
+  }
   // ---------- build stamp ----------
   // Shown before sign-in so a stale deploy (or a cached tab) is obvious.
   (function showBuild() {
@@ -2900,6 +2944,7 @@ max@contoso.com,"Global, DevOps"</pre>
   function migBody() { return $("cgBody"); }
 
   async function cgMigScan() {
+    if (cgMig && cgMig.busy) { toast("A migration is <span>still running</span> — let it finish first"); return; }
     if (cgMigBusy) return;
     cgMigBusy = true;
     migBody().innerHTML = migBusyPanel();
@@ -3021,8 +3066,8 @@ max@contoso.com,"Global, DevOps"</pre>
           <button class="btn primary" id="cgMigGo">Migrate</button>
           <button class="btn" id="cgMigRescan">⟳ Rescan</button>
         </div>
-        <div id="cgMigBar2" style="display:none;width:100%;margin-top:12px"></div>
-        <div id="cgMigLog" class="mini" style="margin-top:8px"></div>
+        <div id="cgMigBar2" style="${t.busy || (t.log || []).length ? "" : "display:none;"}width:100%;margin-top:12px">${t.busy ? progInline(t.done || 0, t.total || 0) : ""}</div>
+        <div id="cgMigLog" class="mini" style="margin-top:8px">${(t.log || []).join("")}</div>
         </div>
       </div>` : `<div class="cg-panel">
         <h4>NOTHING TO MIGRATE</h4>
@@ -3137,10 +3182,26 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!isDemo && !await preConsent(scopes)) return;
 
     t.busy = true; btn.disabled = true;
-    const bar = $("cgMigBar2"), log = $("cgMigLog");
+    // The log and the bar were captured ONCE here. Navigating away and back
+    // re-renders this panel, which throws those two elements away — so the run
+    // carried on writing into detached nodes and you came back to an empty
+    // panel with no way to tell whether anything was happening. Keep the lines
+    // on the state and re-find the element on every write: the panel can be
+    // destroyed and rebuilt as often as it likes, and progress survives it.
+    t.log = []; t.done = 0; t.total = picked.length;
+    const paint = () => {
+      const l = $("cgMigLog"); if (l) l.innerHTML = t.log.join("");
+      const b = $("cgMigBar2");
+      if (b) { b.style.display = "block"; b.innerHTML = progInline(t.done, t.total); }
+      runBadge({ label: "⑦ Migrating", done: t.done, total: t.total,
+        back: () => { openCaGroups().then(() => { cgTab = "migrate"; renderCaGroups(); }); } });
+    };
+    paint();
+    const results = [];
+    const say = (html) => { t.log.push(html); paint(); };
+    const bar = { set innerHTML(v) { const b = $("cgMigBar2"); if (b) { b.style.display = "block"; b.innerHTML = v; } },
+                  style: { set display(v) { const b = $("cgMigBar2"); if (b) b.style.display = v; } } };
     bar.style.display = "block";
-    const lines = [], results = [];
-    const say = (html) => { lines.push(html); log.innerHTML = lines.join(""); };
 
     // The AU must exist before the first group finishes, but create it once —
     // and not at all if the placement step was switched off.
@@ -3158,11 +3219,12 @@ max@contoso.com,"Global, DevOps"</pre>
       }
     } catch (err) {
       say(`<div style="color:var(--off)">✗ could not create the restricted AU — ${esc(err.message || err)}. Nothing was migrated.</div>`);
-      t.busy = false; btn.disabled = false; return;
+      t.busy = false; btn.disabled = false; runBadge(null); return;
     }
 
     for (let i = 0; i < picked.length; i++) {
       const x = picked[i];
+      t.done = i;
       bar.innerHTML = progInline(i, picked.length);
       const res = { name: x.name, ok: false, memberTotal: x.memberTotal, archiveName: x.archiveName };
       try {
@@ -3222,7 +3284,9 @@ max@contoso.com,"Global, DevOps"</pre>
       results.push(res);
     }
     bar.innerHTML = progInline(picked.length, picked.length);
+    t.done = picked.length;
     t.results = results; t.busy = false; btn.disabled = false;
+    runBadge(null);                      // finished: the badge must not linger
     cgRes = null;                        // the scan is stale now
     renderCgMigrate();
   }
@@ -7055,7 +7119,7 @@ max@contoso.com,"Global, DevOps"</pre>
       if (!isDemo) await Graph.gdelete(`/administrativeUnits/${ruDeleting.id}`);
       $("ruDelModal").classList.remove("open");
       toast(`<span>${esc(ruDeleting.displayName)}</span> deleted${isDemo ? " (simulated)" : ""}`);
-      await openRmauTool(true);
+      await keepScroll(() => openRmauTool(true));
     } catch (e) { toast(`Delete failed: <span>${esc(e.message || e)}</span>`); btn.disabled = false; }
   });
   $("ruBAOpenTop").addEventListener("click", () => {
@@ -9165,7 +9229,7 @@ max@contoso.com,"Global, DevOps"</pre>
         toast(`<span>${esc(loDeleting.displayName)}</span> deleted`);
       }
       $("loDelModal").classList.remove("open");
-      await openLocations(true);
+      await keepScroll(() => openLocations(true));
     } catch (e) {
       console.error("Delete named location failed:", e);
       toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
@@ -9358,7 +9422,7 @@ max@contoso.com,"Global, DevOps"</pre>
         toast(`<span>${esc(acDeleting.id)}</span> deleted`);
       }
       $("acDelModal").classList.remove("open");
-      await openAuthCtx(true);
+      await keepScroll(() => openAuthCtx(true));
     } catch (e) {
       console.error("Delete authentication context failed:", e);
       toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
@@ -9635,7 +9699,7 @@ max@contoso.com,"Global, DevOps"</pre>
         toast(`<span>${esc(asDeleting.displayName)}</span> deleted`);
       }
       $("asDelModal").classList.remove("open");
-      await openAuthStr(true);
+      await keepScroll(() => openAuthStr(true));
     } catch (e) {
       console.error("Delete authentication strength failed:", e);
       toast(`Delete failed: <span>${esc(e.message || e)}</span>`);
@@ -9890,7 +9954,7 @@ max@contoso.com,"Global, DevOps"</pre>
         toast(`<span>${esc(tuDeleting.displayName)}</span> deleted`);
       }
       $("tuDelModal").classList.remove("open");
-      await openTou(true);
+      await keepScroll(() => openTou(true));
     } catch (e) {
       console.error("Delete agreement failed:", e);
       toast(`Delete failed: <span>${esc(e.message || e)}</span>`);

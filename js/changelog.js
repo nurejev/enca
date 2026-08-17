@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25130, date: "2026-08-17", title: "A migration you navigate away from is still visible, and deleting keeps your place",
+    items: [
+      { kind: "fixed", tool: "CA groups", text: "\u2466 Migrate's progress log and bar were bound to the panel's two elements once, at the start of the run. Leaving the tool and coming back re-renders that panel, which throws those elements away \u2014 so the migration carried on writing into nodes no longer on the page, and you returned to an empty panel with no way to tell whether anything was still happening. That matters more here than in most places: the recreate renames the original group ASIDE before building its replacement, so a run that stopped halfway leaves groups sitting under an archive name. Progress now lives with the run and every write re-finds its element, so the panel can be destroyed and rebuilt as often as it likes." },
+      { kind: "new", tool: "All tools", text: "A badge in the corner shows \"\u2466 Migrating 3/12\" from any screen while a migration is in flight, with a progress bar, and takes you back to the panel in one click. Closing the tab mid-run asks for confirmation \u2014 it can leave a group renamed aside with its replacement half-built \u2014 and \u27f3 Rescan now refuses while a run is going rather than quietly discarding it." },
+      { kind: "fixed", tool: "All tools", text: "Deleting from a list no longer jumps back to the top. Named locations, authentication contexts, authentication strengths, terms of use and administrative units all re-render the whole panel after a delete, which reset the scroll \u2014 so clearing several meant scrolling back down after every one. The position is kept across the re-render, and the browser clamps it when the list got shorter, which is the right answer for deleting the last row." },
+    ],
+  },
+  {
     build: 25129, date: "2026-08-17", title: "Importing into a tenant that partly has the groups says what it inherits",
     items: [
       { kind: "new", tool: "Import", text: "A tenant that already has some of a file's groups is the normal case, and the two halves are treated very differently. Groups that exist are REUSED \u2014 policies bind to them, nothing is duplicated, nothing about them changes \u2014 while groups that are created get nesting disabled and get filed into their persona vault. Placement deliberately skips an existing group, because it may hold members and sit somewhere on purpose. All defensible; all previously invisible, because a reused group appeared in the report as a bare name. Its nesting, its protection and whether it even matched the shape the file expects were unstated, and silence there reads as \"fine\"." },

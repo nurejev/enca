@@ -63,6 +63,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 60,
+      title: "A migration survives navigating away, and deleting keeps your place",
+      tools: ["CA groups", "All tools"],
+      builds: [25130],
+      risk: "high",
+      what: "\u2466 Migrate's progress lives with the run instead of the panel's elements, a corner badge shows it from any screen with a way back, closing the tab mid-run warns, Rescan refuses while busy, and five delete flows keep the scroll position across their re-render.",
+      why: "In production, navigating away from a running migration leaves it writing into detached nodes: you come back to an empty panel and cannot tell whether it stopped \u2014 while the recreate has already renamed groups aside. Deleting from any list also throws you to the top of it.",
+      files: ["js/app.js", "css/app.css", "index.html"],
+    },
+    {
       n: 59,
       title: "Import: role-assignable groups found, and reused groups explained (R04)",
       tools: ["Import"],
