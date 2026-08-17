@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25130"></script>
+<script src="js/popup-guard.js?v=25131"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25130">
+<link rel="stylesheet" href="css/app.css?v=25131">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25130"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25130"></script>
+<script src="js/counter.js?v=25131"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25131"></script>
 </head>
 <body>
 
@@ -1613,6 +1613,7 @@
         <li><b>It is asked for twice and then verified.</b> The property goes in the create body <i>and</i> is confirmed by a PATCH afterwards, because field reports say it only takes at creation while Microsoft documents it as patchable — doing both means whichever is true in your tenant, the group ends up right. Nothing is allowed to cost you the group: a tenant that rejects the property on create has the create retried without it, an unrelated create error still fails loudly, and a group whose nesting could not be set is marked <b>nesting still allowed</b> with the reason rather than reported as done. Not sent for dynamic groups (members are rule-driven, and only users and devices can be members) or role-assignable ones (Entra already refuses group-in-group).</li>
         <li><b>⑦ Migrate keeps running when you navigate away, and now says so.</b> The recreate renames the original group aside before building its replacement, so "did it stop halfway?" has real consequences — and the answer used to be invisible. The progress log and bar were bound to the panel's elements once, so leaving the tool and coming back destroyed them: the run carried on writing into nodes that were no longer on the page, and you returned to an empty panel. Progress now lives with the run, so the panel replays it however often it is rebuilt, and a <b>badge in the corner</b> shows "⑦ Migrating 3/12" from any screen and takes you back with one click. Closing the tab mid-run asks first, and ⟳ Rescan refuses while a migration is in flight rather than discarding it.</li>
         <li><b>Deleting from a list no longer jumps you back to the top.</b> Working through a list of named locations, authentication contexts or strengths, terms of use or administrative units meant scrolling back down after every single delete, because the panel re-renders from scratch. The scroll position is now kept across the re-render — and the browser clamps it when the list got shorter, which is the right answer for deleting the last row.</li>
+        <li><b>🧹 Archived groups has select all / deselect all</b> — a tenant that has been through a few recreates can have ninety of them, and ticking those by hand is not a review, it is an endurance test. <b>Select all only ticks what is safe to delete</b>: a group still referenced by a policy is never included, because one careless click across a list that long is exactly how a policy ends up pointing at nothing. Those rows stay individually tickable on purpose. <b>Deselect all</b> clears everything, including a referenced row you ticked by hand. A live count says how many of the total are ticked and how many are being deliberately left out, and the typed <code>DELETE</code> confirmation still gates the button.</li>
 </ul>
         <li><b>Add a member</b> — the matrix carries an <b>＋ Add</b> bar: type two letters and the directory suggests users, pick one of the loaded groups, and the member is added and the group re-read so the matrix shows the result rather than merely claiming it. Adding someone who is already in the group says so instead of failing.</li>
         <li><b>What you can do with it</b> — click a group in ① Check and the overlay lists the actions that apply <i>to that group</i>, each carrying it across: read its members, assign it to policies, protect it, or convert it. Only what makes sense is offered — a group that does not exist yet cannot have members read, a role-assignable one cannot be protected, and one already in a vault is not offered protection again. Every one of these was reachable before by opening the right tab and finding the row a second time; the tab strip just never said which of the seven applied to the group in front of you.</li>
@@ -2393,49 +2394,49 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25130"></script>
-<script src="js/version.js?v=25130"></script>
-<script src="js/promote.js?v=25130"></script>
-<script src="js/authConfig.js?v=25130"></script>
-<script src="js/labels.js?v=25130"></script>
-<script src="js/graph.js?v=25130"></script>
-<script src="js/model.js?v=25130"></script>
-<script src="js/render.js?v=25130"></script>
-<script src="js/analyze.js?v=25130"></script>
-<script src="js/whatif.js?v=25130"></script>
-<script src="js/mslearn.js?v=25130"></script>
-<script src="js/gapcheck.js?v=25130"></script>
-<script src="js/cisdata.js?v=25130"></script>
-<script src="js/cischeck.js?v=25130"></script>
-<script src="js/exclusions.js?v=25130"></script>
-<script src="js/validator.js?v=25130"></script>
-<script src="js/whatifeval.js?v=25130"></script>
-<script src="js/compare.js?v=25130"></script>
-<script src="js/groupuse.js?v=25130"></script>
-<script src="js/iso3166.js?v=25130"></script>
-<script src="js/locations.js?v=25130"></script>
-<script src="js/authcontexts.js?v=25130"></script>
-<script src="js/authstrengths.js?v=25130"></script>
-<script src="js/recycle.js?v=25130"></script>
-<script src="js/rmau.js?v=25130"></script>
-<script src="js/rmaudoc.js?v=25130"></script>
-<script src="js/termsofuse.js?v=25130"></script>
-<script src="js/audit.js?v=25130"></script>
-<script src="js/drift.js?v=25130"></script>
-<script src="js/guide.js?v=25130"></script>
-<script src="js/devcheck.js?v=25130"></script>
-<script src="js/signins.js?v=25130"></script>
-<script src="js/reportimpact.js?v=25130"></script>
-<script src="js/changelog.js?v=25130"></script>
-<script src="js/baselineData.js?v=25130"></script>
-<script src="js/baselineJoeyData.js?v=25130"></script>
-<script src="js/baseline.js?v=25130"></script>
-<script src="js/groupTemplates.js?v=25130"></script>
-<script src="js/assign.js?v=25130"></script>
-<script src="js/cagroups.js?v=25130"></script>
-<script src="js/import.js?v=25130"></script>
-<script src="js/export.js?v=25130"></script>
-<script src="js/demo.js?v=25130"></script>
-<script src="js/app.js?v=25130"></script>
+<script src="js/branding.js?v=25131"></script>
+<script src="js/version.js?v=25131"></script>
+<script src="js/promote.js?v=25131"></script>
+<script src="js/authConfig.js?v=25131"></script>
+<script src="js/labels.js?v=25131"></script>
+<script src="js/graph.js?v=25131"></script>
+<script src="js/model.js?v=25131"></script>
+<script src="js/render.js?v=25131"></script>
+<script src="js/analyze.js?v=25131"></script>
+<script src="js/whatif.js?v=25131"></script>
+<script src="js/mslearn.js?v=25131"></script>
+<script src="js/gapcheck.js?v=25131"></script>
+<script src="js/cisdata.js?v=25131"></script>
+<script src="js/cischeck.js?v=25131"></script>
+<script src="js/exclusions.js?v=25131"></script>
+<script src="js/validator.js?v=25131"></script>
+<script src="js/whatifeval.js?v=25131"></script>
+<script src="js/compare.js?v=25131"></script>
+<script src="js/groupuse.js?v=25131"></script>
+<script src="js/iso3166.js?v=25131"></script>
+<script src="js/locations.js?v=25131"></script>
+<script src="js/authcontexts.js?v=25131"></script>
+<script src="js/authstrengths.js?v=25131"></script>
+<script src="js/recycle.js?v=25131"></script>
+<script src="js/rmau.js?v=25131"></script>
+<script src="js/rmaudoc.js?v=25131"></script>
+<script src="js/termsofuse.js?v=25131"></script>
+<script src="js/audit.js?v=25131"></script>
+<script src="js/drift.js?v=25131"></script>
+<script src="js/guide.js?v=25131"></script>
+<script src="js/devcheck.js?v=25131"></script>
+<script src="js/signins.js?v=25131"></script>
+<script src="js/reportimpact.js?v=25131"></script>
+<script src="js/changelog.js?v=25131"></script>
+<script src="js/baselineData.js?v=25131"></script>
+<script src="js/baselineJoeyData.js?v=25131"></script>
+<script src="js/baseline.js?v=25131"></script>
+<script src="js/groupTemplates.js?v=25131"></script>
+<script src="js/assign.js?v=25131"></script>
+<script src="js/cagroups.js?v=25131"></script>
+<script src="js/import.js?v=25131"></script>
+<script src="js/export.js?v=25131"></script>
+<script src="js/demo.js?v=25131"></script>
+<script src="js/app.js?v=25131"></script>
 </body>
 </html>

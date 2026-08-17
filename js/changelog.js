@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25131, date: "2026-08-17", title: "Select all in Archived groups, and it will not tick the dangerous ones",
+    items: [
+      { kind: "new", tool: "CA groups", text: "\ud83e\uddf9 Archived groups gains select all / deselect all. A tenant that has been through a few recreates can hold ninety of them, and ticking those one at a time is not a review, it is an endurance test." },
+      { kind: "improved", tool: "CA groups", text: "Select all ticks only what is SAFE to delete: a group still referenced by a policy is never included, because one careless click across a list that long is exactly how a policy ends up pointing at nothing. Those rows stay individually tickable on purpose, and the button says how many it will take — \"Select all 91 safe\" — rather than implying it takes everything. Deselect all does clear everything, including a referenced row ticked by hand, because \"clear it\" should mean what it says. A live count shows how many of the total are ticked and how many are being deliberately left out." },
+      { kind: "improved", tool: "CA groups", text: "The toolbar updates without rebuilding the table. A full re-render on every tick would have thrown away the scroll position inside the modal — the same annoyance fixed for the delete lists one build earlier, and it would have been introduced here in the act of fixing it there. The typed DELETE confirmation and the tick count now gate the button from one place, so a bulk toggle can no longer leave it stale." },
+    ],
+  },
+  {
     build: 25130, date: "2026-08-17", title: "A migration you navigate away from is still visible, and deleting keeps your place",
     items: [
       { kind: "fixed", tool: "CA groups", text: "\u2466 Migrate's progress log and bar were bound to the panel's two elements once, at the start of the run. Leaving the tool and coming back re-renders that panel, which throws those elements away \u2014 so the migration carried on writing into nodes no longer on the page, and you returned to an empty panel with no way to tell whether anything was still happening. That matters more here than in most places: the recreate renames the original group ASIDE before building its replacement, so a run that stopped halfway leaves groups sitting under an archive name. Progress now lives with the run and every write re-finds its element, so the panel can be destroyed and rebuilt as often as it likes." },

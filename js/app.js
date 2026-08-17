@@ -3950,6 +3950,20 @@ max@contoso.com,"Global, DevOps"</pre>
       <p class="mini muted" style="margin:0 0 10px">A deleted group is <b>soft-deleted and restorable for 30 days</b>. Even so, check
         <a href="#" class="md-tool" data-tool="toolGroupUse">Group Analyzer</a> first — Conditional Access is moved for you by a recreate,
         but app assignments, Intune, licensing and Azure RBAC are not, and they would still be pointing at the old id.</p>
+      ${(() => {
+        // 95 rows and a checkbox each. Select-all ticks only what is SAFE to
+        // delete — a group still referenced by a policy is left alone, because
+        // one careless click across a list this long is exactly how a policy
+        // ends up pointing at nothing. The referenced ones stay individually
+        // tickable, deliberately, which the note below the table already says.
+        const safe = arcRows.filter((r) => r.refCount === 0);
+        const ticked = arcRows.filter((r) => r.checked).length;
+        const allSafeOn = safe.length > 0 && safe.every((r) => r.checked);
+        return `<div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 8px;flex-wrap:wrap">
+          <button class="btn sm" id="arcAll" ${safe.length ? "" : "disabled"}>${allSafeOn ? "☐ Deselect all" : `☑ Select all ${safe.length} safe`}</button>
+          <span class="mini muted" id="arcCount"><b>${ticked}</b> of ${arcRows.length} ticked${stillUsed ? ` · ${stillUsed} referenced, never ticked by Select all` : ""}</span>
+        </div>`;
+      })()}
       <div class="gu-tw"><table class="plist">
         <thead><tr><th></th><th>Archived group</th><th>Replaced by</th><th class="gu-num">Members</th><th>Still referenced</th></tr></thead>
         <tbody>${arcRows.map((r, i) => `<tr>
@@ -3967,13 +3981,43 @@ max@contoso.com,"Global, DevOps"</pre>
       ${arcRows.some((r) => r.members) ? `<p class="mini" style="margin-top:6px;color:var(--report)">⚠ An archived group with members is one whose members were never carried across.
         Check the replacement has them before deleting.</p>` : ""}`;
   }
+  // The typed confirmation and the tick count both gate the button, so they
+  // are decided in one place — a bulk toggle used to leave it stale.
+  function arcSyncGo() {
+    const typed = ($("arcOk").value || "").trim().toUpperCase() === "DELETE";
+    $("arcGo").disabled = !typed || !arcRows.some((r) => r.checked);
+  }
+  // Update the toolbar WITHOUT re-rendering the table: with 95 rows a full
+  // re-render on every tick would throw away the scroll position inside the
+  // modal, which is the same annoyance the delete lists just had fixed.
+  function arcSyncBar() {
+    const safe = arcRows.filter((r) => r.refCount === 0);
+    const stillUsed = arcRows.length - safe.length;
+    const allSafeOn = safe.length > 0 && safe.every((r) => r.checked);
+    const btn = $("arcAll");
+    if (btn) btn.textContent = allSafeOn ? "☐ Deselect all" : `☑ Select all ${safe.length} safe`;
+    const c = $("arcCount");
+    if (c) c.innerHTML = `<b>${arcRows.filter((r) => r.checked).length}</b> of ${arcRows.length} ticked`
+      + (stillUsed ? ` · ${stillUsed} referenced, never ticked by Select all` : "");
+  }
   $("arcBody").addEventListener("change", (e) => {
     const cb = e.target.closest("[data-arc]"); if (!cb) return;
     arcRows[+cb.dataset.arc].checked = cb.checked;
+    arcSyncBar(); arcSyncGo();
   });
-  $("arcOk").addEventListener("input", (e) => {
-    $("arcGo").disabled = e.target.value.trim().toUpperCase() !== "DELETE" || !arcRows.some((r) => r.checked);
+  $("arcBody").addEventListener("click", (e) => {
+    if (e.target.id !== "arcAll") return;
+    const safe = arcRows.filter((r) => r.refCount === 0);
+    const allSafeOn = safe.length > 0 && safe.every((r) => r.checked);
+    // Deselect clears everything, including any referenced row ticked by hand;
+    // select never touches them.
+    if (allSafeOn) arcRows.forEach((r) => { r.checked = false; });
+    else safe.forEach((r) => { r.checked = true; });
+    // Reflect the model onto the inputs in place — no table rebuild.
+    $("arcBody").querySelectorAll("[data-arc]").forEach((cb) => { cb.checked = !!arcRows[+cb.dataset.arc].checked; });
+    arcSyncBar(); arcSyncGo();
   });
+  $("arcOk").addEventListener("input", arcSyncGo);
   $("arcCancel").addEventListener("click", () => $("arcModal").classList.remove("open"));
   $("arcGo").addEventListener("click", async () => {
     const picked = arcRows.filter((r) => r.checked);
