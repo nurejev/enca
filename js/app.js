@@ -685,14 +685,30 @@
       toast(`Could not load the setup guide: <span>${esc(e.message || e)}</span>`);
     }
   }
-  for (const id of ["stLink"]) {
-    const el = $(id);
-    if (el) el.addEventListener("click", (e) => { e.preventDefault(); showSingleTenantDoc(); });
-  }
-  for (const id of ["secLinkLogin", "secLinkFoot", "rmSecLink", "rmSecLink2"]) {
-    const el = $(id);
-    if (el) el.addEventListener("click", (e) => { e.preventDefault(); showSecurityDoc(); });
-  }
+  // DELEGATED, not bound once at load. These anchors live on roadmap cards,
+  // and rmAgeShipped() moves a card into 🗄 Shipped as it ages out of "Now" —
+  // so the element a load-time binding captured is not necessarily the one the
+  // reader clicks, and if $(id) was null at script time nothing was bound at
+  // all. That is how 📖 Read the setup manual became a link that did nothing.
+  // Delegation has no such window: the handler is on the document and matches
+  // by id whenever and wherever the anchor ends up.
+  //
+  // The anchors also carry a REAL href now. href="#" meant a failure in this
+  // script left a link that jumped to the top of the page; a genuine path
+  // degrades to the file itself, which is the thing the link promises.
+  const DOC_LINKS = {
+    stLink: showSingleTenantDoc,
+    secLinkLogin: showSecurityDoc,
+    secLinkFoot: showSecurityDoc,
+    rmSecLink: showSecurityDoc,
+    rmSecLink2: showSecurityDoc,
+  };
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("a[id]"); if (!a) return;
+    const open = DOC_LINKS[a.id]; if (!open) return;
+    e.preventDefault();
+    open();
+  });
 
   // An in-app link inside any rendered report or confirmation: close whatever
   // is open and land on the tool, rather than telling someone to go find it.

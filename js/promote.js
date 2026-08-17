@@ -43,6 +43,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 55,
+      title: "The baseline report stops answering a question it never asked",
+      tools: ["Restricted AUs", "All tools"],
+      builds: [25118],
+      risk: "low",
+      what: "🛡 Restricted AUs' persona baseline report drops the Scoped admin column and states its own scope: it checks whether each persona's unit exists and is restricted, and says outright that it reads no scoped administrators and lists no unit outside the baseline. A grant made while creating a unit is kept, on the row it belongs to. Separately, the 📖 Read the setup manual and 🔒 Security & risk links are delegated instead of bound once at load, and carry real file paths instead of href=\"#\".",
+      why: "The column had no data behind it on ANY channel: scoped administrators were only recorded for units created in the same run, so a pre-existing unit printed an em dash, and the footnote about vaults nobody can open read that silence as a finding — a tenant with four scoped Groups Administrators was documented as having none. Production has the same report and the same defect. One commit, so the report fix and the link fix cannot be promoted apart.",
+      files: ["js/rmau.js", "js/app.js", "index.html", "js/changelog.js", "js/version.js"],
+    },
+    {
       n: 54,
       title: "Persona group suggestions carry the protection check",
       tools: ["Restricted AUs"],

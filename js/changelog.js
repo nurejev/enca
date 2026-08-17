@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25118, date: "2026-08-17", title: "A column that was never read, and a link that went nowhere",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "The persona baseline report printed a <b>Scoped admin</b> column it never populated. Scoped administrators were only known for units the tool created in that same run; for a unit that already existed there was no record, so the cell printed an em dash — and the footnote about a vault nobody can open turned that silence into a finding. A tenant with four Groups Administrators scoped to its break-glass unit was documented as having none. The report never called scopedRoleMembers at all. The column is gone rather than half-filled, and the report now states what it covers: whether each persona's unit exists and is restricted, nothing more. A grant made while creating a unit is still reported, on the row it belongs to." },
+      { kind: "improved", tool: "Restricted AUs", text: "The same report now says outright that a restricted unit outside the persona baseline is not listed. It checks the baseline names against the tenant, so a unit the tenant has under any other name could never appear — which is how a unit holding a frozen group stayed invisible in a report that looked complete. For scoped administrators, protected groups and policy dependencies it points at 🛡 Restricted AUs and at 📄 Create documentation, both of which read the tenant rather than a name list." },
+      { kind: "fixed", tool: "All tools", text: "📖 <b>Read the setup manual</b> on roadmap card R14 did nothing when clicked, and the 🔒 Security &amp; risk links shared the fault. Each was bound once at script load, but the roadmap cards these links sit on are moved into 🗄 Shipped as they age, so the binding did not reliably reach the anchor the reader clicks. The handler is now delegated on the document, and every one of these anchors carries a real file path instead of <code>href=\"#\"</code> — so even with the script broken the link reaches the document rather than jumping to the top of the page." },
+    ],
+  },
+  {
     build: 25117, date: "2026-08-17", title: "A group that cannot go in says so, instead of being offered",
     items: [
       { kind: "fixed", tool: "Restricted AUs", text: "The persona chips were built from the group NAMES the baseline knows about, so they offered two things they should not: groups this tenant does not have, and groups it has that cannot be protected. Clicking a role-assignable one produced exactly the frozen group — editable by nobody — that this tool exists to prevent. The chips are now backed by the same bounded scan ＋ Bulk add runs: what can be added is a click, and what cannot is listed with the reason." },

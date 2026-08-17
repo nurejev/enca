@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25117"></script>
+<script src="js/popup-guard.js?v=25118"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25117">
+<link rel="stylesheet" href="css/app.css?v=25118">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25117"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25117"></script>
+<script src="js/counter.js?v=25118"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25118"></script>
 </head>
 <body>
 
@@ -71,7 +71,7 @@
         Runs entirely in your browser — no policy data leaves your session.
       </div>
       <div class="login-note"><a href="?demo=1">View a demo with sample policies →</a></div>
-      <div class="login-note"><a href="#" id="secLinkLogin">🔒 How secure is this? Read the security &amp; risk documentation →</a></div>
+      <div class="login-note"><a href="SECURITY.md" id="secLinkLogin" target="_blank" rel="noopener">🔒 How secure is this? Read the security &amp; risk documentation →</a></div>
       <div class="build-stamp" id="buildStamp" title="Build number matches the asset version — if this is not the version you pushed, hard-refresh"></div>
     </div>
   </section>
@@ -1122,7 +1122,7 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R14</span> 🏢 Your own single-tenant app registration <span class="tag grant">live · beta 25014 · production 273</span></h4>
             <p class="mini" style="margin:0">Every tenant signs in through <b>one multi-tenant</b> app registration owned by Limon-IT by default — the same application ID, and therefore an application outside your directory holding a delegated grant on your data. <b>You can run ENCA on your own instead:</b> a <b>single-tenant</b> SPA (<code>AzureADMyOrg</code>) registered inside your tenant, with your own client ID, consent record, redirect URIs and audit trail — nothing to trust but the code you reviewed. The sign-in mechanism stays authorization code + PKCE with no client secret; only the owner changes.
               <br><br><b>Shipped:</b> <code>./New-EncaAppRegistration.ps1 -SingleTenant</code> creates the registration and prints what to paste; <code>js/authConfig.local.js</code> points your copy at it without editing a file upstream also changes. <code>-RequireAssignment</code> can restrict the enterprise application after assigning you first, so the script cannot seal you out.
-              <br>📖 <b><a href="#" id="stLink">Read the setup manual</a></b> — prerequisites, the five steps, verification, and keeping a pinned copy current. Also in <a href="#" id="rmSecLink2">Security &amp; risk</a>.</p>
+              <br>📖 <b><a href="SINGLE-TENANT.md" id="stLink" target="_blank" rel="noopener">Read the setup manual</a></b> — prerequisites, the five steps, verification, and keeping a pinned copy current. Also in <a href="SECURITY.md" id="rmSecLink2" target="_blank" rel="noopener">Security &amp; risk</a>.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25109">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R11</span> <a href="#" class="md-tool" data-tool="toolDevCheck">🖥 Compliant-device reality check</a> <span class="tag grant">live · beta 25109 · production 282</span></h4>
@@ -1149,7 +1149,7 @@
             <p class="mini" style="margin:6px 0 0">It types the <b>name</b> and fills the code in — a type-ahead over the full ISO list, matching on country name, adding the code as a chip you can see and remove. Codes typed directly keep working, but anything that is not a real ISO code is rejected at entry rather than accepted and discovered later. Worth doing for the same reason the CA-number routing exists: the tool knows the right answer, so the human should not have to be the one who remembers it.</p>
           </div>
           <div class="list-card rm-card">
-            <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · <a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a>, <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> and the <b>⌨️ command palette</b> (all out of BETA) · 🔒 the <a href="#" id="rmSecLink">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
+            <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · <a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a>, <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> and the <b>⌨️ command palette</b> (all out of BETA) · 🔒 the <a href="SECURITY.md" id="rmSecLink" target="_blank" rel="noopener">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25058">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R02</span> <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> <span class="tag grant">live · build 267</span></h4>
@@ -1768,7 +1768,7 @@
   <div class="fwrap">
     <span><span id="brandFoot">© 2026 Limon-IT · ENCA</span> <span id="buildStampFoot"></span></span>
     <div class="spacer"></div>
-    <a href="#" id="secLinkFoot" title="Architecture, permissions, residual risks and recommendations — the full security documentation">🔒 Security</a>
+    <a href="SECURITY.md" id="secLinkFoot" target="_blank" rel="noopener" title="Architecture, permissions, residual risks and recommendations — the full security documentation">🔒 Security</a>
     <a id="brandOrgLink" href="https://limon-it.nl">limon-it.nl</a>
   </div>
 </footer>
@@ -2373,49 +2373,49 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25117"></script>
-<script src="js/version.js?v=25117"></script>
-<script src="js/promote.js?v=25117"></script>
-<script src="js/authConfig.js?v=25117"></script>
-<script src="js/labels.js?v=25117"></script>
-<script src="js/graph.js?v=25117"></script>
-<script src="js/model.js?v=25117"></script>
-<script src="js/render.js?v=25117"></script>
-<script src="js/analyze.js?v=25117"></script>
-<script src="js/whatif.js?v=25117"></script>
-<script src="js/mslearn.js?v=25117"></script>
-<script src="js/gapcheck.js?v=25117"></script>
-<script src="js/cisdata.js?v=25117"></script>
-<script src="js/cischeck.js?v=25117"></script>
-<script src="js/exclusions.js?v=25117"></script>
-<script src="js/validator.js?v=25117"></script>
-<script src="js/whatifeval.js?v=25117"></script>
-<script src="js/compare.js?v=25117"></script>
-<script src="js/groupuse.js?v=25117"></script>
-<script src="js/iso3166.js?v=25117"></script>
-<script src="js/locations.js?v=25117"></script>
-<script src="js/authcontexts.js?v=25117"></script>
-<script src="js/authstrengths.js?v=25117"></script>
-<script src="js/recycle.js?v=25117"></script>
-<script src="js/rmau.js?v=25117"></script>
-<script src="js/rmaudoc.js?v=25117"></script>
-<script src="js/termsofuse.js?v=25117"></script>
-<script src="js/audit.js?v=25117"></script>
-<script src="js/drift.js?v=25117"></script>
-<script src="js/guide.js?v=25117"></script>
-<script src="js/devcheck.js?v=25117"></script>
-<script src="js/signins.js?v=25117"></script>
-<script src="js/reportimpact.js?v=25117"></script>
-<script src="js/changelog.js?v=25117"></script>
-<script src="js/baselineData.js?v=25117"></script>
-<script src="js/baselineJoeyData.js?v=25117"></script>
-<script src="js/baseline.js?v=25117"></script>
-<script src="js/groupTemplates.js?v=25117"></script>
-<script src="js/assign.js?v=25117"></script>
-<script src="js/cagroups.js?v=25117"></script>
-<script src="js/import.js?v=25117"></script>
-<script src="js/export.js?v=25117"></script>
-<script src="js/demo.js?v=25117"></script>
-<script src="js/app.js?v=25117"></script>
+<script src="js/branding.js?v=25118"></script>
+<script src="js/version.js?v=25118"></script>
+<script src="js/promote.js?v=25118"></script>
+<script src="js/authConfig.js?v=25118"></script>
+<script src="js/labels.js?v=25118"></script>
+<script src="js/graph.js?v=25118"></script>
+<script src="js/model.js?v=25118"></script>
+<script src="js/render.js?v=25118"></script>
+<script src="js/analyze.js?v=25118"></script>
+<script src="js/whatif.js?v=25118"></script>
+<script src="js/mslearn.js?v=25118"></script>
+<script src="js/gapcheck.js?v=25118"></script>
+<script src="js/cisdata.js?v=25118"></script>
+<script src="js/cischeck.js?v=25118"></script>
+<script src="js/exclusions.js?v=25118"></script>
+<script src="js/validator.js?v=25118"></script>
+<script src="js/whatifeval.js?v=25118"></script>
+<script src="js/compare.js?v=25118"></script>
+<script src="js/groupuse.js?v=25118"></script>
+<script src="js/iso3166.js?v=25118"></script>
+<script src="js/locations.js?v=25118"></script>
+<script src="js/authcontexts.js?v=25118"></script>
+<script src="js/authstrengths.js?v=25118"></script>
+<script src="js/recycle.js?v=25118"></script>
+<script src="js/rmau.js?v=25118"></script>
+<script src="js/rmaudoc.js?v=25118"></script>
+<script src="js/termsofuse.js?v=25118"></script>
+<script src="js/audit.js?v=25118"></script>
+<script src="js/drift.js?v=25118"></script>
+<script src="js/guide.js?v=25118"></script>
+<script src="js/devcheck.js?v=25118"></script>
+<script src="js/signins.js?v=25118"></script>
+<script src="js/reportimpact.js?v=25118"></script>
+<script src="js/changelog.js?v=25118"></script>
+<script src="js/baselineData.js?v=25118"></script>
+<script src="js/baselineJoeyData.js?v=25118"></script>
+<script src="js/baseline.js?v=25118"></script>
+<script src="js/groupTemplates.js?v=25118"></script>
+<script src="js/assign.js?v=25118"></script>
+<script src="js/cagroups.js?v=25118"></script>
+<script src="js/import.js?v=25118"></script>
+<script src="js/export.js?v=25118"></script>
+<script src="js/demo.js?v=25118"></script>
+<script src="js/app.js?v=25118"></script>
 </body>
 </html>
