@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25141, date: "2026-08-18", title: "Two numbers called themselves the gap, and both were right",
+    items: [
+      { kind: "fixed", tool: "Licence gap", text: "Promotion item 61 — on a real tenant the tile said 80 short while the named list said 47, and both were correct by their own definition: the tile counts targeted minus seats OWNED (live subscriptions only), while the list judged users by assignedPlans — which keeps a plan in GRACE after its subscription is suspended or expires, so dozens of users read as licensed by seats that are no longer owned. There is now one definition: each user’s p1/p2 comes from assignedLicenses matched against the SAME live SKU set the seat totals count, with per-user disabledPlans respected. Users whose only P1/P2 is a grace plan are IN the gap, counted in their own chip and labelled ‘in grace — seat no longer owned’ in the pop-out and the export — which is also the actionable insight: their licence disappears the day the grace period ends." },
+      { kind: "improved", tool: "Licence gap", text: "Targeted identities with no member-user record — guests reached through an included group, or members beyond the user-read cap — were silently dropped from the named list, quietly widening the same tile-versus-list disagreement. They are now counted and shown as ‘not classifiable’, on the card and in the export. When the SKU read fails entirely, the per-user check falls back to assignedPlans and the result already says the gap cannot be computed against seats." },
+    ],
+  },
+  {
     build: 25140, date: "2026-08-18", title: "One admin group was an assumption about how tenants are organised",
     items: [
       { kind: "improved", tool: "Licence gap", text: "Promotion item 61 — admin accounts rarely live in exactly one group: a tenant has its persona group, a break-glass group, sometimes a per-tier split. The exclusion now takes SEVERAL groups, picked one after another from the same auto-fill field — each shown as its own chip with its own ✕, so one group can be removed without losing the rest. The union of their transitive members is excluded through the same single merge point as before, which is what keeps the obligation, the per-policy sizes, the Gap column and both named lists incapable of disagreeing. The result and the export name every group; the intersect-with-members and capped-read honesty rules apply per group." },

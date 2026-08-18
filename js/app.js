@@ -8354,27 +8354,47 @@ max@contoso.com,"Global, DevOps"</pre>
         try { ctx.totalMembers = await lgUserCount("userType eq 'Member'"); } catch { ctx.totalMembers = null; }
         try { ctx.disabledMembers = await lgUserCount("userType eq 'Member' and accountEnabled eq false"); } catch { ctx.disabledMembers = null; }
         lgProg.tick(count += ctx.totalMembers || 0, ++step);
-        say("🧑 Member users + assigned plans…");
+        say("🧑 Member users + licences…");
         // The user read is what lets the gap be NAMED, not just counted.
-        // assignedPlans is checked for the P1/P2 service plan per user —
-        // Enabled or Warning both count (a grace-period licence still
-        // covers its user), and a P2 plan satisfies the P1 obligation.
+        // Each user's p1/p2 comes from assignedLicenses matched against
+        // the SAME live SKU set the seat totals count — one definition of
+        // "licensed" for both numbers. (assignedPlans alone kept plans in
+        // grace from suspended subscriptions, so users read as licensed
+        // by seats no longer owned and the named list disagreed with the
+        // tile by exactly those users.) A per-user disabledPlans entry
+        // for the P1/P2 plan means the SKU is held but the plan is off.
+        // A user whose only P1/P2 is such a grace plan is IN the gap and
+        // labelled "in grace" — the licence exists, the seat does not.
         // Capped: the named lists then cover a prefix of the tenant and
         // the result says so; a failed read leaves users null, which the
         // analysis reports as "counted but not named", never as clean.
         try {
+          const live = LicGap.liveSkuSets(ctx.skus);   // null when the SKU read failed
           const us = [];
-          let next = `/users?$filter=${encodeURIComponent("userType eq 'Member'")}&$select=id,displayName,userPrincipalName,accountEnabled,assignedPlans&$top=999`, pages = 0;
+          let next = `/users?$filter=${encodeURIComponent("userType eq 'Member'")}&$select=id,displayName,userPrincipalName,accountEnabled,assignedLicenses,assignedPlans&$top=999`, pages = 0;
           while (next && pages < LG_USER_PAGES) {
             const j = await Graph.gget(next);
             for (const m of j.value || []) {
-              let p1 = false, p2 = false;
+              let p1 = false, p2 = false, planP1 = false, planP2 = false;
+              if (live) {
+                for (const l of m.assignedLicenses || []) {
+                  const dis = l.disabledPlans || [];
+                  const p1ok = live.p1.has(l.skuId) && !dis.includes(LicGap.P1_PLAN);
+                  const p2ok = live.p2.has(l.skuId) && !dis.includes(LicGap.P2_PLAN);
+                  if (p2ok) p2 = true;
+                  if (p1ok || p2ok) p1 = true;
+                }
+              }
               for (const ap of m.assignedPlans || []) {
                 if (ap.capabilityStatus !== "Enabled" && ap.capabilityStatus !== "Warning") continue;
-                if (ap.servicePlanId === LicGap.P1_PLAN) p1 = true;
-                else if (ap.servicePlanId === LicGap.P2_PLAN) p2 = true;
+                if (ap.servicePlanId === LicGap.P1_PLAN) planP1 = true;
+                else if (ap.servicePlanId === LicGap.P2_PLAN) planP2 = true;
               }
-              us.push({ id: m.id, name: m.displayName, upn: m.userPrincipalName, enabled: m.accountEnabled !== false, p1: p1 || p2, p2 });
+              if (!live) { p1 = planP1 || planP2; p2 = planP2; }   // no SKU read — plans are the only signal left
+              us.push({ id: m.id, name: m.displayName, upn: m.userPrincipalName, enabled: m.accountEnabled !== false,
+                p1: p1 || p2, p2,
+                p1grace: !!(live && !p1 && !p2 && (planP1 || planP2)),
+                p2grace: !!(live && !p2 && planP2) });
             }
             next = j["@odata.nextLink"] || null;
             pages++;
@@ -8528,6 +8548,8 @@ max@contoso.com,"Global, DevOps"</pre>
         <span class="pill red" title="Enabled real users — license these (or exclude them deliberately)">${c.license}</span> <span class="mini muted">to license</span>
         &nbsp;<span class="pill amber" title="Disabled accounts — cleanup candidates, not purchases">${c.disabled}</span> <span class="mini muted">disabled — cleanup</span>
         ${lgPurpose ? `&nbsp;<span class="pill green" title="Shared / room / equipment mailbox accounts — never licensed; disable or exclude them">${c.resource}</span> <span class="mini muted">shared/resource — never licensed</span>${c.likely ? `&nbsp;<span class="pill amber" title="A mailbox exists but the account has no licence — on an unlicensed account that is almost always a shared/room/equipment mailbox (a delegated sign-in cannot read its type directly). Verify in the Exchange admin center.">${c.likely}</span> <span class="mini muted">likely shared/resource</span>` : ""}` : ""}
+        ${o.graceCount ? `&nbsp;<span class="pill amber" title="These users still carry the plan from a suspended or expired subscription (grace period) — the licence shows on the user, but the seat is no longer owned, so they count in the gap.">${o.graceCount}</span> <span class="mini muted">in grace — seat no longer owned</span>` : ""}
+        ${o.gapUnknown ? `&nbsp;<span class="pill zero" title="Targeted identities with no member-user record — guests reached through a group, or beyond the user-read cap. They cannot be classified.">${o.gapUnknown}</span> <span class="mini muted">not classifiable</span>` : ""}
       </p>
       <div class="tb-actions" style="justify-content:flex-start;gap:8px">
         <button class="btn sm" data-lgusers="${key}">👥 View all ${o.gapUsers.length.toLocaleString()}</button>
@@ -8707,7 +8729,7 @@ max@contoso.com,"Global, DevOps"</pre>
         : purpose === null ? '<span class="tag">not readable</span>'
         : purpose === undefined ? '<span class="tag">not checked</span>' : '<span class="tag ok">user mailbox</span>';
       return `<tr><td class="mini"><code>${esc(u.upn || u.id)}</code></td><td class="mini">${esc(u.name || "")}</td>
-        <td>${u.enabled === false ? '<span class="tag block">disabled</span>' : '<span class="tag ok">enabled</span>'}</td>
+        <td>${u.enabled === false ? '<span class="tag block">disabled</span>' : '<span class="tag ok">enabled</span>'}${(lgModalKey === "p2" ? u.p2grace : u.p1grace) ? ' <span class="tag new" title="The plan is still on the user from a suspended/expired subscription (grace) — the seat is no longer owned, so this user counts in the gap.">in grace</span>' : ""}</td>
         ${lgPurpose === null ? "" : `<td>${mb}</td>`}</tr>`;
     }).join("");
     $("lgUsersBody").innerHTML = `<table class="plist"><thead><tr><th>User</th><th>Name</th><th>Account</th>${lgPurpose === null ? "" : "<th>Mailbox</th>"}</tr></thead><tbody>${rows || `<tr><td colspan="4" class="mini muted">No match.</td></tr>`}</tbody></table>`;

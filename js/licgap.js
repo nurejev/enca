@@ -70,13 +70,34 @@ const LicGap = (() => {
       if (DEAD.has(s.capabilityStatus)) { skipped.push(s.skuPartNumber || s.skuId); continue; }
       const seats = ((s.prepaidUnits || {}).enabled || 0);
       const assigned = s.consumedUnits || 0;
-      const row = { part: s.skuPartNumber || s.skuId, seats, assigned };
+      const row = { part: s.skuPartNumber || s.skuId, skuId: s.skuId, seats, assigned };
       if (hasP2) {
         p2.seats += seats; p2.assigned += assigned; p2.rows.push(row);
         p1.seats += seats; p1.assigned += assigned; p1.rows.push({ ...row, viaP2: true });
       } else { p1.seats += seats; p1.assigned += assigned; p1.rows.push(row); }
     }
     return { known: true, p1, p2, skipped };
+  }
+
+  // The SKUs whose seats the totals actually count — the wiring derives
+  // each user's p1/p2 from assignedLicenses AGAINST EXACTLY THIS SET, so
+  // the named gap list and the seat arithmetic can never use two different
+  // definitions of "licensed". (That divergence happened: assignedPlans
+  // keeps a plan in grace after its subscription is suspended, so users
+  // read as licensed by seats that are no longer owned — and the named
+  // list disagreed with the tile by exactly those users.)
+  function liveSkuSets(skus) {
+    if (!skus) return null;
+    const p1 = new Set(), p2 = new Set();
+    for (const s of skus) {
+      const plans = s.servicePlans || [];
+      const hasP1 = plans.some((p) => p.servicePlanId === P1_PLAN);
+      const hasP2 = plans.some((p) => p.servicePlanId === P2_PLAN);
+      if ((!hasP1 && !hasP2) || DEAD.has(s.capabilityStatus)) continue;
+      if (hasP2) { p2.add(s.skuId); p1.add(s.skuId); }
+      else p1.add(s.skuId);
+    }
+    return { p1, p2 };
   }
 
   // What a policy scopes, as Graph spells it. GuestsOrExternalUsers in the
@@ -194,9 +215,21 @@ const LicGap = (() => {
     const complete = users && !ctx.usersCapped;
     let approx = live.some((x) => x.approx);
     const alls = live.filter((x) => x.scope.all);
-    const scopedUnion = new Set();
+    let scopedUnion = new Set();
     for (const x of live) if (!x.scope.all && x.included) for (const u of x.included) scopedUnion.add(u);
-    if (!alls.length) return { size: scopedUnion.size, approx, ids: scopedUnion };
+    // With a complete user list, an included id that is no member user is a
+    // guest (or another directory object) reached through a group — guests
+    // are deliberately not counted, so it must not inflate the obligation.
+    // It is not dropped silently either: `dropped` feeds the result's
+    // not-classifiable count, so the identity stays visible.
+    let dropped = 0;
+    if (complete) {
+      const memberIds = new Set(users.map((u) => u.id));
+      const filtered = new Set([...scopedUnion].filter((id) => memberIds.has(id)));
+      dropped = scopedUnion.size - filtered.size;
+      scopedUnion = filtered;
+    }
+    if (!alls.length) return { size: scopedUnion.size, approx, ids: scopedUnion, dropped };
     let inter = null;
     for (const x of alls) {
       inter = inter === null ? new Set(x.excluded) : new Set([...inter].filter((u) => x.excluded.has(u)));
@@ -206,7 +239,7 @@ const LicGap = (() => {
     if (users) {
       const ids = new Set(users.filter((u) => !outside.has(u.id)).map((u) => u.id));
       for (const u of scopedUnion) ids.add(u);
-      if (complete) return { size: ids.size, approx, ids };
+      if (complete) return { size: ids.size, approx, ids, dropped };
       // Capped list: the ids are a partial prefix, so the SIZE falls back
       // to the count arithmetic (exact per /users?$count) while the named
       // list stays available as "the part that was read".
@@ -290,14 +323,23 @@ const LicGap = (() => {
     const broadest = perPolicy.reduce((w, p) => (p.size != null && (!w || p.size > w.size) ? p : w), null);
     const disabledRisk = (ctx.policies || []).filter((p) => p.state === "disabled" && riskKindsOf(p).length).length;
 
+    // Union ids with no user record (a guest reached through a group, or a
+    // member beyond the user-read cap) cannot be classified — count them
+    // rather than dropping them silently, or the named list quietly reads
+    // smaller than the tile.
+    const unknownOf = (info) => (info.dropped || 0)
+      + (info.ids && byId ? [...info.ids].filter((id) => !byId.has(id)).length : 0);
+
     const p1 = { targeted: p1u.size, approx: p1u.approx, seats: lic.known ? lic.p1.seats : null,
       assigned: lic.known ? lic.p1.assigned : null,
       gap: lic.known && p1u.size != null ? p1u.size - lic.p1.seats : null,
-      gapUsers: gapListOf(p1u, "p1"), gapPartial: !!p1u.partial };
+      gapUsers: gapListOf(p1u, "p1"), gapPartial: !!p1u.partial, gapUnknown: unknownOf(p1u),
+      graceCount: (gapListOf(p1u, "p1") || []).filter((u) => u.p1grace).length };
     const p2 = { targeted: p2u.size, approx: p2u.approx, seats: lic.known ? lic.p2.seats : null,
       assigned: lic.known ? lic.p2.assigned : null,
       gap: lic.known && p2u.size != null ? p2u.size - lic.p2.seats : null,
-      gapUsers: gapListOf(p2u, "p2"), gapPartial: !!p2u.partial,
+      gapUsers: gapListOf(p2u, "p2"), gapPartial: !!p2u.partial, gapUnknown: unknownOf(p2u),
+      graceCount: (gapListOf(p2u, "p2") || []).filter((u) => u.p2grace).length,
       riskCount: riskIdx.length };
 
     const adm = adminSet(ctx);
@@ -345,7 +387,8 @@ const LicGap = (() => {
     // denied; on an unlicensed account that is almost always a shared/
     // room/equipment mailbox — and "no-mailbox", a plain unlicensed user.
     const RESOURCE = { shared: "SHARED MAILBOX", room: "ROOM MAILBOX", equipment: "EQUIPMENT MAILBOX" };
-    for (const u of o.gapUsers) L.push(`- ${u.upn || u.id}${u.name && u.name !== u.upn ? ` — ${u.name}` : ""}${RESOURCE[u.purpose] ? ` — **${RESOURCE[u.purpose]}** (never licensed — disable or exclude it)` : u.purpose === "mailbox-no-access" ? " — **UNLICENSED MAILBOX** (likely shared/room/equipment — verify in the Exchange admin center)" : u.enabled === false ? " — **DISABLED** (cleanup candidate, not a purchase)" : ""}`);
+    for (const u of o.gapUsers) L.push(`- ${u.upn || u.id}${u.name && u.name !== u.upn ? ` — ${u.name}` : ""}${RESOURCE[u.purpose] ? ` — **${RESOURCE[u.purpose]}** (never licensed — disable or exclude it)` : u.purpose === "mailbox-no-access" ? " — **UNLICENSED MAILBOX** (likely shared/room/equipment — verify in the Exchange admin center)" : u.enabled === false ? " — **DISABLED** (cleanup candidate, not a purchase)" : ""}${(label === "P1" ? u.p1grace : u.p2grace) ? ` — **${label} IN GRACE** (from a suspended/expired subscription — the seat is no longer owned)` : ""}`);
+    if (o.gapUnknown) L.push("", `${o.gapUnknown.toLocaleString()} more targeted identit${o.gapUnknown === 1 ? "y is" : "ies are"} not in the member-user list (guests reached through a group, or beyond the user-read cap) and cannot be classified.`);
     const unassigned = o.seats != null && o.assigned != null ? Math.max(0, o.seats - o.assigned) : null;
     L.push("");
     if (unassigned) L.push(`${unassigned.toLocaleString()} owned seat${unassigned === 1 ? " is" : "s are"} not assigned to anyone — assigning covers ${Math.min(unassigned, o.gapUsers.length)} of these before anything needs buying.`, "");
@@ -383,5 +426,5 @@ const LicGap = (() => {
     return L.join("\n");
   }
 
-  return { analyze, toMd, scopeOf, riskKindsOf, licenseTotals, P1_PLAN, P2_PLAN };
+  return { analyze, toMd, scopeOf, riskKindsOf, licenseTotals, liveSkuSets, P1_PLAN, P2_PLAN };
 })();
