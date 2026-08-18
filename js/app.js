@@ -8273,18 +8273,28 @@ max@contoso.com,"Global, DevOps"</pre>
   const lgProg = makeProgress("lg");
   const LG_GROUP_CAP = 100;    // groups expanded per run
   const LG_MEMBER_PAGES = 10;  // ~10k members per group
+  const LG_USER_PAGES = 20;   // ~20k member users read so the gap can be NAMED
 
   const LG_DEMO = {
-    totalMembers: 121, disabledMembers: 9,
+    totalMembers: 7, disabledMembers: 1,
     skus: [
-      { skuPartNumber: "EMSPREMIUM", capabilityStatus: "Enabled", prepaidUnits: { enabled: 25 }, consumedUnits: 21,
+      { skuPartNumber: "EMSPREMIUM", capabilityStatus: "Enabled", prepaidUnits: { enabled: 3 }, consumedUnits: 3,
         servicePlans: [{ servicePlanId: LicGap.P1_PLAN, servicePlanName: "AAD_PREMIUM" }] },
-      { skuPartNumber: "AAD_PREMIUM_P2", capabilityStatus: "Enabled", prepaidUnits: { enabled: 5 }, consumedUnits: 5,
+      { skuPartNumber: "AAD_PREMIUM_P2", capabilityStatus: "Enabled", prepaidUnits: { enabled: 1 }, consumedUnits: 1,
         servicePlans: [{ servicePlanId: LicGap.P2_PLAN, servicePlanName: "AAD_PREMIUM_P2" }, { servicePlanId: LicGap.P1_PLAN, servicePlanName: "AAD_PREMIUM" }] },
       { skuPartNumber: "ENTERPRISEPACK", capabilityStatus: "Suspended", prepaidUnits: { enabled: 10 }, consumedUnits: 0,
         servicePlans: [{ servicePlanId: LicGap.P1_PLAN, servicePlanName: "AAD_PREMIUM" }] },
     ],
     members: { "g-hr": { users: ["u-emp1", "u-emp2"], capped: false } },
+    users: [
+      { id: "u-admin", name: "Alex Admin", upn: "alex.admin@contoso.com", enabled: true, p1: true, p2: true },
+      { id: "u-break1", name: "breakglass-01", upn: "breakglass-01@contoso.com", enabled: true, p1: false, p2: false },
+      { id: "u-break2", name: "breakglass-02", upn: "breakglass-02@contoso.com", enabled: true, p1: false, p2: false },
+      { id: "u-svc", name: "svc-legacyapp", upn: "svc-legacyapp@contoso.com", enabled: true, p1: false, p2: false },
+      { id: "u-emp1", name: "Eva Employee", upn: "eva@contoso.com", enabled: true, p1: true, p2: false },
+      { id: "u-emp2", name: "Milan Medewerker", upn: "milan@contoso.com", enabled: true, p1: true, p2: false },
+      { id: "u-old", name: "Olga Offboarded", upn: "olga@contoso.com", enabled: false, p1: false, p2: false },
+    ],
   };
 
   // The @odata.count idiom: $count=true pairs with the ConsistencyLevel
@@ -8307,12 +8317,13 @@ max@contoso.com,"Global, DevOps"</pre>
       const u = (r.conditions || {}).users || {};
       return [...(u.includeRoles || []), ...(u.excludeRoles || [])];
     }))];
-    lgProg.start(3 + Math.min(gids.length, LG_GROUP_CAP) + rids.length, "records", "step");
+    lgProg.start(4 + Math.min(gids.length, LG_GROUP_CAP) + rids.length, "records", "step");
     $("lgBody").innerHTML = lgProg.panel("Counting who your policies actually target…",
       "Licences, the tenant user count, and the members behind every group and role a policy includes or excludes — reads only, covered by the permissions you already granted.");
     try {
       const ctx = { policies: raws.concat(policies.map((p) => p.raw).filter((r) => r.state === "disabled")),
-        skus: null, totalMembers: null, disabledMembers: null, members: {}, roleMembers: {}, names: {} };
+        skus: null, totalMembers: null, disabledMembers: null, users: null, usersCapped: false,
+        members: {}, roleMembers: {}, names: {} };
       let step = 0, count = 0;
       const say = (t) => { const el = $("lgPgTxt"); if (el) el.textContent = t; };
       if (isDemo) {
@@ -8326,7 +8337,37 @@ max@contoso.com,"Global, DevOps"</pre>
         try { ctx.totalMembers = await lgUserCount("userType eq 'Member'"); } catch { ctx.totalMembers = null; }
         try { ctx.disabledMembers = await lgUserCount("userType eq 'Member' and accountEnabled eq false"); } catch { ctx.disabledMembers = null; }
         lgProg.tick(count += ctx.totalMembers || 0, ++step);
-        // Names first, so the progress line can narrate groups by name.
+        say("🧑 Member users + assigned plans…");
+        // The user read is what lets the gap be NAMED, not just counted.
+        // assignedPlans is checked for the P1/P2 service plan per user —
+        // Enabled or Warning both count (a grace-period licence still
+        // covers its user), and a P2 plan satisfies the P1 obligation.
+        // Capped: the named lists then cover a prefix of the tenant and
+        // the result says so; a failed read leaves users null, which the
+        // analysis reports as "counted but not named", never as clean.
+        try {
+          const us = [];
+          let next = `/users?$filter=${encodeURIComponent("userType eq 'Member'")}&$select=id,displayName,userPrincipalName,accountEnabled,assignedPlans&$top=999`, pages = 0;
+          while (next && pages < LG_USER_PAGES) {
+            const j = await Graph.gget(next);
+            for (const m of j.value || []) {
+              let p1 = false, p2 = false;
+              for (const ap of m.assignedPlans || []) {
+                if (ap.capabilityStatus !== "Enabled" && ap.capabilityStatus !== "Warning") continue;
+                if (ap.servicePlanId === LicGap.P1_PLAN) p1 = true;
+                else if (ap.servicePlanId === LicGap.P2_PLAN) p2 = true;
+              }
+              us.push({ id: m.id, name: m.displayName, upn: m.userPrincipalName, enabled: m.accountEnabled !== false, p1: p1 || p2, p2 });
+            }
+            next = j["@odata.nextLink"] || null;
+            pages++;
+            lgProg.tick(count += (j.value || []).length, step);
+          }
+          ctx.users = us;
+          ctx.usersCapped = !!next;
+        } catch { ctx.users = null; }
+        lgProg.tick(count, ++step);
+        // Names next, so the progress line can narrate groups by name.
         for (let i = 0; i < gids.length; i += 900) {
           try {
             const j = await Graph.gpost("/directoryObjects/getByIds", { ids: gids.slice(i, i + 900), types: ["group"] });
@@ -8427,12 +8468,38 @@ max@contoso.com,"Global, DevOps"</pre>
     const bars = `<div class="list-card" style="padding:14px 16px">
       <p class="mini" style="margin:0 0 2px"><b>Entra ID P1</b> — any active Conditional Access policy${r.broadest ? ` · broadest: <b class="pol-link" data-polid="${esc(r.broadest.id || "")}" title="Open the policy card">${esc(r.broadest.name)}</b> (${lgN(r.broadest.size, r.broadest.approx)} users)` : ""}</p>
       ${lgBar(r.p1.targeted, r.p1.seats)}
-      ${r.p2.riskCount ? `<p class="mini" style="margin:12px 0 2px"><b>Entra ID P2</b> — ${r.p2.riskCount} risk-based polic${r.p2.riskCount === 1 ? "y" : "ies"} (sign-in, user or insider risk)</p>${lgBar(r.p2.targeted, r.p2.seats) || `<p class="mini muted" style="margin:2px 0 0">No P2 seats to draw the bar with.</p>`}` : ""}
+      <p class="mini" style="margin:12px 0 2px"><b>Entra ID P2</b> — ${r.p2.riskCount ? `${r.p2.riskCount} risk-based polic${r.p2.riskCount === 1 ? "y" : "ies"} (sign-in, user or insider risk)` : "no active risk-based policy"}</p>
+      ${r.p2.riskCount
+        ? (lgBar(r.p2.targeted, r.p2.seats) || `<p class="mini muted" style="margin:2px 0 0">No P2 seats to draw the bar with.</p>`)
+        : `<p class="mini muted" style="margin:2px 0 0">Nothing creates a P2 obligation today${r.p2.seats ? ` — the ${r.p2.seats.toLocaleString()} P2 seat${r.p2.seats === 1 ? "" : "s"} owned ${r.p2.seats === 1 ? "is" : "are"} not required by Conditional Access` : ""}.${r.disabledRisk ? ` <span style="color:var(--report)">${r.disabledRisk} disabled risk-based polic${r.disabledRisk === 1 ? "y" : "ies"} would create one the day ${r.disabledRisk === 1 ? "it is" : "one is"} switched on.</span>` : ""}</p>`}
       ${r.p1.gap != null && r.p1.gap > 0
         ? `<p class="mini" style="color:var(--off);margin:10px 0 0"><b>Licence gap: ${r.p1.gap.toLocaleString()} users</b> are targeted by Conditional Access without a P1 licence to cover them. The usage blade will not necessarily warn about this — it measures last month's sign-ins, not the targeting.</p>`
         : r.p1.gap != null
         ? `<p class="mini" style="color:var(--on);margin:10px 0 0"><b>No P1 gap</b> — the seats cover everyone your policies target.</p>` : ""}
       ${r.p2.gap != null && r.p2.gap > 0 ? `<p class="mini" style="color:var(--off);margin:4px 0 0"><b>P2 gap: ${r.p2.gap.toLocaleString()} users</b> targeted by risk-based policies without a P2 licence.</p>` : ""}
+    </div>`;
+
+    // The named gap. Two numbers on purpose: the tile's gap is targeted
+    // minus seats OWNED (what must be bought), the list here is targeted
+    // users with no licence ASSIGNED (what can be fixed today) — with the
+    // unassigned-seat count bridging the two. Disabled accounts sort last
+    // and are labelled as cleanup candidates, not purchases.
+    const lgGapSection = (label, o) => {
+      if (o.gapUsers === null) return `<p class="mini muted" style="margin:0">The user list could not be read — the ${label} gap is counted above but cannot be named.</p>`;
+      if (!o.gapUsers.length) return `<p class="mini" style="color:var(--on);margin:0">Nobody — every targeted user has ${label} assigned.</p>`;
+      const unassigned = o.seats != null && o.assigned != null ? Math.max(0, o.seats - o.assigned) : null;
+      const shown = o.gapUsers.slice(0, 50);
+      return `<p class="mini" style="margin:0 0 6px"><b style="color:var(--off)">${o.gapUsers.length.toLocaleString()}</b> targeted user${o.gapUsers.length === 1 ? "" : "s"} with <b>no ${label} licence assigned</b>${r.totals.usersCapped ? ' <span class="tag new">partial — user read capped</span>' : ""}${unassigned ? ` · ${unassigned.toLocaleString()} owned seat${unassigned === 1 ? "" : "s"} still unassigned — assigning covers ${Math.min(unassigned, o.gapUsers.length)} of them before anything needs buying` : ""}</p>
+      <table class="plist"><thead><tr><th>User</th><th>Name</th><th>Account</th></tr></thead><tbody>
+      ${shown.map((u) => `<tr><td class="mini"><code>${esc(u.upn || u.id)}</code></td><td class="mini">${esc(u.name || "")}</td><td>${u.enabled === false ? '<span class="tag block">disabled — cleanup, not purchase</span>' : '<span class="tag ok">enabled</span>'}</td></tr>`).join("")}
+      </tbody></table>
+      ${o.gapUsers.length > shown.length ? `<p class="mini muted" style="margin:6px 0 0">Showing ${shown.length} of ${o.gapUsers.length.toLocaleString()} — the full list is in 📄 Export MD.</p>` : ""}`;
+    };
+    const who = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <h4 style="margin:0 0 6px">Who is in the P1 gap</h4>
+      ${lgGapSection("P1", r.p1)}
+      <h4 style="margin:14px 0 6px">Who is in the P2 gap</h4>
+      ${r.p2.riskCount ? lgGapSection("P2", r.p2) : `<p class="mini muted" style="margin:0">No active risk-based policy — nobody needs P2 today.${r.disabledRisk ? ` ${r.disabledRisk} disabled risk-based polic${r.disabledRisk === 1 ? "y" : "ies"} would change that the day ${r.disabledRisk === 1 ? "it is" : "one is"} switched on.` : ""}</p>`}
     </div>`;
 
     const lic = r.lic.known ? `<div class="list-card" style="padding:14px 16px;margin-top:12px">
@@ -8473,7 +8540,7 @@ max@contoso.com,"Global, DevOps"</pre>
     </div>`;
 
     const caveats = `<p class="mini muted" style="margin:12px 0 0">${r.caveats.map(esc).join(" · ")}</p>`;
-    $("lgBody").innerHTML = tiles + bars + lic + table + why + fix + caveats;
+    $("lgBody").innerHTML = tiles + bars + who + lic + table + why + fix + caveats;
   }
 
   function openLicGap() { crumb("🎫 Licence gap"); show("screen-licgap"); renderLicGap(); }

@@ -9,8 +9,9 @@
 // user targeted by a risk-based policy needs P2. Two very different
 // numbers: a tenant whose blade shows "2 of 25, fine" can be targeting
 // 114 users with 25 licences. This tool computes the targeted number —
-// the one the obligation is based on — and compares it with what the
-// tenant actually owns.
+// the one the obligation is based on — compares it with what the tenant
+// actually owns, and NAMES the users sitting in the gap, because "2 users
+// short" is not actionable until you know which two.
 // (After Rudy Mens' Get-EntraLicenseGap.ps1, lazyadmin.nl.)
 //
 // This module is pure analysis over a ctx the wiring fills from Graph
@@ -20,6 +21,13 @@
 //     skus:            [subscribedSku raws] | null      (null = not read),
 //     totalMembers:    n | null    (member users in the tenant; guests are a separate conversation),
 //     disabledMembers: n | null    (member users with accountEnabled false — the cleanup potential),
+//     users:    [{ id, name, upn, enabled, p1, p2 }] | null
+//               member users with whether the P1 / P2 service plan is
+//               assigned to them (Enabled or Warning) — what lets the gap
+//               be NAMED instead of only counted. null = not read,
+//     usersCapped: bool   (the user read hit its page cap — the list is a
+//               prefix of the tenant, so named lists are partial and every
+//               number derived from them is approximate),
 //     members:  { groupId → { users:[ids], capped:bool } }   transitive USER members;
 //               an unreadable group stays ABSENT — an empty entry would read as
 //               "fetched, zero members" and turn a read failure into a wrong count,
@@ -27,8 +35,9 @@
 //     names:    { id → displayName },
 //   }
 // Counts are honest about their own precision: wherever a group hit the
-// read cap, a role could not be read or an exclusion group was unreadable,
-// the number is marked approximate rather than presented as exact.
+// read cap, a role could not be read, an exclusion group was unreadable or
+// the user list was capped, the number is marked approximate rather than
+// presented as exact.
 // Nothing here talks to Graph and nothing writes — matching the house
 // pattern (devcheck.js, rmau.js): logic testable on its own, wiring thin.
 // ======================================================================
@@ -43,8 +52,8 @@ const LicGap = (() => {
   const DEAD = new Set(["Suspended", "Deleted", "LockedOut"]);
 
   function licenseTotals(skus) {
-    if (!skus) return { known: false, p1: { seats: 0, rows: [] }, p2: { seats: 0, rows: [] }, skipped: [] };
-    const p1 = { seats: 0, rows: [] }, p2 = { seats: 0, rows: [] }, skipped = [];
+    if (!skus) return { known: false, p1: { seats: 0, assigned: 0, rows: [] }, p2: { seats: 0, assigned: 0, rows: [] }, skipped: [] };
+    const p1 = { seats: 0, assigned: 0, rows: [] }, p2 = { seats: 0, assigned: 0, rows: [] }, skipped = [];
     for (const s of skus) {
       const plans = s.servicePlans || [];
       const hasP1 = plans.some((p) => p.servicePlanId === P1_PLAN);
@@ -52,9 +61,12 @@ const LicGap = (() => {
       if (!hasP1 && !hasP2) continue;
       if (DEAD.has(s.capabilityStatus)) { skipped.push(s.skuPartNumber || s.skuId); continue; }
       const seats = ((s.prepaidUnits || {}).enabled || 0);
-      const row = { part: s.skuPartNumber || s.skuId, seats, assigned: s.consumedUnits || 0 };
-      if (hasP2) { p2.seats += seats; p2.rows.push(row); p1.seats += seats; p1.rows.push({ ...row, viaP2: true }); }
-      else { p1.seats += seats; p1.rows.push(row); }
+      const assigned = s.consumedUnits || 0;
+      const row = { part: s.skuPartNumber || s.skuId, seats, assigned };
+      if (hasP2) {
+        p2.seats += seats; p2.assigned += assigned; p2.rows.push(row);
+        p1.seats += seats; p1.assigned += assigned; p1.rows.push({ ...row, viaP2: true });
+      } else { p1.seats += seats; p1.assigned += assigned; p1.rows.push(row); }
     }
     return { known: true, p1, p2, skipped };
   }
@@ -139,26 +151,37 @@ const LicGap = (() => {
   // summed; the union is computed on user ids where scopes are enumerable.
   // With one or more All-users policies the only users OUTSIDE the union
   // are those excluded from every All policy AND not reached by any scoped
-  // policy — computable from the exclusion sets without enumerating the
-  // whole tenant.
-  function unionSize(sized, ctx) {
+  // policy. When the wiring has read the user list, the union becomes an
+  // actual id set — which is what lets the gap be NAMED; with a capped
+  // list the ids are a partial prefix and every derived number says ≈.
+  function unionInfo(sized, ctx) {
     const live = sized.filter((x) => !x.scope.none);
-    if (!live.length) return { size: 0, approx: false };
+    if (!live.length) return { size: 0, approx: false, ids: new Set() };
+    const users = ctx.users || null;
+    const complete = users && !ctx.usersCapped;
     let approx = live.some((x) => x.approx);
     const alls = live.filter((x) => x.scope.all);
     const scopedUnion = new Set();
     for (const x of live) if (!x.scope.all && x.included) for (const u of x.included) scopedUnion.add(u);
-    if (alls.length) {
-      if (ctx.totalMembers == null) return { size: null, approx: true };
-      let inter = null;
-      for (const x of alls) {
-        inter = inter === null ? new Set(x.excluded) : new Set([...inter].filter((u) => x.excluded.has(u)));
-        if (!inter.size) break;
-      }
-      const outside = [...(inter || new Set())].filter((u) => !scopedUnion.has(u));
-      return { size: Math.max(0, ctx.totalMembers - outside.length), approx };
+    if (!alls.length) return { size: scopedUnion.size, approx, ids: scopedUnion };
+    let inter = null;
+    for (const x of alls) {
+      inter = inter === null ? new Set(x.excluded) : new Set([...inter].filter((u) => x.excluded.has(u)));
+      if (!inter.size) break;
     }
-    return { size: scopedUnion.size, approx };
+    const outside = new Set([...(inter || new Set())].filter((u) => !scopedUnion.has(u)));
+    if (users) {
+      const ids = new Set(users.filter((u) => !outside.has(u.id)).map((u) => u.id));
+      for (const u of scopedUnion) ids.add(u);
+      if (complete) return { size: ids.size, approx, ids };
+      // Capped list: the ids are a partial prefix, so the SIZE falls back
+      // to the count arithmetic (exact per /users?$count) while the named
+      // list stays available as "the part that was read".
+      const size = ctx.totalMembers != null ? Math.max(0, ctx.totalMembers - outside.size) : null;
+      return { size, approx: true, ids, partial: true };
+    }
+    const size = ctx.totalMembers != null ? Math.max(0, ctx.totalMembers - outside.size) : null;
+    return { size, approx: size == null ? true : approx, ids: null };
   }
 
   // ---- the whole tenant ------------------------------------------------
@@ -188,41 +211,86 @@ const LicGap = (() => {
 
     const sizedAll = active.map((raw) => sizeOf(raw, ctx));
     const riskIdx = active.map((raw, i) => (riskKindsOf(raw).length ? i : -1)).filter((i) => i >= 0);
-    const p1u = unionSize(sizedAll, ctx);
-    const p2u = unionSize(riskIdx.map((i) => sizedAll[i]), ctx);
+    const p1u = unionInfo(sizedAll, ctx);
+    const p2u = unionInfo(riskIdx.map((i) => sizedAll[i]), ctx);
+
+    // The named gap: targeted users WITHOUT the plan assigned to them.
+    // This is deliberately a different number from `gap` (targeted − seats
+    // OWNED): unassigned seats exist, and assigning them is free while
+    // buying is not — so both numbers are reported and the render says
+    // which is which. Disabled accounts sort last: they are the cleanup
+    // candidates, not the purchase candidates.
+    const byId = ctx.users ? new Map(ctx.users.map((u) => [u.id, u])) : null;
+    const gapListOf = (info, key) => {
+      if (!info.ids || !byId) return null;
+      const out = [];
+      for (const id of info.ids) {
+        const u = byId.get(id);
+        if (u && !u[key]) out.push(u);
+      }
+      out.sort((a, b) => (a.enabled === b.enabled ? 0 : a.enabled ? -1 : 1)
+        || String(a.upn || a.name).localeCompare(String(b.upn || b.name)));
+      return out;
+    };
 
     const broadest = perPolicy.reduce((w, p) => (p.size != null && (!w || p.size > w.size) ? p : w), null);
     const disabledRisk = (ctx.policies || []).filter((p) => p.state === "disabled" && riskKindsOf(p).length).length;
 
     const p1 = { targeted: p1u.size, approx: p1u.approx, seats: lic.known ? lic.p1.seats : null,
-      gap: lic.known && p1u.size != null ? p1u.size - lic.p1.seats : null };
+      assigned: lic.known ? lic.p1.assigned : null,
+      gap: lic.known && p1u.size != null ? p1u.size - lic.p1.seats : null,
+      gapUsers: gapListOf(p1u, "p1"), gapPartial: !!p1u.partial };
     const p2 = { targeted: p2u.size, approx: p2u.approx, seats: lic.known ? lic.p2.seats : null,
+      assigned: lic.known ? lic.p2.assigned : null,
       gap: lic.known && p2u.size != null ? p2u.size - lic.p2.seats : null,
+      gapUsers: gapListOf(p2u, "p2"), gapPartial: !!p2u.partial,
       riskCount: riskIdx.length };
 
     const caveats = [];
     caveats.push("Counted on member users — guests are excluded on purpose; guest/External ID licensing follows different rules.");
     caveats.push("The count is of identities, not people. Microsoft's licensing FAQ counts one employee with several internal accounts (a day-to-day account plus an admin account) as ONE licence — map admin accounts back to their owners before buying for them.");
-    if (p1.approx || p2.approx) caveats.push("A count marked ≈ is approximate: a group was unreadable or over the read cap, or a role could not be read. The tool refuses to present those as exact.");
+    if (p1.approx || p2.approx) caveats.push("A count marked ≈ is approximate: a group was unreadable or over the read cap, a role could not be read, or the user list was capped. The tool refuses to present those as exact.");
+    if (ctx.usersCapped) caveats.push("The user read hit its page cap — the named gap lists cover the users that were read, not the whole tenant.");
+    if (ctx.users === null || ctx.users === undefined) caveats.push("The user list was not read — the gap can be counted but not named.");
     if (perPolicy.some((p) => p.state === "enabledForReportingButNotEnforced"))
       caveats.push("Report-only policies count — they evaluate every sign-in in scope, and the licensing terms are about targeting, not enforcement.");
     if (disabledRisk) caveats.push(`${disabledRisk} disabled risk-based polic${disabledRisk === 1 ? "y" : "ies"} not counted — switching ${disabledRisk === 1 ? "it" : "one"} on creates a P2 obligation for its scope.`);
 
     return { perPolicy, lic, p1, p2, broadest,
-      totals: { members: ctx.totalMembers, disabled: ctx.disabledMembers },
+      totals: { members: ctx.totalMembers, disabled: ctx.disabledMembers,
+        usersRead: ctx.users ? ctx.users.length : null, usersCapped: !!ctx.usersCapped },
       disabledRisk, activeCount: active.length, caveats };
   }
 
   // ---- Markdown --------------------------------------------------------
   const n = (v, approx) => v == null ? "not read" : `${approx ? "≈ " : ""}${v.toLocaleString()}`;
+  function mdGapList(L, label, o, partial) {
+    L.push(`### Who is in the ${label} gap`, "");
+    if (o.gapUsers === null) {
+      L.push("The user list could not be read, so the gap is counted but not named.", "");
+      return;
+    }
+    if (!o.gapUsers.length) {
+      L.push(`Nobody — every targeted user has ${label} assigned.`, "");
+      return;
+    }
+    L.push(`${o.gapUsers.length.toLocaleString()} targeted user${o.gapUsers.length === 1 ? "" : "s"} with no ${label} licence assigned${partial ? " (partial — the user read was capped)" : ""}:`, "");
+    for (const u of o.gapUsers) L.push(`- ${u.upn || u.id}${u.name && u.name !== u.upn ? ` — ${u.name}` : ""}${u.enabled === false ? " — **DISABLED** (cleanup candidate, not a purchase)" : ""}`);
+    const unassigned = o.seats != null && o.assigned != null ? Math.max(0, o.seats - o.assigned) : null;
+    L.push("");
+    if (unassigned) L.push(`${unassigned.toLocaleString()} owned seat${unassigned === 1 ? " is" : "s are"} not assigned to anyone — assigning covers ${Math.min(unassigned, o.gapUsers.length)} of these before anything needs buying.`, "");
+  }
   function toMd(res, meta = {}) {
     const L = [`# Licence gap — ${meta.tenantName || "tenant"}`, "", Brand.generatedBy(), ""];
-    L.push("The licence usage blade in Entra counts **evaluated** users — who triggered a policy last month. The licensing obligation is on **targeted** users: every user a Conditional Access policy is scoped to needs Entra ID P1, and every user targeted by a risk-based policy needs P2, whether they signed in or not. This report counts the targeted number.", "");
+    L.push("The licence usage blade in Entra counts **evaluated** users — who triggered a policy last month. The licensing obligation is on **targeted** users: every user a Conditional Access policy is scoped to needs Entra ID P1, and every user targeted by a risk-based policy needs P2, whether they signed in or not. This report counts the targeted number and names the users in the gap.", "");
     L.push("## The gap", "");
     L.push("| | Targeted | Licensed | Gap |", "|---|---|---|---|");
     L.push(`| **Entra ID P1** (any CA policy) | ${n(res.p1.targeted, res.p1.approx)} | ${n(res.p1.seats)} | ${res.p1.gap == null ? "—" : res.p1.gap > 0 ? `**${res.p1.gap.toLocaleString()} short**` : "covered"} |`);
     L.push(`| **Entra ID P2** (risk-based policies) | ${n(res.p2.targeted, res.p2.approx)} | ${n(res.p2.seats)} | ${res.p2.gap == null ? "—" : res.p2.gap > 0 ? `**${res.p2.gap.toLocaleString()} short**` : "covered"} |`, "");
     if (res.totals.members != null) L.push(`Member users in the tenant: ${res.totals.members.toLocaleString()}${res.totals.disabled != null ? ` (of which ${res.totals.disabled.toLocaleString()} disabled)` : ""}. Active CA policies: ${res.activeCount}.${res.broadest ? ` Broadest policy: **${res.broadest.name}** (${n(res.broadest.size, res.broadest.approx)} users).` : ""}`, "");
+    mdGapList(L, "P1", res.p1, res.totals.usersCapped);
+    if (res.p2.riskCount) mdGapList(L, "P2", res.p2, res.totals.usersCapped);
+    else L.push("### Who is in the P2 gap", "", `No active risk-based policy — nothing creates a P2 obligation today${res.p2.seats ? ` (${res.p2.seats.toLocaleString()} P2 seat${res.p2.seats === 1 ? "" : "s"} owned)` : ""}.${res.disabledRisk ? ` Note: ${res.disabledRisk} disabled risk-based polic${res.disabledRisk === 1 ? "y" : "ies"} would create one the day ${res.disabledRisk === 1 ? "it is" : "one is"} switched on.` : ""}`, "");
     if (res.lic.known) {
       L.push("## Where the licences come from", "");
       for (const r of res.lic.p1.rows) L.push(`- ${r.part}: ${r.seats.toLocaleString()} seat${r.seats === 1 ? "" : "s"} (${r.assigned.toLocaleString()} assigned)${r.viaP2 ? " — carries P2, counts for both" : ""}`);
