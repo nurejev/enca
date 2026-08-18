@@ -8277,7 +8277,7 @@ max@contoso.com,"Global, DevOps"</pre>
   // The designated admin-accounts group: its members are excluded from
   // every count and list — Microsoft licenses people, and a second
   // internal account of a licensed person needs no second licence.
-  let lgAdmin = null, lgCtx = null;
+  let lgAdmin = [], lgCtx = null;   // the designated groups, in pick order
   const lgAdmMap = new Map();   // suggestion label (lowercased) → { id, name }
   let lgAdmTimer = null, lgAdmBusy = false;
   const LG_PURPOSE_CAP = 600;  // gap users checked per run, in $batch chunks
@@ -8426,7 +8426,7 @@ max@contoso.com,"Global, DevOps"</pre>
           lgProg.tick(count, ++step);
         }
       }
-      if (lgAdmin) ctx.adminExclude = lgAdmin;
+      if (lgAdmin.length) ctx.adminExclude = lgAdmin;
       lgCtx = ctx;
       lgRes = LicGap.analyze(ctx);
     } catch (e) {
@@ -8630,15 +8630,14 @@ max@contoso.com,"Global, DevOps"</pre>
     }, 250);
   });
   function lgAdmChipRender() {
-    $("lgAdmChip").innerHTML = lgAdmin
-      ? `<span class="tag grant">👑 excluding ${lgAdmin.users.length.toLocaleString()} admin account${lgAdmin.users.length === 1 ? "" : "s"} via ${esc(lgAdmin.name)}${lgAdmin.capped ? " (capped)" : ""}</span> <button class="btn sm" data-lgadmclear title="Stop excluding this group">✕</button>`
-      : "";
+    $("lgAdmChip").innerHTML = lgAdmin.map((g) =>
+      `<span class="tag grant" style="margin-right:6px">👑 ${esc(g.name)} (${g.users.length.toLocaleString()}${g.capped ? ", capped" : ""}) <button class="btn sm" data-lgadmclear="${esc(g.id)}" title="Stop excluding ${esc(g.name)}" style="padding:0 6px;margin-left:2px">✕</button></span>`).join("");
   }
   // Re-analysis is free: the ctx of the last run is kept, so changing the
   // admin group never re-reads the tenant.
   function lgReanalyze() {
     if (!lgCtx) return;
-    if (lgAdmin) lgCtx.adminExclude = lgAdmin; else delete lgCtx.adminExclude;
+    if (lgAdmin.length) lgCtx.adminExclude = lgAdmin; else delete lgCtx.adminExclude;
     lgRes = LicGap.analyze(lgCtx);
     // Mailbox purposes ride on the user objects themselves, so a check
     // already done survives the re-analysis.
@@ -8656,6 +8655,7 @@ max@contoso.com,"Global, DevOps"</pre>
         if (g && g.value && g.value.length) hit = { id: g.value[0].id, name: g.value[0].displayName };
       }
       if (!hit) { toast("Pick a <span>group</span> from the list"); lgAdmBusy = false; return; }
+      if (lgAdmin.some((g) => g.id === hit.id)) { toast("Already excluded"); $("lgAdmInput").value = ""; lgAdmBusy = false; return; }
       let users = [], capped = false;
       if (isDemo) {
         users = ((LG_DEMO.members || {})[hit.id] || { users: [] }).users.slice();
@@ -8670,7 +8670,7 @@ max@contoso.com,"Global, DevOps"</pre>
         }
         capped = !!next;
       }
-      lgAdmin = { id: hit.id, name: hit.name, users, capped };
+      lgAdmin.push({ id: hit.id, name: hit.name, users, capped });
       $("lgAdmInput").value = "";
       lgAdmChipRender();
       lgReanalyze();
@@ -8683,8 +8683,9 @@ max@contoso.com,"Global, DevOps"</pre>
   $("lgAdmInput").addEventListener("change", lgAdmPick);
   $("lgAdmInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); lgAdmPick(); } });
   $("lgAdmChip").addEventListener("click", (e) => {
-    if (!e.target.closest("[data-lgadmclear]")) return;
-    lgAdmin = null;
+    const b = e.target.closest("[data-lgadmclear]");
+    if (!b) return;
+    lgAdmin = lgAdmin.filter((g) => g.id !== b.dataset.lgadmclear);
     lgAdmChipRender();
     lgReanalyze();
   });

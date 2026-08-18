@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25140, date: "2026-08-18", title: "One admin group was an assumption about how tenants are organised",
+    items: [
+      { kind: "improved", tool: "Licence gap", text: "Promotion item 61 — admin accounts rarely live in exactly one group: a tenant has its persona group, a break-glass group, sometimes a per-tier split. The exclusion now takes SEVERAL groups, picked one after another from the same auto-fill field — each shown as its own chip with its own ✕, so one group can be removed without losing the rest. The union of their transitive members is excluded through the same single merge point as before, which is what keeps the obligation, the per-policy sizes, the Gap column and both named lists incapable of disagreeing. The result and the export name every group; the intersect-with-members and capped-read honesty rules apply per group." },
+    ],
+  },
+  {
     build: 25139, date: "2026-08-18", title: "Admin accounts are people who already have a licence",
     items: [
       { kind: "new", tool: "Licence gap", text: "Promotion item 61 — Microsoft’s licensing FAQ counts one employee with several internal accounts as ONE licence, so the adm- accounts sitting in every gap list are noise the moment their owners are licensed. The toolbar gains an optional ‘exclude an admin-accounts group’ picker: it auto-fills with the groups the loaded CA policies already reference (that is where an admin persona group usually lives — works in demo mode too) and searches the directory live from two typed characters. The group’s transitive user members drop out of every count, the per-policy sizes and Gap column, and both named lists." },
