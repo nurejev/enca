@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 286, date: "2026-08-18", title: "Roadmap R04 was describing a tenant nobody has had since build 254",
+    items: [
+      { kind: "fixed", tool: "Roadmap", text: "R04\u2019s \"Still to do\" list had gone stale item by item and ended on a flat untruth: \"Production keeps creating role-assignable groups until this lands there.\" The role-assignable checkbox was dropped in build <b>254</b> and the last panels describing it went in 284 \u2014 so the card was telling you the very thing it exists to retire was still being created for you. The rest was no better: the bundled group templates and both baseline catalogs stopped asking for the flag, the MS Learn and CIS checks and the documentation exports never mention it, Group Analyzer only REPORTS it on a group it finds (which is what a group analyzer is for, not a leftover expectation), and \ud83d\udce5 Import already files the groups it CREATES into their persona vault." },
+      { kind: "improved", tool: "Roadmap", text: "What is actually left is now what the card says: a group the import REUSES is left exactly as it is \u2014 the preflight added in 285 says what it inherits, but filing it into its vault and disabling its nesting are still separate steps in \ud83d\udd12 Protect exclusions and \u2467 Disable nesting \u2014 and the flag only truly leaves a tenant once \u2466 Migrate has been run there, because nothing retires a group this app did not create. A roadmap that describes a version of the product nobody is running is worse than no roadmap: it is read as current." },
+    ],
+  },
+  {
     build: 285, date: "2026-08-17", title: "Import says what it is building on, and a migration survives navigating away",
     items: [
       { kind: "new", tool: "Import", text: "Promotion item 59 (R04) \u2014 a baseline exported from a tenant that still used the role-assignable flag brings those groups with it, and importing on top of them is not neutral. The flag is immutable, it forbids controlling nesting, and it cannot be combined with a restricted management administrative unit \u2014 a group carrying both has nobody who can change its members. So the policies would import cleanly, land on groups the baseline has deliberately moved away from, and the \ud83d\udee1 protection step would silently skip exactly those. The preflight now reads the groups THIS FILE brings, in one batch, and names any that already exist here as role-assignable." },
