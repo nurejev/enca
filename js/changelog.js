@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25138, date: "2026-08-18", title: "The mailbox check reads the refusal, not just the answer",
+    items: [
+      { kind: "fixed", tool: "Licence gap", text: "Promotion item 61 — 🏷 Check mailbox types came back ‘not readable’ for every account on a real tenant, including an actual shared mailbox. Cause: Graph’s documented delegated permission is not enough in practice — a delegated token can only read ANOTHER mailbox’s settings when the signed-in person holds rights on that mailbox, so the direct userPurpose read is denied almost everywhere a SPA runs. The check now reads the refusal itself: gap users are unlicensed by definition, and a regular unlicensed user has NO mailbox — so ‘access denied’ proves a mailbox EXISTS without a licence, which is almost always shared, room or equipment. Those accounts are labelled ‘unlicensed mailbox — likely shared/resource’ with a verify-in-Exchange note, counted in their own pill, and exported as such; ‘mailbox not enabled / not found’ confirms a plain unlicensed account (‘no mailbox — regular account’). A direct read that does succeed (own mailbox, delegate rights) still returns the exact type. Only a genuinely unclassifiable error stays ‘not readable’." },
+      { kind: "improved", tool: "Licence gap", text: "The check button says what a click will do before it is clicked: ‘Check mailbox types (N)’ counts the distinct gap users it will read, says ‘N of M’ when the 600 cap trims the list, and live progress (‘Checking 40 of 120…’) runs on the button during the \ read. Under the hood, batch responses now carry the Graph error code and status alongside the message — additive, no other consumer changes — because ‘Access is denied’ versus ‘mailbox not enabled’ is exactly the distinction the classification needs." },
+    ],
+  },
+  {
     build: 25137, date: "2026-08-18", title: "A long list is not a decision — the gap now sorts itself into actions",
     items: [
       { kind: "improved", tool: "Licence gap", text: "Promotion item 61 — the named gap list moved out of the card into a searchable pop-out: a large tenant makes it hundreds of rows, and a card that long buries everything after it. The card now shows the decision breakdown instead — how many enabled real users to license, how many disabled accounts to clean up, and (after the mailbox check) how many shared/resource accounts should never have been in scope — with 👥 View all opening the dialog, filterable by name or UPN. The full list stays in the Markdown export either way." },

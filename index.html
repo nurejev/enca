@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25137"></script>
+<script src="js/popup-guard.js?v=25138"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25137">
+<link rel="stylesheet" href="css/app.css?v=25138">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25137"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25137"></script>
+<script src="js/counter.js?v=25138"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25138"></script>
 </head>
 <body>
 
@@ -1775,7 +1775,7 @@
       <ul>
         <li><b>Targeting is resolved on the actual members</b> — an All-users policy is the member-user count minus its resolvable exclusions; a scoped policy is the union of its included users, transitive group members (nesting counts) and directory-role holders, minus its exclusions. Per-policy counts overlap, so the obligation is the <b>union across policies</b>, computed on user ids — one user under five policies needs one licence, never five.</li>
         <li><b>Seats are matched on service plans</b>, not SKU names: any subscription carrying the <code>AAD_PREMIUM</code> / <code>AAD_PREMIUM_P2</code> plan counts (EMS, M365 E3/E5, Business Premium…), a P2 seat counts for the P1 obligation too, and suspended or cancelled subscriptions are excluded by <code>capabilityStatus</code>. The comparison is against seats <b>owned</b>, not assigned — an unassigned seat still covers a targeted user.</li>
-        <li><b>The gap is named, in a pop-out</b> — the on-screen card shows the breakdown; the full list opens in a searchable dialog (large tenants make long lists), and the complete list is always in the Markdown export. <b>🏷 Check mailbox types</b> reads each gap user's mailbox purpose (<code>MailboxSettings.Read</code>, asked once on the click) and labels <b>shared, room and equipment mailbox accounts</b> — those are never licensed and should be disabled or excluded, not bought for.</li>
+        <li><b>The gap is named, in a pop-out</b> — the on-screen card shows the breakdown; the full list opens in a searchable dialog (large tenants make long lists), and the complete list is always in the Markdown export. <b>🏷 Check mailbox types</b> reads each gap user's mailbox purpose (<code>MailboxSettings.Read</code>, asked once on the click) and labels <b>shared, room and equipment mailbox accounts</b> — those are never licensed and should be disabled or excluded, not bought for. A delegated sign-in usually cannot read another mailbox's type directly, so the check also reads the <i>failure</i>: an unlicensed account whose mailbox read is <i>denied</i> has a mailbox without a licence — almost always shared/room/equipment — and is labelled <b>likely shared/resource</b> with a verify-in-Exchange note, while “no mailbox” confirms a regular unlicensed account.</li>
         <li><b>Honest numbers</b> — a count where a group was unreadable or over the read cap, or a role could not be read, is marked <b>≈</b> rather than presented as exact. Report-only policies count (they evaluate everyone in scope); disabled policies do not, but a disabled risk-based policy is named as a P2 obligation waiting to happen. Guests are deliberately not counted — guest licensing follows different rules.</li>
         <li><b>Why gaps exist and how to close them</b> — the result explains the usual cause (an All-users baseline sweeping in disabled accounts, stale synced users, service accounts and shared mailboxes) and lays out the options with their trade-offs: clean up and exclude before buying, map admin accounts to their owners (one person, one licence — the counts here are identities), narrow the targeting only as a deliberate decision because everyone outside a licensed-users group goes unprotected, Security defaults for small tenants (cannot coexist with CA), and finally buying the remainder.</li>
         <li><b>📄 Export MD</b> — the comparison, the per-policy table and the mitigation options as Markdown for the licensing conversation.</li>
@@ -2438,50 +2438,50 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25137"></script>
-<script src="js/version.js?v=25137"></script>
-<script src="js/promote.js?v=25137"></script>
-<script src="js/authConfig.js?v=25137"></script>
-<script src="js/labels.js?v=25137"></script>
-<script src="js/graph.js?v=25137"></script>
-<script src="js/model.js?v=25137"></script>
-<script src="js/render.js?v=25137"></script>
-<script src="js/analyze.js?v=25137"></script>
-<script src="js/whatif.js?v=25137"></script>
-<script src="js/mslearn.js?v=25137"></script>
-<script src="js/gapcheck.js?v=25137"></script>
-<script src="js/cisdata.js?v=25137"></script>
-<script src="js/cischeck.js?v=25137"></script>
-<script src="js/exclusions.js?v=25137"></script>
-<script src="js/validator.js?v=25137"></script>
-<script src="js/whatifeval.js?v=25137"></script>
-<script src="js/compare.js?v=25137"></script>
-<script src="js/groupuse.js?v=25137"></script>
-<script src="js/iso3166.js?v=25137"></script>
-<script src="js/locations.js?v=25137"></script>
-<script src="js/authcontexts.js?v=25137"></script>
-<script src="js/authstrengths.js?v=25137"></script>
-<script src="js/recycle.js?v=25137"></script>
-<script src="js/rmau.js?v=25137"></script>
-<script src="js/rmaudoc.js?v=25137"></script>
-<script src="js/termsofuse.js?v=25137"></script>
-<script src="js/audit.js?v=25137"></script>
-<script src="js/drift.js?v=25137"></script>
-<script src="js/guide.js?v=25137"></script>
-<script src="js/devcheck.js?v=25137"></script>
-<script src="js/licgap.js?v=25137"></script>
-<script src="js/signins.js?v=25137"></script>
-<script src="js/reportimpact.js?v=25137"></script>
-<script src="js/changelog.js?v=25137"></script>
-<script src="js/baselineData.js?v=25137"></script>
-<script src="js/baselineJoeyData.js?v=25137"></script>
-<script src="js/baseline.js?v=25137"></script>
-<script src="js/groupTemplates.js?v=25137"></script>
-<script src="js/assign.js?v=25137"></script>
-<script src="js/cagroups.js?v=25137"></script>
-<script src="js/import.js?v=25137"></script>
-<script src="js/export.js?v=25137"></script>
-<script src="js/demo.js?v=25137"></script>
-<script src="js/app.js?v=25137"></script>
+<script src="js/branding.js?v=25138"></script>
+<script src="js/version.js?v=25138"></script>
+<script src="js/promote.js?v=25138"></script>
+<script src="js/authConfig.js?v=25138"></script>
+<script src="js/labels.js?v=25138"></script>
+<script src="js/graph.js?v=25138"></script>
+<script src="js/model.js?v=25138"></script>
+<script src="js/render.js?v=25138"></script>
+<script src="js/analyze.js?v=25138"></script>
+<script src="js/whatif.js?v=25138"></script>
+<script src="js/mslearn.js?v=25138"></script>
+<script src="js/gapcheck.js?v=25138"></script>
+<script src="js/cisdata.js?v=25138"></script>
+<script src="js/cischeck.js?v=25138"></script>
+<script src="js/exclusions.js?v=25138"></script>
+<script src="js/validator.js?v=25138"></script>
+<script src="js/whatifeval.js?v=25138"></script>
+<script src="js/compare.js?v=25138"></script>
+<script src="js/groupuse.js?v=25138"></script>
+<script src="js/iso3166.js?v=25138"></script>
+<script src="js/locations.js?v=25138"></script>
+<script src="js/authcontexts.js?v=25138"></script>
+<script src="js/authstrengths.js?v=25138"></script>
+<script src="js/recycle.js?v=25138"></script>
+<script src="js/rmau.js?v=25138"></script>
+<script src="js/rmaudoc.js?v=25138"></script>
+<script src="js/termsofuse.js?v=25138"></script>
+<script src="js/audit.js?v=25138"></script>
+<script src="js/drift.js?v=25138"></script>
+<script src="js/guide.js?v=25138"></script>
+<script src="js/devcheck.js?v=25138"></script>
+<script src="js/licgap.js?v=25138"></script>
+<script src="js/signins.js?v=25138"></script>
+<script src="js/reportimpact.js?v=25138"></script>
+<script src="js/changelog.js?v=25138"></script>
+<script src="js/baselineData.js?v=25138"></script>
+<script src="js/baselineJoeyData.js?v=25138"></script>
+<script src="js/baseline.js?v=25138"></script>
+<script src="js/groupTemplates.js?v=25138"></script>
+<script src="js/assign.js?v=25138"></script>
+<script src="js/cagroups.js?v=25138"></script>
+<script src="js/import.js?v=25138"></script>
+<script src="js/export.js?v=25138"></script>
+<script src="js/demo.js?v=25138"></script>
+<script src="js/app.js?v=25138"></script>
 </body>
 </html>

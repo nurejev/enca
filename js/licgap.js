@@ -296,11 +296,13 @@ const LicGap = (() => {
       return;
     }
     L.push(`${o.gapUsers.length.toLocaleString()} targeted user${o.gapUsers.length === 1 ? "" : "s"} with no ${label} licence assigned${partial ? " (partial — the user read was capped)" : ""}:`, "");
-    // u.purpose is set by the wiring's on-demand mailbox-type check
-    // (mailboxSettings.userPurpose) — a shared/room/equipment mailbox
-    // account is never licensed and should be disabled, not bought for.
+    // u.purpose is set by the wiring's on-demand mailbox-type check.
+    // Besides the real userPurpose values, two derived outcomes exist:
+    // "mailbox-no-access" — a mailbox EXISTS but the delegated read was
+    // denied; on an unlicensed account that is almost always a shared/
+    // room/equipment mailbox — and "no-mailbox", a plain unlicensed user.
     const RESOURCE = { shared: "SHARED MAILBOX", room: "ROOM MAILBOX", equipment: "EQUIPMENT MAILBOX" };
-    for (const u of o.gapUsers) L.push(`- ${u.upn || u.id}${u.name && u.name !== u.upn ? ` — ${u.name}` : ""}${RESOURCE[u.purpose] ? ` — **${RESOURCE[u.purpose]}** (never licensed — disable or exclude it)` : u.enabled === false ? " — **DISABLED** (cleanup candidate, not a purchase)" : ""}`);
+    for (const u of o.gapUsers) L.push(`- ${u.upn || u.id}${u.name && u.name !== u.upn ? ` — ${u.name}` : ""}${RESOURCE[u.purpose] ? ` — **${RESOURCE[u.purpose]}** (never licensed — disable or exclude it)` : u.purpose === "mailbox-no-access" ? " — **UNLICENSED MAILBOX** (likely shared/room/equipment — verify in the Exchange admin center)" : u.enabled === false ? " — **DISABLED** (cleanup candidate, not a purchase)" : ""}`);
     const unassigned = o.seats != null && o.assigned != null ? Math.max(0, o.seats - o.assigned) : null;
     L.push("");
     if (unassigned) L.push(`${unassigned.toLocaleString()} owned seat${unassigned === 1 ? " is" : "s are"} not assigned to anyone — assigning covers ${Math.min(unassigned, o.gapUsers.length)} of these before anything needs buying.`, "");

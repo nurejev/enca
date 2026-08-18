@@ -8302,8 +8302,8 @@ max@contoso.com,"Global, DevOps"</pre>
       { id: "u-old", name: "Olga Offboarded", upn: "olga@contoso.com", enabled: false, p1: false, p2: false },
       { id: "u-shared", name: "Alerts And Notifications", upn: "alerts@contoso.com", enabled: true, p1: false, p2: false },
     ],
-    purposes: { "u-admin": "user", "u-break1": "user", "u-break2": "user", "u-svc": "user",
-      "u-emp1": "user", "u-emp2": "user", "u-old": "user", "u-shared": "shared" },
+    purposes: { "u-admin": "user", "u-break1": "no-mailbox", "u-break2": "no-mailbox", "u-svc": "no-mailbox",
+      "u-emp1": "user", "u-emp2": "user", "u-old": "mailbox-no-access", "u-shared": "shared" },
   };
 
   // The @odata.count idiom: $count=true pairs with the ConsistencyLevel
@@ -8498,10 +8498,11 @@ max@contoso.com,"Global, DevOps"</pre>
     // decides what to DO — license, clean up, or disable a resource
     // account that should never have been in scope at all.
     const lgClassify = (list) => {
-      const c = { license: 0, disabled: 0, resource: 0, unknown: 0 };
+      const c = { license: 0, disabled: 0, resource: 0, likely: 0, unknown: 0 };
       for (const u of list) {
         const purpose = lgPurpose ? lgPurpose[u.id] : undefined;
         if (purpose && LG_RESOURCE.has(purpose)) c.resource++;
+        else if (purpose === "mailbox-no-access") c.likely++;
         else if (u.enabled === false) c.disabled++;
         else { c.license++; if (lgPurpose && purpose === null) c.unknown++; }
       }
@@ -8516,11 +8517,15 @@ max@contoso.com,"Global, DevOps"</pre>
       <p class="mini" style="margin:0 0 10px">
         <span class="pill red" title="Enabled real users — license these (or exclude them deliberately)">${c.license}</span> <span class="mini muted">to license</span>
         &nbsp;<span class="pill amber" title="Disabled accounts — cleanup candidates, not purchases">${c.disabled}</span> <span class="mini muted">disabled — cleanup</span>
-        ${lgPurpose ? `&nbsp;<span class="pill green" title="Shared / room / equipment mailbox accounts — never licensed; disable or exclude them">${c.resource}</span> <span class="mini muted">shared/resource — never licensed</span>` : ""}
+        ${lgPurpose ? `&nbsp;<span class="pill green" title="Shared / room / equipment mailbox accounts — never licensed; disable or exclude them">${c.resource}</span> <span class="mini muted">shared/resource — never licensed</span>${c.likely ? `&nbsp;<span class="pill amber" title="A mailbox exists but the account has no licence — on an unlicensed account that is almost always a shared/room/equipment mailbox (a delegated sign-in cannot read its type directly). Verify in the Exchange admin center.">${c.likely}</span> <span class="mini muted">likely shared/resource</span>` : ""}` : ""}
       </p>
       <div class="tb-actions" style="justify-content:flex-start;gap:8px">
         <button class="btn sm" data-lgusers="${key}">👥 View all ${o.gapUsers.length.toLocaleString()}</button>
-        ${lgPurpose === null ? `<button class="btn sm" data-lgcheck title="Reads each gap user's mailbox purpose — shared, room and equipment mailboxes are never licensed and should be disabled, not bought for. Needs MailboxSettings.Read, asked once on this click.">${lgPurposeBusy ? "🏷 Checking…" : "🏷 Check mailbox types"}</button>` : ""}
+        ${lgPurpose === null ? (() => {
+          const total = new Set([...(r.p1.gapUsers || []), ...(r.p2.gapUsers || [])].map((u) => u.id)).size;
+          const n2 = Math.min(total, LG_PURPOSE_CAP);
+          return `<button class="btn sm" data-lgcheck title="Reads each gap user's mailbox purpose — shared, room and equipment mailboxes are never licensed and should be disabled, not bought for. Needs MailboxSettings.Read, asked once on this click.${total > LG_PURPOSE_CAP ? ` Capped at ${LG_PURPOSE_CAP} of ${total}.` : ""}">${lgPurposeBusy ? "🏷 Checking…" : `🏷 Check mailbox types (${n2.toLocaleString()}${total > LG_PURPOSE_CAP ? ` of ${total.toLocaleString()}` : ""})`}</button>`;
+        })() : ""}
       </div>`;
     };
     const who = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
@@ -8584,8 +8589,10 @@ max@contoso.com,"Global, DevOps"</pre>
       const res = purpose && LG_RESOURCE.has(purpose);
       const mb = lgPurpose === null ? "" : res
         ? `<span class="tag block">${lgPurposeLabel[purpose]} — never licensed, disable it</span>`
+        : purpose === "mailbox-no-access" ? '<span class="tag new" title="A mailbox exists but the account holds no licence — on an unlicensed account that is almost always shared/room/equipment. A delegated sign-in cannot read the type directly; verify in the Exchange admin center.">unlicensed mailbox — likely shared/resource</span>'
+        : purpose === "no-mailbox" ? '<span class="tag">no mailbox — regular account</span>'
         : purpose === null ? '<span class="tag">not readable</span>'
-        : purpose === undefined ? '<span class="tag">not checked</span>' : '<span class="tag ok">user</span>';
+        : purpose === undefined ? '<span class="tag">not checked</span>' : '<span class="tag ok">user mailbox</span>';
       return `<tr><td class="mini"><code>${esc(u.upn || u.id)}</code></td><td class="mini">${esc(u.name || "")}</td>
         <td>${u.enabled === false ? '<span class="tag block">disabled</span>' : '<span class="tag ok">enabled</span>'}</td>
         ${lgPurpose === null ? "" : `<td>${mb}</td>`}</tr>`;
@@ -8618,11 +8625,26 @@ max@contoso.com,"Global, DevOps"</pre>
         for (const id of ids) lgPurpose[id] = (LG_DEMO.purposes || {})[id] || "user";
       } else {
         if (!await preConsent([...AUTH_CONFIG.scopes, "MailboxSettings.Read"])) { lgPurposeBusy = false; renderLicGap(); return; }
-        const res = await Graph.gbatch(ids.map((id) => ({ id, url: `/users/${id}/mailboxSettings?$select=userPurpose` })));
+        const btn = document.querySelector("[data-lgcheck]");
+        const res = await Graph.gbatch(ids.map((id) => ({ id, url: `/users/${id}/mailboxSettings?$select=userPurpose` })),
+          (done, total) => { if (btn) btn.textContent = `🏷 Checking ${done} of ${total}…`; });
         lgPurpose = {};
+        // A delegated token can only read ANOTHER mailbox's settings when the
+        // signed-in person holds rights on that mailbox, so on most tenants
+        // the direct read fails — but the failure itself answers the
+        // question. The gap users are unlicensed by definition, and a
+        // regular unlicensed user has NO mailbox: so "access denied" means a
+        // mailbox EXISTS without a licence — shared, room or equipment (or a
+        // licence removed moments ago) — while "mailbox not enabled / not
+        // found" means a plain unlicensed account. Only an unclassifiable
+        // error stays "not readable".
         for (const id of ids) {
           const r = res[id];
-          lgPurpose[id] = r && r.body && !r.error ? (r.body.userPurpose || "user") : null;
+          if (r && r.body && !r.error) { lgPurpose[id] = r.body.userPurpose || "user"; continue; }
+          const sig = `${(r && r.code) || ""} ${(r && r.error) || ""}`;
+          if (/ErrorAccessDenied|Access is denied/i.test(sig)) lgPurpose[id] = "mailbox-no-access";
+          else if (/MailboxNotEnabledForRESTAPI|MailboxNotHostedInExchangeOnline|REST API is not yet supported|ResourceNotFound|inactive|soft-deleted|on-premise|not found/i.test(sig)) lgPurpose[id] = "no-mailbox";
+          else lgPurpose[id] = null;
         }
       }
       // The export names them too — purpose rides on the user objects the
