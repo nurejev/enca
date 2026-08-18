@@ -33,6 +33,13 @@
 //               "fetched, zero members" and turn a read failure into a wrong count,
 //     roleMembers: { roleTemplateId → [userIds] | null }     null = unreadable,
 //     names:    { id → displayName },
+//     adminExclude: { id, name, users:[ids], capped } | null
+//               a group the operator designated as "these are the admin
+//               accounts of already-licensed people" — Microsoft's FAQ
+//               licenses PEOPLE, and a second internal account for the
+//               same person needs no second licence. Its members are
+//               excluded from every count and every named list, and the
+//               result says so out loud.
 //   }
 // Counts are honest about their own precision: wherever a group hit the
 // read cap, a role could not be read, an exclusion group was unreadable or
@@ -129,9 +136,28 @@ const LicGap = (() => {
   // is the union of the includes minus the exclusions. Guest targeting is
   // flagged, never counted — guest licensing (MAU / External ID) is a
   // separate conversation with different rules.
+  // The designated admin group becomes part of every policy's exclusion
+  // set — one merge point, and the union, the per-policy sizes, the gap
+  // lists and the All-users arithmetic all follow from it consistently.
+  function adminSet(ctx) {
+    const a = ctx.adminExclude;
+    if (!a || !a.users || !a.users.length) return null;
+    // When the user list is complete, intersect: a group can hold guests
+    // or out-of-scope objects, and subtracting those from a member count
+    // would undercount the obligation.
+    if (ctx.users && !ctx.usersCapped) {
+      const members = new Set(ctx.users.map((u) => u.id));
+      return new Set(a.users.filter((id) => members.has(id)));
+    }
+    return new Set(a.users);
+  }
+
   function sizeOf(raw, ctx) {
     const s = scopeOf(raw);
     const exc = usersOf(s.excUsers, s.excGroups, s.excRoles, ctx);
+    const adm = adminSet(ctx);
+    if (adm) for (const id of adm) exc.set.add(id);
+    if (adm && ctx.adminExclude.capped) exc.approx = true;
     if (s.none) return { scope: s, size: 0, approx: false, excluded: exc.set, included: new Set() };
     if (s.all) {
       const t = ctx.totalMembers;
@@ -267,7 +293,11 @@ const LicGap = (() => {
       gapUsers: gapListOf(p2u, "p2"), gapPartial: !!p2u.partial,
       riskCount: riskIdx.length };
 
+    const adm = adminSet(ctx);
+    const adminExclude = adm ? { name: (ctx.adminExclude || {}).name || "", count: adm.size, capped: !!(ctx.adminExclude || {}).capped } : null;
+
     const caveats = [];
+    if (adminExclude) caveats.push(`${adminExclude.count.toLocaleString()} admin account${adminExclude.count === 1 ? "" : "s"} excluded via group "${adminExclude.name}"${adminExclude.capped ? " (member read capped — the exclusion may be incomplete)" : ""} — Microsoft's FAQ licenses people, not identities, so a second internal account of an already-licensed person needs no second licence. This assumes every member of that group maps to a licensed owner; document the mapping.`);
     caveats.push("Counted on member users — guests are excluded on purpose; guest/External ID licensing follows different rules.");
     caveats.push("The count is of identities, not people. Microsoft's licensing FAQ counts one employee with several internal accounts (a day-to-day account plus an admin account) as ONE licence — map admin accounts back to their owners before buying for them.");
     if (p1.approx || p2.approx) caveats.push("A count marked ≈ is approximate: a group was unreadable or over the read cap, a role could not be read, or the user list was capped. The tool refuses to present those as exact.");
@@ -277,7 +307,7 @@ const LicGap = (() => {
       caveats.push("Report-only policies count — they evaluate every sign-in in scope, and the licensing terms are about targeting, not enforcement.");
     if (disabledRisk) caveats.push(`${disabledRisk} disabled risk-based polic${disabledRisk === 1 ? "y" : "ies"} not counted — switching ${disabledRisk === 1 ? "it" : "one"} on creates a P2 obligation for its scope.`);
 
-    return { perPolicy, lic, p1, p2, broadest,
+    return { perPolicy, lic, p1, p2, broadest, adminExclude,
       totals: { members: ctx.totalMembers, disabled: ctx.disabledMembers,
         usersRead: ctx.users ? ctx.users.length : null, usersCapped: !!ctx.usersCapped },
       disabledRisk, activeCount: active.length, caveats };
@@ -315,6 +345,7 @@ const LicGap = (() => {
     L.push(`| **Entra ID P1** (any CA policy) | ${n(res.p1.targeted, res.p1.approx)} | ${n(res.p1.seats)} | ${res.p1.gap == null ? "—" : res.p1.gap > 0 ? `**${res.p1.gap.toLocaleString()} short**` : "covered"} |`);
     L.push(`| **Entra ID P2** (risk-based policies) | ${n(res.p2.targeted, res.p2.approx)} | ${n(res.p2.seats)} | ${res.p2.gap == null ? "—" : res.p2.gap > 0 ? `**${res.p2.gap.toLocaleString()} short**` : "covered"} |`, "");
     if (res.totals.members != null) L.push(`Member users in the tenant: ${res.totals.members.toLocaleString()}${res.totals.disabled != null ? ` (of which ${res.totals.disabled.toLocaleString()} disabled)` : ""}. Active CA policies: ${res.activeCount}.${res.broadest ? ` Broadest policy: **${res.broadest.name}** (${n(res.broadest.size, res.broadest.approx)} users).` : ""}`, "");
+    if (res.adminExclude) L.push(`**Admin accounts excluded:** ${res.adminExclude.count.toLocaleString()} via group **${res.adminExclude.name}**${res.adminExclude.capped ? " (member read capped — possibly incomplete)" : ""} — a second internal account of an already-licensed person needs no second licence. This assumes every member maps to a licensed owner; document the mapping.`, "");
     mdGapList(L, "P1", res.p1, res.totals.usersCapped);
     if (res.p2.riskCount) mdGapList(L, "P2", res.p2, res.totals.usersCapped);
     else L.push("### Who is in the P2 gap", "", `No active risk-based policy — nothing creates a P2 obligation today${res.p2.seats ? ` (${res.p2.seats.toLocaleString()} P2 seat${res.p2.seats === 1 ? "" : "s"} owned)` : ""}.${res.disabledRisk ? ` Note: ${res.disabledRisk} disabled risk-based polic${res.disabledRisk === 1 ? "y" : "ies"} would create one the day ${res.disabledRisk === 1 ? "it is" : "one is"} switched on.` : ""}`, "");

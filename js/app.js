@@ -8274,6 +8274,12 @@ max@contoso.com,"Global, DevOps"</pre>
   // userId → mailbox purpose ("shared"/"room"/"equipment"/"user"/…), null = that
   // one user's read failed. The whole map null = not checked yet this run.
   let lgPurpose = null, lgPurposeBusy = false, lgModalKey = null;
+  // The designated admin-accounts group: its members are excluded from
+  // every count and list — Microsoft licenses people, and a second
+  // internal account of a licensed person needs no second licence.
+  let lgAdmin = null, lgCtx = null;
+  const lgAdmMap = new Map();   // suggestion label (lowercased) → { id, name }
+  let lgAdmTimer = null, lgAdmBusy = false;
   const LG_PURPOSE_CAP = 600;  // gap users checked per run, in $batch chunks
   const LG_RESOURCE = new Set(["shared", "room", "equipment"]);
   const lgProg = makeProgress("lg");
@@ -8291,7 +8297,8 @@ max@contoso.com,"Global, DevOps"</pre>
       { skuPartNumber: "ENTERPRISEPACK", capabilityStatus: "Suspended", prepaidUnits: { enabled: 10 }, consumedUnits: 0,
         servicePlans: [{ servicePlanId: LicGap.P1_PLAN, servicePlanName: "AAD_PREMIUM" }] },
     ],
-    members: { "g-hr": { users: ["u-emp1", "u-emp2"], capped: false } },
+    members: { "g-hr": { users: ["u-emp1", "u-emp2"], capped: false },
+      "g-admins": { users: ["u-admin"], capped: false } },
     users: [
       { id: "u-admin", name: "Alex Admin", upn: "alex.admin@contoso.com", enabled: true, p1: true, p2: true },
       { id: "u-break1", name: "breakglass-01", upn: "breakglass-01@contoso.com", enabled: true, p1: false, p2: false },
@@ -8419,6 +8426,8 @@ max@contoso.com,"Global, DevOps"</pre>
           lgProg.tick(count, ++step);
         }
       }
+      if (lgAdmin) ctx.adminExclude = lgAdmin;
+      lgCtx = ctx;
       lgRes = LicGap.analyze(ctx);
     } catch (e) {
       $("lgBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p></div>`;
@@ -8476,6 +8485,7 @@ max@contoso.com,"Global, DevOps"</pre>
     </div>`;
 
     const bars = `<div class="list-card" style="padding:14px 16px">
+      ${r.adminExclude ? `<p class="mini" style="margin:0 0 8px"><span class="tag grant">👑 ${r.adminExclude.count.toLocaleString()} admin account${r.adminExclude.count === 1 ? "" : "s"} excluded via ${esc(r.adminExclude.name)}</span> <span class="muted">— a second internal account of a licensed person needs no second licence; document the mapping.</span></p>` : ""}
       <p class="mini" style="margin:0 0 2px"><b>Entra ID P1</b> — any active Conditional Access policy${r.broadest ? ` · broadest: <b class="pol-link" data-polid="${esc(r.broadest.id || "")}" title="Open the policy card">${esc(r.broadest.name)}</b> (${lgN(r.broadest.size, r.broadest.approx)} users)` : ""}</p>
       ${lgBar(r.p1.targeted, r.p1.seats)}
       <p class="mini" style="margin:12px 0 2px"><b>Entra ID P2</b> — ${r.p2.riskCount ? `${r.p2.riskCount} risk-based polic${r.p2.riskCount === 1 ? "y" : "ies"} (sign-in, user or insider risk)` : "no active risk-based policy"}</p>
@@ -8577,6 +8587,108 @@ max@contoso.com,"Global, DevOps"</pre>
     $("lgBody").innerHTML = tiles + bars + who + lic + table + why + fix + caveats;
   }
 
+  // ---- the admin-accounts group picker ----
+  // Auto-fill in two layers: the groups the loaded CA policies already
+  // reference come first (that is where an admin persona group usually
+  // lives, and it works in demo mode too), and from two typed characters
+  // the directory is searched live, the same way Gap analyse suggests.
+  function lgAdmPrefill() {
+    lgAdmMap.clear();
+    const seen = new Set();
+    const rows = [];
+    if (isDemo) {
+      lgAdmMap.set("persona-admins", { id: "g-admins", name: "Persona-Admins" });
+      rows.push('<option value="Persona-Admins" label="👥 admin group"></option>');
+    }
+    for (const p of policies) for (const d of (p.deps || [])) {
+      if (d.type !== "group" || seen.has(d.id)) continue;
+      seen.add(d.id);
+      const name = d.label || d.id;
+      lgAdmMap.set(name.toLowerCase(), { id: d.id, name });
+      rows.push(`<option value="${esc(name)}" label="👥 CA group"></option>`);
+    }
+    $("lgAdmList").innerHTML = rows.join("");
+  }
+  $("lgAdmInput").addEventListener("input", (e) => {
+    const v = e.target.value.trim();
+    clearTimeout(lgAdmTimer);
+    if (v.length < 2 || isDemo) return;
+    lgAdmTimer = setTimeout(async () => {
+      try {
+        const f = v.replace(/'/g, "''");
+        const g = await Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=id,displayName&$top=8`).catch(() => null);
+        const rows = [];
+        ((g && g.value) || []).forEach((x) => {
+          lgAdmMap.set((x.displayName || "").toLowerCase(), { id: x.id, name: x.displayName });
+          rows.push(`<option value="${esc(x.displayName || "")}" label="👥 group"></option>`);
+        });
+        // The CA-referenced groups stay in the list alongside the live hits.
+        for (const [, hit] of lgAdmMap) if (!rows.some((r) => r.includes(`value="${esc(hit.name)}"`)))
+          rows.push(`<option value="${esc(hit.name)}" label="👥"></option>`);
+        $("lgAdmList").innerHTML = rows.join("");
+      } catch (err) { console.warn("licence gap: group suggest failed", err.message); }
+    }, 250);
+  });
+  function lgAdmChipRender() {
+    $("lgAdmChip").innerHTML = lgAdmin
+      ? `<span class="tag grant">👑 excluding ${lgAdmin.users.length.toLocaleString()} admin account${lgAdmin.users.length === 1 ? "" : "s"} via ${esc(lgAdmin.name)}${lgAdmin.capped ? " (capped)" : ""}</span> <button class="btn sm" data-lgadmclear title="Stop excluding this group">✕</button>`
+      : "";
+  }
+  // Re-analysis is free: the ctx of the last run is kept, so changing the
+  // admin group never re-reads the tenant.
+  function lgReanalyze() {
+    if (!lgCtx) return;
+    if (lgAdmin) lgCtx.adminExclude = lgAdmin; else delete lgCtx.adminExclude;
+    lgRes = LicGap.analyze(lgCtx);
+    // Mailbox purposes ride on the user objects themselves, so a check
+    // already done survives the re-analysis.
+    renderLicGap();
+  }
+  async function lgAdmPick() {
+    const v = $("lgAdmInput").value.trim();
+    if (!v || lgAdmBusy) return;
+    let hit = lgAdmMap.get(v.toLowerCase());
+    lgAdmBusy = true;
+    try {
+      if (!hit && !isDemo) {
+        const f = v.replace(/'/g, "''");
+        const g = await Graph.gget(`/groups?$filter=displayName eq '${f}'&$select=id,displayName&$top=1`).catch(() => null);
+        if (g && g.value && g.value.length) hit = { id: g.value[0].id, name: g.value[0].displayName };
+      }
+      if (!hit) { toast("Pick a <span>group</span> from the list"); lgAdmBusy = false; return; }
+      let users = [], capped = false;
+      if (isDemo) {
+        users = ((LG_DEMO.members || {})[hit.id] || { users: [] }).users.slice();
+        if (!users.length && DEMO_DATA.groupMembers && DEMO_DATA.groupMembers[hit.id]) users = DEMO_DATA.groupMembers[hit.id].slice();
+      } else {
+        let next = `/groups/${hit.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, pages = 0;
+        while (next && pages < LG_MEMBER_PAGES) {
+          const j = await Graph.gget(next);
+          for (const m of j.value || []) users.push(m.id);
+          next = j["@odata.nextLink"] || null;
+          pages++;
+        }
+        capped = !!next;
+      }
+      lgAdmin = { id: hit.id, name: hit.name, users, capped };
+      $("lgAdmInput").value = "";
+      lgAdmChipRender();
+      lgReanalyze();
+      if (!users.length) toast("That group has <span>no user members</span> — nothing changes.");
+    } catch (e) {
+      toast(`Reading the group failed: ${esc(e.message || e)}`);
+    }
+    lgAdmBusy = false;
+  }
+  $("lgAdmInput").addEventListener("change", lgAdmPick);
+  $("lgAdmInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); lgAdmPick(); } });
+  $("lgAdmChip").addEventListener("click", (e) => {
+    if (!e.target.closest("[data-lgadmclear]")) return;
+    lgAdmin = null;
+    lgAdmChipRender();
+    lgReanalyze();
+  });
+
   // ---- the pop-out with the full gap list ----
   const lgPurposeLabel = { shared: "shared mailbox", room: "room mailbox", equipment: "equipment mailbox" };
   function lgRenderUsers() {
@@ -8658,7 +8770,7 @@ max@contoso.com,"Global, DevOps"</pre>
     renderLicGap();
     if ($("lgUsersModal").classList.contains("open")) lgRenderUsers();
   }
-  function openLicGap() { crumb("🎫 Licence gap"); show("screen-licgap"); renderLicGap(); }
+  function openLicGap() { crumb("🎫 Licence gap"); show("screen-licgap"); lgAdmPrefill(); lgAdmChipRender(); renderLicGap(); }
   $("toolLicGap").addEventListener("click", openLicGap);
   $("lgRun").addEventListener("click", lgRun);
   $("lgBody").addEventListener("click", (e) => {
