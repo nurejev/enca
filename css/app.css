@@ -1397,3 +1397,7 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 @keyframes run-pulse { 0%,100% { opacity:1 } 50% { opacity:.25 } }
 .run-track { display:inline-block; width:64px; height:5px; border-radius:3px; background:var(--soft2, rgba(127,127,127,.2)); overflow:hidden; }
 .run-track > span { display:block; height:100%; background:var(--accent); transition:width .2s; }
+
+/* Licence gap — the seats-vs-targeted coverage bar */
+.lg-bar{height:14px;border-radius:7px;background:var(--soft);border:1px solid var(--border);overflow:hidden;margin-top:4px}
+.lg-bar>div{height:100%;border-radius:7px 0 0 7px;transition:width .3s}

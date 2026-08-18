@@ -71,7 +71,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-devcheck", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -1536,6 +1536,7 @@
     ["toolImpact", "🎚 Report-only impact"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolDevCheck", "🖥 Device reality check"],
+    ["toolLicGap", "🎫 Licence gap"],
     ["toolBaseline", "🧬 Baseline Policies"],
     ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
     ["toolMsLearn", "📘 MS Learn checks"],
@@ -8262,6 +8263,232 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("🖥 Compliant-device reality check", "CA-DeviceRealityCheck", DevCheck.toMd(dvRes, { tenantName }));
   });
 
+  // ---------- Licence gap (targeted vs entitled) ----------
+  // The analysis lives in js/licgap.js as pure functions; this wiring
+  // resolves the actual targeting of every active policy (group members,
+  // role members, tenant user count) and the P1/P2 seat counts, then
+  // renders the comparison. Everything it reads is covered by the two
+  // baseline scopes — no extra consent, reads only.
+  let lgRes = null, lgBusy = false;
+  const lgProg = makeProgress("lg");
+  const LG_GROUP_CAP = 100;    // groups expanded per run
+  const LG_MEMBER_PAGES = 10;  // ~10k members per group
+
+  const LG_DEMO = {
+    totalMembers: 121, disabledMembers: 9,
+    skus: [
+      { skuPartNumber: "EMSPREMIUM", capabilityStatus: "Enabled", prepaidUnits: { enabled: 25 }, consumedUnits: 21,
+        servicePlans: [{ servicePlanId: LicGap.P1_PLAN, servicePlanName: "AAD_PREMIUM" }] },
+      { skuPartNumber: "AAD_PREMIUM_P2", capabilityStatus: "Enabled", prepaidUnits: { enabled: 5 }, consumedUnits: 5,
+        servicePlans: [{ servicePlanId: LicGap.P2_PLAN, servicePlanName: "AAD_PREMIUM_P2" }, { servicePlanId: LicGap.P1_PLAN, servicePlanName: "AAD_PREMIUM" }] },
+      { skuPartNumber: "ENTERPRISEPACK", capabilityStatus: "Suspended", prepaidUnits: { enabled: 10 }, consumedUnits: 0,
+        servicePlans: [{ servicePlanId: LicGap.P1_PLAN, servicePlanName: "AAD_PREMIUM" }] },
+    ],
+    members: { "g-hr": { users: ["u-emp1", "u-emp2"], capped: false } },
+  };
+
+  // The @odata.count idiom: $count=true pairs with the ConsistencyLevel
+  // header gget always sends; $top=1 keeps the page itself near-empty.
+  async function lgUserCount(filter) {
+    const j = await Graph.gget(`/users?$count=true&$top=1&$select=id&$filter=${encodeURIComponent(filter)}`);
+    const c = j["@odata.count"];
+    return typeof c === "number" ? c : null;
+  }
+
+  async function lgRun() {
+    if (lgBusy) return;
+    lgBusy = true;
+    const raws = policies.map((p) => p.raw).filter((r) => r.state !== "disabled");
+    const gids = [...new Set(raws.flatMap((r) => {
+      const u = (r.conditions || {}).users || {};
+      return [...(u.includeGroups || []), ...(u.excludeGroups || [])];
+    }))];
+    const rids = [...new Set(raws.flatMap((r) => {
+      const u = (r.conditions || {}).users || {};
+      return [...(u.includeRoles || []), ...(u.excludeRoles || [])];
+    }))];
+    lgProg.start(3 + Math.min(gids.length, LG_GROUP_CAP) + rids.length, "records", "step");
+    $("lgBody").innerHTML = lgProg.panel("Counting who your policies actually target…",
+      "Licences, the tenant user count, and the members behind every group and role a policy includes or excludes — reads only, covered by the permissions you already granted.");
+    try {
+      const ctx = { policies: raws.concat(policies.map((p) => p.raw).filter((r) => r.state === "disabled")),
+        skus: null, totalMembers: null, disabledMembers: null, members: {}, roleMembers: {}, names: {} };
+      let step = 0, count = 0;
+      const say = (t) => { const el = $("lgPgTxt"); if (el) el.textContent = t; };
+      if (isDemo) {
+        Object.assign(ctx, LG_DEMO, { roleMembers: DEMO_DATA.roleMembers || {}, names: DEMO_DATA.names || {} });
+      } else {
+        say("🎫 Licence entitlements…");
+        // A failed SKU read must surface as "not read", never as zero seats.
+        try { ctx.skus = await Graph.ggetAll("/subscribedSkus"); } catch { ctx.skus = null; }
+        lgProg.tick(count += (ctx.skus || []).length, ++step);
+        say("👥 Tenant user count…");
+        try { ctx.totalMembers = await lgUserCount("userType eq 'Member'"); } catch { ctx.totalMembers = null; }
+        try { ctx.disabledMembers = await lgUserCount("userType eq 'Member' and accountEnabled eq false"); } catch { ctx.disabledMembers = null; }
+        lgProg.tick(count += ctx.totalMembers || 0, ++step);
+        // Names first, so the progress line can narrate groups by name.
+        for (let i = 0; i < gids.length; i += 900) {
+          try {
+            const j = await Graph.gpost("/directoryObjects/getByIds", { ids: gids.slice(i, i + 900), types: ["group"] });
+            for (const o of j.value || []) ctx.names[o.id] = o.displayName;
+          } catch { /* names stay GUIDs — the counts still hold */ }
+        }
+        // Transitive USER members per group, capped like Device reality
+        // check. Only a successful read lands in the map — an unreadable
+        // group must stay ABSENT so the analysis marks the count ≈ instead
+        // of treating a read failure as an empty group.
+        for (const id of gids.slice(0, LG_GROUP_CAP)) {
+          say(`👥 ${ctx.names[id] || id}…`);
+          const rec = { users: [], capped: false };
+          try {
+            let next = `/groups/${id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, pages = 0;
+            while (next && pages < LG_MEMBER_PAGES) {
+              const j = await Graph.gget(next);
+              for (const m of j.value || []) rec.users.push(m.id);
+              next = j["@odata.nextLink"] || null;
+              pages++;
+            }
+            rec.capped = !!next;
+            ctx.members[id] = rec;
+          } catch { /* absent on purpose — see above */ }
+          lgProg.tick(count += rec.users.length, ++step);
+        }
+        // Directory role members: an unactivated role 404s, which really is
+        // "no active assignments" — but any other failure stays null so the
+        // count is marked approximate rather than silently low. graphError
+        // folds the HTTP status into the message, so that is where it lives.
+        for (const id of rids) {
+          say(`🎭 role ${id}…`);
+          try {
+            const m = await Graph.ggetAll(`/directoryRoles(roleTemplateId='${id}')/members?$select=id`);
+            ctx.roleMembers[id] = m.map((x) => x.id);
+          } catch (e) {
+            ctx.roleMembers[id] = /\(404\)/.test(String(e && e.message || "")) ? [] : null;
+          }
+          lgProg.tick(count, ++step);
+        }
+      }
+      lgRes = LicGap.analyze(ctx);
+    } catch (e) {
+      $("lgBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p></div>`;
+      lgBusy = false;
+      return;
+    }
+    lgBusy = false;
+    renderLicGap();
+  }
+
+  const lgN = (v, approx) => v == null ? "—" : `${approx ? "≈" : ""}${v.toLocaleString()}`;
+  const lgStateTag = (s) => s === "enabled" ? '<span class="tag block">On</span>'
+    : s === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
+  // The one visual that carries the verdict: how much of the targeted
+  // population the seats cover. Green at 100%, amber close, red wide open.
+  function lgBar(targeted, seats) {
+    if (targeted == null || seats == null || !targeted) return "";
+    const pct = Math.min(100, seats / targeted * 100);
+    const col = pct >= 100 ? "var(--on)" : pct >= 75 ? "var(--report)" : "var(--off)";
+    return `<div class="lg-bar" title="${Math.round(pct)}% of the targeted users are licensed"><div style="width:${pct}%;background:${col}"></div></div>
+      <p class="mini muted" style="margin:2px 0 0">${seats.toLocaleString()} of ${targeted.toLocaleString()} targeted users licensed (${Math.round(pct)}%)</p>`;
+  }
+
+  function renderLicGap() {
+    $("lgHead").innerHTML = `<h3>🎫 Licence gap <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:4px">Microsoft's licence usage blade counts <b>evaluated</b> users — who happened to trigger a policy last month. The obligation Microsoft licenses on is <b>targeted</b> users: every user a Conditional Access policy is scoped to needs <b>Entra ID P1</b>, and every user targeted by a risk-based policy needs <b>P2</b> — whether they signed in or not. A blade showing "2 of 25, fine" can sit on a tenant targeting every one of its users. This tool counts the targeted number and compares it with the seats the tenant owns.</p>
+      <p class="mini muted" style="margin:0">Reads only, covered by the permissions already granted at sign-in — licences, the member-user count, and the members behind every group and role your policies include or exclude.</p>`;
+    if (lgBusy) return;   // the run panel owns lgBody until the read finishes
+
+    if (!lgRes) {
+      $("lgBody").innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-lgrun>▶ Count the gap</button>
+        <p class="mini muted">Resolves the actual targeting of the ${policies.length} policies already loaded and compares it with your P1/P2 entitlements. No extra permissions.</p>
+      </div>`;
+      return;
+    }
+
+    const r = lgRes;
+    const gapCard = (label, o, sub) => {
+      const cls = o.gap == null ? "" : o.gap > 0 ? "risk" : "";
+      const val = o.gap == null ? "—" : o.gap > 0 ? o.gap.toLocaleString() : "0";
+      return `<div class="an-card ${cls}" style="cursor:default"><div class="n">${val}</div><div class="l">${label}</div>${sub ? `<div class="mini muted">${sub}</div>` : ""}</div>`;
+    };
+    const tile = (n, l, cls) => `<div class="an-card ${cls || ""}" style="cursor:default"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+
+    const tiles = `<div class="an-cards" style="margin-bottom:12px">
+      ${tile(lgN(r.totals.members), "member users")}
+      ${tile(lgN(r.p1.targeted, r.p1.approx), "targeted → need P1")}
+      ${tile(lgN(r.p1.seats), "P1 seats owned")}
+      ${gapCard("P1 gap", r.p1, r.p1.gap != null && r.p1.gap <= 0 ? "covered" : "")}
+      ${r.p2.riskCount || (r.p2.seats || 0) > 0 ? `
+        ${tile(lgN(r.p2.targeted, r.p2.approx), "targeted → need P2")}
+        ${tile(lgN(r.p2.seats), "P2 seats owned")}
+        ${gapCard("P2 gap", r.p2, r.p2.gap != null && r.p2.gap <= 0 ? "covered" : "")}` : ""}
+    </div>`;
+
+    const bars = `<div class="list-card" style="padding:14px 16px">
+      <p class="mini" style="margin:0 0 2px"><b>Entra ID P1</b> — any active Conditional Access policy${r.broadest ? ` · broadest: <b class="pol-link" data-polid="${esc(r.broadest.id || "")}" title="Open the policy card">${esc(r.broadest.name)}</b> (${lgN(r.broadest.size, r.broadest.approx)} users)` : ""}</p>
+      ${lgBar(r.p1.targeted, r.p1.seats)}
+      ${r.p2.riskCount ? `<p class="mini" style="margin:12px 0 2px"><b>Entra ID P2</b> — ${r.p2.riskCount} risk-based polic${r.p2.riskCount === 1 ? "y" : "ies"} (sign-in, user or insider risk)</p>${lgBar(r.p2.targeted, r.p2.seats) || `<p class="mini muted" style="margin:2px 0 0">No P2 seats to draw the bar with.</p>`}` : ""}
+      ${r.p1.gap != null && r.p1.gap > 0
+        ? `<p class="mini" style="color:var(--off);margin:10px 0 0"><b>Licence gap: ${r.p1.gap.toLocaleString()} users</b> are targeted by Conditional Access without a P1 licence to cover them. The usage blade will not necessarily warn about this — it measures last month's sign-ins, not the targeting.</p>`
+        : r.p1.gap != null
+        ? `<p class="mini" style="color:var(--on);margin:10px 0 0"><b>No P1 gap</b> — the seats cover everyone your policies target.</p>` : ""}
+      ${r.p2.gap != null && r.p2.gap > 0 ? `<p class="mini" style="color:var(--off);margin:4px 0 0"><b>P2 gap: ${r.p2.gap.toLocaleString()} users</b> targeted by risk-based policies without a P2 licence.</p>` : ""}
+    </div>`;
+
+    const lic = r.lic.known ? `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <h4 style="margin:0 0 6px">Where the seats come from</h4>
+      <table class="plist"><thead><tr><th>SKU</th><th style="text-align:right">Seats</th><th style="text-align:right">Assigned</th><th>Counts as</th></tr></thead>
+      <tbody>${r.lic.p1.rows.map((x) => `<tr><td><code>${esc(x.part)}</code></td><td style="text-align:right">${x.seats.toLocaleString()}</td><td style="text-align:right">${x.assigned.toLocaleString()}</td><td class="mini">${x.viaP2 ? "P2 (covers P1 too)" : "P1"}</td></tr>`).join("") || `<tr><td colspan="4" class="mini muted">No SKU carrying P1 or P2 found.</td></tr>`}</tbody></table>
+      <p class="mini muted" style="margin:8px 0 0">Matched on the AAD_PREMIUM / AAD_PREMIUM_P2 service plans inside each SKU, so bundles (EMS, M365 E3/E5, Business Premium) count. The obligation compares against seats <b>owned</b>, not assigned — an unassigned seat still covers a targeted user.${r.lic.skipped.length ? ` Not counted (suspended/cancelled): ${r.lic.skipped.map(esc).join(", ")}.` : ""}</p>
+    </div>` : `<div class="list-card" style="padding:14px 16px;margin-top:12px"><p class="mini" style="color:var(--off);margin:0">The licence read failed — the gap cannot be computed. The targeting numbers below still hold.</p></div>`;
+
+    const rows = r.perPolicy.map((p) => `<tr>
+      <td><b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b></td>
+      <td>${lgStateTag(p.state)}</td>
+      <td><span class="pill ${p.needsP2 ? "red" : "amber"}" title="${p.needsP2 ? esc("risk-based: " + p.riskKinds.join(", ")) : "any CA policy needs P1"}">${p.needsP2 ? "P2" : "P1"}</span></td>
+      <td class="mini">${esc(p.desc)}</td>
+      <td style="text-align:right"><b>${lgN(p.size, p.approx)}</b></td>
+    </tr>`).join("");
+    const table = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <h4 style="margin:0 0 6px">Per policy — who is targeted</h4>
+      <table class="plist"><thead><tr><th>Policy</th><th>State</th><th>Needs</th><th>Targeting</th><th style="text-align:right">Users in scope</th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="mini muted" style="margin:8px 0 0">Per-policy counts overlap — one user under five policies needs one licence. The obligation above is the <b>union</b>, computed on the actual members, not this column summed. ≈ marks a count where a group or role could not be read exactly.</p>
+    </div>`;
+
+    const why = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <h4 style="margin:0 0 6px">Why is there a gap?</h4>
+      <p class="mini" style="margin:0 0 6px">Almost always because a baseline policy targets <b>All users</b> — the recommended practice for MFA and legacy-auth policies — and "All users" is bigger than anyone pictures it: every member account counts, including ${r.totals.disabled ? `the <b>${r.totals.disabled.toLocaleString()} disabled accounts</b> this tenant has today, ` : "disabled accounts, "}stale users synced from on-premises AD, service accounts, and room or shared mailbox accounts that will never see a licence. The usage blade hides this because those accounts rarely sign in — but the obligation is on targeting, not sign-ins.</p>
+      <p class="mini muted" style="margin:0">Right now the overage banner on the Conditional Access page is a warning, not enforcement — but the tracking is live, and being able to show your real number beats being surprised by theirs.</p>
+    </div>`;
+
+    const fix = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <h4 style="margin:0 0 6px">Ways to close it</h4>
+      <ul class="mini" style="margin:0;padding-left:18px;display:grid;gap:5px">
+        <li><b>Clean up before you buy.</b> Disable or delete stale accounts; exclude service accounts, room and shared mailboxes from the All-users policies (an exclusion group protected in a restricted AU — see 🔒 Protect exclusions). Every account removed from scope is a seat you do not need.</li>
+        <li><b>Map identities to people.</b> Microsoft's FAQ counts one employee with a day-to-day account plus an admin account as <b>one</b> licence. The counts here are identities — review the admin accounts against their owners and document the mapping before sizing a purchase.</li>
+        <li><b>Narrowing the target is a trade-off, not a fix.</b> Scoping policies to a licensed-users group closes the compliance gap but leaves everyone outside that group unprotected — exactly the accounts attackers prefer. If you narrow, do it deliberately and write down who is out and why.</li>
+        <li><b>Small tenant, simple needs?</b> Security defaults enforce MFA for everyone with no P1 licence at all — but they cannot coexist with Conditional Access policies, so this is an either/or.</li>
+        <li><b>Buy what remains.</b> P1 rides in EMS E3, Microsoft 365 E3, Business Premium and standalone; P2 in EMS E5, M365 E5 and standalone. A P2 seat covers the P1 obligation too${r.disabledRisk ? ` — and note: ${r.disabledRisk} disabled risk-based polic${r.disabledRisk === 1 ? "y" : "ies"} in this tenant would create a P2 obligation the day ${r.disabledRisk === 1 ? "it is" : "one is"} switched on` : ""}.</li>
+      </ul>
+    </div>`;
+
+    const caveats = `<p class="mini muted" style="margin:12px 0 0">${r.caveats.map(esc).join(" · ")}</p>`;
+    $("lgBody").innerHTML = tiles + bars + lic + table + why + fix + caveats;
+  }
+
+  function openLicGap() { crumb("🎫 Licence gap"); show("screen-licgap"); renderLicGap(); }
+  $("toolLicGap").addEventListener("click", openLicGap);
+  $("lgRun").addEventListener("click", lgRun);
+  $("lgBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-lgrun]")) { lgRun(); return; }
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+  $("lgMd").addEventListener("click", () => {
+    if (!lgRes) { toast("Run the count first — the report is the comparison."); return; }
+    showReport("🎫 Licence gap", "CA-LicenceGap", LicGap.toMd(lgRes, { tenantName }));
+  });
+
   // ---------- Sign-in failures (sign-in log × CA verdicts) ----------
   const SI_READ = ["AuditLog.Read.All"];
   // Report-only failures cannot be filtered server-side (the sign-in itself
@@ -12529,7 +12756,7 @@ max@contoso.com,"Global, DevOps"</pre>
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
     siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
-    drHead: "toolDrift", ugHead: "toolGuide", dvHead: "toolDevCheck",
+    drHead: "toolDrift", ugHead: "toolGuide", dvHead: "toolDevCheck", lgHead: "toolLicGap",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
