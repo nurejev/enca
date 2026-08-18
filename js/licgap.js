@@ -190,11 +190,32 @@ const LicGap = (() => {
     const active = (ctx.policies || []).filter((p) => p.state !== "disabled");
     const lic = licenseTotals(ctx.skus);
 
+    // The user map is needed twice: for the per-policy gap column here and
+    // for the named union gap further down.
+    const byId = ctx.users ? new Map(ctx.users.map((u) => [u.id, u])) : null;
+
     const perPolicy = [];
     for (const raw of active) {
       const sz = sizeOf(raw, ctx);
       const riskKinds = riskKindsOf(raw);
       const s = sz.scope;
+      // This policy's own gap: how many of ITS targeted users lack the
+      // licence IT needs (P2 for a risk policy, P1 otherwise). Null when
+      // the user list was not read — a per-policy gap that cannot be
+      // computed must not render as zero.
+      let gap = null, gapApprox = false;
+      if (byId) {
+        const key = riskKinds.length ? "p2" : "p1";
+        let targets;
+        if (s.none) targets = [];
+        else if (s.all) { targets = (ctx.users || []).filter((u) => !sz.excluded.has(u.id)); gapApprox = !!ctx.usersCapped; }
+        else {
+          targets = [];
+          for (const id of sz.included) { const u = byId.get(id); if (u) targets.push(u); else gapApprox = true; }
+        }
+        gap = targets.reduce((acc, u) => acc + (u[key] ? 0 : 1), 0);
+        gapApprox = gapApprox || sz.approx;
+      }
       const bits = [];
       if (s.all) bits.push("All users" + (sz.excluded.size ? ` − ${sz.excluded.size} excluded` : ""));
       else {
@@ -205,7 +226,8 @@ const LicGap = (() => {
       }
       if (s.incGuests) bits.push("guests (not counted — separate licensing)");
       perPolicy.push({ id: raw.id, name: raw.displayName || raw.name || "(unnamed)", state: raw.state,
-        size: sz.size, approx: sz.approx, needsP2: riskKinds.length > 0, riskKinds, desc: bits.join(" · ") || "—" });
+        size: sz.size, approx: sz.approx, gap, gapApprox,
+        needsP2: riskKinds.length > 0, riskKinds, desc: bits.join(" · ") || "—" });
     }
     perPolicy.sort((a, b) => (b.size || 0) - (a.size || 0) || String(a.name).localeCompare(String(b.name)));
 
@@ -220,7 +242,6 @@ const LicGap = (() => {
     // buying is not — so both numbers are reported and the render says
     // which is which. Disabled accounts sort last: they are the cleanup
     // candidates, not the purchase candidates.
-    const byId = ctx.users ? new Map(ctx.users.map((u) => [u.id, u])) : null;
     const gapListOf = (info, key) => {
       if (!info.ids || !byId) return null;
       const out = [];
@@ -275,7 +296,11 @@ const LicGap = (() => {
       return;
     }
     L.push(`${o.gapUsers.length.toLocaleString()} targeted user${o.gapUsers.length === 1 ? "" : "s"} with no ${label} licence assigned${partial ? " (partial — the user read was capped)" : ""}:`, "");
-    for (const u of o.gapUsers) L.push(`- ${u.upn || u.id}${u.name && u.name !== u.upn ? ` — ${u.name}` : ""}${u.enabled === false ? " — **DISABLED** (cleanup candidate, not a purchase)" : ""}`);
+    // u.purpose is set by the wiring's on-demand mailbox-type check
+    // (mailboxSettings.userPurpose) — a shared/room/equipment mailbox
+    // account is never licensed and should be disabled, not bought for.
+    const RESOURCE = { shared: "SHARED MAILBOX", room: "ROOM MAILBOX", equipment: "EQUIPMENT MAILBOX" };
+    for (const u of o.gapUsers) L.push(`- ${u.upn || u.id}${u.name && u.name !== u.upn ? ` — ${u.name}` : ""}${RESOURCE[u.purpose] ? ` — **${RESOURCE[u.purpose]}** (never licensed — disable or exclude it)` : u.enabled === false ? " — **DISABLED** (cleanup candidate, not a purchase)" : ""}`);
     const unassigned = o.seats != null && o.assigned != null ? Math.max(0, o.seats - o.assigned) : null;
     L.push("");
     if (unassigned) L.push(`${unassigned.toLocaleString()} owned seat${unassigned === 1 ? " is" : "s are"} not assigned to anyone — assigning covers ${Math.min(unassigned, o.gapUsers.length)} of these before anything needs buying.`, "");
@@ -297,9 +322,9 @@ const LicGap = (() => {
       if (res.lic.skipped.length) L.push(`- Not counted (suspended/cancelled): ${res.lic.skipped.join(", ")}`);
       L.push("");
     }
-    L.push("## Per policy", "", "| Policy | State | Needs | Targeting | Users in scope |", "|---|---|---|---|---|");
+    L.push("## Per policy", "", "| Policy | State | Needs | Targeting | Users in scope | Gap |", "|---|---|---|---|---|---|");
     for (const p of res.perPolicy)
-      L.push(`| ${p.name} | ${p.state === "enabled" ? "On" : p.state === "enabledForReportingButNotEnforced" ? "Report-only" : p.state} | ${p.needsP2 ? `P2 (${p.riskKinds.join(", ")})` : "P1"} | ${p.desc} | ${n(p.size, p.approx)} |`);
+      L.push(`| ${p.name} | ${p.state === "enabled" ? "On" : p.state === "enabledForReportingButNotEnforced" ? "Report-only" : p.state} | ${p.needsP2 ? `P2 (${p.riskKinds.join(", ")})` : "P1"} | ${p.desc} | ${n(p.size, p.approx)} | ${p.gap == null ? "—" : p.gap > 0 ? `**${n(p.gap, p.gapApprox)}**` : "0"} |`);
     L.push("");
     L.push("## Closing the gap", "");
     L.push("1. **Clean up before you buy.** Disabled users, stale accounts synced from on-premises AD, service accounts, room and shared mailboxes are all in scope of an All-users policy. Exclude what should never hit Conditional Access, disable or delete what nobody uses." + (res.totals.disabled ? ` This tenant has ${res.totals.disabled.toLocaleString()} disabled member users counting against the obligation today.` : ""));

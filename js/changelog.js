@@ -23,6 +23,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25137, date: "2026-08-18", title: "A long list is not a decision — the gap now sorts itself into actions",
+    items: [
+      { kind: "improved", tool: "Licence gap", text: "Promotion item 61 — the named gap list moved out of the card into a searchable pop-out: a large tenant makes it hundreds of rows, and a card that long buries everything after it. The card now shows the decision breakdown instead — how many enabled real users to license, how many disabled accounts to clean up, and (after the mailbox check) how many shared/resource accounts should never have been in scope — with 👥 View all opening the dialog, filterable by name or UPN. The full list stays in the Markdown export either way." },
+      { kind: "improved", tool: "Licence gap", text: "The per-policy table gains a Gap column next to Users in scope: how many users THIS policy targets without the licence it needs assigned — a P2 gap for a risk policy, P1 otherwise. Per-policy gaps overlap like the scope counts do (the obligation stays the union above), but the column shows at a glance WHICH policy drags unlicensed users in — an admin-scoped policy with gap 0 next to an All-users policy with gap 4 is the whole story in one row. A gap that cannot be computed (user list not read) renders as — rather than 0." },
+      { kind: "new", tool: "Licence gap", text: "🏷 Check mailbox types — shared, room and equipment mailbox accounts are never licensed and should be disabled, but nothing on the user object says which account is which. The check reads mailboxSettings.userPurpose for the GAP users only (never the tenant; capped at 600, sent in $batch chunks) behind MailboxSettings.Read asked once on the click, labels the resource accounts “never licensed — disable or exclude it” on screen and in the export, and reports an unreadable mailbox as ‘not readable’ rather than silently counting it as a user. A new run invalidates the check." },
+    ],
+  },
+  {
     build: 25136, date: "2026-08-18", title: "A gap you cannot name is a gap you cannot fix",
     items: [
       { kind: "improved", tool: "Licence gap", text: "Promotion item 61 — “2 users short” is not actionable until you know which two. The member users are now read with their assigned service plans, and every targeted user WITHOUT a P1 licence assigned (or P2, for risk-based policies) is named — UPN, display name, account state — on screen and in the Markdown export. Disabled accounts sort last and are labelled cleanup candidates, not purchases. The list is deliberately a different number from the tile: the tile counts targeted minus seats OWNED (what must be bought), the list counts targeted without a licence ASSIGNED (what can be fixed today), and the unassigned-seat count bridges the two — assigning is free, buying is not." },

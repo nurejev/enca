@@ -1349,6 +1349,7 @@
     { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementServiceConfig.Read.All", use: "Read Intune enrolment restrictions and Autopilot deployment profiles", tools: "Group Analyzer", onDemand: true },
+    { scope: "MailboxSettings.Read", use: "Read each mailbox's purpose (user / shared / room / equipment) so never-licensed resource accounts are told apart from real users", tools: "Licence gap", onDemand: true },
     { scope: "DeviceManagementScripts.Read.All", use: "Read Intune PowerShell scripts, macOS shell scripts and remediations — a separate scope, not covered by DeviceManagementConfiguration.Read.All", tools: "Group Analyzer", onDemand: true },
   ];
   // Azure Resource Manager is a different resource, not a Graph scope, so it is
@@ -8270,13 +8271,18 @@ max@contoso.com,"Global, DevOps"</pre>
   // renders the comparison. Everything it reads is covered by the two
   // baseline scopes — no extra consent, reads only.
   let lgRes = null, lgBusy = false;
+  // userId → mailbox purpose ("shared"/"room"/"equipment"/"user"/…), null = that
+  // one user's read failed. The whole map null = not checked yet this run.
+  let lgPurpose = null, lgPurposeBusy = false, lgModalKey = null;
+  const LG_PURPOSE_CAP = 600;  // gap users checked per run, in $batch chunks
+  const LG_RESOURCE = new Set(["shared", "room", "equipment"]);
   const lgProg = makeProgress("lg");
   const LG_GROUP_CAP = 100;    // groups expanded per run
   const LG_MEMBER_PAGES = 10;  // ~10k members per group
   const LG_USER_PAGES = 20;   // ~20k member users read so the gap can be NAMED
 
   const LG_DEMO = {
-    totalMembers: 7, disabledMembers: 1,
+    totalMembers: 8, disabledMembers: 2,
     skus: [
       { skuPartNumber: "EMSPREMIUM", capabilityStatus: "Enabled", prepaidUnits: { enabled: 3 }, consumedUnits: 3,
         servicePlans: [{ servicePlanId: LicGap.P1_PLAN, servicePlanName: "AAD_PREMIUM" }] },
@@ -8294,7 +8300,10 @@ max@contoso.com,"Global, DevOps"</pre>
       { id: "u-emp1", name: "Eva Employee", upn: "eva@contoso.com", enabled: true, p1: true, p2: false },
       { id: "u-emp2", name: "Milan Medewerker", upn: "milan@contoso.com", enabled: true, p1: true, p2: false },
       { id: "u-old", name: "Olga Offboarded", upn: "olga@contoso.com", enabled: false, p1: false, p2: false },
+      { id: "u-shared", name: "Alerts And Notifications", upn: "alerts@contoso.com", enabled: true, p1: false, p2: false },
     ],
+    purposes: { "u-admin": "user", "u-break1": "user", "u-break2": "user", "u-svc": "user",
+      "u-emp1": "user", "u-emp2": "user", "u-old": "user", "u-shared": "shared" },
   };
 
   // The @odata.count idiom: $count=true pairs with the ConsistencyLevel
@@ -8308,6 +8317,7 @@ max@contoso.com,"Global, DevOps"</pre>
   async function lgRun() {
     if (lgBusy) return;
     lgBusy = true;
+    lgPurpose = null;   // a new run invalidates the mailbox-type check
     const raws = policies.map((p) => p.raw).filter((r) => r.state !== "disabled");
     const gids = [...new Set(raws.flatMap((r) => {
       const u = (r.conditions || {}).users || {};
@@ -8482,24 +8492,42 @@ max@contoso.com,"Global, DevOps"</pre>
     // The named gap. Two numbers on purpose: the tile's gap is targeted
     // minus seats OWNED (what must be bought), the list here is targeted
     // users with no licence ASSIGNED (what can be fixed today) — with the
-    // unassigned-seat count bridging the two. Disabled accounts sort last
-    // and are labelled as cleanup candidates, not purchases.
-    const lgGapSection = (label, o) => {
+    // unassigned-seat count bridging the two. The list itself lives in a
+    // pop-out: a large tenant makes it hundreds of rows, and a card that
+    // long buries every card after it. On screen: the breakdown that
+    // decides what to DO — license, clean up, or disable a resource
+    // account that should never have been in scope at all.
+    const lgClassify = (list) => {
+      const c = { license: 0, disabled: 0, resource: 0, unknown: 0 };
+      for (const u of list) {
+        const purpose = lgPurpose ? lgPurpose[u.id] : undefined;
+        if (purpose && LG_RESOURCE.has(purpose)) c.resource++;
+        else if (u.enabled === false) c.disabled++;
+        else { c.license++; if (lgPurpose && purpose === null) c.unknown++; }
+      }
+      return c;
+    };
+    const lgGapSection = (label, o, key) => {
       if (o.gapUsers === null) return `<p class="mini muted" style="margin:0">The user list could not be read — the ${label} gap is counted above but cannot be named.</p>`;
       if (!o.gapUsers.length) return `<p class="mini" style="color:var(--on);margin:0">Nobody — every targeted user has ${label} assigned.</p>`;
       const unassigned = o.seats != null && o.assigned != null ? Math.max(0, o.seats - o.assigned) : null;
-      const shown = o.gapUsers.slice(0, 50);
-      return `<p class="mini" style="margin:0 0 6px"><b style="color:var(--off)">${o.gapUsers.length.toLocaleString()}</b> targeted user${o.gapUsers.length === 1 ? "" : "s"} with <b>no ${label} licence assigned</b>${r.totals.usersCapped ? ' <span class="tag new">partial — user read capped</span>' : ""}${unassigned ? ` · ${unassigned.toLocaleString()} owned seat${unassigned === 1 ? "" : "s"} still unassigned — assigning covers ${Math.min(unassigned, o.gapUsers.length)} of them before anything needs buying` : ""}</p>
-      <table class="plist"><thead><tr><th>User</th><th>Name</th><th>Account</th></tr></thead><tbody>
-      ${shown.map((u) => `<tr><td class="mini"><code>${esc(u.upn || u.id)}</code></td><td class="mini">${esc(u.name || "")}</td><td>${u.enabled === false ? '<span class="tag block">disabled — cleanup, not purchase</span>' : '<span class="tag ok">enabled</span>'}</td></tr>`).join("")}
-      </tbody></table>
-      ${o.gapUsers.length > shown.length ? `<p class="mini muted" style="margin:6px 0 0">Showing ${shown.length} of ${o.gapUsers.length.toLocaleString()} — the full list is in 📄 Export MD.</p>` : ""}`;
+      const c = lgClassify(o.gapUsers);
+      return `<p class="mini" style="margin:0 0 8px"><b style="color:var(--off)">${o.gapUsers.length.toLocaleString()}</b> targeted user${o.gapUsers.length === 1 ? "" : "s"} with <b>no ${label} licence assigned</b>${r.totals.usersCapped ? ' <span class="tag new">partial — user read capped</span>' : ""}${unassigned ? ` · ${unassigned.toLocaleString()} owned seat${unassigned === 1 ? "" : "s"} still unassigned — assigning covers ${Math.min(unassigned, o.gapUsers.length)} before anything needs buying` : ""}</p>
+      <p class="mini" style="margin:0 0 10px">
+        <span class="pill red" title="Enabled real users — license these (or exclude them deliberately)">${c.license}</span> <span class="mini muted">to license</span>
+        &nbsp;<span class="pill amber" title="Disabled accounts — cleanup candidates, not purchases">${c.disabled}</span> <span class="mini muted">disabled — cleanup</span>
+        ${lgPurpose ? `&nbsp;<span class="pill green" title="Shared / room / equipment mailbox accounts — never licensed; disable or exclude them">${c.resource}</span> <span class="mini muted">shared/resource — never licensed</span>` : ""}
+      </p>
+      <div class="tb-actions" style="justify-content:flex-start;gap:8px">
+        <button class="btn sm" data-lgusers="${key}">👥 View all ${o.gapUsers.length.toLocaleString()}</button>
+        ${lgPurpose === null ? `<button class="btn sm" data-lgcheck title="Reads each gap user's mailbox purpose — shared, room and equipment mailboxes are never licensed and should be disabled, not bought for. Needs MailboxSettings.Read, asked once on this click.">${lgPurposeBusy ? "🏷 Checking…" : "🏷 Check mailbox types"}</button>` : ""}
+      </div>`;
     };
     const who = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
       <h4 style="margin:0 0 6px">Who is in the P1 gap</h4>
-      ${lgGapSection("P1", r.p1)}
+      ${lgGapSection("P1", r.p1, "p1")}
       <h4 style="margin:14px 0 6px">Who is in the P2 gap</h4>
-      ${r.p2.riskCount ? lgGapSection("P2", r.p2) : `<p class="mini muted" style="margin:0">No active risk-based policy — nobody needs P2 today.${r.disabledRisk ? ` ${r.disabledRisk} disabled risk-based polic${r.disabledRisk === 1 ? "y" : "ies"} would change that the day ${r.disabledRisk === 1 ? "it is" : "one is"} switched on.` : ""}</p>`}
+      ${r.p2.riskCount ? lgGapSection("P2", r.p2, "p2") : `<p class="mini muted" style="margin:0">No active risk-based policy — nobody needs P2 today.${r.disabledRisk ? ` ${r.disabledRisk} disabled risk-based polic${r.disabledRisk === 1 ? "y" : "ies"} would change that the day ${r.disabledRisk === 1 ? "it is" : "one is"} switched on.` : ""}</p>`}
     </div>`;
 
     const lic = r.lic.known ? `<div class="list-card" style="padding:14px 16px;margin-top:12px">
@@ -8515,11 +8543,12 @@ max@contoso.com,"Global, DevOps"</pre>
       <td><span class="pill ${p.needsP2 ? "red" : "amber"}" title="${p.needsP2 ? esc("risk-based: " + p.riskKinds.join(", ")) : "any CA policy needs P1"}">${p.needsP2 ? "P2" : "P1"}</span></td>
       <td class="mini">${esc(p.desc)}</td>
       <td style="text-align:right"><b>${lgN(p.size, p.approx)}</b></td>
+      <td style="text-align:right">${p.gap == null ? '<span class="mini muted">—</span>' : p.gap > 0 ? `<span class="pill red" title="Targeted by this policy without the ${p.needsP2 ? "P2" : "P1"} licence assigned">${lgN(p.gap, p.gapApprox)}</span>` : '<span class="pill zero">0</span>'}</td>
     </tr>`).join("");
     const table = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
       <h4 style="margin:0 0 6px">Per policy — who is targeted</h4>
-      <table class="plist"><thead><tr><th>Policy</th><th>State</th><th>Needs</th><th>Targeting</th><th style="text-align:right">Users in scope</th></tr></thead><tbody>${rows}</tbody></table>
-      <p class="mini muted" style="margin:8px 0 0">Per-policy counts overlap — one user under five policies needs one licence. The obligation above is the <b>union</b>, computed on the actual members, not this column summed. ≈ marks a count where a group or role could not be read exactly.</p>
+      <table class="plist"><thead><tr><th>Policy</th><th>State</th><th>Needs</th><th>Targeting</th><th style="text-align:right">Users in scope</th><th style="text-align:right" title="Users this policy targets who do not have the licence it needs assigned">Gap</th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="mini muted" style="margin:8px 0 0">Per-policy counts overlap — one user under five policies needs one licence. The obligation above is the <b>union</b>, computed on the actual members, not these columns summed. <b>Gap</b> is per scope: how many users THIS policy targets without the licence it needs assigned. ≈ marks a count where a group, role or the user list could not be read exactly; — means the user list was not read.</p>
     </div>`;
 
     const why = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
@@ -8543,14 +8572,83 @@ max@contoso.com,"Global, DevOps"</pre>
     $("lgBody").innerHTML = tiles + bars + who + lic + table + why + fix + caveats;
   }
 
+  // ---- the pop-out with the full gap list ----
+  const lgPurposeLabel = { shared: "shared mailbox", room: "room mailbox", equipment: "equipment mailbox" };
+  function lgRenderUsers() {
+    const o = lgModalKey === "p2" ? lgRes.p2 : lgRes.p1;
+    const q = ($("lgUserSearch").value || "").toLowerCase().trim();
+    const list = (o.gapUsers || []).filter((u) => !q
+      || String(u.upn || "").toLowerCase().includes(q) || String(u.name || "").toLowerCase().includes(q));
+    const rows = list.map((u) => {
+      const purpose = lgPurpose ? lgPurpose[u.id] : undefined;
+      const res = purpose && LG_RESOURCE.has(purpose);
+      const mb = lgPurpose === null ? "" : res
+        ? `<span class="tag block">${lgPurposeLabel[purpose]} — never licensed, disable it</span>`
+        : purpose === null ? '<span class="tag">not readable</span>'
+        : purpose === undefined ? '<span class="tag">not checked</span>' : '<span class="tag ok">user</span>';
+      return `<tr><td class="mini"><code>${esc(u.upn || u.id)}</code></td><td class="mini">${esc(u.name || "")}</td>
+        <td>${u.enabled === false ? '<span class="tag block">disabled</span>' : '<span class="tag ok">enabled</span>'}</td>
+        ${lgPurpose === null ? "" : `<td>${mb}</td>`}</tr>`;
+    }).join("");
+    $("lgUsersBody").innerHTML = `<table class="plist"><thead><tr><th>User</th><th>Name</th><th>Account</th>${lgPurpose === null ? "" : "<th>Mailbox</th>"}</tr></thead><tbody>${rows || `<tr><td colspan="4" class="mini muted">No match.</td></tr>`}</tbody></table>`;
+    $("lgUsersSub").textContent = `${list.length.toLocaleString()}${q ? ` of ${o.gapUsers.length.toLocaleString()}` : ""} targeted user${list.length === 1 ? "" : "s"} without ${lgModalKey === "p2" ? "P2" : "P1"} assigned — disabled and shared/resource accounts are cleanup, not purchases. The full list is also in 📄 Export MD.`;
+  }
+  function lgShowUsers(key) {
+    if (!lgRes) return;
+    lgModalKey = key;
+    $("lgUsersTitle").textContent = `Who is in the ${key === "p2" ? "P2" : "P1"} gap`;
+    $("lgUserSearch").value = "";
+    lgRenderUsers();
+    $("lgUsersModal").classList.add("open");
+  }
+  // ---- mailbox purpose: the one enrichment that needs its own scope ----
+  // Shared, room and equipment mailbox accounts are never licensed and
+  // should be disabled — but nothing on the user object says which is
+  // which. mailboxSettings.userPurpose does, at one read per user, so it
+  // runs on demand over the GAP users only (capped), never the tenant.
+  // A failed read is "not readable", never silently "a user".
+  async function lgCheckPurpose() {
+    if (!lgRes || lgPurposeBusy) return;
+    lgPurposeBusy = true;
+    renderLicGap();
+    try {
+      const ids = [...new Set([...(lgRes.p1.gapUsers || []), ...(lgRes.p2.gapUsers || [])].map((u) => u.id))].slice(0, LG_PURPOSE_CAP);
+      if (isDemo) {
+        lgPurpose = {};
+        for (const id of ids) lgPurpose[id] = (LG_DEMO.purposes || {})[id] || "user";
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, "MailboxSettings.Read"])) { lgPurposeBusy = false; renderLicGap(); return; }
+        const res = await Graph.gbatch(ids.map((id) => ({ id, url: `/users/${id}/mailboxSettings?$select=userPurpose` })));
+        lgPurpose = {};
+        for (const id of ids) {
+          const r = res[id];
+          lgPurpose[id] = r && r.body && !r.error ? (r.body.userPurpose || "user") : null;
+        }
+      }
+      // The export names them too — purpose rides on the user objects the
+      // module already returns, so a re-export after the check carries it.
+      for (const u of [...(lgRes.p1.gapUsers || []), ...(lgRes.p2.gapUsers || [])])
+        if (lgPurpose[u.id] !== undefined) u.purpose = lgPurpose[u.id];
+    } catch (e) {
+      toast(`Mailbox check failed: ${esc(e.message || e)}`);
+    }
+    lgPurposeBusy = false;
+    renderLicGap();
+    if ($("lgUsersModal").classList.contains("open")) lgRenderUsers();
+  }
   function openLicGap() { crumb("🎫 Licence gap"); show("screen-licgap"); renderLicGap(); }
   $("toolLicGap").addEventListener("click", openLicGap);
   $("lgRun").addEventListener("click", lgRun);
   $("lgBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-lgrun]")) { lgRun(); return; }
+    const vu = e.target.closest("[data-lgusers]");
+    if (vu) { lgShowUsers(vu.dataset.lgusers); return; }
+    if (e.target.closest("[data-lgcheck]")) { lgCheckPurpose(); return; }
     const pl = e.target.closest(".pol-link");
     if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
   });
+  $("lgUsersClose").addEventListener("click", () => $("lgUsersModal").classList.remove("open"));
+  $("lgUserSearch").addEventListener("input", () => { if (lgRes) lgRenderUsers(); });
   $("lgMd").addEventListener("click", () => {
     if (!lgRes) { toast("Run the count first — the report is the comparison."); return; }
     showReport("🎫 Licence gap", "CA-LicenceGap", LicGap.toMd(lgRes, { tenantName }));
