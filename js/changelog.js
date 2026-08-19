@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25172, date: "2026-08-19", title: "A tool that opens without a tab, and the one word that did it",
+    items: [
+      { kind: "fixed", tool: "User impact brief", text: "Opening the tool added no tab, and the home button stayed lit while you were standing on it. The cause is one word: the tool announced itself as 🗣 User impact brief and the tab registry had it as 🗣 User impact. The lookup matches the label exactly, found nothing, and took the branch meant for going home — which both skips pushing a tab and clears the active one. The two strings are the same now. It shipped to production 290 this way, which is the part worth remembering: nothing failed, nothing threw, and the only symptom was a missing tab on a tool nobody had opened twice yet." },
+      { kind: "new", tool: "All tools", text: "A crumb name that resolves to no tab now says so in the console on any non-production host — the same isProdHost guard the changelog markup check uses. This is the second silent-string bug in a month (the changelog's own markup was the first) and the lesson is the same: an exact-match lookup with a quiet fallback will ship, because the fallback is a legitimate state for a different caller. Going home is still silent, because crumb(\"\") means exactly that." },
+    ],
+  },
+  {
     build: 25171, date: "2026-08-19", title: "Seven of the nine reached production 290, and the queue is down to the two that cannot move",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue items 67 (R28 — a tenant's own groups in the persona vaults), 70 (the 🔍 Gap analyse coverage flow), 73 and 74 (🎫 Licence gap: one run button, and the user read finished on big tenants), 75 (🚫 disable nesting is opt-in until it is GA), 76 (a way out of Gap analyse that says what it does) and 77 (🗣 User impact brief) are live in production build 290. Removed from the queue; the numbers are retired rather than reused. productionBuild moves to v1.0.290." },

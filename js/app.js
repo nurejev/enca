@@ -1732,7 +1732,7 @@
     ["toolRmau", "🛡 Restricted AUs"],
     ["toolDrift", "📉 Drift watch"],
     ["toolGuide", "📖 Baseline guide"],
-    ["toolUserImpact", "🗣 User impact"],
+    ["toolUserImpact", "🗣 User impact brief"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
@@ -1816,6 +1816,16 @@
   // so it both labels the header chip and registers/activates the tab.
   function crumb(name) {
     const id = name ? idForCrumb(name) : null;
+    // A NAME THAT RESOLVES TO NOTHING IS A WIRING BUG, NOT AN EMPTY CRUMB.
+    // idForCrumb matches the TOOL_TABS label exactly, so a tool whose crumb
+    // text and tab label disagree by one word takes the else branch: no tab is
+    // pushed AND the home button renders active while you are standing on the
+    // tool. 🗣 User impact brief shipped that way — crumb said "brief", the
+    // registry did not — and it reached production, because nothing said so.
+    // crumb("") is the deliberate go-home call and stays silent.
+    if (!id && name && !isProdHost()) {
+      console.warn(`crumb("${name}") matches no TOOL_TABS label — this tool will open without a tab. The two strings must be identical.`);
+    }
     if (id) { if (!openTabs.includes(id)) openTabs.push(id); activeTab = id; }
     else { activeTab = null; }
     renderTabs();
