@@ -1,5 +1,7 @@
 // ======================================================================
-// Baseline catalog — Limon-IT Conditional Access baseline R26.6 (v3.x).
+// Baseline catalog — CloudFellows Conditional Access baseline R26.6 (v3.x).
+// Published as the Limon-IT baseline until beta 25151 (roadmap R35); the
+// release designation and the catalog itself did not change with the rename.
 // One entry per baseline policy, carrying enough of the definition to
 // render a policy card without a tenant: assignment (include/exclude),
 // target resources, network, conditions, grant/block and session controls.

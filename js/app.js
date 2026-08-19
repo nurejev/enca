@@ -71,7 +71,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-devcheck", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -131,6 +131,11 @@
     navSuppress = true;
     try { show(target); } finally { navSuppress = false; }
   });
+  // R33 — a tool's permanent number, formatted. Two digits so T07 and T31 line
+  // up in a list and read as the same kind of thing; empty for the three app
+  // pages that deliberately carry none.
+  const toolNo = (t) => (t && t.t) ? `T${String(t.t).padStart(2, "0")}` : "";
+  const toolNoOf = (id) => toolNo((typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[id]) || null);
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   // Deleting the 30th row in a list re-renders the panel, and the page jumps to
   // the top — so working through a list means scrolling back down after every
@@ -202,15 +207,17 @@
       foot.title = "See what's new";
       foot.addEventListener("click", () => { if (policies.length) openChangelog(); });
     }
-    // per-tool version in the corner of each tile
+    // per-tool version in the corner of each tile, with the tool's permanent
+    // number (R33) beside it — the number never changes, the version always
+    // does, so they belong next to each other and are read together.
     if (typeof TOOL_VERSIONS !== "undefined") {
       for (const [id, t] of Object.entries(TOOL_VERSIONS)) {
         const tile = $(id);
         if (!tile || tile.querySelector(".tool-ver")) continue;
         const tag = document.createElement("span");
         tag.className = "tool-ver";
-        tag.textContent = `v${t.v}`;
-        tag.title = t.note ? `${t.note}\n\nApp build ${APP_BUILD.label}` : `App build ${APP_BUILD.label}`;
+        tag.textContent = `${toolNo(t)}${toolNo(t) ? " · " : ""}v${t.v}`;
+        tag.title = `${toolNo(t) ? `${toolNo(t)} — this tool's permanent number, assigned in the order it entered ${BRANDING.name} and never reused. Quote it and it means one thing in every build and any language.\n\n` : ""}${t.note ? `${t.note}\n\n` : ""}App build ${APP_BUILD.label}`;
         tile.appendChild(tag);
       }
     }
@@ -1136,11 +1143,36 @@
       build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS });
   }
 
+  // What the LAST opened export modal was scoped to, for the JSON zip's stamp.
+  let expScope = { baseline: false, skipped: 0 };
   function openExport() {
-    currentExport = selected.size ? [...selected] : visible().map(p => p.id);
-    if (!currentExport.length) return;
+    const picked = exportOrder((selected.size ? [...selected] : visible().map(p => p.id))
+      .map(id => policies.find(p => p.id === id)));
+    if (!picked.length) return;
+    // Documentation answers the same question as Backup, in prose instead of
+    // JSON — and on a baseline tenant the answer is the same: this is where the
+    // baseline is BUILT, so what leaves here describes the CATALOG. Its own
+    // Conditional Access is one tenant's working configuration, and a Word file
+    // handed over as "the baseline" has no structure to give away that a policy
+    // in it was never part of one. Scoped through backupScope(), so the rule
+    // lives in one place and the two tools cannot drift apart.
+    const scope = backupScope(picked);
+    expScope = scope;
+    currentExport = scope.policies.map(p => p.id);
+    if (!currentExport.length) {
+      toast(`Baseline tenant — <span>nothing in scope</span>: none of the ${picked.length} selected polic${picked.length === 1 ? "y is" : "ies are"} a persona baseline policy`);
+      return;
+    }
     fmt = currentExport.length > 1 ? "docx" : "png";
     syncFmt();
+    const bn = $("expBaseline");
+    bn.style.display = scope.baseline ? "" : "none";
+    if (scope.baseline) {
+      bn.innerHTML = `🧬 <b>Baseline tenant</b> — this is where the baseline is built, so this document describes the <b>baseline catalog</b>, not the tenant. `
+        + `Documenting <b>${currentExport.length}</b> persona baseline polic${currentExport.length === 1 ? "y" : "ies"}`
+        + (scope.skipped ? ` and skipping <b>${scope.skipped}</b> of this tenant's own polic${scope.skipped === 1 ? "y" : "ies"}` : "")
+        + `. The restricted-unit appendix is <b>not</b> filtered — those units are the baseline's own persona vaults, so they are documented as they stand, scoped administrators included.`;
+    }
     $("expDesc").textContent = selected.size
       ? (currentExport.length > 1
         ? `${currentExport.length} policies selected — recommended export is a Word document (one card per page).`
@@ -1150,6 +1182,13 @@
   }
   function syncFmt() {
     ["Png", "Pdf", "Docx", "Zip", "Md", "Json"].forEach(f => $("expOpt" + f).classList.toggle("sel", fmt === f.toLowerCase()));
+    // Loose PNGs are the one format with nowhere to put the scope — no cover,
+    // no header, no file beside them. Every other format states it inside the
+    // deliverable, so PNG is the only way to hand somebody a baseline export
+    // that does not say it is one. Say it here instead of in the Help, which is
+    // not where the choice is being made.
+    const png = $("expPngScope");
+    if (png) png.style.display = expScope.baseline && fmt === "png" ? "" : "none";
     $("expMatrixWrap").style.display = fmt === "pdf" ? "flex" : "none"; // appendix only applies to PDF
     // A single PNG is exactly one policy image and JSON is a backup. The
     // restricted-unit pages belong to the multi-page / multi-file documents.
@@ -1178,7 +1217,12 @@
           toast("Restricted-unit appendix <span>unavailable</span> — exporting the policies anyway");
         }
       }
-      const docOpts = { restrictedDoc };
+      // Carried into every format so the deliverable states its own scope —
+      // a Word file forwarded as "the baseline" outlives the modal that made it.
+      const docOpts = {
+        restrictedDoc,
+        baselineScope: expScope.baseline ? { tenant: tenantName || "", tenantDomain, skipped: expScope.skipped } : null,
+      };
       if (fmt === "png") {
         for (const p of ps) {
           toast(`Exporting <span>${p.seq}.png</span>…`);
@@ -1195,8 +1239,17 @@
         await Exporter.policiesMd(ps, tenantName, docOpts);
         toast("Markdown export <span>done</span>");
       } else if (fmt === "json") {
-        await Exporter.policiesJson(ps, tenantName);
-        toast("JSON backup <span>done</span>");
+        // This modal offers the same zip 🗄 Backup produces, so it carries the
+        // same stamp — `ps` is already scoped, openExport() filtered it. The
+        // stamp is not decoration: it is what tells whoever opens the file that
+        // the tenant's own policies were deliberately left out, and without it
+        // the entry point would decide whether the zip says so.
+        await Exporter.policiesJson(ps, tenantName, {
+          baselineScope: expScope.baseline ? { tenant: tenantName || "", tenantDomain, skipped: expScope.skipped } : null,
+        });
+        toast(expScope.baseline
+          ? `Baseline backup <span>done</span> — ${ps.length} baseline policies${expScope.skipped ? `, ${expScope.skipped} tenant policies skipped` : ""}`
+          : "JSON backup <span>done</span>");
       } else {
         await Exporter.policiesPdf(ps, tenantName, $("expMatrix").checked, (m) => toast(m), tenantLogo, docOpts);
         toast("PDF export <span>done</span>");
@@ -1259,6 +1312,10 @@
 
   function loadDemo() {
     tenantName = DEMO_DATA.tenantName;
+    // Demo has no domain. Left over from a signed-in session it would keep
+    // answering isBaselineTenant(), and the demo would scope its backup to a
+    // catalog it is not.
+    tenantDomain = "";
     tenantLogo = null;
     isDemo = true; anReport = null;
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
@@ -1287,7 +1344,7 @@
     { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
-    { scope: "AdministrativeUnit.ReadWrite.All", use: "Create a restricted management administrative unit and place the CA exclusion groups in it", tools: "CA groups (protect)", onDemand: true },
+    { scope: "AdministrativeUnit.ReadWrite.All", use: "Create a restricted management administrative unit and place the CA exclusion groups in it", tools: "CA groups (protect), Restricted AUs", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Grant a directory role scoped to a restricted administrative unit. No longer used to create role-assignable groups — nothing creates those any more — but still requested by the create flows for the scoped-role grant that can follow", tools: "Restricted AUs, CA groups (protect)", onDemand: true },
     { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
     { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting so no group can be added as a member of a group (beta) — asked for by every path that CREATES a group, and by the ⑧ Disable nesting step", tools: "CA groups (create, disable nesting), Assign groups, Import, Restricted AUs", onDemand: true },
@@ -1295,6 +1352,7 @@
     { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementServiceConfig.Read.All", use: "Read Intune enrolment restrictions and Autopilot deployment profiles", tools: "Group Analyzer", onDemand: true },
+    { scope: "MailboxSettings.Read", use: "Read each mailbox's purpose (user / shared / room / equipment) so never-licensed resource accounts are told apart from real users", tools: "Licence gap", onDemand: true },
     { scope: "DeviceManagementScripts.Read.All", use: "Read Intune PowerShell scripts, macOS shell scripts and remediations — a separate scope, not covered by DeviceManagementConfiguration.Read.All", tools: "Group Analyzer", onDemand: true },
   ];
   // Azure Resource Manager is a different resource, not a Graph scope, so it is
@@ -1385,17 +1443,54 @@
     toolMode = mode;
     SEL_ACTIONS.forEach(([id, m]) => { const b = $(id); if (b) b.classList.toggle("on", m === mode); });
   }
+  // A baseline tenant (see BASELINE_TENANTS) is where the baseline is BUILT, so
+  // a backup taken there is the baseline catalog — not a tenant backup. Its own
+  // Conditional Access is somebody's working tenant configuration, and a zip
+  // that mixes the two gets imported into a customer later: the baseline would
+  // arrive carrying policies nobody chose, pointing at groups, locations and
+  // agreements that only ever existed here.
+  //
+  // So the scope is decided ONCE, on the policies, and the dependencies are
+  // worked out from the survivors. That order is the whole safeguard — a policy
+  // that is out of scope must not drag its groups or its terms of use into the
+  // zip either, and filtering after backupDependencyIds() would let it.
+  //
+  // Baseline = the persona CAxxx policies, the same rule checkScope() applies to
+  // the Gap and MS Learn checks on these tenants. There is deliberately no
+  // override: "back up everything just this once" is exactly how a tenant's own
+  // policies end up in a baseline nobody notices until it is deployed.
+  function backupScope(ps) {
+    if (!isBaselineTenant()) return { policies: ps, baseline: false, skipped: 0 };
+    const inScope = ps.filter(isPersonaBaseline);
+    return { policies: inScope, baseline: true, skipped: ps.length - inScope.length };
+  }
   function runBackup() {
-    const ps = exportOrder((selected.size ? [...selected] : visible().map(p => p.id)).map(id => policies.find(p => p.id === id)));
-    if (!ps.length) { toast("Nothing to back up"); return; }
+    const picked = exportOrder((selected.size ? [...selected] : visible().map(p => p.id)).map(id => policies.find(p => p.id === id)));
+    if (!picked.length) { toast("Nothing to back up"); return; }
+    const scope = backupScope(picked);
+    const ps = scope.policies;
+    if (!ps.length) {
+      toast(`Baseline tenant — <span>nothing in scope</span>: none of the ${picked.length} selected polic${picked.length === 1 ? "y is" : "ies are"} a persona baseline policy`);
+      return;
+    }
     bkPolicies = ps;
+    bkScope = scope;
     const dep = backupDependencyIds(ps);
     const nDeps = Object.values(dep).reduce((s, a) => s + a.length, 0);
+    const bn = $("bkBaseline");
+    bn.style.display = scope.baseline ? "" : "none";
+    if (scope.baseline) {
+      bn.innerHTML = `🧬 <b>Baseline tenant</b> — this is where the baseline is built, so this backup is the <b>baseline catalog</b>, not a tenant backup. `
+        + `Backing up <b>${ps.length}</b> persona baseline polic${ps.length === 1 ? "y" : "ies"}`
+        + (scope.skipped ? ` and skipping <b>${scope.skipped}</b> of this tenant's own polic${scope.skipped === 1 ? "y" : "ies"}` : "")
+        + `. Dependencies are taken from the baseline policies only — nothing this tenant uses for itself is included.`;
+    }
     $("bkDesc").textContent = `${ps.length} ${ps.length === 1 ? "policy" : "policies"} — referencing ${nDeps} dependencies `
       + `(${dep.groups.length} groups, ${dep.authStrengths.length} auth strengths, ${dep.namedLocations.length} named locations, ${dep.authContexts.length} auth contexts, ${dep.termsOfUse.length} terms of use).`;
     $("backupModal").classList.add("open");
   }
   let bkPolicies = [];
+  let bkScope = { baseline: false, skipped: 0 };
   function backupGroupIds(ps) {
     const ids = new Set();
     ps.forEach(p => {
@@ -1460,8 +1555,13 @@
       await Exporter.policiesJson(psOut, tenantName, {
         ...deps,
         tenantId: Graph.account?.tenantId || "",
+        // Stamped into the zip so the scoping survives the download — whoever
+        // imports this months from now cannot ask the tenant what it was.
+        baselineScope: bkScope.baseline ? { tenant: tenantName || "", tenantDomain, skipped: bkScope.skipped } : null,
       });
-      toast(`JSON backup <span>downloaded</span> — ${psOut.length} policies${nDeps ? `, ${nDeps} dependencies` : ""}`);
+      toast(bkScope.baseline
+        ? `Baseline backup <span>downloaded</span> — ${psOut.length} baseline policies${nDeps ? `, ${nDeps} dependencies` : ""}${bkScope.skipped ? `, ${bkScope.skipped} tenant policies skipped` : ""}`
+        : `JSON backup <span>downloaded</span> — ${psOut.length} policies${nDeps ? `, ${nDeps} dependencies` : ""}`);
     } catch (e) { console.error(e); toast(`Backup failed: <span>${esc(e.message || e)}</span>`); }
   });
   // ---------- tool tab bar ----------
@@ -1482,6 +1582,7 @@
     ["toolImpact", "🎚 Report-only impact"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolDevCheck", "🖥 Device reality check"],
+    ["toolLicGap", "🎫 Licence gap"],
     ["toolBaseline", "🧬 Baseline Policies"],
     ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
     ["toolMsLearn", "📘 MS Learn checks"],
@@ -1837,9 +1938,22 @@
     if (!names.length) return;
     if (isDemo) {
       imRa.checked = true;
-      imRa.rows = names.filter((n) => /CA101|Admins/i.test(n)).slice(0, 1)
-        .map((n) => ({ name: n, id: "demo-ra-" + n }));
-      imRa.existing = imRa.rows.map((r) => ({ ...r, roleAssignable: true, nesting: "allowed", typeMismatch: null, m365: false, protectedIn: null }));
+      const srcOf = (n) => ((imBundle?.groups || []).find((g) => g.displayName === n) || {}).id || "demo-src-" + n;
+      const ra = names.filter((n) => /CA101|Admins/i.test(n)).slice(0, 1);
+      imRa.rows = ra.map((n) => ({ name: n, id: "demo-ra-" + n }));
+      const mk = (n, over) => ({ srcId: srcOf(n), id: "demo-" + n, name: n, roleAssignable: false,
+        dynamic: false, nesting: "allowed", typeMismatch: null, m365: false, protectedIn: null, ...over });
+      // Demo shows BOTH halves of the reuse story, because a demo that only
+      // renders the tidy half teaches the tidy half: one group that can still
+      // be finished here, one that is already right and needs nothing, and the
+      // role-assignable one that can be neither.
+      const plain = names.filter((n) => !ra.includes(n)).slice(0, 2);
+      imRa.existing = [
+        ...ra.map((n) => mk(n, { id: "demo-ra-" + n, roleAssignable: true })),
+        ...plain.map((n, i) => i === 0 ? mk(n)
+          : mk(n, { nesting: "disabled", protectedIn: { auName: "CAB-SEC-RMAU-INT-Exclusions", code: "INT" } })),
+      ];
+      imFixPlan();
       return;
     }
     try {
@@ -1864,6 +1978,9 @@
         const isDynamic = (g.groupTypes || []).includes("DynamicMembership");
         const row = {
           id: g.id, name: g.displayName,
+          // The BUNDLE id, not the tenant id: the persona that decides which
+          // vault a group belongs in is read from the file's own policies.
+          srcId: src.id, dynamic: isDynamic,
           roleAssignable: g.isAssignableToRole === true,
           // A plain GET does not return disableNesting; this select does, but
           // only where it is set — so absent means "allowed, or this tenant has
@@ -1877,9 +1994,70 @@
         if (row.roleAssignable) imRa.rows.push({ id: g.id, name: g.displayName });
       }
       imRa.checked = true;
+      imFixPlan();
     } catch (e) {
       imRa.error = e.message || String(e);
     }
+  }
+
+  // ---- R04: what the import can still FINISH on a group it reuses ----------
+  // A created group gets nesting disabled and a place in its persona vault; a
+  // reused one got neither. Build 25129 made that visible without closing it,
+  // which is only half an answer — the reader now knows the group is exposed
+  // and is sent to two other tools to do something about it.
+  //
+  // Both writes are the ones the create path already makes, and neither is
+  // destructive: the nesting PATCH is REFUSED by Entra rather than forced when
+  // a group already holds nested groups, and administrative-unit membership can
+  // be undone. So they are offered here — per group, ticked by hand, never
+  // pre-ticked. A group that already existed may hold members and sit somewhere
+  // on purpose, and a default is not a decision.
+  function imFixPlan() {
+    const rows = (imRa && imRa.existing) || [];
+    if (!rows.length) return;
+    let personas = new Map();
+    // A failure here must not read as "no persona": every row then carries the
+    // reason it cannot be placed, which is the honest answer.
+    try { personas = Importer.groupPersonas(imBundle, imBundle.policies); } catch (e) { console.warn("persona map failed", e); }
+    const auOk = !!(imAu && !imAu.error);
+    for (const r of rows) {
+      // Nesting — the same three exclusions the create path applies: a
+      // role-assignable group already forbids group-in-group, a dynamic group's
+      // members are rule-driven, and one already disabled needs nothing.
+      r.nest = r.nesting === "disabled" ? { can: false, done: true, why: "nesting is already disabled" }
+        : r.roleAssignable ? { can: false, why: "role-assignable — Entra already refuses group-in-group, and the flag has to go first in ⑦ Migrate" }
+        : r.dynamic ? { can: false, why: "dynamic — membership is rule-driven, and only users and devices can be members" }
+        : { can: true };
+      // Placement — every reason a vault is impossible, named rather than left
+      // as a checkbox that does nothing.
+      const info = personas.get(r.srcId) || null;
+      const code = info ? info.code : null;
+      const auId = (auOk && code) ? imAu.byCode[code] : null;
+      r.place = r.protectedIn ? { can: false, done: true, why: `already in ${r.protectedIn.auName}` }
+        : r.roleAssignable ? { can: false, why: "role-assignable — it cannot be combined with a restricted unit at all; convert it in ⑦ Migrate" }
+        : r.m365 ? { can: false, why: "Microsoft 365 group — it cannot go in a restricted unit at all" }
+        : !auOk ? { can: false, why: "the tenant's administrative units could not be read, so the vaults are unknown" }
+        : !code ? { can: false, why: (info && info.why) || "no persona could be read from the policies that use it" }
+        : !auId ? { can: false, code, why: `no restricted unit for ${code} — create it in 🛡 PROTECTION above first, then re-open this file` }
+        : { can: true, code, auId };
+      r.doNest = false; r.doPlace = false;
+    }
+  }
+
+  // The tick count and the select-all label, updated WITHOUT re-rendering the
+  // panel — imRenderList() rebuilds the whole modal body, which would throw
+  // away the persona filter and the policy selection made above it.
+  function imFixSync() {
+    const rows = (imRa && imRa.existing) || [];
+    const open = rows.filter((r) => r.nest.can || r.place.can);
+    const ticked = rows.reduce((n, r) => n + (r.doNest ? 1 : 0) + (r.doPlace ? 1 : 0), 0);
+    const total = open.reduce((n, r) => n + (r.nest.can ? 1 : 0) + (r.place.can ? 1 : 0), 0);
+    const btn = $("imFixAll");
+    if (btn) btn.textContent = ticked >= total && total > 0 ? "☐ Untick all" : `☑ Tick all ${total}`;
+    const c = $("imFixCount");
+    if (c) c.innerHTML = ticked
+      ? `<b>${ticked}</b> of ${total} will be applied after the policies import`
+      : `nothing ticked — every group below is left exactly as it is`;
   }
 
   function imRaPanel() {
@@ -1919,28 +2097,104 @@
     if (!imRa || imRa.error || !(imRa.existing || []).length) return "";
     const rows = imRa.existing;
     const notable = rows.filter((r) => r.typeMismatch || r.m365 || (!r.roleAssignable && (r.nesting !== "disabled" || !r.protectedIn)));
-    const line = (r) => {
+    const open = rows.filter((r) => r.nest.can || r.place.can);
+    const total = open.reduce((n, r) => n + (r.nest.can ? 1 : 0) + (r.place.can ? 1 : 0), 0);
+    const ticked = rows.reduce((n, r) => n + (r.doNest ? 1 : 0) + (r.doPlace ? 1 : 0), 0);
+
+    // What is still open on this group, as a tick — or, where it is impossible,
+    // as the reason. A disabled checkbox with no explanation is just a dead
+    // control; the reason is the useful half.
+    const fix = (r, i) => {
+      const one = (kind, on, cap, label) => cap.can
+        ? `<label class="chk" style="margin:0"><input type="checkbox" data-imfix="${i}" data-fixkind="${kind}"${on ? " checked" : ""}> ${label}</label>`
+        : cap.done ? "" : `<span class="mini muted">${label} — not possible: ${esc(cap.why)}</span>`;
+      const bits = [
+        one("nest", r.doNest, r.nest, "🚫 disable nesting"),
+        one("place", r.doPlace, r.place, `🔒 file into ${r.place.code ? esc(Rmau.auName(r.place.code)) : "its persona vault"}`),
+      ].filter(Boolean);
+      return bits.length ? `<div class="row" style="justify-content:flex-start;gap:16px;flex-wrap:wrap;margin-top:5px">${bits.join("")}</div>` : "";
+    };
+
+    const line = (r, i) => {
       const bits = [];
       if (r.typeMismatch) bits.push(`<span style="color:var(--off)">⚠ ${esc(r.typeMismatch)}</span>`);
       if (r.m365) bits.push(`<span style="color:var(--off)">⚠ Microsoft 365 group — it cannot go in a restricted unit at all</span>`);
       if (r.roleAssignable) bits.push(`<span class="tag block">role-assignable</span> handled above`);
       else {
         bits.push(r.nesting === "disabled" ? `🚫 nesting already disabled`
-          : r.nesting === "allowed" ? `<span style="color:var(--off)">↪ nesting allowed — a group can be nested inside it, and the import will not change that</span>`
+          : r.nesting === "allowed" ? `<span style="color:var(--off)">↪ nesting allowed — a group can be nested inside it</span>`
           : `<span class="muted">nesting not reported by this tenant — it may be allowed</span>`);
         bits.push(r.protectedIn ? `🔒 already in ${esc(r.protectedIn.auName)}`
-          : `<span style="color:var(--off)">unprotected — and the import will NOT file an existing group into a vault</span>`);
+          : `<span style="color:var(--off)">unprotected</span>`);
       }
       return `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b></div>
-        <div class="mini">${bits.join(" · ")}</div></div>`;
+        <div class="mini">${bits.join(" · ")}</div>${fix(r, i)}</div>`;
     };
+
     return `<div class="cg-panel">
       <h4>♻️ ALREADY HERE — ${rows.length} OF THIS FILE'S GROUPS WILL BE REUSED</h4>
-      <p class="mini" style="margin:0 0 8px">The policies will bind to the ${rows.length === 1 ? "group" : "groups"} already in this tenant — nothing is duplicated, and nothing about ${rows.length === 1 ? "it" : "them"} is changed. That is the safe default: a group that already exists may hold members and sit somewhere deliberately, and an import is not the place to decide otherwise.</p>
-      <p class="mini" style="margin:0 0 8px">It does mean a reused group <b>inherits none of the hardening a created one gets</b>. A group created by this import gets nesting disabled and is filed into its persona vault; a reused one keeps whatever it has${notable.length ? ` — and ${notable.length} of ${rows.length} ${notable.length === 1 ? "has" : "have"} something worth seeing first` : ""}.</p>
+      <p class="mini" style="margin:0 0 8px">The policies will bind to the ${rows.length === 1 ? "group" : "groups"} already in this tenant — nothing is duplicated, and the membership of ${rows.length === 1 ? "it" : "them"} is not touched. That is the safe default: a group that already exists may hold members and sit somewhere deliberately, and an import is not the place to decide otherwise.</p>
+      <p class="mini" style="margin:0 0 8px">It does mean a reused group <b>inherits none of the hardening a created one gets</b>. A group created by this import gets nesting disabled and is filed into its persona vault${notable.length ? `, and ${notable.length} of ${rows.length} ${notable.length === 1 ? "has" : "have"} something worth seeing first` : ""}.</p>
+      ${total ? `<p class="mini" style="margin:0 0 8px"><b>You can finish that here.</b> Tick what should be applied to a group and it runs <b>after the policies import</b> — the same two writes the create path makes, and neither is destructive: Entra <i>refuses</i> the nesting change rather than forcing it when a group already holds nested groups, and unit membership can be undone. Nothing is ticked for you.</p>
+      <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 8px;flex-wrap:wrap">
+        <button class="btn sm" id="imFixAll">☑ Tick all ${total}</button>
+        <span class="mini muted" id="imFixCount">${ticked ? `<b>${ticked}</b> of ${total} will be applied after the policies import` : "nothing ticked — every group below is left exactly as it is"}</span>
+      </div>` : ""}
       <div class="cg-pick">${rows.map(line).join("")}</div>
-      <p class="mini muted" style="margin:8px 0 0">Finish the job afterwards from <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> (file them into their vaults) and 👥 CA groups <b>⑧ Disable nesting</b>. Both are safe on a group that already has members.</p>
+      <p class="mini muted" style="margin:8px 0 0">${total ? "Anything that cannot be done here says why on its row. " : ""}The same two actions live in <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> and 👥 CA groups <b>⑧ Disable nesting</b>, which is also where a group Entra refuses in place can be recreated — that route is destructive, so it stays behind its own typed confirmation and is not repeated here.</p>
     </div>`;
+  }
+
+  // Applies what was ticked in the ♻️ panel. Deliberately runs AFTER the
+  // policies are in: an import that failed should leave every existing group
+  // exactly as it found it, and the two outcomes stay separable in the report.
+  //
+  // Nothing here is reported as done unless it was checked. Entra can accept a
+  // PATCH and quietly ignore an unknown property, so the nesting write is
+  // confirmed by reading the value back — the rule build 284 established for
+  // every create path, and the reason a silent no-op cannot pass as success.
+  async function imHardenReused() {
+    const picked = ((imRa && imRa.existing) || []).filter((r) => (r.doNest && r.nest.can) || (r.doPlace && r.place.can));
+    if (!picked.length) return null;
+    const out = { done: [], failed: [] };
+    for (const r of picked) {
+      if (r.doNest && r.nest.can) {
+        try {
+          if (isDemo) {
+            // A group that already holds nested groups is the one case Entra
+            // refuses in place, so the demo has to show it rather than a clean
+            // run every time.
+            if (/internals/i.test(r.name)) throw new Error("Demo — simulated refusal: the group already contains a nested group");
+          } else {
+            await Graph.gpatch(`/groups/${r.id}`, { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
+            const back = await Graph.gget(`/groups/${r.id}?$select=id,disableNesting`);
+            if (CaGroups.nestingState(back) !== "disabled") {
+              throw new Error("Entra accepted the update but the property did not read back — on this tenant it is only settable at creation");
+            }
+          }
+          r.nesting = "disabled";
+          out.done.push({ name: r.name, what: "nesting disabled" });
+        } catch (e) {
+          out.failed.push({ name: r.name, what: "disable nesting", error: (e && e.message) || String(e),
+            hint: "⑧ Disable nesting can recreate the group instead, behind its own typed confirmation — the only remaining route when a group already holds nested groups" });
+        }
+      }
+      if (r.doPlace && r.place.can) {
+        const auName = Rmau.auName(r.place.code);
+        try {
+          if (!isDemo) {
+            await Graph.gpost(`/administrativeUnits/${r.place.auId}/members/$ref`,
+              { "@odata.id": `https://graph.microsoft.com/beta/groups/${r.id}` });
+          }
+          r.protectedIn = { auId: r.place.auId, auName, code: r.place.code };
+          out.done.push({ name: r.name, what: `filed into ${auName} — only an administrator scoped to that unit can change its members now` });
+        } catch (e) {
+          out.failed.push({ name: r.name, what: `file into ${auName}`, error: (e && e.message) || String(e),
+            hint: "the group is live and unprotected — 🔒 Protect exclusions can file it by hand" });
+        }
+      }
+    }
+    return out;
   }
 
   function imAuPanel() {
@@ -2078,6 +2332,21 @@
       return;
     }
     if (e.target.id === "imAuGo") { await imAuCreate(e.target); return; }
+    if (e.target.id === "imFixAll") {
+      const rows = (imRa && imRa.existing) || [];
+      const total = rows.reduce((n, r) => n + (r.nest.can ? 1 : 0) + (r.place.can ? 1 : 0), 0);
+      const ticked = rows.reduce((n, r) => n + (r.doNest ? 1 : 0) + (r.doPlace ? 1 : 0), 0);
+      const on = !(ticked >= total && total > 0);
+      rows.forEach((r) => { r.doNest = on && r.nest.can; r.doPlace = on && r.place.can; });
+      // Reflect the model onto the inputs in place — rebuilding the modal body
+      // would discard the persona filter and the policy selection above it.
+      document.querySelectorAll("#imBody [data-imfix]").forEach((cb) => {
+        const r = rows[+cb.dataset.imfix]; if (!r) return;
+        cb.checked = cb.dataset.fixkind === "nest" ? !!r.doNest : !!r.doPlace;
+      });
+      imFixSync();
+      return;
+    }
     if (e.target.id === "imRaGo") {
       // ⑦ Migrate scans for role-assignable baseline groups itself, so these
       // land among its candidates — no second selection to keep in step.
@@ -2098,6 +2367,13 @@
   $("imBody").addEventListener("change", (e) => {
     if (e.target.matches('input[name="imMode"]')) { imMode = e.target.value; imRenderList(); return; }
     if (e.target.matches("[data-imp]")) updateImGo();
+    const f = e.target.closest("[data-imfix]");
+    if (f) {
+      const r = (imRa && imRa.existing || [])[+f.dataset.imfix];
+      if (r) { if (f.dataset.fixkind === "nest") r.doNest = f.checked; else r.doPlace = f.checked; }
+      imFixSync();
+      return;
+    }
     const b = e.target.closest("[data-imau]");
     if (b) {
       b.checked ? imAu.sel.add(b.dataset.imau) : imAu.sel.delete(b.dataset.imau);
@@ -2179,9 +2455,15 @@
     // Consent first, while the click is still fresh — an import creates
     // dependencies (groups, locations) as well as policies, so ask for both.
     const placing = !!(imAu && !imAu.error && Object.keys(imAu.byCode).length);
+    // The ♻️ ticks need their own scopes: asked for now, with the click still
+    // fresh, rather than half way through a run.
+    const fixes = ((imRa && imRa.existing) || []).filter((r) => (r.doNest && r.nest.can) || (r.doPlace && r.place.can));
+    const fixNest = fixes.some((r) => r.doNest && r.nest.can);
+    const fixPlace = fixes.some((r) => r.doPlace && r.place.can);
     if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess",
       "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory",
-      ...(placing ? ["AdministrativeUnit.ReadWrite.All"] : [])])) return;
+      ...(placing || fixPlace ? ["AdministrativeUnit.ReadWrite.All"] : []),
+      ...(fixNest ? CaGroups.NEST_WRITE_SCOPES : [])])) return;
     $("imGo").disabled = true;
     try {
       let depLog = { created: [], reused: [], warnings: [] }, maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, personaGroupIds: {} }, res = { results: [], warnings: [] };
@@ -2216,6 +2498,15 @@
         const dep = await Importer.ensureDependencies(scoped, (m) => toast(esc(m)), { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
         res = await Importer.importPolicies(chosen, maps, (m) => toast(esc(m)), { mode: imMode });
+      }
+      // R04: finish the job on the groups this import REUSED — but only if the
+      // policies actually landed. An import that failed has no business having
+      // changed an existing group on the way past.
+      if (res.results.some((r) => r.ok)) {
+        const hard = await imHardenReused();
+        if (hard) { depLog.hardened = hard.done; depLog.hardenFailed = hard.failed; }
+      } else if (fixes.length) {
+        depLog.warnings.push(`No policy was imported, so the ${fixes.length} group change${fixes.length === 1 ? "" : "s"} you ticked ${fixes.length === 1 ? "was" : "were"} NOT applied — nothing existing is altered by an import that did not happen.`);
       }
       // Change report — shown on screen and downloadable. A failed import is
       // the case you most need to read, so it should not require opening a file.
@@ -2668,7 +2959,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const adds = t.plan.filter((x) => x.state === "add");
     if (!adds.length) return;
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
-    t.busy = true; btn.disabled = true;
+    t.busy = true; btn.disabled = true; t.log = null;
     const bar = $("cgCsvBar"), log = $("cgCsvLog");
     bar.style.display = "block";
     const lines = [];
@@ -3855,20 +4146,30 @@ max@contoso.com,"Global, DevOps"</pre>
   // on every call rather than guessing which the target turned out to be.
   const MEMBER_MOVE_SCOPES = ["Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"];
   async function moveGroupMembers(fromId, toId, onStatus) {
-    const log = { moved: 0, total: 0, failed: [] };
-    const users = await Graph.ggetAll(`/groups/${fromId}/members/microsoft.graph.user?$select=id,displayName`).catch(() => []);
-    log.total = users.length;
-    for (let i = 0; i < users.length; i++) {
-      onStatus?.(`Moving member ${i + 1}/${users.length}…`);
+    // ALL member types come across, not just users — a persona group can hold
+    // service principals (service-account personas) and the old code left
+    // those behind silently. The one hard limit is Entra's, not ours: a
+    // role-assignable group cannot contain GROUPS as members, so nested
+    // groups are reported as skipped with that reason instead of failing.
+    const log = { moved: 0, total: 0, failed: [], skippedGroups: [] };
+    const members = await Graph.ggetAll(`/groups/${fromId}/members?$select=id,displayName`).catch(() => []);
+    const movable = [];
+    for (const m of members) {
+      if (String(m["@odata.type"] || "").toLowerCase().includes("group")) log.skippedGroups.push(m.displayName || m.id);
+      else movable.push(m);
+    }
+    log.total = members.length;
+    for (let i = 0; i < movable.length; i++) {
+      onStatus?.(`Moving member ${i + 1}/${movable.length}…`);
       try {
         await Graph.gpost(`/groups/${toId}/members/$ref`,
-          { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${users[i].id}` },
+          { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${movable[i].id}` },
           [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
         log.moved++;
       } catch (e) {
         const already = /already exist/i.test(e.message || "");
         if (already) log.moved++;
-        else log.failed.push({ name: users[i].displayName || users[i].id, error: e.message || String(e) });
+        else log.failed.push({ name: movable[i].displayName || movable[i].id, error: e.message || String(e) });
       }
     }
     return log;
@@ -5184,11 +5485,14 @@ max@contoso.com,"Global, DevOps"</pre>
   // ---------- Baseline Policies ----------
   // Pure client-side comparison against the bundled catalog — no Graph calls
   // beyond the policies already loaded, so it is instant and re-runs on filter.
-  let blResult = null, blFilter = "all", blQuery = "", blView = "table", blCat = "limonit";
+  let blResult = null, blFilter = "all", blQuery = "", blCat = "limonit";
   const blCollapsed = new Set();
-  // the Limon-IT R26.6 catalog is large — the table is the readable default;
-  // the community catalogs open as cards
-  const blDefaultView = (cat) => (cat === "limonit" ? "table" : "cards");
+  // ONE VIEW, THE TABLE. There used to be a Cards/Table toggle, defaulting to
+  // the table for the CloudFellows catalog and to cards for the community ones —
+  // so the same screen answered the same question two different ways depending
+  // on which catalog you had clicked, and comparing the two baselines meant
+  // comparing a table against a wall of cards. A baseline comparison is a row
+  // per policy with a status: that is a table, in both catalogs.
   // keepView: a refresh re-compares in place and must not throw away the filter,
   // search or collapsed sections the person was looking at.
   function openBaseline(catId, keepView) {
@@ -5201,7 +5505,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     blResult = Baseline.compare(policies, blCat);
     if (!keepView) {
-      blFilter = "all"; blQuery = ""; blView = blDefaultView(blCat); blCollapsed.clear(); $("blSearch").value = "";
+      blFilter = "all"; blQuery = ""; blCollapsed.clear(); $("blSearch").value = "";
     }
     renderBaseline();
   }
@@ -5211,11 +5515,7 @@ max@contoso.com,"Global, DevOps"</pre>
     $("blCatalog").innerHTML = Baseline.catalogs()
       .map((c) => `<button class="${c.id === blCat ? "active" : ""}" data-blcat="${esc(c.id)}">${c.icon || "🧬"} ${esc(c.label)}</button>`).join("");
     $("blChips").innerHTML = Baseline.chips(blResult, blFilter);
-    $("blViewCards").classList.toggle("active", blView === "cards");
-    $("blViewTable").classList.toggle("active", blView === "table");
-    $("blBody").innerHTML = blView === "cards"
-      ? Baseline.renderCards(blResult, blFilter, blQuery, blCollapsed)
-      : Baseline.renderTable(blResult, blFilter, blQuery, blCollapsed);
+    $("blBody").innerHTML = Baseline.renderTable(blResult, blFilter, blQuery, blCollapsed);
     const shown = Baseline.personas(blResult, blFilter, blQuery);
     const allCollapsed = shown.length > 0 && shown.every((g) => blCollapsed.has(g));
     $("blCollapseAll").textContent = allCollapsed ? "⊞ Expand all" : "⊟ Collapse all";
@@ -5226,7 +5526,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const b = e.target.closest("[data-blcat]"); if (!b || b.dataset.blcat === blCat) return;
     blCat = b.dataset.blcat;
     blResult = Baseline.compare(policies, blCat);
-    blFilter = "all"; blView = blDefaultView(blCat); blCollapsed.clear(); renderBaseline();
+    blFilter = "all"; blCollapsed.clear(); renderBaseline();
   });
   $("blChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-blf]"); if (!b) return;
@@ -5246,8 +5546,6 @@ max@contoso.com,"Global, DevOps"</pre>
     if (allCollapsed) blCollapsed.clear(); else shown.forEach((g) => blCollapsed.add(g));
     renderBaseline();
   });
-  $("blViewCards").addEventListener("click", () => { blView = "cards"; renderBaseline(); });
-  $("blViewTable").addEventListener("click", () => { blView = "table"; renderBaseline(); });
   // clicking a tenant policy name opens its card, same as everywhere else
   $("blBody").addEventListener("click", (e) => {
     const el = e.target.closest("[data-blpol]"); if (!el) return;
@@ -7502,8 +7800,15 @@ max@contoso.com,"Global, DevOps"</pre>
     for (const [id, label] of TOOL_TABS) {
       const el = $(id);
       if (!el) continue;                                  // tool not on this build
-      const sc = cpScore(label, q);
-      if (sc) out.push({ kind: "tool", id, label, hint: "Tool", score: sc });
+      // R33 — "T07" finds the tool, and so does "7": somebody quoting a number
+      // out of a note or a support case should not have to remember the prefix.
+      // An exact number match outranks everything, because a query that IS a
+      // tool number is not an accident.
+      const no = toolNoOf(id);
+      const qn = q.trim().toLowerCase();
+      const exact = no && (qn === no.toLowerCase() || qn === String(+no.slice(1)) || qn === `t${+no.slice(1)}`);
+      const sc = exact ? 200 : cpScore(label, q);
+      if (sc) out.push({ kind: "tool", id, label, hint: no ? `Tool · ${no}` : "Tool", score: sc });
     }
     // Policies only exist after sign-in; before that the palette is tools only,
     // and the footer says why rather than looking broken.
@@ -8027,6 +8332,615 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("🖥 Compliant-device reality check", "CA-DeviceRealityCheck", DevCheck.toMd(dvRes, { tenantName }));
   });
 
+  // ---------- Licence gap (targeted vs entitled) ----------
+  // The analysis lives in js/licgap.js as pure functions; this wiring
+  // resolves the actual targeting of every active policy (group members,
+  // role members, tenant user count) and the P1/P2 seat counts, then
+  // renders the comparison. Everything it reads is covered by the two
+  // baseline scopes — no extra consent, reads only.
+  let lgRes = null, lgBusy = false;
+  // userId → mailbox purpose ("shared"/"room"/"equipment"/"user"/…), null = that
+  // one user's read failed. The whole map null = not checked yet this run.
+  let lgPurpose = null, lgPurposeBusy = false, lgModalKey = null;
+  // The designated admin-accounts group: its members are excluded from
+  // every count and list — Microsoft licenses people, and a second
+  // internal account of a licensed person needs no second licence.
+  let lgAdmin = [], lgCtx = null;   // the designated groups, in pick order
+  let lgModalCat = "all";          // the pop-out's active category filter
+  const lgAdmMap = new Map();   // suggestion label (lowercased) → { id, name }
+  let lgAdmTimer = null, lgAdmBusy = false;
+  const LG_PURPOSE_CAP = 600;  // gap users checked per run, in $batch chunks
+  const LG_RESOURCE = new Set(["shared", "room", "equipment"]);
+  // ONE classifier decides which bucket a gap user is in — the card's
+  // chips, the pop-out's category column and its filters all read it, so
+  // a count on the card always matches the rows a click reveals.
+  function lgCatOf(u) {
+    const purpose = lgPurpose ? lgPurpose[u.id] : undefined;
+    if (purpose && LG_RESOURCE.has(purpose)) return "resource";
+    if (purpose === "mailbox-no-access") return "likely";
+    if (u.enabled === false) return "disabled";
+    if (u.lic0) return "nolic";
+    return "license";
+  }
+  const LG_CATS = {
+    license: { label: "to license", pill: "red", hint: "Enabled real users — license these (or exclude them deliberately)" },
+    disabled: { label: "disabled — cleanup", pill: "amber", hint: "Disabled accounts — cleanup candidates, not purchases" },
+    nolic: { label: "no licences at all — service account?", pill: "amber", hint: "Enabled accounts holding NO licences at all — usually service accounts or sync artifacts. Exclude or license deliberately." },
+    resource: { label: "shared/resource — never licensed", pill: "green", hint: "Shared / room / equipment mailbox accounts — never licensed; disable or exclude them" },
+    likely: { label: "likely shared/resource", pill: "amber", hint: "A mailbox exists but the account has no licence — almost always shared/room/equipment. Verify in the Exchange admin center." },
+  };
+  const lgProg = makeProgress("lg");
+  const LG_GROUP_CAP = 100;    // groups expanded per run
+  const LG_MEMBER_PAGES = 10;  // ~10k members per group
+  const LG_USER_PAGES = 20;   // ~20k member users read so the gap can be NAMED
+
+  const LG_DEMO = {
+    totalMembers: 8, disabledMembers: 2,
+    skus: [
+      { skuPartNumber: "EMSPREMIUM", capabilityStatus: "Enabled", prepaidUnits: { enabled: 3 }, consumedUnits: 3,
+        servicePlans: [{ servicePlanId: LicGap.P1_PLAN, servicePlanName: "AAD_PREMIUM" }] },
+      { skuPartNumber: "AAD_PREMIUM_P2", capabilityStatus: "Enabled", prepaidUnits: { enabled: 1 }, consumedUnits: 1,
+        servicePlans: [{ servicePlanId: LicGap.P2_PLAN, servicePlanName: "AAD_PREMIUM_P2" }, { servicePlanId: LicGap.P1_PLAN, servicePlanName: "AAD_PREMIUM" }] },
+      { skuPartNumber: "ENTERPRISEPACK", capabilityStatus: "Suspended", prepaidUnits: { enabled: 10 }, consumedUnits: 0,
+        servicePlans: [{ servicePlanId: LicGap.P1_PLAN, servicePlanName: "AAD_PREMIUM" }] },
+    ],
+    members: { "g-hr": { users: ["u-emp1", "u-emp2"], capped: false },
+      "g-admins": { users: ["u-admin"], capped: false } },
+    users: [
+      { id: "u-admin", name: "Alex Admin", upn: "alex.admin@contoso.com", enabled: true, p1: true, p2: true },
+      { id: "u-break1", name: "breakglass-01", upn: "breakglass-01@contoso.com", enabled: true, p1: false, p2: false, lic0: true },
+      { id: "u-break2", name: "breakglass-02", upn: "breakglass-02@contoso.com", enabled: true, p1: false, p2: false, lic0: true },
+      { id: "u-svc", name: "svc-legacyapp", upn: "svc-legacyapp@contoso.com", enabled: true, p1: false, p2: false, lic0: true },
+      { id: "u-emp1", name: "Eva Employee", upn: "eva@contoso.com", enabled: true, p1: true, p2: false },
+      { id: "u-emp2", name: "Milan Medewerker", upn: "milan@contoso.com", enabled: true, p1: true, p2: false },
+      { id: "u-old", name: "Olga Offboarded", upn: "olga@contoso.com", enabled: false, p1: false, p2: false },
+      { id: "u-shared", name: "Alerts And Notifications", upn: "alerts@contoso.com", enabled: true, p1: false, p2: false, lic0: true },
+    ],
+    purposes: { "u-admin": "user", "u-break1": "no-mailbox", "u-break2": "no-mailbox", "u-svc": "no-mailbox",
+      "u-emp1": "user", "u-emp2": "user", "u-old": "mailbox-no-access", "u-shared": "shared" },
+  };
+
+  // The @odata.count idiom: $count=true pairs with the ConsistencyLevel
+  // header gget always sends; $top=1 keeps the page itself near-empty.
+  async function lgUserCount(filter) {
+    const j = await Graph.gget(`/users?$count=true&$top=1&$select=id&$filter=${encodeURIComponent(filter)}`);
+    const c = j["@odata.count"];
+    return typeof c === "number" ? c : null;
+  }
+
+  async function lgRun() {
+    if (lgBusy) return;
+    lgBusy = true;
+    lgPurpose = null;   // a new run invalidates the mailbox-type check
+    const raws = policies.map((p) => p.raw).filter((r) => r.state !== "disabled");
+    const gids = [...new Set(raws.flatMap((r) => {
+      const u = (r.conditions || {}).users || {};
+      return [...(u.includeGroups || []), ...(u.excludeGroups || [])];
+    }))];
+    const rids = [...new Set(raws.flatMap((r) => {
+      const u = (r.conditions || {}).users || {};
+      return [...(u.includeRoles || []), ...(u.excludeRoles || [])];
+    }))];
+    lgProg.start(4 + Math.min(gids.length, LG_GROUP_CAP) + rids.length, "records", "step");
+    $("lgBody").innerHTML = lgProg.panel("Counting who your policies actually target…",
+      "Licences, the tenant user count, and the members behind every group and role a policy includes or excludes — reads only, covered by the permissions you already granted.");
+    try {
+      const ctx = { policies: raws.concat(policies.map((p) => p.raw).filter((r) => r.state === "disabled")),
+        skus: null, totalMembers: null, disabledMembers: null, users: null, usersCapped: false,
+        members: {}, roleMembers: {}, names: {} };
+      let step = 0, count = 0;
+      const say = (t) => { const el = $("lgPgTxt"); if (el) el.textContent = t; };
+      if (isDemo) {
+        Object.assign(ctx, LG_DEMO, { roleMembers: DEMO_DATA.roleMembers || {}, names: DEMO_DATA.names || {} });
+      } else {
+        say("🎫 Licence entitlements…");
+        // A failed SKU read must surface as "not read", never as zero seats.
+        try { ctx.skus = await Graph.ggetAll("/subscribedSkus"); } catch { ctx.skus = null; }
+        lgProg.tick(count += (ctx.skus || []).length, ++step);
+        say("👥 Tenant user count…");
+        try { ctx.totalMembers = await lgUserCount("userType eq 'Member'"); } catch { ctx.totalMembers = null; }
+        try { ctx.disabledMembers = await lgUserCount("userType eq 'Member' and accountEnabled eq false"); } catch { ctx.disabledMembers = null; }
+        lgProg.tick(count += ctx.totalMembers || 0, ++step);
+        say("🧑 Member users + licences…");
+        // The user read is what lets the gap be NAMED, not just counted.
+        // Each user's p1/p2 comes from assignedLicenses matched against
+        // the SAME live SKU set the seat totals count — one definition of
+        // "licensed" for both numbers. (assignedPlans alone kept plans in
+        // grace from suspended subscriptions, so users read as licensed
+        // by seats no longer owned and the named list disagreed with the
+        // tile by exactly those users.) A per-user disabledPlans entry
+        // for the P1/P2 plan means the SKU is held but the plan is off.
+        // A user whose only P1/P2 is such a grace plan is IN the gap and
+        // labelled "in grace" — the licence exists, the seat does not.
+        // Capped: the named lists then cover a prefix of the tenant and
+        // the result says so; a failed read leaves users null, which the
+        // analysis reports as "counted but not named", never as clean.
+        try {
+          const live = LicGap.liveSkuSets(ctx.skus);   // null when the SKU read failed
+          const us = [];
+          let next = `/users?$filter=${encodeURIComponent("userType eq 'Member'")}&$select=id,displayName,userPrincipalName,accountEnabled,assignedLicenses,assignedPlans&$top=999`, pages = 0;
+          while (next && pages < LG_USER_PAGES) {
+            const j = await Graph.gget(next);
+            for (const m of j.value || []) {
+              let p1 = false, p2 = false, planP1 = false, planP2 = false;
+              if (live) {
+                for (const l of m.assignedLicenses || []) {
+                  const dis = l.disabledPlans || [];
+                  const p1ok = live.p1.has(l.skuId) && !dis.includes(LicGap.P1_PLAN);
+                  const p2ok = live.p2.has(l.skuId) && !dis.includes(LicGap.P2_PLAN);
+                  if (p2ok) p2 = true;
+                  if (p1ok || p2ok) p1 = true;
+                }
+              }
+              for (const ap of m.assignedPlans || []) {
+                if (ap.capabilityStatus !== "Enabled" && ap.capabilityStatus !== "Warning") continue;
+                if (ap.servicePlanId === LicGap.P1_PLAN) planP1 = true;
+                else if (ap.servicePlanId === LicGap.P2_PLAN) planP2 = true;
+              }
+              if (!live) { p1 = planP1 || planP2; p2 = planP2; }   // no SKU read — plans are the only signal left
+              us.push({ id: m.id, name: m.displayName, upn: m.userPrincipalName, enabled: m.accountEnabled !== false,
+                p1: p1 || p2, p2,
+                p1grace: !!(live && !p1 && !p2 && (planP1 || planP2)),
+                p2grace: !!(live && !p2 && planP2),
+                // No licences AT ALL: usually a service account or a sync
+                // artifact that never consumes Microsoft services (the
+                // office365itpros target-set argument) — labelled, so the
+                // to-license count is not inflated by accounts nobody
+                // would ever buy for.
+                lic0: !(m.assignedLicenses || []).length });
+            }
+            next = j["@odata.nextLink"] || null;
+            pages++;
+            lgProg.tick(count += (j.value || []).length, step);
+          }
+          ctx.users = us;
+          ctx.usersCapped = !!next;
+        } catch { ctx.users = null; }
+        lgProg.tick(count, ++step);
+        // Names next, so the progress line can narrate groups by name.
+        for (let i = 0; i < gids.length; i += 900) {
+          try {
+            const j = await Graph.gpost("/directoryObjects/getByIds", { ids: gids.slice(i, i + 900), types: ["group"] });
+            for (const o of j.value || []) ctx.names[o.id] = o.displayName;
+          } catch { /* names stay GUIDs — the counts still hold */ }
+        }
+        // Transitive USER members per group, capped like Device reality
+        // check. Only a successful read lands in the map — an unreadable
+        // group must stay ABSENT so the analysis marks the count ≈ instead
+        // of treating a read failure as an empty group.
+        for (const id of gids.slice(0, LG_GROUP_CAP)) {
+          say(`👥 ${ctx.names[id] || id}…`);
+          const rec = { users: [], capped: false };
+          try {
+            let next = `/groups/${id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, pages = 0;
+            while (next && pages < LG_MEMBER_PAGES) {
+              const j = await Graph.gget(next);
+              for (const m of j.value || []) rec.users.push(m.id);
+              next = j["@odata.nextLink"] || null;
+              pages++;
+            }
+            rec.capped = !!next;
+            ctx.members[id] = rec;
+          } catch { /* absent on purpose — see above */ }
+          lgProg.tick(count += rec.users.length, ++step);
+        }
+        // Directory role members: an unactivated role 404s, which really is
+        // "no active assignments" — but any other failure stays null so the
+        // count is marked approximate rather than silently low. graphError
+        // folds the HTTP status into the message, so that is where it lives.
+        //
+        // /members returns DIRECT assignments, and those are not all users:
+        // a role held through a role-assignable GROUP arrives as the group
+        // object, and its members would silently not count — so groups are
+        // expanded to their transitive users here. Service principals can
+        // hold a role too and are ignored on purpose: they do not hold
+        // user licences. A group expansion that fails poisons only that
+        // role (null → the count goes ≈), never the run.
+        for (const id of rids) {
+          say(`🎭 role ${id}…`);
+          try {
+            const m = await Graph.ggetAll(`/directoryRoles(roleTemplateId='${id}')/members?$select=id`);
+            const ids2 = [];
+            for (const x of m) {
+              const ty = String(x["@odata.type"] || "");
+              if (ty.endsWith(".group")) {
+                let next = `/groups/${x.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, pages = 0;
+                while (next && pages < LG_MEMBER_PAGES) {
+                  const j = await Graph.gget(next);
+                  for (const u2 of j.value || []) ids2.push(u2.id);
+                  next = j["@odata.nextLink"] || null;
+                  pages++;
+                }
+              } else if (!ty.endsWith(".servicePrincipal")) {
+                ids2.push(x.id);
+              }
+            }
+            ctx.roleMembers[id] = ids2;
+          } catch (e) {
+            ctx.roleMembers[id] = /\(404\)/.test(String(e && e.message || "")) ? [] : null;
+          }
+          lgProg.tick(count, ++step);
+        }
+      }
+      if (lgAdmin.length) ctx.adminExclude = lgAdmin;
+      lgCtx = ctx;
+      lgRes = LicGap.analyze(ctx);
+    } catch (e) {
+      $("lgBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p></div>`;
+      lgBusy = false;
+      return;
+    }
+    lgBusy = false;
+    renderLicGap();
+  }
+
+  const lgN = (v, approx) => v == null ? "—" : `${approx ? "≈" : ""}${v.toLocaleString()}`;
+  const lgStateTag = (s) => s === "enabled" ? '<span class="tag block">On</span>'
+    : s === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
+  // The one visual that carries the verdict: how much of the targeted
+  // population the seats cover. Green at 100%, amber close, red wide open.
+  function lgBar(targeted, seats) {
+    if (targeted == null || seats == null || !targeted) return "";
+    const pct = Math.min(100, seats / targeted * 100);
+    const col = pct >= 100 ? "var(--on)" : pct >= 75 ? "var(--report)" : "var(--off)";
+    return `<div class="lg-bar" title="${Math.round(pct)}% of the targeted users are licensed"><div style="width:${pct}%;background:${col}"></div></div>
+      <p class="mini muted" style="margin:2px 0 0">${seats.toLocaleString()} of ${targeted.toLocaleString()} targeted users licensed (${Math.round(pct)}%)</p>`;
+  }
+
+  function renderLicGap() {
+    $("lgHead").innerHTML = `<h3>🎫 Licence gap <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:4px">Microsoft's licence usage blade counts <b>evaluated</b> users — who happened to trigger a policy last month. The obligation Microsoft licenses on is <b>targeted</b> users: every user a Conditional Access policy is scoped to needs <b>Entra ID P1</b>, and every user targeted by a risk-based policy needs <b>P2</b> — whether they signed in or not. A blade showing "2 of 25, fine" can sit on a tenant targeting every one of its users. This tool counts the targeted number and compares it with the seats the tenant owns.</p>
+      <p class="mini muted" style="margin:0">Reads only, covered by the permissions already granted at sign-in — licences, the member-user count, and the members behind every group and role your policies include or exclude.</p>`;
+    if (lgBusy) return;   // the run panel owns lgBody until the read finishes
+
+    if (!lgRes) {
+      $("lgBody").innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-lgrun>▶ Count the gap</button>
+        <p class="mini muted">Resolves the actual targeting of the ${policies.length} policies already loaded and compares it with your P1/P2 entitlements. No extra permissions.</p>
+      </div>`;
+      return;
+    }
+
+    const r = lgRes;
+    const gapCard = (label, o, sub) => {
+      const cls = o.gap == null ? "" : o.gap > 0 ? "risk" : "";
+      const val = o.gap == null ? "—" : o.gap > 0 ? o.gap.toLocaleString() : "0";
+      return `<div class="an-card ${cls}" style="cursor:default"><div class="n">${val}</div><div class="l">${label}</div>${sub ? `<div class="mini muted">${sub}</div>` : ""}</div>`;
+    };
+    const tile = (n, l, cls) => `<div class="an-card ${cls || ""}" style="cursor:default"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+
+    const tiles = `<div class="an-cards" style="margin-bottom:12px">
+      ${tile(lgN(r.totals.members), "member users")}
+      ${tile(lgN(r.p1.targeted, r.p1.approx), "targeted → need P1")}
+      ${tile(lgN(r.p1.seats), "P1 seats owned")}
+      ${gapCard("P1 gap", r.p1, r.p1.gap != null && r.p1.gap <= 0 ? "covered" : "")}
+      ${r.p2.riskCount || (r.p2.seats || 0) > 0 ? `
+        ${tile(lgN(r.p2.targeted, r.p2.approx), "targeted → need P2")}
+        ${tile(lgN(r.p2.seats), "P2 seats owned")}
+        ${gapCard("P2 gap", r.p2, r.p2.gap != null && r.p2.gap <= 0 ? "covered" : "")}` : ""}
+    </div>`;
+
+    const bars = `<div class="list-card" style="padding:14px 16px">
+      ${r.adminExclude ? `<p class="mini" style="margin:0 0 8px"><span class="tag grant">👑 ${r.adminExclude.count.toLocaleString()} admin account${r.adminExclude.count === 1 ? "" : "s"} excluded via ${esc(r.adminExclude.name)}</span> <span class="muted">— a second internal account of a licensed person needs no second licence; document the mapping.</span></p>` : ""}
+      <p class="mini" style="margin:0 0 2px"><b>Entra ID P1</b> — any active Conditional Access policy${r.broadest ? ` · broadest: <b class="pol-link" data-polid="${esc(r.broadest.id || "")}" title="Open the policy card">${esc(r.broadest.name)}</b> (${lgN(r.broadest.size, r.broadest.approx)} users)` : ""}</p>
+      ${lgBar(r.p1.targeted, r.p1.seats)}
+      <p class="mini" style="margin:12px 0 2px"><b>Entra ID P2</b> — ${r.p2.riskCount ? `${r.p2.riskCount} risk-based polic${r.p2.riskCount === 1 ? "y" : "ies"} (sign-in, user or insider risk)` : "no active risk-based policy"}</p>
+      ${r.p2.riskCount
+        ? (lgBar(r.p2.targeted, r.p2.seats) || `<p class="mini muted" style="margin:2px 0 0">No P2 seats to draw the bar with.</p>`)
+        : `<p class="mini muted" style="margin:2px 0 0">Nothing creates a P2 obligation today${r.p2.seats ? ` — the ${r.p2.seats.toLocaleString()} P2 seat${r.p2.seats === 1 ? "" : "s"} owned ${r.p2.seats === 1 ? "is" : "are"} not required by Conditional Access` : ""}.${r.disabledRisk ? ` <span style="color:var(--report)">${r.disabledRisk} disabled risk-based polic${r.disabledRisk === 1 ? "y" : "ies"} would create one the day ${r.disabledRisk === 1 ? "it is" : "one is"} switched on.</span>` : ""}</p>`}
+      ${r.p1.gap != null && r.p1.gap > 0
+        ? `<p class="mini" style="color:var(--off);margin:10px 0 0"><b>Licence gap: ${r.p1.gap.toLocaleString()} users</b> are targeted by Conditional Access without a P1 licence to cover them. The usage blade will not necessarily warn about this — it measures last month's sign-ins, not the targeting.</p>`
+        : r.p1.gap != null
+        ? `<p class="mini" style="color:var(--on);margin:10px 0 0"><b>No P1 gap</b> — the seats cover everyone your policies target.</p>` : ""}
+      ${r.p2.gap != null && r.p2.gap > 0 ? `<p class="mini" style="color:var(--off);margin:4px 0 0"><b>P2 gap: ${r.p2.gap.toLocaleString()} users</b> targeted by risk-based policies without a P2 licence.</p>` : ""}
+    </div>`;
+
+    // The named gap. Two numbers on purpose: the tile's gap is targeted
+    // minus seats OWNED (what must be bought), the list here is targeted
+    // users with no licence ASSIGNED (what can be fixed today) — with the
+    // unassigned-seat count bridging the two. The list itself lives in a
+    // pop-out: a large tenant makes it hundreds of rows, and a card that
+    // long buries every card after it. On screen: the breakdown that
+    // decides what to DO — license, clean up, or disable a resource
+    // account that should never have been in scope at all.
+    const lgClassify = (list) => {
+      const c = { license: 0, disabled: 0, resource: 0, likely: 0, nolic: 0, unknown: 0 };
+      for (const u of list) {
+        c[lgCatOf(u)]++;
+        if (lgPurpose && lgPurpose[u.id] === null && lgCatOf(u) === "license") c.unknown++;
+      }
+      return c;
+    };
+    const lgGapSection = (label, o, key) => {
+      if (o.gapUsers === null) return `<p class="mini muted" style="margin:0">The user list could not be read — the ${label} gap is counted above but cannot be named.</p>`;
+      if (!o.gapUsers.length) return `<p class="mini" style="color:var(--on);margin:0">Nobody — every targeted user has ${label} assigned.</p>`;
+      const unassigned = o.seats != null && o.assigned != null ? Math.max(0, o.seats - o.assigned) : null;
+      const c = lgClassify(o.gapUsers);
+      return `<p class="mini" style="margin:0 0 8px"><b style="color:var(--off)">${o.gapUsers.length.toLocaleString()}</b> targeted user${o.gapUsers.length === 1 ? "" : "s"} with <b>no ${label} licence assigned</b>${r.totals.usersCapped ? ' <span class="tag new">partial — user read capped</span>' : ""}${unassigned ? ` · ${unassigned.toLocaleString()} owned seat${unassigned === 1 ? "" : "s"} still unassigned — assigning covers ${Math.min(unassigned, o.gapUsers.length)} before anything needs buying` : ""}</p>
+      <p class="mini" style="margin:0 0 10px">
+        ${Object.entries(LG_CATS).filter(([k]) => lgPurpose || (k !== "resource" && k !== "likely")).map(([k, d]) =>
+          `<span data-lgusers="${key}" data-lgcat="${k}" style="cursor:pointer;margin-right:10px;white-space:nowrap" title="${d.hint} — click to see exactly these users."><span class="pill ${c[k] ? d.pill : "zero"}">${c[k]}</span> <span class="mini muted" style="text-decoration:underline dotted">${d.label}</span></span>`).join("")}
+        ${o.graceCount ? `<span class="pill amber" title="These users still carry the plan from a suspended or expired subscription (grace period) — the licence shows on the user, but the seat is no longer owned, so they count in the gap.">${o.graceCount}</span> <span class="mini muted">in grace — seat no longer owned</span>` : ""}
+        ${o.gapUnknown ? `&nbsp;<span class="pill zero" title="Targeted identities with no member-user record — guests reached through a group, or beyond the user-read cap. They cannot be classified and are NOT rows in the list.">${o.gapUnknown}</span> <span class="mini muted">not classifiable</span>` : ""}
+      </p>
+      <div class="tb-actions" style="justify-content:flex-start;gap:8px">
+        <button class="btn sm" data-lgusers="${key}">👥 View all ${o.gapUsers.length.toLocaleString()}</button>
+        ${lgPurpose === null ? (() => {
+          const total = new Set([...(r.p1.gapUsers || []), ...(r.p2.gapUsers || [])].map((u) => u.id)).size;
+          const n2 = Math.min(total, LG_PURPOSE_CAP);
+          return `<button class="btn sm" data-lgcheck title="Reads each gap user's mailbox purpose — shared, room and equipment mailboxes are never licensed and should be disabled, not bought for. Needs MailboxSettings.Read, asked once on this click.${total > LG_PURPOSE_CAP ? ` Capped at ${LG_PURPOSE_CAP} of ${total}.` : ""}">${lgPurposeBusy ? "🏷 Checking…" : `🏷 Check mailbox types (${n2.toLocaleString()}${total > LG_PURPOSE_CAP ? ` of ${total.toLocaleString()}` : ""})`}</button>`;
+        })() : ""}
+      </div>`;
+    };
+    const who = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <h4 style="margin:0 0 6px">Who is in the P1 gap</h4>
+      ${lgGapSection("P1", r.p1, "p1")}
+      <h4 style="margin:14px 0 6px">Who is in the P2 gap</h4>
+      ${r.p2.riskCount ? lgGapSection("P2", r.p2, "p2") : `<p class="mini muted" style="margin:0">No active risk-based policy — nobody needs P2 today.${r.disabledRisk ? ` ${r.disabledRisk} disabled risk-based polic${r.disabledRisk === 1 ? "y" : "ies"} would change that the day ${r.disabledRisk === 1 ? "it is" : "one is"} switched on.` : ""}</p>`}
+    </div>`;
+
+    const lic = r.lic.known ? `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <h4 style="margin:0 0 6px">Where the seats come from</h4>
+      <table class="plist"><thead><tr><th>SKU</th><th style="text-align:right">Seats</th><th style="text-align:right">Assigned</th><th>Counts as</th></tr></thead>
+      <tbody>${r.lic.p1.rows.map((x) => `<tr><td><code>${esc(x.part)}</code></td><td style="text-align:right">${x.seats.toLocaleString()}</td><td style="text-align:right">${x.assigned.toLocaleString()}</td><td class="mini">${x.viaP2 ? "P2 (covers P1 too)" : "P1"}</td></tr>`).join("") || `<tr><td colspan="4" class="mini muted">No SKU carrying P1 or P2 found.</td></tr>`}</tbody></table>
+      <p class="mini muted" style="margin:8px 0 0">Matched on the AAD_PREMIUM / AAD_PREMIUM_P2 service plans inside each SKU, so bundles (EMS, M365 E3/E5, Business Premium) count. The obligation compares against seats <b>owned</b>, not assigned — an unassigned seat still covers a targeted user.${r.lic.skipped.length ? ` Not counted (suspended/cancelled): ${r.lic.skipped.map(esc).join(", ")}.` : ""}</p>
+    </div>` : `<div class="list-card" style="padding:14px 16px;margin-top:12px"><p class="mini" style="color:var(--off);margin:0">The licence read failed — the gap cannot be computed. The targeting numbers below still hold.</p></div>`;
+
+    const rows = r.perPolicy.map((p) => `<tr>
+      <td><b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b></td>
+      <td>${lgStateTag(p.state)}</td>
+      <td><span class="pill ${p.needsP2 ? "red" : "amber"}" title="${p.needsP2 ? esc("risk-based: " + p.riskKinds.join(", ")) : "any CA policy needs P1"}">${p.needsP2 ? "P2" : "P1"}</span></td>
+      <td class="mini">${esc(p.desc)}</td>
+      <td style="text-align:right"><b>${lgN(p.size, p.approx)}</b></td>
+      <td style="text-align:right">${p.gap == null ? '<span class="mini muted">—</span>' : p.gap > 0 ? `<span class="pill red" title="Targeted by this policy without the ${p.needsP2 ? "P2" : "P1"} licence assigned">${lgN(p.gap, p.gapApprox)}</span>` : '<span class="pill zero">0</span>'}</td>
+    </tr>`).join("");
+    const table = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <h4 style="margin:0 0 6px">Per policy — who is targeted</h4>
+      <table class="plist"><thead><tr><th>Policy</th><th>State</th><th>Needs</th><th>Targeting</th><th style="text-align:right">Users in scope</th><th style="text-align:right" title="Users this policy targets who do not have the licence it needs assigned">Gap</th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="mini muted" style="margin:8px 0 0">Per-policy counts overlap — one user under five policies needs one licence. The obligation above is the <b>union</b>, computed on the actual members, not these columns summed. <b>Gap</b> is per scope: how many users THIS policy targets without the licence it needs assigned. ≈ marks a count where a group, role or the user list could not be read exactly; — means the user list was not read.</p>
+    </div>`;
+
+    const why = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <h4 style="margin:0 0 6px">Why is there a gap?</h4>
+      <p class="mini" style="margin:0 0 6px">Almost always because a baseline policy targets <b>All users</b> — the recommended practice for MFA and legacy-auth policies — and "All users" is bigger than anyone pictures it: every member account counts, including ${r.totals.disabled ? `the <b>${r.totals.disabled.toLocaleString()} disabled accounts</b> this tenant has today, ` : "disabled accounts, "}stale users synced from on-premises AD, service accounts, and room or shared mailbox accounts that will never see a licence. The usage blade hides this because those accounts rarely sign in — but the obligation is on targeting, not sign-ins.</p>
+      <p class="mini muted" style="margin:0">Right now the overage banner on the Conditional Access page is a warning, not enforcement — but the tracking is live, and being able to show your real number beats being surprised by theirs.</p>
+    </div>`;
+
+    const fix = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <h4 style="margin:0 0 6px">Ways to close it</h4>
+      <ul class="mini" style="margin:0;padding-left:18px;display:grid;gap:5px">
+        <li><b>Clean up before you buy.</b> Disable or delete stale accounts; exclude service accounts, room and shared mailboxes from the All-users policies (an exclusion group protected in a restricted AU — see 🔒 Protect exclusions). Every account removed from scope is a seat you do not need.</li>
+        <li><b>Map identities to people.</b> Microsoft's FAQ counts one employee with a day-to-day account plus an admin account as <b>one</b> licence. The counts here are identities — review the admin accounts against their owners and document the mapping before sizing a purchase.</li>
+        <li><b>Narrowing the target is a trade-off, not a fix.</b> Scoping policies to a licensed-users group closes the compliance gap but leaves everyone outside that group unprotected — exactly the accounts attackers prefer. If you narrow, do it deliberately and write down who is out and why.</li>
+        <li><b>Small tenant, simple needs?</b> Security defaults enforce MFA for everyone with no P1 licence at all — but they cannot coexist with Conditional Access policies, so this is an either/or.</li>
+        <li><b>Buy what remains.</b> P1 rides in EMS E3, Microsoft 365 E3, Business Premium and standalone; P2 in EMS E5, M365 E5 and standalone. A P2 seat covers the P1 obligation too${r.disabledRisk ? ` — and note: ${r.disabledRisk} disabled risk-based polic${r.disabledRisk === 1 ? "y" : "ies"} in this tenant would create a P2 obligation the day ${r.disabledRisk === 1 ? "it is" : "one is"} switched on` : ""}.</li>
+      </ul>
+    </div>`;
+
+    const caveats = `<p class="mini muted" style="margin:12px 0 0">${r.caveats.map(esc).join(" · ")}</p>`;
+    $("lgBody").innerHTML = tiles + bars + who + lic + table + why + fix + caveats;
+  }
+
+  // ---- the admin-accounts group picker ----
+  // Auto-fill in two layers: the groups the loaded CA policies already
+  // reference come first (that is where an admin persona group usually
+  // lives, and it works in demo mode too), and from two typed characters
+  // the directory is searched live, the same way Gap analyse suggests.
+  function lgAdmPrefill() {
+    lgAdmMap.clear();
+    const seen = new Set();
+    const rows = [];
+    if (isDemo) {
+      lgAdmMap.set("persona-admins", { id: "g-admins", name: "Persona-Admins" });
+      rows.push('<option value="Persona-Admins" label="👥 admin group"></option>');
+    }
+    for (const p of policies) for (const d of (p.deps || [])) {
+      if (d.type !== "group" || seen.has(d.id)) continue;
+      seen.add(d.id);
+      const name = d.label || d.id;
+      lgAdmMap.set(name.toLowerCase(), { id: d.id, name });
+      rows.push(`<option value="${esc(name)}" label="👥 CA group"></option>`);
+    }
+    $("lgAdmList").innerHTML = rows.join("");
+  }
+  $("lgAdmInput").addEventListener("input", (e) => {
+    const v = e.target.value.trim();
+    clearTimeout(lgAdmTimer);
+    if (v.length < 2 || isDemo) return;
+    lgAdmTimer = setTimeout(async () => {
+      try {
+        const f = v.replace(/'/g, "''");
+        const g = await Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=id,displayName&$top=8`).catch(() => null);
+        const rows = [];
+        ((g && g.value) || []).forEach((x) => {
+          lgAdmMap.set((x.displayName || "").toLowerCase(), { id: x.id, name: x.displayName });
+          rows.push(`<option value="${esc(x.displayName || "")}" label="👥 group"></option>`);
+        });
+        // The CA-referenced groups stay in the list alongside the live hits.
+        for (const [, hit] of lgAdmMap) if (!rows.some((r) => r.includes(`value="${esc(hit.name)}"`)))
+          rows.push(`<option value="${esc(hit.name)}" label="👥"></option>`);
+        $("lgAdmList").innerHTML = rows.join("");
+      } catch (err) { console.warn("licence gap: group suggest failed", err.message); }
+    }, 250);
+  });
+  function lgAdmChipRender() {
+    $("lgAdmChip").innerHTML = lgAdmin.map((g) =>
+      `<span class="tag grant" style="margin-right:6px">👑 ${esc(g.name)} (${g.users.length.toLocaleString()}${g.capped ? ", capped" : ""}) <button class="btn sm" data-lgadmclear="${esc(g.id)}" title="Stop excluding ${esc(g.name)}" style="padding:0 6px;margin-left:2px">✕</button></span>`).join("");
+  }
+  // Re-analysis is free: the ctx of the last run is kept, so changing the
+  // admin group never re-reads the tenant.
+  function lgReanalyze() {
+    if (!lgCtx) return;
+    if (lgAdmin.length) lgCtx.adminExclude = lgAdmin; else delete lgCtx.adminExclude;
+    lgRes = LicGap.analyze(lgCtx);
+    // Mailbox purposes ride on the user objects themselves, so a check
+    // already done survives the re-analysis.
+    renderLicGap();
+  }
+  async function lgAdmPick() {
+    const v = $("lgAdmInput").value.trim();
+    if (!v || lgAdmBusy) return;
+    let hit = lgAdmMap.get(v.toLowerCase());
+    lgAdmBusy = true;
+    try {
+      if (!hit && !isDemo) {
+        const f = v.replace(/'/g, "''");
+        const g = await Graph.gget(`/groups?$filter=displayName eq '${f}'&$select=id,displayName&$top=1`).catch(() => null);
+        if (g && g.value && g.value.length) hit = { id: g.value[0].id, name: g.value[0].displayName };
+      }
+      if (!hit) { toast("Pick a <span>group</span> from the list"); lgAdmBusy = false; return; }
+      if (lgAdmin.some((g) => g.id === hit.id)) { toast("Already excluded"); $("lgAdmInput").value = ""; lgAdmBusy = false; return; }
+      let users = [], capped = false;
+      if (isDemo) {
+        users = ((LG_DEMO.members || {})[hit.id] || { users: [] }).users.slice();
+        if (!users.length && DEMO_DATA.groupMembers && DEMO_DATA.groupMembers[hit.id]) users = DEMO_DATA.groupMembers[hit.id].slice();
+      } else {
+        let next = `/groups/${hit.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, pages = 0;
+        while (next && pages < LG_MEMBER_PAGES) {
+          const j = await Graph.gget(next);
+          for (const m of j.value || []) users.push(m.id);
+          next = j["@odata.nextLink"] || null;
+          pages++;
+        }
+        capped = !!next;
+      }
+      lgAdmin.push({ id: hit.id, name: hit.name, users, capped });
+      $("lgAdmInput").value = "";
+      lgAdmChipRender();
+      lgReanalyze();
+      if (!users.length) toast("That group has <span>no user members</span> — nothing changes.");
+    } catch (e) {
+      toast(`Reading the group failed: ${esc(e.message || e)}`);
+    }
+    lgAdmBusy = false;
+  }
+  $("lgAdmInput").addEventListener("change", lgAdmPick);
+  $("lgAdmInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); lgAdmPick(); } });
+  $("lgAdmChip").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-lgadmclear]");
+    if (!b) return;
+    lgAdmin = lgAdmin.filter((g) => g.id !== b.dataset.lgadmclear);
+    lgAdmChipRender();
+    lgReanalyze();
+  });
+
+  // ---- the pop-out with the full gap list ----
+  const lgPurposeLabel = { shared: "shared mailbox", room: "room mailbox", equipment: "equipment mailbox" };
+  function lgRenderUsers() {
+    const o = lgModalKey === "p2" ? lgRes.p2 : lgRes.p1;
+    const q = ($("lgUserSearch").value || "").toLowerCase().trim();
+    const all = o.gapUsers || [];
+    const list = all.filter((u) => (lgModalCat === "all" || lgCatOf(u) === lgModalCat)
+      && (!q || String(u.upn || "").toLowerCase().includes(q) || String(u.name || "").toLowerCase().includes(q)));
+    // The filter chips mirror the card exactly — same classifier, same
+    // counts — so "1 to license" on the card is one click and one row here.
+    const counts = {};
+    for (const u of all) counts[lgCatOf(u)] = (counts[lgCatOf(u)] || 0) + 1;
+    const cats = Object.entries(LG_CATS).filter(([k]) => lgPurpose || (k !== "resource" && k !== "likely"));
+    $("lgUsersFilter").innerHTML = `<button class="btn sm ${lgModalCat === "all" ? "primary" : ""}" data-lgfcat="all">All (${all.length.toLocaleString()})</button>`
+      + cats.map(([k, d]) => `<button class="btn sm ${lgModalCat === k ? "primary" : ""}" data-lgfcat="${k}" title="${d.hint}">${d.label} (${(counts[k] || 0).toLocaleString()})</button>`).join("");
+    const rows = list.map((u) => {
+      const purpose = lgPurpose ? lgPurpose[u.id] : undefined;
+      const res = purpose && LG_RESOURCE.has(purpose);
+      const cat = lgCatOf(u);
+      const catTag = `<span class="pill ${LG_CATS[cat].pill}" title="${LG_CATS[cat].hint}">${LG_CATS[cat].label}</span>`;
+      const mb = lgPurpose === null ? "" : res
+        ? `<span class="tag block">${lgPurposeLabel[purpose]} — never licensed, disable it</span>`
+        : purpose === "mailbox-no-access" ? '<span class="tag new" title="A mailbox exists but the account holds no licence — on an unlicensed account that is almost always shared/room/equipment. A delegated sign-in cannot read the type directly; verify in the Exchange admin center.">unlicensed mailbox — likely shared/resource</span>'
+        : purpose === "no-mailbox" ? '<span class="tag">no mailbox — regular account</span>'
+        : purpose === null ? '<span class="tag">not readable</span>'
+        : purpose === undefined ? '<span class="tag">not checked</span>' : '<span class="tag ok">user mailbox</span>';
+      return `<tr><td class="mini"><code>${esc(u.upn || u.id)}</code></td><td class="mini">${esc(u.name || "")}</td>
+        <td>${catTag}</td>
+        <td>${u.enabled === false ? '<span class="tag block">disabled</span>' : '<span class="tag ok">enabled</span>'}${(lgModalKey === "p2" ? u.p2grace : u.p1grace) ? ' <span class="tag new" title="The plan is still on the user from a suspended/expired subscription (grace) — the seat is no longer owned, so this user counts in the gap.">in grace</span>' : ""}${u.lic0 && u.enabled !== false ? ' <span class="tag" title="Holds no licences of any kind — usually a service account or sync artifact. Exclude deliberately or license deliberately.">no licences at all</span>' : ""}</td>
+        ${lgPurpose === null ? "" : `<td>${mb}</td>`}</tr>`;
+    }).join("");
+    $("lgUsersBody").innerHTML = `<table class="plist"><thead><tr><th>User</th><th>Name</th><th>Category</th><th>Account</th>${lgPurpose === null ? "" : "<th>Mailbox</th>"}</tr></thead><tbody>${rows || `<tr><td colspan="5" class="mini muted">No match.</td></tr>`}</tbody></table>`;
+    $("lgUsersSub").textContent = `${list.length.toLocaleString()}${q ? ` of ${o.gapUsers.length.toLocaleString()}` : ""} targeted user${list.length === 1 ? "" : "s"} without ${lgModalKey === "p2" ? "P2" : "P1"} assigned — disabled and shared/resource accounts are cleanup, not purchases. The full list is also in 📄 Export MD.`;
+  }
+  function lgShowUsers(key, cat) {
+    if (!lgRes) return;
+    lgModalKey = key;
+    lgModalCat = cat || "all";
+    $("lgUsersTitle").textContent = `Who is in the ${key === "p2" ? "P2" : "P1"} gap`;
+    $("lgUserSearch").value = "";
+    lgRenderUsers();
+    $("lgUsersModal").classList.add("open");
+  }
+  // ---- mailbox purpose: the one enrichment that needs its own scope ----
+  // Shared, room and equipment mailbox accounts are never licensed and
+  // should be disabled — but nothing on the user object says which is
+  // which. mailboxSettings.userPurpose does, at one read per user, so it
+  // runs on demand over the GAP users only (capped), never the tenant.
+  // A failed read is "not readable", never silently "a user".
+  async function lgCheckPurpose() {
+    if (!lgRes || lgPurposeBusy) return;
+    lgPurposeBusy = true;
+    renderLicGap();
+    try {
+      const ids = [...new Set([...(lgRes.p1.gapUsers || []), ...(lgRes.p2.gapUsers || [])].map((u) => u.id))].slice(0, LG_PURPOSE_CAP);
+      if (isDemo) {
+        lgPurpose = {};
+        for (const id of ids) lgPurpose[id] = (LG_DEMO.purposes || {})[id] || "user";
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, "MailboxSettings.Read"])) { lgPurposeBusy = false; renderLicGap(); return; }
+        const btn = document.querySelector("[data-lgcheck]");
+        const res = await Graph.gbatch(ids.map((id) => ({ id, url: `/users/${id}/mailboxSettings?$select=userPurpose` })),
+          (done, total) => { if (btn) btn.textContent = `🏷 Checking ${done} of ${total}…`; });
+        lgPurpose = {};
+        // A delegated token can only read ANOTHER mailbox's settings when the
+        // signed-in person holds rights on that mailbox, so on most tenants
+        // the direct read fails — but the failure itself answers the
+        // question. The gap users are unlicensed by definition, and a
+        // regular unlicensed user has NO mailbox: so "access denied" means a
+        // mailbox EXISTS without a licence — shared, room or equipment (or a
+        // licence removed moments ago) — while "mailbox not enabled / not
+        // found" means a plain unlicensed account. Only an unclassifiable
+        // error stays "not readable".
+        for (const id of ids) {
+          const r = res[id];
+          if (r && r.body && !r.error) { lgPurpose[id] = r.body.userPurpose || "user"; continue; }
+          const sig = `${(r && r.code) || ""} ${(r && r.error) || ""}`;
+          if (/ErrorAccessDenied|Access is denied/i.test(sig)) lgPurpose[id] = "mailbox-no-access";
+          else if (/MailboxNotEnabledForRESTAPI|MailboxNotHostedInExchangeOnline|REST API is not yet supported|ResourceNotFound|inactive|soft-deleted|on-premise|not found/i.test(sig)) lgPurpose[id] = "no-mailbox";
+          else lgPurpose[id] = null;
+        }
+      }
+      // The export names them too — purpose rides on the user objects the
+      // module already returns, so a re-export after the check carries it.
+      for (const u of [...(lgRes.p1.gapUsers || []), ...(lgRes.p2.gapUsers || [])])
+        if (lgPurpose[u.id] !== undefined) u.purpose = lgPurpose[u.id];
+    } catch (e) {
+      toast(`Mailbox check failed: ${esc(e.message || e)}`);
+    }
+    lgPurposeBusy = false;
+    renderLicGap();
+    if ($("lgUsersModal").classList.contains("open")) lgRenderUsers();
+  }
+  function openLicGap() { crumb("🎫 Licence gap"); show("screen-licgap"); lgAdmPrefill(); lgAdmChipRender(); renderLicGap(); }
+  $("toolLicGap").addEventListener("click", openLicGap);
+  $("lgRun").addEventListener("click", lgRun);
+  $("lgBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-lgrun]")) { lgRun(); return; }
+    const vu = e.target.closest("[data-lgusers]");
+    if (vu) { lgShowUsers(vu.dataset.lgusers, vu.dataset.lgcat); return; }
+    if (e.target.closest("[data-lgcheck]")) { lgCheckPurpose(); return; }
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+  $("lgUsersClose").addEventListener("click", () => $("lgUsersModal").classList.remove("open"));
+  $("lgUsersFilter").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-lgfcat]");
+    if (!b || !lgRes) return;
+    lgModalCat = b.dataset.lgfcat;
+    lgRenderUsers();
+  });
+  $("lgUserSearch").addEventListener("input", () => { if (lgRes) lgRenderUsers(); });
+  $("lgMd").addEventListener("click", () => {
+    if (!lgRes) { toast("Run the count first — the report is the comparison."); return; }
+    showReport("🎫 Licence gap", "CA-LicenceGap", LicGap.toMd(lgRes, { tenantName }));
+  });
+
   // ---------- Sign-in failures (sign-in log × CA verdicts) ----------
   const SI_READ = ["AuditLog.Read.All"];
   // Report-only failures cannot be filtered server-side (the sign-in itself
@@ -8117,8 +9031,8 @@ max@contoso.com,"Global, DevOps"</pre>
     "Reading the sign-in log… this keeps running if you switch tabs.",
     siMode === "reportonly"
       ? `The bar runs to the ${SI_MAX.toLocaleString()}-sign-in cap — report-only failures cannot be server-filtered, so the whole window is read.`
-      : "Enforced failures are server-filtered, so this read is usually quick.");
-  const siModeLabel = () => siMode === "reportonly" ? "report-only failures" : "enforced failures";
+      : "Two server-filtered passes: the failures, then the interrupts — usually quick.");
+  const siModeLabel = () => siMode === "reportonly" ? "report-only failures" : "enforced failures & interrupts";
 
   function openSignins() {
     crumb("🚦 Sign-in failures");
@@ -8127,8 +9041,8 @@ max@contoso.com,"Global, DevOps"</pre>
     if (siBusy) { $("siBody").innerHTML = siBusyPanel(); return; }
     if (siRes) { renderSignins(); return; }
     $("siHead").innerHTML = `<h3>🚦 Sign-in failures</h3>
-      <p style="margin-bottom:4px">Which sign-ins Conditional Access failed, and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. The log-side counterpart of What-If.</p>
-      <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> failures are filtered by Graph; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins — and shared with <b>🎚 Report-only impact</b>, which reads exactly the same window.</p>
+      <p style="margin-bottom:4px">Which sign-ins Conditional Access failed <b>or interrupted</b>, and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. The log-side counterpart of What-If.</p>
+      <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> reads two Graph-filtered passes — the CA failures, plus the interrupts (abandoned MFA prompt, MFA enrolment, device auth, terms of use), which Graph logs with CA status <i>success</i> and only an interrupt error code; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins — and shared with <b>🎚 Report-only impact</b>, which reads exactly the same window.</p>
         ${siReused ? `<p class="mini muted" style="margin:6px 0 0">↺ Reused the sign-in window <b>🎚 Report-only impact</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}`;
     $("siChips").innerHTML = "";
     $("siBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-sirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
@@ -8164,6 +9078,23 @@ max@contoso.com,"Global, DevOps"</pre>
       } else {
         records = await siProg.fetchAll(Signins.query(siDays, siMode), SI_MAX, "sign-ins");
         siCapped = siProg.st.capped;
+        // Second read: the CA interrupts. conditionalAccessStatus has no
+        // 'interrupted' value — an abandoned MFA prompt, MFA enrolment,
+        // device auth or terms-of-use stop is logged with CA status
+        // 'success' and an interrupt error code, so the failure filter
+        // above never sees it. Graph can't OR across properties on
+        // signIns, so it's its own server-filtered fetch, deduped by id.
+        // A refused interrupt query must not cost the failures already read —
+        // report it, keep the partial result.
+        try {
+          const seen = new Set(records.map((r) => r.id));
+          const ints = await siProg.fetchAll(Signins.interruptQuery(siDays), SI_MAX, "interrupted sign-ins");
+          siCapped = siCapped || siProg.st.capped;
+          for (const r of ints) if (!seen.has(r.id)) records.push(r);
+        } catch (e) {
+          console.warn("sign-ins: interrupt read failed, showing failures only", e.message);
+          toast("Could not read the interrupted sign-ins — showing the failures only");
+        }
       }
       siReused = reused;
       siRes = Signins.build(records, siMode);
@@ -8260,23 +9191,27 @@ max@contoso.com,"Global, DevOps"</pre>
     $("siHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
         <h3>🚦 Sign-in failures</h3>
-        <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
+        <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure or interrupt"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
         <p class="mini muted" style="margin:0">${siMode === "reportonly"
           ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the numbers to check before flipping a policy on."
-          : "Enforced: the user did not satisfy the policy's controls — the sign-in was blocked or interrupted. An abandoned MFA prompt lands here too, so a failure is a prompt to look, not proof the policy is wrong."}</p>
+          : "Enforced: <b>failed</b> — the user did not satisfy the policy's controls and was blocked; <b>interrupted</b> — a policy's control stopped the sign-in mid-flow (MFA prompt shown and abandoned, MFA enrolment, device auth, terms of use). Both are a prompt to look, not proof the policy is wrong."}</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.total}<span class="mini" style="font-weight:400"> sign-ins</span></div>
-        <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}</div>
+        <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}${r.interrupted ? ` · ${r.interrupted} interrupted` : ""}</div>
         ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated at ${SI_MAX.toLocaleString()} sign-ins</div>` : ""}
       </div></div>`;
 
     const chips = [["all", `All (${r.total})`],
+      ...(siMode !== "reportonly" && r.interrupted
+        ? [["blk", `Blocked (${r.total - r.interrupted})`], ["int", `Interrupted (${r.interrupted})`]] : []),
       ...r.policies.slice(0, 8).map((p) => [p.key, `${p.name.length > 34 ? p.name.slice(0, 32) + "…" : p.name} (${p.count})`])];
     $("siChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${siFilter === k ? "active" : ""}" data-sif="${esc(k)}">${esc(l)}</button>`).join("");
 
     const q = siQuery.toLowerCase();
-    const match = (x) => (siFilter === "all" || x.policies.some((p) => (p.id || p.name) === siFilter))
+    const match = (x) => (siFilter === "all"
+        || (siFilter === "int" ? x.interrupted : siFilter === "blk" ? !x.interrupted
+          : x.policies.some((p) => (p.id || p.name) === siFilter)))
       && (!q || `${x.user} ${x.upn} ${x.app} ${x.ip} ${x.country} ${x.city} ${x.client} ${x.os} ${x.policies.map((p) => p.name).join(" ")}`.toLowerCase().includes(q));
     const rows = r.rows.filter(match);
     if (!rows.length) { $("siBody").innerHTML = '<p class="mini" style="padding:20px">No sign-in matches the current filter.</p>'; return; }
@@ -8287,7 +9222,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (siView === "policies") {
       const pols = r.policies
         .map((p) => ({ ...p, rows: p.rows.filter(match) }))
-        .filter((p) => p.rows.length && (siFilter === "all" || p.key === siFilter));
+        .filter((p) => p.rows.length && (siFilter === "all" || siFilter === "int" || siFilter === "blk" || p.key === siFilter));
       $("siBody").innerHTML = `<div class="list-card si-stickyhost"><table class="plist au-sum">
         <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
         <tbody>${pols.map((p) => {
@@ -8297,13 +9232,13 @@ max@contoso.com,"Global, DevOps"</pre>
             <ul class="wi-list">${p.rows.slice(0, 40).map((x) => `<li>
               <div class="wi-pn">${esc(x.user)}${x.upn && x.upn !== x.user ? ` <span class="mini muted">(${esc(x.upn)})</span>` : ""} → <b>${esc(x.app)}</b>
                 <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪 Replay</button></div>
-              <div class="wi-why">${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
+              <div class="wi-why">${x.interrupted ? "interrupted · " : ""}${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
             </li>`).join("")}</ul>
             ${p.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${p.rows.length} — switch to Sign-ins and search to see the rest.</p>` : ""}
           </td></tr>` : "";
           return `<tr class="au-sumrow" data-sisum="${esc(p.key)}">
             <td><b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b>${siMode === "reportonly" ? '<div class="mini muted">report-only</div>' : ""}</td>
-            <td><span class="au-n rem">${p.count}</span></td>
+            <td><span class="au-n rem">${p.count}</span>${p.ints ? `<div class="mini muted">${p.ints} interrupted</div>` : ""}</td>
             <td>${p.userCount} distinct</td>
             <td class="mini">${esc(p.users.slice(0, 2).map(([n, c]) => `${n} (${c})`).join(", "))}${p.users.length > 2 ? ` +${p.users.length - 2}` : ""}</td>
             <td class="mini">${esc(p.controls.join(", ") || "—")}</td>
@@ -8322,14 +9257,14 @@ max@contoso.com,"Global, DevOps"</pre>
       + shown.map((x) => {
       const open = siOpen.has(x.id);
       const detail = open ? `<div class="au-diff">
-          ${x.policies.map((p) => `<div><span class="au-op remove">failed</span> <span class="au-path pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
+          ${x.policies.map((p) => `<div><span class="au-op ${p.result === "interrupted" ? "change" : "remove"}">${p.result === "interrupted" ? "interrupted" : "failed"}</span> <span class="au-path pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
           ${x.failureReason ? `<div><span class="au-op change">reason</span> <span class="au-path">${esc(x.failureReason)}${x.errorCode ? ` (${esc(String(x.errorCode))})` : ""}</span></div>` : ""}
           ${x.browser ? `<div><span class="au-op set">client</span> <span class="au-path">${esc([x.browser, x.os].filter(Boolean).join(" on "))}</span></div>` : ""}
           ${x.signInRisk && x.signInRisk !== "none" && x.signInRisk !== "hidden" ? `<div><span class="au-op change">risk</span> <span class="au-path">${esc(x.signInRisk)}</span></div>` : ""}
         </div>` : "";
       return `<div class="list-card au-card">
         <div class="au-h" data-siid="${esc(x.id)}">
-          <span class="au-act delete">${siMode === "reportonly" ? "would fail" : "failed"}</span>
+          <span class="au-act ${x.interrupted ? "update" : "delete"}">${siMode === "reportonly" ? "would fail" : x.interrupted ? "interrupted" : "failed"}</span>
           <b>${esc(x.user)}</b> <span class="muted">→</span> <span>${esc(x.app)}</span>
           <span class="mini muted">${esc(x.policies.map((p) => p.name).slice(0, 2).join(", "))}${x.policies.length > 2 ? ` +${x.policies.length - 2}` : ""}</span>
           <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪</button>
@@ -8351,12 +9286,12 @@ max@contoso.com,"Global, DevOps"</pre>
     const L = [`# Conditional Access sign-in failures — ${tenantName || "tenant"}`, "",
       Brand.generatedBy("Generated"), "",
       `- Window: last ${rangeLabel(siDays)}${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""} — ${siModeLabel()}${siCapped ? `, truncated at ${SI_MAX} sign-ins` : ""}`,
-      `- Sign-ins: **${r.total}** across ${r.policies.length} policies`,
+      `- Sign-ins: **${r.total}** across ${r.policies.length} policies${r.interrupted ? ` — ${r.interrupted} interrupted (MFA prompt, enrolment, device auth, terms of use)` : ""}`,
       `- Most affected users: ${r.users.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`,
       `- Most affected apps: ${r.apps.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`, ""];
     for (const p of r.policies) {
       L.push(`## ${p.name}`, "",
-        `- Failures: **${p.count}** — ${p.userCount} distinct users, ${p.appCount} apps`,
+        `- Failures: **${p.count}**${p.ints ? ` (${p.ints} interrupted)` : ""} — ${p.userCount} distinct users, ${p.appCount} apps`,
         `- Controls not met: ${p.controls.join(", ") || "—"}`,
         `- Last failure: ${p.last}`, "",
         "| When | User | App | Client | Location | IP | Device |", "| --- | --- | --- | --- | --- | --- | --- |");
@@ -8642,6 +9577,14 @@ max@contoso.com,"Global, DevOps"</pre>
   let loView = "cards";
   // Loaded JSON snapshot being compared against the tenant (null = normal list)
   let loCompare = null;
+  // Last computed findings (R37) — held so the detail modal and the two
+  // Markdown exports read the SAME result the list rendered from, rather than
+  // each recomputing and risking a different answer on screen and on paper.
+  let loFindings = null;
+  // Collapsed by default on a clean tenant is pointless (there is nothing to
+  // collapse); on a messy one the list is the first thing worth reading, so it
+  // opens expanded and the operator can fold it away.
+  let loFindOpen = true;
 
   async function openLocations(force) {
     crumb("🌐 Named locations");
@@ -8665,6 +9608,12 @@ max@contoso.com,"Global, DevOps"</pre>
   function renderLocations() {
     const raws = policies.map((p) => p.raw);
     const s = Locations.summarize(loList, raws);
+    // R37 — the tool already knew all of this; it just never said so out loud.
+    // Computed from the list and the policies in memory, so it costs no read.
+    const F = Locations.findings(loList, raws);
+    loFindings = F;
+    const sevWord = ["high", "medium", "low"].filter((k) => F.counts[k])
+      .map((k) => `${F.counts[k]} ${k}`).join(" · ");
     $("loHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
         <h3>🌐 Named locations <span class="tag block">writes to tenant</span></h3>
@@ -8675,12 +9624,16 @@ max@contoso.com,"Global, DevOps"</pre>
         <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> locations</span></div>
         <div class="mini">${s.ip} IP (${s.ranges} ranges) · ${s.country} country${s.compliantNetwork ? ` · ${s.compliantNetwork} compliant network` : ""}</div>
         <div class="mini">${s.trusted} trusted${s.viaTrusted ? ` · ${s.viaTrusted} used only via “All trusted”` : ""}${s.unused ? ` · ${s.unused} unused` : ""}</div>
+        <div class="mini" style="margin-top:2px">${F.total
+          ? `<b style="color:var(--off)">⚠ ${F.total} finding${F.total === 1 ? "" : "s"}</b> <span class="muted">${esc(sevWord)}</span>`
+          : '<span class="muted">✓ no findings</span>'}</div>
       </div></div>`;
 
     const counts = { all: loList.length, ip: s.ip, country: s.country, trusted: s.trusted, unused: s.unused };
     $("loChips").innerHTML = [["all", `All (${counts.all})`], ["ip", `🖧 IP ranges (${counts.ip})`],
       ["country", `🌍 Countries (${counts.country})`], ["trusted", `✓ Trusted (${counts.trusted})`],
-      ["unused", `Unused (${counts.unused})`]]
+      ["unused", `Unused (${counts.unused})`],
+      ...(F.total ? [["findings", `⚠ Findings (${F.total})`]] : [])]
       .map(([k, l]) => `<button class="fchip ${loFilter === k ? "active" : ""}" data-lof="${k}">${esc(l)}</button>`).join("");
 
     const q = loQuery.toLowerCase();
@@ -8690,15 +9643,26 @@ max@contoso.com,"Global, DevOps"</pre>
       if (loFilter === "country" && k !== "country") return false;
       if (loFilter === "trusted" && !Locations.isTrusted(l)) return false;
       if (loFilter === "unused" && used) return false;
+      if (loFilter === "findings" && !(F.byLocation[l.id] || []).length) return false;
       return !q || `${l.displayName} ${Locations.detail(l)}`.toLowerCase().includes(q);
     }).sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
 
     [...$("loViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.loview === loView));
-    if (!rows.length) { $("loBody").innerHTML = '<p class="mini" style="padding:20px">No named location matches the current filter.</p>'; return; }
 
     // Compare view takes over the body until it is closed — it is a different
     // subject (this tenant vs a file), not a filter of the same list.
     if (loCompare) { renderLoCompare(); return; }
+
+    // The findings panel sits ABOVE the list in both views and is not part of
+    // the filtered set: a dangling reference belongs to no location, so a panel
+    // that came and went with the row filter would hide the one finding that
+    // has no row to hide behind.
+    const findingsPanel = loFindingsPanel(F);
+    if (!rows.length) {
+      $("loBody").innerHTML = findingsPanel
+        + `<p class="mini" style="padding:20px">No named location matches the current filter.</p>`;
+      return;
+    }
 
     // Shared per-location facts, so the card and the table row can never drift.
     const facts = (l) => {
@@ -8716,14 +9680,23 @@ max@contoso.com,"Global, DevOps"</pre>
          <button class="btn sm danger" data-lodel="${esc(l.id)}">🗑 Delete</button>`
       : '<span class="mini muted">service-managed</span>';
 
+    // One badge shape for both views, so the card and the row cannot disagree
+    // about whether a location has something wrong with it.
+    const findBadge = (l) => {
+      const fs = (F.byLocation[l.id] || []);
+      if (!fs.length) return "";
+      const worst = fs[0].severity;
+      return ` <span class="sev ${worst} lo-fbadge" data-lodet="${esc(l.id)}" title="${esc(fs.map((f) => f.title).join(" · "))}">⚠ ${fs.length}</span>`;
+    };
+
     if (loView === "table") {
-      $("loBody").innerHTML = `<div class="list-card" style="padding:0;overflow:hidden">
+      $("loBody").innerHTML = findingsPanel + `<div class="list-card" style="padding:0;overflow:hidden">
         <table class="plist lo-table">
           <thead><tr><th>Name</th><th>Type</th><th>Definition</th><th>Used by</th><th></th></tr></thead>
           <tbody>${rows.map((l) => {
             const { k, used, canEdit, direct, implicit } = facts(l);
             return `<tr>
-              <td><b class="pol-link" data-lodet="${esc(l.id)}" title="Open the location report">${esc(l.displayName || "(unnamed)")}</b>${Locations.isTrusted(l) ? ' <span class="tag ok">trusted</span>' : ""}</td>
+              <td><b class="pol-link" data-lodet="${esc(l.id)}" title="Open the location report">${esc(l.displayName || "(unnamed)")}</b>${Locations.isTrusted(l) ? ' <span class="tag ok">trusted</span>' : ""}${findBadge(l)}</td>
               <td class="mini">${icon(k)} ${esc(kindLabel(k))}</td>
               <td class="mini lo-d">${esc(Locations.detail(l))}</td>
               <td class="mini">${used.length ? [
@@ -8737,7 +9710,7 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
 
-    $("loBody").innerHTML = `<div class="lo-grid">` + rows.map((l) => {
+    $("loBody").innerHTML = findingsPanel + `<div class="lo-grid">` + rows.map((l) => {
       const { k, used, canEdit, direct, implicit } = facts(l);
       return `<div class="list-card lo-card">
         <div class="lo-h">
@@ -8745,6 +9718,7 @@ max@contoso.com,"Global, DevOps"</pre>
           <b class="pol-link" data-lodet="${esc(l.id)}" title="Open the location report">${esc(l.displayName || "(unnamed)")}</b>
           ${Locations.isTrusted(l) ? '<span class="tag ok">trusted</span>' : ""}
           <span class="tag">${esc(kindLabel(k))}</span>
+          ${findBadge(l)}
         </div>
         <div class="mini lo-d">${esc(Locations.detail(l))}</div>
         <div class="lo-u">${used.length ? [
@@ -8756,10 +9730,42 @@ max@contoso.com,"Global, DevOps"</pre>
       </div>`;
     }).join("") + `</div>`;
   }
+  // ---- the findings panel (R37) ----
+  // Rendered as markup rather than built node by node, like every other panel
+  // in this tool, so the whole body is one assignment and cannot half-update.
+  function loFindingsPanel(F) {
+    if (!F || !F.total) return "";
+    const pol = (f) => f.policies.length
+      ? `<div class="mini" style="margin-top:4px">${f.policies.length === 1 ? "Policy" : "Policies"}: `
+        + f.policies.slice(0, 6).map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.state === "enabled" ? "" : ` <span class="mini muted">(${esc(p.state)})</span>`}`).join(", ")
+        + (f.policies.length > 6 ? ` <span class="muted">+${f.policies.length - 6} more</span>` : "") + "</div>"
+      : "";
+    return `<div class="list-card lo-find">
+      <div class="lo-findh">
+        <b>⚠ ${F.total} finding${F.total === 1 ? "" : "s"} in the named locations</b>
+        ${["high", "medium", "low"].filter((k) => F.counts[k]).map((k) => `<span class="sev ${k}">${F.counts[k]} ${Locations.SEV_LABEL[k]}</span>`).join(" ")}
+        <button class="btn sm" id="loFindToggle">${loFindOpen ? "Hide" : "Show"}</button>
+      </div>
+      <p class="mini muted" style="margin:4px 0 0">Computed from the locations and the policies already loaded — no extra read of your tenant, and nothing here is written anywhere. The full text of every finding is in <b>Export MD</b>.</p>
+      ${loFindOpen ? `<div class="lo-findlist">${F.findings.map((f) => `
+        <div class="lo-findrow">
+          <div class="lo-findt">${Locations.SEV_LABEL[f.severity] ? `<span class="sev ${f.severity}">${Locations.SEV_LABEL[f.severity]}</span>` : ""}
+            ${f.locationId
+              ? `<b class="pol-link" data-lodet="${esc(f.locationId)}">${esc(f.locationName)}</b>`
+              : `<b>${esc(f.locationName)}</b> <span class="mini muted">(no such location)</span>`}
+            <span>${esc(f.title)}</span></div>
+          <div class="mini lo-d" style="margin-top:2px">${esc(f.detail)}</div>
+          <div class="mini" style="margin-top:4px">${esc(f.why)}</div>
+          <div class="mini" style="margin-top:4px"><b>What closes it:</b> ${esc(f.fix)}</div>
+          ${pol(f)}
+        </div>`).join("")}</div>` : ""}
+    </div>`;
+  }
   $("loChips").addEventListener("click", (e) => { const b = e.target.closest("[data-lof]"); if (!b) return; loFilter = b.dataset.lof; renderLocations(); });
   $("loViewSeg").addEventListener("click", (e) => { const b = e.target.closest("[data-loview]"); if (!b) return; loView = b.dataset.loview; renderLocations(); });
   $("loSearch").addEventListener("input", (e) => { loQuery = e.target.value; renderLocations(); });
   $("loBody").addEventListener("click", (e) => {
+    if (e.target.closest("#loFindToggle")) { loFindOpen = !loFindOpen; renderLocations(); return; }
     const ed = e.target.closest("[data-loedit]"); if (ed) { openLoEditor(loList.find((x) => x.id === ed.dataset.loedit)); return; }
     const dl = e.target.closest("[data-lodel]"); if (dl) { openLoDelete(loList.find((x) => x.id === dl.dataset.lodel)); return; }
     const dt = e.target.closest("[data-lodet]"); if (dt) { openLoDetail(dt.dataset.lodet); return; }
@@ -8800,7 +9806,18 @@ max@contoso.com,"Global, DevOps"</pre>
       ${implicit.length ? `<h4 style="margin:14px 0 6px">Covered by ${implicit.length} polic${implicit.length === 1 ? "y" : "ies"} using “All trusted locations”</h4>
         <p class="mini muted" style="margin:0 0 6px">These do not name it — they match it because it is trusted. Clearing the trusted flag removes it from all of them at once.</p>
         ${polList(implicit)}` : ""}
-      ${!used.length ? '<p class="mini" style="color:var(--off)">Not referenced by any policy — deleting it changes nothing today.</p>' : ""}`;
+      ${!used.length ? '<p class="mini" style="color:var(--off)">Not referenced by any policy — deleting it changes nothing today.</p>' : ""}
+      ${(() => {
+        const fs = ((loFindings && loFindings.byLocation[l.id]) || []);
+        if (!fs.length) return "";
+        return `<h4 style="margin:14px 0 6px">⚠ ${fs.length} finding${fs.length === 1 ? "" : "s"}</h4>`
+          + fs.map((f) => `<div class="lo-findrow">
+              <div class="lo-findt"><span class="sev ${f.severity}">${Locations.SEV_LABEL[f.severity]}</span> <span>${esc(f.title)}</span></div>
+              <div class="mini lo-d" style="margin-top:2px">${esc(f.detail)}</div>
+              <div class="mini" style="margin-top:4px">${esc(f.why)}</div>
+              <div class="mini" style="margin-top:4px"><b>What closes it:</b> ${esc(f.fix)}</div>
+            </div>`).join("");
+      })()}`;
     $("loDetEdit").style.display = Locations.editable(l) ? "" : "none";
     $("loDetModal").classList.add("open");
   }
@@ -8848,6 +9865,19 @@ max@contoso.com,"Global, DevOps"</pre>
         ...implicit.map((p) => `- ${p.name}`), "");
     }
     if (!used.length) L.push(`_Not referenced by any policy — deleting it changes nothing today._`, "");
+    // The findings for THIS location, from the same result the screen rendered
+    // — a report that disagrees with the screen it was exported from is worse
+    // than no report.
+    const fs = (Locations.findings(loList || [], raws).byLocation[l.id] || []);
+    if (fs.length) {
+      L.push(`## Findings (${fs.length})`, "");
+      for (const f of fs) {
+        L.push(`### [${Locations.SEV_LABEL[f.severity]}] ${f.title}`, "",
+          `- **What was found:** ${f.detail}`,
+          `- **Why it matters:** ${f.why}`,
+          `- **What closes it:** ${f.fix}`, "");
+      }
+    }
     return L.join("\n");
   }
 
@@ -9090,14 +10120,38 @@ max@contoso.com,"Global, DevOps"</pre>
   $("loMd").addEventListener("click", () => {
     if (!loList) return;
     const raws = policies.map((p) => p.raw), s = Locations.summarize(loList, raws);
+    const F = Locations.findings(loList, raws);
+    const e = (v) => String(v ?? "").replace(/\|/g, "\\|");
     const L = [`# Named locations — ${tenantName || "tenant"}`, "",
       Brand.generatedBy("Generated"), "",
       `- Total: **${s.total}** — ${s.ip} IP (${s.ranges} ranges), ${s.country} country`,
-      `- Trusted: ${s.trusted} · Not referenced by any policy: ${s.unused}`, "",
-      "| Location | Type | Trusted | Detail | Used by |", "| --- | --- | --- | --- | --- |"];
+      `- Trusted: ${s.trusted} · Not referenced by any policy: ${s.unused}`,
+      `- Findings: **${F.total}**${F.total ? ` — ${["high", "medium", "low"].filter((k) => F.counts[k]).map((k) => `${F.counts[k]} ${k}`).join(", ")}` : ""}`, ""];
+
+    // Findings lead the report. The inventory table below is the reference; the
+    // findings are the reason somebody opened the file.
+    if (F.total) {
+      L.push(`## Findings (${F.total})`, "",
+        "| Severity | Location | Finding | Policies |", "| --- | --- | --- | --- |");
+      for (const f of F.findings) {
+        L.push(`| ${Locations.SEV_LABEL[f.severity]} | ${e(f.locationName)}${f.locationId ? "" : " _(no such location)_"} | ${e(f.title)} | ${f.policies.length ? e(f.policies.map((p) => p.name).join(", ")) : "—"} |`);
+      }
+      L.push("");
+      for (const f of F.findings) {
+        L.push(`### [${Locations.SEV_LABEL[f.severity]}] ${f.locationName} — ${f.title}`, "",
+          `- **What was found:** ${f.detail}`,
+          `- **Why it matters:** ${f.why}`,
+          `- **What closes it:** ${f.fix}`,
+          `- **Policies involved:** ${f.policies.length ? f.policies.map((p) => `${p.name} (${p.state})`).join("; ") : "none"}`, "");
+      }
+    } else {
+      L.push(`## Findings`, "", "_None. The four checks — dangling policy references, empty country locations, overly broad IP ranges and untrusted IP locations where policies rely on “All trusted locations” — all came back clean._", "");
+    }
+
+    L.push(`## Inventory`, "",
+      "| Location | Type | Trusted | Detail | Used by |", "| --- | --- | --- | --- | --- |");
     loList.slice().sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "")).forEach((l) => {
       const used = Locations.usedBy(l, raws);
-      const e = (v) => String(v ?? "").replace(/\|/g, "\\|");
       L.push(`| ${e(l.displayName)} | ${Locations.kindOf(l) === "ip" ? "IP ranges" : "Countries"} | ${Locations.isTrusted(l) ? "yes" : "—"} | ${e(Locations.detail(l))} | ${used.length ? used.map((p) => `${e(p.name)} (${p.how})`).join("<br>") : "—"} |`);
     });
     showReport("🌐 Named locations", "CA-NamedLocations", L.join("\n"));
@@ -11176,7 +12230,6 @@ max@contoso.com,"Global, DevOps"</pre>
         : await Assign.createGroup({
             displayName: name,
             description: MSLearn.GROUP_PURPOSE[key] || `Created by ${Brand.title}`,
-            roleAssignable: true,
           });
       toast(g.dynamic
         ? `<span>${esc(g.name || name)}</span> created — dynamic, it fills itself from the Teams Rooms plans`
@@ -12185,10 +13238,9 @@ max@contoso.com,"Global, DevOps"</pre>
     mlHead: "toolMsLearn", exHead: "toolExclusions", cgHead: "toolCaGroups", prHead: "toolProtect",
     blHead: "toolBaseline", gcHead: "toolGapCheck", vaHead: "toolValidator", wiHead: "toolWhatIf",
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
-    siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr", rcHead: "toolRecycle",
-    ruHead: "toolRmau",
-    drHead: "toolDrift", dvHead: "toolDevCheck",
-    tuHead: "toolTou", riHead: "toolImpact",
+    siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr",
+    rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
+    drHead: "toolDrift", dvHead: "toolDevCheck", lgHead: "toolLicGap",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
@@ -12197,8 +13249,8 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!h || h.querySelector(".tool-ver-head")) return;   // also stops the observer looping
     const s = document.createElement("span");
     s.className = "tool-ver-head";
-    s.textContent = "v" + t.v;
-    if (t.note) s.title = t.note;
+    s.textContent = `${toolNo(t)}${toolNo(t) ? " · " : ""}v${t.v}`;
+    s.title = `${toolNo(t) ? `${toolNo(t)} — this tool's permanent number. It never changes and is never reused, so it means one thing across both channels, every build and any future language.\n\n` : ""}${t.note || ""}`.trim();
     h.appendChild(s);
   }
   Object.entries(HEAD_TOOL).forEach(([id, toolId]) => {

@@ -124,6 +124,229 @@ const Locations = (() => {
     }).map((p) => ({ id: p.id, name: p.displayName, state: p.state }));
   }
 
+  // ---- findings (roadmap R37) -------------------------------------------
+  // Everything below is computed from data the tool ALREADY reads — the
+  // location list and the policies in memory. No extra Graph call, which is
+  // exactly why this went ahead of anything that needs one: the tool knew all
+  // of it and told nobody, because it was rendered as a row rather than raised
+  // as a finding.
+  //
+  // Pure over its inputs (list, raws) so it can be tested with node alone and
+  // lifted out of this app: no DOM, no globals, no reads of its own.
+  //
+  // Severity vocabulary is the one 🔍 Gap analyse uses — high / medium / low —
+  // so a reader does not have to learn a second scale.
+  // \b DOES NOT WORK HERE. An underscore is a word character in a JS regex, so
+  // /\bblock/ has no boundary to find in "_Blocked IPs" — and a leading
+  // underscore is the usual way of pinning a list to the top of an alphabetical
+  // list in Entra, which makes it the single most likely spelling of the case
+  // this suppression exists for. The boundaries are therefore explicit
+  // "not a letter or digit", which an underscore satisfies.
+  //
+  // "bad" was removed: /\bbad\b/ suppressed "Bad Homburg office", a real place,
+  // and a check that silently ignores a location because of where it is would
+  // be a worse failure than the nagging it was added to prevent.
+  const BLOCKLIST_NAME = /(^|[^a-z0-9])(block|blocked|blocklist|blok|geblokkeerd|deny|denied|denylist|blacklist|banned|forbidden|malicious|tor|vpn)([^a-z0-9]|$)/i;
+
+  // One rule for "is this IPv6", used by the size test and by the advice, so
+  // the two cannot end up disagreeing about which family a range is.
+  const isV6 = (cidr) => String(cidr || "").split("/")[0].includes(":");
+  const prefixOf = (cidr) => {
+    const bits = Number(String(cidr || "").split("/")[1]);
+    return Number.isInteger(bits) ? bits : null;
+  };
+  // "Overly broad" is not a matter of taste: a /8 is 16.7 million addresses, and
+  // an office does not have one. IPv6 is enormous at every prefix, so the line
+  // is drawn at the ISP allocation rather than the site one: a /32 is what a
+  // provider is handed by its RIR, while a site is normally given a /48 and a
+  // single network a /64. Flagging at /48 would flag every correctly sized
+  // office; /32 or shorter is somebody's whole allocation, not a location.
+  function broadness(cidr) {
+    const bits = prefixOf(cidr);
+    if (bits === null) return null;
+    if (isV6(cidr)) return bits === 0 ? "any" : bits <= 32 ? "broad" : null;
+    return bits === 0 ? "any" : bits <= 8 ? "broad" : null;
+  }
+  // WHAT TO NARROW IT TO. "Narrow the range" names the problem and leaves the
+  // decision — which is the part the reader came for, and the part they are
+  // most likely to get wrong in the safe-looking direction. These are not our
+  // preferences: they are the sizes the addressing already uses. IPv4: an
+  // office is a /24 (256 addresses), and a /16 (65,536) is generous for a whole
+  // corporate estate. IPv6: a site is handed a /48 and a single network a /64,
+  // which is why /32 reads as broad in the first place.
+  const NARROW_TO = {
+    v4: "/24 for an office, /16 at the very widest for a whole corporate estate",
+    v6: "/48 for a site, /64 for a single network",
+  };
+  // The advice is per FAMILY, not per range: three IPv4 offenders in one
+  // location get the same target, and saying it three times is noise in the one
+  // place the reader is trying to find the number.
+  function narrowAdvice(cidrs) {
+    const fams = [...new Set(cidrs.map((c) => (isV6(c) ? "v6" : "v4")))];
+    return fams.map((f) => `${f === "v6" ? "IPv6" : "IPv4"} → ${NARROW_TO[f]}`).join("; ");
+  }
+  const raise = (s) => (s === "low" ? "medium" : "high");
+  const isBlockPolicy = (p) => ((p.grantControls || {}).builtInControls || []).includes("block");
+  const enabledish = (p) => p.state === "enabled";
+
+  // Every location id a policy names, other than the two reserved keywords.
+  function referencedIds(raws) {
+    const m = new Map();                                     // id → [policies]
+    for (const p of raws || []) {
+      const l = p.conditions?.locations || {};
+      for (const id of [...(l.includeLocations || []), ...(l.excludeLocations || [])]) {
+        if (id === "All" || id === "AllTrusted") continue;
+        if (!m.has(id)) m.set(id, []);
+        const arr = m.get(id);
+        if (!arr.some((x) => x.id === p.id)) arr.push({ id: p.id, name: p.displayName, state: p.state });
+      }
+    }
+    return m;
+  }
+
+  // A finding is a plain record: what is wrong, on what, why it matters, and
+  // what closes it. `locationId` is null for the one check that is about a
+  // policy pointing at nothing.
+  const FIND = (o) => ({ policies: [], locationId: null, locationName: "", ...o });
+
+  function findings(list, raws) {
+    const out = [];
+    const locs = list || [], pols = raws || [];
+    const byId = new Map(locs.map((l) => [l.id, l]));
+    const allTrusted = trustedConsumers(pols);
+
+    // ① DANGLING REFERENCE — a policy names a location id this tenant no longer
+    // has. Same failure ① Check reports for groups, and the same cause:
+    // something was tidied up while a policy still pointed at it. Entra keeps
+    // the stale id in the policy; the condition it describes is gone.
+    for (const [id, ps] of referencedIds(pols)) {
+      if (byId.has(id)) continue;
+      const live = ps.filter(enabledish);
+      out.push(FIND({
+        code: "dangling",
+        severity: live.length ? "high" : "medium",
+        title: "Policy references a named location that no longer exists",
+        detail: `Location id — no location in this tenant carries it.`,
+        why: live.length
+          ? `${live.length} enforced polic${live.length === 1 ? "y" : "ies"} still name${live.length === 1 ? "s" : ""} it. Entra keeps the id in the policy, so the condition reads as configured while matching nothing — which for an EXCLUDE means the exclusion silently stopped applying, and for an INCLUDE means the policy no longer covers what it was written for.`
+          : "No enforced policy names it today, so nothing is being widened right now — but the reference will come back to life the moment one of these policies is switched on.",
+        fix: "Remove the reference from each policy, or recreate the location it was pointing at.",
+        locationId: null,
+        locationName: id,
+        policies: ps,
+      }));
+    }
+
+    for (const l of locs) {
+      const k = kindOf(l);
+      if (k === "compliantNetwork") continue;               // service-managed
+      const used = usedBy(l, pols);
+      const usedLive = used.filter((u) => (pols.find((p) => p.id === u.id) || {}).state === "enabled");
+
+      // ② EMPTY COUNTRY LOCATION — matches nothing, and still reads as
+      // configured everywhere it is used. Including unknown regions makes it
+      // non-empty in practice, so that case is not a finding.
+      if (k === "country" && !(l.countriesAndRegions || []).length && !l.includeUnknownCountriesAndRegions) {
+        out.push(FIND({
+          code: "emptyCountry",
+          severity: usedLive.length ? "high" : "medium",
+          title: "Country location with no countries in it",
+          detail: "0 countries, unknown regions not included — it matches no sign-in at all.",
+          why: used.length
+            ? `${used.length} polic${used.length === 1 ? "y uses" : "ies use"} it, and every one of them evaluates a condition that can never be true. A block policy scoped to it blocks nobody; an exclusion built on it excludes nobody. The policy list still shows the condition, so this looks configured from every screen except this one.`
+            : "No policy uses it yet, so it enforces nothing today — the cost is the next person who reaches for it assuming it holds the countries its name promises.",
+          fix: "Add the countries it is meant to cover, or delete it and remove the reference.",
+          locationId: l.id, locationName: l.displayName || "(unnamed)", policies: used,
+        }));
+      }
+
+      if (k !== "ip") continue;
+      const ranges = (l.ipRanges || []).map((x) => x.cidrAddress).filter(Boolean);
+
+      // ③ OVERLY BROAD IP RANGE — a /8 inside a location called "office".
+      // A trusted one is worse than an untrusted one, because everything
+      // consuming All trusted locations inherits it without naming it.
+      const any = ranges.filter((r) => broadness(r) === "any");
+      const broad = ranges.filter((r) => broadness(r) === "broad");
+      if (any.length || broad.length) {
+        let sev = any.length ? "high" : "medium";
+        if (isTrusted(l) && sev !== "high") sev = raise(sev);
+        const offenders = [...any, ...broad];
+        // Say what is wrong with THIS range, in its own address family. The
+        // sentence used to state the IPv4 and the IPv6 fact together whichever
+        // one had fired, so an IPv6-only finding opened by explaining what a /8
+        // is — a number the reader then has to work out does not apply to them.
+        const v6only = offenders.every(isV6), v4only = offenders.every((r) => !isV6(r));
+        const sizeWhy = v6only
+          ? "A /32 IPv6 prefix is an entire provider allocation — a site is normally handed a /48 and a single network a /64, so this is several million times the address space an office occupies. "
+          : v4only
+            ? "A /8 is 16.7 million addresses — an office does not have one. "
+            : "A /8 is 16.7 million addresses and a /32 IPv6 prefix is an entire provider allocation; neither is an office. ";
+        out.push(FIND({
+          code: "broadRange",
+          severity: sev,
+          title: any.length ? "IP location contains a range covering the whole internet" : "IP location contains an overly broad range",
+          detail: offenders.join(", "),
+          why: (any.length
+            ? "A /0 matches every address there is, so the location is not a location — anything scoped to it is scoped to everyone. "
+            : sizeWhy)
+            + (isTrusted(l)
+              ? `This location is TRUSTED, so the ${allTrusted.length} polic${allTrusted.length === 1 ? "y" : "ies"} using “All trusted locations” inherit the range without ever naming it.`
+              : "Whatever is scoped to this location is scoped to far more than its name suggests."),
+          // Name the target prefix per range. Telling somebody to narrow a range
+          // without saying to what leaves them to pick, and the wrong pick errs
+          // wide — which is the finding all over again, one build later.
+          fix: `Narrow it to the addresses actually in use — ${narrowAdvice(offenders)}`
+            + `. Take the prefix from your own addressing plan rather than from the address you happened to sign in from; if the broad part is genuinely needed, split it into its own location so it can be judged on its own.`,
+          locationId: l.id, locationName: l.displayName || "(unnamed)", policies: used,
+        }));
+      }
+
+      // ④ UNTRUSTED IP LOCATION — the careful one.
+      //
+      // The trusted flag only changes behaviour when something actually
+      // consumes "All trusted locations". In a tenant where nothing does, this
+      // check has nothing to say and stays silent rather than filling the
+      // screen with a preference.
+      //
+      // And an untrusted IP location is very often deliberate: a block list is
+      // untrusted ON PURPOSE, and marking it trusted would be the bug. Where
+      // the tenant's own configuration says so — a Block policy naming it, or
+      // a name that says it outright — nothing is raised at all. Everywhere
+      // else the finding NAMES the block-list case as a valid reason to leave
+      // it alone, because a check that cries wolf about the normal case is
+      // worse than no check.
+      if (!isTrusted(l) && allTrusted.length) {
+        const blocking = used.filter((u) => isBlockPolicy(pols.find((p) => p.id === u.id) || {}));
+        const deliberate = blocking.length > 0 || BLOCKLIST_NAME.test(l.displayName || "");
+        if (!deliberate) {
+          out.push(FIND({
+            code: "untrustedIp",
+            severity: "low",
+            title: "IP location is not trusted, and policies rely on “All trusted locations”",
+            detail: `${allTrusted.length} polic${allTrusted.length === 1 ? "y" : "ies"} in this tenant target “All trusted locations”; this location is not one of them.`,
+            why: "Sign-ins from these ranges do not get whatever those policies grant or exclude on a trusted network — which is right if that is the intent, and a quiet gap if the ranges belong to an office somebody assumed was covered.",
+            fix: "Mark it trusted if it is a corporate network — note that this immediately moves every policy using “All trusted locations”. If it is a deliberate block list, or any set of addresses you do not vouch for, leave it exactly as it is: untrusted is the correct state and this finding can be ignored.",
+            locationId: l.id, locationName: l.displayName || "(unnamed)", policies: used,
+          }));
+        }
+      }
+    }
+
+    const order = { high: 0, medium: 1, low: 2 };
+    out.sort((a, b) => order[a.severity] - order[b.severity] || a.locationName.localeCompare(b.locationName));
+    const counts = { high: 0, medium: 0, low: 0 };
+    for (const f of out) counts[f.severity]++;
+    // Grouped by location id for the row badges; dangling findings have no
+    // location and live under the empty key so a caller cannot lose them.
+    const byLocation = {};
+    for (const f of out) (byLocation[f.locationId || ""] ||= []).push(f);
+    return { findings: out, counts, total: out.length, byLocation,
+             trustedConsumerCount: allTrusted.length };
+  }
+
+  const SEV_LABEL = { high: "High", medium: "Medium", low: "Low" };
+
   function summarize(list, raws) {
     const ip = list.filter((l) => kindOf(l) === "ip");
     return {
@@ -264,5 +487,6 @@ const Locations = (() => {
   }
 
   return { IP_TYPE, COUNTRY_TYPE, EXPORT_SCHEMA, kindOf, isTrusted, editable, validCidr, validCountry, splitList,
-    buildPayload, usedBy, trustedConsumers, summarize, detail, toForm, diff, configOf, toExport, fromExport, compare };
+    buildPayload, usedBy, trustedConsumers, summarize, detail, toForm, diff, configOf, toExport, fromExport, compare,
+    findings, broadness, SEV_LABEL };
 })();

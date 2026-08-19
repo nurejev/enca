@@ -1,6 +1,6 @@
 // ======================================================================
 // Baseline Policies — match the tenant's Conditional Access policies
-// against the Limon-IT baseline catalog (js/baselineData.js).
+// against the CloudFellows baseline catalog (js/baselineData.js).
 //
 // Matching is by CA number, which is the stable identity in the naming
 // convention: the (NEW)/(UP) staging prefixes, the persona label and the
@@ -19,7 +19,7 @@
 //   extra     numbered policy in the tenant that the baseline does not define
 // ======================================================================
 const Baseline = (() => {
-  // Catalogs the tool can compare against. BASELINE is the Limon-IT one
+  // Catalogs the tool can compare against. BASELINE is the CloudFellows one
   // (bundled from its documentation); BASELINE_JOEY is the community baseline
   // by Joey Verlinden. Both are bundled rather than fetched at runtime — the
   // app's CSP only allows Graph, and a baseline should not change under you
@@ -27,11 +27,15 @@ const Baseline = (() => {
   function catalogs() {
     const out = [];
     if (typeof BASELINE !== "undefined") {
-      out.push({ id: "limonit", label: "Limon-IT", icon: "🧬",
+      // The id stays `limonit` on purpose. It is what saved state and Drift
+      // watch snapshots key on, so renaming it would orphan every stored
+      // comparison taken before the baseline was renamed to CloudFellows.
+      // Display name everywhere, identifiers nowhere.
+      out.push({ id: "limonit", label: "CloudFellows", icon: "🧬",
         // `revised` marks a re-cut of the same release (documented fixes folded
         // back in) — worth showing, because a tenant on the older patch versions
         // is not out of release, only out of revision.
-        release: BASELINE.release, line: BASELINE.line, author: "Limon-IT",
+        release: BASELINE.release, line: BASELINE.line, author: "CloudFellows",
         released: BASELINE.revised || null,
         url: null, policies: BASELINE.policies });
     }
@@ -45,7 +49,7 @@ const Baseline = (() => {
   // ---- corroboration ----------------------------------------------------
   // The CA number alone is only a reliable identity WITHIN one baseline. Across
   // baselines the numbering diverges (Joey's CA501 is an agent policy; the
-  // Limon-IT CA501 is a guest-admin policy), so a number match must be backed
+  // CloudFellows CA501 is a guest-admin policy), so a number match must be backed
   // by the name: the persona segment must not contradict, and the descriptive
   // tokens must overlap. Otherwise the row is a number clash, not a match.
   const PERSONA_KEYS = [
@@ -126,7 +130,7 @@ const Baseline = (() => {
   // zero-padded first — CA1 would otherwise fall through as "unnumbered".
   const caLabel = (num) => `CA${String(num).padStart(3, "0")}`;
   // A catalog policy may carry its own persona label (Joey's ranges differ from
-  // the Limon-IT ones — his CA300 block is service accounts, not externals).
+  // the CloudFellows ones — his CA300 block is service accounts, not externals).
   const personaOf = (num, pol) => {
     if (pol && pol.persona) return pol.persona;
     try { return Render.caGroup(caLabel(num)).label; } catch { return "Other"; }
@@ -321,97 +325,17 @@ const Baseline = (() => {
   }
 
 
-  // ---- card view: render a baseline policy from the catalog alone ----
-  // Same shape as the tenant policy cards, so a baseline policy reads the
-  // same way as a deployed one — plus a status ribbon showing how this
-  // tenant compares.
-  const ICON = (p) => p.block ? "🚫" : /SESSION/i.test(p.name) ? "🕒" : "🔐";
-
-  function policyCard(r) {
-    const b = r.baseline;
-    const s = STATUS[r.status];
-    const sect = (label, body, cls) => body
-      ? `<div class="bc-sect"><label>${esc(label)}</label><div class="${cls || ""}">${body}</div></div>` : "";
-    const items = (arr, cls) => arr.length
-      ? `<ul class="bc-list${cls ? " " + cls : ""}">${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
-
-    const status = `<div class="bc-status ${s.cls}">
-        <b>${s.icon} ${esc(s.label)}</b>
-        <span class="mini">${r.status === "conflict"
-          ? `CA${String(r.num).padStart(3, "0")} in this tenant is <b>${esc(r.tenant.name)}</b> — ${esc(r.why)}. Treat the baseline policy as not deployed.`
-          : r.tenant
-          ? `in tenant: ${esc(r.tenant.name)}${r.status === "outdated" ? ` — v${esc(r.tenantVersion)} vs baseline v${esc(b.version)}` : ""}`
-          : "not present in this tenant"}</span>
-      </div>`;
-
-    return `<div class="list-card bc-card ${s.cls}">
-      <div class="bc-head">
-        <div class="bc-ic">${ICON(b)}</div>
-        <div style="flex:1;min-width:0">
-          <h3>${esc(b.name)}</h3>
-          <div class="mini">CA${String(b.num).padStart(3, "0")} · ${esc(personaOf(b.num, b))}${b.version ? ` · v${esc(b.version)}` : ""}</div>
-        </div>
-        ${b.tag ? `<span class="tag new">${esc(b.tag)}</span>` : ""}
-      </div>
-      ${status}
-      <div class="bc-body">
-        ${b.description ? `<div class="bc-sect"><p class="mini" style="line-height:1.5">${esc(b.description)}</p></div>` : ""}
-        ${sect("Users — include", items(b.include || []))}
-        ${sect("Users — exclude", items(b.exclude || [], "excl"))}
-        ${sect("Target resources", esc(b.resources || "—"))}
-        ${sect("Device platforms", b.platform ? esc(b.platform) : "")}
-        ${sect("Network", esc(b.network || "Any network or location"))}
-        ${sect("Conditions", Array.isArray(b.conditions) ? items(b.conditions) : esc(b.conditions || ""))}
-        ${sect(b.block ? "Block" : "Grant", `<b>${esc(b.grant || "—")}</b>`)}
-        ${sect("Session", esc(b.session))}
-        ${b.docUrl ? `<a class="ml-doc" href="${esc(b.docUrl)}" target="_blank" rel="noopener noreferrer">↗ Documentation</a>` : ""}
-        ${b.fileUrl ? `<a class="ml-doc" href="${esc(b.fileUrl)}" target="_blank" rel="noopener noreferrer">↗ Policy JSON in the repository</a>` : ""}
-      </div>
-    </div>`;
-  }
-
-  function renderCards(res, filter, query, collapsed) {
-    const q = (query || "").toLowerCase();
-    const isCollapsed = (g) => collapsed && collapsed.has(g);
-    let rows = res.rows.filter((r) => r.baseline);   // the catalog is the subject here
-    if (filter && filter !== "all") rows = rows.filter((r) => r.status === filter);
-    if (q) rows = rows.filter((r) => `${r.num} ${r.baseline.name} ${r.tenant?.name || ""}`.toLowerCase().includes(q));
-    if (!rows.length) return '<p class="mini" style="padding:20px">No baseline policies match the current filter.</p>';
-
-    // per-persona counts, including how many are missing — that is the number
-    // worth seeing on a collapsed header
-    const stats = new Map();
-    rows.forEach((r) => {
-      const g = personaOf(r.num, r.baseline);
-      const st = stats.get(g) || { n: 0, gap: 0 };
-      st.n++;
-      if (r.status === "missing" || r.status === "conflict" || r.status === "outdated") st.gap++;
-      stats.set(g, st);
-    });
-
-    let html = "", lastGroup = null;
-    for (const r of rows) {
-      const g = personaOf(r.num, r.baseline);
-      if (g !== lastGroup) {
-        const st = stats.get(g), col = isCollapsed(g);
-        html += `<div class="cardgroup${col ? " collapsed" : ""}" data-blgroup="${esc(g)}">
-          <span class="caret">▶</span><h3>${esc(g)}</h3>
-          <span class="mini">${st.n} ${st.n === 1 ? "policy" : "policies"}${st.gap ? ` · ${st.gap} to address` : " · all present"}${col ? " · click to expand" : ""}</span>
-        </div>`;
-        lastGroup = g;
-      }
-      if (isCollapsed(g)) continue;
-      html += policyCard(r);
-    }
-    return `<div class="bc-grid">${html}</div>`;
-  }
-
-  // every persona currently on screen, for collapse-all / expand-all
+  // Every persona currently on screen, for collapse-all / expand-all. It must
+  // select EXACTLY the rows renderTable draws, or the button acts on a
+  // different set than the one being looked at: this used to drop rows with no
+  // baseline entry (the "Not in baseline" ones), which the table does render —
+  // so with that chip active it returned nothing and Collapse all silently did
+  // nothing at all. Same three steps as renderTable, in the same order.
   function personas(res, filter, query) {
     const q = (query || "").toLowerCase();
-    let rows = res.rows.filter((r) => r.baseline);
+    let rows = res.rows;
     if (filter && filter !== "all") rows = rows.filter((r) => r.status === filter);
-    if (q) rows = rows.filter((r) => `${r.num} ${r.baseline.name} ${r.tenant?.name || ""}`.toLowerCase().includes(q));
+    if (q) rows = rows.filter((r) => `${r.num} ${r.baseline?.name || ""} ${r.tenant?.name || ""}`.toLowerCase().includes(q));
     return [...new Set(rows.map((r) => personaOf(r.num, r.baseline)))];
   }
 
@@ -449,5 +373,5 @@ const Baseline = (() => {
     return L.join("\n");
   }
 
-  return { catalogs, catalog, compare, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, renderCards, changes, toMd, STATUS, caNum, version, cmpVersion };
+  return { catalogs, catalog, compare, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion };
 })();

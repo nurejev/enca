@@ -292,7 +292,8 @@ const Graph = (() => {
       for (const resp of (j.responses || [])) {
         if (resp.status >= 200 && resp.status < 300) out[resp.id] = { body: resp.body };
         else if (resp.status === 429 || resp.status === 503) retry.push(resp);
-        else out[resp.id] = { error: (resp.body && resp.body.error && resp.body.error.message) || `HTTP ${resp.status}` };
+        else out[resp.id] = { error: (resp.body && resp.body.error && resp.body.error.message) || `HTTP ${resp.status}`,
+          code: (resp.body && resp.body.error && resp.body.error.code) || "", status: resp.status };
       }
       if (retry.length) {
         const waitMs = Math.max(...retry.map((r) => parseInt((r.headers || {})["Retry-After"], 10) || 5)) * 1000;

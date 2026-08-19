@@ -22,7 +22,7 @@ const MSLearn = (() => {
   const DEFENDER_TVM = "e724aa31-0f56-4018-b8be-f8cb82ca1196";
   const DIRSYNC_ROLE = "d29b2b05-8046-44ba-8758-1e26182fcf32";
   // ---- baseline naming conventions ----
-  // The Limon-IT baseline names its exclusion groups predictably, so a fix can
+  // The CloudFellows baseline names its exclusion groups predictably, so a fix can
   // resolve the right group instead of guessing. Looked up by the caller and
   // handed in through ctx; when a group does not exist, the fix declines.
   // The first entry is canonical: it is what gets created when the tenant has

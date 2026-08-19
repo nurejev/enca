@@ -4,3 +4,7 @@ node_modules/
 # Git lock files and temp objects that the Cowork device bridge cannot delete
 # get moved here after each bridge-side commit; safe to empty at any time.
 _to_delete/
+
+# Tenant-specific auth override for a self-hosted single-tenant deployment.
+# Never committed: it names YOUR client ID and tenant. See SINGLE-TENANT.md.
+js/authConfig.local.js

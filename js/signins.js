@@ -12,8 +12,15 @@
 //
 // Two modes, because Graph can only server-filter one of them:
 //   enforced   — conditionalAccessStatus eq 'failure': a policy's grant
-//                controls were not satisfied and the sign-in was blocked
-//                or interrupted. Filtered server-side, cheap.
+//                controls were not satisfied and the sign-in was blocked.
+//                Filtered server-side, cheap. PLUS the interrupts: a
+//                sign-in a policy stopped mid-flow (MFA prompt shown and
+//                abandoned, MFA enrolment, device auth, terms of use…)
+//                is NOT a CA failure in Graph — conditionalAccessStatus
+//                has no 'interrupted' value, those records carry
+//                'success' — so they need a second fetch, server-filtered
+//                on the interrupt error codes, and are attributed here to
+//                the applied policies that imposed the control.
 //   reportonly — policies in report-only that WOULD have failed. Their
 //                sign-ins complete (status success/notApplied), so the
 //                only way in is reading the window and filtering here.
@@ -27,6 +34,35 @@ const Signins = (() => {
   // appliedConditionalAccessPolicies[].result values that count as "failed"
   const FAIL = { enforced: new Set(["failure"]), reportonly: new Set(["reportOnlyFailure", "reportOnlyInterrupted"]) };
 
+  // status.errorCode values the portal shows as "Interrupted" that a CA
+  // control can cause. The interrupt is the control being demanded — the
+  // record's conditionalAccessStatus is 'success', which is exactly why
+  // the failure filter above never sees these.
+  //   50074  strong auth required — MFA prompt shown, not passed/abandoned
+  //   50076  strong auth required — policy, per-user change or new location
+  //   50072  MFA enrolment required (interactive interrupt)
+  //   50079  MFA enrolment required
+  //   50097  device authentication required
+  //   50158  external security challenge — terms of use / third-party MFA
+  //   500121 authentication failed during the strong auth request
+  const INTERRUPT = new Set([50074, 50076, 50072, 50079, 50097, 50158, 500121]);
+  const isInterrupt = (rec) => INTERRUPT.has((rec.status || {}).errorCode);
+
+  // The error code narrows WHICH control stopped the sign-in — a 50097 next
+  // to an MFA policy and a sign-in-frequency policy belongs to the latter:
+  // enforcing SIF in a browser means authenticating the DEVICE to read the
+  // session's auth timestamp, and on a machine without a PRT that round-trip
+  // is the interrupt. Matched against the enforced control strings; when no
+  // applied policy carries a matching control (terms-of-use agreements can
+  // surface under their own display name) attribution falls back to every
+  // control-bearing policy rather than dropping the record.
+  const MFA_RX = /mfa|auth(entication)?.?strength/i;
+  const INT_CONTROLS = {
+    50074: MFA_RX, 50076: MFA_RX, 50072: MFA_RX, 50079: MFA_RX, 500121: MFA_RX,
+    50097: /compliantdevice|domainjoineddevice|signinfrequency/i,
+    50158: /termsofuse|tou/i,
+  };
+
   // Graph filter for the fetch: date window, server-filtered to CA failures
   // when the mode allows it. signIns caps $top at 999 like directoryAudits.
   function query(days, mode) {
@@ -36,17 +72,41 @@ const Signins = (() => {
     return `/auditLogs/signIns?$filter=${encodeURIComponent(parts.join(" and "))}&$orderby=createdDateTime desc&$top=999`;
   }
 
+  // Companion fetch for enforced mode: the interrupted sign-ins. Graph can't
+  // OR across different properties on signIns, so this is its own query —
+  // errorCode supports eq, and same-property or-chains are fine.
+  function interruptQuery(days) {
+    const since = new Date(Date.now() - (days || 7) * 864e5).toISOString();
+    const codes = [...INTERRUPT].map((c) => `status/errorCode eq ${c}`).join(" or ");
+    return `/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since} and (${codes})`)}&$orderby=createdDateTime desc&$top=999`;
+  }
+
+  const shapePol = (p) => ({
+    id: p.id || "",
+    name: p.displayName || p.id || "(unnamed policy)",
+    result: p.result,
+    controls: [...(p.enforcedGrantControls || []), ...(p.enforcedSessionControls || [])].filter(Boolean),
+  });
+
   // The policies that failed this sign-in, per mode.
   function failuresOf(rec, mode) {
     const want = FAIL[mode] || FAIL.enforced;
-    return (rec.appliedConditionalAccessPolicies || [])
+    const out = (rec.appliedConditionalAccessPolicies || [])
       .filter((p) => want.has(p.result))
-      .map((p) => ({
-        id: p.id || "",
-        name: p.displayName || p.id || "(unnamed policy)",
-        result: p.result,
-        controls: [...(p.enforcedGrantControls || []), ...(p.enforcedSessionControls || [])].filter(Boolean),
-      }));
+      .map(shapePol);
+    if (out.length || mode === "reportonly" || !isInterrupt(rec)) return out;
+    // A CA interrupt: the responsible policies are the applied ones whose
+    // result is 'success' AND that imposed a control — that control is what
+    // stopped the sign-in. An interrupt with no such policy (per-user MFA,
+    // security defaults) is not CA's doing and is dropped by the caller.
+    const bearing = (rec.appliedConditionalAccessPolicies || [])
+      .filter((p) => p.result === "success"
+        && ((p.enforcedGrantControls || []).length || (p.enforcedSessionControls || []).length));
+    const rx = INT_CONTROLS[(rec.status || {}).errorCode];
+    const matched = rx ? bearing.filter((p) =>
+      [...(p.enforcedGrantControls || []), ...(p.enforcedSessionControls || [])].some((c) => rx.test(String(c)))) : [];
+    return (matched.length ? matched : bearing)
+      .map((p) => ({ ...shapePol(p), result: "interrupted" }));
   }
 
   // ---- one sign-in record → a display model ----------------------------
@@ -78,6 +138,7 @@ const Signins = (() => {
       failureReason: st.failureReason || "",
       caStatus: rec.conditionalAccessStatus || "",
       signInRisk: rec.riskLevelDuringSignIn || "",
+      interrupted: fails.some((p) => p.result === "interrupted"),
       policies: fails,
     };
   }
@@ -92,11 +153,12 @@ const Signins = (() => {
         const key = p.id || p.name;
         let e = byPolicy.get(key);
         if (!e) {
-          e = { key, id: p.id, name: p.name, count: 0, users: new Map(), apps: new Map(),
+          e = { key, id: p.id, name: p.name, count: 0, ints: 0, users: new Map(), apps: new Map(),
             controls: new Set(), first: r.when, last: r.when, rows: [] };
           byPolicy.set(key, e);
         }
         e.count++;
+        if (p.result === "interrupted") e.ints++;
         const uk = r.upn || r.user;
         e.users.set(uk, (e.users.get(uk) || 0) + 1);
         e.apps.set(r.app, (e.apps.get(r.app) || 0) + 1);
@@ -119,6 +181,7 @@ const Signins = (() => {
       mode,
       rows,
       total: rows.length,
+      interrupted: rows.filter((r) => r.interrupted).length,
       policies,
       users: Object.entries(by((r) => r.upn || r.user)).sort((a, b) => b[1] - a[1]),
       apps: Object.entries(by((r) => r.app)).sort((a, b) => b[1] - a[1]),
@@ -151,5 +214,5 @@ const Signins = (() => {
     return L.join("\r\n");
   }
 
-  return { FAIL, query, failuresOf, parse, build, toCsv };
+  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, failuresOf, parse, build, toCsv };
 })();
