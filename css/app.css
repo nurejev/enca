@@ -1304,6 +1304,54 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .lo-chip b{font-family:var(--mono,ui-monospace,monospace);font-size:12px}
 .lo-chip button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
 .lo-chip button:hover{color:var(--off)}
+/* ---------- Gap analyse: coverage flow (cf-) ----------
+   A funnel as proportional bars rather than a chart: every bar is drawn
+   against the SAME denominator (everyone in scope), so the shape of the drop
+   is readable without doing arithmetic on five percentages. No chart library
+   — the CSP allows Graph and nothing else, and this needs none. */
+.cf-card{padding:12px 14px;margin-bottom:12px}
+.cf-head{margin-bottom:10px;font-size:13px}
+.cf-row{display:grid;grid-template-columns:minmax(150px,1.6fr) minmax(90px,3fr) minmax(96px,auto) minmax(104px,auto);
+  gap:10px;align-items:center;padding:5px 6px;border-radius:8px;font-size:12.5px}
+.cf-row + .cf-row{margin-top:2px}
+.cf-click{cursor:pointer}
+.cf-click:hover{background:var(--soft)}
+.cf-click:focus-visible{outline:2px solid var(--accent2);outline-offset:1px}
+.cf-row.active{background:var(--soft);box-shadow:inset 3px 0 0 var(--green)}
+.cf-unread{opacity:.72}
+.cf-label{overflow-wrap:anywhere}
+.cf-track{height:12px;border-radius:6px;background:var(--soft);border:1px solid var(--border);overflow:hidden}
+.cf-fill{height:100%;border-radius:6px 0 0 6px;transition:width .35s}
+/* Each stage keeps its own colour so a screenshot of the funnel is still
+   readable — the drop from green to amber to red IS the finding. */
+.cf-fill.cf-users{background:var(--accent2)}
+.cf-fill.cf-targeted{background:var(--green)}
+.cf-fill.cf-enforced{background:var(--on)}
+.cf-fill.cf-mfa{background:var(--report)}
+.cf-fill.cf-licensed{background:var(--blue,#4a7fb5)}
+.cf-n{text-align:right;white-space:nowrap}
+.cf-drop{text-align:right;white-space:nowrap}
+.cf-notes{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);line-height:1.7}
+.cf-notes div + div{margin-top:3px}
+@media (max-width:760px){
+  /* On a phone the two right-hand columns are what people read; the bar is
+     the illustration, so it gets the full width and the numbers sit under it. */
+  .cf-row{grid-template-columns:1fr auto;grid-template-areas:"label n" "track track" "drop drop";row-gap:3px}
+  .cf-label{grid-area:label}
+  .cf-n{grid-area:n}
+  .cf-track{grid-area:track}
+  .cf-drop{grid-area:drop;text-align:left}
+}
+/* Promotion queue: the per-item test checklist. Folded away by default — the
+   table is read to decide WHAT to promote, and the steps are read once that
+   decision is made. */
+.pq-test{margin-top:6px}
+.pq-test summary{cursor:pointer;color:var(--accent2);list-style:none}
+.pq-test summary::-webkit-details-marker{display:none}
+.pq-test summary::before{content:"\25b8 ";display:inline-block;transition:transform .15s}
+.pq-test[open] summary::before{transform:rotate(90deg)}
+.pq-steps{margin:6px 0 0;padding-left:20px;line-height:1.65}
+.pq-steps li{margin-bottom:5px}
 /* Shipped-before. Outside the timeline on purpose: these are delivered, and
    leaving them in the "Now" column makes a roadmap read as busier than it is. */
 .rm-shipped{margin-top:34px;padding-top:22px;border-top:1px solid var(--border)}

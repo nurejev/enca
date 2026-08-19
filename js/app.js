@@ -34,6 +34,10 @@
   let currentExport = [];
   let isDemo = false;
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
+  // Coverage flow (T03): the computed funnel, and whether the licence half
+  // was read at all. Held separately from anReport because "not read" is a
+  // finding in its own right and must not be inferred from empty rows.
+  let anCov = null, anLicRead = false;
   let anPols = [], anMaps = [], anTab = "users", anPage = 0;
   let anGroups = [], anGroupSel = "";   // persona/scope group filter
   // R29 — the principals a scan is limited to, and what it actually judged
@@ -527,6 +531,11 @@
           tools</b> with a <b>stable number</b>, so <i>“push number 3 to main”</i> means exactly one thing.
           Roadmap cards, changelog entries and this table itself are not listed: they describe the work rather
           than being it, and they travel with whatever promotion happens next.</p>
+        <p class="mini muted" style="margin:-6px 0 10px"><b>Every row carries a test checklist.</b> <i>Why</i> says what the
+          risk is and what would have to be true for the item to graduate; it does not say how to find out. The steps
+          under <b>How to test it</b> do — each one names the tenant state it needs and the outcome you should see, so a
+          step can fail rather than be nodded through. Where a check needs a tenant nobody has to hand, the step says
+          so: knowing which check was skipped is worth more than a list that pretends all of them were run.</p>
         <div class="cg-tablewrap"><table class="cg-table">
           <thead><tr><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:120px">Beta builds</th></tr></thead>
           <tbody>${items.map((it) => {
@@ -537,6 +546,9 @@
                 <div class="mini muted">${(it.tools || []).join(" · ")}</div>
                 <div class="mini" style="margin-top:4px">${esc2(it.what)}</div>
                 <div class="mini" style="margin-top:4px;color:var(--report)"><b>Why:</b> ${esc2(it.why)}</div>
+                ${(it.test || []).length ? `<details class="pq-test"><summary class="mini"><b>How to test it</b> — ${(it.test).length} step${(it.test).length === 1 ? "" : "s"}</summary>
+                  <ol class="mini pq-steps">${(it.test).map((t) => `<li>${esc2(t)}</li>`).join("")}</ol></details>`
+                  : `<div class="mini" style="margin-top:4px;color:var(--off)"><b>How to test it:</b> not written — this item is not finished, and promoting it means promoting something nobody has said how to check.</div>`}
                 <div class="mini muted" style="margin-top:4px">${(it.files || []).map((f) => `<code>${esc2(f)}</code>`).join(" ")}</div></td>
               <td><span class="tag ${r.cls}">${r.label}</span><div class="mini muted" style="margin-top:4px">${r.note}</div></td>
               <td class="mini">${(it.builds || []).join(", ")}</td>
@@ -1341,7 +1353,7 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; anReport = null;
+      isDemo = false; anReport = null; anCov = null;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
@@ -1379,7 +1391,7 @@
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; anReport = null;
+    isDemo = true; anReport = null; anCov = null;
     // The demo gets its own drawer for the group → persona mapping, so playing
     // with it here can never land in a real tenant's saved state.
     try { CaMap.use("demo"); } catch { /* storage refused; in-memory is fine */ }
@@ -8936,32 +8948,18 @@ max@contoso.com,"Global, DevOps"</pre>
           while (next && pages < LG_USER_PAGES) {
             const j = await Graph.gget(next);
             for (const m of j.value || []) {
-              let p1 = false, p2 = false, planP1 = false, planP2 = false;
-              if (live) {
-                for (const l of m.assignedLicenses || []) {
-                  const dis = l.disabledPlans || [];
-                  const p1ok = live.p1.has(l.skuId) && !dis.includes(LicGap.P1_PLAN);
-                  const p2ok = live.p2.has(l.skuId) && !dis.includes(LicGap.P2_PLAN);
-                  if (p2ok) p2 = true;
-                  if (p1ok || p2ok) p1 = true;
-                }
-              }
-              for (const ap of m.assignedPlans || []) {
-                if (ap.capabilityStatus !== "Enabled" && ap.capabilityStatus !== "Warning") continue;
-                if (ap.servicePlanId === LicGap.P1_PLAN) planP1 = true;
-                else if (ap.servicePlanId === LicGap.P2_PLAN) planP2 = true;
-              }
-              if (!live) { p1 = planP1 || planP2; p2 = planP2; }   // no SKU read — plans are the only signal left
+              // The verdict comes from LicGap.licenceOf — the one definition
+              // of "licensed", shared with 🔍 Gap analyse's coverage flow, so
+              // the two tools cannot answer differently about the same user.
+              const v = LicGap.licenceOf(m, live);
               us.push({ id: m.id, name: m.displayName, upn: m.userPrincipalName, enabled: m.accountEnabled !== false,
-                p1: p1 || p2, p2,
-                p1grace: !!(live && !p1 && !p2 && (planP1 || planP2)),
-                p2grace: !!(live && !p2 && planP2),
+                p1: v.p1, p2: v.p2, p1grace: v.p1grace, p2grace: v.p2grace,
                 // No licences AT ALL: usually a service account or a sync
                 // artifact that never consumes Microsoft services (the
                 // office365itpros target-set argument) — labelled, so the
                 // to-license count is not inflated by accounts nobody
                 // would ever buy for.
-                lic0: !(m.assignedLicenses || []).length });
+                lic0: v.lic0 });
             }
             next = j["@odata.nextLink"] || null;
             pages++;
@@ -13558,6 +13556,46 @@ max@contoso.com,"Global, DevOps"</pre>
       status(`Evaluating ${users.length} users × ${lookup.length} policies…`);
       await new Promise(r => setTimeout(r, 30)); // let the status paint
       anReport = Analyzer.evaluate(lookup, users, ctx);
+      anCov = null;                       // belongs to the run that just ended
+      // The licence half of the coverage flow. Both reads are already covered
+      // by the permissions this tool holds — assignedLicenses rides along on
+      // the /users select it was going to do anyway, and /subscribedSkus is one
+      // call — so the funnel costs no extra consent and no dependency on
+      // 🎫 Licence gap having run. The verdict comes from LicGap.licenceOf, the
+      // same function that tool uses, so the two cannot disagree about a user.
+      //
+      // It fails SOFT: a refused or broken read leaves the licence stage
+      // reported as not read, and every other stage is unaffected.
+      anLicRead = false;
+      try {
+        // Only the SKU list is an extra call: the per-user assignedLicenses /
+        // assignedPlans came back with the users themselves, on the same read
+        // this tool was doing anyway. Both are covered by permissions it
+        // already holds, so the funnel costs no extra consent and does not
+        // depend on 🎫 Licence gap having run.
+        //
+        // The verdict is LicGap.licenceOf — the same function that tool uses,
+        // so the two cannot disagree about a user.
+        //
+        // It fails SOFT: a refused or broken SKU read leaves the licence stage
+        // reported as not read, and every other stage is unaffected.
+        const skus = isDemo
+          ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.skus) || null)
+          : await Graph.ggetAll("/subscribedSkus");
+        const live = LicGap.liveSkuSets(skus);
+        const byId = new Map(users.map((u) => [u.id, u]));
+        for (const r of anReport) {
+          const m = byId.get(r.id);
+          // A user whose record carries neither field is NOT read, rather than
+          // unlicensed — the demo fixtures and a guest both land here.
+          r.lic = (m && (m.assignedLicenses || m.assignedPlans)) ? LicGap.licenceOf(m, live) : null;
+        }
+        anLicRead = !!skus;
+      } catch (e) {
+        console.warn("Coverage flow: licences not read —", e.message || e);
+        for (const r of anReport) r.lic = null;
+        anLicRead = false;
+      }
       anPols = Analyzer.policyMeta(lookup);
       anMaps = Analyzer.buildMatrixMaps(anReport);
       anGroups = scopeGroups || []; anGroupSel = "";
@@ -13596,6 +13634,22 @@ max@contoso.com,"Global, DevOps"</pre>
         ? `<b>Scoped run</b> — these findings cover ${anReport.length} user${anReport.length === 1 ? "" : "s"} from ${anScopedTo.length} named principal${anScopedTo.length === 1 ? "" : "s"} only, not the tenant: ${anScopedTo.map(esc).join(" · ")}`
         : "";
     }
+    // The coverage flow sits ABOVE the summary cards: the cards each count a
+    // different thing against a different denominator, and none of them says
+    // how many people are in the tenant to begin with.
+    //
+    // Computed once per RUN and cached — it is invariant for a given report,
+    // and recomputing it on every render walked the whole thing again on every
+    // keystroke in the search box. Only the highlighted row follows the filter,
+    // which is the second argument.
+    if (!anCov) anCov = Analyzer.coverage(anReport, anLicRead);
+    const cfHost = $("anCoverage");
+    // A group, user-type or search filter narrows the list BELOW the funnel
+    // without narrowing the funnel, so the two would disagree: the row says
+    // −7 and the list shows 2. Rather than silently recompute the funnel
+    // against a different population, say that the list is further narrowed.
+    const narrowed = !!(anQuery || anType || anGroupSel !== "");
+    if (cfHost) cfHost.innerHTML = Analyzer.coverageHtml(anCov, anFilter, narrowed);
     $("anCards").innerHTML = [
       ["all", s.users, "Users", ""],
       ["risky", s.risky, "Risky bypasses", "risk"],
@@ -13636,6 +13690,24 @@ max@contoso.com,"Global, DevOps"</pre>
   $("anCards").addEventListener("click", (e) => {
     const c = e.target.closest("[data-f]"); if (!c) return;
     anFilter = c.dataset.f; renderAnalysis();
+  });
+  // The funnel rows carry the same data-f contract as the cards, so one
+  // handler shape covers both — and clicking an already-active row clears it,
+  // because a filter you cannot switch off is a trap on a list this long.
+  $("anCoverage").addEventListener("click", (e) => {
+    const c = e.target.closest("[data-f]"); if (!c) return;
+    anFilter = anFilter === c.dataset.f ? "all" : c.dataset.f;
+    // Clear the narrowing filters too. The funnel promises that clicking −7
+    // shows those 7; leaving a group select or a search term applied would
+    // show some smaller number and quietly break that promise.
+    anPage = 0; anTab = "users"; anQuery = ""; anType = ""; anGroupSel = "";
+    $("anSearch").value = ""; $("anType").value = ""; $("anGroup").value = "";
+    renderAnalysis();
+  });
+  $("anCoverage").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const c = e.target.closest("[data-f]"); if (!c) return;
+    e.preventDefault(); c.click();
   });
   $("anSearch").addEventListener("input", (e) => { anQuery = e.target.value.toLowerCase(); anPage = 0; renderAnalysis(); });
   $("anTabUsers").addEventListener("click", () => { anTab = "users"; if (!anReport) { $("anStatus").textContent = "Run the analysis first."; return; } renderAnalysis(); });
@@ -13755,7 +13827,17 @@ max@contoso.com,"Global, DevOps"</pre>
     const filterBits = [];
     if (anType) filterBits.push(anType === "member" ? "members only" : "guests only");
     if (anGroupSel !== "") filterBits.push("group: " + (anGroups[+anGroupSel]?.label || ""));
-    if (anFilter !== "all") filterBits.push({ risky: "risky bypasses only", nomfa: "no MFA from CA", noenforce: "no enforcing policy" }[anFilter]);
+    // Every value anFilter can hold has to be nameable here, the funnel's
+    // included — an unmapped one pushed `undefined`, which Array.join drops
+    // silently, leaving the deliverable saying "filtered:" and then nothing.
+    const FILTER_LABEL = {
+      risky: "risky bypasses only", nomfa: "no MFA from CA", noenforce: "no enforcing policy",
+      "cf:targeted": "coverage — reached by no active policy",
+      "cf:enforced": "coverage — targeted only by report-only policies",
+      "cf:mfa": "coverage — reached by a policy that never asks for MFA",
+      "cf:licensed": "coverage — targeted without the licence their policies require",
+    };
+    if (anFilter !== "all") filterBits.push(FILTER_LABEL[anFilter] || anFilter);
     if (anQuery) filterBits.push(`search: "${anQuery}"`);
     const meta = {
       tenant: tenantName || "tenant",
@@ -13765,7 +13847,10 @@ max@contoso.com,"Global, DevOps"</pre>
         + ($("anReportOnly").checked ? ", incl. report-only" : "")
         + (filterBits.length ? ` | filtered: ${filterBits.join(", ")} (${subset.length} of ${anReport.length} users)` : ""),
     };
-    const html = Analyzer.exportHtml(meta, subset, anPols, anGroups);
+    // The funnel describes the RUN, not the current filter: computing it from
+    // `subset` would make the drop set its own denominator — a funnel of a
+    // funnel, reading 100% at every stage.
+    const html = Analyzer.exportHtml(meta, subset, anPols, anGroups, anLicRead, anReport);
     const blob = new Blob([html], { type: "text/html" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);

@@ -87,14 +87,33 @@ const DEMO_DATA = {
 
   // ---- impact-analysis demo data (users + memberships) ----
   analyzeUsers: [
-    { id: "u-admin", displayName: "Alex Admin", userPrincipalName: "alex.admin@contoso.com", userType: "Member", accountEnabled: true },
-    { id: "u-break1", displayName: "breakglass-01", userPrincipalName: "breakglass-01@contoso.com", userType: "Member", accountEnabled: true },
-    { id: "u-break2", displayName: "breakglass-02", userPrincipalName: "breakglass-02@contoso.com", userType: "Member", accountEnabled: true },
-    { id: "u-svc", displayName: "svc-legacyapp", userPrincipalName: "svc-legacyapp@contoso.com", userType: "Member", accountEnabled: true },
-    { id: "u-emp1", displayName: "Eva Employee", userPrincipalName: "eva@contoso.com", userType: "Member", accountEnabled: true },
-    { id: "u-emp2", displayName: "Milan Medewerker", userPrincipalName: "milan@contoso.com", userType: "Member", accountEnabled: true },
+    { id: "u-admin", displayName: "Alex Admin", userPrincipalName: "alex.admin@contoso.com", userType: "Member", accountEnabled: true, assignedLicenses: [{ skuId: "sku-p2", disabledPlans: [] }], assignedPlans: [] },
+    { id: "u-break1", displayName: "breakglass-01", userPrincipalName: "breakglass-01@contoso.com", userType: "Member", accountEnabled: true, assignedLicenses: [{ skuId: "sku-p1", disabledPlans: [] }], assignedPlans: [] },
+    { id: "u-break2", displayName: "breakglass-02", userPrincipalName: "breakglass-02@contoso.com", userType: "Member", accountEnabled: true, assignedLicenses: [{ skuId: "sku-p1", disabledPlans: [] }], assignedPlans: [] },
+    { id: "u-svc", displayName: "svc-legacyapp", userPrincipalName: "svc-legacyapp@contoso.com", userType: "Member", accountEnabled: true, assignedLicenses: [], assignedPlans: [] },
+    { id: "u-emp1", displayName: "Eva Employee", userPrincipalName: "eva@contoso.com", userType: "Member", accountEnabled: true, assignedLicenses: [{ skuId: "sku-p1", disabledPlans: [] }], assignedPlans: [] },
+    { id: "u-emp2", displayName: "Milan Medewerker", userPrincipalName: "milan@contoso.com", userType: "Member", accountEnabled: true, assignedLicenses: [], assignedPlans: [{ servicePlanId: "41781fb2-bc02-4b7c-bd55-b576c07bb09d", capabilityStatus: "Enabled" }] },
     { id: "u-guest1", displayName: "Gary Guest", userPrincipalName: "gary_ext#EXT#@contoso.com", userType: "Guest", accountEnabled: true },
-    { id: "u-old", displayName: "Olga Offboarded", userPrincipalName: "olga@contoso.com", userType: "Member", accountEnabled: false },
+    { id: "u-old", displayName: "Olga Offboarded", userPrincipalName: "olga@contoso.com", userType: "Member", accountEnabled: false, assignedLicenses: [], assignedPlans: [] },
+  ],
+  // Subscribed SKUs for 🔍 Gap analyse's coverage flow and 🎫 Licence gap. The
+  // per-user assignedLicenses / assignedPlans sit on analyzeUsers above,
+  // exactly where Graph puts them, so LicGap.licenceOf runs on the demo
+  // unchanged — including the cases worth seeing on screen: a user licensed
+  // only through a SUSPENDED subscription (in grace, so not licensed), users
+  // with no licences at all, and a guest carrying neither field so the funnel
+  // has an unknown to report rather than quietly counting them as covered.
+  skus: [
+    { skuId: "sku-p2", skuPartNumber: "AAD_PREMIUM_P2", capabilityStatus: "Enabled",
+      prepaidUnits: { enabled: 3 }, consumedUnits: 2,
+      servicePlans: [{ servicePlanId: "eec0eb4f-6444-4f95-aba0-50c24d67f998", servicePlanName: "AAD_PREMIUM_P2" },
+                     { servicePlanId: "41781fb2-bc02-4b7c-bd55-b576c07bb09d", servicePlanName: "AAD_PREMIUM" }] },
+    { skuId: "sku-p1", skuPartNumber: "EMS", capabilityStatus: "Enabled",
+      prepaidUnits: { enabled: 4 }, consumedUnits: 3,
+      servicePlans: [{ servicePlanId: "41781fb2-bc02-4b7c-bd55-b576c07bb09d", servicePlanName: "AAD_PREMIUM" }] },
+    { skuId: "sku-dead", skuPartNumber: "EMS_TRIAL", capabilityStatus: "Suspended",
+      prepaidUnits: { enabled: 25 }, consumedUnits: 1,
+      servicePlans: [{ servicePlanId: "41781fb2-bc02-4b7c-bd55-b576c07bb09d", servicePlanName: "AAD_PREMIUM" }] },
   ],
   roleMembers: { "62e90394-69f5-4237-9190-012177145e10": ["u-admin"] },
   groupMembers: {},

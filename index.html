@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25158"></script>
+<script src="js/popup-guard.js?v=25159"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25158">
+<link rel="stylesheet" href="css/app.css?v=25159">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25158"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25158"></script>
+<script src="js/counter.js?v=25159"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25159"></script>
 </head>
 <body>
 
@@ -122,8 +122,8 @@
     <div class="tool-sec"><h3>🔍 Analyse &amp; simulate</h3><p>Work out what your policies actually do, and to whom.</p></div>
     <div class="tools">
       <div class="tool" id="toolAnalyze">
-        <div class="tool-ic">🔍</div><h3>Gap analyse</h3>
-        <p>Users × policies impact matrix: who bypasses what and why, risky exclusions, MFA gaps.</p>
+        <div class="tool-ic">🔍</div><h3>Gap analyse <span class="tag upd">UPDATED</span></h3>
+        <p>How many of your users Conditional Access actually reaches — a coverage flow from everyone in scope down to targeted, enforced, MFA and licensed — then the users × policies matrix: who bypasses what and why.</p>
       </div>
       <div class="tool" id="toolValidator">
         <div class="tool-ic">⚡</div><h3>CA validator</h3>
@@ -410,6 +410,9 @@
 
       <div id="anResults" style="display:none">
         <div id="anScopeBanner" class="an-scoped" style="display:none"></div>
+        <!-- Coverage flow (T03) — the funnel from everyone in scope down to
+             the users your policies actually reach, protect and license. -->
+        <div id="anCoverage"></div>
         <div class="an-cards" id="anCards"></div>
         <div class="toolbar" style="margin-top:14px">
           <div class="search"><input id="anSearch" placeholder="Search user or UPN…"></div>
@@ -1385,6 +1388,11 @@
       <h4>🔍 Gap analyse</h4>
       <p>A users × policies impact matrix: who is in scope for what, who bypasses a policy and why.</p>
       <ul>
+        <li><b>Coverage</b> <span class="tag new">NEW</span> — the funnel above the results, and usually the first thing worth reading. Five stages, each a subset of the one above: everyone <b>in scope</b> → <b>targeted</b> by at least one active policy → covered by one that is actually <b>enforced</b> → required to do <b>MFA</b> → holding the <b>licence</b> their own policies oblige. Every bar is drawn against the same denominator, so the shape of the drop is readable without doing arithmetic on five percentages.</li>
+        <li><b>The drops are the finding, not the totals.</b> A tenant with 900 targeted users and 40 covered by an enforced policy has a report-only backlog, not a coverage problem — and those two look identical in any single number. Users reached by <b>no active policy at all</b> and users targeted <b>only</b> by report-only policies are called out by name in the notes under the funnel, because for the first group Conditional Access is not weak, it is absent.</li>
+        <li><b>Click a row to list exactly who did not get that far</b>, and click it again to clear. These are deliberately <b>not</b> the same sets as the summary cards below: “No MFA from CA” counts everyone without MFA including the users no policy reaches, while the funnel’s MFA drop counts only those a policy <i>does</i> reach and still does not ask. A row with no drop is not clickable rather than being a link that does nothing.</li>
+        <li><b>The licence stage reads its own data</b> — the assigned licences ride along on the user read the tool was doing anyway, and the subscribed SKUs are one more call, both covered by permissions it already holds. It does not depend on 🎫 Licence gap having run, and it uses that tool's own verdict function, so the two cannot disagree about whether a user is licensed. P2 is required where a risk-based policy targets them, P1 otherwise; report-only counts, because the obligation follows targeting rather than enforcement.</li>
+        <li><b>Not read is not zero.</b> If the licence read is refused or fails, the stage says <i>not read</i> and every other stage is unaffected — “we did not look” and “nobody is licensed” are opposite findings. Targeted users with no licence record at all (guests, or a capped read) are left out of the stage and counted separately, never rounded up to licensed.</li>
         <li><b>Group filters</b> — narrow the matrix columns to the policies that target chosen groups.</li>
         <li><b>Apply flow</b> — the same per-persona flow as in List Policies.</li>
         <li><b>Export</b> — a standalone HTML report you can open outside the tool.</li>
@@ -2492,51 +2500,51 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25158"></script>
-<script src="js/version.js?v=25158"></script>
-<script src="js/promote.js?v=25158"></script>
-<script src="js/authConfig.js?v=25158"></script>
-<script src="js/labels.js?v=25158"></script>
-<script src="js/graph.js?v=25158"></script>
-<script src="js/model.js?v=25158"></script>
-<script src="js/render.js?v=25158"></script>
-<script src="js/analyze.js?v=25158"></script>
-<script src="js/whatif.js?v=25158"></script>
-<script src="js/mslearn.js?v=25158"></script>
-<script src="js/gapcheck.js?v=25158"></script>
-<script src="js/cisdata.js?v=25158"></script>
-<script src="js/cischeck.js?v=25158"></script>
-<script src="js/exclusions.js?v=25158"></script>
-<script src="js/validator.js?v=25158"></script>
-<script src="js/whatifeval.js?v=25158"></script>
-<script src="js/compare.js?v=25158"></script>
-<script src="js/groupuse.js?v=25158"></script>
-<script src="js/iso3166.js?v=25158"></script>
-<script src="js/locations.js?v=25158"></script>
-<script src="js/authcontexts.js?v=25158"></script>
-<script src="js/authstrengths.js?v=25158"></script>
-<script src="js/recycle.js?v=25158"></script>
-<script src="js/rmau.js?v=25158"></script>
-<script src="js/camap.js?v=25158"></script>
-<script src="js/rmaudoc.js?v=25158"></script>
-<script src="js/termsofuse.js?v=25158"></script>
-<script src="js/audit.js?v=25158"></script>
-<script src="js/drift.js?v=25158"></script>
-<script src="js/guide.js?v=25158"></script>
-<script src="js/devcheck.js?v=25158"></script>
-<script src="js/licgap.js?v=25158"></script>
-<script src="js/signins.js?v=25158"></script>
-<script src="js/reportimpact.js?v=25158"></script>
-<script src="js/changelog.js?v=25158"></script>
-<script src="js/baselineData.js?v=25158"></script>
-<script src="js/baselineJoeyData.js?v=25158"></script>
-<script src="js/baseline.js?v=25158"></script>
-<script src="js/groupTemplates.js?v=25158"></script>
-<script src="js/assign.js?v=25158"></script>
-<script src="js/cagroups.js?v=25158"></script>
-<script src="js/import.js?v=25158"></script>
-<script src="js/export.js?v=25158"></script>
-<script src="js/demo.js?v=25158"></script>
-<script src="js/app.js?v=25158"></script>
+<script src="js/branding.js?v=25159"></script>
+<script src="js/version.js?v=25159"></script>
+<script src="js/promote.js?v=25159"></script>
+<script src="js/authConfig.js?v=25159"></script>
+<script src="js/labels.js?v=25159"></script>
+<script src="js/graph.js?v=25159"></script>
+<script src="js/model.js?v=25159"></script>
+<script src="js/render.js?v=25159"></script>
+<script src="js/analyze.js?v=25159"></script>
+<script src="js/whatif.js?v=25159"></script>
+<script src="js/mslearn.js?v=25159"></script>
+<script src="js/gapcheck.js?v=25159"></script>
+<script src="js/cisdata.js?v=25159"></script>
+<script src="js/cischeck.js?v=25159"></script>
+<script src="js/exclusions.js?v=25159"></script>
+<script src="js/validator.js?v=25159"></script>
+<script src="js/whatifeval.js?v=25159"></script>
+<script src="js/compare.js?v=25159"></script>
+<script src="js/groupuse.js?v=25159"></script>
+<script src="js/iso3166.js?v=25159"></script>
+<script src="js/locations.js?v=25159"></script>
+<script src="js/authcontexts.js?v=25159"></script>
+<script src="js/authstrengths.js?v=25159"></script>
+<script src="js/recycle.js?v=25159"></script>
+<script src="js/rmau.js?v=25159"></script>
+<script src="js/camap.js?v=25159"></script>
+<script src="js/rmaudoc.js?v=25159"></script>
+<script src="js/termsofuse.js?v=25159"></script>
+<script src="js/audit.js?v=25159"></script>
+<script src="js/drift.js?v=25159"></script>
+<script src="js/guide.js?v=25159"></script>
+<script src="js/devcheck.js?v=25159"></script>
+<script src="js/licgap.js?v=25159"></script>
+<script src="js/signins.js?v=25159"></script>
+<script src="js/reportimpact.js?v=25159"></script>
+<script src="js/changelog.js?v=25159"></script>
+<script src="js/baselineData.js?v=25159"></script>
+<script src="js/baselineJoeyData.js?v=25159"></script>
+<script src="js/baseline.js?v=25159"></script>
+<script src="js/groupTemplates.js?v=25159"></script>
+<script src="js/assign.js?v=25159"></script>
+<script src="js/cagroups.js?v=25159"></script>
+<script src="js/import.js?v=25159"></script>
+<script src="js/export.js?v=25159"></script>
+<script src="js/demo.js?v=25159"></script>
+<script src="js/app.js?v=25159"></script>
 </body>
 </html>
