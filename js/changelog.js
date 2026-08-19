@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25143, date: "2026-08-19", title: "A role held through a group is people, not one opaque id",
+    items: [
+      { kind: "fixed", tool: "Licence gap", text: "Promotion item 61 — follow-up from the office365itpros comparison: /directoryRoles/members returns DIRECT assignments, which are not all users. A role held through a role-assignable group arrived as the group object — one opaque id that matched no member user, so the people holding the role that way were silently missing from the targeting of role-scoped policies (a gap the compared script shares). Group-typed role members are now expanded to their transitive users, service principals holding a role are ignored on purpose (they hold no user licences and previously counted as unclassifiable identities), and a failed group expansion marks only that role’s count approximate rather than poisoning the run." },
+    ],
+  },
+  {
     build: 25142, date: "2026-08-18", title: "Compared against another calculator, and took its one good idea",
     items: [
       { kind: "improved", tool: "Licence gap", text: "Promotion item 61 — verified against office365itpros’ Get-UnlicensedEntraP1Users.PS1 (Tony Redmond, Aug 2026). Adopted its one insight we lacked: an enabled account holding NO licences of any kind is usually a service account or a sync artifact that never consumes Microsoft services — those gap users now get their own ‘no licences at all — service account?’ chip, a tag in the pop-out and a label in the export, so the to-license count stops being inflated by accounts nobody would buy for. The advice stays a decision, not a default: exclude them deliberately or license them deliberately — unlike the script, which silently drops every unlicensed account from the obligation." },

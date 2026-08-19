@@ -8441,11 +8441,34 @@ max@contoso.com,"Global, DevOps"</pre>
         // "no active assignments" — but any other failure stays null so the
         // count is marked approximate rather than silently low. graphError
         // folds the HTTP status into the message, so that is where it lives.
+        //
+        // /members returns DIRECT assignments, and those are not all users:
+        // a role held through a role-assignable GROUP arrives as the group
+        // object, and its members would silently not count — so groups are
+        // expanded to their transitive users here. Service principals can
+        // hold a role too and are ignored on purpose: they do not hold
+        // user licences. A group expansion that fails poisons only that
+        // role (null → the count goes ≈), never the run.
         for (const id of rids) {
           say(`🎭 role ${id}…`);
           try {
             const m = await Graph.ggetAll(`/directoryRoles(roleTemplateId='${id}')/members?$select=id`);
-            ctx.roleMembers[id] = m.map((x) => x.id);
+            const ids2 = [];
+            for (const x of m) {
+              const ty = String(x["@odata.type"] || "");
+              if (ty.endsWith(".group")) {
+                let next = `/groups/${x.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, pages = 0;
+                while (next && pages < LG_MEMBER_PAGES) {
+                  const j = await Graph.gget(next);
+                  for (const u2 of j.value || []) ids2.push(u2.id);
+                  next = j["@odata.nextLink"] || null;
+                  pages++;
+                }
+              } else if (!ty.endsWith(".servicePrincipal")) {
+                ids2.push(x.id);
+              }
+            }
+            ctx.roleMembers[id] = ids2;
           } catch (e) {
             ctx.roleMembers[id] = /\(404\)/.test(String(e && e.message || "")) ? [] : null;
           }
