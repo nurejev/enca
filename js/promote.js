@@ -87,6 +87,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 72,
+      title: "\ud83d\udccb The changelog says when it is not plain text",
+      tools: ["All tools"],
+      builds: [25162],
+      risk: "low",
+      what: "js/changelog.js is plain text \u2014 clEntries() escapes item text \u2014 and 146 formatting tags were written into the 25151-25161 entries anyway, rendering as literal angle brackets. Stripped, along with two HTML entities (one predating this cycle). Added CL_MARKUP plus a self-check: a console warning on every channel naming the offending builds, and on non-production a chip beside the entry in the What's-new list. The check flags only formatting tags and entities, never prose that names an element. isProdHost() is extracted so the BETA banner, the promotion queue and this check share one answer.",
+      why: "Cosmetic, reads-only, and it fixes something a customer can see today \u2014 production 287 carries 124 of these tags and is showing them. The port to main is where the real value is; this beta item is the guard that stops the next one.",
+      test: [
+        "Open \ud83d\udccb What's new and read the entries for 25151-25161: no angle brackets mid-sentence, no stray b or code, and the prose still makes sense where the emphasis used to be.",
+        "THE ONE THAT MATTERS: temporarily put a b tag into any entry's text, reload the beta site, and confirm the entry gets a red \u201cmarkup \u2014 will render literally\u201d chip AND a console warning naming that build. Remove it again.",
+        "With that test tag still in place, check the chip does NOT appear when the page is served from the production host \u2014 the console warning should still fire. A customer must not see our authoring slips.",
+        "Confirm the entries that legitimately name an element still read normally and carry no chip: build 25028 mentions a datalist, build 25161 mentions an img src. If either is flagged, the check has become too broad and authors will start ignoring it.",
+        "Check the What's-new OVERLAY after sign-in as well as the full page \u2014 both render through clEntries(), so both should be clean and both should chip a test tag.",
+      ],
+      files: ["js/changelog.js", "js/app.js", "js/version.js"],
+    },
+    {
       n: 71,
       title: "\ud83e\udee7 The official ENCA logo",
       tools: ["All tools"],

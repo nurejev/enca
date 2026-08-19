@@ -54,9 +54,9 @@ const BRANDING = {
   // The ?v= is not decoration: these filenames previously held the Limon-IT
   // mark, so without it a returning visitor keeps seeing the old logo out of
   // cache. Bump it with the build whenever the artwork changes.
-  logo: "assets/logo-mark-light.svg?v=25161",
-  logoDark: "assets/logo-mark-dark.svg?v=25161",
-  favicon: "assets/favicon.svg?v=25161",
+  logo: "assets/logo-mark-light.svg?v=25162",
+  logoDark: "assets/logo-mark-dark.svg?v=25162",
+  favicon: "assets/favicon.svg?v=25162",
 
   // Sign-in screen
   loginTitle: "",            // "" → `${name} — ${longName}`

@@ -30,7 +30,7 @@ const APP_BUILD = {
   // graduating to production one queue number at a time — production walked
   // 250 → 281 while this cycle stayed 250. It is a cycle NAME, not a promise.
   cycle: 250,
-  build: 25161,
+  build: 25162,
   date: "2026-08-19",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time
