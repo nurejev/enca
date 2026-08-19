@@ -8301,13 +8301,13 @@ max@contoso.com,"Global, DevOps"</pre>
       "g-admins": { users: ["u-admin"], capped: false } },
     users: [
       { id: "u-admin", name: "Alex Admin", upn: "alex.admin@contoso.com", enabled: true, p1: true, p2: true },
-      { id: "u-break1", name: "breakglass-01", upn: "breakglass-01@contoso.com", enabled: true, p1: false, p2: false },
-      { id: "u-break2", name: "breakglass-02", upn: "breakglass-02@contoso.com", enabled: true, p1: false, p2: false },
-      { id: "u-svc", name: "svc-legacyapp", upn: "svc-legacyapp@contoso.com", enabled: true, p1: false, p2: false },
+      { id: "u-break1", name: "breakglass-01", upn: "breakglass-01@contoso.com", enabled: true, p1: false, p2: false, lic0: true },
+      { id: "u-break2", name: "breakglass-02", upn: "breakglass-02@contoso.com", enabled: true, p1: false, p2: false, lic0: true },
+      { id: "u-svc", name: "svc-legacyapp", upn: "svc-legacyapp@contoso.com", enabled: true, p1: false, p2: false, lic0: true },
       { id: "u-emp1", name: "Eva Employee", upn: "eva@contoso.com", enabled: true, p1: true, p2: false },
       { id: "u-emp2", name: "Milan Medewerker", upn: "milan@contoso.com", enabled: true, p1: true, p2: false },
       { id: "u-old", name: "Olga Offboarded", upn: "olga@contoso.com", enabled: false, p1: false, p2: false },
-      { id: "u-shared", name: "Alerts And Notifications", upn: "alerts@contoso.com", enabled: true, p1: false, p2: false },
+      { id: "u-shared", name: "Alerts And Notifications", upn: "alerts@contoso.com", enabled: true, p1: false, p2: false, lic0: true },
     ],
     purposes: { "u-admin": "user", "u-break1": "no-mailbox", "u-break2": "no-mailbox", "u-svc": "no-mailbox",
       "u-emp1": "user", "u-emp2": "user", "u-old": "mailbox-no-access", "u-shared": "shared" },
@@ -8394,7 +8394,13 @@ max@contoso.com,"Global, DevOps"</pre>
               us.push({ id: m.id, name: m.displayName, upn: m.userPrincipalName, enabled: m.accountEnabled !== false,
                 p1: p1 || p2, p2,
                 p1grace: !!(live && !p1 && !p2 && (planP1 || planP2)),
-                p2grace: !!(live && !p2 && planP2) });
+                p2grace: !!(live && !p2 && planP2),
+                // No licences AT ALL: usually a service account or a sync
+                // artifact that never consumes Microsoft services (the
+                // office365itpros target-set argument) — labelled, so the
+                // to-license count is not inflated by accounts nobody
+                // would ever buy for.
+                lic0: !(m.assignedLicenses || []).length });
             }
             next = j["@odata.nextLink"] || null;
             pages++;
@@ -8528,12 +8534,13 @@ max@contoso.com,"Global, DevOps"</pre>
     // decides what to DO — license, clean up, or disable a resource
     // account that should never have been in scope at all.
     const lgClassify = (list) => {
-      const c = { license: 0, disabled: 0, resource: 0, likely: 0, unknown: 0 };
+      const c = { license: 0, disabled: 0, resource: 0, likely: 0, nolic: 0, unknown: 0 };
       for (const u of list) {
         const purpose = lgPurpose ? lgPurpose[u.id] : undefined;
         if (purpose && LG_RESOURCE.has(purpose)) c.resource++;
         else if (purpose === "mailbox-no-access") c.likely++;
         else if (u.enabled === false) c.disabled++;
+        else if (u.lic0) c.nolic++;
         else { c.license++; if (lgPurpose && purpose === null) c.unknown++; }
       }
       return c;
@@ -8547,6 +8554,7 @@ max@contoso.com,"Global, DevOps"</pre>
       <p class="mini" style="margin:0 0 10px">
         <span class="pill red" title="Enabled real users — license these (or exclude them deliberately)">${c.license}</span> <span class="mini muted">to license</span>
         &nbsp;<span class="pill amber" title="Disabled accounts — cleanup candidates, not purchases">${c.disabled}</span> <span class="mini muted">disabled — cleanup</span>
+        ${c.nolic ? `&nbsp;<span class="pill amber" title="Enabled accounts holding NO licences at all — usually service accounts or sync artifacts that never consume Microsoft services. Exclude them from the policies deliberately, or license them deliberately — either way, decide rather than buy blindly.">${c.nolic}</span> <span class="mini muted">no licences at all — service account?</span>` : ""}
         ${lgPurpose ? `&nbsp;<span class="pill green" title="Shared / room / equipment mailbox accounts — never licensed; disable or exclude them">${c.resource}</span> <span class="mini muted">shared/resource — never licensed</span>${c.likely ? `&nbsp;<span class="pill amber" title="A mailbox exists but the account has no licence — on an unlicensed account that is almost always a shared/room/equipment mailbox (a delegated sign-in cannot read its type directly). Verify in the Exchange admin center.">${c.likely}</span> <span class="mini muted">likely shared/resource</span>` : ""}` : ""}
         ${o.graceCount ? `&nbsp;<span class="pill amber" title="These users still carry the plan from a suspended or expired subscription (grace period) — the licence shows on the user, but the seat is no longer owned, so they count in the gap.">${o.graceCount}</span> <span class="mini muted">in grace — seat no longer owned</span>` : ""}
         ${o.gapUnknown ? `&nbsp;<span class="pill zero" title="Targeted identities with no member-user record — guests reached through a group, or beyond the user-read cap. They cannot be classified.">${o.gapUnknown}</span> <span class="mini muted">not classifiable</span>` : ""}
@@ -8729,7 +8737,7 @@ max@contoso.com,"Global, DevOps"</pre>
         : purpose === null ? '<span class="tag">not readable</span>'
         : purpose === undefined ? '<span class="tag">not checked</span>' : '<span class="tag ok">user mailbox</span>';
       return `<tr><td class="mini"><code>${esc(u.upn || u.id)}</code></td><td class="mini">${esc(u.name || "")}</td>
-        <td>${u.enabled === false ? '<span class="tag block">disabled</span>' : '<span class="tag ok">enabled</span>'}${(lgModalKey === "p2" ? u.p2grace : u.p1grace) ? ' <span class="tag new" title="The plan is still on the user from a suspended/expired subscription (grace) — the seat is no longer owned, so this user counts in the gap.">in grace</span>' : ""}</td>
+        <td>${u.enabled === false ? '<span class="tag block">disabled</span>' : '<span class="tag ok">enabled</span>'}${(lgModalKey === "p2" ? u.p2grace : u.p1grace) ? ' <span class="tag new" title="The plan is still on the user from a suspended/expired subscription (grace) — the seat is no longer owned, so this user counts in the gap.">in grace</span>' : ""}${u.lic0 && u.enabled !== false ? ' <span class="tag" title="Holds no licences of any kind — usually a service account or sync artifact. Exclude deliberately or license deliberately.">no licences at all</span>' : ""}</td>
         ${lgPurpose === null ? "" : `<td>${mb}</td>`}</tr>`;
     }).join("");
     $("lgUsersBody").innerHTML = `<table class="plist"><thead><tr><th>User</th><th>Name</th><th>Account</th>${lgPurpose === null ? "" : "<th>Mailbox</th>"}</tr></thead><tbody>${rows || `<tr><td colspan="4" class="mini muted">No match.</td></tr>`}</tbody></table>`;

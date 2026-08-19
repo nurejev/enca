@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25142, date: "2026-08-18", title: "Compared against another calculator, and took its one good idea",
+    items: [
+      { kind: "improved", tool: "Licence gap", text: "Promotion item 61 — verified against office365itpros’ Get-UnlicensedEntraP1Users.PS1 (Tony Redmond, Aug 2026). Adopted its one insight we lacked: an enabled account holding NO licences of any kind is usually a service account or a sync artifact that never consumes Microsoft services — those gap users now get their own ‘no licences at all — service account?’ chip, a tag in the pop-out and a label in the export, so the to-license count stops being inflated by accounts nobody would buy for. The advice stays a decision, not a default: exclude them deliberately or license them deliberately — unlike the script, which silently drops every unlicensed account from the obligation." },
+      { kind: "improved", tool: "Licence gap", text: "The differences NOT adopted, for the record: the script ignores report-only policies (they evaluate everyone in scope, and Microsoft’s own usage metric counts those evaluations), never subtracts exclusions from scoped policies, counts suspended/expired subscriptions as owned seats, judges per-user licensing on assignedPlans (the exact grace-period mismatch build 25141 fixed), and covers P1 only. Where the two calculators disagree on a tenant, those five points are why." },
+    ],
+  },
+  {
     build: 25141, date: "2026-08-18", title: "Two numbers called themselves the gap, and both were right",
     items: [
       { kind: "fixed", tool: "Licence gap", text: "Promotion item 61 — on a real tenant the tile said 80 short while the named list said 47, and both were correct by their own definition: the tile counts targeted minus seats OWNED (live subscriptions only), while the list judged users by assignedPlans — which keeps a plan in GRACE after its subscription is suspended or expires, so dozens of users read as licensed by seats that are no longer owned. There is now one definition: each user’s p1/p2 comes from assignedLicenses matched against the SAME live SKU set the seat totals count, with per-user disabledPlans respected. Users whose only P1/P2 is a grace plan are IN the gap, counted in their own chip and labelled ‘in grace — seat no longer owned’ in the pop-out and the export — which is also the actionable insight: their licence disappears the day the grace period ends." },
