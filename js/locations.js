@@ -136,16 +136,28 @@ const Locations = (() => {
   //
   // Severity vocabulary is the one 🔍 Gap analyse uses — high / medium / low —
   // so a reader does not have to learn a second scale.
-  const BLOCKLIST_NAME = /\b(block|blocked|blok|geblokkeerd|deny|denied|denylist|blacklist|banned|forbidden|bad|malicious|tor|vpn)\b/i;
+  // \b DOES NOT WORK HERE. An underscore is a word character in a JS regex, so
+  // /\bblock/ has no boundary to find in "_Blocked IPs" — and a leading
+  // underscore is the usual way of pinning a list to the top of an alphabetical
+  // list in Entra, which makes it the single most likely spelling of the case
+  // this suppression exists for. The boundaries are therefore explicit
+  // "not a letter or digit", which an underscore satisfies.
+  //
+  // "bad" was removed: /\bbad\b/ suppressed "Bad Homburg office", a real place,
+  // and a check that silently ignores a location because of where it is would
+  // be a worse failure than the nagging it was added to prevent.
+  const BLOCKLIST_NAME = /(^|[^a-z0-9])(block|blocked|blocklist|blok|geblokkeerd|deny|denied|denylist|blacklist|banned|forbidden|malicious|tor|vpn)([^a-z0-9]|$)/i;
 
   const prefixOf = (cidr) => {
     const bits = Number(String(cidr || "").split("/")[1]);
     return Number.isInteger(bits) ? bits : null;
   };
   // "Overly broad" is not a matter of taste: a /8 is 16.7 million addresses, and
-  // an office does not have one. IPv6 is enormous at every prefix, so the
-  // comparable threshold is the routing boundary a site is normally given (/48);
-  // anything shorter is a whole allocation, not a location.
+  // an office does not have one. IPv6 is enormous at every prefix, so the line
+  // is drawn at the ISP allocation rather than the site one: a /32 is what a
+  // provider is handed by its RIR, while a site is normally given a /48 and a
+  // single network a /64. Flagging at /48 would flag every correctly sized
+  // office; /32 or shorter is somebody's whole allocation, not a location.
   function broadness(cidr) {
     const bits = prefixOf(cidr);
     if (bits === null) return null;
