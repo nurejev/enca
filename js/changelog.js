@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25169, date: "2026-08-19", title: "The rollout email, written by the tenant itself",
+    items: [
+      { kind: "new", tool: "User impact brief", text: "A new tool (T32): the question every Conditional Access rollout stumbles over is not whether the policies are right but what to TELL PEOPLE — what they will notice, and what will deliberately no longer be possible. Writing that email by hand from a hundred policies means it is written once, goes stale, and describes the design rather than the tenant. This tool derives it from the policies actually deployed: 23 rules translate configuration into end-user language — MFA and phishing-resistant strengths, legacy-auth and device-code blocks, app protection on phones, view-only sessions on unmanaged devices, session lifetimes, country allowlists, the secure-network client, compliant devices, guest allowlists, admin O365 blocks, risk handling, guarded MFA registration, the Azure DevOps lockdown — each statement grouped per audience and backed by the named policies, with click-through to the policy card." },
+      { kind: "new", tool: "User impact brief", text: "The states do the honest work: a statement backed by an enforced policy is marked live now, report-only reads as staged, Off as at go-live — so the brief never announces something that already happened, or promises today what only arrives at go-live. Service accounts, workload identities and the break-glass set are deliberately not audiences: nobody emails a service principal. Export is a Markdown draft through the report viewer or a text Word document built in the browser, both ending with an appendix naming the policies behind every sentence — the communications team gets a draft, the reviewer gets the evidence." },
+    ],
+  },
+  {
     build: 25168, date: "2026-08-19", title: "A view picker with nothing selected is not a view picker",
     items: [
       { kind: "fixed", tool: "Gap analyse", text: "Gap analyse renders inside the List Policies screen rather than on one of its own, and that screen's Cards / List / Matrix picker stayed up over it. It could only switch AWAY from Gap analyse, never within it, and none of the three was highlighted \u2014 because none of them was where you were. A picker showing no selection reads as one that has lost its place. Worse, its Matrix means the policies-by-settings grid, while the Matrix tab in Gap analyse's own toolbar means users by policies: two buttons carrying one label on a single screen, and the only reason they never appeared side by side is that the second does not render until a run has finished." },

@@ -87,6 +87,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 77,
+      title: "🗣 User impact brief — the rollout email, written by the tenant itself",
+      tools: ["User impact brief"],
+      builds: [25169],
+      risk: "low",
+      what: "New tool (T32, beta-site only): derives the end-user communication from the deployed policies — what people will notice and what will no longer be possible, per audience, with live now / staged / at go-live taken from the policy states and every statement backed by the named policies. Audience filter, Markdown export via the report viewer, text-based Word export built client-side with JSZip. Reads only the policies already in memory; no Graph calls, no writes.",
+      why: "Read-only over data every other tool already holds, so the risk is wrong WORDS rather than wrong writes: a detection rule that mislabels a policy produces a sentence the comms team repeats to the whole company. Graduates when the statements have been checked against a real tenant's policy set by someone who knows what that tenant actually enforces.",
+      test: [
+        "On a tenant with the persona baseline loaded, open the tool from the home tile: it renders without a run button, and the header counts match List Policies (total / enforced / report-only / prepared).",
+        "Every statement carries at least one policy name; click one - the policy card opens, and its configuration visibly supports the sentence (e.g. the legacy-auth statement points at a Block with ActiveSync/Other client apps).",
+        "On a tenant where some policies are enforced: those statements carry the live-now chip and sit under Already live today in the Markdown; everything backed only by Off policies reads at go-live. No statement backed solely by Off policies may claim to be live.",
+        "Audience filter: pick Guests - only guest statements remain; service accounts, workload identities and E-Admin lockdowns appear NOWHERE regardless of filter.",
+        "Export MD: the report viewer opens, the download is a .md whose appendix names the same policies as the cards on screen.",
+        "Export Word: the .docx opens in Word without a repair prompt, headings and bullets intact, and its content matches the Markdown.",
+        "On a tenant with NO user-facing policies (or before sign-in data is loaded): the tool says no user-facing policies detected rather than rendering an empty page or throwing.",
+      ],
+      files: ["index.html", "js/app.js", "js/userimpact.js", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 76,
       title: "\ud83d\udd0d Gap analyse gets a way out that says what it does",
       tools: ["Gap analyse", "List Policies"],

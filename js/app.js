@@ -75,7 +75,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -1732,6 +1732,7 @@
     ["toolRmau", "🛡 Restricted AUs"],
     ["toolDrift", "📉 Drift watch"],
     ["toolGuide", "📖 Baseline guide"],
+    ["toolUserImpact", "🗣 User impact"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
@@ -8694,6 +8695,59 @@ max@contoso.com,"Global, DevOps"</pre>
     showReport("📖 Baseline usage guide", "CA-BaselineReadiness", Guide.toMd(ugRes, { tenantName }));
   });
 
+  // ---------- 🗣 User impact brief (T32) ----------
+  // Analysis in js/userimpact.js as pure functions over the policies already
+  // in memory — nothing is read from Graph here, so the tool renders on open
+  // and re-renders when the audience filter changes.
+  let uiRes = null, uiAud = "all";
+  function renderUserImpact() {
+    uiRes = UserImpact.analyze(policies);
+    $("uiHead").innerHTML = `<h3 style="margin:0 0 6px">🗣 User impact brief</h3>
+      <p class="mini" style="margin:0">What people will notice — and what will deliberately no longer be possible — derived from the ${uiRes.total} policies in this tenant (${uiRes.counts.on} enforced, ${uiRes.counts.report} report-only, ${uiRes.counts.off} prepared). Statements from enforced policies are marked <b>live now</b>; the rest describe go-live. Export the draft for the communications team as Markdown or Word.</p>`;
+    const auds = ["all", ...uiRes.audiences];
+    const chips = auds.map((a) => `<button class="btn${uiAud === a ? " primary" : ""}" data-uiaud="${esc(a)}" style="padding:4px 10px">${a === "all" ? "All audiences" : esc(a)}</button>`).join(" ");
+    const rows = uiRes.items.filter((i) => uiAud === "all" || i.aud === uiAud);
+    const chip = (i) => i.liveNow ? `<span class="tag grant">live now</span>` : (i.states.report ? `<span class="tag upd">staged</span>` : `<span class="tag new">at go-live</span>`);
+    const lost = rows.filter((i) => i.lost);
+    $("uiBody").innerHTML = `
+      <div class="list-card" style="padding:12px 16px"><div style="display:flex;gap:6px;flex-wrap:wrap">${chips}</div></div>
+      ${rows.length ? "" : `<div class="list-card"><p class="mini">No user-facing policies detected for this audience.</p></div>`}
+      ${rows.map((i) => `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+        <h4 style="margin:0 0 6px">${i.icon} ${esc(i.title)} <span class="tag ok">${esc(i.aud)}</span> ${chip(i)}</h4>
+        <p class="mini" style="margin:0">${esc(i.text)}</p>
+        ${i.lost ? `<p class="mini" style="margin:6px 0 0"><b>No longer possible:</b> ${esc(i.lost)}</p>` : ""}
+        <p class="mini muted" style="margin:8px 0 0">${i.pols.map((p) => `${p.id ? `<a href="#" class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</a>` : esc(p.name)} <span class="muted">[${UserImpact.STATE_WORD[p.state]}]</span>`).join(" · ")}</p>
+      </div>`).join("")}
+      ${lost.length ? `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+        <h4 style="margin:0 0 6px">⛔ No longer possible — the short list</h4>
+        <ul class="mini" style="margin:0;padding-left:18px">${lost.map((i) => `<li><b>${esc(i.lost)}</b> <span class="muted">(${esc(i.aud)}${i.liveNow ? " — already in effect" : ""})</span></li>`).join("")}</ul>
+      </div>` : ""}`;
+  }
+  function openUserImpact() { crumb("🗣 User impact brief"); show("screen-userimpact"); renderUserImpact(); }
+  $("toolUserImpact").addEventListener("click", openUserImpact);
+  $("uiBody").addEventListener("click", (e) => {
+    const a = e.target.closest("[data-uiaud]");
+    if (a) { e.preventDefault(); uiAud = a.dataset.uiaud; renderUserImpact(); return; }
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { e.preventDefault(); showDetail(pl.dataset.polid); }
+  });
+  $("uiMd").addEventListener("click", () => {
+    if (!uiRes) renderUserImpact();
+    showReport("🗣 User impact brief", "CA-UserImpactBrief", UserImpact.toMd(uiRes, { tenantName }));
+  });
+  $("uiDocx").addEventListener("click", async () => {
+    if (!uiRes) renderUserImpact();
+    try {
+      const zip = UserImpact.toDocx(uiRes, { tenantName });
+      const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `CA-UserImpactBrief-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.docx`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    } catch (e) { toast(`Word export failed: ${e.message || e}`); }
+  });
+
   // ---------- Compliant-device reality check (roadmap R11) ----------
   // The analysis lives in js/devcheck.js as pure functions; this wiring
   // reads the Intune side on demand (two on-demand scopes), pairs it with
@@ -14105,6 +14159,7 @@ max@contoso.com,"Global, DevOps"</pre>
     siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
     drHead: "toolDrift", ugHead: "toolGuide", dvHead: "toolDevCheck", lgHead: "toolLicGap",
+    uiHead: "toolUserImpact",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
