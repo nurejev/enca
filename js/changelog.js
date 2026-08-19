@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25165, date: "2026-08-19", title: "An exact tile next to a prefix-only list reads as a contradiction",
+    items: [
+      { kind: "improved", tool: "Licence gap", text: "Queue item 74 — on a 32k-member tenant the P2 tile said 20,622 short while the named list found 11,367, and both were right: the tile is count arithmetic (exact), the list covers only the users actually read, and the read capped at ~20k. Three fixes. The per-pass cap rose to ~50k users. The partial chip now says first N of M users read instead of just capped, so the prefix is a number rather than a vibe. And a Read-the-remaining-users button finishes the job: it continues the read from its saved nextLink — never starting over — judges the new users by exactly the same rules (one shared mapper serves the first pass and the continuation), re-analyzes in place, and stays bounded per click on tenants larger still. Admin-group exclusions and a mailbox check already done both survive the re-analysis." },
+    ],
+  },
+  {
     build: 25164, date: "2026-08-19", title: "Two buttons doing the same thing is one too many",
     items: [
       { kind: "improved", tool: "Licence gap", text: "Queue item 73 — the toolbar carried a second Count the gap next to the big one in the run prompt, and before the first run they did exactly the same thing. The toolbar button is now Rescan and exists only once there is a result to redo — the same shape Change audit uses — so the empty screen has one obvious way in, and a finished screen has one obvious way to re-read the tenant." },

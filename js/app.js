@@ -8900,7 +8900,8 @@ max@contoso.com,"Global, DevOps"</pre>
   const lgProg = makeProgress("lg");
   const LG_GROUP_CAP = 100;    // groups expanded per run
   const LG_MEMBER_PAGES = 10;  // ~10k members per group
-  const LG_USER_PAGES = 20;   // ~20k member users read so the gap can be NAMED
+  const LG_USER_PAGES = 50;   // ~50k member users per pass so the gap can be NAMED;
+                               // over that, the read-the-remaining button continues the pass
 
   const LG_DEMO = {
     totalMembers: 8, disabledMembers: 2,
@@ -8927,6 +8928,33 @@ max@contoso.com,"Global, DevOps"</pre>
     purposes: { "u-admin": "user", "u-break1": "no-mailbox", "u-break2": "no-mailbox", "u-svc": "no-mailbox",
       "u-emp1": "user", "u-emp2": "user", "u-old": "mailbox-no-access", "u-shared": "shared" },
   };
+
+  // One user object from one Graph user — shared by the initial read and
+  // the continuation, so a user read late is judged by exactly the same
+  // rules as one read early.
+  function lgMapUser(m, live) {
+    let p1 = false, p2 = false, planP1 = false, planP2 = false;
+    if (live) {
+      for (const l of m.assignedLicenses || []) {
+        const dis = l.disabledPlans || [];
+        const p1ok = live.p1.has(l.skuId) && !dis.includes(LicGap.P1_PLAN);
+        const p2ok = live.p2.has(l.skuId) && !dis.includes(LicGap.P2_PLAN);
+        if (p2ok) p2 = true;
+        if (p1ok || p2ok) p1 = true;
+      }
+    }
+    for (const ap of m.assignedPlans || []) {
+      if (ap.capabilityStatus !== "Enabled" && ap.capabilityStatus !== "Warning") continue;
+      if (ap.servicePlanId === LicGap.P1_PLAN) planP1 = true;
+      else if (ap.servicePlanId === LicGap.P2_PLAN) planP2 = true;
+    }
+    if (!live) { p1 = planP1 || planP2; p2 = planP2; }   // no SKU read — plans are the only signal left
+    return { id: m.id, name: m.displayName, upn: m.userPrincipalName, enabled: m.accountEnabled !== false,
+      p1: p1 || p2, p2,
+      p1grace: !!(live && !p1 && !p2 && (planP1 || planP2)),
+      p2grace: !!(live && !p2 && planP2),
+      lic0: !(m.assignedLicenses || []).length };
+  }
 
   // The @odata.count idiom: $count=true pairs with the ConsistencyLevel
   // header gget always sends; $top=1 keeps the page itself near-empty.
@@ -8993,26 +9021,16 @@ max@contoso.com,"Global, DevOps"</pre>
           let next = `/users?$filter=${encodeURIComponent("userType eq 'Member'")}&$select=id,displayName,userPrincipalName,accountEnabled,assignedLicenses,assignedPlans&$top=999`, pages = 0;
           while (next && pages < LG_USER_PAGES) {
             const j = await Graph.gget(next);
-            for (const m of j.value || []) {
-              // The verdict comes from LicGap.licenceOf — the one definition
-              // of "licensed", shared with 🔍 Gap analyse's coverage flow, so
-              // the two tools cannot answer differently about the same user.
-              const v = LicGap.licenceOf(m, live);
-              us.push({ id: m.id, name: m.displayName, upn: m.userPrincipalName, enabled: m.accountEnabled !== false,
-                p1: v.p1, p2: v.p2, p1grace: v.p1grace, p2grace: v.p2grace,
-                // No licences AT ALL: usually a service account or a sync
-                // artifact that never consumes Microsoft services (the
-                // office365itpros target-set argument) — labelled, so the
-                // to-license count is not inflated by accounts nobody
-                // would ever buy for.
-                lic0: v.lic0 });
-            }
+            for (const m of j.value || []) us.push(lgMapUser(m, live));
             next = j["@odata.nextLink"] || null;
             pages++;
             lgProg.tick(count += (j.value || []).length, step);
           }
           ctx.users = us;
           ctx.usersCapped = !!next;
+          // The nextLink survives, so the read can be finished later
+          // without starting over.
+          ctx.usersNext = next || null;
         } catch { ctx.users = null; }
         lgProg.tick(count, ++step);
         // Names next, so the progress line can narrate groups by name.
@@ -9152,6 +9170,7 @@ max@contoso.com,"Global, DevOps"</pre>
         : r.p1.gap != null
         ? `<p class="mini" style="color:var(--on);margin:10px 0 0"><b>No P1 gap</b> — the seats cover everyone your policies target.</p>` : ""}
       ${r.p2.gap != null && r.p2.gap > 0 ? `<p class="mini" style="color:var(--off);margin:4px 0 0"><b>P2 gap: ${r.p2.gap.toLocaleString()} users</b> targeted by risk-based policies without a P2 licence.</p>` : ""}
+      ${r.totals.usersCapped && lgCtx && lgCtx.usersNext ? `<p class="mini" style="margin:10px 0 0"><span class="tag new">partial</span> The named lists cover the first ${(r.totals.usersRead || 0).toLocaleString()} of ${(r.totals.members || 0).toLocaleString()} member users — the gap tiles are exact, the lists are not yet. <button class="btn sm" data-lgmore${lgMoreBusy ? " disabled" : ""}>${lgMoreBusy ? "⏬ Reading…" : `⏬ Read the remaining ~${Math.max(0, (r.totals.members || 0) - (r.totals.usersRead || 0)).toLocaleString()} users`}</button></p>` : ""}
     </div>`;
 
     // The named gap. Two numbers on purpose: the tile's gap is targeted
@@ -9175,7 +9194,7 @@ max@contoso.com,"Global, DevOps"</pre>
       if (!o.gapUsers.length) return `<p class="mini" style="color:var(--on);margin:0">Nobody — every targeted user has ${label} assigned.</p>`;
       const unassigned = o.seats != null && o.assigned != null ? Math.max(0, o.seats - o.assigned) : null;
       const c = lgClassify(o.gapUsers);
-      return `<p class="mini" style="margin:0 0 8px"><b style="color:var(--off)">${o.gapUsers.length.toLocaleString()}</b> targeted user${o.gapUsers.length === 1 ? "" : "s"} with <b>no ${label} licence assigned</b>${r.totals.usersCapped ? ' <span class="tag new">partial — user read capped</span>' : ""}${unassigned ? ` · ${unassigned.toLocaleString()} owned seat${unassigned === 1 ? "" : "s"} still unassigned — assigning covers ${Math.min(unassigned, o.gapUsers.length)} before anything needs buying` : ""}</p>
+      return `<p class="mini" style="margin:0 0 8px"><b style="color:var(--off)">${o.gapUsers.length.toLocaleString()}</b> targeted user${o.gapUsers.length === 1 ? "" : "s"} with <b>no ${label} licence assigned</b>${r.totals.usersCapped ? ` <span class="tag new" title="The user read stopped at the cap — the named lists and per-user verdicts cover the first ${(r.totals.usersRead || 0).toLocaleString()} member users only. The tile's gap stays exact (it is count arithmetic); finish the read below to name the rest.">partial — first ${(r.totals.usersRead || 0).toLocaleString()} of ${(r.totals.members || 0).toLocaleString()} users read</span>` : ""}${unassigned ? ` · ${unassigned.toLocaleString()} owned seat${unassigned === 1 ? "" : "s"} still unassigned — assigning covers ${Math.min(unassigned, o.gapUsers.length)} before anything needs buying` : ""}</p>
       <p class="mini" style="margin:0 0 10px">
         ${Object.entries(LG_CATS).filter(([k]) => lgPurpose || (k !== "resource" && k !== "likely")).map(([k, d]) =>
           `<span data-lgusers="${key}" data-lgcat="${k}" style="cursor:pointer;margin-right:10px;white-space:nowrap" title="${d.hint} — click to see exactly these users."><span class="pill ${c[k] ? d.pill : "zero"}">${c[k]}</span> <span class="mini muted" style="text-decoration:underline dotted">${d.label}</span></span>`).join("")}
@@ -9238,6 +9257,41 @@ max@contoso.com,"Global, DevOps"</pre>
 
     const caveats = `<p class="mini muted" style="margin:12px 0 0">${r.caveats.map(esc).join(" · ")}</p>`;
     $("lgBody").innerHTML = tiles + bars + who + lic + table + why + fix + caveats;
+  }
+
+  // ---- finish the user read on a big tenant ----
+  // A capped read is honest but incomplete: the tile's gap (targeted −
+  // seats) is exact while the NAMED lists cover only the prefix that was
+  // read — on a 32k tenant that reads as two numbers disagreeing. The
+  // continuation picks the read up at its saved nextLink, judges the new
+  // users by the same lgMapUser rules, and re-analyzes in place. Runs of
+  // LG_USER_PAGES at a time, so one click is bounded too.
+  let lgMoreBusy = false;
+  async function lgReadMore() {
+    if (!lgCtx || !lgCtx.usersNext || lgBusy || lgMoreBusy) return;
+    lgMoreBusy = true;
+    const btn = document.querySelector("[data-lgmore]");
+    if (btn) { btn.disabled = true; btn.textContent = "⏬ Reading…"; }
+    try {
+      const live = LicGap.liveSkuSets(lgCtx.skus);
+      let next = lgCtx.usersNext, pages = 0;
+      while (next && pages < LG_USER_PAGES) {
+        const j = await Graph.gget(next);
+        for (const m of j.value || []) lgCtx.users.push(lgMapUser(m, live));
+        next = j["@odata.nextLink"] || null;
+        pages++;
+        const b = document.querySelector("[data-lgmore]");
+        if (b) b.textContent = `⏬ Reading… ${lgCtx.users.length.toLocaleString()} users`;
+      }
+      lgCtx.usersNext = next || null;
+      lgCtx.usersCapped = !!next;
+      lgRes = LicGap.analyze(lgCtx);
+    } catch (e) {
+      toast(`Reading more users failed: ${esc(e.message || e)}`);
+    }
+    lgMoreBusy = false;
+    renderLicGap();
+    if ($("lgUsersModal").classList.contains("open")) lgRenderUsers();
   }
 
   // ---- the admin-accounts group picker ----
@@ -9444,6 +9498,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const vu = e.target.closest("[data-lgusers]");
     if (vu) { lgShowUsers(vu.dataset.lgusers, vu.dataset.lgcat); return; }
     if (e.target.closest("[data-lgcheck]")) { lgCheckPurpose(); return; }
+    if (e.target.closest("[data-lgmore]")) { lgReadMore(); return; }
     const pl = e.target.closest(".pol-link");
     if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
   });

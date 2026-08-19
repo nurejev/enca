@@ -87,6 +87,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 74,
+      title: "🎫 Licence gap: finish the user read on big tenants",
+      tools: ["Licence gap"],
+      builds: [25165],
+      risk: "medium",
+      what: "On a 32k-member tenant the exact gap tile sat next to a named list covering only the ~20k users the capped read reached - two numbers that read as a contradiction. The per-pass cap rose to ~50k, the partial chip states first N of M users read, and a Read-the-remaining-users button continues the read from its saved nextLink, judges new users via the same shared mapper as the first pass, and re-analyzes in place (admin exclusions and a done mailbox check survive). Bounded per click.",
+      why: "The one risk worth eyes: the continuation must never double-count (it resumes the nextLink, never restarts) and must never present a still-partial list as complete. Large-tenant behaviour cannot be exercised in demo mode.",
+      test: [
+        "Demo mode: no partial chip, no read-the-remaining button anywhere - the demo user list is complete.",
+        "REAL big tenant (>50k members, or temporarily lower LG_USER_PAGES to 2 to force it): after a run, the bars card shows the partial line with first N of M and the button naming ~(M-N).",
+        "Click it: the button reads counts live, then the gap lists GROW while the gap tiles stay the same numbers as before the click - the tiles were exact all along; only the naming completes.",
+        "THE ONE THAT MATTERS: sum check after finishing the read - the named P1 list length plus the licensed-targeted count should now be within not-classifiable of the targeted tile; before the fix the list was missing exactly the unread users.",
+        "Set a mailbox check and an admin-group exclusion BEFORE clicking read-the-remaining: both must survive the re-analysis (chips keep their counts, newly read users show not checked in the Mailbox column rather than inheriting a verdict).",
+        "Click the button twice quickly: one continuation runs, not two (busy guard).",
+        "On a tenant that fits in one pass: no button, no partial chip, everything as before.",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 73,
       title: "🎫 Licence gap: one run button",
       tools: ["Licence gap"],
