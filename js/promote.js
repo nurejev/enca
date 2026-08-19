@@ -63,6 +63,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 68,
+      title: "\ud83d\udd22 Permanent T-numbers for the tools (R33)",
+      tools: ["All tools"],
+      builds: [25154],
+      risk: "low",
+      what: "Each TOOL_VERSIONS entry carries `t`, a permanent number assigned in the order the tool entered ENCA (T01\u2013T31, reconstructed from the first commit that added each tile). Rendered in the tile corner and the tool header next to the per-tool version, and searchable in the command palette \u2014 T07, or a bare 7, with an exact number match outranking everything. Help, What's new and Roadmap deliberately carry none. The numbering rule lives in version.js beside the numbers. CSS: .tool h3 gains right padding so the wider badge cannot sit on a heading.",
+      why: "A label. It reads nothing, writes nothing and changes no behaviour \u2014 the only visible risk is layout, and the heading padding is there for exactly that. Worth eyeballing one long tile title with an UPDATED chip before promotion, and worth promoting EARLY rather than late: the value of the number is that it is stable, so the sooner both channels agree on it the fewer notes exist that predate it.",
+      files: ["js/version.js", "js/app.js", "css/app.css", "index.html"],
+    },
+    {
       n: 67,
       title: "\ud83c\udff7 A tenant's own groups can go in the persona vaults (R28)",
       tools: ["Restricted AUs", "Protect exclusions", "Import", "Conditional Access groups", "Create documentation"],

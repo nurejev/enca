@@ -1078,7 +1078,12 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .tool{position:relative}
 .tool-ver{position:absolute;top:14px;right:16px;font-size:10.5px;letter-spacing:.04em;
   font-family:ui-monospace,Consolas,monospace;color:var(--muted);background:var(--soft);
-  border:1px solid var(--border);border-radius:999px;padding:2px 8px;cursor:help}
+  border:1px solid var(--border);border-radius:999px;padding:2px 8px;cursor:help;white-space:nowrap}
+/* The badge is absolutely positioned, so it does not push the heading — it sits
+   ON it. Carrying the T-number as well as the version made it wide enough for
+   that to matter, so the heading is kept clear of it and its NEW / UPDATED
+   chips wrap instead of sliding underneath. */
+.tool h3{padding-right:104px}
 .tool:hover .tool-ver{border-color:var(--accent2);color:var(--green)}
 /* the same stamp, on the tool's own header card */
 .tool-ver-head{margin-left:9px;font-size:10.5px;letter-spacing:.04em;font-weight:400;vertical-align:middle;

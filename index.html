@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25153"></script>
+<script src="js/popup-guard.js?v=25154"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25153">
+<link rel="stylesheet" href="css/app.css?v=25154">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25153"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25153"></script>
+<script src="js/counter.js?v=25154"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25154"></script>
 </head>
 <body>
 
@@ -1231,6 +1231,13 @@
             <p class="mini" style="margin:6px 0 0"><b>The two things it must not do, built in rather than promised.</b> It does not <b>guess</b>: matching is the group's object id or its display name compared case-insensitively, and nothing is inferred from a prefix or a word — a mapping nobody stated is how a group ends up in the wrong vault silently, and a vault is an authorisation boundary, so the cost of a wrong guess is one persona's scoped administrator holding another's exclusions. And it does not <b>hide the unmapped</b>: 🔎 Find the unmapped groups lists every group the policies reference that nothing places, with a persona one click away, and ⑥ Protect says <i>unmapped</i> on the row rather than skipping it in silence.</p>
             <p class="mini" style="margin:6px 0 0"><b>Kept with the tenant, not in the code</b> — the browser's own storage under the tenant id, so it survives a release and never becomes our list of everybody's group names. Nothing is written to the directory and nothing leaves the machine, which also means it does not follow you to another browser: <b>⭳ Export / ⭱ Import</b> is the way round that, and it is why filing a group from the unmapped list records the <b>object id</b> as well as the name — an id survives a rename in Entra, a typed name does not.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25154">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R33</span> 🔢 Tool reference numbers, in order of introduction <span class="tag grant">live · beta 25154</span></h4>
+            <p class="mini" style="margin:0">The roadmap items carry <span class="rm-ref">Rnn</span> references so one can be pointed at without quoting its title; the tools went by name and emoji, which drift — tools get renamed, retitled and, once 🇳🇱 <span class="rm-ref">R26</span> lands, translated, at which point every English note about a tool stops being findable. Each tool now carries a permanent <b>T-number</b>, shown in the tile corner and in the tool's own header beside the per-tool version, and searchable in the ⌨️ command palette: type <code>T07</code>, or just <code>7</code>, and you land on 📘 MS Learn checks.</p>
+            <p class="mini" style="margin:6px 0 0"><b>T01–T31 were reconstructed from git</b>, not assigned by preference: the first commit that put each tile in <code>index.html</code>, ordered by commit time, with tools that arrived together ordered as they were written into the page. That makes the order a fact about the repository — checkable rather than arguable — and it puts 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup at T01–T04, which is the day this app existed at all.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Never reused</b> — not when a tool is retired, not when it is folded into another, because a recycled number makes every older note about it wrong, which is the exact failure the number exists to prevent. A new tool takes the next free number (32 next) in the same commit that adds its tile, alongside the changelog entry and the promotion-queue row.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Three things are deliberately not numbered:</b> ❓ Help, 📋 What's new and 🗺 Roadmap. They are the app describing itself rather than tools that read a tenant, report on it or write to it — which is also why they carry no version. They go by name, and that is written down so nobody later "fixes" the gap by numbering them and shifting everything.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -1316,11 +1323,6 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R32</span> 🧩 Every tool runs on its own <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Today most tools quietly lean on the rest of the app having run first: the policy list a tool judges against was loaded by sign-in, the group names it prints were resolved by another tool's pass, the shared wiring holds state a tool assumes is there. It mostly works because the app loads everything up front — which means the dependency is invisible until the day it is not (a deep link straight into a tool, a tool opened before a slow read finished, a tool lifted out of this app entirely).</p>
             <p class="mini" style="margin:6px 0 0">The rule this item works toward: <b>every tool must be able to run with nothing but a signed-in session</b>. Whatever its core result needs, it reads itself — or states plainly that it is waiting, instead of rendering from state that happens to be lying around. Connections to other ENCA tools — shared results, deep links and one-click hand-offs — are welcome conveniences, never prerequisites. Each connection is capability-checked and <b>fails soft</b>: if the other tool is absent, unfinished, denied or broken, the core tool still performs its own read and produces its result; only the shortcut or enrichment may be unavailable. Independence is also the precondition for <span class="rm-ref">R34</span> — a tool that cannot run alone cannot move alone.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R33</span> 🔢 Tool reference numbers, in order of introduction <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">The roadmap items carry <span class="rm-ref">Rnn</span> references so one can be pointed at without quoting its title; the tools themselves still go by name and emoji, which drift (tools get renamed, retitled, translated — 🇳🇱 <span class="rm-ref">R26</span> will rename every one of them). The plan is the same discipline for the tools: a permanent <b>T-number</b> per tool, assigned in the order each tool entered ENCA, never reused — not even when a tool is retired or folded into another, because a recycled number makes every older note about it wrong.</p>
-            <p class="mini" style="margin:6px 0 0">Shown in the tool header next to the per-tool version that is already there, findable in the command palette, and used in the changelog, the Help page and the promotion queue — so "T07 misbehaves on this tenant" means one thing across both channels, every build, and any future language.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R34</span> 📦 Every tool easy to port to other applications <span class="tag">planned</span></h4>
@@ -1521,10 +1523,23 @@
       <p>Press <b>Ctrl + K</b> (<b>⌘ + K</b> on a Mac) anywhere in the app. Type a few letters, press <b>Enter</b>.</p>
       <ul>
         <li><b>Tools</b> — always searchable, signed in or not. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bpbc</code> finds Best-practice &amp; bypass checks.</li>
+        <li><b>Tool numbers</b> — every tool carries a permanent <b>T-number</b> (shown in the tile corner and in the tool's own header, next to its version). Type <code>T07</code>, or just <code>7</code>, and you land on 📘 MS Learn checks; an exact number match outranks everything else, because a query that <i>is</i> a tool number is not an accident.</li>
         <li><b>Policies</b> — once a tenant is loaded, type a CA number (<code>203</code>) or any part of the policy name to open its card directly, without going through List Policies first.</li>
         <li><b>Keys</b> — <b>↑ ↓</b> move, <b>Enter</b> opens, <b>Esc</b> closes, <b>Ctrl/⌘ + K</b> again closes. Clicking outside closes it too.</li>
       </ul>
       <p class="help-x">Navigation only — it opens things, it never changes anything.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🔢 Tool numbers</h4>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T31</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <ul>
+        <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
+        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number.</li>
+        <li><b>The version beside it is the opposite kind of thing</b> — the number never changes, the version always does. They sit together so they are read together: “T21 v0.5” says which tool and how far along it is.</li>
+        <li><b>❓ Help, 📋 What's new and 🗺 Roadmap carry none</b>, deliberately. They are the app describing itself rather than tools that read your tenant, report on it or write to it — which is also why they carry no version. They go by name.</li>
+      </ul>
+      <p class="help-x">A label, nothing more — it reads nothing and changes nothing.</p>
     </section>
 
     <section class="help-sec">
@@ -2471,51 +2486,51 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25153"></script>
-<script src="js/version.js?v=25153"></script>
-<script src="js/promote.js?v=25153"></script>
-<script src="js/authConfig.js?v=25153"></script>
-<script src="js/labels.js?v=25153"></script>
-<script src="js/graph.js?v=25153"></script>
-<script src="js/model.js?v=25153"></script>
-<script src="js/render.js?v=25153"></script>
-<script src="js/analyze.js?v=25153"></script>
-<script src="js/whatif.js?v=25153"></script>
-<script src="js/mslearn.js?v=25153"></script>
-<script src="js/gapcheck.js?v=25153"></script>
-<script src="js/cisdata.js?v=25153"></script>
-<script src="js/cischeck.js?v=25153"></script>
-<script src="js/exclusions.js?v=25153"></script>
-<script src="js/validator.js?v=25153"></script>
-<script src="js/whatifeval.js?v=25153"></script>
-<script src="js/compare.js?v=25153"></script>
-<script src="js/groupuse.js?v=25153"></script>
-<script src="js/iso3166.js?v=25153"></script>
-<script src="js/locations.js?v=25153"></script>
-<script src="js/authcontexts.js?v=25153"></script>
-<script src="js/authstrengths.js?v=25153"></script>
-<script src="js/recycle.js?v=25153"></script>
-<script src="js/rmau.js?v=25153"></script>
-<script src="js/camap.js?v=25153"></script>
-<script src="js/rmaudoc.js?v=25153"></script>
-<script src="js/termsofuse.js?v=25153"></script>
-<script src="js/audit.js?v=25153"></script>
-<script src="js/drift.js?v=25153"></script>
-<script src="js/guide.js?v=25153"></script>
-<script src="js/devcheck.js?v=25153"></script>
-<script src="js/licgap.js?v=25153"></script>
-<script src="js/signins.js?v=25153"></script>
-<script src="js/reportimpact.js?v=25153"></script>
-<script src="js/changelog.js?v=25153"></script>
-<script src="js/baselineData.js?v=25153"></script>
-<script src="js/baselineJoeyData.js?v=25153"></script>
-<script src="js/baseline.js?v=25153"></script>
-<script src="js/groupTemplates.js?v=25153"></script>
-<script src="js/assign.js?v=25153"></script>
-<script src="js/cagroups.js?v=25153"></script>
-<script src="js/import.js?v=25153"></script>
-<script src="js/export.js?v=25153"></script>
-<script src="js/demo.js?v=25153"></script>
-<script src="js/app.js?v=25153"></script>
+<script src="js/branding.js?v=25154"></script>
+<script src="js/version.js?v=25154"></script>
+<script src="js/promote.js?v=25154"></script>
+<script src="js/authConfig.js?v=25154"></script>
+<script src="js/labels.js?v=25154"></script>
+<script src="js/graph.js?v=25154"></script>
+<script src="js/model.js?v=25154"></script>
+<script src="js/render.js?v=25154"></script>
+<script src="js/analyze.js?v=25154"></script>
+<script src="js/whatif.js?v=25154"></script>
+<script src="js/mslearn.js?v=25154"></script>
+<script src="js/gapcheck.js?v=25154"></script>
+<script src="js/cisdata.js?v=25154"></script>
+<script src="js/cischeck.js?v=25154"></script>
+<script src="js/exclusions.js?v=25154"></script>
+<script src="js/validator.js?v=25154"></script>
+<script src="js/whatifeval.js?v=25154"></script>
+<script src="js/compare.js?v=25154"></script>
+<script src="js/groupuse.js?v=25154"></script>
+<script src="js/iso3166.js?v=25154"></script>
+<script src="js/locations.js?v=25154"></script>
+<script src="js/authcontexts.js?v=25154"></script>
+<script src="js/authstrengths.js?v=25154"></script>
+<script src="js/recycle.js?v=25154"></script>
+<script src="js/rmau.js?v=25154"></script>
+<script src="js/camap.js?v=25154"></script>
+<script src="js/rmaudoc.js?v=25154"></script>
+<script src="js/termsofuse.js?v=25154"></script>
+<script src="js/audit.js?v=25154"></script>
+<script src="js/drift.js?v=25154"></script>
+<script src="js/guide.js?v=25154"></script>
+<script src="js/devcheck.js?v=25154"></script>
+<script src="js/licgap.js?v=25154"></script>
+<script src="js/signins.js?v=25154"></script>
+<script src="js/reportimpact.js?v=25154"></script>
+<script src="js/changelog.js?v=25154"></script>
+<script src="js/baselineData.js?v=25154"></script>
+<script src="js/baselineJoeyData.js?v=25154"></script>
+<script src="js/baseline.js?v=25154"></script>
+<script src="js/groupTemplates.js?v=25154"></script>
+<script src="js/assign.js?v=25154"></script>
+<script src="js/cagroups.js?v=25154"></script>
+<script src="js/import.js?v=25154"></script>
+<script src="js/export.js?v=25154"></script>
+<script src="js/demo.js?v=25154"></script>
+<script src="js/app.js?v=25154"></script>
 </body>
 </html>

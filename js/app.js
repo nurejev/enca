@@ -131,6 +131,11 @@
     navSuppress = true;
     try { show(target); } finally { navSuppress = false; }
   });
+  // R33 — a tool's permanent number, formatted. Two digits so T07 and T31 line
+  // up in a list and read as the same kind of thing; empty for the three app
+  // pages that deliberately carry none.
+  const toolNo = (t) => (t && t.t) ? `T${String(t.t).padStart(2, "0")}` : "";
+  const toolNoOf = (id) => toolNo((typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[id]) || null);
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   // Deleting the 30th row in a list re-renders the panel, and the page jumps to
   // the top — so working through a list means scrolling back down after every
@@ -202,15 +207,17 @@
       foot.title = "See what's new";
       foot.addEventListener("click", () => { if (policies.length) openChangelog(); });
     }
-    // per-tool version in the corner of each tile
+    // per-tool version in the corner of each tile, with the tool's permanent
+    // number (R33) beside it — the number never changes, the version always
+    // does, so they belong next to each other and are read together.
     if (typeof TOOL_VERSIONS !== "undefined") {
       for (const [id, t] of Object.entries(TOOL_VERSIONS)) {
         const tile = $(id);
         if (!tile || tile.querySelector(".tool-ver")) continue;
         const tag = document.createElement("span");
         tag.className = "tool-ver";
-        tag.textContent = `v${t.v}`;
-        tag.title = t.note ? `${t.note}\n\nApp build ${APP_BUILD.label}` : `App build ${APP_BUILD.label}`;
+        tag.textContent = `${toolNo(t)}${toolNo(t) ? " · " : ""}v${t.v}`;
+        tag.title = `${toolNo(t) ? `${toolNo(t)} — this tool's permanent number, assigned in the order it entered ${BRANDING.name} and never reused. Quote it and it means one thing in every build and any language.\n\n` : ""}${t.note ? `${t.note}\n\n` : ""}App build ${APP_BUILD.label}`;
         tile.appendChild(tag);
       }
     }
@@ -8075,8 +8082,15 @@ max@contoso.com,"Global, DevOps"</pre>
     for (const [id, label] of TOOL_TABS) {
       const el = $(id);
       if (!el) continue;                                  // tool not on this build
-      const sc = cpScore(label, q);
-      if (sc) out.push({ kind: "tool", id, label, hint: "Tool", score: sc });
+      // R33 — "T07" finds the tool, and so does "7": somebody quoting a number
+      // out of a note or a support case should not have to remember the prefix.
+      // An exact number match outranks everything, because a query that IS a
+      // tool number is not an accident.
+      const no = toolNoOf(id);
+      const qn = q.trim().toLowerCase();
+      const exact = no && (qn === no.toLowerCase() || qn === String(+no.slice(1)) || qn === `t${+no.slice(1)}`);
+      const sc = exact ? 200 : cpScore(label, q);
+      if (sc) out.push({ kind: "tool", id, label, hint: no ? `Tool · ${no}` : "Tool", score: sc });
     }
     // Policies only exist after sign-in; before that the palette is tools only,
     // and the footer says why rather than looking broken.
@@ -13786,8 +13800,8 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!h || h.querySelector(".tool-ver-head")) return;   // also stops the observer looping
     const s = document.createElement("span");
     s.className = "tool-ver-head";
-    s.textContent = "v" + t.v;
-    if (t.note) s.title = t.note;
+    s.textContent = `${toolNo(t)}${toolNo(t) ? " · " : ""}v${t.v}`;
+    s.title = `${toolNo(t) ? `${toolNo(t)} — this tool's permanent number. It never changes and is never reused, so it means one thing across both channels, every build and any future language.\n\n` : ""}${t.note || ""}`.trim();
     h.appendChild(s);
   }
   Object.entries(HEAD_TOOL).forEach(([id, toolId]) => {
