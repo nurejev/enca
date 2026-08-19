@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25157"></script>
+<script src="js/popup-guard.js?v=25158"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25157">
+<link rel="stylesheet" href="css/app.css?v=25158">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25157"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25157"></script>
+<script src="js/counter.js?v=25158"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25158"></script>
 </head>
 <body>
 
@@ -1199,36 +1199,37 @@
             <p class="mini" style="margin:6px 0 0">Pick the administrators once and the units once, and the grid is applied — with each unit × administrator reported as its own outcome, because a partial success has to be readable rather than rounded to “done”. It should also show the <b>current</b> grants across all units together, since the question people actually ask is “who can manage the Externals exclusions?” and answering it today means opening eleven cards.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25149">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R04</span> 🧹 Retire role-assignable groups everywhere <span class="tag grant">live · beta 25149</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R04</span> 🧹 Retire role-assignable groups everywhere <span class="tag grant">live · beta 25149 · production 287</span></h4>
             <p class="mini" style="margin:0">The baseline is moving off role-assignable groups: the flag was only ever used for a side effect — membership reachable by Global Administrator or Privileged Role Administrator only — and a restricted management administrative unit does that better, names <i>who</i> may manage the group, and can be undone. It also cannot be combined with one: a group carrying both has nobody who can change its members.
               <br><b>Done:</b> new groups are ordinary security groups (assigned or dynamic) with an optional restricted-AU placement at creation — <b>in production since build 254</b>, so the role-assignable checkbox and the ↻ Recreate-role-assignable action are gone from both channels; the ① Check drift flag is inverted, so a plain group is correct and a role-assignable one is what gets flagged; <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> moves existing ones across; and the bundled group templates and the baseline catalogs no longer ask for the flag anywhere.
               <br><b>The last gap, closed in beta 25149:</b> 📥 Import no longer walks past the groups it <b>reuses</b>. A created group gets nesting disabled and a place in its persona vault; a reused one got neither, and naming that in beta 25129 only made the exposure visible — it still sent you to <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> and ⑧ Disable nesting to do anything about it. The preflight now offers both, <b>per group and ticked by hand</b>, and applies them after the policies import. Nothing is pre-ticked and membership is never touched: an existing group may hold members and sit somewhere on purpose, so the operator decides, not the importer.</p>
             <p class="mini" style="margin:6px 0 0">Neither write is destructive, which is what makes offering them here defensible rather than reckless: Entra <i>refuses</i> the nesting change when a group already holds nested groups instead of forcing it, and administrative-unit membership can be undone. The one route that <b>is</b> destructive — recreating a group Entra refuses — stays in ⑧ Disable nesting behind its own typed confirmation, and converting a role-assignable group stays in <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a>. One implementation each, as before.</p>
             <p class="mini" style="margin:6px 0 0"><b>What this still does not do, and cannot:</b> the flag only truly leaves a <i>tenant</i> once ⑦ Migrate has been run there. Nothing retires a group this app did not create, and every protection path goes on refusing a role-assignable group until it is converted. That is a fact about the tenant rather than a gap in the tools.</p>
-            <p class="mini muted" style="margin:6px 0 0">Shipped across <b>beta 25128–25129 · production 285</b> — find the role-assignable groups a file would build on, and say what a reused group inherits — and <b>beta 25149</b>, which acts on it.</p>
+            <p class="mini muted" style="margin:6px 0 0">Shipped across <b>beta 25128–25129 · production 285</b> — find the role-assignable groups a file would build on, and say what a reused group inherits — and <b>beta 25149 · production 287</b>, which acts on it.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25151">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R35</span> <a href="#" class="md-tool" data-tool="toolBaseline">🧬 Rename the bundled baseline to CloudFellows</a> <span class="tag grant">live · beta 25151</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R35</span> <a href="#" class="md-tool" data-tool="toolBaseline">🧬 Rename the bundled baseline to CloudFellows</a> <span class="tag grant">live · beta 25151 · production 287</span></h4>
             <p class="mini" style="margin:0">The baseline shipped here was called <b>Limon-IT baseline — R26.6 (v3.x)</b> and is now <b>CloudFellows baseline — R26.6 (v3.x)</b>. The release designation and the catalog itself did not change; this is the name it is published under.</p>
             <p class="mini" style="margin:6px 0 0">A rename is not one string, and all of them moved together: the catalog's own <code>label</code> and <code>author</code> — which is what the 🧬 Baseline Policies header, the on-screen summary line and the Markdown gap report all read, so none of the three could drift from the others — the tile, the home overview, the Help section and the code comments that explain why a rule exists (📘 MS Learn's exclusion-group convention refers to the baseline by name).</p>
             <p class="mini" style="margin:6px 0 0"><b>Two things deliberately untouched.</b> The catalog <code>id</code> is still <code>limonit</code>: saved state and 📉 Drift watch snapshots key on it, so changing it would silently orphan every comparison stored before today — an identifier that appears in no interface has no reason to follow a display name. And the <b>CAB-SEC / CAD-SEC group names</b> are the tenant's own objects, not ours to rename; nothing in the 99-policy catalog, the group templates or the persona routing moved. Display name everywhere, identifiers nowhere.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25152">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R37</span> <a href="#" class="md-tool" data-tool="toolLocations">🌐 Named locations report what is wrong with them</a> <span class="tag grant">live · beta 25152</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R37</span> <a href="#" class="md-tool" data-tool="toolLocations">🌐 Named locations report what is wrong with them</a> <span class="tag grant">live · beta 25152 · production 287</span></h4>
             <p class="mini" style="margin:0">🌐 Named locations already knew all of this. It resolved which policies use each location and how, it counted the ones reachable only through <b>All trusted locations</b>, and it warned while editing that flipping the trusted flag moves every policy consuming it — and none of it became a <b>finding</b>. It was a reporting gap, not a reading gap, which is why it went ahead of anything needing new Graph calls: <b>the four checks cost no extra read</b>, they run over the location list and the policies already in memory.</p>
             <p class="mini" style="margin:6px 0 0"><b>Four checks.</b> A <b>dangling reference</b> — a policy naming a location id this tenant no longer has, the same failure ① Check reports for groups; high while an enforced policy still names it, because an exclusion built on it silently stopped applying while the policy went on reading as configured. An <b>empty country location</b>, which matches nothing, so the block scoped to it blocks nobody — and a location that includes unknown regions is deliberately <i>not</i> flagged, because that one does match something. An <b>overly broad IP range</b>: a <code>/0</code> is the whole internet and a <code>/8</code> is 16.7 million addresses, neither of which is an office, and a <b>trusted</b> location carrying one is raised a level because everything using All trusted locations inherits it without naming it. And the <b>untrusted IP location</b>.</p>
             <p class="mini" style="margin:6px 0 0"><b>The fourth check is the one that had to be careful.</b> The trusted flag only changes behaviour when something actually consumes <i>All trusted locations</i>, so in a tenant where nothing does it says nothing at all. Where a <b>Block policy names the location</b>, or the name says so itself, nothing is raised either — <code>_Blocked IPs</code> is untrusted on purpose and marking it trusted would be the bug. Everywhere else it is raised as <b>low</b> and the finding text names the deliberate block list as a valid reason to leave it exactly as it is. A check that cries wolf about the normal case is worse than no check. The context-aware form follows <a href="https://github.com/Jhope188/ca-policy-analyzer" target="_blank" rel="noopener noreferrer">ca-policy-analyzer</a> v1.16.3, which shipped the naive version first and then had to narrow it for exactly this case.</p>
             <p class="mini" style="margin:6px 0 0"><b>Where they surface, and where they deliberately do not.</b> A panel above the list, a ⚠ badge on each row, the per-location report and both Markdown exports — with findings ahead of the inventory table, because the findings are why the file was opened. They are <b>not</b> in 🔍 Gap analyse: that tool reads policies and this reads objects, and a first non-policy finding there would need its own answer to “what is a finding <i>about</i>”. The open question is still open, now with an implementation to argue from.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25153">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R28</span> <a href="#" class="md-tool" data-tool="toolRmau">🏷 Custom groups in the persona vaults</a> <span class="tag grant">live · beta 25153</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R28</span> <a href="#" class="md-tool" data-tool="toolRmau">🏷 Custom groups in the persona vaults</a> <span class="tag grant">live · beta 25153 · held from production</span></h4>
             <p class="mini" style="margin:0">Everything that routed a group to a vault read the <b>CA number in its name</b>. That worked for the baseline and for nothing else: a tenant's own exclusion group — <code>SEC-VIP-Exceptions</code>, <code>Contractors-NoMFA</code> — matched no persona, so ⑥ Protect skipped it unless a fallback unit was chosen by hand, ＋ Bulk add never offered it, and the break-glass case had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them the naming is wrong is not a feature.</p>
             <p class="mini" style="margin:6px 0 0">Now there is a <b>per-tenant mapping</b>: say once in 🛡 Restricted AUs → <b>🏷 Group personas</b> that <code>Contractors-NoMFA</code> belongs to Externals, and every tool routes it there afterwards. One function decides — <code>CaMap.codeOf</code>, this tenant's mapping first and the CA number second — and ⑥ Protect, ＋ Bulk add, the persona chips, 📥 Import, the 🛡 Markdown report and the restricted-unit pages in 📄 Create documentation all go through it, so none of them can hold a different opinion about where a group belongs.</p>
             <p class="mini" style="margin:6px 0 0"><b>The two things it must not do, built in rather than promised.</b> It does not <b>guess</b>: matching is the group's object id or its display name compared case-insensitively, and nothing is inferred from a prefix or a word — a mapping nobody stated is how a group ends up in the wrong vault silently, and a vault is an authorisation boundary, so the cost of a wrong guess is one persona's scoped administrator holding another's exclusions. And it does not <b>hide the unmapped</b>: 🔎 Find the unmapped groups lists every group the policies reference that nothing places, with a persona one click away, and ⑥ Protect says <i>unmapped</i> on the row rather than skipping it in silence.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Held back from production 287</b>, while the seven items around it went. It is the only one of them that changes where a <b>write</b> puts a group object, and a persona vault is an authorisation boundary — file a group in the wrong one and that persona's scoped administrator can edit another persona's exclusions. An empty mapping leaves every existing routing decision byte-for-byte as it was, so the risk is entirely in what an operator states; it graduates once a real tenant has mapped a group and the placement has been checked in the unit afterwards. Queue item 67.</p>
             <p class="mini" style="margin:6px 0 0"><b>Kept with the tenant, not in the code</b> — the browser's own storage under the tenant id, so it survives a release and never becomes our list of everybody's group names. Nothing is written to the directory and nothing leaves the machine, which also means it does not follow you to another browser: <b>⭳ Export / ⭱ Import</b> is the way round that, and it is why filing a group from the unmapped list records the <b>object id</b> as well as the name — an id survives a rename in Entra, a typed name does not.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25154">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R33</span> 🔢 Tool reference numbers, in order of introduction <span class="tag grant">live · beta 25154</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R33</span> 🔢 Tool reference numbers, in order of introduction <span class="tag grant">live · beta 25154 · production 287</span></h4>
             <p class="mini" style="margin:0">The roadmap items carry <span class="rm-ref">Rnn</span> references so one can be pointed at without quoting its title; the tools went by name and emoji, which drift — tools get renamed, retitled and, once 🇳🇱 <span class="rm-ref">R26</span> lands, translated, at which point every English note about a tool stops being findable. Each tool now carries a permanent <b>T-number</b>, shown in the tile corner and in the tool's own header beside the per-tool version, and searchable in the ⌨️ command palette: type <code>T07</code>, or just <code>7</code>, and you land on 📘 MS Learn checks.</p>
             <p class="mini" style="margin:6px 0 0"><b>T01–T31 were reconstructed from git</b>, not assigned by preference: the first commit that put each tile in <code>index.html</code>, ordered by commit time, with tools that arrived together ordered as they were written into the page. That makes the order a fact about the repository — checkable rather than arguable — and it puts 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup at T01–T04, which is the day this app existed at all.</p>
             <p class="mini" style="margin:6px 0 0"><b>Never reused</b> — not when a tool is retired, not when it is folded into another, because a recycled number makes every older note about it wrong, which is the exact failure the number exists to prevent. A new tool takes the next free number (32 next) in the same commit that adds its tile, alongside the changelog entry and the promotion-queue row.</p>
@@ -1599,7 +1600,7 @@
 
     <section class="help-sec">
       <h4>🧬 Baseline Policies — CloudFellows R26.6</h4>
-      <p>Matches this tenant against the CloudFellows baseline catalog and shows the gap. It was published as the <i>Limon-IT baseline</i> until beta 25151; the release designation, the catalog and the CAB-SEC / CAD-SEC group names are unchanged — only the name it goes by.</p>
+      <p>Matches this tenant against the CloudFellows baseline catalog and shows the gap. It was published as the <i>Limon-IT baseline</i> until beta 25151 (production 287); the release designation, the catalog and the CAB-SEC / CAD-SEC group names are unchanged — only the name it goes by.</p>
       <ul>
         <li><b>Status filters</b> — <b>Missing</b> (not in tenant), <b>Outdated</b> (older version present), <b>Up to date</b>, <b>Not in baseline</b> (in tenant but not the catalog).</li>
         <li><b>One table, both catalogs</b> — a baseline comparison is a row per policy with a status, so that is what it renders, whichever catalog you pick. The Cards view was removed in beta 25157: the same screen answered the same question two different ways depending on which catalog you had clicked, which made the two baselines impossible to read side by side. Search and collapsible persona sections work as before.</li>
@@ -2491,51 +2492,51 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25157"></script>
-<script src="js/version.js?v=25157"></script>
-<script src="js/promote.js?v=25157"></script>
-<script src="js/authConfig.js?v=25157"></script>
-<script src="js/labels.js?v=25157"></script>
-<script src="js/graph.js?v=25157"></script>
-<script src="js/model.js?v=25157"></script>
-<script src="js/render.js?v=25157"></script>
-<script src="js/analyze.js?v=25157"></script>
-<script src="js/whatif.js?v=25157"></script>
-<script src="js/mslearn.js?v=25157"></script>
-<script src="js/gapcheck.js?v=25157"></script>
-<script src="js/cisdata.js?v=25157"></script>
-<script src="js/cischeck.js?v=25157"></script>
-<script src="js/exclusions.js?v=25157"></script>
-<script src="js/validator.js?v=25157"></script>
-<script src="js/whatifeval.js?v=25157"></script>
-<script src="js/compare.js?v=25157"></script>
-<script src="js/groupuse.js?v=25157"></script>
-<script src="js/iso3166.js?v=25157"></script>
-<script src="js/locations.js?v=25157"></script>
-<script src="js/authcontexts.js?v=25157"></script>
-<script src="js/authstrengths.js?v=25157"></script>
-<script src="js/recycle.js?v=25157"></script>
-<script src="js/rmau.js?v=25157"></script>
-<script src="js/camap.js?v=25157"></script>
-<script src="js/rmaudoc.js?v=25157"></script>
-<script src="js/termsofuse.js?v=25157"></script>
-<script src="js/audit.js?v=25157"></script>
-<script src="js/drift.js?v=25157"></script>
-<script src="js/guide.js?v=25157"></script>
-<script src="js/devcheck.js?v=25157"></script>
-<script src="js/licgap.js?v=25157"></script>
-<script src="js/signins.js?v=25157"></script>
-<script src="js/reportimpact.js?v=25157"></script>
-<script src="js/changelog.js?v=25157"></script>
-<script src="js/baselineData.js?v=25157"></script>
-<script src="js/baselineJoeyData.js?v=25157"></script>
-<script src="js/baseline.js?v=25157"></script>
-<script src="js/groupTemplates.js?v=25157"></script>
-<script src="js/assign.js?v=25157"></script>
-<script src="js/cagroups.js?v=25157"></script>
-<script src="js/import.js?v=25157"></script>
-<script src="js/export.js?v=25157"></script>
-<script src="js/demo.js?v=25157"></script>
-<script src="js/app.js?v=25157"></script>
+<script src="js/branding.js?v=25158"></script>
+<script src="js/version.js?v=25158"></script>
+<script src="js/promote.js?v=25158"></script>
+<script src="js/authConfig.js?v=25158"></script>
+<script src="js/labels.js?v=25158"></script>
+<script src="js/graph.js?v=25158"></script>
+<script src="js/model.js?v=25158"></script>
+<script src="js/render.js?v=25158"></script>
+<script src="js/analyze.js?v=25158"></script>
+<script src="js/whatif.js?v=25158"></script>
+<script src="js/mslearn.js?v=25158"></script>
+<script src="js/gapcheck.js?v=25158"></script>
+<script src="js/cisdata.js?v=25158"></script>
+<script src="js/cischeck.js?v=25158"></script>
+<script src="js/exclusions.js?v=25158"></script>
+<script src="js/validator.js?v=25158"></script>
+<script src="js/whatifeval.js?v=25158"></script>
+<script src="js/compare.js?v=25158"></script>
+<script src="js/groupuse.js?v=25158"></script>
+<script src="js/iso3166.js?v=25158"></script>
+<script src="js/locations.js?v=25158"></script>
+<script src="js/authcontexts.js?v=25158"></script>
+<script src="js/authstrengths.js?v=25158"></script>
+<script src="js/recycle.js?v=25158"></script>
+<script src="js/rmau.js?v=25158"></script>
+<script src="js/camap.js?v=25158"></script>
+<script src="js/rmaudoc.js?v=25158"></script>
+<script src="js/termsofuse.js?v=25158"></script>
+<script src="js/audit.js?v=25158"></script>
+<script src="js/drift.js?v=25158"></script>
+<script src="js/guide.js?v=25158"></script>
+<script src="js/devcheck.js?v=25158"></script>
+<script src="js/licgap.js?v=25158"></script>
+<script src="js/signins.js?v=25158"></script>
+<script src="js/reportimpact.js?v=25158"></script>
+<script src="js/changelog.js?v=25158"></script>
+<script src="js/baselineData.js?v=25158"></script>
+<script src="js/baselineJoeyData.js?v=25158"></script>
+<script src="js/baseline.js?v=25158"></script>
+<script src="js/groupTemplates.js?v=25158"></script>
+<script src="js/assign.js?v=25158"></script>
+<script src="js/cagroups.js?v=25158"></script>
+<script src="js/import.js?v=25158"></script>
+<script src="js/export.js?v=25158"></script>
+<script src="js/demo.js?v=25158"></script>
+<script src="js/app.js?v=25158"></script>
 </body>
 </html>
