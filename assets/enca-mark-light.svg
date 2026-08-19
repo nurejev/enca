@@ -1,0 +1,36 @@
+<!-- ENCA mark. Supplied artwork, unmodified except for the FRAMING: the
+     original viewBox is "0 0 1024 1024", which spends the outer ~35% of the
+     box on the dashed orbit ring. That reads well as a 1024px app icon and
+     is illegible at the 34px the header uses — the shield lands on about
+     twelve pixels. Cropping to the inner disc keeps every element and makes
+     the mark carry at both sizes. Restore the original viewBox (and
+     width/height) to get the full composition back. -->
+<svg width="664" height="664" xmlns="http://www.w3.org/2000/svg" viewBox="180 180 664 664">
+<defs>
+  <filter id="glowL" x="-150%" y="-150%" width="400%" height="400%">
+    <feGaussianBlur stdDeviation="6" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="softglowL" x="-80%" y="-80%" width="260%" height="260%">
+    <feGaussianBlur stdDeviation="10" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <radialGradient id="bggL" cx="50%" cy="42%" r="75%">
+    <stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#f4f7ee"/>
+  </radialGradient>
+  <linearGradient id="goldgL" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#f0cf55"/><stop offset="55%" stop-color="#dfb32b"/>
+    <stop offset="100%" stop-color="#a8871c"/>
+  </linearGradient></defs>
+<rect width="1024" height="1024" fill="url(#bggL)"/>
+<circle cx="512" cy="512" r="330" fill="#cfe0b4" opacity="0.10"/><circle cx="512" cy="512" r="230" fill="#b7d38e" opacity="0.08"/>
+<circle cx="512" cy="512" r="400" fill="none" stroke="#9dbb7a" stroke-width="3" stroke-dasharray="2 14" opacity="0.9"/><circle cx="512" cy="512" r="400" fill="none" stroke="#dfb32b" stroke-width="1.5" opacity="0.35"/>
+<circle cx="512.0" cy="112.0" r="9" fill="#3f7a24" filter="url(#glowL)"/><circle cx="858.4" cy="312.0" r="9" fill="#3f7a24" filter="url(#glowL)"/><circle cx="858.4" cy="712.0" r="9" fill="#3f7a24" filter="url(#glowL)"/><circle cx="512.0" cy="912.0" r="9" fill="#3f7a24" filter="url(#glowL)"/><circle cx="165.6" cy="712.0" r="9" fill="#3f7a24" filter="url(#glowL)"/><circle cx="165.6" cy="312.0" r="9" fill="#3f7a24" filter="url(#glowL)"/>
+<circle cx="512" cy="512" r="320" fill="none" stroke="#dfb32b" stroke-width="2" opacity="0.4"/><circle cx="512" cy="512" r="265" fill="none" stroke="#cfe0b4" stroke-width="2" opacity="0.55"/>
+<g transform="translate(512,505)">
+  <g filter="url(#softglowL)"><circle r="215" fill="#e9f0dd" stroke="url(#goldgL)" stroke-width="16"/></g>
+<g transform="translate(-112,-104) scale(1.5)" opacity="0.28"><circle r="24" fill="none" stroke="#3f7a24" stroke-width="7"/><circle r="9" fill="none" stroke="#3f7a24" stroke-width="6"/><line x1="24.0" y1="0.0" x2="36.0" y2="0.0" stroke="#3f7a24" stroke-width="10"/><line x1="17.0" y1="17.0" x2="25.5" y2="25.5" stroke="#3f7a24" stroke-width="10"/><line x1="0.0" y1="24.0" x2="0.0" y2="36.0" stroke="#3f7a24" stroke-width="10"/><line x1="-17.0" y1="17.0" x2="-25.5" y2="25.5" stroke="#3f7a24" stroke-width="10"/><line x1="-24.0" y1="0.0" x2="-36.0" y2="0.0" stroke="#3f7a24" stroke-width="10"/><line x1="-17.0" y1="-17.0" x2="-25.5" y2="-25.5" stroke="#3f7a24" stroke-width="10"/><line x1="-0.0" y1="-24.0" x2="-0.0" y2="-36.0" stroke="#3f7a24" stroke-width="10"/><line x1="17.0" y1="-17.0" x2="25.5" y2="-25.5" stroke="#3f7a24" stroke-width="10"/></g>
+<g transform="translate(0,-6)"><path d="M0,-140 L112,-100 L112,10 C112,80 56,130 0,158 C-56,130 -112,80 -112,10 L-112,-100 Z" fill="none" stroke="url(#goldgL)" stroke-width="15" stroke-linejoin="round"/><circle cx="0" cy="-24" r="30" fill="none" stroke="#dfb32b" stroke-width="14"/><path d="M-13,-6 L-20,58 L20,58 L13,-6 Z" fill="#dfb32b"/></g>
+  <circle cx="118" cy="-118" r="13" fill="#3f7a24" filter="url(#glowL)"/>
+</g>
+</svg>

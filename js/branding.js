@@ -43,9 +43,17 @@ const BRANDING = {
   host: "enca.limon-it.nl",
 
   // Assets (relative to index.html)
-  logo: "assets/logo-mark-light.svg",
-  logoDark: "assets/logo-mark-dark.svg",
-  favicon: "assets/favicon.svg",
+  // The ENCA mark — the app's own logo, not Limon-IT's. Both variants are
+  // designed as an icon TILE: they paint their own background, so they carry
+  // themselves on any header colour, and the stylesheet rounds them rather
+  // than leaving a square patch. The dark variant is swapped in by CSS, not
+  // by script, so it follows the theme even before the app has booted.
+  logo: "assets/enca-mark-light.svg",
+  logoDark: "assets/enca-mark-dark.svg",
+  // The mark doubles as the favicon: it has its own background, which is what
+  // makes it legible on a browser tab strip of any colour — a transparent
+  // mark disappears into whichever one the reader happens to be using.
+  favicon: "assets/enca-mark-light.svg",
 
   // Sign-in screen
   loginTitle: "",            // "" → `${name} — ${longName}`

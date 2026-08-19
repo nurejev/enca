@@ -235,7 +235,7 @@ const BRANDING = {
   orgUrl: "https://limon-it.nl",
   copyright: "© 2026 Limon-IT",
   host: "enca.limon-it.nl",                      // shown in the header and in every export credit
-  logo: "assets/logo-mark-light.svg",
+  logo: "assets/enca-mark-light.svg",
   favicon: "assets/favicon.svg",
   loginTitle: "", loginBlurb: "…",               // "" → `${name} — ${longName}`
   colors: { "--green": "#1e4729" },              // optional; written onto :root, beats the stylesheet
@@ -356,7 +356,7 @@ Thanks also to the Conditional Access community whose baselines ENCA is designed
 
 ## License & attribution
 
-MIT — see [LICENSE](LICENSE). The Limon-IT name and logo (`assets/`) are trademarks of Limon-IT and are excluded from the license; forks must use their own branding.
+MIT — see [LICENSE](LICENSE). The ENCA and Limon-IT names and the marks in `assets/` are trademarks of Limon-IT and are excluded from the license; forks must use their own branding.
 
 Inspired by the Conditional Access documenter in [idPowerToys](https://github.com/merill/idPowerToys) by Merill Fernando (MIT). ENCA is an independent from-scratch implementation.
 

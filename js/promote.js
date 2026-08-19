@@ -87,6 +87,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 71,
+      title: "\ud83e\udee7 The official ENCA logo",
+      tools: ["All tools"],
+      builds: [25160],
+      risk: "low",
+      what: "assets/enca-mark-light.svg and enca-mark-dark.svg replace the Limon-IT mark in the header, on the sign-in page and as the favicon. BRANDING.logo / logoDark / favicon point at them and the dark-theme swap in app.css follows; the marks are rounded like an app icon (.logo img, .login-card > img). The supplied artwork is unmodified except for the viewBox, cropped from the full 1024 tile to the inner disc because the outer third is orbit ring and the header renders at 34px — the original framing is recorded in a comment in each file. Internal SVG ids are suffixed per file (ids are document-global, and both marks can be on one page). The old logo-mark-*.svg and favicon.svg are deleted; the README licence note names both marks.",
+      why: "Cosmetic and reversible, and it touches no logic at all \u2014 but it is the FIRST thing anybody sees, on the one screen where nothing else is on the page yet, so a wrong-theme or missing mark is a bad first impression rather than a bug report. It also changes the favicon, which browsers cache aggressively.",
+      test: [
+        "Sign-in page in LIGHT theme: the mark is the ENCA shield, on its own pale background, rounded, and not the old Limon-IT leaf mark. Switch to DARK: it must swap to the dark artwork \u2014 green on near-black, not the light one dimmed.",
+        "THE ONE THAT MATTERS: hard-refresh the sign-in page in dark theme with the cache cleared. The swap is done by CSS rather than script precisely so it is right BEFORE the app boots; if you see the light mark flash first, that regressed.",
+        "Set the OS to dark and leave the app on Auto (no explicit theme): the prefers-color-scheme rule must pick the dark mark too \u2014 that is a second CSS rule and it has been missed before.",
+        "Header at normal window width: the shield and keyhole must be legible at 34px. If it looks like a pale smudge, the viewBox crop was lost and the full 1024 tile is being used.",
+        "Open the sign-in page and the app in the same session and confirm BOTH marks render correctly at once. They share four internal ids and those are suffixed per file \u2014 if the dark mark renders in light colours, that suffixing was undone.",
+        "Browser tab: the favicon is the ENCA mark. Check on a dark browser theme too \u2014 the mark carries its own background, which is why it works on either.",
+        "Open a brand-override front door (/pvm/) and confirm it still shows ITS logo, not ENCA's: the override rule sets content:normal and must still win.",
+        "Grep the built site for logo-mark- and favicon.svg: both should be gone. A stale reference renders a broken image rather than falling back.",
+      ],
+      files: ["assets/enca-mark-light.svg", "assets/enca-mark-dark.svg", "js/branding.js", "css/app.css", "index.html", "README.md", "js/version.js"],
+    },
+    {
       n: 70,
       title: "\ud83d\udd0d Gap analyse: the coverage flow (T03)",
       tools: ["Gap analyse"],
