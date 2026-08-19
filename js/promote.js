@@ -59,9 +59,19 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.285",
+  productionBuild: "v1.0.286",
 
   items: [
+    {
+      n: 63,
+      title: "\ud83d\udce5 Import finishes the job on the groups it reuses (R04)",
+      tools: ["Import"],
+      builds: [25149],
+      risk: "medium",
+      what: "Each reusable group in the \u267b\ufe0f preflight carries a tick for what is still open on it \u2014 \ud83d\udeab disable nesting, \ud83d\udd12 file it into its persona vault \u2014 with every impossible case (role-assignable, dynamic, Microsoft 365, already protected, shared by two personas, no vault yet) refused on the row with its reason. Nothing is pre-ticked, membership is never touched, and the writes run AFTER the policies import, so an import that fails leaves existing groups alone. The nesting write is verified by reading the value back, and a refusal is reported as still unprotected rather than rounded to done. Completes R04.",
+      why: "In production a group the import REUSES gets neither nesting disabled nor a place in its vault \u2014 build 285 says so on screen and then sends the reader to two other tools. Every baseline imported into a tenant that already holds some of its groups leaves those groups editable by any tenant-wide Groups Administrator, which is the exact exposure the persona vaults exist to close.",
+      files: ["js/app.js", "js/import.js", "index.html"],
+    },
     {
       n: 62,
       title: "🚦 Sign-in failures gather the CA interrupts",

@@ -1896,9 +1896,22 @@
     if (!names.length) return;
     if (isDemo) {
       imRa.checked = true;
-      imRa.rows = names.filter((n) => /CA101|Admins/i.test(n)).slice(0, 1)
-        .map((n) => ({ name: n, id: "demo-ra-" + n }));
-      imRa.existing = imRa.rows.map((r) => ({ ...r, roleAssignable: true, nesting: "allowed", typeMismatch: null, m365: false, protectedIn: null }));
+      const srcOf = (n) => ((imBundle?.groups || []).find((g) => g.displayName === n) || {}).id || "demo-src-" + n;
+      const ra = names.filter((n) => /CA101|Admins/i.test(n)).slice(0, 1);
+      imRa.rows = ra.map((n) => ({ name: n, id: "demo-ra-" + n }));
+      const mk = (n, over) => ({ srcId: srcOf(n), id: "demo-" + n, name: n, roleAssignable: false,
+        dynamic: false, nesting: "allowed", typeMismatch: null, m365: false, protectedIn: null, ...over });
+      // Demo shows BOTH halves of the reuse story, because a demo that only
+      // renders the tidy half teaches the tidy half: one group that can still
+      // be finished here, one that is already right and needs nothing, and the
+      // role-assignable one that can be neither.
+      const plain = names.filter((n) => !ra.includes(n)).slice(0, 2);
+      imRa.existing = [
+        ...ra.map((n) => mk(n, { id: "demo-ra-" + n, roleAssignable: true })),
+        ...plain.map((n, i) => i === 0 ? mk(n)
+          : mk(n, { nesting: "disabled", protectedIn: { auName: "CAB-SEC-RMAU-INT-Exclusions", code: "INT" } })),
+      ];
+      imFixPlan();
       return;
     }
     try {
@@ -1923,6 +1936,9 @@
         const isDynamic = (g.groupTypes || []).includes("DynamicMembership");
         const row = {
           id: g.id, name: g.displayName,
+          // The BUNDLE id, not the tenant id: the persona that decides which
+          // vault a group belongs in is read from the file's own policies.
+          srcId: src.id, dynamic: isDynamic,
           roleAssignable: g.isAssignableToRole === true,
           // A plain GET does not return disableNesting; this select does, but
           // only where it is set — so absent means "allowed, or this tenant has
@@ -1936,9 +1952,70 @@
         if (row.roleAssignable) imRa.rows.push({ id: g.id, name: g.displayName });
       }
       imRa.checked = true;
+      imFixPlan();
     } catch (e) {
       imRa.error = e.message || String(e);
     }
+  }
+
+  // ---- R04: what the import can still FINISH on a group it reuses ----------
+  // A created group gets nesting disabled and a place in its persona vault; a
+  // reused one got neither. Build 25129 made that visible without closing it,
+  // which is only half an answer — the reader now knows the group is exposed
+  // and is sent to two other tools to do something about it.
+  //
+  // Both writes are the ones the create path already makes, and neither is
+  // destructive: the nesting PATCH is REFUSED by Entra rather than forced when
+  // a group already holds nested groups, and administrative-unit membership can
+  // be undone. So they are offered here — per group, ticked by hand, never
+  // pre-ticked. A group that already existed may hold members and sit somewhere
+  // on purpose, and a default is not a decision.
+  function imFixPlan() {
+    const rows = (imRa && imRa.existing) || [];
+    if (!rows.length) return;
+    let personas = new Map();
+    // A failure here must not read as "no persona": every row then carries the
+    // reason it cannot be placed, which is the honest answer.
+    try { personas = Importer.groupPersonas(imBundle, imBundle.policies); } catch (e) { console.warn("persona map failed", e); }
+    const auOk = !!(imAu && !imAu.error);
+    for (const r of rows) {
+      // Nesting — the same three exclusions the create path applies: a
+      // role-assignable group already forbids group-in-group, a dynamic group's
+      // members are rule-driven, and one already disabled needs nothing.
+      r.nest = r.nesting === "disabled" ? { can: false, done: true, why: "nesting is already disabled" }
+        : r.roleAssignable ? { can: false, why: "role-assignable — Entra already refuses group-in-group, and the flag has to go first in ⑦ Migrate" }
+        : r.dynamic ? { can: false, why: "dynamic — membership is rule-driven, and only users and devices can be members" }
+        : { can: true };
+      // Placement — every reason a vault is impossible, named rather than left
+      // as a checkbox that does nothing.
+      const info = personas.get(r.srcId) || null;
+      const code = info ? info.code : null;
+      const auId = (auOk && code) ? imAu.byCode[code] : null;
+      r.place = r.protectedIn ? { can: false, done: true, why: `already in ${r.protectedIn.auName}` }
+        : r.roleAssignable ? { can: false, why: "role-assignable — it cannot be combined with a restricted unit at all; convert it in ⑦ Migrate" }
+        : r.m365 ? { can: false, why: "Microsoft 365 group — it cannot go in a restricted unit at all" }
+        : !auOk ? { can: false, why: "the tenant's administrative units could not be read, so the vaults are unknown" }
+        : !code ? { can: false, why: (info && info.why) || "no persona could be read from the policies that use it" }
+        : !auId ? { can: false, code, why: `no restricted unit for ${code} — create it in 🛡 PROTECTION above first, then re-open this file` }
+        : { can: true, code, auId };
+      r.doNest = false; r.doPlace = false;
+    }
+  }
+
+  // The tick count and the select-all label, updated WITHOUT re-rendering the
+  // panel — imRenderList() rebuilds the whole modal body, which would throw
+  // away the persona filter and the policy selection made above it.
+  function imFixSync() {
+    const rows = (imRa && imRa.existing) || [];
+    const open = rows.filter((r) => r.nest.can || r.place.can);
+    const ticked = rows.reduce((n, r) => n + (r.doNest ? 1 : 0) + (r.doPlace ? 1 : 0), 0);
+    const total = open.reduce((n, r) => n + (r.nest.can ? 1 : 0) + (r.place.can ? 1 : 0), 0);
+    const btn = $("imFixAll");
+    if (btn) btn.textContent = ticked >= total && total > 0 ? "☐ Untick all" : `☑ Tick all ${total}`;
+    const c = $("imFixCount");
+    if (c) c.innerHTML = ticked
+      ? `<b>${ticked}</b> of ${total} will be applied after the policies import`
+      : `nothing ticked — every group below is left exactly as it is`;
   }
 
   function imRaPanel() {
@@ -1978,28 +2055,104 @@
     if (!imRa || imRa.error || !(imRa.existing || []).length) return "";
     const rows = imRa.existing;
     const notable = rows.filter((r) => r.typeMismatch || r.m365 || (!r.roleAssignable && (r.nesting !== "disabled" || !r.protectedIn)));
-    const line = (r) => {
+    const open = rows.filter((r) => r.nest.can || r.place.can);
+    const total = open.reduce((n, r) => n + (r.nest.can ? 1 : 0) + (r.place.can ? 1 : 0), 0);
+    const ticked = rows.reduce((n, r) => n + (r.doNest ? 1 : 0) + (r.doPlace ? 1 : 0), 0);
+
+    // What is still open on this group, as a tick — or, where it is impossible,
+    // as the reason. A disabled checkbox with no explanation is just a dead
+    // control; the reason is the useful half.
+    const fix = (r, i) => {
+      const one = (kind, on, cap, label) => cap.can
+        ? `<label class="chk" style="margin:0"><input type="checkbox" data-imfix="${i}" data-fixkind="${kind}"${on ? " checked" : ""}> ${label}</label>`
+        : cap.done ? "" : `<span class="mini muted">${label} — not possible: ${esc(cap.why)}</span>`;
+      const bits = [
+        one("nest", r.doNest, r.nest, "🚫 disable nesting"),
+        one("place", r.doPlace, r.place, `🔒 file into ${r.place.code ? esc(Rmau.auName(r.place.code)) : "its persona vault"}`),
+      ].filter(Boolean);
+      return bits.length ? `<div class="row" style="justify-content:flex-start;gap:16px;flex-wrap:wrap;margin-top:5px">${bits.join("")}</div>` : "";
+    };
+
+    const line = (r, i) => {
       const bits = [];
       if (r.typeMismatch) bits.push(`<span style="color:var(--off)">⚠ ${esc(r.typeMismatch)}</span>`);
       if (r.m365) bits.push(`<span style="color:var(--off)">⚠ Microsoft 365 group — it cannot go in a restricted unit at all</span>`);
       if (r.roleAssignable) bits.push(`<span class="tag block">role-assignable</span> handled above`);
       else {
         bits.push(r.nesting === "disabled" ? `🚫 nesting already disabled`
-          : r.nesting === "allowed" ? `<span style="color:var(--off)">↪ nesting allowed — a group can be nested inside it, and the import will not change that</span>`
+          : r.nesting === "allowed" ? `<span style="color:var(--off)">↪ nesting allowed — a group can be nested inside it</span>`
           : `<span class="muted">nesting not reported by this tenant — it may be allowed</span>`);
         bits.push(r.protectedIn ? `🔒 already in ${esc(r.protectedIn.auName)}`
-          : `<span style="color:var(--off)">unprotected — and the import will NOT file an existing group into a vault</span>`);
+          : `<span style="color:var(--off)">unprotected</span>`);
       }
       return `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b></div>
-        <div class="mini">${bits.join(" · ")}</div></div>`;
+        <div class="mini">${bits.join(" · ")}</div>${fix(r, i)}</div>`;
     };
+
     return `<div class="cg-panel">
       <h4>♻️ ALREADY HERE — ${rows.length} OF THIS FILE'S GROUPS WILL BE REUSED</h4>
-      <p class="mini" style="margin:0 0 8px">The policies will bind to the ${rows.length === 1 ? "group" : "groups"} already in this tenant — nothing is duplicated, and nothing about ${rows.length === 1 ? "it" : "them"} is changed. That is the safe default: a group that already exists may hold members and sit somewhere deliberately, and an import is not the place to decide otherwise.</p>
-      <p class="mini" style="margin:0 0 8px">It does mean a reused group <b>inherits none of the hardening a created one gets</b>. A group created by this import gets nesting disabled and is filed into its persona vault; a reused one keeps whatever it has${notable.length ? ` — and ${notable.length} of ${rows.length} ${notable.length === 1 ? "has" : "have"} something worth seeing first` : ""}.</p>
+      <p class="mini" style="margin:0 0 8px">The policies will bind to the ${rows.length === 1 ? "group" : "groups"} already in this tenant — nothing is duplicated, and the membership of ${rows.length === 1 ? "it" : "them"} is not touched. That is the safe default: a group that already exists may hold members and sit somewhere deliberately, and an import is not the place to decide otherwise.</p>
+      <p class="mini" style="margin:0 0 8px">It does mean a reused group <b>inherits none of the hardening a created one gets</b>. A group created by this import gets nesting disabled and is filed into its persona vault${notable.length ? `, and ${notable.length} of ${rows.length} ${notable.length === 1 ? "has" : "have"} something worth seeing first` : ""}.</p>
+      ${total ? `<p class="mini" style="margin:0 0 8px"><b>You can finish that here.</b> Tick what should be applied to a group and it runs <b>after the policies import</b> — the same two writes the create path makes, and neither is destructive: Entra <i>refuses</i> the nesting change rather than forcing it when a group already holds nested groups, and unit membership can be undone. Nothing is ticked for you.</p>
+      <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 8px;flex-wrap:wrap">
+        <button class="btn sm" id="imFixAll">☑ Tick all ${total}</button>
+        <span class="mini muted" id="imFixCount">${ticked ? `<b>${ticked}</b> of ${total} will be applied after the policies import` : "nothing ticked — every group below is left exactly as it is"}</span>
+      </div>` : ""}
       <div class="cg-pick">${rows.map(line).join("")}</div>
-      <p class="mini muted" style="margin:8px 0 0">Finish the job afterwards from <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> (file them into their vaults) and 👥 CA groups <b>⑧ Disable nesting</b>. Both are safe on a group that already has members.</p>
+      <p class="mini muted" style="margin:8px 0 0">${total ? "Anything that cannot be done here says why on its row. " : ""}The same two actions live in <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> and 👥 CA groups <b>⑧ Disable nesting</b>, which is also where a group Entra refuses in place can be recreated — that route is destructive, so it stays behind its own typed confirmation and is not repeated here.</p>
     </div>`;
+  }
+
+  // Applies what was ticked in the ♻️ panel. Deliberately runs AFTER the
+  // policies are in: an import that failed should leave every existing group
+  // exactly as it found it, and the two outcomes stay separable in the report.
+  //
+  // Nothing here is reported as done unless it was checked. Entra can accept a
+  // PATCH and quietly ignore an unknown property, so the nesting write is
+  // confirmed by reading the value back — the rule build 284 established for
+  // every create path, and the reason a silent no-op cannot pass as success.
+  async function imHardenReused() {
+    const picked = ((imRa && imRa.existing) || []).filter((r) => (r.doNest && r.nest.can) || (r.doPlace && r.place.can));
+    if (!picked.length) return null;
+    const out = { done: [], failed: [] };
+    for (const r of picked) {
+      if (r.doNest && r.nest.can) {
+        try {
+          if (isDemo) {
+            // A group that already holds nested groups is the one case Entra
+            // refuses in place, so the demo has to show it rather than a clean
+            // run every time.
+            if (/internals/i.test(r.name)) throw new Error("Demo — simulated refusal: the group already contains a nested group");
+          } else {
+            await Graph.gpatch(`/groups/${r.id}`, { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
+            const back = await Graph.gget(`/groups/${r.id}?$select=id,disableNesting`);
+            if (CaGroups.nestingState(back) !== "disabled") {
+              throw new Error("Entra accepted the update but the property did not read back — on this tenant it is only settable at creation");
+            }
+          }
+          r.nesting = "disabled";
+          out.done.push({ name: r.name, what: "nesting disabled" });
+        } catch (e) {
+          out.failed.push({ name: r.name, what: "disable nesting", error: (e && e.message) || String(e),
+            hint: "⑧ Disable nesting can recreate the group instead, behind its own typed confirmation — the only remaining route when a group already holds nested groups" });
+        }
+      }
+      if (r.doPlace && r.place.can) {
+        const auName = Rmau.auName(r.place.code);
+        try {
+          if (!isDemo) {
+            await Graph.gpost(`/administrativeUnits/${r.place.auId}/members/$ref`,
+              { "@odata.id": `https://graph.microsoft.com/beta/groups/${r.id}` });
+          }
+          r.protectedIn = { auId: r.place.auId, auName, code: r.place.code };
+          out.done.push({ name: r.name, what: `filed into ${auName} — only an administrator scoped to that unit can change its members now` });
+        } catch (e) {
+          out.failed.push({ name: r.name, what: `file into ${auName}`, error: (e && e.message) || String(e),
+            hint: "the group is live and unprotected — 🔒 Protect exclusions can file it by hand" });
+        }
+      }
+    }
+    return out;
   }
 
   function imAuPanel() {
@@ -2137,6 +2290,21 @@
       return;
     }
     if (e.target.id === "imAuGo") { await imAuCreate(e.target); return; }
+    if (e.target.id === "imFixAll") {
+      const rows = (imRa && imRa.existing) || [];
+      const total = rows.reduce((n, r) => n + (r.nest.can ? 1 : 0) + (r.place.can ? 1 : 0), 0);
+      const ticked = rows.reduce((n, r) => n + (r.doNest ? 1 : 0) + (r.doPlace ? 1 : 0), 0);
+      const on = !(ticked >= total && total > 0);
+      rows.forEach((r) => { r.doNest = on && r.nest.can; r.doPlace = on && r.place.can; });
+      // Reflect the model onto the inputs in place — rebuilding the modal body
+      // would discard the persona filter and the policy selection above it.
+      document.querySelectorAll("#imBody [data-imfix]").forEach((cb) => {
+        const r = rows[+cb.dataset.imfix]; if (!r) return;
+        cb.checked = cb.dataset.fixkind === "nest" ? !!r.doNest : !!r.doPlace;
+      });
+      imFixSync();
+      return;
+    }
     if (e.target.id === "imRaGo") {
       // ⑦ Migrate scans for role-assignable baseline groups itself, so these
       // land among its candidates — no second selection to keep in step.
@@ -2157,6 +2325,13 @@
   $("imBody").addEventListener("change", (e) => {
     if (e.target.matches('input[name="imMode"]')) { imMode = e.target.value; imRenderList(); return; }
     if (e.target.matches("[data-imp]")) updateImGo();
+    const f = e.target.closest("[data-imfix]");
+    if (f) {
+      const r = (imRa && imRa.existing || [])[+f.dataset.imfix];
+      if (r) { if (f.dataset.fixkind === "nest") r.doNest = f.checked; else r.doPlace = f.checked; }
+      imFixSync();
+      return;
+    }
     const b = e.target.closest("[data-imau]");
     if (b) {
       b.checked ? imAu.sel.add(b.dataset.imau) : imAu.sel.delete(b.dataset.imau);
@@ -2238,9 +2413,15 @@
     // Consent first, while the click is still fresh — an import creates
     // dependencies (groups, locations) as well as policies, so ask for both.
     const placing = !!(imAu && !imAu.error && Object.keys(imAu.byCode).length);
+    // The ♻️ ticks need their own scopes: asked for now, with the click still
+    // fresh, rather than half way through a run.
+    const fixes = ((imRa && imRa.existing) || []).filter((r) => (r.doNest && r.nest.can) || (r.doPlace && r.place.can));
+    const fixNest = fixes.some((r) => r.doNest && r.nest.can);
+    const fixPlace = fixes.some((r) => r.doPlace && r.place.can);
     if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess",
       "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory",
-      ...(placing ? ["AdministrativeUnit.ReadWrite.All"] : [])])) return;
+      ...(placing || fixPlace ? ["AdministrativeUnit.ReadWrite.All"] : []),
+      ...(fixNest ? CaGroups.NEST_WRITE_SCOPES : [])])) return;
     $("imGo").disabled = true;
     try {
       let depLog = { created: [], reused: [], warnings: [] }, maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, personaGroupIds: {} }, res = { results: [], warnings: [] };
@@ -2275,6 +2456,15 @@
         const dep = await Importer.ensureDependencies(scoped, (m) => toast(esc(m)), { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
         res = await Importer.importPolicies(chosen, maps, (m) => toast(esc(m)), { mode: imMode });
+      }
+      // R04: finish the job on the groups this import REUSED — but only if the
+      // policies actually landed. An import that failed has no business having
+      // changed an existing group on the way past.
+      if (res.results.some((r) => r.ok)) {
+        const hard = await imHardenReused();
+        if (hard) { depLog.hardened = hard.done; depLog.hardenFailed = hard.failed; }
+      } else if (fixes.length) {
+        depLog.warnings.push(`No policy was imported, so the ${fixes.length} group change${fixes.length === 1 ? "" : "s"} you ticked ${fixes.length === 1 ? "was" : "were"} NOT applied — nothing existing is altered by an import that did not happen.`);
       }
       // Change report — shown on screen and downloadable. A failed import is
       // the case you most need to read, so it should not require opening a file.

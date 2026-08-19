@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25148"></script>
+<script src="js/popup-guard.js?v=25149"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25148">
+<link rel="stylesheet" href="css/app.css?v=25149">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25148"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25148"></script>
+<script src="js/counter.js?v=25149"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25149"></script>
 </head>
 <body>
 
@@ -1198,6 +1198,15 @@
             <p class="mini" style="margin:0">Members can be added to a persona vault in bulk; the people who may manage them still cannot. A scoped role is granted one administrator, on one unit, at a time — so a four-person team across the eleven baseline units is <b>44</b> separate grants, and the failure mode is not the tedium but the gap: miss one unit and that persona has no administrator, which in a restricted unit means <b>nobody</b> can change its members.</p>
             <p class="mini" style="margin:6px 0 0">Pick the administrators once and the units once, and the grid is applied — with each unit × administrator reported as its own outcome, because a partial success has to be readable rather than rounded to “done”. It should also show the <b>current</b> grants across all units together, since the question people actually ask is “who can manage the Externals exclusions?” and answering it today means opening eleven cards.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25149">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R04</span> 🧹 Retire role-assignable groups everywhere <span class="tag grant">live · beta 25149</span></h4>
+            <p class="mini" style="margin:0">The baseline is moving off role-assignable groups: the flag was only ever used for a side effect — membership reachable by Global Administrator or Privileged Role Administrator only — and a restricted management administrative unit does that better, names <i>who</i> may manage the group, and can be undone. It also cannot be combined with one: a group carrying both has nobody who can change its members.
+              <br><b>Done:</b> new groups are ordinary security groups (assigned or dynamic) with an optional restricted-AU placement at creation — <b>in production since build 254</b>, so the role-assignable checkbox and the ↻ Recreate-role-assignable action are gone from both channels; the ① Check drift flag is inverted, so a plain group is correct and a role-assignable one is what gets flagged; <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> moves existing ones across; and the bundled group templates and the baseline catalogs no longer ask for the flag anywhere.
+              <br><b>The last gap, closed in beta 25149:</b> 📥 Import no longer walks past the groups it <b>reuses</b>. A created group gets nesting disabled and a place in its persona vault; a reused one got neither, and naming that in beta 25129 only made the exposure visible — it still sent you to <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> and ⑧ Disable nesting to do anything about it. The preflight now offers both, <b>per group and ticked by hand</b>, and applies them after the policies import. Nothing is pre-ticked and membership is never touched: an existing group may hold members and sit somewhere on purpose, so the operator decides, not the importer.</p>
+            <p class="mini" style="margin:6px 0 0">Neither write is destructive, which is what makes offering them here defensible rather than reckless: Entra <i>refuses</i> the nesting change when a group already holds nested groups instead of forcing it, and administrative-unit membership can be undone. The one route that <b>is</b> destructive — recreating a group Entra refuses — stays in ⑧ Disable nesting behind its own typed confirmation, and converting a role-assignable group stays in <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a>. One implementation each, as before.</p>
+            <p class="mini" style="margin:6px 0 0"><b>What this still does not do, and cannot:</b> the flag only truly leaves a <i>tenant</i> once ⑦ Migrate has been run there. Nothing retires a group this app did not create, and every protection path goes on refusing a role-assignable group until it is converted. That is a fact about the tenant rather than a gap in the tools.</p>
+            <p class="mini muted" style="margin:6px 0 0">Shipped across <b>beta 25128–25129 · production 285</b> — find the role-assignable groups a file would build on, and say what a reused group inherits — and <b>beta 25149</b>, which acts on it.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -1221,14 +1230,6 @@
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R04</span> 🧹 Retire role-assignable groups everywhere <span class="tag ok">started</span></h4>
-            <p class="mini" style="margin:0">The baseline is moving off role-assignable groups: the flag was only ever used for a side effect — membership reachable by Global Administrator or Privileged Role Administrator only — and a restricted management administrative unit does that better, names <i>who</i> may manage the group, and can be undone. It also cannot be combined with one: a group carrying both has nobody who can change its members.
-              <br><b>Done:</b> new groups are ordinary security groups (assigned or dynamic) with an optional restricted-AU placement at creation — <b>in production since build 254</b>, so the role-assignable checkbox and the ↻ Recreate-role-assignable action are gone from both channels; the ① Check drift flag is inverted, so a plain group is correct and a role-assignable one is what gets flagged; <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> moves existing ones across; and the bundled group templates and the baseline catalogs no longer ask for the flag anywhere.
-              <br><b>Still to do:</b> a group the import <b>reuses</b> is left exactly as it is — the preflight now says what it inherits, but filing it into its persona vault and disabling its nesting are still separate steps in <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> and ⑧ Disable nesting. And the flag only actually leaves a tenant once <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> has been run there: nothing retires a group this app did not create.</p>
-          
-            <p class="mini" style="margin:6px 0 0"><b>Beta 25128 · production 285:</b> 📥 Import now finds the role-assignable groups a file would build on, before the import rather than after — a baseline exported from a tenant that still used the flag brings them along, and the protection step would otherwise skip exactly those groups without saying so. It hands over to ⑦ Migrate for the conversion instead of repeating it, so the recreate has one implementation.</p>
           </div>
                                         <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R28</span> 🏷 Custom groups in the persona vaults <span class="tag">planned</span></h4>
@@ -1809,7 +1810,8 @@
         <li><b>Only groups this run created are placed</b> — a group that already existed is left where it is, because it may be somewhere on purpose and that is not the import's call to make. A group used by <b>two personas</b> is not placed either, and the report says why: an object may sit in several restricted units and a scoped administrator on <i>any</i> of them can manage it, so filing a shared group under one persona hands that persona's admin control of the other's exclusions, and filing it under both hands it to either. Split it per persona, or place it by hand knowing who can reach it.</li>
         <li><b>An unreadable check says so</b> — if the tenant's administrative units cannot be read, the panel reports that it could not check rather than reporting everything present, and the import proceeds unprotected with each group named in the report.</li>
               <li><b>Role-assignable groups in the file are found before the import, not after.</b> A baseline exported from a tenant that still used the role-assignable flag brings those groups with it, and importing on top of them is not neutral: the flag is <b>immutable</b>, it forbids controlling nesting, and it cannot be combined with a restricted management administrative unit — a group carrying both has nobody who can change its members. So the policies would import cleanly and land on groups the baseline has deliberately moved away from, and the 🛡 protection step would silently skip exactly those. The preflight now names them and says what will happen either way. Converting means recreating each one — rename aside, plain security group with nesting disabled, members copied, every referencing policy repointed — which runs in <b>⑦ Migrate</b> behind its own typed confirmation and report, and is deliberately not reimplemented here: one destructive operation, one implementation. Import now and convert later is still a choice; the report lists them as unprotected.</li>
-        <li><b>A tenant that partly has the groups is the normal case, and the two halves are treated differently.</b> Groups the file brings that already exist here are <b>reused</b> — the policies bind to them, nothing is duplicated, and nothing about them is changed. That is the safe default: an existing group may hold members and sit somewhere deliberately, and an import is not the place to overrule that. But it means a reused group <b>inherits none of the hardening a created one gets</b>: a created group has nesting disabled and is filed into its persona vault, a reused one keeps whatever it has, and the placement step skips it on purpose. That skip used to be invisible — a reused group appeared in the report as a bare name. The preflight now lists them with what is actually being inherited: nesting disabled, allowed, or not reported by this tenant; already in a restricted unit or unprotected; a Microsoft 365 group that can never go in one; and a <b>shape mismatch</b>, where the file expects a dynamic group with a membership rule and the tenant has an assigned group of that name — the rule is not applied, and that would otherwise pass unnoticed. Finish the job afterwards from 🔒 Protect exclusions and ⑧ Disable nesting; both are safe on a group that already has members.</li>
+        <li><b>A tenant that partly has the groups is the normal case, and the two halves are treated differently.</b> Groups the file brings that already exist here are <b>reused</b> — the policies bind to them, nothing is duplicated, and nothing about them is changed. That is the safe default: an existing group may hold members and sit somewhere deliberately, and an import is not the place to overrule that. But it means a reused group <b>inherits none of the hardening a created one gets</b>: a created group has nesting disabled and is filed into its persona vault, a reused one keeps whatever it has, and the placement step skips it unless you say otherwise. That skip used to be invisible — a reused group appeared in the report as a bare name. The preflight now lists them with what is actually being inherited: nesting disabled, allowed, or not reported by this tenant; already in a restricted unit or unprotected; a Microsoft 365 group that can never go in one; and a <b>shape mismatch</b>, where the file expects a dynamic group with a membership rule and the tenant has an assigned group of that name — the rule is not applied, and that would otherwise pass unnoticed.</li>
+        <li><b>What a reused group is missing can now be finished here.</b> Naming the gap was only half an answer: the panel said the group was unprotected and its nesting untouched, then sent you to two other tools. Each reusable row now carries a <b>tick</b> for what is actually still open on it — 🚫 disable nesting, 🔒 file it into its persona vault — and anything impossible says why on the row rather than offering a dead checkbox: role-assignable (⑦ Migrate first), dynamic, a Microsoft 365 group, already protected, a group two personas share, or a vault that does not exist yet. <b>Nothing is pre-ticked</b>, and the writes run <b>after</b> the policies import, so an import that fails leaves every existing group exactly as it found it. Members are never touched. Both are writes the create path already makes and neither is destructive — Entra refuses the nesting change rather than forcing it when a group holds nested groups, and unit membership can be undone — while the destructive recreate stays in ⑧ Disable nesting behind its own confirmation. Every outcome reaches the change report, a failure included: it is reported as still unprotected rather than rounded to done.</li>
 </ul>
       <p class="help-x">Writes; a change report is shown on screen and downloadable. Creating administrative units is a separate click from Import, and needs <code>AdministrativeUnit.ReadWrite.All</code> plus <b>Privileged Role Administrator</b>.</p>
     </section>
@@ -2451,50 +2453,50 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25148"></script>
-<script src="js/version.js?v=25148"></script>
-<script src="js/promote.js?v=25148"></script>
-<script src="js/authConfig.js?v=25148"></script>
-<script src="js/labels.js?v=25148"></script>
-<script src="js/graph.js?v=25148"></script>
-<script src="js/model.js?v=25148"></script>
-<script src="js/render.js?v=25148"></script>
-<script src="js/analyze.js?v=25148"></script>
-<script src="js/whatif.js?v=25148"></script>
-<script src="js/mslearn.js?v=25148"></script>
-<script src="js/gapcheck.js?v=25148"></script>
-<script src="js/cisdata.js?v=25148"></script>
-<script src="js/cischeck.js?v=25148"></script>
-<script src="js/exclusions.js?v=25148"></script>
-<script src="js/validator.js?v=25148"></script>
-<script src="js/whatifeval.js?v=25148"></script>
-<script src="js/compare.js?v=25148"></script>
-<script src="js/groupuse.js?v=25148"></script>
-<script src="js/iso3166.js?v=25148"></script>
-<script src="js/locations.js?v=25148"></script>
-<script src="js/authcontexts.js?v=25148"></script>
-<script src="js/authstrengths.js?v=25148"></script>
-<script src="js/recycle.js?v=25148"></script>
-<script src="js/rmau.js?v=25148"></script>
-<script src="js/rmaudoc.js?v=25148"></script>
-<script src="js/termsofuse.js?v=25148"></script>
-<script src="js/audit.js?v=25148"></script>
-<script src="js/drift.js?v=25148"></script>
-<script src="js/guide.js?v=25148"></script>
-<script src="js/devcheck.js?v=25148"></script>
-<script src="js/licgap.js?v=25148"></script>
-<script src="js/signins.js?v=25148"></script>
-<script src="js/reportimpact.js?v=25148"></script>
-<script src="js/changelog.js?v=25148"></script>
-<script src="js/baselineData.js?v=25148"></script>
-<script src="js/baselineJoeyData.js?v=25148"></script>
-<script src="js/baseline.js?v=25148"></script>
-<script src="js/groupTemplates.js?v=25148"></script>
-<script src="js/assign.js?v=25148"></script>
-<script src="js/cagroups.js?v=25148"></script>
-<script src="js/import.js?v=25148"></script>
-<script src="js/export.js?v=25148"></script>
-<script src="js/demo.js?v=25148"></script>
-<script src="js/app.js?v=25148"></script>
+<script src="js/branding.js?v=25149"></script>
+<script src="js/version.js?v=25149"></script>
+<script src="js/promote.js?v=25149"></script>
+<script src="js/authConfig.js?v=25149"></script>
+<script src="js/labels.js?v=25149"></script>
+<script src="js/graph.js?v=25149"></script>
+<script src="js/model.js?v=25149"></script>
+<script src="js/render.js?v=25149"></script>
+<script src="js/analyze.js?v=25149"></script>
+<script src="js/whatif.js?v=25149"></script>
+<script src="js/mslearn.js?v=25149"></script>
+<script src="js/gapcheck.js?v=25149"></script>
+<script src="js/cisdata.js?v=25149"></script>
+<script src="js/cischeck.js?v=25149"></script>
+<script src="js/exclusions.js?v=25149"></script>
+<script src="js/validator.js?v=25149"></script>
+<script src="js/whatifeval.js?v=25149"></script>
+<script src="js/compare.js?v=25149"></script>
+<script src="js/groupuse.js?v=25149"></script>
+<script src="js/iso3166.js?v=25149"></script>
+<script src="js/locations.js?v=25149"></script>
+<script src="js/authcontexts.js?v=25149"></script>
+<script src="js/authstrengths.js?v=25149"></script>
+<script src="js/recycle.js?v=25149"></script>
+<script src="js/rmau.js?v=25149"></script>
+<script src="js/rmaudoc.js?v=25149"></script>
+<script src="js/termsofuse.js?v=25149"></script>
+<script src="js/audit.js?v=25149"></script>
+<script src="js/drift.js?v=25149"></script>
+<script src="js/guide.js?v=25149"></script>
+<script src="js/devcheck.js?v=25149"></script>
+<script src="js/licgap.js?v=25149"></script>
+<script src="js/signins.js?v=25149"></script>
+<script src="js/reportimpact.js?v=25149"></script>
+<script src="js/changelog.js?v=25149"></script>
+<script src="js/baselineData.js?v=25149"></script>
+<script src="js/baselineJoeyData.js?v=25149"></script>
+<script src="js/baseline.js?v=25149"></script>
+<script src="js/groupTemplates.js?v=25149"></script>
+<script src="js/assign.js?v=25149"></script>
+<script src="js/cagroups.js?v=25149"></script>
+<script src="js/import.js?v=25149"></script>
+<script src="js/export.js?v=25149"></script>
+<script src="js/demo.js?v=25149"></script>
+<script src="js/app.js?v=25149"></script>
 </body>
 </html>
