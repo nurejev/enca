@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25164, date: "2026-08-19", title: "Two buttons doing the same thing is one too many",
+    items: [
+      { kind: "improved", tool: "Licence gap", text: "Queue item 73 — the toolbar carried a second Count the gap next to the big one in the run prompt, and before the first run they did exactly the same thing. The toolbar button is now Rescan and exists only once there is a result to redo — the same shape Change audit uses — so the empty screen has one obvious way in, and a finished screen has one obvious way to re-read the tenant." },
+    ],
+  },
+  {
     build: 25163, date: "2026-08-19", title: "The logo and the changelog guard reached production",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue item 71 — the official ENCA mark in the header, on the sign-in page and as the favicon — is live in production build 289. The three files went across byte-identical, with the version query intact: those filenames previously held the Limon-IT mark, so without it a returning visitor is served the old logo out of cache." },

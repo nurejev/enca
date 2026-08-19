@@ -87,6 +87,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 73,
+      title: "🎫 Licence gap: one run button",
+      tools: ["Licence gap"],
+      builds: [25164],
+      risk: "low",
+      what: "The toolbar's duplicate Count the gap became Rescan and renders only once a result exists to redo (the Change audit shape); the first run stays with the big button in the run prompt. Visibility is set in renderLicGap and while a run is in flight, so a mid-run tab switch cannot resurrect it.",
+      why: "Pure UI dedupe on a tool already in production - two identical primary actions on one screen is a small confusion with a one-line fix, but the visibility logic is worth eyes: a button that reappears mid-run would fire a second concurrent read.",
+      test: [
+        "Open 🎫 Licence gap before any run: the toolbar shows only Export MD, and the run prompt carries the single Count the gap button.",
+        "Run it (demo mode is fine): once results render, the toolbar shows Rescan and the prompt is gone.",
+        "Click Rescan: the busy panel appears and Rescan disappears for the duration - switch to another tool tab and back mid-run, it must still be hidden - then returns with the fresh result.",
+        "Export MD before ever running: the run-first toast, nothing else.",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 70,
       title: "\ud83d\udd0d Gap analyse: the coverage flow (T03)",
       tools: ["Gap analyse"],

@@ -8940,6 +8940,10 @@ max@contoso.com,"Global, DevOps"</pre>
     if (lgBusy) return;
     lgBusy = true;
     lgPurpose = null;   // a new run invalidates the mailbox-type check
+    // The toolbar Rescan exists only when there is a result to redo — the
+    // first run belongs to the big button in the prompt, and two buttons
+    // doing the same thing is one too many (the Change audit pattern).
+    $("lgRun").style.display = "none";
     const raws = policies.map((p) => p.raw).filter((r) => r.state !== "disabled");
     const gids = [...new Set(raws.flatMap((r) => {
       const u = (r.conditions || {}).users || {};
@@ -9102,6 +9106,7 @@ max@contoso.com,"Global, DevOps"</pre>
   }
 
   function renderLicGap() {
+    $("lgRun").style.display = lgRes && !lgBusy ? "" : "none";
     $("lgHead").innerHTML = `<h3>🎫 Licence gap <span class="tag new">BETA</span></h3>
       <p style="margin-bottom:4px">Microsoft's licence usage blade counts <b>evaluated</b> users — who happened to trigger a policy last month. The obligation Microsoft licenses on is <b>targeted</b> users: every user a Conditional Access policy is scoped to needs <b>Entra ID P1</b>, and every user targeted by a risk-based policy needs <b>P2</b> — whether they signed in or not. A blade showing "2 of 25, fine" can sit on a tenant targeting every one of its users. This tool counts the targeted number and compares it with the seats the tenant owns.</p>
       <p class="mini muted" style="margin:0">Reads only, covered by the permissions already granted at sign-in — licences, the member-user count, and the members behind every group and role your policies include or exclude.</p>`;
