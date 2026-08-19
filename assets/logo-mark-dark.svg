@@ -1,36 +1,32 @@
-<!-- ENCA mark. Supplied artwork, unmodified except for the FRAMING: the
-     original viewBox is "0 0 1024 1024", which spends the outer ~35% of the
-     box on the dashed orbit ring. That reads well as a 1024px app icon and
-     is illegible at the 34px the header uses — the shield lands on about
-     twelve pixels. Cropping to the inner disc keeps every element and makes
-     the mark carry at both sizes. Restore the original viewBox (and
-     width/height) to get the full composition back. -->
-<svg width="664" height="664" xmlns="http://www.w3.org/2000/svg" viewBox="180 180 664 664">
+<!-- ENCA mark, dark. Same drawing as logo-mark-light.svg in the dark palette -
+     separate artwork, not the light one filtered. Swapped in by css/app.css
+     rather than by script, so it is already right on the sign-in screen before
+     the app has booted, which is where a wrong-theme logo shows most. -->
+<svg width="856" height="856" xmlns="http://www.w3.org/2000/svg" viewBox="84 84 856 856">
 <defs>
-  <filter id="glowD" x="-150%" y="-150%" width="400%" height="400%">
+  <filter id="glow" x="-150%" y="-150%" width="400%" height="400%">
     <feGaussianBlur stdDeviation="6" result="b"/>
     <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
   </filter>
-  <filter id="softglowD" x="-80%" y="-80%" width="260%" height="260%">
+  <filter id="softglow" x="-80%" y="-80%" width="260%" height="260%">
     <feGaussianBlur stdDeviation="10" result="b"/>
     <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
   </filter>
-  <radialGradient id="bggD" cx="50%" cy="42%" r="75%">
+  <radialGradient id="bgg" cx="50%" cy="42%" r="75%">
     <stop offset="0%" stop-color="#0b1508"/><stop offset="100%" stop-color="#050a04"/>
   </radialGradient>
-  <linearGradient id="goldgD" x1="0" y1="0" x2="0" y2="1">
+  <linearGradient id="goldg" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0%" stop-color="#f6dd6a"/><stop offset="55%" stop-color="#e8c132"/>
     <stop offset="100%" stop-color="#a8871c"/>
   </linearGradient></defs>
-<rect width="1024" height="1024" fill="url(#bggD)"/>
 <circle cx="512" cy="512" r="330" fill="#4a8c2a" opacity="0.10"/><circle cx="512" cy="512" r="230" fill="#8fce3c" opacity="0.08"/>
 <circle cx="512" cy="512" r="400" fill="none" stroke="#5a7a2a" stroke-width="3" stroke-dasharray="2 14" opacity="0.9"/><circle cx="512" cy="512" r="400" fill="none" stroke="#e8c132" stroke-width="1.5" opacity="0.35"/>
-<circle cx="512.0" cy="112.0" r="9" fill="#c8e84a" filter="url(#glowD)"/><circle cx="858.4" cy="312.0" r="9" fill="#c8e84a" filter="url(#glowD)"/><circle cx="858.4" cy="712.0" r="9" fill="#c8e84a" filter="url(#glowD)"/><circle cx="512.0" cy="912.0" r="9" fill="#c8e84a" filter="url(#glowD)"/><circle cx="165.6" cy="712.0" r="9" fill="#c8e84a" filter="url(#glowD)"/><circle cx="165.6" cy="312.0" r="9" fill="#c8e84a" filter="url(#glowD)"/>
+<circle cx="512.0" cy="112.0" r="9" fill="#c8e84a" filter="url(#glow)"/><circle cx="858.4" cy="312.0" r="9" fill="#c8e84a" filter="url(#glow)"/><circle cx="858.4" cy="712.0" r="9" fill="#c8e84a" filter="url(#glow)"/><circle cx="512.0" cy="912.0" r="9" fill="#c8e84a" filter="url(#glow)"/><circle cx="165.6" cy="712.0" r="9" fill="#c8e84a" filter="url(#glow)"/><circle cx="165.6" cy="312.0" r="9" fill="#c8e84a" filter="url(#glow)"/>
 <circle cx="512" cy="512" r="320" fill="none" stroke="#e8c132" stroke-width="2" opacity="0.4"/><circle cx="512" cy="512" r="265" fill="none" stroke="#4a8c2a" stroke-width="2" opacity="0.55"/>
 <g transform="translate(512,505)">
-  <g filter="url(#softglowD)"><circle r="215" fill="#2f5c1a" stroke="url(#goldgD)" stroke-width="16"/></g>
+  <g filter="url(#softglow)"><circle r="215" fill="#2f5c1a" stroke="url(#goldg)" stroke-width="16"/></g>
 <g transform="translate(-112,-104) scale(1.5)" opacity="0.28"><circle r="24" fill="none" stroke="#8fce3c" stroke-width="7"/><circle r="9" fill="none" stroke="#8fce3c" stroke-width="6"/><line x1="24.0" y1="0.0" x2="36.0" y2="0.0" stroke="#8fce3c" stroke-width="10"/><line x1="17.0" y1="17.0" x2="25.5" y2="25.5" stroke="#8fce3c" stroke-width="10"/><line x1="0.0" y1="24.0" x2="0.0" y2="36.0" stroke="#8fce3c" stroke-width="10"/><line x1="-17.0" y1="17.0" x2="-25.5" y2="25.5" stroke="#8fce3c" stroke-width="10"/><line x1="-24.0" y1="0.0" x2="-36.0" y2="0.0" stroke="#8fce3c" stroke-width="10"/><line x1="-17.0" y1="-17.0" x2="-25.5" y2="-25.5" stroke="#8fce3c" stroke-width="10"/><line x1="-0.0" y1="-24.0" x2="-0.0" y2="-36.0" stroke="#8fce3c" stroke-width="10"/><line x1="17.0" y1="-17.0" x2="25.5" y2="-25.5" stroke="#8fce3c" stroke-width="10"/></g>
-<g transform="translate(0,-6)"><path d="M0,-140 L112,-100 L112,10 C112,80 56,130 0,158 C-56,130 -112,80 -112,10 L-112,-100 Z" fill="none" stroke="url(#goldgD)" stroke-width="15" stroke-linejoin="round"/><circle cx="0" cy="-24" r="30" fill="none" stroke="#e8c132" stroke-width="14"/><path d="M-13,-6 L-20,58 L20,58 L13,-6 Z" fill="#e8c132"/></g>
-  <circle cx="118" cy="-118" r="13" fill="#c8e84a" filter="url(#glowD)"/>
+<g transform="translate(0,-6)"><path d="M0,-140 L112,-100 L112,10 C112,80 56,130 0,158 C-56,130 -112,80 -112,10 L-112,-100 Z" fill="none" stroke="url(#goldg)" stroke-width="15" stroke-linejoin="round"/><circle cx="0" cy="-24" r="30" fill="none" stroke="#e8c132" stroke-width="14"/><path d="M-13,-6 L-20,58 L20,58 L13,-6 Z" fill="#e8c132"/></g>
+  <circle cx="118" cy="-118" r="13" fill="#c8e84a" filter="url(#glow)"/>
 </g>
 </svg>

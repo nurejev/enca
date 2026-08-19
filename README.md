@@ -235,7 +235,7 @@ const BRANDING = {
   orgUrl: "https://limon-it.nl",
   copyright: "© 2026 Limon-IT",
   host: "enca.limon-it.nl",                      // shown in the header and in every export credit
-  logo: "assets/enca-mark-light.svg",
+  logo: "assets/logo-mark-light.svg",
   favicon: "assets/favicon.svg",
   loginTitle: "", loginBlurb: "…",               // "" → `${name} — ${longName}`
   colors: { "--green": "#1e4729" },              // optional; written onto :root, beats the stylesheet

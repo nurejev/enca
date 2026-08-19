@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25161, date: "2026-08-19", title: "The logo, built the way the other product marks are",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Build 25160 shipped the ENCA mark as an <b>icon tile</b> — artwork with its own painted background, rounded by the stylesheet so it did not sit on the header as a square patch. That is not how the other Limon-IT product marks are built. TUNO's is <b>transparent</b>: no background rect, so it carries on any header colour with nothing behind it and no rounding to maintain. ENCA's is now built the same way, from the same drawing, and the rounding rule is gone rather than left applying to nothing." },
+      { kind: "improved", tool: "All tools", text: "<b>Two framings from one drawing</b>, which is the part 25160 got backwards. The mark keeps the orbit ring (<code>viewBox 84 84 856 856</code>) — at 34px in the header and 76px on the sign-in card it is the ring that makes the mark read as a mark rather than a green dot. The <b>favicon is cropped to the inner disc</b> (<code>270 263 484 484</code>), because a browser tab renders it at 16–32 pixels and the ring is only noise there. 25160 used one over-cropped file for all three and had no favicon of its own." },
+      { kind: "fixed", tool: "All tools", text: "<b>A claim in 25160 was wrong and is withdrawn.</b> It said the two marks sharing internal SVG ids would have made the dark one render in the light palette. They would not: an SVG loaded through <code>&lt;img src&gt;</code> or CSS <code>content:url()</code> is its own document, and its ids are scoped to it — the collision only exists if the markup is inlined, which it is not. The defensive id-suffixing is removed, so the files match the other product marks byte for byte outside their own glyph." },
+      { kind: "improved", tool: "All tools", text: "The files go back to the names the rest of the family uses — <code>logo-mark-light.svg</code>, <code>logo-mark-dark.svg</code>, <code>favicon.svg</code> — and every reference to them carries <code>?v=</code>. That is not decoration: those exact filenames previously held the <i>Limon-IT</i> mark, so without it a returning visitor keeps being served the old logo out of cache, on the one screen where it is most obvious." },
+    ],
+  },
+  {
     build: 25160, date: "2026-08-19", title: "ENCA gets its own logo",
     items: [
       { kind: "new", tool: "All tools", text: "The official <b>ENCA mark</b> — the shield, keyhole and gear inside its ring — replaces the Limon-IT mark in the header, on the sign-in page and as the favicon. It is the app's own logo rather than the company's, which is what the sign-in page has needed since the tool was named: ENCA is what you are signing in to, and the header was introducing something else." },

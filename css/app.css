@@ -25,11 +25,6 @@ a{color:var(--accent2)}
 header{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
 .hwrap{max-width:1180px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:14px}
 .logo{display:flex;align-items:center;gap:10px}
-/* The ENCA mark is an icon tile with its own background, so it is rounded like
-   an app icon rather than left as a square patch on the header. The radius is
-   proportional (22%) so the header mark and the four-times-larger login mark
-   read as the same shape. */
-.logo img, .login-card > img{border-radius:22%}
 .logo{cursor:pointer}
 .logo b{font-size:17px;letter-spacing:-.02em}
 .logo b span{color:var(--accent2)}
@@ -958,7 +953,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 :root[data-theme="dark"] .selbar, :root[data-theme="dark"] .toast{background:#0d1a12;border:1px solid var(--border)}
 :root[data-theme="dark"] .exp-ic.md{background:#4a5450}
 :root[data-theme="dark"] .fs-bg{background:rgba(0,0,0,.62)}
-:root[data-theme="dark"] .logo img, :root[data-theme="dark"] .login-card > img{content:url("../assets/enca-mark-dark.svg")}
+:root[data-theme="dark"] .logo img, :root[data-theme="dark"] .login-card > img{content:url("../assets/logo-mark-dark.svg?v=25161")}
 
 /* the site's own treatment: white card titles, lemon pill, lemon CTA, hero glow */
 :root[data-theme="dark"] .tool h3, :root[data-theme="dark"] .readme h3{color:var(--lemon)}
@@ -979,7 +974,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x{color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn:hover,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x:hover{background:rgba(0,0,0,.12);color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .fs-bg{background:rgba(0,0,0,.62)}
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .logo img, :root:not([data-theme="light"]):not([data-theme="dark"]) .login-card > img{content:url("../assets/enca-mark-dark.svg")}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .logo img, :root:not([data-theme="light"]):not([data-theme="dark"]) .login-card > img{content:url("../assets/logo-mark-dark.svg?v=25161")}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .tool h3, :root:not([data-theme="light"]):not([data-theme="dark"]) .readme h3{color:var(--lemon)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .tag.new{background:var(--soft);border-color:var(--ghost-bd);color:var(--lemon);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary{background:var(--lemon);border-color:var(--lemon)}
