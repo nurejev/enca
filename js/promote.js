@@ -87,6 +87,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 75,
+      title: "\ud83d\udeab Disable nesting is opt-in until it is GA",
+      tools: ["CA groups", "Import", "Assign groups"],
+      builds: [25166],
+      risk: "high",
+      what: "Every create path stops asking for disableNesting by default; it is a tick in \u2460 Create and \u2461 Build a group manually instead, and CaGroups.NESTING_GA flips the default back in one line when Microsoft ships it. The request goes to v1.0, the only version whose documentation names the property. A \u201cRequest_BadRequest \u2014 unexpected request made to property\u201d refusal is recognised as \u201cthis tenant has not got the feature\u201d, reported as such, and remembered for the session. \u2467 Disable nesting no longer offers its destructive recreate in that case, and \ud83d\udce5 Import stops selecting the property in the batch that finds a file's groups.",
+      why: "PRODUCTION IS AFFECTED TODAY. Since build 284 every create path sets disableNesting by default, and on a tenant whose directory does not carry the property Graph refuses the field outright \u2014 so every single group created ends in a red failure for a security setting the panel promised in small print. Worse, that failure text sends the reader to \u2467 Disable nesting, which retries the same call and then offers to RECREATE the group: a rename-aside and rebuild that sets the property at creation, which is exactly the request that just failed. A destructive dead end, recommended by the product. Also fixes \ud83d\udce5 Import reporting a tenant's existing groups as absent when the property makes its lookup 400.",
+      files: ["js/cagroups.js", "js/assign.js", "js/app.js", "index.html"],
+    },
+    {
       n: 74,
       title: "🎫 Licence gap: finish the user read on big tenants",
       tools: ["Licence gap"],

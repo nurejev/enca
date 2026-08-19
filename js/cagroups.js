@@ -338,6 +338,62 @@ const CaGroups = (() => {
   // renames one; the nesting scope alone only covers the PATCH.
   const NEST_WRITE_SCOPES = ["Group-NestingSupport.ReadWrite.All", "Group.ReadWrite.All"];
 
+  // ---- Is this property actually shipped? ---------------------------------
+  // On 2026-08-19 a real tenant answered every disableNesting write with
+  //
+  //   400 Request_BadRequest — "Unexpected request made to property
+  //   'disableNesting' of resource 'Group'"
+  //
+  // both on PATCH and in the CREATE body. That wording is the directory saying
+  // it does not know the property NAME — not that it dislikes the value, and
+  // not "settable only at creation", which is what the field reports had led us
+  // to assume. Checking Learn again:
+  //
+  //   * v1.0 PATCH /groups names it, but only in the permissions note:
+  //     "Group-NestingSupport.ReadWrite.All is the least privileged permission
+  //     to update the disableNesting property".
+  //   * BETA PATCH /groups does not list it among updatable properties.
+  //   * NEITHER version's group resource carries it in the property table or
+  //     the JSON representation.
+  //
+  // So the permission is documented and the property is not on any published
+  // schema: it is not generally available. Two consequences, both here:
+  //
+  //  1. ENCA talks to /beta everywhere (AUTH_CONFIG.graphBase), and the only
+  //     page that names the property is the v1.0 one. This property alone is
+  //     therefore addressed at v1.0 explicitly, so a tenant that HAS it is not
+  //     refused merely because we asked the wrong version.
+  //  2. Until it is GA, no create asks for it by default. A security setting
+  //     that fails on every group is not a safeguard, it is a red line under
+  //     every create — and worse, it made every create panel promise something
+  //     the tenant would not do.
+  const NESTING_GA = false;              // flip to true when Microsoft ships it
+  const NEST_V1 = (path) => `https://graph.microsoft.com/v1.0${path}`;
+
+  // The refusal above is a statement about the TENANT, not about one group. It
+  // has to be told apart from an ordinary failure, because it is the difference
+  // between "try the other route" and "there is no route" — and the other route
+  // is a destructive recreate that sets the property at creation, which is
+  // exactly what was just refused.
+  function nestingUnsupported(err) {
+    const s = String((err && (err.message || err.code)) || err || "").toLowerCase();
+    if (!s.includes("disablenesting")) return false;
+    return s.includes("unexpected request made to property")
+        || s.includes("request_badrequest")
+        || s.includes("unrecognized") || s.includes("unknown propert") || s.includes("invalid propert");
+  }
+  // Remembered for the session: creating ten baseline groups should not mean
+  // ten identical refusals for something that cannot succeed in this tenant.
+  // Deliberately NOT persisted — a new sign-in re-tests, so the day Microsoft
+  // enables it nobody has to clear anything.
+  let nestUnsupported = false;
+  const nestingSupported = () => !nestUnsupported;
+  function noteNestingUnsupported(err) {
+    if (nestingUnsupported(err)) { nestUnsupported = true; return true; }
+    return false;
+  }
+  const NESTING_UNSUPPORTED_TEXT = "this tenant's directory does not recognise the disableNesting property — it is not generally available yet, and no route here can set it (recreating the group would be refused in exactly the same way)";
+
   // g is whatever came back from ?$select=id,disableNesting.
   function nestingState(g) {
     if (!g) return "unknown";
@@ -368,6 +424,10 @@ const CaGroups = (() => {
       return { ...base, ok: false, reason: `“${row.name}” is the archived half of an earlier recreate, not the live group — the live one is the same name without the suffix. Disabling nesting here would create a permanent new group still called “${row.name}”. Work on the live group instead, and delete this one once you are satisfied nothing still points at it (Group Analyzer will tell you).` };
     }
     if (row.nesting === "disabled") return { ...base, ok: false, reason: "Nesting is already disabled on this group." };
+    // Asked and answered, this session. Offering the button again would only
+    // walk the reader to the same refusal — and then to a destructive recreate
+    // that cannot work either, because it sets the property at creation.
+    if (!nestingSupported()) return { ...base, ok: false, reason: `Not available: ${NESTING_UNSUPPORTED_TEXT}. A restricted management administrative unit limits who can change the members at all, is generally available today, and is what ⑥ Protect uses.` };
     if (row.dynamic) return { ...base, ok: false, reason: "This is a dynamic group. Its membership is decided by the rule, so a group cannot be added to it by hand in the first place." };
     // Entra already forbids it: "Group nesting isn't supported. A group can't be
     // added as a member of a role-assignable group."
@@ -1088,6 +1148,7 @@ const CaGroups = (() => {
     STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate,
     renderSummary, chips, renderTable, renderMatrix, toMd, filtered,
     NESTING, NEST_WRITE_SCOPES, nestingState, nestingPlan, nestingReport, adminList,
+    NESTING_GA, NEST_V1, nestingUnsupported, nestingSupported, noteNestingUnsupported, NESTING_UNSUPPORTED_TEXT,
     ARCHIVE_SUFFIX, findArchived,
     catalogGroupNames, templateNames, policyRefs, convertPlan, runConvert,
     MIGRATE_SCOPES, heldRoles, migratePlan, migrateReport, migratedName,

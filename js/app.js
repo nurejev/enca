@@ -2082,7 +2082,12 @@
       // One batch, one request per name: displayName is not filterable with
       // `in`, and a name with an apostrophe has to survive the quoting.
       const reqs = names.map((n, i) => ({ id: String(i),
-        url: `/groups?$filter=displayName eq '${n.replace(/'/g, "''")}'&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled,disableNesting&$top=1` }));
+        // disableNesting is deliberately NOT in this $select. A directory that
+        // does not carry the property answers the whole sub-request with a 400,
+        // which would leave `found` empty — and an empty map here does not read
+        // as "could not check", it reads as "none of these groups exist in the
+        // tenant". A wrong answer, not a failure. It is read separately below.
+        url: `/groups?$filter=displayName eq '${n.replace(/'/g, "''")}'&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=1` }));
       const res = await Graph.gbatch(reqs);
       const found = new Map();
       for (const r of (res || [])) {
@@ -2104,10 +2109,9 @@
           // vault a group belongs in is read from the file's own policies.
           srcId: src.id, dynamic: isDynamic,
           roleAssignable: g.isAssignableToRole === true,
-          // A plain GET does not return disableNesting; this select does, but
-          // only where it is set — so absent means "allowed, or this tenant has
-          // not got the feature", which is not the same as allowed.
-          nesting: g.disableNesting === true ? "disabled" : g.disableNesting === false ? "allowed" : "unreported",
+          // Filled in by loadNestingStates() below, on its own request, so a
+          // tenant without the property cannot take the rest of this with it.
+          nesting: undefined,
           typeMismatch: wantDynamic !== isDynamic ? (wantDynamic ? "the file expects a DYNAMIC group with a membership rule; this one is assigned, and the rule will not be applied" : "the file expects an ASSIGNED group; this one is dynamic, so its rule keeps deciding the members") : null,
           m365: (g.groupTypes || []).includes("Unified"),
           protectedIn: prot.get(g.id) || null,
@@ -2115,6 +2119,11 @@
         imRa.existing.push(row);
         if (row.roleAssignable) imRa.rows.push({ id: g.id, name: g.displayName });
       }
+      // Its own pass, and its own failure mode: anything unreadable stays
+      // "unreported", which the panel already states honestly rather than
+      // rendering as "allowed".
+      try { await loadNestingStates(imRa.existing); } catch { /* leave them unknown */ }
+      for (const r of imRa.existing) if (!r.nesting || r.nesting === "unknown") r.nesting = "unreported";
       imRa.checked = true;
       imFixPlan();
     } catch (e) {
@@ -2195,7 +2204,7 @@
       <p class="mini" style="margin:0 0 8px">${n === 1 ? "One group" : `${n} groups`} in this file already ${n === 1 ? "exists" : "exist"} here as <b>role-assignable</b>. The baseline has moved off that flag: it was only ever used to keep membership away from tenant-wide group administrators, and a <b>restricted management administrative unit</b> does that better — it names <i>who</i> may manage the group, and it can be undone.</p>
       <p class="mini" style="margin:0 0 8px">Left as they are, the import still works, but these groups <b>cannot be protected</b>: the flag is immutable, it forbids controlling nesting, and it cannot be combined with a restricted unit — a group carrying both has nobody who can change its members. So the 🛡 PROTECTION step above will skip exactly ${n === 1 ? "this one" : "these"}.</p>
       <div class="cg-pick">${imRa.rows.map((r) => `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b> <span class="tag block">role-assignable</span></div></div>`).join("")}</div>
-      <p class="mini muted" style="margin:8px 0 0">Converting means <b>recreating</b> each one — rename the original aside, create a plain security group with nesting disabled, copy the members, repoint every policy that references it, then place it in the restricted unit. That runs in <b>⑦ Migrate</b>, behind its own typed confirmation and with its own report and rollback; it is not repeated here, so there is only ever one implementation of it.</p>
+      <p class="mini muted" style="margin:8px 0 0">Converting means <b>recreating</b> each one — rename the original aside, create a plain security group, copy the members, repoint every policy that references it, then place it in the restricted unit. That runs in <b>⑦ Migrate</b>, behind its own typed confirmation and with its own report and rollback; it is not repeated here, so there is only ever one implementation of it.</p>
       <div class="row" style="justify-content:flex-start;margin-top:10px">
         <button class="btn" id="imRaGo">⑦ Convert ${n === 1 ? "it" : "them"} first — open Migrate</button>
         <span class="mini muted">or import now and convert later; the report will list them as unprotected</span>
@@ -2256,7 +2265,7 @@
     return `<div class="cg-panel">
       <h4>♻️ ALREADY HERE — ${rows.length} OF THIS FILE'S GROUPS WILL BE REUSED</h4>
       <p class="mini" style="margin:0 0 8px">The policies will bind to the ${rows.length === 1 ? "group" : "groups"} already in this tenant — nothing is duplicated, and the membership of ${rows.length === 1 ? "it" : "them"} is not touched. That is the safe default: a group that already exists may hold members and sit somewhere deliberately, and an import is not the place to decide otherwise.</p>
-      <p class="mini" style="margin:0 0 8px">It does mean a reused group <b>inherits none of the hardening a created one gets</b>. A group created by this import gets nesting disabled and is filed into its persona vault${notable.length ? `, and ${notable.length} of ${rows.length} ${notable.length === 1 ? "has" : "have"} something worth seeing first` : ""}.</p>
+      <p class="mini" style="margin:0 0 8px">It does mean a reused group <b>inherits none of the hardening a created one gets</b>. A group created by this import is filed into its persona vault${notable.length ? `, and ${notable.length} of ${rows.length} ${notable.length === 1 ? "has" : "have"} something worth seeing first` : ""}.</p>
       ${total ? `<p class="mini" style="margin:0 0 8px"><b>You can finish that here.</b> Tick what should be applied to a group and it runs <b>after the policies import</b> — the same two writes the create path makes, and neither is destructive: Entra <i>refuses</i> the nesting change rather than forcing it when a group already holds nested groups, and unit membership can be undone. Nothing is ticked for you.</p>
       <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 8px;flex-wrap:wrap">
         <button class="btn sm" id="imFixAll">☑ Tick all ${total}</button>
@@ -2288,17 +2297,26 @@
             // run every time.
             if (/internals/i.test(r.name)) throw new Error("Demo — simulated refusal: the group already contains a nested group");
           } else {
-            await Graph.gpatch(`/groups/${r.id}`, { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
-            const back = await Graph.gget(`/groups/${r.id}?$select=id,disableNesting`);
+            // v1.0 for this property only — see the note in js/cagroups.js.
+            await Graph.gpatch(CaGroups.NEST_V1(`/groups/${r.id}`), { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
+            const back = await Graph.gget(CaGroups.NEST_V1(`/groups/${r.id}?$select=id,disableNesting`));
             if (CaGroups.nestingState(back) !== "disabled") {
-              throw new Error("Entra accepted the update but the property did not read back — on this tenant it is only settable at creation");
+              throw new Error("Entra accepted the update but the property did not read back as set");
             }
           }
           r.nesting = "disabled";
           out.done.push({ name: r.name, what: "nesting disabled" });
         } catch (e) {
-          out.failed.push({ name: r.name, what: "disable nesting", error: (e && e.message) || String(e),
-            hint: "⑧ Disable nesting can recreate the group instead, behind its own typed confirmation — the only remaining route when a group already holds nested groups" });
+          // "Not shipped here" is not "refused for this group", and only one of
+          // the two has a route out. Pointing at the recreate when the property
+          // is unknown sends somebody through a destructive rebuild to the same
+          // error.
+          const dead = CaGroups.noteNestingUnsupported(e);
+          out.failed.push({ name: r.name, what: "disable nesting",
+            error: dead ? CaGroups.NESTING_UNSUPPORTED_TEXT : (e && e.message) || String(e),
+            hint: dead
+              ? "nothing can set it in this tenant yet — a restricted administrative unit limits who can change the members at all, and is available today"
+              : "⑧ Disable nesting can recreate the group instead, behind its own typed confirmation — the remaining route when a group already holds nested groups" });
         }
       }
       if (r.doPlace && r.place.can) {
@@ -2770,19 +2788,37 @@
   // the missing baseline groups, or hand-build one group choosing assigned or
   // dynamic membership and whether to place it in a restricted AU. Neither
   // creates role-assignable groups any more (retired in build 25026), and both
-  // create with nesting disabled (25121).
+  // Nesting is OPT-IN on both since 25166 — the property is not GA (see the
+  // note in js/cagroups.js), so promising it by default was promising a 400.
+  // Nesting is OPT-IN until the property is generally available — see the note
+  // in js/cagroups.js. It is still worth offering, and still worth explaining,
+  // but a box you tick is honest in a way a promise in small print was not: on
+  // a tenant whose directory does not carry the property, every create used to
+  // end in a red failure line for something the panel had guaranteed.
+  const nestWanted = (id) => !!(CaGroups.NESTING_GA || ($(id) && $(id).checked));
+
+  function nestOptIn(id) {
+    if (CaGroups.NESTING_GA) return "";
+    const dead = !CaGroups.nestingSupported();
+    return `<label class="chk" style="margin:10px 0 0"><input type="checkbox" id="${id}"${dead ? " disabled" : ""}> 🚫 Also <b>disable group nesting</b> <span class="tag new">PREVIEW</span></label>
+      <p class="mini muted" style="margin:4px 0 0 24px">No group can then be added as a member, so nobody widens a policy's scope by nesting a group inside this one. ${dead
+        ? `<b style="color:var(--off)">Unavailable in this tenant</b> — the directory refused the property earlier in this session, so it is not attempted again.`
+        : `<b>Off by default:</b> <code>disableNesting</code> is not generally available — Microsoft documents the permission but publishes the property on no group schema, and a directory that lacks it refuses the whole create field. Tick it to try anyway; the group is never lost if it is refused, and it is reported rather than assumed.`} Not sent for dynamic or role-assignable groups, which cannot nest in the first place.</p>`;
+  }
+
   function renderCgCreate() {
     const can = CaGroups.creatable(cgRes);
     const cannot = CaGroups.missingNoTemplate(cgRes);
     const batch = (can.length || cannot.length) ? `<div class="cg-panel">
       <h4>CREATE MISSING BASELINE GROUPS (${can.length})</h4>
-      <p class="mini">From the bundled templates, as plain <b>security groups with nesting disabled</b> — templates with a membership rule are created <b>dynamic</b> instead, and nesting is not sent for those.
+      <p class="mini">From the bundled templates, as plain <b>security groups</b> — templates with a membership rule are created <b>dynamic</b> instead.
         Nothing is created role-assignable any more: a <b>restricted management administrative unit</b> keeps membership away from tenant-wide group administrators without the immutability, and 🔒 Protect places them in one.
         A group that already exists under the same name is reused, never duplicated, and is left exactly as it is.</p>
       <div class="cg-pick">${can.map((r, i) =>
         `<label class="chk" style="margin:5px 0"><input type="checkbox" data-cgcreate="${i}" checked> ${esc(r.name)}
-          <span class="mini muted">${r.template.membershipRule ? "dynamic" : "assigned · nesting disabled"}</span></label>`).join("")
+          <span class="mini muted">${r.template.membershipRule ? "dynamic" : "assigned"}</span></label>`).join("")
         || '<p class="mini muted">No creatable missing groups.</p>'}</div>
+      ${nestOptIn("cgCreateNest")}
       <div class="cg-progress" id="cgCreateBar" style="display:none"><div style="width:0%"></div></div>
       <div id="cgCreateLog" class="mini" style="margin-top:8px"></div>
       ${can.length ? `<div class="row" style="justify-content:flex-start;margin-top:12px">
@@ -2821,11 +2857,12 @@
       <p class="mini muted" id="cgmRoleWrap" style="margin:8px 0 0"><b>Role-assignable is no longer offered.</b> That flag was only ever used to keep membership out of reach of tenant-wide group administrators, and a restricted AU does the same job, names <i>who</i> may manage it, and can be undone. The two cannot be combined: a role-assignable group admits only Global Administrator and Privileged Role Administrator, and a restricted AU blocks exactly those two. Existing ones move across with <b>⑦ Migrate</b>.</p>
       <p class="mini" id="cgmRoleNote" style="display:none"></p>
 
+      ${nestOptIn("cgmNest")}
       <div id="cgmLog" class="mini" style="margin-top:10px">${cgmMsg || ""}</div>
       <div class="row" style="justify-content:flex-start;margin-top:12px">
         <button class="btn primary" id="cgmCreate">Create group${isDemo ? " (simulated)" : ""}</button>
       </div>
-      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled, <b>with group nesting disabled</b> — no other group can be made a member, so nobody widens a policy's scope by nesting a group inside this one. Consents <code>Group.ReadWrite.All</code> and <code>Group-NestingSupport.ReadWrite.All</code> on demand, plus <code>AdministrativeUnit.ReadWrite.All</code> if you protect it. An existing group with the same name is reused — and is left exactly as it is, including its nesting setting.</p>
+      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled. Consents <code>Group.ReadWrite.All</code> on demand, <code>Group-NestingSupport.ReadWrite.All</code> only if you tick nesting above, plus <code>AdministrativeUnit.ReadWrite.All</code> if you protect it. An existing group with the same name is reused — and is left exactly as it is, including its nesting setting.</p>
     </div>`;
 
     $("cgBody").innerHTML = batch + manual;
@@ -3346,8 +3383,8 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       const auChoice = aus.length ? aus[0].id : "new";
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME;
-      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: true, toAu: true, sel: null,
-        plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: true }) };
+      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null,
+        plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA }) };
     } catch (e) {
       console.error("Migrate scan failed:", e);
       cgMigBusy = false;
@@ -4138,10 +4175,11 @@ max@contoso.com,"Global, DevOps"</pre>
         try {
           const g = isDemo
             ? { id: "g-" + r.name, name: r.name, created: true }
-            : await Assign.createGroup(r.template);
+            : await Assign.createGroup({ ...r.template, disableNesting: nestWanted("cgCreateNest") });
           ok++;
           lines.push(`<div>${g.created ? "✓ created" : "• already existed, reused"} <b>${esc(r.name)}</b>`
             + (g.created && g.nesting === "disabled" ? ' <span class="mini" style="color:var(--on)">🚫 nesting disabled</span>' : "")
+            + (g.created && g.nesting === "unsupported" ? ` <span class="mini" style="color:var(--report)">• nesting not available in this tenant</span>` : "")
             + (g.created && g.nesting === "failed" ? ` <span class="mini" style="color:var(--off)">⚠ nesting still allowed — ${esc(g.nestingError || "")}</span>` : "")
             + `</div>`);
         } catch (err) {
@@ -4533,19 +4571,51 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!await preConsent([...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES])) return;
     const btn = $("nestGo"); btn.disabled = true; btn.textContent = "Setting…";
     try {
-      let ok = false, patchError = null;
+      let ok = false, patchError = null, unsupported = false;
       if (isDemo) {
-        ok = !p.name.toLowerCase().includes("admins");   // exercise both routes in demo
-        patchError = ok ? null : "Demo — simulated refusal";
+        // Three routes now, so the demo shows three: it works, it is refused
+        // and a recreate can still fix it, or the tenant has not got the
+        // property at all and nothing here can.
+        unsupported = p.name.toLowerCase().includes("externals");
+        ok = !unsupported && !p.name.toLowerCase().includes("admins");
+        patchError = ok ? null : unsupported ? CaGroups.NESTING_UNSUPPORTED_TEXT : "Demo — simulated refusal";
       } else {
         try {
-          await Graph.gpatch(`/groups/${p.id}`, { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
+          // v1.0 for this one property — the only Learn page that names it is
+          // the v1.0 PATCH /groups one, while ENCA otherwise talks to /beta.
+          await Graph.gpatch(CaGroups.NEST_V1(`/groups/${p.id}`), { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
           // Entra can accept a PATCH and silently ignore an unknown property,
           // so success is not "no error" — it is the value reading back true.
-          const back = await Graph.gget(`/groups/${p.id}?$select=id,disableNesting`);
+          const back = await Graph.gget(CaGroups.NEST_V1(`/groups/${p.id}?$select=id,disableNesting`));
           ok = CaGroups.nestingState(back) === "disabled";
-          if (!ok) patchError = "Entra accepted the update but the property did not stick — it is still only settable at creation.";
-        } catch (e) { patchError = GroupUse.shortErr(e); }
+          if (!ok) patchError = "Entra accepted the update but the property did not read back as set.";
+        } catch (e) {
+          unsupported = CaGroups.noteNestingUnsupported(e);
+          patchError = unsupported ? CaGroups.NESTING_UNSUPPORTED_TEXT : GroupUse.shortErr(e);
+        }
+      }
+
+      // The directory does not know the property. The fallback recreate sets it
+      // ON THE CREATE, which is the same request that was just refused — so
+      // offering it would send somebody through a destructive rename-and-
+      // rebuild to arrive at the identical error. Stop here and say so.
+      if (unsupported) {
+        $("nestModal").classList.remove("open");
+        toast(`Nesting cannot be set in this tenant — <span>not available yet</span>`);
+        showReport("🚫 Disable nesting", "CA-Group-DisableNesting", [
+          `# Disable nesting — not available in this tenant`, ``,
+          `- **Group:** ${p.name}`, `- **Tenant:** ${tenantName}`, ``,
+          `The directory refused the property outright:`, ``,
+          `> ${patchError}`, ``,
+          `## What this means`, ``,
+          `\`disableNesting\` is **not generally available**. Microsoft documents the permission that governs it — *Group-NestingSupport.ReadWrite.All*, described on Learn as "read and write groups' disableNesting property" — but publishes the property itself on **neither** the v1.0 nor the beta \`group\` resource, and lists it among updatable properties on neither. A directory that has not been given the feature rejects the name.`, ``,
+          `**Recreating the group would not help.** The recreate route exists because the property was believed to be settable only at creation; it sets \`disableNesting\` in the create body, which is the very request this tenant refuses. It is deliberately not offered here, because it is destructive and it would fail the same way.`, ``,
+          `## What still protects the group`, ``,
+          `Nesting is one route into a Conditional Access assignment, not the only one, and it is not the one this baseline leans on. A **restricted management administrative unit** limits who can change the members at all — including who could nest a group inside this one — and it is generally available today. Use 🔒 **Protect exclusions**, or ⑥ Protect in this tool.`, ``,
+          `ENCA re-tests on the next sign-in, so when Microsoft ships the property this simply starts working.`, ``,
+        ].join("\n"));
+        renderCaGroups();
+        return;
       }
 
       if (ok) {
@@ -4703,13 +4773,18 @@ max@contoso.com,"Global, DevOps"</pre>
     const rule = dynamic ? $("cgmRule").value.trim() : "";
     if (dynamic && !rule) { toast("A dynamic group needs a membership rule"); $("cgmRule").focus(); return; }
     const roleAssignable = false;   // retired — see the note in the builder
-    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
+    const wantNest = nestWanted("cgmNest");
+    // Only ask for the nesting scope when the box is ticked: consenting to a
+    // permission the run will never use is how a consent screen stops meaning
+    // anything.
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory",
+      ...(wantNest ? CaGroups.NEST_WRITE_SCOPES : [])])) return;
     btn.disabled = true;
     const log = $("cgmLog");
     try {
-      const spec = { displayName: name, description: $("cgmDesc").value.trim(), dynamic, membershipRule: rule, roleAssignable };
+      const spec = { displayName: name, description: $("cgmDesc").value.trim(), dynamic, membershipRule: rule, roleAssignable, disableNesting: wantNest };
       const g = isDemo
-        ? { id: "g-" + name, name, created: true, dynamic, roleAssignable, nesting: dynamic ? "n/a" : "disabled" }
+        ? { id: "g-" + name, name, created: true, dynamic, roleAssignable, nesting: !wantNest ? "off" : dynamic ? "n/a" : "disabled" }
         : await Assign.createGroup(spec);
       // Protection LAST, and only after the group exists — the same ordering
       // the migration wizard uses, for the same reason: once it is in the AU,
@@ -4747,7 +4822,11 @@ max@contoso.com,"Global, DevOps"</pre>
           ? `<div style="color:var(--on)">🚫 nesting disabled — no group can be added as a member of this one</div>`
           : g.nesting === "failed"
             ? `<div style="color:var(--off)">⚠ nesting could NOT be disabled — ${esc(g.nestingError || "unknown reason")}. The group exists and a group could be nested inside it; fix it from ⑧ Disable nesting.</div>`
-            : g.nesting === "n/a"
+            : g.nesting === "unsupported"
+              ? `<div style="color:var(--report)">• nesting was not disabled — ${esc(CaGroups.NESTING_UNSUPPORTED_TEXT)}. The group is fine; nothing here can close that door yet, so do not go looking for a setting that will work.</div>`
+            : g.nesting === "off"
+              ? ""
+              : g.nesting === "n/a"
               ? `<div class="muted">nesting: not applicable — ${g.dynamic ? "a dynamic group's members come from its rule, and only users and devices can match" : "Entra already refuses to nest a group inside a role-assignable one"}</div>`
               : "";
       const prot = g.protectError
@@ -4760,7 +4839,7 @@ max@contoso.com,"Global, DevOps"</pre>
         : `<span style="color:var(--report)">• <b>${esc(g.name)}</b> already existed — reused, and left as it is</span>`) + nest + prot;
       log.innerHTML = cgmMsg;
       toast(g.created
-        ? `<span>${esc(g.name)}</span> created${g.nesting === "disabled" ? ", nesting disabled" : g.nesting === "failed" ? " — but nesting is still ALLOWED" : ""}${isDemo ? " (simulated)" : ""}`
+        ? `<span>${esc(g.name)}</span> created${g.nesting === "disabled" ? ", nesting disabled" : (g.nesting === "failed" || g.nesting === "unsupported") ? " — but nesting is still ALLOWED" : ""}${isDemo ? " (simulated)" : ""}`
         : `<span>${esc(g.name)}</span> already existed — reused`);
       // fold the new group into the scan so Check shows it without a refresh
       cgRes = null;
@@ -5295,7 +5374,7 @@ max@contoso.com,"Global, DevOps"</pre>
           <input id="asNewName" class="btn" style="flex:1;cursor:text" placeholder="…or create a custom group by name (e.g. CAD-SEC-U-DG-CUSTOM)">
           <button class="btn primary" id="asNewCreate">Create</button>
         </div>
-        <p class="mini" style="margin-top:10px">Groups are created directly via Graph as plain <b>security groups</b> with <b>group nesting disabled</b> — no other group can be made a member,
+        <p class="mini" style="margin-top:10px">Groups are created directly via Graph as plain <b>security groups</b>. <b>Group nesting is not disabled</b> — <code>disableNesting</code> is not generally available yet, so it is off by default everywhere and offered as a tick in ② Create; a restricted administrative unit is the protection that works today. No other group can be made a member,
           so nobody widens a policy's scope by nesting a group inside one. They are <b>not</b> role-assignable: that flag was only ever used to keep membership away from
           tenant-wide group administrators, and a <b>restricted management administrative unit</b> does that better — it names who may manage the group, and it can be undone.
           Protect them from <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> once they exist. Dynamic templates keep their membership rule instead,

@@ -10,23 +10,23 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25165"></script>
+<script src="js/popup-guard.js?v=25166"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25165" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25165">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25166" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25166">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25165"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25165"></script>
+<script src="js/counter.js?v=25166"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25166"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25165" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25166" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -54,7 +54,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25165" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25166" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1205,7 +1205,7 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R04</span> 🧹 Retire role-assignable groups everywhere <span class="tag grant">live · beta 25149 · production 287</span></h4>
             <p class="mini" style="margin:0">The baseline is moving off role-assignable groups: the flag was only ever used for a side effect — membership reachable by Global Administrator or Privileged Role Administrator only — and a restricted management administrative unit does that better, names <i>who</i> may manage the group, and can be undone. It also cannot be combined with one: a group carrying both has nobody who can change its members.
               <br><b>Done:</b> new groups are ordinary security groups (assigned or dynamic) with an optional restricted-AU placement at creation — <b>in production since build 254</b>, so the role-assignable checkbox and the ↻ Recreate-role-assignable action are gone from both channels; the ① Check drift flag is inverted, so a plain group is correct and a role-assignable one is what gets flagged; <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> moves existing ones across; and the bundled group templates and the baseline catalogs no longer ask for the flag anywhere.
-              <br><b>The last gap, closed in beta 25149:</b> 📥 Import no longer walks past the groups it <b>reuses</b>. A created group gets nesting disabled and a place in its persona vault; a reused one got neither, and naming that in beta 25129 only made the exposure visible — it still sent you to <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> and ⑧ Disable nesting to do anything about it. The preflight now offers both, <b>per group and ticked by hand</b>, and applies them after the policies import. Nothing is pre-ticked and membership is never touched: an existing group may hold members and sit somewhere on purpose, so the operator decides, not the importer.</p>
+              <br><b>The last gap, closed in beta 25149:</b> 📥 Import no longer walks past the groups it <b>reuses</b>. A created group gets a place in its persona vault; a reused one got neither that nor its nesting looked at, and naming that in beta 25129 only made the exposure visible — it still sent you to <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> and ⑧ Disable nesting to do anything about it. The preflight now offers both, <b>per group and ticked by hand</b>, and applies them after the policies import. Nothing is pre-ticked and membership is never touched: an existing group may hold members and sit somewhere on purpose, so the operator decides, not the importer.</p>
             <p class="mini" style="margin:6px 0 0">Neither write is destructive, which is what makes offering them here defensible rather than reckless: Entra <i>refuses</i> the nesting change when a group already holds nested groups instead of forcing it, and administrative-unit membership can be undone. The one route that <b>is</b> destructive — recreating a group Entra refuses — stays in ⑧ Disable nesting behind its own typed confirmation, and converting a role-assignable group stays in <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a>. One implementation each, as before.</p>
             <p class="mini" style="margin:6px 0 0"><b>What this still does not do, and cannot:</b> the flag only truly leaves a <i>tenant</i> once ⑦ Migrate has been run there. Nothing retires a group this app did not create, and every protection path goes on refusing a role-assignable group until it is converted. That is a fact about the tenant rather than a gap in the tools.</p>
             <p class="mini muted" style="margin:6px 0 0">Shipped across <b>beta 25128–25129 · production 285</b> — find the role-assignable groups a file would build on, and say what a reused group inherits — and <b>beta 25149 · production 287</b>, which acts on it.</p>
@@ -1665,14 +1665,14 @@
         <li><b>Members</b> — a members × groups matrix.</li>
         <li><b>Assign</b> — add a group to policies’ include or exclude lists (ADD is additive — it never removes what’s there). A final confirmation and a change report before anything is written.</li>
         <li><b>Assign directory roles <span class="tag new">NEW</span></b> — the wizard can target a policy’s <b>Directory roles</b> include/exclude, the same assignment the portal offers, not only groups. Choose <b>Directory roles</b> at the top and the same actions apply to them (bar “All users”, which has no role equivalent). Quick picks give <b>Microsoft’s privileged set</b> — the fourteen roles Microsoft names as the minimum to require MFA on, resolved against this tenant’s own role templates rather than hard-coded IDs — or every built-in role. <b>Conditional Access enforces built-in roles only:</b> custom roles and administrative-unit-scoped assignments are not covered by a policy scoped this way, which the wizard says at the point of choosing, in the review and in the change report.</li>
-        <li><b>🚫 Disable group nesting <span class="tag new">BETA</span></b> — on any present, non-dynamic group in <b>① Check</b>. A nested group is an invisible route into a Conditional Access assignment: someone adds a group to a group and a policy's scope widens without the policy being touched, and the extra members never show up in a review of the policy itself. Entra's beta <code>disableNesting</code> property closes that side door — with it set, no group can be added as a member.<br>
+        <li><b>🚫 Disable group nesting <span class="tag new">BETA</span></b> — on any present, non-dynamic group in <b>① Check</b>. <b>Not generally available:</b> Microsoft documents the permission (<i>Group-NestingSupport.ReadWrite.All</i>) but publishes <code>disableNesting</code> on neither the v1.0 nor the beta <code>group</code> resource, and a tenant that lacks it answers <code>400 Request_BadRequest — “Unexpected request made to property ‘disableNesting’”</code>. ENCA sends this one request to <b>v1.0</b> (the only version whose docs name it), and when the directory refuses it says so, stops offering the action for the rest of the session, and does <b>not</b> fall through to the recreate — that route sets the property at creation, which is the request that was just refused, so it would destroy and rebuild a group to reach the same error. A nested group is an invisible route into a Conditional Access assignment: someone adds a group to a group and a policy's scope widens without the policy being touched, and the extra members never show up in a review of the policy itself. Entra's beta <code>disableNesting</code> property closes that side door — with it set, no group can be added as a member.<br>
         Two things make this awkward, and the tool is explicit about both. <b>Reading it is not free</b>: a plain read does not return the property at all, so ENCA asks for it separately and reports three states — disabled, allowed, or <i>not reported</i> (which honestly means "this tenant does not surface it yet", not "allowed"). <b>Writing it is undocumented</b>: Microsoft lists a dedicated permission for updating it but does not list the property as updatable, and in the field it currently only takes at creation. So ENCA <b>tries the in-place change first</b> — and verifies it by reading the value back, because Entra will accept a PATCH and silently ignore a property it does not know. Only if that genuinely fails does it offer to <b>recreate</b> the group: rename the current one aside, create it again with nesting disabled, move the user members and repoint every Conditional Access assignment. That path is behind its own typed confirmation, never the first one. When Microsoft finishes shipping this, the recreate simply stops being offered.<br>
         <b>It refuses to run on a group that already contains nested groups.</b> A nesting-disabled group cannot hold them, so recreating would silently drop those memberships and every user who was only a member through them. The tool names the nested groups and stops, so you resolve it deliberately.<br>
         A recreate gives the group a <b>new object ID</b>. Conditional Access is moved for you; app assignments, Intune, group-based licensing and Azure RBAC are not — run <b>Group Analyzer</b> on the group first. The old group is renamed, not deleted, so it is recoverable. Needs <code>Group-NestingSupport.ReadWrite.All</code> and <code>Group.ReadWrite.All</code> (on demand). <a href="https://ourcloudnetwork.com/how-to-disable-group-nesting-in-microsoft-entra-id/" target="_blank" rel="noopener noreferrer">Background by Daniel Bradley ↗</a></li>
         <li><b>⑥ Protect <span class="tag new">NEW</span></b> — place the CA <b>exclusion</b> groups in a <b>restricted management administrative unit</b>. Membership of an exclusion group is a CA bypass, and any tenant-level Groups/User Administrator can hand it out; with the groups in a restricted AU (<code>isMemberManagementRestricted</code>, immutable at creation) only roles <b>scoped to that AU</b> can change members — Global Administrator included. Shows which exclusion groups are already protected, pre-selects the unprotected <b>assigned</b> exclusion groups (dynamic groups are opt-in — their membership follows a rule), creates or reuses the restricted AU, and optionally grants one account Groups Administrator <b>scoped to the AU</b> so membership stays manageable (do this — otherwise member changes need a new scoped assignment first). Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and P1. Only cloud security groups can be added; note that ⑤ Import members will afterwards need an AU-scoped role for these groups. <b>Role-assignable groups are refused here</b> — their membership is already limited to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two, so a group with both protections has nobody who can edit its members. Choose one or the other.</li>
         <li><b>⑤ Import members <span class="tag new">NEW</span></b> — bulk-add deployment-test users from a CSV. A <b>UPN column</b> is enough; with a <b>Persona column</b> (multi-persona cells split on <code>, ; |</code> or spaces) each user is auto-routed to the mapped group, pre-matched against the tenant’s group names — abbreviated conventions included (<code>internals → …-INT</code>). Only <b>baseline</b> groups (templates + active catalogs) are offered by default; ad-hoc groups that policies merely reference need an explicit opt-in checkbox. Users are resolved and existing memberships pre-checked (already-members are skipped), the plan is shown per group for review, and only then are members added. Dynamic groups are excluded — their membership is rule-managed. Ends with a Markdown change report.</li>
         <li><b>Protection column</b> — ① Check now shows where each group actually lives: <code>🔒 &lt;unit&gt;</code>, <b>not in a unit</b>, or <b>🧊 frozen in &lt;unit&gt;</b> when the group is role-assignable and restricted at once, which means nobody can change its members. A dash means the administrative units could not be read, which is not the same as “not protected”.</li>
-              <li><b>Every group this tool creates has nesting disabled.</b> A nested group is an invisible route into a Conditional Access assignment — somebody adds a group to a group and a policy's scope changes without the policy being touched — and the persona design assumes membership is deliberate. So <code>disableNesting</code> is now set by <b>every</b> create path: ① Create missing groups, 👥 Assign groups or roles, 📥 Import and the Restricted AUs baseline. It used to be set only by ⑦ Migrate and the nesting recreate, which meant the one moment the property reliably takes — creation — was the moment every ordinary create skipped, leaving the destructive recreate as the only way to fix it later.</li>
+              <li><b>Group nesting is <i>offered</i>, not applied.</b> A nested group is an invisible route into a Conditional Access assignment — somebody adds a group to a group and a policy’s scope changes without the policy being touched — so every create path used to set <code>disableNesting</code> automatically. That is off by default as of beta 25166, because the property is <b>not generally available</b>: Microsoft documents the permission that governs it (<i>Group-NestingSupport.ReadWrite.All</i> — “read and write groups’ disableNesting property”) but publishes the property on neither the v1.0 nor the beta <code>group</code> resource, and a directory that has not been given the feature refuses the field outright with <code>Request_BadRequest</code>. Applying it by default meant a red failure line under every single group created in such a tenant, for a setting the panel had promised. It is now a <b>tick</b> in ① Create and ② Build a group manually, off unless you ask; the request goes to <b>v1.0</b>, which is the only version whose documentation names the property; a refusal is reported rather than assumed; and once a tenant has refused it the tool stops asking for the rest of the session. Until it ships, the protection that actually works is a <b>restricted management administrative unit</b>, which limits who can change the members at all.</li>
         <li><b>It is asked for twice and then verified.</b> The property goes in the create body <i>and</i> is confirmed by a PATCH afterwards, because field reports say it only takes at creation while Microsoft documents it as patchable — doing both means whichever is true in your tenant, the group ends up right. Nothing is allowed to cost you the group: a tenant that rejects the property on create has the create retried without it, an unrelated create error still fails loudly, and a group whose nesting could not be set is marked <b>nesting still allowed</b> with the reason rather than reported as done. Not sent for dynamic groups (members are rule-driven, and only users and devices can be members) or role-assignable ones (Entra already refuses group-in-group).</li>
         <li><b>⑦ Migrate keeps running when you navigate away, and now says so.</b> The recreate renames the original group aside before building its replacement, so "did it stop halfway?" has real consequences — and the answer used to be invisible. The progress log and bar were bound to the panel's elements once, so leaving the tool and coming back destroyed them: the run carried on writing into nodes that were no longer on the page, and you returned to an empty panel. Progress now lives with the run, so the panel replays it however often it is rebuilt, and a <b>badge in the corner</b> shows "⑦ Migrating 3/12" from any screen and takes you back with one click. Closing the tab mid-run asks first, and ⟳ Rescan refuses while a migration is in flight rather than discarding it.</li>
         <li><b>⑦ Migrate removes the old group from every policy, and now proves it did.</b> The repoint used the reference list from the <i>scan</i>, so a policy edited since — by somebody else, or by an earlier group in the same run — was missed. A missed removal is not cosmetic: the old group stays assigned, and when the archive is tidied up later that policy is left naming an object id the directory no longer has, which is what a <b>dangling reference</b> in ① Check actually is. References are now re-read from the live policies at the moment of the repoint, extra ones found are reported, and the removal is <b>verified by reading the policies back</b>. If the old group is still referenced, the run says which policies and warns not to delete the archived group yet; if the check itself fails, it says that too rather than reporting a clean migration.</li>
@@ -1846,7 +1846,7 @@
         <li><b>🛡 Protection preflight</b> <span class="tag new">BETA</span> — before the import runs, the tool checks that a restricted administrative unit exists for each persona <i>your selection actually touches</i>, and offers to create the missing ones (restricted, with you scoped as Groups Administrator). Every group the import <b>creates</b> is then added to its persona's unit, so a tenant-wide Groups Administrator cannot afterwards widen a Conditional Access exclusion. It is optional and never blocks the import: skip it and the groups simply land unprotected.</li>
         <li><b>Only groups this run created are placed</b> — a group that already existed is left where it is, because it may be somewhere on purpose and that is not the import's call to make. A group used by <b>two personas</b> is not placed either, and the report says why: an object may sit in several restricted units and a scoped administrator on <i>any</i> of them can manage it, so filing a shared group under one persona hands that persona's admin control of the other's exclusions, and filing it under both hands it to either. Split it per persona, or place it by hand knowing who can reach it.</li>
         <li><b>An unreadable check says so</b> — if the tenant's administrative units cannot be read, the panel reports that it could not check rather than reporting everything present, and the import proceeds unprotected with each group named in the report.</li>
-              <li><b>Role-assignable groups in the file are found before the import, not after.</b> A baseline exported from a tenant that still used the role-assignable flag brings those groups with it, and importing on top of them is not neutral: the flag is <b>immutable</b>, it forbids controlling nesting, and it cannot be combined with a restricted management administrative unit — a group carrying both has nobody who can change its members. So the policies would import cleanly and land on groups the baseline has deliberately moved away from, and the 🛡 protection step would silently skip exactly those. The preflight now names them and says what will happen either way. Converting means recreating each one — rename aside, plain security group with nesting disabled, members copied, every referencing policy repointed — which runs in <b>⑦ Migrate</b> behind its own typed confirmation and report, and is deliberately not reimplemented here: one destructive operation, one implementation. Import now and convert later is still a choice; the report lists them as unprotected.</li>
+              <li><b>Role-assignable groups in the file are found before the import, not after.</b> A baseline exported from a tenant that still used the role-assignable flag brings those groups with it, and importing on top of them is not neutral: the flag is <b>immutable</b>, it forbids controlling nesting, and it cannot be combined with a restricted management administrative unit — a group carrying both has nobody who can change its members. So the policies would import cleanly and land on groups the baseline has deliberately moved away from, and the 🛡 protection step would silently skip exactly those. The preflight now names them and says what will happen either way. Converting means recreating each one — rename aside, plain security group, members copied, every referencing policy repointed — which runs in <b>⑦ Migrate</b> behind its own typed confirmation and report, and is deliberately not reimplemented here: one destructive operation, one implementation. Import now and convert later is still a choice; the report lists them as unprotected.</li>
         <li><b>A tenant that partly has the groups is the normal case, and the two halves are treated differently.</b> Groups the file brings that already exist here are <b>reused</b> — the policies bind to them, nothing is duplicated, and nothing about them is changed. That is the safe default: an existing group may hold members and sit somewhere deliberately, and an import is not the place to overrule that. But it means a reused group <b>inherits none of the hardening a created one gets</b>: a created group has nesting disabled and is filed into its persona vault, a reused one keeps whatever it has, and the placement step skips it unless you say otherwise. That skip used to be invisible — a reused group appeared in the report as a bare name. The preflight now lists them with what is actually being inherited: nesting disabled, allowed, or not reported by this tenant; already in a restricted unit or unprotected; a Microsoft 365 group that can never go in one; and a <b>shape mismatch</b>, where the file expects a dynamic group with a membership rule and the tenant has an assigned group of that name — the rule is not applied, and that would otherwise pass unnoticed.</li>
         <li><b>What a reused group is missing can now be finished here.</b> Naming the gap was only half an answer: the panel said the group was unprotected and its nesting untouched, then sent you to two other tools. Each reusable row now carries a <b>tick</b> for what is actually still open on it — 🚫 disable nesting, 🔒 file it into its persona vault — and anything impossible says why on the row rather than offering a dead checkbox: role-assignable (⑦ Migrate first), dynamic, a Microsoft 365 group, already protected, a group two personas share, or a vault that does not exist yet. <b>Nothing is pre-ticked</b>, and the writes run <b>after</b> the policies import, so an import that fails leaves every existing group exactly as it found it. Members are never touched. Both are writes the create path already makes and neither is destructive — Entra refuses the nesting change rather than forcing it when a group holds nested groups, and unit membership can be undone — while the destructive recreate stays in ⑧ Disable nesting behind its own confirmation. Every outcome reaches the change report, a failure included: it is reported as still unprotected rather than rounded to done.</li>
 </ul>
@@ -2500,51 +2500,51 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25165"></script>
-<script src="js/version.js?v=25165"></script>
-<script src="js/promote.js?v=25165"></script>
-<script src="js/authConfig.js?v=25165"></script>
-<script src="js/labels.js?v=25165"></script>
-<script src="js/graph.js?v=25165"></script>
-<script src="js/model.js?v=25165"></script>
-<script src="js/render.js?v=25165"></script>
-<script src="js/analyze.js?v=25165"></script>
-<script src="js/whatif.js?v=25165"></script>
-<script src="js/mslearn.js?v=25165"></script>
-<script src="js/gapcheck.js?v=25165"></script>
-<script src="js/cisdata.js?v=25165"></script>
-<script src="js/cischeck.js?v=25165"></script>
-<script src="js/exclusions.js?v=25165"></script>
-<script src="js/validator.js?v=25165"></script>
-<script src="js/whatifeval.js?v=25165"></script>
-<script src="js/compare.js?v=25165"></script>
-<script src="js/groupuse.js?v=25165"></script>
-<script src="js/iso3166.js?v=25165"></script>
-<script src="js/locations.js?v=25165"></script>
-<script src="js/authcontexts.js?v=25165"></script>
-<script src="js/authstrengths.js?v=25165"></script>
-<script src="js/recycle.js?v=25165"></script>
-<script src="js/rmau.js?v=25165"></script>
-<script src="js/camap.js?v=25165"></script>
-<script src="js/rmaudoc.js?v=25165"></script>
-<script src="js/termsofuse.js?v=25165"></script>
-<script src="js/audit.js?v=25165"></script>
-<script src="js/drift.js?v=25165"></script>
-<script src="js/guide.js?v=25165"></script>
-<script src="js/devcheck.js?v=25165"></script>
-<script src="js/licgap.js?v=25165"></script>
-<script src="js/signins.js?v=25165"></script>
-<script src="js/reportimpact.js?v=25165"></script>
-<script src="js/changelog.js?v=25165"></script>
-<script src="js/baselineData.js?v=25165"></script>
-<script src="js/baselineJoeyData.js?v=25165"></script>
-<script src="js/baseline.js?v=25165"></script>
-<script src="js/groupTemplates.js?v=25165"></script>
-<script src="js/assign.js?v=25165"></script>
-<script src="js/cagroups.js?v=25165"></script>
-<script src="js/import.js?v=25165"></script>
-<script src="js/export.js?v=25165"></script>
-<script src="js/demo.js?v=25165"></script>
-<script src="js/app.js?v=25165"></script>
+<script src="js/branding.js?v=25166"></script>
+<script src="js/version.js?v=25166"></script>
+<script src="js/promote.js?v=25166"></script>
+<script src="js/authConfig.js?v=25166"></script>
+<script src="js/labels.js?v=25166"></script>
+<script src="js/graph.js?v=25166"></script>
+<script src="js/model.js?v=25166"></script>
+<script src="js/render.js?v=25166"></script>
+<script src="js/analyze.js?v=25166"></script>
+<script src="js/whatif.js?v=25166"></script>
+<script src="js/mslearn.js?v=25166"></script>
+<script src="js/gapcheck.js?v=25166"></script>
+<script src="js/cisdata.js?v=25166"></script>
+<script src="js/cischeck.js?v=25166"></script>
+<script src="js/exclusions.js?v=25166"></script>
+<script src="js/validator.js?v=25166"></script>
+<script src="js/whatifeval.js?v=25166"></script>
+<script src="js/compare.js?v=25166"></script>
+<script src="js/groupuse.js?v=25166"></script>
+<script src="js/iso3166.js?v=25166"></script>
+<script src="js/locations.js?v=25166"></script>
+<script src="js/authcontexts.js?v=25166"></script>
+<script src="js/authstrengths.js?v=25166"></script>
+<script src="js/recycle.js?v=25166"></script>
+<script src="js/rmau.js?v=25166"></script>
+<script src="js/camap.js?v=25166"></script>
+<script src="js/rmaudoc.js?v=25166"></script>
+<script src="js/termsofuse.js?v=25166"></script>
+<script src="js/audit.js?v=25166"></script>
+<script src="js/drift.js?v=25166"></script>
+<script src="js/guide.js?v=25166"></script>
+<script src="js/devcheck.js?v=25166"></script>
+<script src="js/licgap.js?v=25166"></script>
+<script src="js/signins.js?v=25166"></script>
+<script src="js/reportimpact.js?v=25166"></script>
+<script src="js/changelog.js?v=25166"></script>
+<script src="js/baselineData.js?v=25166"></script>
+<script src="js/baselineJoeyData.js?v=25166"></script>
+<script src="js/baseline.js?v=25166"></script>
+<script src="js/groupTemplates.js?v=25166"></script>
+<script src="js/assign.js?v=25166"></script>
+<script src="js/cagroups.js?v=25166"></script>
+<script src="js/import.js?v=25166"></script>
+<script src="js/export.js?v=25166"></script>
+<script src="js/demo.js?v=25166"></script>
+<script src="js/app.js?v=25166"></script>
 </body>
 </html>
