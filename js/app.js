@@ -1142,6 +1142,7 @@
         }])),
         rawPolicies, directoryRoles: [], roleDefinitions: [],
         tenant: tenantName, build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS,
+        personaMap: CaMap.toMdSection(),
       });
     }
 
@@ -1151,7 +1152,8 @@
       units = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,isMemberManagementRestricted");
     } catch (e) {
       return RmauDoc.build({ units: null, readError: e.message || String(e), rawPolicies,
-        tenant: tenantName, build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS });
+        tenant: tenantName, build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS,
+        personaMap: CaMap.toMdSection() });
     }
 
     // Role metadata is enrichment. A tenant or account that cannot read it
@@ -1187,7 +1189,8 @@
 
     return RmauDoc.build({ units, detailsById, rawPolicies, directoryRoles, roleDefinitions,
       directoryRolesError, roleDefinitionsError, tenant: tenantName,
-      build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS });
+      build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS,
+      personaMap: CaMap.toMdSection() });
   }
 
   function openExport() {
@@ -1282,6 +1285,11 @@
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
       tenantDomain = (account?.username || "").split("@")[1] || "";
+      // R28 — the group → persona mapping is per tenant, so it is bound HERE
+      // and nowhere else: keyed on the tenant id rather than the name, because
+      // two customers can share a display name and a mapping landing in the
+      // wrong tenant would file groups into the wrong vaults.
+      try { CaMap.use(account?.tenantId || tenantName); } catch (e) { console.warn("group mapping:", e); }
       // Audience branding by who signed in: an @pvmict.com account gets the
       // Perfetti Van Melle look even without coming in through /pvm.
       if (typeof BrandOverrides !== "undefined") {
@@ -1331,6 +1339,9 @@
     tenantDomain = "";
     tenantLogo = null;
     isDemo = true; anReport = null;
+    // The demo gets its own drawer for the group → persona mapping, so playing
+    // with it here can never land in a real tenant's saved state.
+    try { CaMap.use("demo"); } catch { /* storage refused; in-memory is fine */ }
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
     const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
     policies = DEMO_DATA.policies.map((r, i) => buildViewModel(r, resolve, i));
@@ -3689,15 +3700,21 @@ max@contoso.com,"Global, DevOps"</pre>
   //
   // The dropdown survives as the FALLBACK for the groups nothing matches — a
   // custom name, or the CA900 workload-identity range that no persona covers.
+  //
+  // R28: the CA number is no longer the ONLY rule. CaMap layers this tenant's
+  // own stated mapping over it, so SEC-VIP-Exceptions reaches the Externals
+  // vault without being renamed. `by` carries which rule decided, because a
+  // group filed somewhere its name does not explain has to say so on the row
+  // rather than look like a bug.
   function rmauTarget(t, g) {
-    const code = Rmau.codeForGroup(g.name);
+    const { code, source: by } = CaMap.codeForGroup(g);
     if (code) {
       const want = Rmau.auName(code).toLowerCase();
       const hit = (t.rmaus || []).find((a) => String(a.name || "").toLowerCase() === want);
-      if (hit) return { auId: hit.id, auName: hit.name, code, source: "persona" };
+      if (hit) return { auId: hit.id, auName: hit.name, code, source: "persona", by };
       // The right vault is known but absent. Saying "we will use the fallback"
       // would be worse than saying nothing: it is a silent demotion.
-      return { auId: null, auName: Rmau.auName(code), code, source: "missing" };
+      return { auId: null, auName: Rmau.auName(code), code, source: "missing", by };
     }
     if (t.auChoice === "new") return { auId: null, auName: (t.auName || RMAU_DEFAULT_NAME), code: null, source: "fallbackNew" };
     if (t.auChoice) {
@@ -3785,15 +3802,15 @@ max@contoso.com,"Global, DevOps"</pre>
           : t.statusError ? '<span class="muted">unknown</span>'
           : '<span style="color:var(--report)">unprotected</span>'}</td>
         <td class="mini">${prot || g.roleAssignable ? '<span class="muted">—</span>'
-          : dest.source === "persona" ? `→ <b>${esc(dest.auName)}</b>`
+          : dest.source === "persona" ? `→ <b>${esc(dest.auName)}</b>${dest.by === "tenant" ? ' <span class="tag" title="This tenant states where this group belongs — its name carries no CA number. Change it in 🛡 Restricted AUs → 🏷 Group personas.">mapped here</span>' : ""}`
           : dest.source === "missing" ? `<span style="color:var(--off)">→ <b>${esc(dest.auName)}</b> does not exist — create it in 🛡 Restricted AUs first, or this group is skipped</span>`
-          : dest.source === "unset" ? '<span style="color:var(--report)">no persona matches this name — pick a fallback unit above, or it is skipped</span>'
-          : `<span style="color:var(--report)">→ <b>${esc(dest.auName)}</b> (fallback — no persona matches this name)</span>`}</td>
+          : dest.source === "unset" ? '<span style="color:var(--report)">unmapped — no CA number in the name and no mapping for it. <b>Map it once</b> in 🛡 Restricted AUs → 🏷 Group personas and every tool routes it afterwards; or pick a fallback unit above, or it is skipped.</span>'
+          : `<span style="color:var(--report)">→ <b>${esc(dest.auName)}</b> (fallback — unmapped, and no CA number in the name)</span>`}</td>
       </tr>`;
     }).join("");
 
     const unmatched = cands.filter((g) => !t.status.get(g.id) && !g.roleAssignable && rmauTarget(t, g).source.startsWith("fallback"));
-    const auPick = `<label class="mini" style="display:block;margin:14px 0 4px">Fallback administrative unit <span class="muted">— used only for the ${unmatched.length} group${unmatched.length === 1 ? "" : "s"} whose name carries no CA number the baseline recognises. Everything else goes to its own persona vault.</span></label>
+    const auPick = `<label class="mini" style="display:block;margin:14px 0 4px">Fallback administrative unit <span class="muted">— used only for the ${unmatched.length} unmapped group${unmatched.length === 1 ? "" : "s"}: no CA number the baseline recognises, and nothing said about them in 🏷 Group personas. Everything else goes to its own persona vault.</span></label>
       <select id="cgRmauAu" style="max-width:420px">
         <option value=""${t.auChoice ? "" : " selected"}>— none: skip the groups that match no persona —</option>
         ${t.rmaus.map((a) => `<option value="${esc(a.id)}"${t.auChoice === a.id ? " selected" : ""}>${esc(a.name)} (existing)</option>`).join("")}
@@ -6525,8 +6542,8 @@ max@contoso.com,"Global, DevOps"</pre>
     const rows = (ruList || []).filter((a) => (ruFilter === "all" || Rmau.isRestricted(a))
       && (!q || `${a.displayName} ${a.description || ""}`.toLowerCase().includes(q)))
       .sort((a, b) => (Rmau.isRestricted(b) ? 1 : 0) - (Rmau.isRestricted(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
-    if (!rows.length) { $("ruBody").innerHTML = ruBaselinePanel() + ruBulkAdminPanel() + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
-    $("ruBody").innerHTML = ruBaselinePanel() + ruBulkAdminPanel() + `<div class="lo-grid">` + rows.map((au) => {
+    if (!rows.length) { $("ruBody").innerHTML = ruBaselinePanel() + ruMapPanel() + ruBulkAdminPanel() + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
+    $("ruBody").innerHTML = ruBaselinePanel() + ruMapPanel() + ruBulkAdminPanel() + `<div class="lo-grid">` + rows.map((au) => {
       const open = ruOpen.has(au.id);
       const d = ruDetails[au.id];
       let detail = "";
@@ -6598,6 +6615,10 @@ max@contoso.com,"Global, DevOps"</pre>
     // they are the ones that actually exist and can be added.
     const present = new Set();
     try { for (const r of (cgRes ? cgRes.rows : [])) if (r.id && r.name) present.add(r.name); } catch {}
+    // R28 — a group this tenant mapped to a persona by hand belongs in these
+    // lists as much as a baseline one does. Without this, the mapping would
+    // route the group correctly and no picker would ever offer it.
+    try { for (const e of CaMap.list()) out.add(e.name); } catch {}
     return [...new Set([...present, ...out])].filter(Boolean).sort((a, b) => a.localeCompare(b));
   }
   // Adding a group should work the way granting a scoped administrator does:
@@ -6644,7 +6665,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const already = new Set(((d && d.members) || [])
       .map((m) => String(m.displayName || "").toLowerCase()).filter(Boolean));
     const names = ruBaselineGroups()
-      .filter((n) => Rmau.codeForGroup(n) === code && !already.has(n.toLowerCase()));
+      .filter((n) => CaMap.codeOf(n) === code && !already.has(n.toLowerCase()));
     return { code, entry, names };
   }
   function ruSeedGroupSug() {
@@ -6784,7 +6805,51 @@ max@contoso.com,"Global, DevOps"</pre>
     const rest = ruBaselineGroups().filter((n) => !mine.has(n.toLowerCase()));
     dl.innerHTML = [...opts, ...rest.slice(0, 200).map((n) => `<option value="${esc(n)}"></option>`)].join("");
   });
-  $("ruBody").addEventListener("change", (e) => {
+  // The mapping import lives outside the re-rendered panel, like 🌐 Named
+  // locations' compare file: a hidden input inside markup that is rebuilt on
+  // every state change loses the file half-way through choosing it.
+  $("ruMapFileTop").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try {
+      const obj = CaMap.fromExport(JSON.parse(await f.text()));
+      const replace = CaMap.count() > 0
+        && confirm(`This tenant already has ${CaMap.count()} mapping${CaMap.count() === 1 ? "" : "s"}.\n\nOK — REPLACE them with the ${(obj.entries || []).length} in the file.\nCancel — MERGE, and let the file win where the two disagree.`);
+      const r = CaMap.importAll(obj, { replace });
+      caMapCache.clear(); ruPg.clear();
+      if (!ruMap) ruMap = { open: true, addCode: null, scan: null, msg: "" };
+      ruMap.open = true;
+      ruMap.msg = r.replaced
+        ? `Replaced the mapping with ${r.added} entr${r.added === 1 ? "y" : "ies"} from ${f.name}.${r.skipped ? ` ${r.skipped} skipped — no name, or a persona this build does not have.` : ""}`
+        : `${r.added} added, ${r.updated} updated from ${f.name}.${r.skipped ? ` ${r.skipped} skipped — no name, or a persona this build does not have.` : ""}`;
+      ruMap.msgBad = false;
+      if (ruMap.scan) await ruMapScan(); else renderRmau();
+    } catch (err) { console.error(err); toast(`Could not read that mapping: <span>${esc(err.message || err)}</span>`); }
+  });
+
+  $("ruBody").addEventListener("change", async (e) => {
+    // 🏷 Group personas (R28) — changing an existing mapping, and filing an
+    // unmapped group from the list below it. The unmapped path records the
+    // OBJECT ID as well as the name, so it survives a rename in Entra; typing
+    // a name into the add box can only record the name.
+    const mset = e.target.closest("[data-rumapset]");
+    if (mset) {
+      const key = mset.dataset.rumapset, entry = CaMap.list().find((x) => (x.id || x.name) === key);
+      if (entry) {
+        const r = CaMap.set({ id: entry.id, displayName: entry.name }, mset.value);
+        if (ruMap) { ruMap.msg = r.ok ? `“${entry.name}” now files under ${CaMap.labelOf(mset.value)}.` : r.error; ruMap.msgBad = !r.ok; }
+        caMapCache.clear(); ruPg.clear();
+      }
+      renderRmau();
+      return;
+    }
+    const mnew = e.target.closest("[data-rumapnew]");
+    if (mnew && mnew.value) {
+      const r = CaMap.set({ id: mnew.dataset.rumapnew, displayName: mnew.dataset.rumapname }, mnew.value);
+      if (ruMap) { ruMap.msg = r.ok ? `“${mnew.dataset.rumapname}” is mapped to ${CaMap.labelOf(mnew.value)}.` : r.error; ruMap.msgBad = !r.ok; }
+      caMapCache.clear(); ruPg.clear();
+      if (ruMap && ruMap.scan) await ruMapScan(); else renderRmau();
+      return;
+    }
     if (e.target.id === "ruBARole" && ruBulkAdmin) { ruBulkAdmin.role = e.target.value; return; }
     const bau = e.target.closest("[data-ruba]");
     if (bau && ruBulkAdmin) {
@@ -6888,6 +6953,113 @@ max@contoso.com,"Global, DevOps"</pre>
     ruBulkAdmin.upns = [...cur, v].join(", ");
     renderRmau();
   }
+  // ---------- 🏷 Group personas (roadmap R28) ----------
+  // The screen where a tenant says once that Contractors-NoMFA belongs to
+  // Externals. It lives HERE because this is the tool that owns the vaults —
+  // and the routing it feeds is consumed by ⑥ Protect, ＋ Bulk add, the persona
+  // chips and the documentation, none of which have to know it exists.
+  let ruMap = null;             // { open, addName, addCode, scan, msg }
+  const RU_MAP_CODES = () => Rmau.BASELINE_AUS;
+
+  // The unmapped set: groups the tenant's own policies EXCLUDE (or include)
+  // that neither the CA-number convention nor this tenant's mapping places.
+  // Read by this tool itself rather than borrowed from the CA-groups scan, so
+  // the panel works on a tenant where that scan was never run — the connection
+  // to ⑦ Check is a convenience, never a prerequisite.
+  async function ruMapScan() {
+    ruMap.scan = { busy: true, rows: [], error: null };
+    renderRmau();
+    try {
+      const ids = new Set();
+      for (const p of policies.map((x) => x.raw)) {
+        const u = (p.conditions || {}).users || {};
+        for (const id of [...(u.excludeGroups || []), ...(u.includeGroups || [])]) ids.add(id);
+      }
+      const names = new Map();
+      if (isDemo) {
+        for (const id of ids) names.set(id, (DEMO_DATA.names && DEMO_DATA.names[id]) || id);
+      } else {
+        const list = [...ids];
+        for (let i = 0; i < list.length; i += 900) {
+          const j = await Graph.gpost("/directoryObjects/getByIds", { ids: list.slice(i, i + 900), types: ["group"] });
+          for (const o of (j.value || [])) names.set(o.id, o.displayName || o.id);
+        }
+      }
+      // A group whose id no longer resolves is a DANGLING reference, not an
+      // unmapped group — it is ① Check's finding, and quietly listing it here
+      // as something to file would send somebody to map a group that is gone.
+      const rows = [];
+      for (const [id, name] of names) {
+        const r = CaMap.codeForGroup({ id, displayName: name });
+        if (!r.code) rows.push({ id, name });
+      }
+      rows.sort((a, b) => a.name.localeCompare(b.name));
+      ruMap.scan = { busy: false, rows, error: null, resolved: names.size, referenced: ids.size };
+    } catch (e) {
+      ruMap.scan = { busy: false, rows: [], error: e.message || String(e) };
+    }
+    renderRmau();
+  }
+
+  function ruMapPanel() {
+    const entries = CaMap.list();
+    if (!ruMap || !ruMap.open) {
+      return `<div class="cg-panel">
+        <h4>🏷 GROUP PERSONAS — THIS TENANT</h4>
+        <p class="mini" style="margin:0 0 8px">Every tool here decides a group's vault by reading the <b>CA number in its name</b>, which works for the baseline and for nothing else: <code>SEC-VIP-Exceptions</code> and <code>Contractors-NoMFA</code> match no persona, so ⑥ Protect skips them and ＋ Bulk add never offers them. Say once where such a group belongs and every tool routes it there afterwards.${entries.length ? ` <b>${entries.length} group${entries.length === 1 ? " is" : "s are"} mapped</b> in this tenant.` : ""}</p>
+        <button class="btn primary" id="ruMapOpen">🏷 Map groups to personas…</button>
+      </div>`;
+    }
+    const codeOpts = (sel) => RU_MAP_CODES().map((a) =>
+      `<option value="${esc(a.code)}"${a.code === sel ? " selected" : ""}>${esc(a.label)}${a.caRange ? ` — ${esc(a.caRange)}` : ""}</option>`).join("");
+
+    const rows = entries.map((e) => `<div class="dr-row"><div class="dr-head" style="gap:8px;flex-wrap:wrap">
+        <b style="flex:1;min-width:160px;overflow-wrap:anywhere">${esc(e.name)}</b>
+        <select class="btn" style="cursor:pointer" data-rumapset="${esc(e.id || e.name)}">${codeOpts(e.code)}</select>
+        <button class="fchip" data-rumapdel="${esc(e.id || e.name)}" title="Remove this mapping">✕</button>
+      </div>${e.id ? "" : '<div class="wi-why mini muted">No object id — matched on the display name only, so renaming the group in Entra breaks this entry.</div>'}</div>`).join("");
+
+    const sc = ruMap.scan;
+    const unmapped = !sc ? `<button class="btn" id="ruMapScan">🔎 Find the unmapped groups</button>
+        <p class="mini muted" style="margin:6px 0 0">Reads the group ids the loaded policies already reference and resolves their names — nothing else, and nothing written.</p>`
+      : sc.busy ? '<div class="mini muted"><div class="spinner" style="width:18px;height:18px"></div> Resolving the group names…</div>'
+      : sc.error ? `<p class="mini" style="color:var(--off);margin:0">✗ ${esc(sc.error)}</p><button class="btn sm" id="ruMapScan">Try again</button>`
+      : !sc.rows.length ? `<p class="mini" style="margin:0">✓ Every group your policies reference is placed — ${sc.resolved} resolved of ${sc.referenced} referenced. <button class="btn sm" id="ruMapScan">Rescan</button></p>`
+      : `<p class="mini" style="margin:0 0 6px"><b>${sc.rows.length}</b> group${sc.rows.length === 1 ? "" : "s"} your policies reference ${sc.rows.length === 1 ? "is" : "are"} placed by nothing — no CA number the baseline recognises, and no mapping here. They are listed rather than hidden: a group with no persona should be visible as <i>unmapped</i>, not quietly dropped out of every list. <button class="btn sm" id="ruMapScan">Rescan</button></p>
+        ${sc.rows.map((r) => `<div class="dr-row"><div class="dr-head" style="gap:8px;flex-wrap:wrap">
+          <b style="flex:1;min-width:160px;overflow-wrap:anywhere">${esc(r.name)}</b>
+          <select class="btn" style="cursor:pointer" data-rumapnew="${esc(r.id)}" data-rumapname="${esc(r.name)}">
+            <option value="">— pick a persona vault —</option>${codeOpts(null)}</select>
+        </div></div>`).join("")}`;
+
+    return `<div class="cg-panel" id="ruMapPanel">
+      <h4>🏷 GROUP PERSONAS — THIS TENANT</h4>
+      <p class="mini" style="margin:0 0 8px">A group is routed to a persona vault by the <b>CA number in its name</b>. Groups that predate the baseline carry none, and telling a tenant its naming convention is wrong is not a feature — so state the mapping instead. What is stated here <b>wins over the CA number</b>, because somebody typed it against this group in this tenant; ⑥ Protect marks such a row <span class="tag">mapped here</span> so a group filed somewhere its name does not explain always says why.</p>
+      <p class="mini muted" style="margin:0 0 10px"><b>Matching is exact</b> — the group's object id, or its display name compared case-insensitively. Nothing is inferred from a prefix or a word in the name, because a mapping nobody stated is how a group ends up in the wrong vault silently, and a vault is an authorisation boundary. <b>Where this is kept:</b> in this browser, under this tenant's id. Nothing is written to your directory and nothing leaves the machine — which also means it does not follow you to another browser${CaMap.isPersisted() ? "" : ", <b>and this browser is refusing to store it at all, so it will be gone when the tab closes</b>"}. Export it to keep it with the tenant's other configuration.</p>
+
+      <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Mapped groups (${entries.length})</div>
+      ${rows || '<p class="mini muted" style="margin:0 0 8px">Nothing mapped yet.</p>'}
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px">
+        <input id="ruMapName" list="ruGroupSug" placeholder="Group display name — exactly as it is in Entra" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px">
+        <select id="ruMapCode" class="btn" style="cursor:pointer">${codeOpts(ruMap.addCode)}</select>
+        <button class="btn sm primary" id="ruMapAdd">＋ Map it</button>
+      </div>
+      ${ruMap.msg ? `<p class="mini" style="margin:2px 0 0;color:${ruMap.msgBad ? "var(--off)" : "var(--green)"}">${esc(ruMap.msg)}</p>` : ""}
+      <p class="mini muted" style="margin:4px 0 0">Typed by name, this entry carries no object id, so renaming the group in Entra breaks it. Adding a group from the unmapped list below records the id as well, which survives a rename.</p>
+
+      <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">Unmapped groups your policies use</div>
+      ${unmapped}
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px">
+        <button class="btn sm" id="ruMapExport"${entries.length ? "" : " disabled"}>⭳ Export JSON</button>
+        <label class="btn sm" for="ruMapFileTop" title="Load a mapping exported from this or another browser">⭱ Import JSON…</label>
+        <button class="btn sm danger" id="ruMapClear"${entries.length ? "" : " disabled"}>Clear all</button>
+        <button class="btn sm" id="ruMapClose" style="margin-left:auto">✕ Close</button>
+      </div>
+    </div>`;
+  }
+
   function ruBulkAdminPanel() {
     const restricted = (ruList || []).filter(Rmau.isRestricted);
     if (restricted.length < 2) return "";      // nothing to do in bulk
@@ -7029,6 +7201,39 @@ max@contoso.com,"Global, DevOps"</pre>
   const RU_BULK_PREFIXES = ["CAB-SEC", "CAD-SEC"];
   const RU_BULK_EXTRA = { BreakGlass: ["Emergency", "BreakGlass", "Break-Glass", "BG-"] };
 
+  // R28 — the groups THIS TENANT mapped to a persona, read as real group
+  // objects so the callers can judge them the same way they judge a baseline
+  // group (role-assignable, dynamic, Microsoft 365 — all of which decide
+  // whether it can go in a restricted unit at all).
+  //
+  // Read one at a time by id rather than through a filter: the mapping is a
+  // handful of groups in practice, an id lookup cannot half-match, and a group
+  // that has since been DELETED returns a 404 that is worth ignoring quietly —
+  // a stale mapping entry must not break the panel it appears in. Entries with
+  // no id (imported from a file that only carried names) fall back to an exact
+  // displayName filter, which is the only other exact handle there is.
+  const caMapCache = new Map();                    // groupKey -> group | null
+  async function caMapGroups(code) {
+    const want = CaMap.list().filter((e) => e.code === code);
+    const out = [];
+    for (const e of want) {
+      const key = e.id || `nm:${e.name.toLowerCase()}`;
+      if (caMapCache.has(key)) { const c = caMapCache.get(key); if (c) out.push(c); continue; }
+      let g = null;
+      try {
+        if (e.id) {
+          g = await Graph.gget(`/groups/${encodeURIComponent(e.id)}?$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled`);
+        } else {
+          const r = await Graph.ggetAll(`/groups?$filter=displayName eq '${e.name.replace(/'/g, "''")}'&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=2`);
+          g = r.length === 1 ? r[0] : null;        // two matches is not an answer
+        }
+      } catch (err) { console.warn("mapped group", e.name, "could not be read:", err.message || err); }
+      caMapCache.set(key, g || null);
+      if (g) out.push(g);
+    }
+    return out;
+  }
+
   // Can this group go into this restricted unit, and if not, why not? One
   // function, because the answer is now given in two places — the bulk panel
   // and the per-unit chips — and two copies of it would disagree the first
@@ -7067,15 +7272,20 @@ max@contoso.com,"Global, DevOps"</pre>
         entry.groups = [
           { id: "d1", displayName: "CAB-SEC-U-CA101-Exclusion", securityEnabled: true },
           { id: "d2", displayName: "CAB-SEC-U-CA102-Exclusion", securityEnabled: true, isAssignableToRole: true },
-        ].filter((g) => Rmau.codeForGroup(g.displayName) === code);
+        ].filter((g) => CaMap.codeOf(g) === code);
       } else {
         const seen = new Set();
         for (const p of [...RU_BULK_PREFIXES, ...(RU_BULK_EXTRA[code] || [])]) {
           try {
             const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
-            for (const g of r) if (!seen.has(g.id) && Rmau.codeForGroup(g.displayName) === code) { seen.add(g.id); entry.groups.push(g); }
+            for (const g of r) if (!seen.has(g.id) && CaMap.codeOf(g) === code) { seen.add(g.id); entry.groups.push(g); }
           } catch (e) { console.warn("persona chips: prefix", p, "failed:", e.message || e); }
         }
+        // The prefix scan is bounded to the CAB-SEC / CAD-SEC family on
+        // purpose, so a tenant's own group never turns up in it however well it
+        // is mapped. Mapped groups are therefore read by id, one lookup each —
+        // which is also why the mapping stores the id and not only the name.
+        for (const g of await caMapGroups(code)) if (!seen.has(g.id)) { seen.add(g.id); entry.groups.push(g); }
         try { entry.prot = await readProtectionMap(); } catch { /* leave it unknown */ }
       }
     } catch (e) { entry.error = e.message || String(e); }
@@ -7106,6 +7316,9 @@ max@contoso.com,"Global, DevOps"</pre>
             for (const g of r) if (!seen.has(g.id)) { seen.add(g.id); groups.push(g); }
           } catch (e) { console.warn("bulk add: prefix", p, "failed:", e.message || e); }
         }
+        // Same reason as the persona chips: the prefix scan cannot reach a
+        // group called Contractors-NoMFA, so the mapped ones are read by id.
+        for (const g of await caMapGroups(code)) if (!seen.has(g.id)) { seen.add(g.id); groups.push(g); }
       }
       const already = new Set(((ruDetails[auId] || {}).members || []).map((m) => m.id));
       // Where everything else already lives, so a group sitting in the WRONG
@@ -7115,7 +7328,7 @@ max@contoso.com,"Global, DevOps"</pre>
 
       const rows = [];
       for (const g of groups) {
-        if (Rmau.codeForGroup(g.displayName) !== code) continue;
+        if (CaMap.codeOf(g) !== code) continue;
         rows.push(ruWhyNot(g, auId, already, prot));
       }
       rows.sort((a, b) => (a.why ? 1 : 0) - (b.why ? 1 : 0) || String(a.name).localeCompare(String(b.name)));
@@ -7289,6 +7502,42 @@ max@contoso.com,"Global, DevOps"</pre>
       const t = ruBaseline();
       bs.checked ? t.sel.add(bs.dataset.rubase) : t.sel.delete(bs.dataset.rubase);
       renderRmau();
+      return;
+    }
+    // ---- 🏷 Group personas (R28) ----
+    if (e.target.id === "ruMapOpen") { ruMap = { open: true, addCode: null, scan: null, msg: "" }; renderRmau(); return; }
+    if (e.target.id === "ruMapClose" && ruMap) { ruMap.open = false; renderRmau(); return; }
+    if (e.target.id === "ruMapScan") { if (!ruMap) return; await ruMapScan(); return; }
+    if (e.target.id === "ruMapAdd" && ruMap) {
+      const name = ($("ruMapName")?.value || "").trim();
+      const code = $("ruMapCode")?.value || "";
+      const r = CaMap.set(name, code);
+      ruMap.msg = r.ok ? `“${name}” is mapped to ${CaMap.labelOf(code)}. Every tool routes it there from now on.` : r.error;
+      ruMap.msgBad = !r.ok;
+      if (r.ok) { caMapCache.clear(); ruPg.clear(); if (ruMap.scan) await ruMapScan(); else renderRmau(); }
+      else renderRmau();
+      return;
+    }
+    if (e.target.id === "ruMapExport") {
+      downloadText("CA-GroupPersonas", "json", "application/json",
+        JSON.stringify(CaMap.toExport({ tenantName, build: APP_BUILD.label }), null, 2));
+      toast(`Exported <span>${CaMap.count()}</span> group mapping${CaMap.count() === 1 ? "" : "s"} — load it back with Import in any browser`);
+      return;
+    }
+    if (e.target.id === "ruMapClear" && ruMap) {
+      // A typed confirmation would be theatre for something that writes nothing
+      // to the tenant and can be re-entered in a minute — but it is still the
+      // whole mapping, so it asks.
+      if (!confirm(`Remove all ${CaMap.count()} group mappings for this tenant? Nothing in your directory changes; the groups simply go back to being routed by the CA number in their name (or not at all).`)) return;
+      CaMap.clear(); caMapCache.clear(); ruPg.clear();
+      ruMap.msg = "Mapping cleared."; ruMap.msgBad = false;
+      if (ruMap.scan) await ruMapScan(); else renderRmau();
+      return;
+    }
+    const mdel = e.target.closest("[data-rumapdel]");
+    if (mdel) {
+      CaMap.remove(mdel.dataset.rumapdel); caMapCache.clear(); ruPg.clear();
+      if (ruMap && ruMap.scan) await ruMapScan(); else renderRmau();
       return;
     }
     if (e.target.id === "ruBAOpen" || e.target.id === "ruBAOpenTop") {
@@ -7485,7 +7734,7 @@ max@contoso.com,"Global, DevOps"</pre>
         }
       } finally { btn.disabled = false; btn.textContent = label; }
     }
-    showReport("🛡 Restricted AUs", "CA-RestrictedAUs", Rmau.toMd(ruList, ruDetails, { tenantName }));
+    showReport("🛡 Restricted AUs", "CA-RestrictedAUs", Rmau.toMd(ruList, ruDetails, { tenantName, personaMap: CaMap.toMdSection() }));
   });
 
   // ---------- shared fetch-progress visual ----------

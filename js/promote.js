@@ -63,6 +63,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 67,
+      title: "\ud83c\udff7 A tenant's own groups can go in the persona vaults (R28)",
+      tools: ["Restricted AUs", "Protect exclusions", "Import", "Conditional Access groups", "Create documentation"],
+      builds: [25153],
+      risk: "medium",
+      what: "New module js/camap.js: a per-tenant group \u2192 persona mapping held in localStorage under the tenant id, with JSON export/import. Group routing everywhere now goes through CaMap.codeOf (tenant mapping first, Rmau.codeForGroup second) \u2014 rmauTarget in \u2465 Protect, the persona chips, \uff0b Bulk add, ruBaselineGroups and Importer.fixedCode. Editor panel \ud83c\udff7 Group personas in \ud83d\udee1 Restricted AUs with an unmapped-group scan (resolves the group ids the loaded policies reference via /directoryObjects/getByIds). Mapped groups are read by id for the bounded prefix scans. The mapping is printed in the \ud83d\udee1 Markdown report and in the restricted-unit pages of \ud83d\udcc4 Create documentation.",
+      why: "MEDIUM because it changes where a WRITE puts a group: \u2465 Protect and \uff0b Bulk add place group objects into restricted administrative units, and a vault is an authorisation boundary \u2014 the wrong one hands a persona's scoped administrator another persona's exclusions. Nothing is inferred (exact id or exact display name only) and an empty mapping leaves every existing routing decision byte-for-byte as it was, so the risk is entirely in what an operator states. It graduates once a real tenant has mapped a group and the placement has been eyeballed in the unit afterwards. Note for promotion: R28 was reverted once at build 25100 for storing the mapping in each unit's description \u2014 this build writes nothing to the directory at all.",
+      files: ["js/camap.js", "js/app.js", "js/import.js", "js/rmau.js", "js/rmaudoc.js", "index.html", "js/version.js"],
+    },
+    {
       n: 66,
       title: "\ud83c\udf10 Named locations report what is wrong with them (R37)",
       tools: ["Named locations"],

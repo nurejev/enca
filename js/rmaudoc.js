@@ -105,6 +105,11 @@ const RmauDoc = (() => {
         directoryRolesError: clean(input.directoryRolesError),
         roleDefinitionsError: clean(input.roleDefinitionsError),
       },
+      // R28 — the tenant's own group → persona mapping, as Markdown lines. It
+      // belongs in this appendix because it explains WHY a group with no CA
+      // number is sitting in a persona's vault; without it the placement reads
+      // as somebody's mistake.
+      personaMap: Array.isArray(input.personaMap) ? input.personaMap : [],
       units: [], findings: [],
       summary: { units: 0, noAdmin: 0, frozenGroups: 0, emptyUnits: 0, unreadableUnits: 0, exclusionDependencies: 0 },
     };
@@ -246,6 +251,9 @@ const RmauDoc = (() => {
       `**Excluded-policy dependencies:** ${s.exclusionDependencies || 0}`, "",
       "Adding a person to a Conditional Access exclusion group can remove protection without changing a policy. These pages record who can change the protected groups and which policies that path affects.", ""];
     if (doc.readError) out.push(`> **Restricted-unit appendix not captured:** ${mdEsc(doc.readError)}`, "");
+    // Printed one level down from this appendix's own heading, so it reads as
+    // part of it rather than as a new top-level section of the document.
+    if ((doc.personaMap || []).length) out.push(...doc.personaMap.map((l) => l.startsWith("## ") ? `#${l}` : l));
     if ((doc.findings || []).length) {
       out.push("### Findings and unknowns", "");
       for (const f of doc.findings) out.push(`- **${findingIcon(f.level)} ${mdEsc(f.level)}${f.unit ? ` — ${mdEsc(f.unit)}` : ""}:** ${mdEsc(f.text)}`);
