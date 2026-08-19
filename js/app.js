@@ -8703,7 +8703,7 @@ max@contoso.com,"Global, DevOps"</pre>
   function renderUserImpact() {
     uiRes = UserImpact.analyze(policies);
     $("uiHead").innerHTML = `<h3 style="margin:0 0 6px">🗣 User impact brief</h3>
-      <p class="mini" style="margin:0">What people will notice — and what will deliberately no longer be possible — derived from the ${uiRes.total} policies in this tenant (${uiRes.counts.on} enforced, ${uiRes.counts.report} report-only, ${uiRes.counts.off} prepared). Statements from enforced policies are marked <b>live now</b>; the rest describe go-live. Export the draft for the communications team as Markdown or Word.</p>`;
+      <p class="mini" style="margin:0">What people will notice — and what will deliberately no longer be possible — derived from the <b>${uiRes.total} persona baseline policies</b> (${uiRes.counts.on} enforced, ${uiRes.counts.report} report-only, ${uiRes.counts.off} prepared)${uiRes.other.total ? `; the ${uiRes.other.total} policies without a persona CA number are analyzed LAST, in their own section at the bottom` : ""}. Statements from enforced policies are marked <b>live now</b>; the rest describe go-live. Export the draft for the communications team as Markdown or Word.</p>`;
     const auds = ["all", ...uiRes.audiences];
     const chips = auds.map((a) => `<button class="btn${uiAud === a ? " primary" : ""}" data-uiaud="${esc(a)}" style="padding:4px 10px">${a === "all" ? "All audiences" : esc(a)}</button>`).join(" ");
     const rows = uiRes.items.filter((i) => uiAud === "all" || i.aud === uiAud);
@@ -8721,6 +8721,11 @@ max@contoso.com,"Global, DevOps"</pre>
       ${lost.length ? `<div class="list-card" style="padding:14px 16px;margin-top:12px">
         <h4 style="margin:0 0 6px">⛔ No longer possible — the short list</h4>
         <ul class="mini" style="margin:0;padding-left:18px">${lost.map((i) => `<li><b>${esc(i.lost)}</b> <span class="muted">(${esc(i.aud)}${i.liveNow ? " — already in effect" : ""})</span></li>`).join("")}</ul>
+      </div>` : ""}
+      ${uiRes.other.items.length ? `<div class="list-card" style="padding:14px 16px;margin-top:18px">
+        <h4 style="margin:0 0 6px">📎 Outside the persona baseline — analyzed last</h4>
+        <p class="mini muted" style="margin:0 0 8px">From the ${uiRes.other.total} policies without a persona CA number (the tenant's own or interim policies — possibly temporary). Kept out of the sections above on purpose.</p>
+        ${uiRes.other.items.map((i) => `<p class="mini" style="margin:0 0 8px">${i.icon} <b>${esc(i.title)}</b> <span class="tag ok">${esc(i.aud)}</span> ${i.liveNow ? `<span class="tag grant">live now</span>` : `<span class="tag new">at go-live</span>`} — ${esc(i.text)}${i.lost ? ` <span class="muted">No longer possible: ${esc(i.lost)}</span>` : ""}<br><span class="muted">${i.pols.map((p) => `${p.id ? `<a href="#" class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</a>` : esc(p.name)} [${UserImpact.STATE_WORD[p.state]}]`).join(" · ")}</span></p>`).join("")}
       </div>` : ""}`;
   }
   function openUserImpact() { crumb("🗣 User impact brief"); show("screen-userimpact"); renderUserImpact(); }

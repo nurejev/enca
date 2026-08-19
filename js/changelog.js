@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25170, date: "2026-08-19", title: "The baseline speaks first",
+    items: [
+      { kind: "improved", tool: "User impact brief", text: "The persona baseline (the CAxxx-numbered policies) is analyzed FIRST and carries the whole brief; policies without a persona CA number — a tenant's own ad-hoc set, an interim baseline — are analyzed last, in their own trailing section on screen, in the Markdown and in the Word export, marked as possibly temporary. One build in, the tool's first real tenant showed why: six interim DEVCF policies sat enforced next to 99 prepared baseline policies, and a brief that mixes the two announces a temporary 8-hour session rule with the same weight as the design it is about to be replaced by. The split uses the same persona rule Backup and the Gap checks already apply — a CAxxx number in the name — so the three tools cannot disagree about what the baseline is." },
+    ],
+  },
+  {
     build: 25169, date: "2026-08-19", title: "The rollout email, written by the tenant itself",
     items: [
       { kind: "new", tool: "User impact brief", text: "A new tool (T32): the question every Conditional Access rollout stumbles over is not whether the policies are right but what to TELL PEOPLE — what they will notice, and what will deliberately no longer be possible. Writing that email by hand from a hundred policies means it is written once, goes stale, and describes the design rather than the tenant. This tool derives it from the policies actually deployed: 23 rules translate configuration into end-user language — MFA and phishing-resistant strengths, legacy-auth and device-code blocks, app protection on phones, view-only sessions on unmanaged devices, session lifetimes, country allowlists, the secure-network client, compliant devices, guest allowlists, admin O365 blocks, risk handling, guarded MFA registration, the Azure DevOps lockdown — each statement grouped per audience and backed by the named policies, with click-through to the policy card." },

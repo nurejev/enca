@@ -176,11 +176,21 @@ const UserImpact = (() => {
   const STATE_WORD = { on: "live now", report: "staged (report-only)", off: "at go-live" };
   const stateOf = (vm) => vm.state === "on" ? "on" : vm.state === "report" ? "report" : "off";
 
-  function analyze(policies) {
+  // The persona baseline (CAxxx-numbered policies) is analyzed FIRST — that
+  // is the set the communication is really about. Everything unnumbered
+  // (a tenant's own ad-hoc policies, interim baselines) is analyzed last and
+  // rendered as its own trailing section, so a statement from a temporary
+  // policy can never lead the brief. Same persona rule Backup and the Gap
+  // checks use: a CAxxx number in the name.
+  const isPersona = (vm) => (typeof Render !== "undefined" && Render.caGroup)
+    ? Render.caGroup(vm.name).num != null
+    : /CA\d{3,4}/i.test(String(vm.name || ""));
+
+  function collect(pols) {
     const items = [];
     for (const rule of RULES) {
       const perAud = new Map();
-      for (const vm of policies || []) {
+      for (const vm of pols) {
         let a = audienceOf(vm);
         if (!a) continue;
         if (!rule.match(vm)) continue;
@@ -201,10 +211,26 @@ const UserImpact = (() => {
       }
     }
     items.sort((x, y) => AUD_ORDER.indexOf(x.aud) - AUD_ORDER.indexOf(y.aud) || (y.lost ? 1 : 0) - (x.lost ? 1 : 0));
-    const total = (policies || []).length;
+    return items;
+  }
+
+  const countsOf = (pols) => {
     const counts = { on: 0, report: 0, off: 0 };
-    (policies || []).forEach((vm) => counts[stateOf(vm)]++);
-    return { items, total, counts, audiences: [...new Set(items.map((i) => i.aud))].sort((a, b2) => AUD_ORDER.indexOf(a) - AUD_ORDER.indexOf(b2)) };
+    pols.forEach((vm) => counts[stateOf(vm)]++);
+    return counts;
+  };
+  const audsOf = (items) => [...new Set(items.map((i) => i.aud))].sort((a, b2) => AUD_ORDER.indexOf(a) - AUD_ORDER.indexOf(b2));
+
+  function analyze(policies) {
+    const base = [], rest = [];
+    for (const vm of policies || []) (isPersona(vm) ? base : rest).push(vm);
+    const items = collect(base);
+    const otherItems = collect(rest);
+    return {
+      items, total: base.length, counts: countsOf(base), audiences: audsOf(items),
+      other: { items: otherItems, total: rest.length, counts: countsOf(rest), audiences: audsOf(otherItems) },
+      grand: (policies || []).length,
+    };
   }
 
   // ---------- Markdown (the communication draft) ----------
@@ -212,7 +238,7 @@ const UserImpact = (() => {
     const d = new Date().toISOString().slice(0, 10);
     const out = [];
     out.push(`# Conditional Access — what you will notice`);
-    out.push(`> ${tenantName || "This organization"} · generated ${d} from the tenant's own ${res.total} Conditional Access policies (${res.counts.on} enforced, ${res.counts.report} report-only, ${res.counts.off} prepared). Draft for the communications team — review before sending.`);
+    out.push(`> ${tenantName || "This organization"} · generated ${d} from the ${res.total} persona baseline policies (${res.counts.on} enforced, ${res.counts.report} report-only, ${res.counts.off} prepared)${res.other.total ? `; ${res.other.total} non-baseline policies analyzed separately at the end` : ""}. Draft for the communications team — review before sending.`);
     out.push(``);
     out.push(`Conditional Access checks every sign-in — who you are, how healthy the device is and where the sign-in comes from — before access is granted. It reads sign-in signals only: it never opens your mail, chats or documents, and it is not used to monitor performance.`);
     out.push(``);
@@ -247,10 +273,19 @@ const UserImpact = (() => {
     out.push(`## If you are blocked`);
     out.push(`Contact the IT helpdesk with the time of the sign-in and the message on screen. A block is almost always: an unmanaged or non-compliant device, an unapproved country, the secure network client not running, a legacy protocol, or a risk detection — every one has a controlled exception process.`);
     out.push(``);
+    if (res.other.items.length) {
+      out.push(`## Outside the persona baseline (analyzed last)`);
+      out.push(`These statements come from the ${res.other.total} policies that carry no persona CA number — a tenant's own or interim policies. Review them separately: they may be temporary, and they are deliberately kept out of the sections above.`);
+      for (const i of res.other.items) out.push(`- ${i.icon} **${i.title}** (${i.aud}${i.liveNow ? " — live now" : ""}) — ${i.text}${i.lost ? ` _No longer possible: ${i.lost}_` : ""}`);
+      out.push(``);
+    }
     out.push(`---`);
     out.push(`### Appendix — the policies behind each statement`);
     for (const i of res.items) {
       out.push(`- ${i.icon} ${i.title} (${i.aud}): ${i.pols.map((p2) => `${p2.name} [${STATE_WORD[p2.state]}]`).join("; ")}`);
+    }
+    for (const i of res.other.items) {
+      out.push(`- ${i.icon} ${i.title} (${i.aud}, outside the baseline): ${i.pols.map((p2) => `${p2.name} [${STATE_WORD[p2.state]}]`).join("; ")}`);
     }
     return out.join("\n");
   }
@@ -266,7 +301,7 @@ const UserImpact = (() => {
     const d = new Date().toISOString().slice(0, 10);
     const body = [];
     body.push(P(`Conditional Access — what you will notice`, { h: 1 }));
-    body.push(P(`${tenantName || "This organization"} · generated ${d} from ${res.total} Conditional Access policies (${res.counts.on} enforced, ${res.counts.report} report-only, ${res.counts.off} prepared). Draft — review before sending.`));
+    body.push(P(`${tenantName || "This organization"} · generated ${d} from the ${res.total} persona baseline policies (${res.counts.on} enforced, ${res.counts.report} report-only, ${res.counts.off} prepared)${res.other.total ? `; ${res.other.total} non-baseline policies analyzed separately at the end` : ""}. Draft — review before sending.`));
     body.push(P(`Conditional Access checks every sign-in — who you are, how healthy the device is and where the sign-in comes from — before access is granted. It reads sign-in signals only: it never opens your mail, chats or documents, and it is not used to monitor performance.`));
     const live = res.items.filter((i) => i.liveNow);
     const later = res.items.filter((i) => !i.liveNow);
@@ -295,8 +330,14 @@ const UserImpact = (() => {
     }
     body.push(P(`If you are blocked`, { h: 2 }));
     body.push(P(`Contact the IT helpdesk with the time of the sign-in and the message on screen. A block is almost always: an unmanaged or non-compliant device, an unapproved country, the secure network client not running, a legacy protocol, or a risk detection — every one has a controlled exception process.`));
+    if (res.other.items.length) {
+      body.push(P(`Outside the persona baseline (analyzed last)`, { h: 2 }));
+      body.push(P(`These statements come from the ${res.other.total} policies that carry no persona CA number — a tenant's own or interim policies. Review them separately: they may be temporary.`));
+      for (const i of res.other.items) body.push(P([[`• ${i.title} (${i.aud}${i.liveNow ? " — live now" : ""}): `, { b: true }], [i.text + (i.lost ? ` No longer possible: ${i.lost}` : ""), {}]]));
+    }
     body.push(P(`Appendix — the policies behind each statement`, { h: 2 }));
     for (const i of res.items) body.push(P(`${i.title} (${i.aud}): ${i.pols.map((p2) => `${p2.name} [${STATE_WORD[p2.state]}]`).join("; ")}`));
+    for (const i of res.other.items) body.push(P(`${i.title} (${i.aud}, outside the baseline): ${i.pols.map((p2) => `${p2.name} [${STATE_WORD[p2.state]}]`).join("; ")}`));
 
     const zip = new JSZip();
     zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
