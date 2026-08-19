@@ -326,6 +326,20 @@
   }
   applyBranding(activeBrand());
   // ---------- beta / preview ribbon ----------
+  // Is this THE production deployment? Three places asked the same question
+  // three slightly different ways (the BETA banner, the promotion queue, and
+  // now the changelog's authoring check), so it is answered once here. An
+  // origin that is not BRANDING.host — the beta Pages site, a local server, a
+  // fork — is not production, and a missing/blank host answers "no" rather
+  // than accidentally treating an unconfigured build as the real one.
+  const isProdHost = () => {
+    try {
+      const prod = ((typeof BRANDING !== "undefined" && BRANDING.host) || "").toLowerCase();
+      const here = (location.hostname || "").toLowerCase();
+      return !!prod && !!here && here === prod;
+    } catch { return false; }
+  };
+
   // The production deployment lives on BRANDING.host; any other origin
   // (the beta Pages site, a local dev server) is visibly not production, so
   // testers and screenshots can never be confused about what they're seeing.
@@ -749,12 +763,40 @@
   const clMarkSeen = () => { try { localStorage.setItem(CL_KEY, String(CHANGELOG_LATEST)); } catch { /* private mode */ } };
   const CL_KIND = { new: "New", improved: "Improved", fixed: "Fixed" };
 
+  // ---- the changelog is PLAIN TEXT, and this is what says so out loud ----
+  //
+  // clEntries() escapes item text, so a formatting tag written into
+  // js/changelog.js comes out as angle brackets mid-sentence. The header of
+  // that file has said so since build 25156 — and 146 more tags were written
+  // in the 25151-25161 cycle anyway, and 124 of them were hand-ported to
+  // production 287. A comment nobody reads is not a guard.
+  //
+  // So the file checks itself. Only tags an author reaches for to FORMAT are
+  // flagged: prose that names an element — "selecting from a <datalist>", "an
+  // SVG loaded through <img src>" — is legitimate and must not trip it.
+  //
+  // The console warning runs on every channel, because the mistake is usually
+  // discovered while porting to main and that is where a console is open. The
+  // visible chip is beta-only: a customer should never be shown our authoring
+  // slip, and on production the escaped text is ugly enough on its own.
+  const CL_MARKUP = /<\/?(?:b|i|em|strong|code|u|br|small|mark)\b[^>]*>|&(?:nbsp|amp|lt|gt|quot);/i;
+  const clAuthoringSlips = () => (typeof CHANGELOG === "undefined" ? [] : CHANGELOG)
+    .filter((r) => (r.items || []).some((i) => CL_MARKUP.test(String(i.text || ""))))
+    .map((r) => r.build);
+  (() => {
+    const bad = clAuthoringSlips();
+    if (bad.length) console.warn(
+      `changelog: ${bad.length} release(s) contain formatting markup that will render as literal ` +
+      `angle brackets — js/changelog.js is plain text. Builds: ${bad.join(", ")}`);
+  })();
+
   function clEntries(rel) {
     const order = { new: 0, improved: 1, fixed: 2 };
     return rel.items.slice().sort((a, b) => order[a.kind] - order[b.kind])
       .map((i) => `<li class="cl-i">
         <span class="cl-k ${i.kind}">${CL_KIND[i.kind]}</span>
-        <span><b>${esc(i.tool)}</b> — ${esc(i.text)}</span></li>`).join("");
+        <span><b>${esc(i.tool)}</b> — ${esc(i.text)}${CL_MARKUP.test(String(i.text || "")) && !isProdHost()
+          ? ' <span class="tag block" title="This entry contains a formatting tag. js/changelog.js is plain text — the renderer escapes it, so the tag will show as angle brackets. Remove it and carry the emphasis in the words.">markup — will render literally</span>' : ""}</span></li>`).join("");
   }
   function clRelease(rel) {
     return `<div class="cl-rel">
