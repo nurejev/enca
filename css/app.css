@@ -321,6 +321,13 @@ table.plist tr:hover td{background:var(--hover)}
 .btn.danger:hover{background:#8f3a2d;border-color:#8f3a2d}
 .danger-note{background:var(--bad-bg2);border:1px solid var(--bad-bd);color:var(--off);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13px;line-height:1.5}
 .danger-note b{color:var(--off)}
+/* Same box as .danger-note, amber, for stating what a run is SCOPED to — which
+   is not a danger. It needs its own class rather than inline overrides on
+   .danger-note: that rule hard-codes the red on every <b> inside, and a
+   descendant selector wins over the parent's inline colour, so the emphasis
+   came out red on amber. */
+.scope-note{background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--warn-fg);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13px;line-height:1.5}
+.scope-note b{color:var(--warn-fg)}
 input.txt{width:100%;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;letter-spacing:.06em}
 input.txt:focus{outline:none;border-color:var(--off)}
 input[type=checkbox]{width:16px;height:16px;accent-color:var(--green)}

@@ -63,6 +63,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 64,
+      title: "🧬 Backup on a baseline tenant backs up the baseline, not the tenant",
+      tools: ["Backup (JSON)"],
+      builds: [25150],
+      risk: "low",
+      what: "On a tenant matched by BASELINE_TENANTS, 🗄 Backup (JSON) is scoped to the persona CAxxx policies — the same rule checkScope() applies to the Gap and MS Learn checks there. The policies are filtered BEFORE backupDependencyIds() runs, so groups, auth strengths, named locations, auth contexts and terms of use are read from the surviving policies only. The confirmation carries a 🧬 warning naming the skipped count, the zip is named ConditionalAccess-BASELINE-… and carries a BackupScope.json (which Import skips by name), and a selection with no baseline policy is refused with the reason. No override, by design. The same scoping is applied to the JSON option in the 📄 Create documentation export modal, which produces the identical zip through a different door. Header badge tooltip and Help updated.",
+      why: "Reads only, and inert on every customer tenant — nothing outside cloudfellows.dev changes behaviour. It graduates once a baseline export has been taken with it and the zip eyeballed against the catalog, because the failure it prevents (a tenant's own policies shipped inside a baseline) is only visible at import time in somebody else's tenant.",
+      files: ["js/app.js", "js/export.js", "js/import.js", "index.html", "css/app.css", "js/version.js"],
+    },
+    {
       n: 63,
       title: "\ud83d\udce5 Import finishes the job on the groups it reuses (R04)",
       tools: ["Import"],

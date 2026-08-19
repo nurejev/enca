@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25149"></script>
+<script src="js/popup-guard.js?v=25150"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25149">
+<link rel="stylesheet" href="css/app.css?v=25150">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25149"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25149"></script>
+<script src="js/counter.js?v=25150"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25150"></script>
 </head>
 <body>
 
@@ -39,7 +39,7 @@
     <button class="btn" id="themeBtn" title="Theme: Auto (follows your device)"><span class="tico">🌗</span></button>
     <div class="tenant" id="tenantBox">
       <div><div id="tenantName" style="font-weight:600"></div><div class="mini" id="tenantUser"></div>
-        <span class="tag ok" id="baselineBadge" style="display:none;cursor:help" title="Baseline tenant detected — this session has more options than a regular tenant: the Gap and MS Learn checks review the persona baseline policies including the ones deployed Off (non-persona policies are skipped), and MS Learn's Apply-fixes can write recommended policies here. On a regular tenant those checks are read-only and scoped to enabled policies.">🧪 baseline tenant — extended options</span></div>
+        <span class="tag ok" id="baselineBadge" style="display:none;cursor:help" title="Baseline tenant detected — this session behaves differently from a regular tenant: the Gap and MS Learn checks review the persona baseline policies including the ones deployed Off (non-persona policies are skipped), MS Learn's Apply-fixes can write recommended policies here, and 🗄 Backup (JSON) backs up the baseline catalog only — the persona policies and the dependencies they reference, never this tenant's own Conditional Access. On a regular tenant those checks are read-only and scoped to enabled policies, and Backup takes whatever you select.">🧪 baseline tenant — extended options</span></div>
       <div class="avatar" id="avatar"></div>
       <button class="btn" id="signOutBtn">Sign out</button>
     </div>
@@ -115,8 +115,8 @@
         <p>Select policies (or take all) and generate documentation — Word, PDF, PNG or a PNG bundle, with optional auditor-ready pages for the restricted units protecting exclusion groups.</p>
       </div>
       <div class="tool" id="toolJson">
-        <div class="tool-ic">🗄</div><h3>Backup (JSON)</h3>
-        <p>Select policies (or take all) and download their raw JSON definitions in a zip.</p>
+        <div class="tool-ic">🗄</div><h3>Backup (JSON) <span class="tag upd">UPDATED</span></h3>
+        <p>Select policies (or take all) and download their raw JSON definitions in a zip. On a baseline tenant it backs up the baseline catalog only.</p>
       </div>
     </div>
     <div class="tool-sec"><h3>🔍 Analyse &amp; simulate</h3><p>Work out what your policies actually do, and to whom.</p></div>
@@ -1618,6 +1618,7 @@
     <section class="help-sec">
       <h4>🗄 Backup (JSON)</h4>
       <p>Select policies (or take all) and download their raw JSON in a zip — dependencies (groups, named locations, auth strengths/contexts) and any Terms-of-use PDFs are included, so the backup is importable.</p>
+      <p><b>On a baseline tenant</b> (the 🧪 badge in the header) this tool backs up the <b>baseline catalog</b>, not the tenant. That tenant is where the baseline is built, so the backup is scoped to the <b>persona CAxxx policies</b> and the dependencies <i>those</i> policies reference; the tenant's own Conditional Access, and anything only it depends on, is left out. The confirmation says how many policies were skipped, the zip is named <code>ConditionalAccess-BASELINE-…</code> instead of <code>-JSON-</code>, and it carries a <code>BackupScope.json</code> stating what was left out — a zip is read long after the tenant that produced it is out of reach. There is no “include everything” option: a customer import is the place a stray tenant policy would surface, and by then nobody is looking.</p>
       <p class="help-x">Read-only download.</p>
     </section>
 
@@ -1900,6 +1901,9 @@
 <div class="modal-bg" id="backupModal">
   <div class="modal">
     <h3>Backup (JSON)</h3>
+    <!-- Shown only on a baseline tenant: there the backup IS the baseline
+         catalog, scoped to the persona policies. Filled by runBackup(). -->
+    <div class="scope-note" id="bkBaseline" style="display:none"></div>
     <p id="bkDesc"></p>
     <label class="chk" style="margin:8px 0"><input type="checkbox" id="bkPolicies" checked> Policy definitions (one JSON per policy + combined file)</label>
     <label class="chk" style="margin:8px 0"><input type="checkbox" id="bkGroups"> Dependencies used by these policies — groups, authentication strengths, named locations, auth contexts, terms of use (per-category folders + MigrationTable.json)</label>
@@ -2453,50 +2457,50 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25149"></script>
-<script src="js/version.js?v=25149"></script>
-<script src="js/promote.js?v=25149"></script>
-<script src="js/authConfig.js?v=25149"></script>
-<script src="js/labels.js?v=25149"></script>
-<script src="js/graph.js?v=25149"></script>
-<script src="js/model.js?v=25149"></script>
-<script src="js/render.js?v=25149"></script>
-<script src="js/analyze.js?v=25149"></script>
-<script src="js/whatif.js?v=25149"></script>
-<script src="js/mslearn.js?v=25149"></script>
-<script src="js/gapcheck.js?v=25149"></script>
-<script src="js/cisdata.js?v=25149"></script>
-<script src="js/cischeck.js?v=25149"></script>
-<script src="js/exclusions.js?v=25149"></script>
-<script src="js/validator.js?v=25149"></script>
-<script src="js/whatifeval.js?v=25149"></script>
-<script src="js/compare.js?v=25149"></script>
-<script src="js/groupuse.js?v=25149"></script>
-<script src="js/iso3166.js?v=25149"></script>
-<script src="js/locations.js?v=25149"></script>
-<script src="js/authcontexts.js?v=25149"></script>
-<script src="js/authstrengths.js?v=25149"></script>
-<script src="js/recycle.js?v=25149"></script>
-<script src="js/rmau.js?v=25149"></script>
-<script src="js/rmaudoc.js?v=25149"></script>
-<script src="js/termsofuse.js?v=25149"></script>
-<script src="js/audit.js?v=25149"></script>
-<script src="js/drift.js?v=25149"></script>
-<script src="js/guide.js?v=25149"></script>
-<script src="js/devcheck.js?v=25149"></script>
-<script src="js/licgap.js?v=25149"></script>
-<script src="js/signins.js?v=25149"></script>
-<script src="js/reportimpact.js?v=25149"></script>
-<script src="js/changelog.js?v=25149"></script>
-<script src="js/baselineData.js?v=25149"></script>
-<script src="js/baselineJoeyData.js?v=25149"></script>
-<script src="js/baseline.js?v=25149"></script>
-<script src="js/groupTemplates.js?v=25149"></script>
-<script src="js/assign.js?v=25149"></script>
-<script src="js/cagroups.js?v=25149"></script>
-<script src="js/import.js?v=25149"></script>
-<script src="js/export.js?v=25149"></script>
-<script src="js/demo.js?v=25149"></script>
-<script src="js/app.js?v=25149"></script>
+<script src="js/branding.js?v=25150"></script>
+<script src="js/version.js?v=25150"></script>
+<script src="js/promote.js?v=25150"></script>
+<script src="js/authConfig.js?v=25150"></script>
+<script src="js/labels.js?v=25150"></script>
+<script src="js/graph.js?v=25150"></script>
+<script src="js/model.js?v=25150"></script>
+<script src="js/render.js?v=25150"></script>
+<script src="js/analyze.js?v=25150"></script>
+<script src="js/whatif.js?v=25150"></script>
+<script src="js/mslearn.js?v=25150"></script>
+<script src="js/gapcheck.js?v=25150"></script>
+<script src="js/cisdata.js?v=25150"></script>
+<script src="js/cischeck.js?v=25150"></script>
+<script src="js/exclusions.js?v=25150"></script>
+<script src="js/validator.js?v=25150"></script>
+<script src="js/whatifeval.js?v=25150"></script>
+<script src="js/compare.js?v=25150"></script>
+<script src="js/groupuse.js?v=25150"></script>
+<script src="js/iso3166.js?v=25150"></script>
+<script src="js/locations.js?v=25150"></script>
+<script src="js/authcontexts.js?v=25150"></script>
+<script src="js/authstrengths.js?v=25150"></script>
+<script src="js/recycle.js?v=25150"></script>
+<script src="js/rmau.js?v=25150"></script>
+<script src="js/rmaudoc.js?v=25150"></script>
+<script src="js/termsofuse.js?v=25150"></script>
+<script src="js/audit.js?v=25150"></script>
+<script src="js/drift.js?v=25150"></script>
+<script src="js/guide.js?v=25150"></script>
+<script src="js/devcheck.js?v=25150"></script>
+<script src="js/licgap.js?v=25150"></script>
+<script src="js/signins.js?v=25150"></script>
+<script src="js/reportimpact.js?v=25150"></script>
+<script src="js/changelog.js?v=25150"></script>
+<script src="js/baselineData.js?v=25150"></script>
+<script src="js/baselineJoeyData.js?v=25150"></script>
+<script src="js/baseline.js?v=25150"></script>
+<script src="js/groupTemplates.js?v=25150"></script>
+<script src="js/assign.js?v=25150"></script>
+<script src="js/cagroups.js?v=25150"></script>
+<script src="js/import.js?v=25150"></script>
+<script src="js/export.js?v=25150"></script>
+<script src="js/demo.js?v=25150"></script>
+<script src="js/app.js?v=25150"></script>
 </body>
 </html>

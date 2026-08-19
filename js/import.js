@@ -196,7 +196,10 @@ const Importer = (() => {
     for (const { path, text } of entries) {
       if (!path.endsWith(".json")) continue;
       const name = path.split("/").pop();
-      if (name === "MigrationTable.json") continue;
+      // MigrationTable.json is the id lookup; BackupScope.json states what a
+      // baseline backup deliberately left out. Both describe the zip rather than
+      // being content in it — neither is an object to import.
+      if (name === "MigrationTable.json" || name === "BackupScope.json") continue;
       let obj;
       try { obj = JSON.parse(text); } catch { continue; }
       if (name === "all-policies.json") { allPolicies = obj; continue; }

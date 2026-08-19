@@ -1249,8 +1249,20 @@
         await Exporter.policiesMd(ps, tenantName, docOpts);
         toast("Markdown export <span>done</span>");
       } else if (fmt === "json") {
-        await Exporter.policiesJson(ps, tenantName);
-        toast("JSON backup <span>done</span>");
+        // The documentation modal offers the same zip 🗄 Backup produces, so it
+        // gets the same baseline scoping — otherwise the tile you happened to
+        // enter from decides whether a baseline tenant's own policies end up in
+        // an importable backup, which is not a decision an entry point makes.
+        // Dependencies are not gathered here (this route never did), so the
+        // scope only has to hold the policies back.
+        const js = backupScope(ps);
+        if (!js.policies.length) { toast(`Baseline tenant — <span>nothing in scope</span>: none of the ${ps.length} selected polic${ps.length === 1 ? "y is" : "ies are"} a persona baseline policy`); return; }
+        await Exporter.policiesJson(js.policies, tenantName, {
+          baselineScope: js.baseline ? { tenant: tenantName || "", tenantDomain, skipped: js.skipped } : null,
+        });
+        toast(js.baseline
+          ? `Baseline backup <span>done</span> — ${js.policies.length} baseline policies${js.skipped ? `, ${js.skipped} tenant policies skipped` : ""}`
+          : "JSON backup <span>done</span>");
       } else {
         await Exporter.policiesPdf(ps, tenantName, $("expMatrix").checked, (m) => toast(m), tenantLogo, docOpts);
         toast("PDF export <span>done</span>");
@@ -1313,6 +1325,10 @@
 
   function loadDemo() {
     tenantName = DEMO_DATA.tenantName;
+    // Demo has no domain. Left over from a signed-in session it would keep
+    // answering isBaselineTenant(), and the demo would scope its backup to a
+    // catalog it is not.
+    tenantDomain = "";
     tenantLogo = null;
     isDemo = true; anReport = null;
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
@@ -1440,17 +1456,54 @@
     toolMode = mode;
     SEL_ACTIONS.forEach(([id, m]) => { const b = $(id); if (b) b.classList.toggle("on", m === mode); });
   }
+  // A baseline tenant (see BASELINE_TENANTS) is where the baseline is BUILT, so
+  // a backup taken there is the baseline catalog — not a tenant backup. Its own
+  // Conditional Access is somebody's working tenant configuration, and a zip
+  // that mixes the two gets imported into a customer later: the baseline would
+  // arrive carrying policies nobody chose, pointing at groups, locations and
+  // agreements that only ever existed here.
+  //
+  // So the scope is decided ONCE, on the policies, and the dependencies are
+  // worked out from the survivors. That order is the whole safeguard — a policy
+  // that is out of scope must not drag its groups or its terms of use into the
+  // zip either, and filtering after backupDependencyIds() would let it.
+  //
+  // Baseline = the persona CAxxx policies, the same rule checkScope() applies to
+  // the Gap and MS Learn checks on these tenants. There is deliberately no
+  // override: "back up everything just this once" is exactly how a tenant's own
+  // policies end up in a baseline nobody notices until it is deployed.
+  function backupScope(ps) {
+    if (!isBaselineTenant()) return { policies: ps, baseline: false, skipped: 0 };
+    const inScope = ps.filter(isPersonaBaseline);
+    return { policies: inScope, baseline: true, skipped: ps.length - inScope.length };
+  }
   function runBackup() {
-    const ps = exportOrder((selected.size ? [...selected] : visible().map(p => p.id)).map(id => policies.find(p => p.id === id)));
-    if (!ps.length) { toast("Nothing to back up"); return; }
+    const picked = exportOrder((selected.size ? [...selected] : visible().map(p => p.id)).map(id => policies.find(p => p.id === id)));
+    if (!picked.length) { toast("Nothing to back up"); return; }
+    const scope = backupScope(picked);
+    const ps = scope.policies;
+    if (!ps.length) {
+      toast(`Baseline tenant — <span>nothing in scope</span>: none of the ${picked.length} selected polic${picked.length === 1 ? "y is" : "ies are"} a persona baseline policy`);
+      return;
+    }
     bkPolicies = ps;
+    bkScope = scope;
     const dep = backupDependencyIds(ps);
     const nDeps = Object.values(dep).reduce((s, a) => s + a.length, 0);
+    const bn = $("bkBaseline");
+    bn.style.display = scope.baseline ? "" : "none";
+    if (scope.baseline) {
+      bn.innerHTML = `🧬 <b>Baseline tenant</b> — this is where the baseline is built, so this backup is the <b>baseline catalog</b>, not a tenant backup. `
+        + `Backing up <b>${ps.length}</b> persona baseline polic${ps.length === 1 ? "y" : "ies"}`
+        + (scope.skipped ? ` and skipping <b>${scope.skipped}</b> of this tenant's own polic${scope.skipped === 1 ? "y" : "ies"}` : "")
+        + `. Dependencies are taken from the baseline policies only — nothing this tenant uses for itself is included.`;
+    }
     $("bkDesc").textContent = `${ps.length} ${ps.length === 1 ? "policy" : "policies"} — referencing ${nDeps} dependencies `
       + `(${dep.groups.length} groups, ${dep.authStrengths.length} auth strengths, ${dep.namedLocations.length} named locations, ${dep.authContexts.length} auth contexts, ${dep.termsOfUse.length} terms of use).`;
     $("backupModal").classList.add("open");
   }
   let bkPolicies = [];
+  let bkScope = { baseline: false, skipped: 0 };
   function backupGroupIds(ps) {
     const ids = new Set();
     ps.forEach(p => {
@@ -1515,8 +1568,13 @@
       await Exporter.policiesJson(psOut, tenantName, {
         ...deps,
         tenantId: Graph.account?.tenantId || "",
+        // Stamped into the zip so the scoping survives the download — whoever
+        // imports this months from now cannot ask the tenant what it was.
+        baselineScope: bkScope.baseline ? { tenant: tenantName || "", tenantDomain, skipped: bkScope.skipped } : null,
       });
-      toast(`JSON backup <span>downloaded</span> — ${psOut.length} policies${nDeps ? `, ${nDeps} dependencies` : ""}`);
+      toast(bkScope.baseline
+        ? `Baseline backup <span>downloaded</span> — ${psOut.length} baseline policies${nDeps ? `, ${nDeps} dependencies` : ""}${bkScope.skipped ? `, ${bkScope.skipped} tenant policies skipped` : ""}`
+        : `JSON backup <span>downloaded</span> — ${psOut.length} policies${nDeps ? `, ${nDeps} dependencies` : ""}`);
     } catch (e) { console.error(e); toast(`Backup failed: <span>${esc(e.message || e)}</span>`); }
   });
   // ---------- tool tab bar ----------

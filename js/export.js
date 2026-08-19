@@ -354,12 +354,33 @@ const Exporter = (() => {
     if (migrationObjects.length) {
       zip.file("MigrationTable.json", JSON.stringify({ TenantId: opts.tenantId || "", Objects: migrationObjects }, null, 2));
     }
+    // A backup taken on a baseline tenant is the baseline catalog, deliberately
+    // narrowed to the persona policies and their dependencies. Say so INSIDE the
+    // zip: a year from now the file is all anybody has, and "does this contain
+    // the whole tenant?" is not a question a folder of policy JSON can answer.
+    // Read by people, not by the importer — which skips this file by name.
+    if (opts.baselineScope) {
+      zip.file("BackupScope.json", JSON.stringify({
+        scope: "baseline",
+        note: "Baseline catalog only. Taken on a baseline tenant, where the baseline is built: the persona CAxxx policies and the groups, authentication strengths, named locations, authentication contexts and terms of use THOSE policies reference. The tenant's own Conditional Access, and anything only it depends on, is deliberately NOT in this file.",
+        tenant: opts.baselineScope.tenant || "",
+        tenantDomain: opts.baselineScope.tenantDomain || "",
+        tenantId: opts.tenantId || "",
+        policies: policies.length,
+        tenantPoliciesSkipped: opts.baselineScope.skipped || 0,
+        taken: new Date().toISOString(),
+      }, null, 2));
+    }
     const blob = await zip.generateAsync({ type: "blob" });
     // date + time stamp (yyyy-MM-dd-HHmmss) so re-runs never overwrite a previous backup
     const d = new Date();
     const pad = (n) => String(n).padStart(2, "0");
     const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-    download(URL.createObjectURL(blob), `ConditionalAccess-JSON-${safe(tenantName || "tenant")}-${stamp}.zip`);
+    // The filename carries the scope too — a zip in a downloads folder is read
+    // long before it is opened, and BASELINE vs JSON is the difference between
+    // a catalog and somebody's tenant.
+    const kind = opts.baselineScope ? "BASELINE" : "JSON";
+    download(URL.createObjectURL(blob), `ConditionalAccess-${kind}-${safe(tenantName || "tenant")}-${stamp}.zip`);
     return policies.length;
   }
 
