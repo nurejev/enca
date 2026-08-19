@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25155"></script>
+<script src="js/popup-guard.js?v=25156"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25155">
+<link rel="stylesheet" href="css/app.css?v=25156">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25155"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25155"></script>
+<script src="js/counter.js?v=25156"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25156"></script>
 </head>
 <body>
 
@@ -112,7 +112,7 @@
       </div>
       <div class="tool" id="toolDocument">
         <div class="tool-ic">📄</div><h3>Create documentation <span class="tag upd">UPDATED</span></h3>
-        <p>Select policies (or take all) and generate documentation — Word, PDF, PNG or a PNG bundle, with optional auditor-ready pages for the restricted units protecting exclusion groups.</p>
+        <p>Select policies (or take all) and generate documentation — Word, PDF, PNG or a PNG bundle, with optional auditor-ready pages for the restricted units protecting exclusion groups. On a baseline tenant it documents the baseline catalog only.</p>
       </div>
       <div class="tool" id="toolJson">
         <div class="tool-ic">🗄</div><h3>Backup (JSON) <span class="tag upd">UPDATED</span></h3>
@@ -1379,6 +1379,8 @@
         <li><b>Include restricted administrative units</b> — available for Word, PDF, Markdown and the PNG bundle. It adds an overview plus one page per restricted unit: persona and CA range, protected groups, every tenant policy that includes or excludes them, scoped administrators and whether the role definition can change group membership. Findings name a unit with nobody scoped, an empty unit, a frozen role-assignable group, and anything that could not be read.</li>
         <li><b>The integration is optional and fails soft.</b> Create documentation reads the units itself; it never depends on the Restricted AUs screen having run. If the unit list, one unit, scoped roles or role definitions are unavailable, the unknown part is labelled rather than guessed. The Conditional Access policy document still exports — an optional appendix may lose detail, but it cannot break the main tool.</li>
       </ul>
+      <p><b>On a baseline tenant</b> (the 🧪 badge in the header) this documents the <b>baseline catalog</b>, not the tenant — the same rule 🗄 Backup follows, through the same code. The export is scoped to the <b>persona CAxxx policies</b>, the modal says how many of the tenant's own are being left out, and the scope is carried into the file itself: a line on the PDF cover, a quote under the Markdown header, the Word title, a <code>SCOPE.txt</code> beside the images in the PNG bundle. A document is read by somebody who was not in the room when it was made, and a policy that is absent leaves no trace of its absence.</p>
+      <p>The <b>restricted-unit appendix is not filtered</b> there: on a baseline tenant those units are the baseline's own persona vaults, so they are documented as they stand — scoped administrators included. The modal says so at the point of choosing, rather than leaving you to work out why one half of the document is narrowed and the other is not. <b>PNG is the exception</b>: loose images have no cover, header or companion file, so they cannot state their own scope — the modal warns when you pick it on a baseline tenant, and the PNG bundle is the one to reach for instead.</p>
       <p class="help-x">Read-only and produces a download. Nothing is written to the tenant. Restricted-unit pages use all loaded tenant policies for their impact references, even when only a subset of policy pages is selected, so the document cannot understate what widening an exclusion would affect.</p>
     </section>
 
@@ -1889,11 +1891,18 @@
 <div class="modal-bg" id="exportModal">
   <div class="modal">
     <h3>Export documentation</h3>
+    <!-- Baseline tenants only: the document describes the baseline catalog,
+         not the tenant. Filled by openExport(). -->
+    <div class="scope-note" id="expBaseline" style="display:none"></div>
     <p id="expDesc"></p>
     <div id="expOptPng" class="exp-opt" data-fmt="png">
       <div class="exp-ic png">PNG</div>
       <div><b>PNG image</b><div class="mini">One high-resolution image per policy card</div></div>
     </div>
+    <!-- Baseline tenant + PNG only: loose images carry no cover, header or
+         companion file, so this is the one format that cannot state its own
+         scope. Shown by syncFmt(). -->
+    <div class="scope-note" id="expPngScope" style="display:none">⚠ Loose PNGs have nowhere to record that this is a <b>baseline catalog</b> export — every other format states it on the cover, in the header, in the title or in a file beside the images. Pick <b>PDF</b>, <b>Word</b>, <b>Markdown</b> or the <b>PNG bundle</b> if these images are leaving your hands.</div>
     <div id="expOptPdf" class="exp-opt" data-fmt="pdf">
       <div class="exp-ic pdf">PDF</div>
       <div><b>PDF document</b><div class="mini">Cover page + one page per policy — for sharing/printing</div></div>
@@ -2486,51 +2495,51 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25155"></script>
-<script src="js/version.js?v=25155"></script>
-<script src="js/promote.js?v=25155"></script>
-<script src="js/authConfig.js?v=25155"></script>
-<script src="js/labels.js?v=25155"></script>
-<script src="js/graph.js?v=25155"></script>
-<script src="js/model.js?v=25155"></script>
-<script src="js/render.js?v=25155"></script>
-<script src="js/analyze.js?v=25155"></script>
-<script src="js/whatif.js?v=25155"></script>
-<script src="js/mslearn.js?v=25155"></script>
-<script src="js/gapcheck.js?v=25155"></script>
-<script src="js/cisdata.js?v=25155"></script>
-<script src="js/cischeck.js?v=25155"></script>
-<script src="js/exclusions.js?v=25155"></script>
-<script src="js/validator.js?v=25155"></script>
-<script src="js/whatifeval.js?v=25155"></script>
-<script src="js/compare.js?v=25155"></script>
-<script src="js/groupuse.js?v=25155"></script>
-<script src="js/iso3166.js?v=25155"></script>
-<script src="js/locations.js?v=25155"></script>
-<script src="js/authcontexts.js?v=25155"></script>
-<script src="js/authstrengths.js?v=25155"></script>
-<script src="js/recycle.js?v=25155"></script>
-<script src="js/rmau.js?v=25155"></script>
-<script src="js/camap.js?v=25155"></script>
-<script src="js/rmaudoc.js?v=25155"></script>
-<script src="js/termsofuse.js?v=25155"></script>
-<script src="js/audit.js?v=25155"></script>
-<script src="js/drift.js?v=25155"></script>
-<script src="js/guide.js?v=25155"></script>
-<script src="js/devcheck.js?v=25155"></script>
-<script src="js/licgap.js?v=25155"></script>
-<script src="js/signins.js?v=25155"></script>
-<script src="js/reportimpact.js?v=25155"></script>
-<script src="js/changelog.js?v=25155"></script>
-<script src="js/baselineData.js?v=25155"></script>
-<script src="js/baselineJoeyData.js?v=25155"></script>
-<script src="js/baseline.js?v=25155"></script>
-<script src="js/groupTemplates.js?v=25155"></script>
-<script src="js/assign.js?v=25155"></script>
-<script src="js/cagroups.js?v=25155"></script>
-<script src="js/import.js?v=25155"></script>
-<script src="js/export.js?v=25155"></script>
-<script src="js/demo.js?v=25155"></script>
-<script src="js/app.js?v=25155"></script>
+<script src="js/branding.js?v=25156"></script>
+<script src="js/version.js?v=25156"></script>
+<script src="js/promote.js?v=25156"></script>
+<script src="js/authConfig.js?v=25156"></script>
+<script src="js/labels.js?v=25156"></script>
+<script src="js/graph.js?v=25156"></script>
+<script src="js/model.js?v=25156"></script>
+<script src="js/render.js?v=25156"></script>
+<script src="js/analyze.js?v=25156"></script>
+<script src="js/whatif.js?v=25156"></script>
+<script src="js/mslearn.js?v=25156"></script>
+<script src="js/gapcheck.js?v=25156"></script>
+<script src="js/cisdata.js?v=25156"></script>
+<script src="js/cischeck.js?v=25156"></script>
+<script src="js/exclusions.js?v=25156"></script>
+<script src="js/validator.js?v=25156"></script>
+<script src="js/whatifeval.js?v=25156"></script>
+<script src="js/compare.js?v=25156"></script>
+<script src="js/groupuse.js?v=25156"></script>
+<script src="js/iso3166.js?v=25156"></script>
+<script src="js/locations.js?v=25156"></script>
+<script src="js/authcontexts.js?v=25156"></script>
+<script src="js/authstrengths.js?v=25156"></script>
+<script src="js/recycle.js?v=25156"></script>
+<script src="js/rmau.js?v=25156"></script>
+<script src="js/camap.js?v=25156"></script>
+<script src="js/rmaudoc.js?v=25156"></script>
+<script src="js/termsofuse.js?v=25156"></script>
+<script src="js/audit.js?v=25156"></script>
+<script src="js/drift.js?v=25156"></script>
+<script src="js/guide.js?v=25156"></script>
+<script src="js/devcheck.js?v=25156"></script>
+<script src="js/licgap.js?v=25156"></script>
+<script src="js/signins.js?v=25156"></script>
+<script src="js/reportimpact.js?v=25156"></script>
+<script src="js/changelog.js?v=25156"></script>
+<script src="js/baselineData.js?v=25156"></script>
+<script src="js/baselineJoeyData.js?v=25156"></script>
+<script src="js/baseline.js?v=25156"></script>
+<script src="js/groupTemplates.js?v=25156"></script>
+<script src="js/assign.js?v=25156"></script>
+<script src="js/cagroups.js?v=25156"></script>
+<script src="js/import.js?v=25156"></script>
+<script src="js/export.js?v=25156"></script>
+<script src="js/demo.js?v=25156"></script>
+<script src="js/app.js?v=25156"></script>
 </body>
 </html>

@@ -53,6 +53,26 @@ const Exporter = (() => {
 
   const safe = (s) => s.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").slice(0, 60);
 
+  // ONE SENTENCE, ONE SOURCE. A baseline export is narrower than it looks, and
+  // every format has to say so in whatever it can carry — a line on the PDF
+  // cover, a blockquote under the Markdown header, the Word title, a text file
+  // beside the images. Four wordings of the same fact is four things to keep in
+  // step, and the one that drifts is the one nobody rereads. Every caller below
+  // goes through this.
+  function baselineScopeSentence(scope, count) {
+    return `Scope: baseline catalog — the ${count} persona baseline polic${count === 1 ? "y" : "ies"} in this export`
+      + (scope.skipped ? `, with ${scope.skipped} of this tenant's own polic${scope.skipped === 1 ? "y" : "ies"} deliberately left out` : "")
+      + `. This is not a record of everything that tenant runs.`;
+  }
+  // The same sentence with the context a standalone file needs, for the formats
+  // that can carry a whole file rather than a line.
+  function baselineScopeText(scope, count) {
+    return `${baselineScopeSentence(scope, count)}\n\n`
+      + `Produced on a baseline tenant — the tenant where the baseline is built.\n`
+      + (scope.tenant ? `\nTenant: ${scope.tenant}\n` : "")
+      + `Taken: ${new Date().toISOString()}\n`;
+  }
+
   // Optional R27 pages supplied by the pure RmauDoc module. Keeping this as a
   // small adapter means the policy exporters do not know how the data was read,
   // and a missing/broken integration simply yields no supplemental pages.
@@ -84,7 +104,7 @@ const Exporter = (() => {
   }
 
   // Neutral cover: no Limon-IT branding; tenant branding logo when available.
-  async function addCover(pdf, tenantName, count, logo) {
+  async function addCover(pdf, tenantName, count, logo, baselineScope) {
     pdf.setFillColor(31, 41, 51);
     pdf.rect(0, 0, A4.w, A4.h, "F");
     pdf.setFillColor(50, 63, 75);
@@ -105,6 +125,16 @@ const Exporter = (() => {
     pdf.setFontSize(13); pdf.setFont("helvetica", "normal");
     pdf.setTextColor(200, 209, 217);
     pdf.text(`${tenantName || "Tenant"}  ·  ${count} policies  ·  ${new Date().toISOString().slice(0, 10)}`, MARGIN, 110);
+    // Produced on a baseline tenant, this documents the CATALOG. Said on the
+    // cover, because that is the page anybody handed the file actually reads —
+    // and a policy that is not in a document leaves no trace of its absence.
+    if (baselineScope) {
+      pdf.setFontSize(10); pdf.setTextColor(224, 182, 79);
+      // Wrapped rather than clipped: the sentence grows with the counts, and a
+      // cover line that runs off the page states nothing.
+      pdf.text(pdf.splitTextToSize(baselineScopeSentence(baselineScope, count), A4.w - MARGIN * 2), MARGIN, 120);
+      pdf.setTextColor(200, 209, 217);
+    }
     pdf.setFontSize(10);
     pdf.text(`Generated ${new Date().toISOString().slice(0, 10)}`, MARGIN, A4.h - 18);
   }
@@ -140,7 +170,7 @@ const Exporter = (() => {
 
   async function policiesPdf(policies, tenantName, includeMatrix, onProgress, logo, opts = {}) {
     const pdf = new jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
-    await addCover(pdf, tenantName, policies.length, logo);
+    await addCover(pdf, tenantName, policies.length, logo, opts.baselineScope);
 
     const failed = [];
     let lastGroup = null;
@@ -240,6 +270,10 @@ const Exporter = (() => {
       } catch (e) { console.error(`ZIP: ${page.name} failed`, e); }
       finally { st.remove(); }
     }
+    // A folder of PNGs has nowhere to write a cover line, so the scope goes in
+    // beside them as plain text — the one place somebody unzipping this will
+    // trip over it.
+    if (opts.baselineScope) zip.file("SCOPE.txt", baselineScopeText(opts.baselineScope, policies.length));
     onProgress?.("Building zip…");
     const blob = await zip.generateAsync({ type: "blob" });
     download(URL.createObjectURL(blob), `ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.zip`);
@@ -288,6 +322,12 @@ const Exporter = (() => {
   function policiesMarkdown(policies, tenantName, opts = {}) {
     const date = new Date().toISOString().slice(0, 10);
     const out = [`# Conditional Access documentation`, ``, `**Tenant:** ${mdCell(tenantName || "tenant")}  `, `**Date:** ${date}  `, `**Policies:** ${policies.length}`, ``];
+    // Taken on a baseline tenant this document describes the CATALOG, not the
+    // tenant — and it is read by somebody who was not there when it was made.
+    // A missing policy is invisible; a stated scope is not.
+    if (opts.baselineScope) {
+      out.push(`> **${baselineScopeSentence(opts.baselineScope, policies.length)}**`, ``);
+    }
     // summary table of all policies
     out.push(`## Overview`, ``, `| CA | Policy | State | Users | Target resources | Grant |`, `|---|---|---|---|---|---|`);
     policies.forEach(p => out.push(`| ${p.seq} | ${mdCell(p.name)} | ${LABELS.stateText[p.state]} | ${mdCell(p.users.inc[0] || "")}${p.users.exc.length ? ` (−${p.users.exc.length})` : ""} | ${mdCell(p.apps.inc.slice(0, 2).join(", "))}${p.apps.inc.length > 2 ? "…" : ""} | ${mdCell(p.grant.controls[0] || "")} |`));
@@ -467,7 +507,11 @@ ${body.join("\n")}
     }
     if (!images.some(x => x.base64)) throw new Error("no policy cards could be rendered");
     onProgress?.("Building Word document…");
-    const zip = buildDocx(images, `Conditional Access documentation — ${tenantName || "tenant"} — ${new Date().toISOString().slice(0, 10)}`);
+    const zip = buildDocx(images, `Conditional Access documentation — ${tenantName || "tenant"} — ${new Date().toISOString().slice(0, 10)}`
+      // The title paragraph is the only text buildDocx() takes, and a Word file
+      // is the one that gets forwarded as "the baseline" — so the scope rides
+      // there rather than nowhere.
+      + (opts.baselineScope ? ` — ${baselineScopeSentence(opts.baselineScope, policies.length)}` : ""));
     const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
     download(URL.createObjectURL(blob), `ConditionalAccess-${safe(tenantName || "tenant")}-${new Date().toISOString().slice(0, 10)}.docx`);
   }

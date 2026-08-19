@@ -148,6 +148,9 @@ const Locations = (() => {
   // be a worse failure than the nagging it was added to prevent.
   const BLOCKLIST_NAME = /(^|[^a-z0-9])(block|blocked|blocklist|blok|geblokkeerd|deny|denied|denylist|blacklist|banned|forbidden|malicious|tor|vpn)([^a-z0-9]|$)/i;
 
+  // One rule for "is this IPv6", used by the size test and by the advice, so
+  // the two cannot end up disagreeing about which family a range is.
+  const isV6 = (cidr) => String(cidr || "").split("/")[0].includes(":");
   const prefixOf = (cidr) => {
     const bits = Number(String(cidr || "").split("/")[1]);
     return Number.isInteger(bits) ? bits : null;
@@ -161,9 +164,26 @@ const Locations = (() => {
   function broadness(cidr) {
     const bits = prefixOf(cidr);
     if (bits === null) return null;
-    const v6 = String(cidr).split("/")[0].includes(":");
-    if (v6) return bits === 0 ? "any" : bits <= 32 ? "broad" : null;
+    if (isV6(cidr)) return bits === 0 ? "any" : bits <= 32 ? "broad" : null;
     return bits === 0 ? "any" : bits <= 8 ? "broad" : null;
+  }
+  // WHAT TO NARROW IT TO. "Narrow the range" names the problem and leaves the
+  // decision — which is the part the reader came for, and the part they are
+  // most likely to get wrong in the safe-looking direction. These are not our
+  // preferences: they are the sizes the addressing already uses. IPv4: an
+  // office is a /24 (256 addresses), and a /16 (65,536) is generous for a whole
+  // corporate estate. IPv6: a site is handed a /48 and a single network a /64,
+  // which is why /32 reads as broad in the first place.
+  const NARROW_TO = {
+    v4: "/24 for an office, /16 at the very widest for a whole corporate estate",
+    v6: "/48 for a site, /64 for a single network",
+  };
+  // The advice is per FAMILY, not per range: three IPv4 offenders in one
+  // location get the same target, and saying it three times is noise in the one
+  // place the reader is trying to find the number.
+  function narrowAdvice(cidrs) {
+    const fams = [...new Set(cidrs.map((c) => (isV6(c) ? "v6" : "v4")))];
+    return fams.map((f) => `${f === "v6" ? "IPv6" : "IPv4"} → ${NARROW_TO[f]}`).join("; ");
   }
   const raise = (s) => (s === "low" ? "medium" : "high");
   const isBlockPolicy = (p) => ((p.grantControls || {}).builtInControls || []).includes("block");
@@ -251,18 +271,33 @@ const Locations = (() => {
       if (any.length || broad.length) {
         let sev = any.length ? "high" : "medium";
         if (isTrusted(l) && sev !== "high") sev = raise(sev);
+        const offenders = [...any, ...broad];
+        // Say what is wrong with THIS range, in its own address family. The
+        // sentence used to state the IPv4 and the IPv6 fact together whichever
+        // one had fired, so an IPv6-only finding opened by explaining what a /8
+        // is — a number the reader then has to work out does not apply to them.
+        const v6only = offenders.every(isV6), v4only = offenders.every((r) => !isV6(r));
+        const sizeWhy = v6only
+          ? "A /32 IPv6 prefix is an entire provider allocation — a site is normally handed a /48 and a single network a /64, so this is several million times the address space an office occupies. "
+          : v4only
+            ? "A /8 is 16.7 million addresses — an office does not have one. "
+            : "A /8 is 16.7 million addresses and a /32 IPv6 prefix is an entire provider allocation; neither is an office. ";
         out.push(FIND({
           code: "broadRange",
           severity: sev,
           title: any.length ? "IP location contains a range covering the whole internet" : "IP location contains an overly broad range",
-          detail: [...any, ...broad].join(", "),
+          detail: offenders.join(", "),
           why: (any.length
             ? "A /0 matches every address there is, so the location is not a location — anything scoped to it is scoped to everyone. "
-            : "A /8 is 16.7 million addresses and a /32 IPv6 prefix is an entire allocation; neither is an office. ")
+            : sizeWhy)
             + (isTrusted(l)
               ? `This location is TRUSTED, so the ${allTrusted.length} polic${allTrusted.length === 1 ? "y" : "ies"} using “All trusted locations” inherit the range without ever naming it.`
               : "Whatever is scoped to this location is scoped to far more than its name suggests."),
-          fix: "Narrow the range to the addresses actually in use, or split the location so the broad part is separate and can be judged on its own.",
+          // Name the target prefix per range. Telling somebody to narrow a range
+          // without saying to what leaves them to pick, and the wrong pick errs
+          // wide — which is the finding all over again, one build later.
+          fix: `Narrow it to the addresses actually in use — ${narrowAdvice(offenders)}`
+            + `. Take the prefix from your own addressing plan rather than from the address you happened to sign in from; if the broad part is genuinely needed, split it into its own location so it can be judged on its own.`,
           locationId: l.id, locationName: l.displayName || "(unnamed)", policies: used,
         }));
       }

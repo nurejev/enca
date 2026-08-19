@@ -1200,11 +1200,36 @@
       personaMap: CaMap.toMdSection() });
   }
 
+  // What the LAST opened export modal was scoped to, for the JSON zip's stamp.
+  let expScope = { baseline: false, skipped: 0 };
   function openExport() {
-    currentExport = selected.size ? [...selected] : visible().map(p => p.id);
-    if (!currentExport.length) return;
+    const picked = exportOrder((selected.size ? [...selected] : visible().map(p => p.id))
+      .map(id => policies.find(p => p.id === id)));
+    if (!picked.length) return;
+    // Documentation answers the same question as Backup, in prose instead of
+    // JSON — and on a baseline tenant the answer is the same: this is where the
+    // baseline is BUILT, so what leaves here describes the CATALOG. Its own
+    // Conditional Access is one tenant's working configuration, and a Word file
+    // handed over as "the baseline" has no structure to give away that a policy
+    // in it was never part of one. Scoped through backupScope(), so the rule
+    // lives in one place and the two tools cannot drift apart.
+    const scope = backupScope(picked);
+    expScope = scope;
+    currentExport = scope.policies.map(p => p.id);
+    if (!currentExport.length) {
+      toast(`Baseline tenant — <span>nothing in scope</span>: none of the ${picked.length} selected polic${picked.length === 1 ? "y is" : "ies are"} a persona baseline policy`);
+      return;
+    }
     fmt = currentExport.length > 1 ? "docx" : "png";
     syncFmt();
+    const bn = $("expBaseline");
+    bn.style.display = scope.baseline ? "" : "none";
+    if (scope.baseline) {
+      bn.innerHTML = `🧬 <b>Baseline tenant</b> — this is where the baseline is built, so this document describes the <b>baseline catalog</b>, not the tenant. `
+        + `Documenting <b>${currentExport.length}</b> persona baseline polic${currentExport.length === 1 ? "y" : "ies"}`
+        + (scope.skipped ? ` and skipping <b>${scope.skipped}</b> of this tenant's own polic${scope.skipped === 1 ? "y" : "ies"}` : "")
+        + `. The restricted-unit appendix is <b>not</b> filtered — those units are the baseline's own persona vaults, so they are documented as they stand, scoped administrators included.`;
+    }
     $("expDesc").textContent = selected.size
       ? (currentExport.length > 1
         ? `${currentExport.length} policies selected — recommended export is a Word document (one card per page).`
@@ -1214,6 +1239,13 @@
   }
   function syncFmt() {
     ["Png", "Pdf", "Docx", "Zip", "Md", "Json"].forEach(f => $("expOpt" + f).classList.toggle("sel", fmt === f.toLowerCase()));
+    // Loose PNGs are the one format with nowhere to put the scope — no cover,
+    // no header, no file beside them. Every other format states it inside the
+    // deliverable, so PNG is the only way to hand somebody a baseline export
+    // that does not say it is one. Say it here instead of in the Help, which is
+    // not where the choice is being made.
+    const png = $("expPngScope");
+    if (png) png.style.display = expScope.baseline && fmt === "png" ? "" : "none";
     $("expMatrixWrap").style.display = fmt === "pdf" ? "flex" : "none"; // appendix only applies to PDF
     // A single PNG is exactly one policy image and JSON is a backup. The
     // restricted-unit pages belong to the multi-page / multi-file documents.
@@ -1242,7 +1274,12 @@
           toast("Restricted-unit appendix <span>unavailable</span> — exporting the policies anyway");
         }
       }
-      const docOpts = { restrictedDoc };
+      // Carried into every format so the deliverable states its own scope —
+      // a Word file forwarded as "the baseline" outlives the modal that made it.
+      const docOpts = {
+        restrictedDoc,
+        baselineScope: expScope.baseline ? { tenant: tenantName || "", tenantDomain, skipped: expScope.skipped } : null,
+      };
       if (fmt === "png") {
         for (const p of ps) {
           toast(`Exporting <span>${p.seq}.png</span>…`);
@@ -1259,19 +1296,16 @@
         await Exporter.policiesMd(ps, tenantName, docOpts);
         toast("Markdown export <span>done</span>");
       } else if (fmt === "json") {
-        // The documentation modal offers the same zip 🗄 Backup produces, so it
-        // gets the same baseline scoping — otherwise the tile you happened to
-        // enter from decides whether a baseline tenant's own policies end up in
-        // an importable backup, which is not a decision an entry point makes.
-        // Dependencies are not gathered here (this route never did), so the
-        // scope only has to hold the policies back.
-        const js = backupScope(ps);
-        if (!js.policies.length) { toast(`Baseline tenant — <span>nothing in scope</span>: none of the ${ps.length} selected polic${ps.length === 1 ? "y is" : "ies are"} a persona baseline policy`); return; }
-        await Exporter.policiesJson(js.policies, tenantName, {
-          baselineScope: js.baseline ? { tenant: tenantName || "", tenantDomain, skipped: js.skipped } : null,
+        // This modal offers the same zip 🗄 Backup produces, so it carries the
+        // same stamp — `ps` is already scoped, openExport() filtered it. The
+        // stamp is not decoration: it is what tells whoever opens the file that
+        // the tenant's own policies were deliberately left out, and without it
+        // the entry point would decide whether the zip says so.
+        await Exporter.policiesJson(ps, tenantName, {
+          baselineScope: expScope.baseline ? { tenant: tenantName || "", tenantDomain, skipped: expScope.skipped } : null,
         });
-        toast(js.baseline
-          ? `Baseline backup <span>done</span> — ${js.policies.length} baseline policies${js.skipped ? `, ${js.skipped} tenant policies skipped` : ""}`
+        toast(expScope.baseline
+          ? `Baseline backup <span>done</span> — ${ps.length} baseline policies${expScope.skipped ? `, ${expScope.skipped} tenant policies skipped` : ""}`
           : "JSON backup <span>done</span>");
       } else {
         await Exporter.policiesPdf(ps, tenantName, $("expMatrix").checked, (m) => toast(m), tenantLogo, docOpts);
