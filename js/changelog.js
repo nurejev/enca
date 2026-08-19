@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25168, date: "2026-08-19", title: "A view picker with nothing selected is not a view picker",
+    items: [
+      { kind: "fixed", tool: "Gap analyse", text: "Gap analyse renders inside the List Policies screen rather than on one of its own, and that screen's Cards / List / Matrix picker stayed up over it. It could only switch AWAY from Gap analyse, never within it, and none of the three was highlighted \u2014 because none of them was where you were. A picker showing no selection reads as one that has lost its place. Worse, its Matrix means the policies-by-settings grid, while the Matrix tab in Gap analyse's own toolbar means users by policies: two buttons carrying one label on a single screen, and the only reason they never appeared side by side is that the second does not render until a run has finished." },
+      { kind: "improved", tool: "Gap analyse", text: "The picker is hidden while Gap analyse is showing \u2014 the same treatment the policy search box, the state chips and the select-all already had \u2014 and one button labelled with what it does takes its place: \u2190 Back to policies. It returns you to whichever view you came from, so leaving the Matrix for Gap analyse and coming back lands on the Matrix rather than dumping you on Cards. Opened straight from the home tile, it falls back to the last policy view used." },
+      { kind: "fixed", tool: "List Policies", text: "That exit had to exist rather than simply removing the picker: the green action bar is hidden in this view too, so the picker was the only control on the screen that could get you out of Gap analyse. Hiding it on its own would have left the tab bar as the only way back." },
+    ],
+  },
+  {
     build: 25167, date: "2026-08-19", title: "The guard was right, and the build after it was not",
     items: [
       { kind: "fixed", tool: "All tools", text: "Build 25166 wrote 22 formatting tags across five of its own changelog items \u2014 b, i and code \u2014 five builds after 25162 added the check that catches exactly that, and one build after the check reached production. The beta page duly rendered them as literal angle brackets with a markup chip beside every one, which is the guard doing its job while nobody read it. The tags are stripped and the emphasis is carried in the words, as the header of this file has asked since 25156. js/promote.js and the per-tool notes in js/version.js were checked at the same time and are clean \u2014 both are escaped when rendered, so the same rule governs them." },

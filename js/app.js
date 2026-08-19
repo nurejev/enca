@@ -1039,7 +1039,12 @@
     groupIds(key).forEach(id => on ? selected.add(id) : selected.delete(id));
     refreshViews();
   }
+  // Which policy view Gap analyse was opened from, so leaving it puts you back
+  // where you were instead of always on Cards. Entering from the home tile has
+  // no meaningful previous view, and the last one used is the best guess there.
+  let viewBeforeAnalyze = "cards";
   function setView(v) {
+    if (v === "analyze" && viewMode !== "analyze") viewBeforeAnalyze = viewMode || "cards";
     viewMode = v;
     $("cardsView").style.display = v === "cards" ? "grid" : "none";
     $("listView").style.display = v === "list" ? "block" : "none";
@@ -1068,6 +1073,16 @@
     if (pSearch) pSearch.style.display = isAn ? "none" : "";
     $("stateChips").style.display = isAn ? "none" : "";
     $("selAllWrap").style.display = isAn ? "none" : "";
+    // The view picker belongs to the policy views, not to this one. Left up it
+    // switches AWAY from Gap analyse with nothing highlighted, which reads as a
+    // picker that has lost its place — and its Matrix is the policies × settings
+    // grid, while Gap analyse's own Matrix tab is users × policies. Two buttons
+    // with one label on one screen. It is replaced by a single labelled exit,
+    // which also has to exist: the green action bar is hidden here too, so
+    // without it the only way out would be the tab bar.
+    const seg = $("plViewSeg");
+    if (seg) seg.style.display = isAn ? "none" : "";
+    $("anBack").style.display = isAn ? "inline-flex" : "none";
     updateSelbar();
   }
   // Pin the action bar just below the toolbar. The toolbar wraps to two or
@@ -13519,6 +13534,7 @@ max@contoso.com,"Global, DevOps"</pre>
   $("viewCards").addEventListener("click", () => setView("cards"));
   $("viewList").addEventListener("click", () => setView("list"));
   $("viewMatrix").addEventListener("click", () => setView("matrix"));
+  $("anBack").addEventListener("click", () => setView(viewBeforeAnalyze === "analyze" ? "cards" : (viewBeforeAnalyze || "cards")));
   $("clearSelBtn").addEventListener("click", () => { selected.clear(); refreshViews(); });
 
   // list view: name opens detail, checkbox selects, group header collapses/selects group

@@ -10,23 +10,23 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25167"></script>
+<script src="js/popup-guard.js?v=25168"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25167" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25167">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25168" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25168">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25167"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25167"></script>
+<script src="js/counter.js?v=25168"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25168"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25167" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25168" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -54,7 +54,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25167" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25168" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -319,11 +319,18 @@
         <input id="searchBox" placeholder="Search policies…">
       </div>
       <div class="chip-filter" id="stateChips"></div>
-      <div class="seg">
+      <div class="seg" id="plViewSeg">
         <button class="active" id="viewCards">Cards</button>
         <button id="viewList">List</button>
         <button id="viewMatrix">Matrix</button>
       </div>
+      <!-- Gap analyse renders inside this screen, and while it is showing the
+           three buttons above switch away from it rather than within it — with
+           none of them highlighted, because none is where you are. That reads
+           as a broken view picker, and its Matrix means something different
+           from Gap analyse's own Matrix tab. So the segment is hidden there and
+           this takes its place: one control, labelled with what it does. -->
+      <button class="btn" id="anBack" style="display:none" title="Leave Gap analyse and return to the policy views">← Back to policies</button>
       <label class="chk selall" id="selAllWrap" title="Select or clear every policy matching the current filter"><input type="checkbox" id="selAllTop"> <span id="selAllLabel">Select all</span></label>
       <div class="tb-actions">
         <button class="btn" id="collapseAllBtn" title="Expand or collapse all persona sections">⊟ Collapse all</button>
@@ -1395,6 +1402,7 @@
         <li><b>Not read is not zero.</b> If the licence read is refused or fails, the stage says <i>not read</i> and every other stage is unaffected — “we did not look” and “nobody is licensed” are opposite findings. Targeted users with no licence record at all (guests, or a capped read) are left out of the stage and counted separately, never rounded up to licensed.</li>
         <li><b>Group filters</b> — narrow the matrix columns to the policies that target chosen groups.</li>
         <li><b>Apply flow</b> — the same per-persona flow as in List Policies.</li>
+        <li><b>Its own toolbar, and one way out.</b> Gap analyse renders inside the List Policies screen, so it used to sit under that screen’s <b>Cards / List / Matrix</b> picker — which switched <i>away</i> from Gap analyse rather than within it, with none of the three highlighted because none of them was where you were. Its Matrix also meant the policies × settings grid, while the Matrix tab in this tool’s own toolbar means users × policies: two buttons, one label, one screen. The picker is hidden here now and a single <b>← Back to policies</b> button takes its place, returning you to whichever view you came from. The tool’s own <b>Users</b> and <b>Matrix</b> tabs appear once a run has produced results.</li>
         <li><b>Export</b> — a standalone HTML report you can open outside the tool.</li>
               <li><b>Scan only who you asked about.</b> Scope → <i>Only these users or groups</i> names principals before the run and judges those, with the same policies and the same verdicts. A group is expanded to its <b>members</b>, nested ones included — the scan judges people, not groups, because a group being in scope of a policy says nothing about a member another policy excludes. In this mode nothing is read tenant-wide, which is where the time goes on a large tenant. The result carries a banner saying what was scoped, and the exported report says it too: "no risky bypasses" over four named people and over the whole tenant are different answers that would otherwise look identical.</li>
 </ul>
@@ -2500,51 +2508,51 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25167"></script>
-<script src="js/version.js?v=25167"></script>
-<script src="js/promote.js?v=25167"></script>
-<script src="js/authConfig.js?v=25167"></script>
-<script src="js/labels.js?v=25167"></script>
-<script src="js/graph.js?v=25167"></script>
-<script src="js/model.js?v=25167"></script>
-<script src="js/render.js?v=25167"></script>
-<script src="js/analyze.js?v=25167"></script>
-<script src="js/whatif.js?v=25167"></script>
-<script src="js/mslearn.js?v=25167"></script>
-<script src="js/gapcheck.js?v=25167"></script>
-<script src="js/cisdata.js?v=25167"></script>
-<script src="js/cischeck.js?v=25167"></script>
-<script src="js/exclusions.js?v=25167"></script>
-<script src="js/validator.js?v=25167"></script>
-<script src="js/whatifeval.js?v=25167"></script>
-<script src="js/compare.js?v=25167"></script>
-<script src="js/groupuse.js?v=25167"></script>
-<script src="js/iso3166.js?v=25167"></script>
-<script src="js/locations.js?v=25167"></script>
-<script src="js/authcontexts.js?v=25167"></script>
-<script src="js/authstrengths.js?v=25167"></script>
-<script src="js/recycle.js?v=25167"></script>
-<script src="js/rmau.js?v=25167"></script>
-<script src="js/camap.js?v=25167"></script>
-<script src="js/rmaudoc.js?v=25167"></script>
-<script src="js/termsofuse.js?v=25167"></script>
-<script src="js/audit.js?v=25167"></script>
-<script src="js/drift.js?v=25167"></script>
-<script src="js/guide.js?v=25167"></script>
-<script src="js/devcheck.js?v=25167"></script>
-<script src="js/licgap.js?v=25167"></script>
-<script src="js/signins.js?v=25167"></script>
-<script src="js/reportimpact.js?v=25167"></script>
-<script src="js/changelog.js?v=25167"></script>
-<script src="js/baselineData.js?v=25167"></script>
-<script src="js/baselineJoeyData.js?v=25167"></script>
-<script src="js/baseline.js?v=25167"></script>
-<script src="js/groupTemplates.js?v=25167"></script>
-<script src="js/assign.js?v=25167"></script>
-<script src="js/cagroups.js?v=25167"></script>
-<script src="js/import.js?v=25167"></script>
-<script src="js/export.js?v=25167"></script>
-<script src="js/demo.js?v=25167"></script>
-<script src="js/app.js?v=25167"></script>
+<script src="js/branding.js?v=25168"></script>
+<script src="js/version.js?v=25168"></script>
+<script src="js/promote.js?v=25168"></script>
+<script src="js/authConfig.js?v=25168"></script>
+<script src="js/labels.js?v=25168"></script>
+<script src="js/graph.js?v=25168"></script>
+<script src="js/model.js?v=25168"></script>
+<script src="js/render.js?v=25168"></script>
+<script src="js/analyze.js?v=25168"></script>
+<script src="js/whatif.js?v=25168"></script>
+<script src="js/mslearn.js?v=25168"></script>
+<script src="js/gapcheck.js?v=25168"></script>
+<script src="js/cisdata.js?v=25168"></script>
+<script src="js/cischeck.js?v=25168"></script>
+<script src="js/exclusions.js?v=25168"></script>
+<script src="js/validator.js?v=25168"></script>
+<script src="js/whatifeval.js?v=25168"></script>
+<script src="js/compare.js?v=25168"></script>
+<script src="js/groupuse.js?v=25168"></script>
+<script src="js/iso3166.js?v=25168"></script>
+<script src="js/locations.js?v=25168"></script>
+<script src="js/authcontexts.js?v=25168"></script>
+<script src="js/authstrengths.js?v=25168"></script>
+<script src="js/recycle.js?v=25168"></script>
+<script src="js/rmau.js?v=25168"></script>
+<script src="js/camap.js?v=25168"></script>
+<script src="js/rmaudoc.js?v=25168"></script>
+<script src="js/termsofuse.js?v=25168"></script>
+<script src="js/audit.js?v=25168"></script>
+<script src="js/drift.js?v=25168"></script>
+<script src="js/guide.js?v=25168"></script>
+<script src="js/devcheck.js?v=25168"></script>
+<script src="js/licgap.js?v=25168"></script>
+<script src="js/signins.js?v=25168"></script>
+<script src="js/reportimpact.js?v=25168"></script>
+<script src="js/changelog.js?v=25168"></script>
+<script src="js/baselineData.js?v=25168"></script>
+<script src="js/baselineJoeyData.js?v=25168"></script>
+<script src="js/baseline.js?v=25168"></script>
+<script src="js/groupTemplates.js?v=25168"></script>
+<script src="js/assign.js?v=25168"></script>
+<script src="js/cagroups.js?v=25168"></script>
+<script src="js/import.js?v=25168"></script>
+<script src="js/export.js?v=25168"></script>
+<script src="js/demo.js?v=25168"></script>
+<script src="js/app.js?v=25168"></script>
 </body>
 </html>

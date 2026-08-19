@@ -87,6 +87,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 76,
+      title: "\ud83d\udd0d Gap analyse gets a way out that says what it does",
+      tools: ["Gap analyse", "List Policies"],
+      builds: [25168],
+      risk: "low",
+      what: "Gap analyse renders inside the List Policies screen. That screen's Cards / List / Matrix picker stayed visible over it with none of the three highlighted, and it switched away from Gap analyse rather than within it. It is hidden there now, replaced by a single \u2190 Back to policies button that returns to whichever view you came from \u2014 which also has to exist, because the green action bar is hidden in this view too, so the picker was the only exit.",
+      why: "A view picker with nothing selected reads as broken, and its Matrix button means the policies-by-settings grid while Gap analyse's own Matrix tab means users by policies: two buttons with one label on one screen. Nobody loses data over it, but it is the kind of thing that makes a reader distrust the rest of the screen.",
+      test: [
+        "From List Policies in Cards view, click Gap analyse: the Cards / List / Matrix picker disappears and one button reads Back to policies. Click it - you land on Cards, with Cards highlighted again.",
+        "Repeat from List and from Matrix: Back returns you to THAT view, not to Cards.",
+        "Open Gap analyse from the home tile instead: Back still lands on a policy view (the last one used, or Cards) and never on a blank screen or on Gap analyse itself.",
+        "While Gap analyse is showing: no policy search box, no state chips, no select-all, no green action bar - and exactly ONE Matrix button on screen.",
+        "Run an analysis, switch to its own Matrix tab, then Back to policies and re-enter: the tool's own Users / Matrix tabs still work and still say Run the analysis first before a run.",
+        "Narrow the window until the toolbar wraps to two rows, then leave Gap analyse: the green action bar still sits below the toolbar rather than over it (syncSelbarTop measures the wrapped height).",
+      ],
+      files: ["index.html", "js/app.js"],
+    },
+    {
       n: 75,
       title: "\ud83d\udeab Disable nesting is opt-in until it is GA",
       tools: ["CA groups", "Import", "Assign groups"],
@@ -94,6 +112,16 @@ const PROMOTE = {
       risk: "high",
       what: "Every create path stops asking for disableNesting by default; it is a tick in \u2460 Create and \u2461 Build a group manually instead, and CaGroups.NESTING_GA flips the default back in one line when Microsoft ships it. The request goes to v1.0, the only version whose documentation names the property. A \u201cRequest_BadRequest \u2014 unexpected request made to property\u201d refusal is recognised as \u201cthis tenant has not got the feature\u201d, reported as such, and remembered for the session. \u2467 Disable nesting no longer offers its destructive recreate in that case, and \ud83d\udce5 Import stops selecting the property in the batch that finds a file's groups.",
       why: "PRODUCTION IS AFFECTED TODAY. Since build 284 every create path sets disableNesting by default, and on a tenant whose directory does not carry the property Graph refuses the field outright \u2014 so every single group created ends in a red failure for a security setting the panel promised in small print. Worse, that failure text sends the reader to \u2467 Disable nesting, which retries the same call and then offers to RECREATE the group: a rename-aside and rebuild that sets the property at creation, which is exactly the request that just failed. A destructive dead end, recommended by the product. Also fixes \ud83d\udce5 Import reporting a tenant's existing groups as absent when the property makes its lookup 400.",
+      test: [
+        "Demo mode, CA groups 2 Build a group manually: the PREVIEW tick is present and UNTICKED. Create without ticking - the result says nothing about nesting at all (no green line, no red one).",
+        "Same panel, tick it and create: the result reports nesting disabled.",
+        "REAL tenant that refuses the property: tick it and create. The group is still created; the result says the tenant does not recognise the property and does NOT call it a failure. The tick then goes disabled, reading Unavailable in this tenant, for the rest of the session.",
+        "After that refusal, open 1 Check and use a group's 8 Disable nesting: it refuses up front, offers NO recreate button, and the report points at a restricted management administrative unit.",
+        "On a tenant that HAS the property: tick and create, then check the network tab - the disableNesting PATCH and read-back go to graph.microsoft.com/v1.0, not /beta. Result reports nesting disabled.",
+        "Import preflight on a tenant WITHOUT the property: the recycle panel must still list the file's groups that exist here. If it says none of them exist, the batch is still selecting disableNesting - that is the bug this fixes. Nesting shows as not reported.",
+        "7 Migrate: the Disable nesting on the new group box is unticked by default.",
+        "Consent: create a group WITHOUT ticking nesting - Group-NestingSupport.ReadWrite.All must not be requested.",
+      ],
       files: ["js/cagroups.js", "js/assign.js", "js/app.js", "index.html"],
     },
     {
