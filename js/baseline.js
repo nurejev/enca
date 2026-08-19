@@ -1,6 +1,6 @@
 // ======================================================================
 // Baseline Policies — match the tenant's Conditional Access policies
-// against the Limon-IT baseline catalog (js/baselineData.js).
+// against the CloudFellows baseline catalog (js/baselineData.js).
 //
 // Matching is by CA number, which is the stable identity in the naming
 // convention: the (NEW)/(UP) staging prefixes, the persona label and the
@@ -19,7 +19,7 @@
 //   extra     numbered policy in the tenant that the baseline does not define
 // ======================================================================
 const Baseline = (() => {
-  // Catalogs the tool can compare against. BASELINE is the Limon-IT one
+  // Catalogs the tool can compare against. BASELINE is the CloudFellows one
   // (bundled from its documentation); BASELINE_JOEY is the community baseline
   // by Joey Verlinden. Both are bundled rather than fetched at runtime — the
   // app's CSP only allows Graph, and a baseline should not change under you
@@ -27,11 +27,15 @@ const Baseline = (() => {
   function catalogs() {
     const out = [];
     if (typeof BASELINE !== "undefined") {
-      out.push({ id: "limonit", label: "Limon-IT", icon: "🧬",
+      // The id stays `limonit` on purpose. It is what saved state and Drift
+      // watch snapshots key on, so renaming it would orphan every stored
+      // comparison taken before the baseline was renamed to CloudFellows.
+      // Display name everywhere, identifiers nowhere.
+      out.push({ id: "limonit", label: "CloudFellows", icon: "🧬",
         // `revised` marks a re-cut of the same release (documented fixes folded
         // back in) — worth showing, because a tenant on the older patch versions
         // is not out of release, only out of revision.
-        release: BASELINE.release, line: BASELINE.line, author: "Limon-IT",
+        release: BASELINE.release, line: BASELINE.line, author: "CloudFellows",
         released: BASELINE.revised || null,
         url: null, policies: BASELINE.policies });
     }
@@ -45,7 +49,7 @@ const Baseline = (() => {
   // ---- corroboration ----------------------------------------------------
   // The CA number alone is only a reliable identity WITHIN one baseline. Across
   // baselines the numbering diverges (Joey's CA501 is an agent policy; the
-  // Limon-IT CA501 is a guest-admin policy), so a number match must be backed
+  // CloudFellows CA501 is a guest-admin policy), so a number match must be backed
   // by the name: the persona segment must not contradict, and the descriptive
   // tokens must overlap. Otherwise the row is a number clash, not a match.
   const PERSONA_KEYS = [
@@ -126,7 +130,7 @@ const Baseline = (() => {
   // zero-padded first — CA1 would otherwise fall through as "unnumbered".
   const caLabel = (num) => `CA${String(num).padStart(3, "0")}`;
   // A catalog policy may carry its own persona label (Joey's ranges differ from
-  // the Limon-IT ones — his CA300 block is service accounts, not externals).
+  // the CloudFellows ones — his CA300 block is service accounts, not externals).
   const personaOf = (num, pol) => {
     if (pol && pol.persona) return pol.persona;
     try { return Render.caGroup(caLabel(num)).label; } catch { return "Other"; }

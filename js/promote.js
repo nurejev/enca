@@ -63,6 +63,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 65,
+      title: "\ud83e\uddec The bundled baseline is renamed to CloudFellows (R35)",
+      tools: ["Baseline Policies"],
+      builds: [25151],
+      risk: "low",
+      what: "Display-name rename of the bundled catalog from \"Limon-IT baseline \u2014 R26.6 (v3.x)\" to \"CloudFellows baseline \u2014 R26.6 (v3.x)\". The catalog's label and author in baseline.js drive the tool header, the summary line and the Markdown gap report, so all three follow from one edit; the tile, the home overview, the Help section and the code comments in mslearn.js / baselineData.js were changed too. The catalog id stays limonit and the CAB-SEC / CAD-SEC group names are untouched. No policy, version or comparison logic changed.",
+      why: "Cosmetic and reversible, but it is what a customer sees stamped on a gap report, so it should graduate on a deliberate release rather than ride along with unrelated work. Check on promotion that a Drift snapshot taken before the rename still compares cleanly \u2014 that is the one thing the untouched catalog id is protecting.",
+      files: ["js/baseline.js", "js/baselineData.js", "js/mslearn.js", "js/app.js", "index.html", "README.md", "js/version.js"],
+    },
+    {
       n: 64,
       title: "🧬 Backup on a baseline tenant backs up the baseline, not the tenant",
       tools: ["Backup (JSON)"],

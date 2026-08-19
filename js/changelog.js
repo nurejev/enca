@@ -23,6 +23,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25151, date: "2026-08-19", title: "R35 — the bundled baseline is now the CloudFellows baseline",
+    items: [
+      { kind: "improved", tool: "Baseline Policies", text: "The baseline bundled here is published as the <b>CloudFellows baseline — R26.6 (v3.x)</b>. It was the <i>Limon-IT baseline</i>; the release designation, the 99 policies and every version in them are byte-for-byte what they were yesterday. This is the name it goes by, not a new catalog — a tenant compared against it this morning gets exactly the same answer this afternoon." },
+      { kind: "improved", tool: "Baseline Policies", text: "A rename is not one string, so all of them moved from <b>one place</b>. The catalog's <code>label</code> and <code>author</code> are what the tool header, the summary line under it and the Markdown gap report each read, which is why none of the three could be left behind — and the tile, the home overview and the Help section carry the new name too. The code comments that explain <i>why</i> a rule exists were changed as well: 📘 MS Learn's exclusion-group convention refers to the baseline by name, and a comment naming a thing that no longer exists is how the next person is misled." },
+      { kind: "improved", tool: "Baseline Policies", text: "<b>Two things deliberately untouched.</b> The catalog id is still <code>limonit</code> — saved state and 📉 Drift watch snapshots key on it, so renaming it would have silently orphaned every comparison stored before today, and an identifier that appears in no interface has no reason to follow a display name. And the <b>CAB-SEC / CAD-SEC group names</b> are the tenant's own objects, not ours to rename: nothing in the catalog, the group templates or the persona routing moved. Display name everywhere, identifiers nowhere. 🧬 Baseline Policies is v1.9." },
+      { kind: "improved", tool: "Roadmap", text: "<b>R35 moves to Now, live · beta 25151.</b> The card records what the rename covered and, more usefully, the two identifiers it refused to touch and why — which is the part a future rename will need." },
+    ],
+  },
+  {
     build: 25150, date: "2026-08-19", title: "On a baseline tenant, Backup backs up the baseline — not the tenant",
     items: [
       { kind: "new", tool: "Backup (JSON)", text: "A baseline tenant is where the baseline is <b>built</b>, so a backup taken there is the <b>baseline catalog</b> — and it now behaves like one. The zip is scoped to the <b>persona CAxxx policies</b>, the same rule the 🔍 Gap and 📚 MS Learn checks already apply on these tenants, and everything else that tenant runs for itself is left out. The confirmation opens with a 🧬 warning saying so and how many of its own policies are being skipped, so nobody finds out from the file." },

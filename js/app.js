@@ -5510,7 +5510,7 @@ max@contoso.com,"Global, DevOps"</pre>
   // beyond the policies already loaded, so it is instant and re-runs on filter.
   let blResult = null, blFilter = "all", blQuery = "", blView = "table", blCat = "limonit";
   const blCollapsed = new Set();
-  // the Limon-IT R26.6 catalog is large — the table is the readable default;
+  // the CloudFellows R26.6 catalog is large — the table is the readable default;
   // the community catalogs open as cards
   const blDefaultView = (cat) => (cat === "limonit" ? "table" : "cards");
   // keepView: a refresh re-compares in place and must not throw away the filter,

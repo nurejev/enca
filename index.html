@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25150"></script>
+<script src="js/popup-guard.js?v=25151"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25150">
+<link rel="stylesheet" href="css/app.css?v=25151">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25150"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25150"></script>
+<script src="js/counter.js?v=25151"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25151"></script>
 </head>
 <body>
 
@@ -173,8 +173,8 @@
         <p>Check the baseline against known CA bypasses and the Swiss-cheese model — MFA coverage, FOCI token sharing, break-glass coverage, known bypass apps, persona × control matrix.</p>
       </div>
       <div class="tool" id="toolBaseline">
-        <div class="tool-ic">🧬</div><h3>Baseline Policies</h3>
-        <p>Match this tenant against the Limon-IT R26.6 (v3.x) baseline: which baseline policies are present, outdated or missing — then import the gap.</p>
+        <div class="tool-ic">🧬</div><h3>Baseline Policies <span class="tag upd">UPDATED</span></h3>
+        <p>Match this tenant against the CloudFellows R26.6 (v3.x) baseline: which baseline policies are present, outdated or missing — then import the gap.</p>
       </div>
       <div class="tool" id="toolBaselineJoey">
         <div class="tool-ic">🧩</div><h3>Baseline (Joey Verlinden)</h3>
@@ -260,7 +260,7 @@
         whether a bypass is covered elsewhere, and who gets no MFA from any policy.
         <b>Best-practice &amp; bypass checks</b> checks the baseline against known CA bypasses and the Swiss-cheese defense model — MFA coverage,
         FOCI token sharing, resource-exclusion scope leaks, break-glass coverage, known bypass apps, and a persona × control coverage matrix.
-        <b>Baseline Policies</b> matches this tenant against the Limon-IT R26.6 (v3.x) baseline on the CA number and compares versions, so you see at a glance which baseline policies are present, outdated or missing — with a Markdown gap report and a hand-off to Import.
+        <b>Baseline Policies</b> matches this tenant against the CloudFellows R26.6 (v3.x) baseline on the CA number and compares versions, so you see at a glance which baseline policies are present, outdated or missing — with a Markdown gap report and a hand-off to Import.
         <b>MS Learn checks</b> compares your policies against exclusions, limitations and upcoming behavior changes documented on learn.microsoft.com —
         missing break-glass exclusions, token protection limits, Teams Rooms / Surface Hub impact, required app exclusions and control retirements — and can build the corrected policy for you (new version, state Off, downloadable; never written to your tenant).
         <b>Backup</b> downloads the raw JSON definitions of your policies in one zip.
@@ -296,7 +296,7 @@
           The governance flag patterns behind the <b>Risk review</b> in the Exclusion analyzer: privileged roles excluded, all-guest exclusions,
           direct user exclusions, oversized exclusion lists, stale disabled accounts and report-only exclusions.</li>
         <li><b><a href="https://www.chanceofsecurity.com/post/microsoft-entra-conditional-access" target="_blank" rel="noopener noreferrer">Microsoft Entra Conditional Access blog series</a></b> — by <b>Sebastian F. Markdanner</b> (Chance of Security).
-          A deep, practical walk-through of designing a persona-based Conditional Access framework; several of his policy designs also informed the Limon-IT baseline bundled here.</li>
+          A deep, practical walk-through of designing a persona-based Conditional Access framework; several of his policy designs also informed the CloudFellows baseline bundled here.</li>
       </ul>
       <p class="mini">All are independently reimplemented here in browser-side JavaScript against Microsoft Graph — no code was copied.
         Thanks also to the Conditional Access community whose baselines this tool is designed to compare against:
@@ -1207,17 +1207,18 @@
             <p class="mini" style="margin:6px 0 0"><b>What this still does not do, and cannot:</b> the flag only truly leaves a <i>tenant</i> once ⑦ Migrate has been run there. Nothing retires a group this app did not create, and every protection path goes on refusing a role-assignable group until it is converted. That is a fact about the tenant rather than a gap in the tools.</p>
             <p class="mini muted" style="margin:6px 0 0">Shipped across <b>beta 25128–25129 · production 285</b> — find the role-assignable groups a file would build on, and say what a reused group inherits — and <b>beta 25149</b>, which acts on it.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25151">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R35</span> <a href="#" class="md-tool" data-tool="toolBaseline">🧬 Rename the bundled baseline to CloudFellows</a> <span class="tag grant">live · beta 25151</span></h4>
+            <p class="mini" style="margin:0">The baseline shipped here was called <b>Limon-IT baseline — R26.6 (v3.x)</b> and is now <b>CloudFellows baseline — R26.6 (v3.x)</b>. The release designation and the catalog itself did not change; this is the name it is published under.</p>
+            <p class="mini" style="margin:6px 0 0">A rename is not one string, and all of them moved together: the catalog's own <code>label</code> and <code>author</code> — which is what the 🧬 Baseline Policies header, the on-screen summary line and the Markdown gap report all read, so none of the three could drift from the others — the tile, the home overview, the Help section and the code comments that explain why a rule exists (📘 MS Learn's exclusion-group convention refers to the baseline by name).</p>
+            <p class="mini" style="margin:6px 0 0"><b>Two things deliberately untouched.</b> The catalog <code>id</code> is still <code>limonit</code>: saved state and 📉 Drift watch snapshots key on it, so changing it would silently orphan every comparison stored before today — an identifier that appears in no interface has no reason to follow a display name. And the <b>CAB-SEC / CAD-SEC group names</b> are the tenant's own objects, not ours to rename; nothing in the 99-policy catalog, the group templates or the persona routing moved. Display name everywhere, identifiers nowhere.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R35</span> <a href="#" class="md-tool" data-tool="toolBaseline">🧬 Rename the bundled baseline to CloudFellows</a> <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">The baseline shipped here is called <b>Limon-IT baseline — R26.6 (v3.x)</b> and becomes <b>CloudFellows baseline — R26.6 (v3.x)</b>. The release designation and the catalog itself do not change; this is the name it is published under.</p>
-            <p class="mini" style="margin:6px 0 0">A rename is not one string. It appears in the 🧬 Baseline Policies tool header, the catalog's own <code>label</code> and <code>line</code>, the Help section, the 📄 documentation and Markdown exports that stamp which baseline a tenant was measured against, and in code comments that explain why a rule exists (📘 MS Learn's exclusion-group convention refers to it by name). Two things it must <b>not</b> touch: the catalog <code>id</code>, which is what saved state and 📉 Drift watch snapshots key on — changing it would orphan every stored comparison — and the <b>CAB-SEC / CAD-SEC group names</b>, which are the tenant's own objects and not ours to rename. So: display name everywhere, identifiers nowhere.</p>
-          </div>
-          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R36</span> <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Joey Verlinden baseline as a first-class baseline</a> <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Today <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Baseline (Joey Verlinden)</a> only compares: it tells you which of his 36 policies a tenant has and what differs. Everything else the bundled baseline gets — <b>group checks, group creation, persona checks, restricted-AU creation and placement</b> — stops at the Limon-IT/CloudFellows catalog. The plan is parity: pick a baseline, and every tool downstream works against the one you picked.</p>
+            <p class="mini" style="margin:0">Today <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Baseline (Joey Verlinden)</a> only compares: it tells you which of his 36 policies a tenant has and what differs. Everything else the bundled baseline gets — <b>group checks, group creation, persona checks, restricted-AU creation and placement</b> — stops at the CloudFellows catalog. The plan is parity: pick a baseline, and every tool downstream works against the one you picked.</p>
             <p class="mini" style="margin:6px 0 0">Plus <b>fetch the latest release</b> from <a href="https://github.com/j0eyv/ConditionalAccessBaseline" target="_blank" rel="noopener noreferrer">github.com/j0eyv/ConditionalAccessBaseline</a> rather than shipping a transcription. The catalog here is a hand-checked snapshot pinned at commit <code>38469a4</code>, release 2026.6.1 — accurate the day it was written and stale the day he pushes. Reading <code>Config/ConditionalAccess</code> live means the tool tracks his repo instead of our copy of it, and can say which commit it read.</p>
             <p class="mini" style="margin:6px 0 0"><b>Three things make this more than plumbing.</b> His <b>exclusion groups are named after the policy</b> — “&lt;policy name&gt; - Exclude” — not by CA number, and every routing decision in ⑥ Protect, ＋ Bulk add and the RMAU baseline reads a CA number out of a group name. That machinery needs a per-baseline naming contract, which is the same gap <span class="rm-ref">R28</span> opens for a tenant's own groups. His <b>personas differ</b> — Global / Admins / Internals / ServiceAccounts / Guests / Agents — and do not map onto our CA ranges at all (his CA300 block is service accounts, not externals), so the persona vaults are per-baseline too, not a rename of ours. And a <b>live fetch is a trust boundary</b>: unauthenticated GitHub is rate-limited, a repo can move or a release can be malformed, so the bundled snapshot has to stay as the fallback and the tool must say which of the two it is using rather than failing quietly to the old one.</p>
           </div>
@@ -1573,12 +1574,12 @@
     </section>
 
     <section class="help-sec">
-      <h4>🧬 Baseline Policies — Limon-IT R26.6</h4>
-      <p>Matches this tenant against the Limon-IT baseline catalog and shows the gap.</p>
+      <h4>🧬 Baseline Policies — CloudFellows R26.6</h4>
+      <p>Matches this tenant against the CloudFellows baseline catalog and shows the gap. It was published as the <i>Limon-IT baseline</i> until beta 25151; the release designation, the catalog and the CAB-SEC / CAD-SEC group names are unchanged — only the name it goes by.</p>
       <ul>
         <li><b>Status filters</b> — <b>Missing</b> (not in tenant), <b>Outdated</b> (older version present), <b>Up to date</b>, <b>Not in baseline</b> (in tenant but not the catalog).</li>
-        <li><b>Table / Cards</b> — the large Limon-IT catalog opens as a Table by default; switch to Cards for full detail. Search and collapsible persona sections.</li>
-        <li><b>Catalog switch</b> — Limon-IT R26.6 or the community Joey Verlinden catalog.</li>
+        <li><b>Table / Cards</b> — the large CloudFellows catalog opens as a Table by default; switch to Cards for full detail. Search and collapsible persona sections.</li>
+        <li><b>Catalog switch</b> — CloudFellows R26.6 or the community Joey Verlinden catalog.</li>
         <li><b>Export MD</b> — a gap report; <b>Refresh</b> re-compares in place; <b>Import baseline</b> hands the missing/outdated set to the Import tool.</li>
       </ul>
       <p class="help-x">Read-only comparison. Only Import (below) writes.</p>
@@ -2457,50 +2458,50 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25150"></script>
-<script src="js/version.js?v=25150"></script>
-<script src="js/promote.js?v=25150"></script>
-<script src="js/authConfig.js?v=25150"></script>
-<script src="js/labels.js?v=25150"></script>
-<script src="js/graph.js?v=25150"></script>
-<script src="js/model.js?v=25150"></script>
-<script src="js/render.js?v=25150"></script>
-<script src="js/analyze.js?v=25150"></script>
-<script src="js/whatif.js?v=25150"></script>
-<script src="js/mslearn.js?v=25150"></script>
-<script src="js/gapcheck.js?v=25150"></script>
-<script src="js/cisdata.js?v=25150"></script>
-<script src="js/cischeck.js?v=25150"></script>
-<script src="js/exclusions.js?v=25150"></script>
-<script src="js/validator.js?v=25150"></script>
-<script src="js/whatifeval.js?v=25150"></script>
-<script src="js/compare.js?v=25150"></script>
-<script src="js/groupuse.js?v=25150"></script>
-<script src="js/iso3166.js?v=25150"></script>
-<script src="js/locations.js?v=25150"></script>
-<script src="js/authcontexts.js?v=25150"></script>
-<script src="js/authstrengths.js?v=25150"></script>
-<script src="js/recycle.js?v=25150"></script>
-<script src="js/rmau.js?v=25150"></script>
-<script src="js/rmaudoc.js?v=25150"></script>
-<script src="js/termsofuse.js?v=25150"></script>
-<script src="js/audit.js?v=25150"></script>
-<script src="js/drift.js?v=25150"></script>
-<script src="js/guide.js?v=25150"></script>
-<script src="js/devcheck.js?v=25150"></script>
-<script src="js/licgap.js?v=25150"></script>
-<script src="js/signins.js?v=25150"></script>
-<script src="js/reportimpact.js?v=25150"></script>
-<script src="js/changelog.js?v=25150"></script>
-<script src="js/baselineData.js?v=25150"></script>
-<script src="js/baselineJoeyData.js?v=25150"></script>
-<script src="js/baseline.js?v=25150"></script>
-<script src="js/groupTemplates.js?v=25150"></script>
-<script src="js/assign.js?v=25150"></script>
-<script src="js/cagroups.js?v=25150"></script>
-<script src="js/import.js?v=25150"></script>
-<script src="js/export.js?v=25150"></script>
-<script src="js/demo.js?v=25150"></script>
-<script src="js/app.js?v=25150"></script>
+<script src="js/branding.js?v=25151"></script>
+<script src="js/version.js?v=25151"></script>
+<script src="js/promote.js?v=25151"></script>
+<script src="js/authConfig.js?v=25151"></script>
+<script src="js/labels.js?v=25151"></script>
+<script src="js/graph.js?v=25151"></script>
+<script src="js/model.js?v=25151"></script>
+<script src="js/render.js?v=25151"></script>
+<script src="js/analyze.js?v=25151"></script>
+<script src="js/whatif.js?v=25151"></script>
+<script src="js/mslearn.js?v=25151"></script>
+<script src="js/gapcheck.js?v=25151"></script>
+<script src="js/cisdata.js?v=25151"></script>
+<script src="js/cischeck.js?v=25151"></script>
+<script src="js/exclusions.js?v=25151"></script>
+<script src="js/validator.js?v=25151"></script>
+<script src="js/whatifeval.js?v=25151"></script>
+<script src="js/compare.js?v=25151"></script>
+<script src="js/groupuse.js?v=25151"></script>
+<script src="js/iso3166.js?v=25151"></script>
+<script src="js/locations.js?v=25151"></script>
+<script src="js/authcontexts.js?v=25151"></script>
+<script src="js/authstrengths.js?v=25151"></script>
+<script src="js/recycle.js?v=25151"></script>
+<script src="js/rmau.js?v=25151"></script>
+<script src="js/rmaudoc.js?v=25151"></script>
+<script src="js/termsofuse.js?v=25151"></script>
+<script src="js/audit.js?v=25151"></script>
+<script src="js/drift.js?v=25151"></script>
+<script src="js/guide.js?v=25151"></script>
+<script src="js/devcheck.js?v=25151"></script>
+<script src="js/licgap.js?v=25151"></script>
+<script src="js/signins.js?v=25151"></script>
+<script src="js/reportimpact.js?v=25151"></script>
+<script src="js/changelog.js?v=25151"></script>
+<script src="js/baselineData.js?v=25151"></script>
+<script src="js/baselineJoeyData.js?v=25151"></script>
+<script src="js/baseline.js?v=25151"></script>
+<script src="js/groupTemplates.js?v=25151"></script>
+<script src="js/assign.js?v=25151"></script>
+<script src="js/cagroups.js?v=25151"></script>
+<script src="js/import.js?v=25151"></script>
+<script src="js/export.js?v=25151"></script>
+<script src="js/demo.js?v=25151"></script>
+<script src="js/app.js?v=25151"></script>
 </body>
 </html>
