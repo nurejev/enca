@@ -63,6 +63,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 62,
+      title: "🚦 Sign-in failures gather the CA interrupts",
+      tools: ["Sign-in failures"],
+      builds: [25145],
+      risk: "low",
+      what: "Enforced mode also gathers the sign-ins Conditional Access INTERRUPTED (abandoned MFA prompt, MFA enrolment, device auth, terms of use). Graph has no 'interrupted' CA status — those records carry 'success' plus an interrupt error code — so a second server-filtered fetch on the interrupt codes (50072/50074/50076/50079/50097/50158/500121) is deduped into the failures, each interrupt attributed to the applied policies that imposed a control (an interrupt without one, e.g. per-user MFA, is dropped as not CA's doing). Interrupted badge per sign-in, Blocked/Interrupted chips, counts in header, per-policy table, Markdown and CSV.",
+      why: "Reads only, same scope, one extra server-filtered Graph query in enforced mode. Graduates once the interrupt attribution has been eyeballed against the portal on a real tenant.",
+      files: ["js/signins.js", "js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 61,
       title: "🎫 Licence gap",
       tools: ["Licence gap"],

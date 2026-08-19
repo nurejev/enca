@@ -8963,8 +8963,8 @@ max@contoso.com,"Global, DevOps"</pre>
     "Reading the sign-in log… this keeps running if you switch tabs.",
     siMode === "reportonly"
       ? `The bar runs to the ${SI_MAX.toLocaleString()}-sign-in cap — report-only failures cannot be server-filtered, so the whole window is read.`
-      : "Enforced failures are server-filtered, so this read is usually quick.");
-  const siModeLabel = () => siMode === "reportonly" ? "report-only failures" : "enforced failures";
+      : "Two server-filtered passes: the failures, then the interrupts — usually quick.");
+  const siModeLabel = () => siMode === "reportonly" ? "report-only failures" : "enforced failures & interrupts";
 
   function openSignins() {
     crumb("🚦 Sign-in failures");
@@ -8973,8 +8973,8 @@ max@contoso.com,"Global, DevOps"</pre>
     if (siBusy) { $("siBody").innerHTML = siBusyPanel(); return; }
     if (siRes) { renderSignins(); return; }
     $("siHead").innerHTML = `<h3>🚦 Sign-in failures</h3>
-      <p style="margin-bottom:4px">Which sign-ins Conditional Access failed, and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. The log-side counterpart of What-If.</p>
-      <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> failures are filtered by Graph; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins — and shared with <b>🎚 Report-only impact</b>, which reads exactly the same window.</p>
+      <p style="margin-bottom:4px">Which sign-ins Conditional Access failed <b>or interrupted</b>, and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. The log-side counterpart of What-If.</p>
+      <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> reads two Graph-filtered passes — the CA failures, plus the interrupts (abandoned MFA prompt, MFA enrolment, device auth, terms of use), which Graph logs with CA status <i>success</i> and only an interrupt error code; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins — and shared with <b>🎚 Report-only impact</b>, which reads exactly the same window.</p>
         ${siReused ? `<p class="mini muted" style="margin:6px 0 0">↺ Reused the sign-in window <b>🎚 Report-only impact</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}`;
     $("siChips").innerHTML = "";
     $("siBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-sirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
@@ -9010,6 +9010,23 @@ max@contoso.com,"Global, DevOps"</pre>
       } else {
         records = await siProg.fetchAll(Signins.query(siDays, siMode), SI_MAX, "sign-ins");
         siCapped = siProg.st.capped;
+        // Second read: the CA interrupts. conditionalAccessStatus has no
+        // 'interrupted' value — an abandoned MFA prompt, MFA enrolment,
+        // device auth or terms-of-use stop is logged with CA status
+        // 'success' and an interrupt error code, so the failure filter
+        // above never sees it. Graph can't OR across properties on
+        // signIns, so it's its own server-filtered fetch, deduped by id.
+        // A refused interrupt query must not cost the failures already read —
+        // report it, keep the partial result.
+        try {
+          const seen = new Set(records.map((r) => r.id));
+          const ints = await siProg.fetchAll(Signins.interruptQuery(siDays), SI_MAX, "interrupted sign-ins");
+          siCapped = siCapped || siProg.st.capped;
+          for (const r of ints) if (!seen.has(r.id)) records.push(r);
+        } catch (e) {
+          console.warn("sign-ins: interrupt read failed, showing failures only", e.message);
+          toast("Could not read the interrupted sign-ins — showing the failures only");
+        }
       }
       siReused = reused;
       siRes = Signins.build(records, siMode);
@@ -9106,23 +9123,27 @@ max@contoso.com,"Global, DevOps"</pre>
     $("siHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
         <h3>🚦 Sign-in failures</h3>
-        <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
+        <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure or interrupt"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
         <p class="mini muted" style="margin:0">${siMode === "reportonly"
           ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the numbers to check before flipping a policy on."
-          : "Enforced: the user did not satisfy the policy's controls — the sign-in was blocked or interrupted. An abandoned MFA prompt lands here too, so a failure is a prompt to look, not proof the policy is wrong."}</p>
+          : "Enforced: <b>failed</b> — the user did not satisfy the policy's controls and was blocked; <b>interrupted</b> — a policy's control stopped the sign-in mid-flow (MFA prompt shown and abandoned, MFA enrolment, device auth, terms of use). Both are a prompt to look, not proof the policy is wrong."}</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.total}<span class="mini" style="font-weight:400"> sign-ins</span></div>
-        <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}</div>
+        <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}${r.interrupted ? ` · ${r.interrupted} interrupted` : ""}</div>
         ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated at ${SI_MAX.toLocaleString()} sign-ins</div>` : ""}
       </div></div>`;
 
     const chips = [["all", `All (${r.total})`],
+      ...(siMode !== "reportonly" && r.interrupted
+        ? [["blk", `Blocked (${r.total - r.interrupted})`], ["int", `Interrupted (${r.interrupted})`]] : []),
       ...r.policies.slice(0, 8).map((p) => [p.key, `${p.name.length > 34 ? p.name.slice(0, 32) + "…" : p.name} (${p.count})`])];
     $("siChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${siFilter === k ? "active" : ""}" data-sif="${esc(k)}">${esc(l)}</button>`).join("");
 
     const q = siQuery.toLowerCase();
-    const match = (x) => (siFilter === "all" || x.policies.some((p) => (p.id || p.name) === siFilter))
+    const match = (x) => (siFilter === "all"
+        || (siFilter === "int" ? x.interrupted : siFilter === "blk" ? !x.interrupted
+          : x.policies.some((p) => (p.id || p.name) === siFilter)))
       && (!q || `${x.user} ${x.upn} ${x.app} ${x.ip} ${x.country} ${x.city} ${x.client} ${x.os} ${x.policies.map((p) => p.name).join(" ")}`.toLowerCase().includes(q));
     const rows = r.rows.filter(match);
     if (!rows.length) { $("siBody").innerHTML = '<p class="mini" style="padding:20px">No sign-in matches the current filter.</p>'; return; }
@@ -9133,7 +9154,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (siView === "policies") {
       const pols = r.policies
         .map((p) => ({ ...p, rows: p.rows.filter(match) }))
-        .filter((p) => p.rows.length && (siFilter === "all" || p.key === siFilter));
+        .filter((p) => p.rows.length && (siFilter === "all" || siFilter === "int" || siFilter === "blk" || p.key === siFilter));
       $("siBody").innerHTML = `<div class="list-card si-stickyhost"><table class="plist au-sum">
         <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
         <tbody>${pols.map((p) => {
@@ -9143,13 +9164,13 @@ max@contoso.com,"Global, DevOps"</pre>
             <ul class="wi-list">${p.rows.slice(0, 40).map((x) => `<li>
               <div class="wi-pn">${esc(x.user)}${x.upn && x.upn !== x.user ? ` <span class="mini muted">(${esc(x.upn)})</span>` : ""} → <b>${esc(x.app)}</b>
                 <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪 Replay</button></div>
-              <div class="wi-why">${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
+              <div class="wi-why">${x.interrupted ? "interrupted · " : ""}${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
             </li>`).join("")}</ul>
             ${p.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${p.rows.length} — switch to Sign-ins and search to see the rest.</p>` : ""}
           </td></tr>` : "";
           return `<tr class="au-sumrow" data-sisum="${esc(p.key)}">
             <td><b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b>${siMode === "reportonly" ? '<div class="mini muted">report-only</div>' : ""}</td>
-            <td><span class="au-n rem">${p.count}</span></td>
+            <td><span class="au-n rem">${p.count}</span>${p.ints ? `<div class="mini muted">${p.ints} interrupted</div>` : ""}</td>
             <td>${p.userCount} distinct</td>
             <td class="mini">${esc(p.users.slice(0, 2).map(([n, c]) => `${n} (${c})`).join(", "))}${p.users.length > 2 ? ` +${p.users.length - 2}` : ""}</td>
             <td class="mini">${esc(p.controls.join(", ") || "—")}</td>
@@ -9168,14 +9189,14 @@ max@contoso.com,"Global, DevOps"</pre>
       + shown.map((x) => {
       const open = siOpen.has(x.id);
       const detail = open ? `<div class="au-diff">
-          ${x.policies.map((p) => `<div><span class="au-op remove">failed</span> <span class="au-path pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
+          ${x.policies.map((p) => `<div><span class="au-op ${p.result === "interrupted" ? "change" : "remove"}">${p.result === "interrupted" ? "interrupted" : "failed"}</span> <span class="au-path pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
           ${x.failureReason ? `<div><span class="au-op change">reason</span> <span class="au-path">${esc(x.failureReason)}${x.errorCode ? ` (${esc(String(x.errorCode))})` : ""}</span></div>` : ""}
           ${x.browser ? `<div><span class="au-op set">client</span> <span class="au-path">${esc([x.browser, x.os].filter(Boolean).join(" on "))}</span></div>` : ""}
           ${x.signInRisk && x.signInRisk !== "none" && x.signInRisk !== "hidden" ? `<div><span class="au-op change">risk</span> <span class="au-path">${esc(x.signInRisk)}</span></div>` : ""}
         </div>` : "";
       return `<div class="list-card au-card">
         <div class="au-h" data-siid="${esc(x.id)}">
-          <span class="au-act delete">${siMode === "reportonly" ? "would fail" : "failed"}</span>
+          <span class="au-act ${x.interrupted ? "update" : "delete"}">${siMode === "reportonly" ? "would fail" : x.interrupted ? "interrupted" : "failed"}</span>
           <b>${esc(x.user)}</b> <span class="muted">→</span> <span>${esc(x.app)}</span>
           <span class="mini muted">${esc(x.policies.map((p) => p.name).slice(0, 2).join(", "))}${x.policies.length > 2 ? ` +${x.policies.length - 2}` : ""}</span>
           <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪</button>
@@ -9197,12 +9218,12 @@ max@contoso.com,"Global, DevOps"</pre>
     const L = [`# Conditional Access sign-in failures — ${tenantName || "tenant"}`, "",
       Brand.generatedBy("Generated"), "",
       `- Window: last ${rangeLabel(siDays)}${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""} — ${siModeLabel()}${siCapped ? `, truncated at ${SI_MAX} sign-ins` : ""}`,
-      `- Sign-ins: **${r.total}** across ${r.policies.length} policies`,
+      `- Sign-ins: **${r.total}** across ${r.policies.length} policies${r.interrupted ? ` — ${r.interrupted} interrupted (MFA prompt, enrolment, device auth, terms of use)` : ""}`,
       `- Most affected users: ${r.users.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`,
       `- Most affected apps: ${r.apps.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`, ""];
     for (const p of r.policies) {
       L.push(`## ${p.name}`, "",
-        `- Failures: **${p.count}** — ${p.userCount} distinct users, ${p.appCount} apps`,
+        `- Failures: **${p.count}**${p.ints ? ` (${p.ints} interrupted)` : ""} — ${p.userCount} distinct users, ${p.appCount} apps`,
         `- Controls not met: ${p.controls.join(", ") || "—"}`,
         `- Last failure: ${p.last}`, "",
         "| When | User | App | Client | Location | IP | Device |", "| --- | --- | --- | --- | --- | --- | --- |");

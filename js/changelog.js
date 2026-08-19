@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25145, date: "2026-08-19", title: "Interrupted is not a failure, which is exactly how it hid",
+    items: [
+      { kind: "improved", tool: "Sign-in failures", text: "Enforced mode also gathers the sign-ins Conditional Access INTERRUPTED — the abandoned MFA prompt, MFA enrolment, device authentication, terms of use. These never showed, and could not have: Graph's conditionalAccessStatus has no 'interrupted' value, so a policy stopping a sign-in mid-flow is logged as CA 'success' with only an interrupt error code (50074, 50076, 50072, 50079, 50097, 50158, 500121) to tell the tale — the failure filter was blind to them by design. A second server-filtered fetch on those codes is deduped into the failures, and each interrupt is attributed to the applied policies that actually imposed a control — an interrupt with no such policy (per-user MFA, security defaults) is not CA's doing and stays out. On screen: an amber interrupted badge per sign-in, Blocked / Interrupted filter chips, interrupt counts in the header, the per-policy table and the Markdown report, and 'interrupted' in the CSV's result column." },
+    ],
+  },
+  {
     build: 25144, date: "2026-08-19", title: "A count you cannot click is a claim, not an answer",
     items: [
       { kind: "improved", tool: "Licence gap", text: "Promotion item 61 — the card said “1 to license” but the pop-out gave no way to tell WHICH one: fifty-two rows, buckets only readable from scattered tags. The breakdown chips are now clickable and open the pop-out pre-filtered to exactly that bucket; inside, a Category column names each row’s bucket and filter buttons (All / to license / disabled / no licences / shared-resource / likely) carry the same counts as the card — one shared classifier decides the bucket for both, so the numbers cannot disagree. The not-classifiable pill now says outright that those identities are not rows in the list (no member-user record), which previously read as rows gone missing." },
