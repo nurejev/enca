@@ -43,9 +43,20 @@ const BRANDING = {
   host: "enca.limon-it.nl",
 
   // Assets (relative to index.html)
-  logo: "assets/logo-mark-light.svg",
-  logoDark: "assets/logo-mark-dark.svg",
-  favicon: "assets/favicon.svg",
+  // The ENCA mark — the app's own logo, not Limon-IT's. Built the same way as
+  // the other Limon-IT product marks (see TUNO): TRANSPARENT, so it carries on
+  // any header colour without a tile behind it, and framed twice from one
+  // drawing. The mark keeps the orbit ring; the favicon is cropped to the
+  // inner disc, because a browser tab renders it at 16-32px and the ring is
+  // just noise at that size. The dark variant is swapped in by CSS rather than
+  // by script, so it is right before the app has even booted.
+  //
+  // The ?v= is not decoration: these filenames previously held the Limon-IT
+  // mark, so without it a returning visitor keeps seeing the old logo out of
+  // cache. Bump it with the build whenever the artwork changes.
+  logo: "assets/logo-mark-light.svg?v=289",
+  logoDark: "assets/logo-mark-dark.svg?v=289",
+  favicon: "assets/favicon.svg?v=289",
 
   // Sign-in screen
   loginTitle: "",            // "" → `${name} — ${longName}`

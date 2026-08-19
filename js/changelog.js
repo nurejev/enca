@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 289, date: "2026-08-19", title: "ENCA gets its own logo",
+    items: [
+      { kind: "new", tool: "All tools", text: "Promotion item 71 — the official ENCA mark, the shield and keyhole inside its ring, replaces the Limon-IT mark in the header, on the sign-in page and as the favicon. It is the app's own logo rather than the company's, which is what the sign-in page has needed since the tool was named: ENCA is what you are signing in to, and the header was introducing something else." },
+      { kind: "improved", tool: "All tools", text: "Light and dark are separate artwork, not one file with the colours filtered, and the dark variant is swapped in by the stylesheet rather than by script — so it is already correct on the sign-in screen before the app has finished booting, which is the moment a wrong-theme logo shows most, because there is nothing else on the page yet. The mark is transparent and carries its own shape, so it needs nothing behind it on any header colour." },
+      { kind: "improved", tool: "All tools", text: "Two framings come from one drawing. The mark keeps the orbit ring, because at 34 pixels in the header and 76 on the sign-in card the ring is what makes it read as a mark rather than a green dot. The favicon is cropped to the inner disc, because a browser tab renders it at 16 to 32 pixels and the ring is only noise there. Same construction as the other Limon-IT product marks, so the family stays consistent." },
+      { kind: "fixed", tool: "All tools", text: "Every reference to the three files carries a version query. That is not decoration: the filenames are the same ones the Limon-IT mark used, so without it a returning visitor keeps being served the old logo out of cache — on the one screen where it is most obvious. The licence note now names both marks as excluded from the MIT terms." },
+    ],
+  },
+  {
     build: 288, date: "2026-08-19", title: "What's new was showing its own markup",
     items: [
       { kind: "fixed", tool: "All tools", text: "Every b, i and code tag ever written into this page rendered as literal text. The renderer has escaped the item text since the changelog was added at build 161, so authors have been writing markup that was never going to work — 134 tags across the history, showing up as angle brackets mid-sentence, most of them in build 287. The tags are gone and the prose is untouched: 324 items across 140 releases were compared before and after, and every one is identical once the markup is resolved. This file is plain text, which is what it always actually was." },

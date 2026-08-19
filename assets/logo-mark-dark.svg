@@ -1,22 +1,32 @@
-<svg width="830" height="830" xmlns="http://www.w3.org/2000/svg" viewBox="-415 -495 830 830"><defs>
-  <radialGradient id="bggX" cx="50%" cy="45%" r="72%">
-    <stop offset="0%" stop-color="#0b1508"/><stop offset="100%" stop-color="#050a04"/>
-  </radialGradient>
-  <linearGradient id="goldgX" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#f6dd6a"/><stop offset="55%" stop-color="#e8c132"/>
-    <stop offset="100%" stop-color="#a8871c"/>
-  </linearGradient>
-  <linearGradient id="bodygX" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#4a8c2a"/><stop offset="100%" stop-color="#24471a"/>
-  </linearGradient>
-  <linearGradient id="leafgX" x1="0" y1="1" x2="1" y2="0">
-    <stop offset="0%" stop-color="#24471a"/><stop offset="100%" stop-color="#4a8c2a"/>
-  </linearGradient>
-  <linearGradient id="textgX" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#4a8c2a"/><stop offset="100%" stop-color="#16300f"/>
-  </linearGradient>
-  <filter id="glowX" x="-150%" y="-150%" width="400%" height="400%">
-    <feGaussianBlur stdDeviation="5" result="b"/>
+<!-- ENCA mark, dark. Same drawing as logo-mark-light.svg in the dark palette -
+     separate artwork, not the light one filtered. Swapped in by css/app.css
+     rather than by script, so it is already right on the sign-in screen before
+     the app has booted, which is where a wrong-theme logo shows most. -->
+<svg width="856" height="856" xmlns="http://www.w3.org/2000/svg" viewBox="84 84 856 856">
+<defs>
+  <filter id="glow" x="-150%" y="-150%" width="400%" height="400%">
+    <feGaussianBlur stdDeviation="6" result="b"/>
     <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
   </filter>
-  <filter id="blur18X"><feGaussianBlur stdDeviation="18"/></filter></defs><g><ellipse cx="0" cy="322" rx="95" ry="12" fill="#8fce3c" opacity="0.35" filter="url(#blur18X)"/><path d="M-6,-270 C 10,-330 40,-360 92,-372 C 96,-352 88,-322 62,-302 C 40,-286 16,-280 -6,-270 Z" fill="url(#leafgX)" stroke="#8fce3c" stroke-width="4" stroke-linejoin="round"/><path d="M-14,-286 C -40,-400 -120,-472 -212,-478 C -222,-380 -160,-300 -60,-278 C -44,-276 -26,-278 -14,-286 Z" fill="url(#leafgX)" stroke="#8fce3c" stroke-width="5" stroke-linejoin="round"/><path d="M-30,-292 C -80,-330 -140,-400 -196,-462" fill="none" stroke="#8fce3c" stroke-width="4" opacity="0.7" stroke-linecap="round"/><ellipse cx="0" cy="300" rx="36" ry="20" fill="url(#bodygX)" stroke="#8fce3c" stroke-width="5"/><path d="M0,-292 C 138,-286 252,-172 252,-6 C 252,168 138,278 0,292 C -138,278 -252,168 -252,-6 C -252,-172 -138,-286 0,-292 Z" fill="url(#bodygX)" stroke="#8fce3c" stroke-width="7"/><path d="M0,-292 C 138,-286 252,-172 252,-6 C 252,168 138,278 0,292 C -138,278 -252,168 -252,-6 C -252,-172 -138,-286 0,-292 Z" transform="scale(0.94)" fill="#24471a" opacity="0.7"/><path d="M0,-238 C 112,-232 202,-148 202,-16 C 202,120 112,206 0,240 C -112,206 -202,120 -202,-16 C -202,-148 -112,-232 0,-238 Z" transform="scale(0.88)" fill="none" stroke="url(#goldgX)" stroke-width="52"/><circle cx="0" cy="-188" r="8" fill="#a8871c" opacity="0.6"/><circle cx="61" cy="-176" r="8" fill="#a8871c" opacity="0.6"/><circle cx="114" cy="-143" r="8" fill="#a8871c" opacity="0.6"/><circle cx="154" cy="-92" r="8" fill="#a8871c" opacity="0.6"/><circle cx="175" cy="-29" r="8" fill="#a8871c" opacity="0.6"/><circle cx="175" cy="37" r="8" fill="#a8871c" opacity="0.6"/><circle cx="154" cy="100" r="8" fill="#a8871c" opacity="0.6"/><circle cx="114" cy="151" r="8" fill="#a8871c" opacity="0.6"/><circle cx="61" cy="184" r="8" fill="#a8871c" opacity="0.6"/><circle cx="0" cy="196" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-61" cy="184" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-114" cy="151" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-154" cy="100" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-175" cy="37" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-175" cy="-29" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-154" cy="-92" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-114" cy="-143" r="8" fill="#a8871c" opacity="0.6"/><circle cx="-61" cy="-176" r="8" fill="#a8871c" opacity="0.6"/><path d="M0,-238 C 112,-232 202,-148 202,-16 C 202,120 112,206 0,240 C -112,206 -202,120 -202,-16 C -202,-148 -112,-232 0,-238 Z" transform="scale(0.765)" fill="#16300f"/><path d="M0,-158 C 52,-138 96,-128 128,-124 L 128,-30 C 128,62 76,132 0,166 C -76,132 -128,62 -128,-30 L -128,-124 C -96,-128 -52,-138 0,-158 Z" fill="#24471a" stroke="#8fce3c" stroke-width="3.5" opacity="0.9" transform="translate(0,10) scale(0.88)"/><line x1="0" y1="-128" x2="0" y2="-56" stroke="#e8c132" stroke-width="4" opacity="0.8"/><g filter="url(#glowX)"><circle cx="0" cy="-8" r="50" fill="url(#goldgX)"/><path d="M-19,20 L-31,112 L31,112 L19,20 Z" fill="url(#goldgX)"/></g></g></svg>
+  <filter id="softglow" x="-80%" y="-80%" width="260%" height="260%">
+    <feGaussianBlur stdDeviation="10" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <radialGradient id="bgg" cx="50%" cy="42%" r="75%">
+    <stop offset="0%" stop-color="#0b1508"/><stop offset="100%" stop-color="#050a04"/>
+  </radialGradient>
+  <linearGradient id="goldg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#f6dd6a"/><stop offset="55%" stop-color="#e8c132"/>
+    <stop offset="100%" stop-color="#a8871c"/>
+  </linearGradient></defs>
+<circle cx="512" cy="512" r="330" fill="#4a8c2a" opacity="0.10"/><circle cx="512" cy="512" r="230" fill="#8fce3c" opacity="0.08"/>
+<circle cx="512" cy="512" r="400" fill="none" stroke="#5a7a2a" stroke-width="3" stroke-dasharray="2 14" opacity="0.9"/><circle cx="512" cy="512" r="400" fill="none" stroke="#e8c132" stroke-width="1.5" opacity="0.35"/>
+<circle cx="512.0" cy="112.0" r="9" fill="#c8e84a" filter="url(#glow)"/><circle cx="858.4" cy="312.0" r="9" fill="#c8e84a" filter="url(#glow)"/><circle cx="858.4" cy="712.0" r="9" fill="#c8e84a" filter="url(#glow)"/><circle cx="512.0" cy="912.0" r="9" fill="#c8e84a" filter="url(#glow)"/><circle cx="165.6" cy="712.0" r="9" fill="#c8e84a" filter="url(#glow)"/><circle cx="165.6" cy="312.0" r="9" fill="#c8e84a" filter="url(#glow)"/>
+<circle cx="512" cy="512" r="320" fill="none" stroke="#e8c132" stroke-width="2" opacity="0.4"/><circle cx="512" cy="512" r="265" fill="none" stroke="#4a8c2a" stroke-width="2" opacity="0.55"/>
+<g transform="translate(512,505)">
+  <g filter="url(#softglow)"><circle r="215" fill="#2f5c1a" stroke="url(#goldg)" stroke-width="16"/></g>
+<g transform="translate(-112,-104) scale(1.5)" opacity="0.28"><circle r="24" fill="none" stroke="#8fce3c" stroke-width="7"/><circle r="9" fill="none" stroke="#8fce3c" stroke-width="6"/><line x1="24.0" y1="0.0" x2="36.0" y2="0.0" stroke="#8fce3c" stroke-width="10"/><line x1="17.0" y1="17.0" x2="25.5" y2="25.5" stroke="#8fce3c" stroke-width="10"/><line x1="0.0" y1="24.0" x2="0.0" y2="36.0" stroke="#8fce3c" stroke-width="10"/><line x1="-17.0" y1="17.0" x2="-25.5" y2="25.5" stroke="#8fce3c" stroke-width="10"/><line x1="-24.0" y1="0.0" x2="-36.0" y2="0.0" stroke="#8fce3c" stroke-width="10"/><line x1="-17.0" y1="-17.0" x2="-25.5" y2="-25.5" stroke="#8fce3c" stroke-width="10"/><line x1="-0.0" y1="-24.0" x2="-0.0" y2="-36.0" stroke="#8fce3c" stroke-width="10"/><line x1="17.0" y1="-17.0" x2="25.5" y2="-25.5" stroke="#8fce3c" stroke-width="10"/></g>
+<g transform="translate(0,-6)"><path d="M0,-140 L112,-100 L112,10 C112,80 56,130 0,158 C-56,130 -112,80 -112,10 L-112,-100 Z" fill="none" stroke="url(#goldg)" stroke-width="15" stroke-linejoin="round"/><circle cx="0" cy="-24" r="30" fill="none" stroke="#e8c132" stroke-width="14"/><path d="M-13,-6 L-20,58 L20,58 L13,-6 Z" fill="#e8c132"/></g>
+  <circle cx="118" cy="-118" r="13" fill="#c8e84a" filter="url(#glow)"/>
+</g>
+</svg>
