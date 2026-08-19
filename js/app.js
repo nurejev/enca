@@ -34,6 +34,10 @@
   let currentExport = [];
   let isDemo = false;
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
+  // Coverage flow (T03): the computed funnel, and whether the licence half
+  // was read at all. Held separately from anReport because "not read" is a
+  // finding in its own right and must not be inferred from empty rows.
+  let anCov = null, anLicRead = false;
   let anPols = [], anMaps = [], anTab = "users", anPage = 0;
   let anGroups = [], anGroupSel = "";   // persona/scope group filter
   // R29 — the principals a scan is limited to, and what it actually judged
@@ -71,7 +75,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-userimpact", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -845,7 +849,6 @@
   function openRoadmap() { crumb("🗺 Roadmap"); show("screen-roadmap"); rmAgeShipped(); }
   $("toolRoadmap").addEventListener("click", openRoadmap);
 
-
   // Called once the tenant has loaded, so it never covers the sign-in screen.
   // A release can carry onlyBrand: "<key>" — it then exists only for sessions
   // wearing that brand override (sign-in match or ?brand=). Everyone else's
@@ -973,7 +976,12 @@
     groupIds(key).forEach(id => on ? selected.add(id) : selected.delete(id));
     refreshViews();
   }
+  // Which policy view Gap analyse was opened from, so leaving it puts you back
+  // where you were instead of always on Cards. Entering from the home tile has
+  // no meaningful previous view, and the last one used is the best guess there.
+  let viewBeforeAnalyze = "cards";
   function setView(v) {
+    if (v === "analyze" && viewMode !== "analyze") viewBeforeAnalyze = viewMode || "cards";
     viewMode = v;
     $("cardsView").style.display = v === "cards" ? "grid" : "none";
     $("listView").style.display = v === "list" ? "block" : "none";
@@ -1002,6 +1010,16 @@
     if (pSearch) pSearch.style.display = isAn ? "none" : "";
     $("stateChips").style.display = isAn ? "none" : "";
     $("selAllWrap").style.display = isAn ? "none" : "";
+    // The view picker belongs to the policy views, not to this one. Left up it
+    // switches AWAY from Gap analyse with nothing highlighted, which reads as a
+    // picker that has lost its place — and its Matrix is the policies × settings
+    // grid, while Gap analyse's own Matrix tab is users × policies. Two buttons
+    // with one label on one screen. It is replaced by a single labelled exit,
+    // which also has to exist: the green action bar is hidden here too, so
+    // without it the only way out would be the tab bar.
+    const seg = $("plViewSeg");
+    if (seg) seg.style.display = isAn ? "none" : "";
+    $("anBack").style.display = isAn ? "inline-flex" : "none";
     updateSelbar();
   }
   // Pin the action bar just below the toolbar. The toolbar wraps to two or
@@ -1137,6 +1155,7 @@
         }])),
         rawPolicies, directoryRoles: [], roleDefinitions: [],
         tenant: tenantName, build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS,
+        personaMap: CaMap.toMdSection(),
       });
     }
 
@@ -1146,7 +1165,8 @@
       units = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,isMemberManagementRestricted");
     } catch (e) {
       return RmauDoc.build({ units: null, readError: e.message || String(e), rawPolicies,
-        tenant: tenantName, build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS });
+        tenant: tenantName, build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS,
+        personaMap: CaMap.toMdSection() });
     }
 
     // Role metadata is enrichment. A tenant or account that cannot read it
@@ -1182,7 +1202,8 @@
 
     return RmauDoc.build({ units, detailsById, rawPolicies, directoryRoles, roleDefinitions,
       directoryRolesError, roleDefinitionsError, tenant: tenantName,
-      build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS });
+      build: APP_BUILD.label, baselineAUs: Rmau.BASELINE_AUS,
+      personaMap: CaMap.toMdSection() });
   }
 
   // What the LAST opened export modal was scoped to, for the JSON zip's stamp.
@@ -1311,6 +1332,11 @@
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
       tenantDomain = (account?.username || "").split("@")[1] || "";
+      // R28 — the group → persona mapping is per tenant, so it is bound HERE
+      // and nowhere else: keyed on the tenant id rather than the name, because
+      // two customers can share a display name and a mapping landing in the
+      // wrong tenant would file groups into the wrong vaults.
+      try { CaMap.use(account?.tenantId || tenantName); } catch (e) { console.warn("group mapping:", e); }
       // Audience branding by who signed in: an @pvmict.com account gets the
       // Perfetti Van Melle look even without coming in through /pvm.
       if (typeof BrandOverrides !== "undefined") {
@@ -1321,7 +1347,7 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; anReport = null;
+      isDemo = false; anReport = null; anCov = null;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
@@ -1359,7 +1385,10 @@
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; anReport = null;
+    isDemo = true; anReport = null; anCov = null;
+    // The demo gets its own drawer for the group → persona mapping, so playing
+    // with it here can never land in a real tenant's saved state.
+    try { CaMap.use("demo"); } catch { /* storage refused; in-memory is fine */ }
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
     const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
     policies = DEMO_DATA.policies.map((r, i) => buildViewModel(r, resolve, i));
@@ -1386,7 +1415,7 @@
     { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
-    { scope: "AdministrativeUnit.ReadWrite.All", use: "Create a restricted management administrative unit and place the CA exclusion groups in it", tools: "CA groups (protect), Restricted AUs", onDemand: true },
+    { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Grant a directory role scoped to a restricted administrative unit. No longer used to create role-assignable groups — nothing creates those any more — but still requested by the create flows for the scoped-role grant that can follow", tools: "Restricted AUs, CA groups (protect)", onDemand: true },
     { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
     { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting so no group can be added as a member of a group (beta) — asked for by every path that CREATES a group, and by the ⑧ Disable nesting step", tools: "CA groups (create, disable nesting), Assign groups, Import, Restricted AUs", onDemand: true },
@@ -1638,6 +1667,7 @@
     ["toolRecycle", "♻ Recycle bin"],
     ["toolRmau", "🛡 Restricted AUs"],
     ["toolDrift", "📉 Drift watch"],
+    ["toolUserImpact", "🗣 User impact"],
     ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
@@ -2002,7 +2032,12 @@
       // One batch, one request per name: displayName is not filterable with
       // `in`, and a name with an apostrophe has to survive the quoting.
       const reqs = names.map((n, i) => ({ id: String(i),
-        url: `/groups?$filter=displayName eq '${n.replace(/'/g, "''")}'&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled,disableNesting&$top=1` }));
+        // disableNesting is deliberately NOT in this $select. A directory that
+        // does not carry the property answers the whole sub-request with a 400,
+        // which would leave `found` empty — and an empty map here does not read
+        // as "could not check", it reads as "none of these groups exist in the
+        // tenant". A wrong answer, not a failure. It is read separately below.
+        url: `/groups?$filter=displayName eq '${n.replace(/'/g, "''")}'&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=1` }));
       const res = await Graph.gbatch(reqs);
       const found = new Map();
       for (const r of (res || [])) {
@@ -2024,10 +2059,9 @@
           // vault a group belongs in is read from the file's own policies.
           srcId: src.id, dynamic: isDynamic,
           roleAssignable: g.isAssignableToRole === true,
-          // A plain GET does not return disableNesting; this select does, but
-          // only where it is set — so absent means "allowed, or this tenant has
-          // not got the feature", which is not the same as allowed.
-          nesting: g.disableNesting === true ? "disabled" : g.disableNesting === false ? "allowed" : "unreported",
+          // Filled in by loadNestingStates() below, on its own request, so a
+          // tenant without the property cannot take the rest of this with it.
+          nesting: undefined,
           typeMismatch: wantDynamic !== isDynamic ? (wantDynamic ? "the file expects a DYNAMIC group with a membership rule; this one is assigned, and the rule will not be applied" : "the file expects an ASSIGNED group; this one is dynamic, so its rule keeps deciding the members") : null,
           m365: (g.groupTypes || []).includes("Unified"),
           protectedIn: prot.get(g.id) || null,
@@ -2035,6 +2069,11 @@
         imRa.existing.push(row);
         if (row.roleAssignable) imRa.rows.push({ id: g.id, name: g.displayName });
       }
+      // Its own pass, and its own failure mode: anything unreadable stays
+      // "unreported", which the panel already states honestly rather than
+      // rendering as "allowed".
+      try { await loadNestingStates(imRa.existing); } catch { /* leave them unknown */ }
+      for (const r of imRa.existing) if (!r.nesting || r.nesting === "unknown") r.nesting = "unreported";
       imRa.checked = true;
       imFixPlan();
     } catch (e) {
@@ -2115,7 +2154,7 @@
       <p class="mini" style="margin:0 0 8px">${n === 1 ? "One group" : `${n} groups`} in this file already ${n === 1 ? "exists" : "exist"} here as <b>role-assignable</b>. The baseline has moved off that flag: it was only ever used to keep membership away from tenant-wide group administrators, and a <b>restricted management administrative unit</b> does that better — it names <i>who</i> may manage the group, and it can be undone.</p>
       <p class="mini" style="margin:0 0 8px">Left as they are, the import still works, but these groups <b>cannot be protected</b>: the flag is immutable, it forbids controlling nesting, and it cannot be combined with a restricted unit — a group carrying both has nobody who can change its members. So the 🛡 PROTECTION step above will skip exactly ${n === 1 ? "this one" : "these"}.</p>
       <div class="cg-pick">${imRa.rows.map((r) => `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b> <span class="tag block">role-assignable</span></div></div>`).join("")}</div>
-      <p class="mini muted" style="margin:8px 0 0">Converting means <b>recreating</b> each one — rename the original aside, create a plain security group with nesting disabled, copy the members, repoint every policy that references it, then place it in the restricted unit. That runs in <b>⑦ Migrate</b>, behind its own typed confirmation and with its own report and rollback; it is not repeated here, so there is only ever one implementation of it.</p>
+      <p class="mini muted" style="margin:8px 0 0">Converting means <b>recreating</b> each one — rename the original aside, create a plain security group, copy the members, repoint every policy that references it, then place it in the restricted unit. That runs in <b>⑦ Migrate</b>, behind its own typed confirmation and with its own report and rollback; it is not repeated here, so there is only ever one implementation of it.</p>
       <div class="row" style="justify-content:flex-start;margin-top:10px">
         <button class="btn" id="imRaGo">⑦ Convert ${n === 1 ? "it" : "them"} first — open Migrate</button>
         <span class="mini muted">or import now and convert later; the report will list them as unprotected</span>
@@ -2176,7 +2215,7 @@
     return `<div class="cg-panel">
       <h4>♻️ ALREADY HERE — ${rows.length} OF THIS FILE'S GROUPS WILL BE REUSED</h4>
       <p class="mini" style="margin:0 0 8px">The policies will bind to the ${rows.length === 1 ? "group" : "groups"} already in this tenant — nothing is duplicated, and the membership of ${rows.length === 1 ? "it" : "them"} is not touched. That is the safe default: a group that already exists may hold members and sit somewhere deliberately, and an import is not the place to decide otherwise.</p>
-      <p class="mini" style="margin:0 0 8px">It does mean a reused group <b>inherits none of the hardening a created one gets</b>. A group created by this import gets nesting disabled and is filed into its persona vault${notable.length ? `, and ${notable.length} of ${rows.length} ${notable.length === 1 ? "has" : "have"} something worth seeing first` : ""}.</p>
+      <p class="mini" style="margin:0 0 8px">It does mean a reused group <b>inherits none of the hardening a created one gets</b>. A group created by this import is filed into its persona vault${notable.length ? `, and ${notable.length} of ${rows.length} ${notable.length === 1 ? "has" : "have"} something worth seeing first` : ""}.</p>
       ${total ? `<p class="mini" style="margin:0 0 8px"><b>You can finish that here.</b> Tick what should be applied to a group and it runs <b>after the policies import</b> — the same two writes the create path makes, and neither is destructive: Entra <i>refuses</i> the nesting change rather than forcing it when a group already holds nested groups, and unit membership can be undone. Nothing is ticked for you.</p>
       <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 8px;flex-wrap:wrap">
         <button class="btn sm" id="imFixAll">☑ Tick all ${total}</button>
@@ -2208,17 +2247,26 @@
             // run every time.
             if (/internals/i.test(r.name)) throw new Error("Demo — simulated refusal: the group already contains a nested group");
           } else {
-            await Graph.gpatch(`/groups/${r.id}`, { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
-            const back = await Graph.gget(`/groups/${r.id}?$select=id,disableNesting`);
+            // v1.0 for this property only — see the note in js/cagroups.js.
+            await Graph.gpatch(CaGroups.NEST_V1(`/groups/${r.id}`), { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
+            const back = await Graph.gget(CaGroups.NEST_V1(`/groups/${r.id}?$select=id,disableNesting`));
             if (CaGroups.nestingState(back) !== "disabled") {
-              throw new Error("Entra accepted the update but the property did not read back — on this tenant it is only settable at creation");
+              throw new Error("Entra accepted the update but the property did not read back as set");
             }
           }
           r.nesting = "disabled";
           out.done.push({ name: r.name, what: "nesting disabled" });
         } catch (e) {
-          out.failed.push({ name: r.name, what: "disable nesting", error: (e && e.message) || String(e),
-            hint: "⑧ Disable nesting can recreate the group instead, behind its own typed confirmation — the only remaining route when a group already holds nested groups" });
+          // "Not shipped here" is not "refused for this group", and only one of
+          // the two has a route out. Pointing at the recreate when the property
+          // is unknown sends somebody through a destructive rebuild to the same
+          // error.
+          const dead = CaGroups.noteNestingUnsupported(e);
+          out.failed.push({ name: r.name, what: "disable nesting",
+            error: dead ? CaGroups.NESTING_UNSUPPORTED_TEXT : (e && e.message) || String(e),
+            hint: dead
+              ? "nothing can set it in this tenant yet — a restricted administrative unit limits who can change the members at all, and is available today"
+              : "⑧ Disable nesting can recreate the group instead, behind its own typed confirmation — the remaining route when a group already holds nested groups" });
         }
       }
       if (r.doPlace && r.place.can) {
@@ -2422,6 +2470,7 @@
       imRenderList();
     }
   });
+
   // Create the vaults the import is about to need. Deliberately a separate
   // click from Import: creating administrative units and granting yourself a
   // role is a different kind of act from restoring policies, and should not
@@ -2480,7 +2529,6 @@
     imRenderList();
     toast(`${results.filter(r => r.ok).length}/${results.length} administrative unit(s) created${isDemo ? " (simulated)" : ""}`);
   }
-
   $("imZip").addEventListener("change", async (e) => {
     const f = e.target.files[0]; if (!f) return;
     try { await imLoaded(await Importer.readZip(f), f.name); }
@@ -2687,20 +2735,40 @@
 
   // ---- ② create ----
   // Two ways to create, both here and both separate from Assign: batch-create
-  // the missing baseline groups, or hand-build one group with full control over
-  // role-assignable and static/dynamic.
+  // the missing baseline groups, or hand-build one group choosing assigned or
+  // dynamic membership and whether to place it in a restricted AU. Neither
+  // creates role-assignable groups any more (retired in build 25026), and both
+  // Nesting is OPT-IN on both since 25166 — the property is not GA (see the
+  // note in js/cagroups.js), so promising it by default was promising a 400.
+  // Nesting is OPT-IN until the property is generally available — see the note
+  // in js/cagroups.js. It is still worth offering, and still worth explaining,
+  // but a box you tick is honest in a way a promise in small print was not: on
+  // a tenant whose directory does not carry the property, every create used to
+  // end in a red failure line for something the panel had guaranteed.
+  const nestWanted = (id) => !!(CaGroups.NESTING_GA || ($(id) && $(id).checked));
+
+  function nestOptIn(id) {
+    if (CaGroups.NESTING_GA) return "";
+    const dead = !CaGroups.nestingSupported();
+    return `<label class="chk" style="margin:10px 0 0"><input type="checkbox" id="${id}"${dead ? " disabled" : ""}> 🚫 Also <b>disable group nesting</b> <span class="tag new">PREVIEW</span></label>
+      <p class="mini muted" style="margin:4px 0 0 24px">No group can then be added as a member, so nobody widens a policy's scope by nesting a group inside this one. ${dead
+        ? `<b style="color:var(--off)">Unavailable in this tenant</b> — the directory refused the property earlier in this session, so it is not attempted again.`
+        : `<b>Off by default:</b> <code>disableNesting</code> is not generally available — Microsoft documents the permission but publishes the property on no group schema, and a directory that lacks it refuses the whole create field. Tick it to try anyway; the group is never lost if it is refused, and it is reported rather than assumed.`} Not sent for dynamic or role-assignable groups, which cannot nest in the first place.</p>`;
+  }
+
   function renderCgCreate() {
     const can = CaGroups.creatable(cgRes);
     const cannot = CaGroups.missingNoTemplate(cgRes);
     const batch = (can.length || cannot.length) ? `<div class="cg-panel">
       <h4>CREATE MISSING BASELINE GROUPS (${can.length})</h4>
-      <p class="mini">From the bundled templates, as plain <b>security groups with nesting disabled</b> — templates with a membership rule are created <b>dynamic</b> instead, and nesting is not sent for those.
+      <p class="mini">From the bundled templates, as plain <b>security groups</b> — templates with a membership rule are created <b>dynamic</b> instead.
         Nothing is created role-assignable any more: a <b>restricted management administrative unit</b> keeps membership away from tenant-wide group administrators without the immutability, and 🔒 Protect places them in one.
         A group that already exists under the same name is reused, never duplicated, and is left exactly as it is.</p>
       <div class="cg-pick">${can.map((r, i) =>
         `<label class="chk" style="margin:5px 0"><input type="checkbox" data-cgcreate="${i}" checked> ${esc(r.name)}
-          <span class="mini muted">${r.template.membershipRule ? "dynamic" : "assigned · nesting disabled"}</span></label>`).join("")
+          <span class="mini muted">${r.template.membershipRule ? "dynamic" : "assigned"}</span></label>`).join("")
         || '<p class="mini muted">No creatable missing groups.</p>'}</div>
+      ${nestOptIn("cgCreateNest")}
       <div class="cg-progress" id="cgCreateBar" style="display:none"><div style="width:0%"></div></div>
       <div id="cgCreateLog" class="mini" style="margin-top:8px"></div>
       ${can.length ? `<div class="row" style="justify-content:flex-start;margin-top:12px">
@@ -2739,11 +2807,12 @@
       <p class="mini muted" id="cgmRoleWrap" style="margin:8px 0 0"><b>Role-assignable is no longer offered.</b> That flag was only ever used to keep membership out of reach of tenant-wide group administrators, and a restricted AU does the same job, names <i>who</i> may manage it, and can be undone. The two cannot be combined: a role-assignable group admits only Global Administrator and Privileged Role Administrator, and a restricted AU blocks exactly those two. Existing ones move across with <b>⑦ Migrate</b>.</p>
       <p class="mini" id="cgmRoleNote" style="display:none"></p>
 
+      ${nestOptIn("cgmNest")}
       <div id="cgmLog" class="mini" style="margin-top:10px">${cgmMsg || ""}</div>
       <div class="row" style="justify-content:flex-start;margin-top:12px">
         <button class="btn primary" id="cgmCreate">Create group${isDemo ? " (simulated)" : ""}</button>
       </div>
-      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled, <b>with group nesting disabled</b> — no other group can be made a member, so nobody widens a policy's scope by nesting a group inside this one. Consents <code>Group.ReadWrite.All</code> and <code>Group-NestingSupport.ReadWrite.All</code> on demand, plus <code>AdministrativeUnit.ReadWrite.All</code> if you protect it. An existing group with the same name is reused — and is left exactly as it is, including its nesting setting.</p>
+      <p class="mini muted" style="margin-top:10px">Security group, mail-disabled. Consents <code>Group.ReadWrite.All</code> on demand, <code>Group-NestingSupport.ReadWrite.All</code> only if you tick nesting above, plus <code>AdministrativeUnit.ReadWrite.All</code> if you protect it. An existing group with the same name is reused — and is left exactly as it is, including its nesting setting.</p>
     </div>`;
 
     $("cgBody").innerHTML = batch + manual;
@@ -3096,7 +3165,6 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       return true;
     }
-
     if (e.target.id === "cgRmauQClear" && cgRmau) { cgRmau.q = ""; renderCgRmau(); return true; }
     if (e.target.closest("[data-rmaurun]")) { await cgRmauScan(); return true; }
     if (e.target.id === "cgRmauGo") { await cgRmauApply(e.target); return true; }
@@ -3265,8 +3333,8 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       const auChoice = aus.length ? aus[0].id : "new";
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME;
-      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: true, toAu: true, sel: null,
-        plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: true }) };
+      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null,
+        plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA }) };
     } catch (e) {
       console.error("Migrate scan failed:", e);
       cgMigBusy = false;
@@ -3662,6 +3730,11 @@ max@contoso.com,"Global, DevOps"</pre>
         status(`Matching ${cands.length} groups…`, 2, 2);
         if (!st.statusError) cands.forEach((g) => st.status.set(g.id, map.get(g.id) || null));
       }
+      // Pre-select the groups the protection is FOR: the assigned exclusion
+      // groups someone maintains by hand. Dynamic groups stay opt-in (their
+      // membership follows a rule). Role-assignable groups are EXCLUDED, and
+      // their checkbox is disabled — combining the two protections deadlocks
+      // the membership (see the note rendered on the row).
       // `unused` groups are listed so their protection can be SEEN; nothing
       // references them, so protecting them is a decision, not a default.
       cands.forEach((g) => { if (!st.status.get(g.id) && !g.roleAssignable && !g.dynamic && !g.unused) st.sel.add(g.id); });
@@ -3709,15 +3782,21 @@ max@contoso.com,"Global, DevOps"</pre>
   //
   // The dropdown survives as the FALLBACK for the groups nothing matches — a
   // custom name, or the CA900 workload-identity range that no persona covers.
+  //
+  // R28: the CA number is no longer the ONLY rule. CaMap layers this tenant's
+  // own stated mapping over it, so SEC-VIP-Exceptions reaches the Externals
+  // vault without being renamed. `by` carries which rule decided, because a
+  // group filed somewhere its name does not explain has to say so on the row
+  // rather than look like a bug.
   function rmauTarget(t, g) {
-    const code = Rmau.codeForGroup(g.name);
+    const { code, source: by } = CaMap.codeForGroup(g);
     if (code) {
       const want = Rmau.auName(code).toLowerCase();
       const hit = (t.rmaus || []).find((a) => String(a.name || "").toLowerCase() === want);
-      if (hit) return { auId: hit.id, auName: hit.name, code, source: "persona" };
+      if (hit) return { auId: hit.id, auName: hit.name, code, source: "persona", by };
       // The right vault is known but absent. Saying "we will use the fallback"
       // would be worse than saying nothing: it is a silent demotion.
-      return { auId: null, auName: Rmau.auName(code), code, source: "missing" };
+      return { auId: null, auName: Rmau.auName(code), code, source: "missing", by };
     }
     if (t.auChoice === "new") return { auId: null, auName: (t.auName || RMAU_DEFAULT_NAME), code: null, source: "fallbackNew" };
     if (t.auChoice) {
@@ -3805,15 +3884,15 @@ max@contoso.com,"Global, DevOps"</pre>
           : t.statusError ? '<span class="muted">unknown</span>'
           : '<span style="color:var(--report)">unprotected</span>'}</td>
         <td class="mini">${prot || g.roleAssignable ? '<span class="muted">—</span>'
-          : dest.source === "persona" ? `→ <b>${esc(dest.auName)}</b>`
+          : dest.source === "persona" ? `→ <b>${esc(dest.auName)}</b>${dest.by === "tenant" ? ' <span class="tag" title="This tenant states where this group belongs — its name carries no CA number. Change it in 🛡 Restricted AUs → 🏷 Group personas.">mapped here</span>' : ""}`
           : dest.source === "missing" ? `<span style="color:var(--off)">→ <b>${esc(dest.auName)}</b> does not exist — create it in 🛡 Restricted AUs first, or this group is skipped</span>`
-          : dest.source === "unset" ? '<span style="color:var(--report)">no persona matches this name — pick a fallback unit above, or it is skipped</span>'
-          : `<span style="color:var(--report)">→ <b>${esc(dest.auName)}</b> (fallback — no persona matches this name)</span>`}</td>
+          : dest.source === "unset" ? '<span style="color:var(--report)">unmapped — no CA number in the name and no mapping for it. <b>Map it once</b> in 🛡 Restricted AUs → 🏷 Group personas and every tool routes it afterwards; or pick a fallback unit above, or it is skipped.</span>'
+          : `<span style="color:var(--report)">→ <b>${esc(dest.auName)}</b> (fallback — unmapped, and no CA number in the name)</span>`}</td>
       </tr>`;
     }).join("");
 
     const unmatched = cands.filter((g) => !t.status.get(g.id) && !g.roleAssignable && rmauTarget(t, g).source.startsWith("fallback"));
-    const auPick = `<label class="mini" style="display:block;margin:14px 0 4px">Fallback administrative unit <span class="muted">— used only for the ${unmatched.length} group${unmatched.length === 1 ? "" : "s"} whose name carries no CA number the baseline recognises. Everything else goes to its own persona vault.</span></label>
+    const auPick = `<label class="mini" style="display:block;margin:14px 0 4px">Fallback administrative unit <span class="muted">— used only for the ${unmatched.length} unmapped group${unmatched.length === 1 ? "" : "s"}: no CA number the baseline recognises, and nothing said about them in 🏷 Group personas. Everything else goes to its own persona vault.</span></label>
       <select id="cgRmauAu" style="max-width:420px">
         <option value=""${t.auChoice ? "" : " selected"}>— none: skip the groups that match no persona —</option>
         ${t.rmaus.map((a) => `<option value="${esc(a.id)}"${t.auChoice === a.id ? " selected" : ""}>${esc(a.name)} (existing)</option>`).join("")}
@@ -3888,7 +3967,6 @@ max@contoso.com,"Global, DevOps"</pre>
       toast(`Skipped ${refused.length} role-assignable group${refused.length === 1 ? "" : "s"} — a restricted AU would leave nobody able to change their members.`);
     }
     if (!picked.length) return;
-
     const scopes = [...AUTH_CONFIG.scopes, ...RMAU_WRITE, ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
     if (!isDemo && !await preConsent(scopes)) return;
     t.busy = true; btn.disabled = true;
@@ -4047,10 +4125,11 @@ max@contoso.com,"Global, DevOps"</pre>
         try {
           const g = isDemo
             ? { id: "g-" + r.name, name: r.name, created: true }
-            : await Assign.createGroup(r.template);
+            : await Assign.createGroup({ ...r.template, disableNesting: nestWanted("cgCreateNest") });
           ok++;
           lines.push(`<div>${g.created ? "✓ created" : "• already existed, reused"} <b>${esc(r.name)}</b>`
             + (g.created && g.nesting === "disabled" ? ' <span class="mini" style="color:var(--on)">🚫 nesting disabled</span>' : "")
+            + (g.created && g.nesting === "unsupported" ? ` <span class="mini" style="color:var(--report)">• nesting not available in this tenant</span>` : "")
             + (g.created && g.nesting === "failed" ? ` <span class="mini" style="color:var(--off)">⚠ nesting still allowed — ${esc(g.nestingError || "")}</span>` : "")
             + `</div>`);
         } catch (err) {
@@ -4442,19 +4521,51 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!await preConsent([...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES])) return;
     const btn = $("nestGo"); btn.disabled = true; btn.textContent = "Setting…";
     try {
-      let ok = false, patchError = null;
+      let ok = false, patchError = null, unsupported = false;
       if (isDemo) {
-        ok = !p.name.toLowerCase().includes("admins");   // exercise both routes in demo
-        patchError = ok ? null : "Demo — simulated refusal";
+        // Three routes now, so the demo shows three: it works, it is refused
+        // and a recreate can still fix it, or the tenant has not got the
+        // property at all and nothing here can.
+        unsupported = p.name.toLowerCase().includes("externals");
+        ok = !unsupported && !p.name.toLowerCase().includes("admins");
+        patchError = ok ? null : unsupported ? CaGroups.NESTING_UNSUPPORTED_TEXT : "Demo — simulated refusal";
       } else {
         try {
-          await Graph.gpatch(`/groups/${p.id}`, { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
+          // v1.0 for this one property — the only Learn page that names it is
+          // the v1.0 PATCH /groups one, while ENCA otherwise talks to /beta.
+          await Graph.gpatch(CaGroups.NEST_V1(`/groups/${p.id}`), { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
           // Entra can accept a PATCH and silently ignore an unknown property,
           // so success is not "no error" — it is the value reading back true.
-          const back = await Graph.gget(`/groups/${p.id}?$select=id,disableNesting`);
+          const back = await Graph.gget(CaGroups.NEST_V1(`/groups/${p.id}?$select=id,disableNesting`));
           ok = CaGroups.nestingState(back) === "disabled";
-          if (!ok) patchError = "Entra accepted the update but the property did not stick — it is still only settable at creation.";
-        } catch (e) { patchError = GroupUse.shortErr(e); }
+          if (!ok) patchError = "Entra accepted the update but the property did not read back as set.";
+        } catch (e) {
+          unsupported = CaGroups.noteNestingUnsupported(e);
+          patchError = unsupported ? CaGroups.NESTING_UNSUPPORTED_TEXT : GroupUse.shortErr(e);
+        }
+      }
+
+      // The directory does not know the property. The fallback recreate sets it
+      // ON THE CREATE, which is the same request that was just refused — so
+      // offering it would send somebody through a destructive rename-and-
+      // rebuild to arrive at the identical error. Stop here and say so.
+      if (unsupported) {
+        $("nestModal").classList.remove("open");
+        toast(`Nesting cannot be set in this tenant — <span>not available yet</span>`);
+        showReport("🚫 Disable nesting", "CA-Group-DisableNesting", [
+          `# Disable nesting — not available in this tenant`, ``,
+          `- **Group:** ${p.name}`, `- **Tenant:** ${tenantName}`, ``,
+          `The directory refused the property outright:`, ``,
+          `> ${patchError}`, ``,
+          `## What this means`, ``,
+          `\`disableNesting\` is **not generally available**. Microsoft documents the permission that governs it — *Group-NestingSupport.ReadWrite.All*, described on Learn as "read and write groups' disableNesting property" — but publishes the property itself on **neither** the v1.0 nor the beta \`group\` resource, and lists it among updatable properties on neither. A directory that has not been given the feature rejects the name.`, ``,
+          `**Recreating the group would not help.** The recreate route exists because the property was believed to be settable only at creation; it sets \`disableNesting\` in the create body, which is the very request this tenant refuses. It is deliberately not offered here, because it is destructive and it would fail the same way.`, ``,
+          `## What still protects the group`, ``,
+          `Nesting is one route into a Conditional Access assignment, not the only one, and it is not the one this baseline leans on. A **restricted management administrative unit** limits who can change the members at all — including who could nest a group inside this one — and it is generally available today. Use 🔒 **Protect exclusions**, or ⑥ Protect in this tool.`, ``,
+          `ENCA re-tests on the next sign-in, so when Microsoft ships the property this simply starts working.`, ``,
+        ].join("\n"));
+        renderCaGroups();
+        return;
       }
 
       if (ok) {
@@ -4556,10 +4667,12 @@ max@contoso.com,"Global, DevOps"</pre>
   // old one aside, create a new role-assignable group with the original name,
   // then swap every referencing policy from the old group id to the new one.
   let recreateRow = null;
-  // ↻ Recreate role-assignable was removed in build 254. The baseline no longer
-  // uses role-assignable groups: the flag was only ever a way to keep membership
-  // away from tenant-wide group administrators, and a restricted management
-  // administrative unit does that better. ⑦ Migrate moves existing ones across.
+  // ↻ Recreate role-assignable was removed in build 25026. The baseline no
+  // longer uses role-assignable groups: the flag was only ever a way to keep
+  // membership away from tenant-wide group administrators, and a restricted
+  // management administrative unit does that better. ⑦ Migrate moves existing
+  // ones across. The old modal is gone with it rather than left dead in the
+  // file, where it would be one wire away from creating them again.
 
 
   // Dynamic and role-assignable are mutually exclusive in Entra. Reflect that
@@ -4610,13 +4723,18 @@ max@contoso.com,"Global, DevOps"</pre>
     const rule = dynamic ? $("cgmRule").value.trim() : "";
     if (dynamic && !rule) { toast("A dynamic group needs a membership rule"); $("cgmRule").focus(); return; }
     const roleAssignable = false;   // retired — see the note in the builder
-    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
+    const wantNest = nestWanted("cgmNest");
+    // Only ask for the nesting scope when the box is ticked: consenting to a
+    // permission the run will never use is how a consent screen stops meaning
+    // anything.
+    if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory",
+      ...(wantNest ? CaGroups.NEST_WRITE_SCOPES : [])])) return;
     btn.disabled = true;
     const log = $("cgmLog");
     try {
-      const spec = { displayName: name, description: $("cgmDesc").value.trim(), dynamic, membershipRule: rule, roleAssignable };
+      const spec = { displayName: name, description: $("cgmDesc").value.trim(), dynamic, membershipRule: rule, roleAssignable, disableNesting: wantNest };
       const g = isDemo
-        ? { id: "g-" + name, name, created: true, dynamic, roleAssignable, nesting: dynamic ? "n/a" : "disabled" }
+        ? { id: "g-" + name, name, created: true, dynamic, roleAssignable, nesting: !wantNest ? "off" : dynamic ? "n/a" : "disabled" }
         : await Assign.createGroup(spec);
       // Protection LAST, and only after the group exists — the same ordering
       // the migration wizard uses, for the same reason: once it is in the AU,
@@ -4654,7 +4772,11 @@ max@contoso.com,"Global, DevOps"</pre>
           ? `<div style="color:var(--on)">🚫 nesting disabled — no group can be added as a member of this one</div>`
           : g.nesting === "failed"
             ? `<div style="color:var(--off)">⚠ nesting could NOT be disabled — ${esc(g.nestingError || "unknown reason")}. The group exists and a group could be nested inside it; fix it from ⑧ Disable nesting.</div>`
-            : g.nesting === "n/a"
+            : g.nesting === "unsupported"
+              ? `<div style="color:var(--report)">• nesting was not disabled — ${esc(CaGroups.NESTING_UNSUPPORTED_TEXT)}. The group is fine; nothing here can close that door yet, so do not go looking for a setting that will work.</div>`
+            : g.nesting === "off"
+              ? ""
+              : g.nesting === "n/a"
               ? `<div class="muted">nesting: not applicable — ${g.dynamic ? "a dynamic group's members come from its rule, and only users and devices can match" : "Entra already refuses to nest a group inside a role-assignable one"}</div>`
               : "";
       const prot = g.protectError
@@ -4667,7 +4789,7 @@ max@contoso.com,"Global, DevOps"</pre>
         : `<span style="color:var(--report)">• <b>${esc(g.name)}</b> already existed — reused, and left as it is</span>`) + nest + prot;
       log.innerHTML = cgmMsg;
       toast(g.created
-        ? `<span>${esc(g.name)}</span> created${g.nesting === "disabled" ? ", nesting disabled" : g.nesting === "failed" ? " — but nesting is still ALLOWED" : ""}${isDemo ? " (simulated)" : ""}`
+        ? `<span>${esc(g.name)}</span> created${g.nesting === "disabled" ? ", nesting disabled" : (g.nesting === "failed" || g.nesting === "unsupported") ? " — but nesting is still ALLOWED" : ""}${isDemo ? " (simulated)" : ""}`
         : `<span>${esc(g.name)}</span> already existed — reused`);
       // fold the new group into the scan so Check shows it without a refresh
       cgRes = null;
@@ -5202,7 +5324,7 @@ max@contoso.com,"Global, DevOps"</pre>
           <input id="asNewName" class="btn" style="flex:1;cursor:text" placeholder="…or create a custom group by name (e.g. CAD-SEC-U-DG-CUSTOM)">
           <button class="btn primary" id="asNewCreate">Create</button>
         </div>
-        <p class="mini" style="margin-top:10px">Groups are created directly via Graph as plain <b>security groups</b> with <b>group nesting disabled</b> — no other group can be made a member,
+        <p class="mini" style="margin-top:10px">Groups are created directly via Graph as plain <b>security groups</b>. <b>Group nesting is not disabled</b> — <code>disableNesting</code> is not generally available yet, so it is off by default everywhere and offered as a tick in ② Create; a restricted administrative unit is the protection that works today. No other group can be made a member,
           so nobody widens a policy's scope by nesting a group inside one. They are <b>not</b> role-assignable: that flag was only ever used to keep membership away from
           tenant-wide group administrators, and a <b>restricted management administrative unit</b> does that better — it names who may manage the group, and it can be undone.
           Protect them from <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> once they exist. Dynamic templates keep their membership rule instead,
@@ -6541,8 +6663,8 @@ max@contoso.com,"Global, DevOps"</pre>
     const rows = (ruList || []).filter((a) => (ruFilter === "all" || Rmau.isRestricted(a))
       && (!q || `${a.displayName} ${a.description || ""}`.toLowerCase().includes(q)))
       .sort((a, b) => (Rmau.isRestricted(b) ? 1 : 0) - (Rmau.isRestricted(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
-    if (!rows.length) { $("ruBody").innerHTML = ruBaselinePanel() + ruBulkAdminPanel() + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
-    $("ruBody").innerHTML = ruBaselinePanel() + ruBulkAdminPanel() + `<div class="lo-grid">` + rows.map((au) => {
+    if (!rows.length) { $("ruBody").innerHTML = ruBaselinePanel() + ruMapPanel() + ruBulkAdminPanel() + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
+    $("ruBody").innerHTML = ruBaselinePanel() + ruMapPanel() + ruBulkAdminPanel() + `<div class="lo-grid">` + rows.map((au) => {
       const open = ruOpen.has(au.id);
       const d = ruDetails[au.id];
       let detail = "";
@@ -6614,6 +6736,10 @@ max@contoso.com,"Global, DevOps"</pre>
     // they are the ones that actually exist and can be added.
     const present = new Set();
     try { for (const r of (cgRes ? cgRes.rows : [])) if (r.id && r.name) present.add(r.name); } catch {}
+    // R28 — a group this tenant mapped to a persona by hand belongs in these
+    // lists as much as a baseline one does. Without this, the mapping would
+    // route the group correctly and no picker would ever offer it.
+    try { for (const e of CaMap.list()) out.add(e.name); } catch {}
     return [...new Set([...present, ...out])].filter(Boolean).sort((a, b) => a.localeCompare(b));
   }
   // Adding a group should work the way granting a scoped administrator does:
@@ -6660,7 +6786,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const already = new Set(((d && d.members) || [])
       .map((m) => String(m.displayName || "").toLowerCase()).filter(Boolean));
     const names = ruBaselineGroups()
-      .filter((n) => Rmau.codeForGroup(n) === code && !already.has(n.toLowerCase()));
+      .filter((n) => CaMap.codeOf(n) === code && !already.has(n.toLowerCase()));
     return { code, entry, names };
   }
   function ruSeedGroupSug() {
@@ -6731,7 +6857,6 @@ max@contoso.com,"Global, DevOps"</pre>
     const dlNow = $(isUser ? "ruUserSug" : "ruGroupSug");
     if (dlNow && [...dlNow.options].some((o) => o.value === term)) return;
     if (term.length < 2 || isDemo) return;
-
     ruSugTimer = setTimeout(async () => {
       const f = term.replace(/'/g, "''");
       try {
@@ -6801,7 +6926,51 @@ max@contoso.com,"Global, DevOps"</pre>
     const rest = ruBaselineGroups().filter((n) => !mine.has(n.toLowerCase()));
     dl.innerHTML = [...opts, ...rest.slice(0, 200).map((n) => `<option value="${esc(n)}"></option>`)].join("");
   });
-  $("ruBody").addEventListener("change", (e) => {
+  // The mapping import lives outside the re-rendered panel, like 🌐 Named
+  // locations' compare file: a hidden input inside markup that is rebuilt on
+  // every state change loses the file half-way through choosing it.
+  $("ruMapFileTop").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try {
+      const obj = CaMap.fromExport(JSON.parse(await f.text()));
+      const replace = CaMap.count() > 0
+        && confirm(`This tenant already has ${CaMap.count()} mapping${CaMap.count() === 1 ? "" : "s"}.\n\nOK — REPLACE them with the ${(obj.entries || []).length} in the file.\nCancel — MERGE, and let the file win where the two disagree.`);
+      const r = CaMap.importAll(obj, { replace });
+      caMapCache.clear(); ruPg.clear();
+      if (!ruMap) ruMap = { open: true, addCode: null, scan: null, msg: "" };
+      ruMap.open = true;
+      ruMap.msg = r.replaced
+        ? `Replaced the mapping with ${r.added} entr${r.added === 1 ? "y" : "ies"} from ${f.name}.${r.skipped ? ` ${r.skipped} skipped — no name, or a persona this build does not have.` : ""}`
+        : `${r.added} added, ${r.updated} updated from ${f.name}.${r.skipped ? ` ${r.skipped} skipped — no name, or a persona this build does not have.` : ""}`;
+      ruMap.msgBad = false;
+      if (ruMap.scan) await ruMapScan(); else renderRmau();
+    } catch (err) { console.error(err); toast(`Could not read that mapping: <span>${esc(err.message || err)}</span>`); }
+  });
+
+  $("ruBody").addEventListener("change", async (e) => {
+    // 🏷 Group personas (R28) — changing an existing mapping, and filing an
+    // unmapped group from the list below it. The unmapped path records the
+    // OBJECT ID as well as the name, so it survives a rename in Entra; typing
+    // a name into the add box can only record the name.
+    const mset = e.target.closest("[data-rumapset]");
+    if (mset) {
+      const key = mset.dataset.rumapset, entry = CaMap.list().find((x) => (x.id || x.name) === key);
+      if (entry) {
+        const r = CaMap.set({ id: entry.id, displayName: entry.name }, mset.value);
+        if (ruMap) { ruMap.msg = r.ok ? `“${entry.name}” now files under ${CaMap.labelOf(mset.value)}.` : r.error; ruMap.msgBad = !r.ok; }
+        caMapCache.clear(); ruPg.clear();
+      }
+      renderRmau();
+      return;
+    }
+    const mnew = e.target.closest("[data-rumapnew]");
+    if (mnew && mnew.value) {
+      const r = CaMap.set({ id: mnew.dataset.rumapnew, displayName: mnew.dataset.rumapname }, mnew.value);
+      if (ruMap) { ruMap.msg = r.ok ? `“${mnew.dataset.rumapname}” is mapped to ${CaMap.labelOf(mnew.value)}.` : r.error; ruMap.msgBad = !r.ok; }
+      caMapCache.clear(); ruPg.clear();
+      if (ruMap && ruMap.scan) await ruMapScan(); else renderRmau();
+      return;
+    }
     if (e.target.id === "ruBARole" && ruBulkAdmin) { ruBulkAdmin.role = e.target.value; return; }
     const bau = e.target.closest("[data-ruba]");
     if (bau && ruBulkAdmin) {
@@ -6905,6 +7074,113 @@ max@contoso.com,"Global, DevOps"</pre>
     ruBulkAdmin.upns = [...cur, v].join(", ");
     renderRmau();
   }
+  // ---------- 🏷 Group personas (roadmap R28) ----------
+  // The screen where a tenant says once that Contractors-NoMFA belongs to
+  // Externals. It lives HERE because this is the tool that owns the vaults —
+  // and the routing it feeds is consumed by ⑥ Protect, ＋ Bulk add, the persona
+  // chips and the documentation, none of which have to know it exists.
+  let ruMap = null;             // { open, addName, addCode, scan, msg }
+  const RU_MAP_CODES = () => Rmau.BASELINE_AUS;
+
+  // The unmapped set: groups the tenant's own policies EXCLUDE (or include)
+  // that neither the CA-number convention nor this tenant's mapping places.
+  // Read by this tool itself rather than borrowed from the CA-groups scan, so
+  // the panel works on a tenant where that scan was never run — the connection
+  // to ⑦ Check is a convenience, never a prerequisite.
+  async function ruMapScan() {
+    ruMap.scan = { busy: true, rows: [], error: null };
+    renderRmau();
+    try {
+      const ids = new Set();
+      for (const p of policies.map((x) => x.raw)) {
+        const u = (p.conditions || {}).users || {};
+        for (const id of [...(u.excludeGroups || []), ...(u.includeGroups || [])]) ids.add(id);
+      }
+      const names = new Map();
+      if (isDemo) {
+        for (const id of ids) names.set(id, (DEMO_DATA.names && DEMO_DATA.names[id]) || id);
+      } else {
+        const list = [...ids];
+        for (let i = 0; i < list.length; i += 900) {
+          const j = await Graph.gpost("/directoryObjects/getByIds", { ids: list.slice(i, i + 900), types: ["group"] });
+          for (const o of (j.value || [])) names.set(o.id, o.displayName || o.id);
+        }
+      }
+      // A group whose id no longer resolves is a DANGLING reference, not an
+      // unmapped group — it is ① Check's finding, and quietly listing it here
+      // as something to file would send somebody to map a group that is gone.
+      const rows = [];
+      for (const [id, name] of names) {
+        const r = CaMap.codeForGroup({ id, displayName: name });
+        if (!r.code) rows.push({ id, name });
+      }
+      rows.sort((a, b) => a.name.localeCompare(b.name));
+      ruMap.scan = { busy: false, rows, error: null, resolved: names.size, referenced: ids.size };
+    } catch (e) {
+      ruMap.scan = { busy: false, rows: [], error: e.message || String(e) };
+    }
+    renderRmau();
+  }
+
+  function ruMapPanel() {
+    const entries = CaMap.list();
+    if (!ruMap || !ruMap.open) {
+      return `<div class="cg-panel">
+        <h4>🏷 GROUP PERSONAS — THIS TENANT</h4>
+        <p class="mini" style="margin:0 0 8px">Every tool here decides a group's vault by reading the <b>CA number in its name</b>, which works for the baseline and for nothing else: <code>SEC-VIP-Exceptions</code> and <code>Contractors-NoMFA</code> match no persona, so ⑥ Protect skips them and ＋ Bulk add never offers them. Say once where such a group belongs and every tool routes it there afterwards.${entries.length ? ` <b>${entries.length} group${entries.length === 1 ? " is" : "s are"} mapped</b> in this tenant.` : ""}</p>
+        <button class="btn primary" id="ruMapOpen">🏷 Map groups to personas…</button>
+      </div>`;
+    }
+    const codeOpts = (sel) => RU_MAP_CODES().map((a) =>
+      `<option value="${esc(a.code)}"${a.code === sel ? " selected" : ""}>${esc(a.label)}${a.caRange ? ` — ${esc(a.caRange)}` : ""}</option>`).join("");
+
+    const rows = entries.map((e) => `<div class="dr-row"><div class="dr-head" style="gap:8px;flex-wrap:wrap">
+        <b style="flex:1;min-width:160px;overflow-wrap:anywhere">${esc(e.name)}</b>
+        <select class="btn" style="cursor:pointer" data-rumapset="${esc(e.id || e.name)}">${codeOpts(e.code)}</select>
+        <button class="fchip" data-rumapdel="${esc(e.id || e.name)}" title="Remove this mapping">✕</button>
+      </div>${e.id ? "" : '<div class="wi-why mini muted">No object id — matched on the display name only, so renaming the group in Entra breaks this entry.</div>'}</div>`).join("");
+
+    const sc = ruMap.scan;
+    const unmapped = !sc ? `<button class="btn" id="ruMapScan">🔎 Find the unmapped groups</button>
+        <p class="mini muted" style="margin:6px 0 0">Reads the group ids the loaded policies already reference and resolves their names — nothing else, and nothing written.</p>`
+      : sc.busy ? '<div class="mini muted"><div class="spinner" style="width:18px;height:18px"></div> Resolving the group names…</div>'
+      : sc.error ? `<p class="mini" style="color:var(--off);margin:0">✗ ${esc(sc.error)}</p><button class="btn sm" id="ruMapScan">Try again</button>`
+      : !sc.rows.length ? `<p class="mini" style="margin:0">✓ Every group your policies reference is placed — ${sc.resolved} resolved of ${sc.referenced} referenced. <button class="btn sm" id="ruMapScan">Rescan</button></p>`
+      : `<p class="mini" style="margin:0 0 6px"><b>${sc.rows.length}</b> group${sc.rows.length === 1 ? "" : "s"} your policies reference ${sc.rows.length === 1 ? "is" : "are"} placed by nothing — no CA number the baseline recognises, and no mapping here. They are listed rather than hidden: a group with no persona should be visible as <i>unmapped</i>, not quietly dropped out of every list. <button class="btn sm" id="ruMapScan">Rescan</button></p>
+        ${sc.rows.map((r) => `<div class="dr-row"><div class="dr-head" style="gap:8px;flex-wrap:wrap">
+          <b style="flex:1;min-width:160px;overflow-wrap:anywhere">${esc(r.name)}</b>
+          <select class="btn" style="cursor:pointer" data-rumapnew="${esc(r.id)}" data-rumapname="${esc(r.name)}">
+            <option value="">— pick a persona vault —</option>${codeOpts(null)}</select>
+        </div></div>`).join("")}`;
+
+    return `<div class="cg-panel" id="ruMapPanel">
+      <h4>🏷 GROUP PERSONAS — THIS TENANT</h4>
+      <p class="mini" style="margin:0 0 8px">A group is routed to a persona vault by the <b>CA number in its name</b>. Groups that predate the baseline carry none, and telling a tenant its naming convention is wrong is not a feature — so state the mapping instead. What is stated here <b>wins over the CA number</b>, because somebody typed it against this group in this tenant; ⑥ Protect marks such a row <span class="tag">mapped here</span> so a group filed somewhere its name does not explain always says why.</p>
+      <p class="mini muted" style="margin:0 0 10px"><b>Matching is exact</b> — the group's object id, or its display name compared case-insensitively. Nothing is inferred from a prefix or a word in the name, because a mapping nobody stated is how a group ends up in the wrong vault silently, and a vault is an authorisation boundary. <b>Where this is kept:</b> in this browser, under this tenant's id. Nothing is written to your directory and nothing leaves the machine — which also means it does not follow you to another browser${CaMap.isPersisted() ? "" : ", <b>and this browser is refusing to store it at all, so it will be gone when the tab closes</b>"}. Export it to keep it with the tenant's other configuration.</p>
+
+      <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Mapped groups (${entries.length})</div>
+      ${rows || '<p class="mini muted" style="margin:0 0 8px">Nothing mapped yet.</p>'}
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px">
+        <input id="ruMapName" list="ruGroupSug" placeholder="Group display name — exactly as it is in Entra" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px">
+        <select id="ruMapCode" class="btn" style="cursor:pointer">${codeOpts(ruMap.addCode)}</select>
+        <button class="btn sm primary" id="ruMapAdd">＋ Map it</button>
+      </div>
+      ${ruMap.msg ? `<p class="mini" style="margin:2px 0 0;color:${ruMap.msgBad ? "var(--off)" : "var(--green)"}">${esc(ruMap.msg)}</p>` : ""}
+      <p class="mini muted" style="margin:4px 0 0">Typed by name, this entry carries no object id, so renaming the group in Entra breaks it. Adding a group from the unmapped list below records the id as well, which survives a rename.</p>
+
+      <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">Unmapped groups your policies use</div>
+      ${unmapped}
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px">
+        <button class="btn sm" id="ruMapExport"${entries.length ? "" : " disabled"}>⭳ Export JSON</button>
+        <label class="btn sm" for="ruMapFileTop" title="Load a mapping exported from this or another browser">⭱ Import JSON…</label>
+        <button class="btn sm danger" id="ruMapClear"${entries.length ? "" : " disabled"}>Clear all</button>
+        <button class="btn sm" id="ruMapClose" style="margin-left:auto">✕ Close</button>
+      </div>
+    </div>`;
+  }
+
   function ruBulkAdminPanel() {
     const restricted = (ruList || []).filter(Rmau.isRestricted);
     if (restricted.length < 2) return "";      // nothing to do in bulk
@@ -7046,6 +7322,39 @@ max@contoso.com,"Global, DevOps"</pre>
   const RU_BULK_PREFIXES = ["CAB-SEC", "CAD-SEC"];
   const RU_BULK_EXTRA = { BreakGlass: ["Emergency", "BreakGlass", "Break-Glass", "BG-"] };
 
+  // R28 — the groups THIS TENANT mapped to a persona, read as real group
+  // objects so the callers can judge them the same way they judge a baseline
+  // group (role-assignable, dynamic, Microsoft 365 — all of which decide
+  // whether it can go in a restricted unit at all).
+  //
+  // Read one at a time by id rather than through a filter: the mapping is a
+  // handful of groups in practice, an id lookup cannot half-match, and a group
+  // that has since been DELETED returns a 404 that is worth ignoring quietly —
+  // a stale mapping entry must not break the panel it appears in. Entries with
+  // no id (imported from a file that only carried names) fall back to an exact
+  // displayName filter, which is the only other exact handle there is.
+  const caMapCache = new Map();                    // groupKey -> group | null
+  async function caMapGroups(code) {
+    const want = CaMap.list().filter((e) => e.code === code);
+    const out = [];
+    for (const e of want) {
+      const key = e.id || `nm:${e.name.toLowerCase()}`;
+      if (caMapCache.has(key)) { const c = caMapCache.get(key); if (c) out.push(c); continue; }
+      let g = null;
+      try {
+        if (e.id) {
+          g = await Graph.gget(`/groups/${encodeURIComponent(e.id)}?$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled`);
+        } else {
+          const r = await Graph.ggetAll(`/groups?$filter=displayName eq '${e.name.replace(/'/g, "''")}'&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=2`);
+          g = r.length === 1 ? r[0] : null;        // two matches is not an answer
+        }
+      } catch (err) { console.warn("mapped group", e.name, "could not be read:", err.message || err); }
+      caMapCache.set(key, g || null);
+      if (g) out.push(g);
+    }
+    return out;
+  }
+
   // Can this group go into this restricted unit, and if not, why not? One
   // function, because the answer is now given in two places — the bulk panel
   // and the per-unit chips — and two copies of it would disagree the first
@@ -7084,15 +7393,20 @@ max@contoso.com,"Global, DevOps"</pre>
         entry.groups = [
           { id: "d1", displayName: "CAB-SEC-U-CA101-Exclusion", securityEnabled: true },
           { id: "d2", displayName: "CAB-SEC-U-CA102-Exclusion", securityEnabled: true, isAssignableToRole: true },
-        ].filter((g) => Rmau.codeForGroup(g.displayName) === code);
+        ].filter((g) => CaMap.codeOf(g) === code);
       } else {
         const seen = new Set();
         for (const p of [...RU_BULK_PREFIXES, ...(RU_BULK_EXTRA[code] || [])]) {
           try {
             const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
-            for (const g of r) if (!seen.has(g.id) && Rmau.codeForGroup(g.displayName) === code) { seen.add(g.id); entry.groups.push(g); }
+            for (const g of r) if (!seen.has(g.id) && CaMap.codeOf(g) === code) { seen.add(g.id); entry.groups.push(g); }
           } catch (e) { console.warn("persona chips: prefix", p, "failed:", e.message || e); }
         }
+        // The prefix scan is bounded to the CAB-SEC / CAD-SEC family on
+        // purpose, so a tenant's own group never turns up in it however well it
+        // is mapped. Mapped groups are therefore read by id, one lookup each —
+        // which is also why the mapping stores the id and not only the name.
+        for (const g of await caMapGroups(code)) if (!seen.has(g.id)) { seen.add(g.id); entry.groups.push(g); }
         try { entry.prot = await readProtectionMap(); } catch { /* leave it unknown */ }
       }
     } catch (e) { entry.error = e.message || String(e); }
@@ -7123,6 +7437,9 @@ max@contoso.com,"Global, DevOps"</pre>
             for (const g of r) if (!seen.has(g.id)) { seen.add(g.id); groups.push(g); }
           } catch (e) { console.warn("bulk add: prefix", p, "failed:", e.message || e); }
         }
+        // Same reason as the persona chips: the prefix scan cannot reach a
+        // group called Contractors-NoMFA, so the mapped ones are read by id.
+        for (const g of await caMapGroups(code)) if (!seen.has(g.id)) { seen.add(g.id); groups.push(g); }
       }
       const already = new Set(((ruDetails[auId] || {}).members || []).map((m) => m.id));
       // Where everything else already lives, so a group sitting in the WRONG
@@ -7132,7 +7449,7 @@ max@contoso.com,"Global, DevOps"</pre>
 
       const rows = [];
       for (const g of groups) {
-        if (Rmau.codeForGroup(g.displayName) !== code) continue;
+        if (CaMap.codeOf(g) !== code) continue;
         rows.push(ruWhyNot(g, auId, already, prot));
       }
       rows.sort((a, b) => (a.why ? 1 : 0) - (b.why ? 1 : 0) || String(a.name).localeCompare(String(b.name)));
@@ -7306,6 +7623,42 @@ max@contoso.com,"Global, DevOps"</pre>
       const t = ruBaseline();
       bs.checked ? t.sel.add(bs.dataset.rubase) : t.sel.delete(bs.dataset.rubase);
       renderRmau();
+      return;
+    }
+    // ---- 🏷 Group personas (R28) ----
+    if (e.target.id === "ruMapOpen") { ruMap = { open: true, addCode: null, scan: null, msg: "" }; renderRmau(); return; }
+    if (e.target.id === "ruMapClose" && ruMap) { ruMap.open = false; renderRmau(); return; }
+    if (e.target.id === "ruMapScan") { if (!ruMap) return; await ruMapScan(); return; }
+    if (e.target.id === "ruMapAdd" && ruMap) {
+      const name = ($("ruMapName")?.value || "").trim();
+      const code = $("ruMapCode")?.value || "";
+      const r = CaMap.set(name, code);
+      ruMap.msg = r.ok ? `“${name}” is mapped to ${CaMap.labelOf(code)}. Every tool routes it there from now on.` : r.error;
+      ruMap.msgBad = !r.ok;
+      if (r.ok) { caMapCache.clear(); ruPg.clear(); if (ruMap.scan) await ruMapScan(); else renderRmau(); }
+      else renderRmau();
+      return;
+    }
+    if (e.target.id === "ruMapExport") {
+      downloadText("CA-GroupPersonas", "json", "application/json",
+        JSON.stringify(CaMap.toExport({ tenantName, build: APP_BUILD.label }), null, 2));
+      toast(`Exported <span>${CaMap.count()}</span> group mapping${CaMap.count() === 1 ? "" : "s"} — load it back with Import in any browser`);
+      return;
+    }
+    if (e.target.id === "ruMapClear" && ruMap) {
+      // A typed confirmation would be theatre for something that writes nothing
+      // to the tenant and can be re-entered in a minute — but it is still the
+      // whole mapping, so it asks.
+      if (!confirm(`Remove all ${CaMap.count()} group mappings for this tenant? Nothing in your directory changes; the groups simply go back to being routed by the CA number in their name (or not at all).`)) return;
+      CaMap.clear(); caMapCache.clear(); ruPg.clear();
+      ruMap.msg = "Mapping cleared."; ruMap.msgBad = false;
+      if (ruMap.scan) await ruMapScan(); else renderRmau();
+      return;
+    }
+    const mdel = e.target.closest("[data-rumapdel]");
+    if (mdel) {
+      CaMap.remove(mdel.dataset.rumapdel); caMapCache.clear(); ruPg.clear();
+      if (ruMap && ruMap.scan) await ruMapScan(); else renderRmau();
       return;
     }
     if (e.target.id === "ruBAOpen" || e.target.id === "ruBAOpenTop") {
@@ -7502,7 +7855,7 @@ max@contoso.com,"Global, DevOps"</pre>
         }
       } finally { btn.disabled = false; btn.textContent = label; }
     }
-    showReport("🛡 Restricted AUs", "CA-RestrictedAUs", Rmau.toMd(ruList, ruDetails, { tenantName }));
+    showReport("🛡 Restricted AUs", "CA-RestrictedAUs", Rmau.toMd(ruList, ruDetails, { tenantName, personaMap: CaMap.toMdSection() }));
   });
 
   // ---------- shared fetch-progress visual ----------
@@ -7546,8 +7899,9 @@ max@contoso.com,"Global, DevOps"</pre>
     return { st, panel, start, tick, fetchAll };
   }
 
-  // The selector stores days; sub-day incident windows are fractions.
-  // Keep one human label for the screen, snapshots and exported reports.
+  // The audit range selector stores days; sub-day ranges are fractions (1h = 1/24).
+  // Keep one human label for the screen, snapshots and exported reports. The
+  // value 1 is deliberately "24 hours": that is the choice the UI offers.
   const auRangeLabel = (d) => {
     const days = Number(d);
     if (!Number.isFinite(days) || days <= 0) return "30 days";
@@ -8114,6 +8468,64 @@ max@contoso.com,"Global, DevOps"</pre>
     renderDrift();
   });
 
+  // ---------- 🗣 User impact brief (T32) ----------
+  // Analysis in js/userimpact.js as pure functions over the policies already
+  // in memory — nothing is read from Graph here, so the tool renders on open
+  // and re-renders when the audience filter changes.
+  let uiRes = null, uiAud = "all";
+  function renderUserImpact() {
+    uiRes = UserImpact.analyze(policies);
+    $("uiHead").innerHTML = `<h3 style="margin:0 0 6px">🗣 User impact brief</h3>
+      <p class="mini" style="margin:0">What people will notice — and what will deliberately no longer be possible — derived from the <b>${uiRes.total} persona baseline policies</b> (${uiRes.counts.on} enforced, ${uiRes.counts.report} report-only, ${uiRes.counts.off} prepared)${uiRes.other.total ? `; the ${uiRes.other.total} policies without a persona CA number are analyzed LAST, in their own section at the bottom` : ""}. Statements from enforced policies are marked <b>live now</b>; the rest describe go-live. Export the draft for the communications team as Markdown or Word.</p>`;
+    const auds = ["all", ...uiRes.audiences];
+    const chips = auds.map((a) => `<button class="btn${uiAud === a ? " primary" : ""}" data-uiaud="${esc(a)}" style="padding:4px 10px">${a === "all" ? "All audiences" : esc(a)}</button>`).join(" ");
+    const rows = uiRes.items.filter((i) => uiAud === "all" || i.aud === uiAud);
+    const chip = (i) => i.liveNow ? `<span class="tag grant">live now</span>` : (i.states.report ? `<span class="tag upd">staged</span>` : `<span class="tag new">at go-live</span>`);
+    const lost = rows.filter((i) => i.lost);
+    $("uiBody").innerHTML = `
+      <div class="list-card" style="padding:12px 16px"><div style="display:flex;gap:6px;flex-wrap:wrap">${chips}</div></div>
+      ${rows.length ? "" : `<div class="list-card"><p class="mini">No user-facing policies detected for this audience.</p></div>`}
+      ${rows.map((i) => `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+        <h4 style="margin:0 0 6px">${i.icon} ${esc(i.title)} <span class="tag ok">${esc(i.aud)}</span> ${chip(i)}</h4>
+        <p class="mini" style="margin:0">${esc(i.text)}</p>
+        ${i.lost ? `<p class="mini" style="margin:6px 0 0"><b>No longer possible:</b> ${esc(i.lost)}</p>` : ""}
+        <p class="mini muted" style="margin:8px 0 0">${i.pols.map((p) => `${p.id ? `<a href="#" class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</a>` : esc(p.name)} <span class="muted">[${UserImpact.STATE_WORD[p.state]}]</span>`).join(" · ")}</p>
+      </div>`).join("")}
+      ${lost.length ? `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+        <h4 style="margin:0 0 6px">⛔ No longer possible — the short list</h4>
+        <ul class="mini" style="margin:0;padding-left:18px">${lost.map((i) => `<li><b>${esc(i.lost)}</b> <span class="muted">(${esc(i.aud)}${i.liveNow ? " — already in effect" : ""})</span></li>`).join("")}</ul>
+      </div>` : ""}
+      ${uiRes.other.items.length ? `<div class="list-card" style="padding:14px 16px;margin-top:18px">
+        <h4 style="margin:0 0 6px">📎 Outside the persona baseline — analyzed last</h4>
+        <p class="mini muted" style="margin:0 0 8px">From the ${uiRes.other.total} policies without a persona CA number (the tenant's own or interim policies — possibly temporary). Kept out of the sections above on purpose.</p>
+        ${uiRes.other.items.map((i) => `<p class="mini" style="margin:0 0 8px">${i.icon} <b>${esc(i.title)}</b> <span class="tag ok">${esc(i.aud)}</span> ${i.liveNow ? `<span class="tag grant">live now</span>` : `<span class="tag new">at go-live</span>`} — ${esc(i.text)}${i.lost ? ` <span class="muted">No longer possible: ${esc(i.lost)}</span>` : ""}<br><span class="muted">${i.pols.map((p) => `${p.id ? `<a href="#" class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</a>` : esc(p.name)} [${UserImpact.STATE_WORD[p.state]}]`).join(" · ")}</span></p>`).join("")}
+      </div>` : ""}`;
+  }
+  function openUserImpact() { crumb("🗣 User impact brief"); show("screen-userimpact"); renderUserImpact(); }
+  $("toolUserImpact").addEventListener("click", openUserImpact);
+  $("uiBody").addEventListener("click", (e) => {
+    const a = e.target.closest("[data-uiaud]");
+    if (a) { e.preventDefault(); uiAud = a.dataset.uiaud; renderUserImpact(); return; }
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { e.preventDefault(); showDetail(pl.dataset.polid); }
+  });
+  $("uiMd").addEventListener("click", () => {
+    if (!uiRes) renderUserImpact();
+    showReport("🗣 User impact brief", "CA-UserImpactBrief", UserImpact.toMd(uiRes, { tenantName }));
+  });
+  $("uiDocx").addEventListener("click", async () => {
+    if (!uiRes) renderUserImpact();
+    try {
+      const zip = UserImpact.toDocx(uiRes, { tenantName });
+      const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `CA-UserImpactBrief-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.docx`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    } catch (e) { toast(`Word export failed: ${e.message || e}`); }
+  });
+
   // ---------- Compliant-device reality check (roadmap R11) ----------
   // The analysis lives in js/devcheck.js as pure functions; this wiring
   // reads the Intune side on demand (two on-demand scopes), pairs it with
@@ -8414,7 +8826,8 @@ max@contoso.com,"Global, DevOps"</pre>
   const lgProg = makeProgress("lg");
   const LG_GROUP_CAP = 100;    // groups expanded per run
   const LG_MEMBER_PAGES = 10;  // ~10k members per group
-  const LG_USER_PAGES = 20;   // ~20k member users read so the gap can be NAMED
+  const LG_USER_PAGES = 50;   // ~50k member users per pass so the gap can be NAMED;
+                               // over that, the read-the-remaining button continues the pass
 
   const LG_DEMO = {
     totalMembers: 8, disabledMembers: 2,
@@ -8442,6 +8855,33 @@ max@contoso.com,"Global, DevOps"</pre>
       "u-emp1": "user", "u-emp2": "user", "u-old": "mailbox-no-access", "u-shared": "shared" },
   };
 
+  // One user object from one Graph user — shared by the initial read and
+  // the continuation, so a user read late is judged by exactly the same
+  // rules as one read early.
+  function lgMapUser(m, live) {
+    let p1 = false, p2 = false, planP1 = false, planP2 = false;
+    if (live) {
+      for (const l of m.assignedLicenses || []) {
+        const dis = l.disabledPlans || [];
+        const p1ok = live.p1.has(l.skuId) && !dis.includes(LicGap.P1_PLAN);
+        const p2ok = live.p2.has(l.skuId) && !dis.includes(LicGap.P2_PLAN);
+        if (p2ok) p2 = true;
+        if (p1ok || p2ok) p1 = true;
+      }
+    }
+    for (const ap of m.assignedPlans || []) {
+      if (ap.capabilityStatus !== "Enabled" && ap.capabilityStatus !== "Warning") continue;
+      if (ap.servicePlanId === LicGap.P1_PLAN) planP1 = true;
+      else if (ap.servicePlanId === LicGap.P2_PLAN) planP2 = true;
+    }
+    if (!live) { p1 = planP1 || planP2; p2 = planP2; }   // no SKU read — plans are the only signal left
+    return { id: m.id, name: m.displayName, upn: m.userPrincipalName, enabled: m.accountEnabled !== false,
+      p1: p1 || p2, p2,
+      p1grace: !!(live && !p1 && !p2 && (planP1 || planP2)),
+      p2grace: !!(live && !p2 && planP2),
+      lic0: !(m.assignedLicenses || []).length };
+  }
+
   // The @odata.count idiom: $count=true pairs with the ConsistencyLevel
   // header gget always sends; $top=1 keeps the page itself near-empty.
   async function lgUserCount(filter) {
@@ -8454,6 +8894,10 @@ max@contoso.com,"Global, DevOps"</pre>
     if (lgBusy) return;
     lgBusy = true;
     lgPurpose = null;   // a new run invalidates the mailbox-type check
+    // The toolbar Rescan exists only when there is a result to redo — the
+    // first run belongs to the big button in the prompt, and two buttons
+    // doing the same thing is one too many (the Change audit pattern).
+    $("lgRun").style.display = "none";
     const raws = policies.map((p) => p.raw).filter((r) => r.state !== "disabled");
     const gids = [...new Set(raws.flatMap((r) => {
       const u = (r.conditions || {}).users || {};
@@ -8503,40 +8947,16 @@ max@contoso.com,"Global, DevOps"</pre>
           let next = `/users?$filter=${encodeURIComponent("userType eq 'Member'")}&$select=id,displayName,userPrincipalName,accountEnabled,assignedLicenses,assignedPlans&$top=999`, pages = 0;
           while (next && pages < LG_USER_PAGES) {
             const j = await Graph.gget(next);
-            for (const m of j.value || []) {
-              let p1 = false, p2 = false, planP1 = false, planP2 = false;
-              if (live) {
-                for (const l of m.assignedLicenses || []) {
-                  const dis = l.disabledPlans || [];
-                  const p1ok = live.p1.has(l.skuId) && !dis.includes(LicGap.P1_PLAN);
-                  const p2ok = live.p2.has(l.skuId) && !dis.includes(LicGap.P2_PLAN);
-                  if (p2ok) p2 = true;
-                  if (p1ok || p2ok) p1 = true;
-                }
-              }
-              for (const ap of m.assignedPlans || []) {
-                if (ap.capabilityStatus !== "Enabled" && ap.capabilityStatus !== "Warning") continue;
-                if (ap.servicePlanId === LicGap.P1_PLAN) planP1 = true;
-                else if (ap.servicePlanId === LicGap.P2_PLAN) planP2 = true;
-              }
-              if (!live) { p1 = planP1 || planP2; p2 = planP2; }   // no SKU read — plans are the only signal left
-              us.push({ id: m.id, name: m.displayName, upn: m.userPrincipalName, enabled: m.accountEnabled !== false,
-                p1: p1 || p2, p2,
-                p1grace: !!(live && !p1 && !p2 && (planP1 || planP2)),
-                p2grace: !!(live && !p2 && planP2),
-                // No licences AT ALL: usually a service account or a sync
-                // artifact that never consumes Microsoft services (the
-                // office365itpros target-set argument) — labelled, so the
-                // to-license count is not inflated by accounts nobody
-                // would ever buy for.
-                lic0: !(m.assignedLicenses || []).length });
-            }
+            for (const m of j.value || []) us.push(lgMapUser(m, live));
             next = j["@odata.nextLink"] || null;
             pages++;
             lgProg.tick(count += (j.value || []).length, step);
           }
           ctx.users = us;
           ctx.usersCapped = !!next;
+          // The nextLink survives, so the read can be finished later
+          // without starting over.
+          ctx.usersNext = next || null;
         } catch { ctx.users = null; }
         lgProg.tick(count, ++step);
         // Names next, so the progress line can narrate groups by name.
@@ -8630,6 +9050,7 @@ max@contoso.com,"Global, DevOps"</pre>
   }
 
   function renderLicGap() {
+    $("lgRun").style.display = lgRes && !lgBusy ? "" : "none";
     $("lgHead").innerHTML = `<h3>🎫 Licence gap <span class="tag new">BETA</span></h3>
       <p style="margin-bottom:4px">Microsoft's licence usage blade counts <b>evaluated</b> users — who happened to trigger a policy last month. The obligation Microsoft licenses on is <b>targeted</b> users: every user a Conditional Access policy is scoped to needs <b>Entra ID P1</b>, and every user targeted by a risk-based policy needs <b>P2</b> — whether they signed in or not. A blade showing "2 of 25, fine" can sit on a tenant targeting every one of its users. This tool counts the targeted number and compares it with the seats the tenant owns.</p>
       <p class="mini muted" style="margin:0">Reads only, covered by the permissions already granted at sign-in — licences, the member-user count, and the members behind every group and role your policies include or exclude.</p>`;
@@ -8675,6 +9096,7 @@ max@contoso.com,"Global, DevOps"</pre>
         : r.p1.gap != null
         ? `<p class="mini" style="color:var(--on);margin:10px 0 0"><b>No P1 gap</b> — the seats cover everyone your policies target.</p>` : ""}
       ${r.p2.gap != null && r.p2.gap > 0 ? `<p class="mini" style="color:var(--off);margin:4px 0 0"><b>P2 gap: ${r.p2.gap.toLocaleString()} users</b> targeted by risk-based policies without a P2 licence.</p>` : ""}
+      ${r.totals.usersCapped && lgCtx && lgCtx.usersNext ? `<p class="mini" style="margin:10px 0 0"><span class="tag new">partial</span> The named lists cover the first ${(r.totals.usersRead || 0).toLocaleString()} of ${(r.totals.members || 0).toLocaleString()} member users — the gap tiles are exact, the lists are not yet. <button class="btn sm" data-lgmore${lgMoreBusy ? " disabled" : ""}>${lgMoreBusy ? "⏬ Reading…" : `⏬ Read the remaining ~${Math.max(0, (r.totals.members || 0) - (r.totals.usersRead || 0)).toLocaleString()} users`}</button></p>` : ""}
     </div>`;
 
     // The named gap. Two numbers on purpose: the tile's gap is targeted
@@ -8698,7 +9120,7 @@ max@contoso.com,"Global, DevOps"</pre>
       if (!o.gapUsers.length) return `<p class="mini" style="color:var(--on);margin:0">Nobody — every targeted user has ${label} assigned.</p>`;
       const unassigned = o.seats != null && o.assigned != null ? Math.max(0, o.seats - o.assigned) : null;
       const c = lgClassify(o.gapUsers);
-      return `<p class="mini" style="margin:0 0 8px"><b style="color:var(--off)">${o.gapUsers.length.toLocaleString()}</b> targeted user${o.gapUsers.length === 1 ? "" : "s"} with <b>no ${label} licence assigned</b>${r.totals.usersCapped ? ' <span class="tag new">partial — user read capped</span>' : ""}${unassigned ? ` · ${unassigned.toLocaleString()} owned seat${unassigned === 1 ? "" : "s"} still unassigned — assigning covers ${Math.min(unassigned, o.gapUsers.length)} before anything needs buying` : ""}</p>
+      return `<p class="mini" style="margin:0 0 8px"><b style="color:var(--off)">${o.gapUsers.length.toLocaleString()}</b> targeted user${o.gapUsers.length === 1 ? "" : "s"} with <b>no ${label} licence assigned</b>${r.totals.usersCapped ? ` <span class="tag new" title="The user read stopped at the cap — the named lists and per-user verdicts cover the first ${(r.totals.usersRead || 0).toLocaleString()} member users only. The tile's gap stays exact (it is count arithmetic); finish the read below to name the rest.">partial — first ${(r.totals.usersRead || 0).toLocaleString()} of ${(r.totals.members || 0).toLocaleString()} users read</span>` : ""}${unassigned ? ` · ${unassigned.toLocaleString()} owned seat${unassigned === 1 ? "" : "s"} still unassigned — assigning covers ${Math.min(unassigned, o.gapUsers.length)} before anything needs buying` : ""}</p>
       <p class="mini" style="margin:0 0 10px">
         ${Object.entries(LG_CATS).filter(([k]) => lgPurpose || (k !== "resource" && k !== "likely")).map(([k, d]) =>
           `<span data-lgusers="${key}" data-lgcat="${k}" style="cursor:pointer;margin-right:10px;white-space:nowrap" title="${d.hint} — click to see exactly these users."><span class="pill ${c[k] ? d.pill : "zero"}">${c[k]}</span> <span class="mini muted" style="text-decoration:underline dotted">${d.label}</span></span>`).join("")}
@@ -8761,6 +9183,41 @@ max@contoso.com,"Global, DevOps"</pre>
 
     const caveats = `<p class="mini muted" style="margin:12px 0 0">${r.caveats.map(esc).join(" · ")}</p>`;
     $("lgBody").innerHTML = tiles + bars + who + lic + table + why + fix + caveats;
+  }
+
+  // ---- finish the user read on a big tenant ----
+  // A capped read is honest but incomplete: the tile's gap (targeted −
+  // seats) is exact while the NAMED lists cover only the prefix that was
+  // read — on a 32k tenant that reads as two numbers disagreeing. The
+  // continuation picks the read up at its saved nextLink, judges the new
+  // users by the same lgMapUser rules, and re-analyzes in place. Runs of
+  // LG_USER_PAGES at a time, so one click is bounded too.
+  let lgMoreBusy = false;
+  async function lgReadMore() {
+    if (!lgCtx || !lgCtx.usersNext || lgBusy || lgMoreBusy) return;
+    lgMoreBusy = true;
+    const btn = document.querySelector("[data-lgmore]");
+    if (btn) { btn.disabled = true; btn.textContent = "⏬ Reading…"; }
+    try {
+      const live = LicGap.liveSkuSets(lgCtx.skus);
+      let next = lgCtx.usersNext, pages = 0;
+      while (next && pages < LG_USER_PAGES) {
+        const j = await Graph.gget(next);
+        for (const m of j.value || []) lgCtx.users.push(lgMapUser(m, live));
+        next = j["@odata.nextLink"] || null;
+        pages++;
+        const b = document.querySelector("[data-lgmore]");
+        if (b) b.textContent = `⏬ Reading… ${lgCtx.users.length.toLocaleString()} users`;
+      }
+      lgCtx.usersNext = next || null;
+      lgCtx.usersCapped = !!next;
+      lgRes = LicGap.analyze(lgCtx);
+    } catch (e) {
+      toast(`Reading more users failed: ${esc(e.message || e)}`);
+    }
+    lgMoreBusy = false;
+    renderLicGap();
+    if ($("lgUsersModal").classList.contains("open")) lgRenderUsers();
   }
 
   // ---- the admin-accounts group picker ----
@@ -8967,6 +9424,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const vu = e.target.closest("[data-lgusers]");
     if (vu) { lgShowUsers(vu.dataset.lgusers, vu.dataset.lgcat); return; }
     if (e.target.closest("[data-lgcheck]")) { lgCheckPurpose(); return; }
+    if (e.target.closest("[data-lgmore]")) { lgReadMore(); return; }
     const pl = e.target.closest(".pol-link");
     if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
   });
@@ -12800,6 +13258,7 @@ max@contoso.com,"Global, DevOps"</pre>
   $("viewCards").addEventListener("click", () => setView("cards"));
   $("viewList").addEventListener("click", () => setView("list"));
   $("viewMatrix").addEventListener("click", () => setView("matrix"));
+  $("anBack").addEventListener("click", () => setView(viewBeforeAnalyze === "analyze" ? "cards" : (viewBeforeAnalyze || "cards")));
   $("clearSelBtn").addEventListener("click", () => { selected.clear(); refreshViews(); });
 
   // list view: name opens detail, checkbox selects, group header collapses/selects group
@@ -13018,6 +13477,46 @@ max@contoso.com,"Global, DevOps"</pre>
       status(`Evaluating ${users.length} users × ${lookup.length} policies…`);
       await new Promise(r => setTimeout(r, 30)); // let the status paint
       anReport = Analyzer.evaluate(lookup, users, ctx);
+      anCov = null;                       // belongs to the run that just ended
+      // The licence half of the coverage flow. Both reads are already covered
+      // by the permissions this tool holds — assignedLicenses rides along on
+      // the /users select it was going to do anyway, and /subscribedSkus is one
+      // call — so the funnel costs no extra consent and no dependency on
+      // 🎫 Licence gap having run. The verdict comes from LicGap.licenceOf, the
+      // same function that tool uses, so the two cannot disagree about a user.
+      //
+      // It fails SOFT: a refused or broken read leaves the licence stage
+      // reported as not read, and every other stage is unaffected.
+      anLicRead = false;
+      try {
+        // Only the SKU list is an extra call: the per-user assignedLicenses /
+        // assignedPlans came back with the users themselves, on the same read
+        // this tool was doing anyway. Both are covered by permissions it
+        // already holds, so the funnel costs no extra consent and does not
+        // depend on 🎫 Licence gap having run.
+        //
+        // The verdict is LicGap.licenceOf — the same function that tool uses,
+        // so the two cannot disagree about a user.
+        //
+        // It fails SOFT: a refused or broken SKU read leaves the licence stage
+        // reported as not read, and every other stage is unaffected.
+        const skus = isDemo
+          ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.skus) || null)
+          : await Graph.ggetAll("/subscribedSkus");
+        const live = LicGap.liveSkuSets(skus);
+        const byId = new Map(users.map((u) => [u.id, u]));
+        for (const r of anReport) {
+          const m = byId.get(r.id);
+          // A user whose record carries neither field is NOT read, rather than
+          // unlicensed — the demo fixtures and a guest both land here.
+          r.lic = (m && (m.assignedLicenses || m.assignedPlans)) ? LicGap.licenceOf(m, live) : null;
+        }
+        anLicRead = !!skus;
+      } catch (e) {
+        console.warn("Coverage flow: licences not read —", e.message || e);
+        for (const r of anReport) r.lic = null;
+        anLicRead = false;
+      }
       anPols = Analyzer.policyMeta(lookup);
       anMaps = Analyzer.buildMatrixMaps(anReport);
       anGroups = scopeGroups || []; anGroupSel = "";
@@ -13056,6 +13555,22 @@ max@contoso.com,"Global, DevOps"</pre>
         ? `<b>Scoped run</b> — these findings cover ${anReport.length} user${anReport.length === 1 ? "" : "s"} from ${anScopedTo.length} named principal${anScopedTo.length === 1 ? "" : "s"} only, not the tenant: ${anScopedTo.map(esc).join(" · ")}`
         : "";
     }
+    // The coverage flow sits ABOVE the summary cards: the cards each count a
+    // different thing against a different denominator, and none of them says
+    // how many people are in the tenant to begin with.
+    //
+    // Computed once per RUN and cached — it is invariant for a given report,
+    // and recomputing it on every render walked the whole thing again on every
+    // keystroke in the search box. Only the highlighted row follows the filter,
+    // which is the second argument.
+    if (!anCov) anCov = Analyzer.coverage(anReport, anLicRead);
+    const cfHost = $("anCoverage");
+    // A group, user-type or search filter narrows the list BELOW the funnel
+    // without narrowing the funnel, so the two would disagree: the row says
+    // −7 and the list shows 2. Rather than silently recompute the funnel
+    // against a different population, say that the list is further narrowed.
+    const narrowed = !!(anQuery || anType || anGroupSel !== "");
+    if (cfHost) cfHost.innerHTML = Analyzer.coverageHtml(anCov, anFilter, narrowed);
     $("anCards").innerHTML = [
       ["all", s.users, "Users", ""],
       ["risky", s.risky, "Risky bypasses", "risk"],
@@ -13096,6 +13611,24 @@ max@contoso.com,"Global, DevOps"</pre>
   $("anCards").addEventListener("click", (e) => {
     const c = e.target.closest("[data-f]"); if (!c) return;
     anFilter = c.dataset.f; renderAnalysis();
+  });
+  // The funnel rows carry the same data-f contract as the cards, so one
+  // handler shape covers both — and clicking an already-active row clears it,
+  // because a filter you cannot switch off is a trap on a list this long.
+  $("anCoverage").addEventListener("click", (e) => {
+    const c = e.target.closest("[data-f]"); if (!c) return;
+    anFilter = anFilter === c.dataset.f ? "all" : c.dataset.f;
+    // Clear the narrowing filters too. The funnel promises that clicking −7
+    // shows those 7; leaving a group select or a search term applied would
+    // show some smaller number and quietly break that promise.
+    anPage = 0; anTab = "users"; anQuery = ""; anType = ""; anGroupSel = "";
+    $("anSearch").value = ""; $("anType").value = ""; $("anGroup").value = "";
+    renderAnalysis();
+  });
+  $("anCoverage").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const c = e.target.closest("[data-f]"); if (!c) return;
+    e.preventDefault(); c.click();
   });
   $("anSearch").addEventListener("input", (e) => { anQuery = e.target.value.toLowerCase(); anPage = 0; renderAnalysis(); });
   $("anTabUsers").addEventListener("click", () => { anTab = "users"; if (!anReport) { $("anStatus").textContent = "Run the analysis first."; return; } renderAnalysis(); });
@@ -13215,7 +13748,17 @@ max@contoso.com,"Global, DevOps"</pre>
     const filterBits = [];
     if (anType) filterBits.push(anType === "member" ? "members only" : "guests only");
     if (anGroupSel !== "") filterBits.push("group: " + (anGroups[+anGroupSel]?.label || ""));
-    if (anFilter !== "all") filterBits.push({ risky: "risky bypasses only", nomfa: "no MFA from CA", noenforce: "no enforcing policy" }[anFilter]);
+    // Every value anFilter can hold has to be nameable here, the funnel's
+    // included — an unmapped one pushed `undefined`, which Array.join drops
+    // silently, leaving the deliverable saying "filtered:" and then nothing.
+    const FILTER_LABEL = {
+      risky: "risky bypasses only", nomfa: "no MFA from CA", noenforce: "no enforcing policy",
+      "cf:targeted": "coverage — reached by no active policy",
+      "cf:enforced": "coverage — targeted only by report-only policies",
+      "cf:mfa": "coverage — reached by a policy that never asks for MFA",
+      "cf:licensed": "coverage — targeted without the licence their policies require",
+    };
+    if (anFilter !== "all") filterBits.push(FILTER_LABEL[anFilter] || anFilter);
     if (anQuery) filterBits.push(`search: "${anQuery}"`);
     const meta = {
       tenant: tenantName || "tenant",
@@ -13225,7 +13768,10 @@ max@contoso.com,"Global, DevOps"</pre>
         + ($("anReportOnly").checked ? ", incl. report-only" : "")
         + (filterBits.length ? ` | filtered: ${filterBits.join(", ")} (${subset.length} of ${anReport.length} users)` : ""),
     };
-    const html = Analyzer.exportHtml(meta, subset, anPols, anGroups);
+    // The funnel describes the RUN, not the current filter: computing it from
+    // `subset` would make the drop set its own denominator — a funnel of a
+    // funnel, reading 100% at every stage.
+    const html = Analyzer.exportHtml(meta, subset, anPols, anGroups, anLicRead, anReport);
     const blob = new Blob([html], { type: "text/html" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -13283,6 +13829,7 @@ max@contoso.com,"Global, DevOps"</pre>
     siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
     drHead: "toolDrift", dvHead: "toolDevCheck", lgHead: "toolLicGap",
+    uiHead: "toolUserImpact",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

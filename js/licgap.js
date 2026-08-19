@@ -100,6 +100,52 @@ const LicGap = (() => {
     return { p1, p2 };
   }
 
+  // ONE DEFINITION OF "LICENSED", for every tool that needs one.
+  //
+  // This used to live in the 🎫 Licence gap wiring alone. 🔍 Gap analyse's
+  // coverage flow needs the same verdict, and a second implementation is how
+  // two screens end up disagreeing about the same user — which has already
+  // happened here once, when the seat totals counted live SKUs and the named
+  // list read assignedPlans, so users licensed by a seat nobody owns any more
+  // appeared in one number and not the other.
+  //
+  // `m` is the Graph user (assignedLicenses + assignedPlans), `live` is
+  // liveSkuSets(skus) or null when the SKU read failed. Pure: no Graph, no DOM.
+  //
+  //   p1 / p2   holds a seat that is actually OWNED and has the plan enabled
+  //   p1grace   the plan is still on the user from a suspended or expired
+  //             subscription. The licence exists; the seat does not. That user
+  //             is in the gap, and is labelled rather than quietly counted.
+  //   lic0      no licences of any kind — usually a service account or a sync
+  //             artifact that never consumes Microsoft services, so it should
+  //             not inflate a "seats to buy" number.
+  function licenceOf(m, live) {
+    let p1 = false, p2 = false, planP1 = false, planP2 = false;
+    if (live) {
+      for (const l of m.assignedLicenses || []) {
+        const dis = l.disabledPlans || [];
+        const p1ok = live.p1.has(l.skuId) && !dis.includes(P1_PLAN);
+        const p2ok = live.p2.has(l.skuId) && !dis.includes(P2_PLAN);
+        if (p2ok) p2 = true;
+        if (p1ok || p2ok) p1 = true;
+      }
+    }
+    for (const ap of m.assignedPlans || []) {
+      if (ap.capabilityStatus !== "Enabled" && ap.capabilityStatus !== "Warning") continue;
+      if (ap.servicePlanId === P1_PLAN) planP1 = true;
+      else if (ap.servicePlanId === P2_PLAN) planP2 = true;
+    }
+    // No SKU read at all — the plans are the only signal left, and the result
+    // says elsewhere that it is the weaker one. Better than refusing to answer.
+    if (!live) { p1 = planP1 || planP2; p2 = planP2; }
+    return {
+      p1: p1 || p2, p2,
+      p1grace: !!(live && !p1 && !p2 && (planP1 || planP2)),
+      p2grace: !!(live && !p2 && planP2),
+      lic0: !(m.assignedLicenses || []).length,
+    };
+  }
+
   // What a policy scopes, as Graph spells it. GuestsOrExternalUsers in the
   // legacy excludeUsers list is a marker, not a user id.
   function scopeOf(raw) {
@@ -426,5 +472,5 @@ const LicGap = (() => {
     return L.join("\n");
   }
 
-  return { analyze, toMd, scopeOf, riskKindsOf, licenseTotals, liveSkuSets, P1_PLAN, P2_PLAN };
+  return { analyze, toMd, scopeOf, riskKindsOf, licenseTotals, liveSkuSets, licenceOf, P1_PLAN, P2_PLAN };
 })();

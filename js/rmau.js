@@ -105,6 +105,10 @@ const Rmau = (() => {
       L.push(`- <sub>id \`${au.id}\`${au.visibility ? ` · visibility: ${au.visibility}` : ""}</sub>`);
       L.push("");
     }
+    // R28 — the tenant's own group → persona mapping, stated where a reader can
+    // see it. A routing decision that appears nowhere in the documentation is a
+    // decision the next administrator has to rediscover from behaviour.
+    if (Array.isArray(meta.personaMap) && meta.personaMap.length) L.push(...meta.personaMap);
     L.push("The isMemberManagementRestricted flag is immutable — an existing AU cannot be converted either way. Members of a restricted AU can only be managed by roles scoped to that AU.", "");
     return L.join("\n");
   }

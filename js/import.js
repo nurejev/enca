@@ -120,15 +120,23 @@ const Importer = (() => {
     Object.entries(PERSONA_GROUPS).map(([k, g]) => [k, g.replace(/^CAD-SEC-U-DG-/, "")]));
 
   // A group's vault is decided by ONE rule, shared with ⑥ Protect:
-  // Rmau.codeForGroup reads the CA number out of the group's own name. Import
-  // used to infer it from the personas of the policies that reference the
-  // group, which cannot answer for CAB-SEC-U-BreakGlass (every persona excludes
-  // it) and gets no answer at all for a group whose policies were not selected.
-  // Persona inference is kept only as the fallback for a group whose name
-  // carries no CA number.
-  const fixedCode = (name) => {
-    try { return (typeof Rmau !== "undefined" && Rmau.codeForGroup) ? Rmau.codeForGroup(name) : null; }
-    catch { return null; }
+  // CaMap.codeOf — this tenant's own stated mapping (R28) first, then the CA
+  // number in the group's own name. Import used to infer it from the personas
+  // of the policies that reference the group, which cannot answer for
+  // CAB-SEC-U-BreakGlass (every persona excludes it) and gets no answer at all
+  // for a group whose policies were not selected. Persona inference is kept
+  // only as the fallback for a group nothing else places.
+  //
+  // Going through CaMap rather than Rmau directly is what makes the mapping
+  // reach import at all: a reused group called Contractors-NoMFA is filed into
+  // the vault the tenant said it belongs in, instead of falling to inference
+  // that answers from whichever policies happened to be selected.
+  const fixedCode = (g) => {
+    try {
+      if (typeof CaMap !== "undefined" && CaMap.codeOf) return CaMap.codeOf(g);
+      const name = typeof g === "object" ? (g.displayName || g.name || "") : g;
+      return (typeof Rmau !== "undefined" && Rmau.codeForGroup) ? Rmau.codeForGroup(name) : null;
+    } catch { return null; }
   };
 
   // Which persona's vault does an imported group belong in? A group has no
@@ -143,7 +151,7 @@ const Importer = (() => {
   function groupPersonas(bundle, chosenRaws) {
     const out = new Map();
     for (const g of bundle.groups || []) {
-      const fixed = fixedCode(g.displayName);
+      const fixed = fixedCode(g);
       if (fixed) { out.set(g.id, { name: g.displayName, personas: [], persona: null, code: fixed, why: null }); continue; }
       const seen = new Set();
       for (const raw of chosenRaws) {
@@ -176,7 +184,7 @@ const Importer = (() => {
     // Break-glass is not a persona, so it is added by the presence of the group
     // itself rather than by any policy name.
     for (const g of bundle.groups || []) {
-      const c = fixedCode(g.displayName);
+      const c = fixedCode(g);
       if (c) codes.add(c);
     }
     return [...codes];

@@ -201,7 +201,16 @@ const Assign = (() => {
     // Redundant on two shapes, so not sent for them: a DYNAMIC group's members
     // are rule-driven and can only be users or devices, and a ROLE-ASSIGNABLE
     // group already has group-in-group refused by Entra.
-    const wantsNesting = t.disableNesting !== false && !dynamic && !roleAssignable;
+    // OPT-IN until the property is generally available. It used to default ON
+    // for every create (build 284), which was right in principle and wrong in
+    // practice: on a tenant whose directory does not carry the property, every
+    // single create ended in a red failure line for a security setting that
+    // could not be applied — and every create panel had promised it would be.
+    // A caller now has to ask for it explicitly, and CaGroups.NESTING_GA flips
+    // the default back the day Microsoft ships it, without touching callers.
+    // Skipped entirely once this tenant has already refused it once.
+    const wantsNesting = (t.disableNesting === true || (CaGroups.NESTING_GA && t.disableNesting !== false))
+      && !dynamic && !roleAssignable && CaGroups.nestingSupported();
     if (wantsNesting) p.disableNesting = true;
     return p;
   }
@@ -226,10 +235,14 @@ const Assign = (() => {
       // blindly would swallow a real validation error and create a group the
       // caller did not describe.
       if (!wanted || !/disablenesting|unknown|not recognized|invalid propert/i.test(e.message || "")) throw e;
+      const unsupported = CaGroups.noteNestingUnsupported(e);
       payload = { ...payload }; delete payload.disableNesting;
       g = await Graph.gpostGroupCreate("/groups", payload);
       const out = { id: g.id, name: g.displayName, created: true,
         dynamic: !!template.dynamic, roleAssignable: !!payload.isAssignableToRole };
+      // A directory that does not know the property will not know it a moment
+      // later either — do not spend two more calls proving it per group.
+      if (unsupported) return { ...out, nesting: "unsupported", nestingError: CaGroups.NESTING_UNSUPPORTED_TEXT };
       return { ...out, ...(await confirmNesting(out, e.message)) };
     }
     const out = { id: g.id, name: g.displayName, created: true,
@@ -248,19 +261,29 @@ const Assign = (() => {
   // ⑧ Disable nesting step can finish the job. A group that exists with nesting
   // allowed is a smaller problem than a create that threw.
   async function confirmNesting(group, createNote) {
+    // v1.0, not the beta base every other call uses: the ONLY Learn page that
+    // names disableNesting is the v1.0 PATCH /groups one. See the note in
+    // js/cagroups.js — asking beta for a property beta does not document is a
+    // plausible reading of the 400 this returns on some tenants.
     const read = async () => {
       try {
-        const r = await Graph.gget(`/groups/${group.id}?$select=id,disableNesting`, NEST_SCOPES);
+        const r = await Graph.gget(CaGroups.NEST_V1(`/groups/${group.id}?$select=id,disableNesting`), NEST_SCOPES);
         return r && r.disableNesting === true;
-      } catch { return null; }          // null = could not tell
+      } catch (e) {
+        if (CaGroups.noteNestingUnsupported(e)) return "unsupported";
+        return null;                    // null = could not tell
+      }
     };
-    if (await read()) return { nesting: "disabled" };
+    const first = await read();
+    if (first === true) return { nesting: "disabled" };
+    if (first === "unsupported") return { nesting: "unsupported", nestingError: CaGroups.NESTING_UNSUPPORTED_TEXT, nestingNote: createNote || null };
     try {
-      await Graph.gpatch(`/groups/${group.id}`, { disableNesting: true }, NEST_SCOPES);
+      await Graph.gpatch(CaGroups.NEST_V1(`/groups/${group.id}`), { disableNesting: true }, NEST_SCOPES);
     } catch (e) {
+      if (CaGroups.noteNestingUnsupported(e)) return { nesting: "unsupported", nestingError: CaGroups.NESTING_UNSUPPORTED_TEXT, nestingNote: createNote || null };
       return { nesting: "failed", nestingError: e.message || String(e), nestingNote: createNote || null };
     }
-    if (await read()) return { nesting: "disabled" };
+    if (await read() === true) return { nesting: "disabled" };
     return { nesting: "failed",
       nestingError: "the tenant accepted the change but does not report disableNesting as set — it may not have the feature yet",
       nestingNote: createNote || null };

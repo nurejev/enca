@@ -133,6 +133,13 @@ const Analyzer = (() => {
   }
 
   // ---------- data collection via Graph ----------
+  // assignedLicenses / assignedPlans ride along on the user read for the
+  // coverage flow's licence stage. They cost nothing extra — same request,
+  // two more fields — and they must come from HERE: /directoryObjects/getByIds
+  // returns only the common user property set and does not support $select, so
+  // asking it for licences yields an object with neither field and a confident
+  // "nobody is licensed" for the whole tenant. That is the one failure mode a
+  // coverage number must not have, because it is wrong rather than absent.
   // R29 — `only` limits the scan to named principals: { users:[{id,name}],
   // groups:[{id,name}] }. A group is expanded to its transitive MEMBERS, not
   // treated as one row: the question is whether these PEOPLE are covered, and
@@ -158,7 +165,7 @@ const Analyzer = (() => {
       const chunk = list.slice(k, k + 15);
       try {
         const f = chunk.map((x) => `id eq '${x}'`).join(" or ");
-        const r = await Graph.ggetAll(`/users?$filter=${encodeURIComponent(f)}&$select=id,userPrincipalName,displayName,accountEnabled,userType&$top=999`);
+        const r = await Graph.ggetAll(`/users?$filter=${encodeURIComponent(f)}&$select=id,userPrincipalName,displayName,accountEnabled,userType,assignedLicenses,assignedPlans&$top=999`);
         out.push(...r);
       } catch (e) { console.warn("gap analyse: user chunk failed", e.message); }
     }
@@ -178,7 +185,7 @@ const Analyzer = (() => {
       users = await collectNamed(only, onStatus);
     } else {
       onStatus("Fetching users…");
-      users = await Graph.ggetAll("/users?$select=id,userPrincipalName,displayName,accountEnabled,userType&$top=999");
+      users = await Graph.ggetAll("/users?$select=id,userPrincipalName,displayName,accountEnabled,userType,assignedLicenses,assignedPlans&$top=999");
       if (scope === "member") users = users.filter(u => u.userType !== "Guest");
       if (scope === "guest") users = users.filter(u => u.userType === "Guest");
     }
@@ -284,6 +291,15 @@ const Analyzer = (() => {
         enforcedCount: enforcedIncluded.length,
         bypassing, riskyCount: bypassing.filter(b => b.risky).length,
         mfaCovered: mfaVia.length > 0, mfaVia,
+        // Which licence THIS user's policies oblige. A risk-based policy —
+        // one carrying sign-in or user risk conditions — requires Entra ID P2
+        // for everyone it targets; everything else requires P1. Report-only
+        // counts, because the licensing terms are about targeting rather than
+        // enforcement, so this reads `applied` and not `enforcedIncluded`.
+        needsP2: applied.some((P) => P.userRisk.length > 0 || P.signInRisk.length > 0),
+        // Filled by the caller from LicGap.licenceOf once the SKU list is
+        // known; null means "not read for this user", never "unlicensed".
+        lic: null,
       });
     }
     report.sort((a, b) => b.riskyCount - a.riskyCount || b.bypassing.length - a.bypassing.length || a.user.localeCompare(b.user));
@@ -299,8 +315,168 @@ const Analyzer = (() => {
     };
   }
 
+  // ---------- coverage flow ----------
+  // "How many of them do your policies actually reach?" — the question the
+  // summary cards never answered, because each card counts a different thing
+  // against a different denominator and none of them says how many people are
+  // in the tenant to begin with.
+  //
+  // Five stages, each a subset of the one above it, so every number can be read
+  // two ways: as a share of the whole tenant, and as what survived the previous
+  // step. The drop between two stages is the finding — a tenant where 900 users
+  // are targeted and 40 are covered by an enforced policy has a report-only
+  // backlog, not a coverage problem, and the funnel is what makes those two
+  // look different.
+  //
+  //   users      everyone in scope. The denominator, stated rather than implied.
+  //   targeted   at least one ACTIVE policy applies to them. Below this line
+  //              Conditional Access does not exist for that person.
+  //   enforced   at least one policy applies that is actually ON. Report-only
+  //              evaluates and records; it protects nobody, and collapsing the
+  //              two is the most flattering mistake this tool could make.
+  //   mfa        some enforced policy demands MFA or an authentication
+  //              strength of them.
+  //   licensed   they hold the licence their own policies oblige — P2 where a
+  //              risk-based policy targets them, P1 otherwise.
+  //
+  // Each row may carry `lic` — {p1,p2} for that user — put there by the wiring
+  // after the licence read. `licRead` says whether the read happened at all,
+  // and it is a separate argument rather than something inferred from the rows:
+  // a tenant where every targeted user happens to be unlicensed would otherwise
+  // be indistinguishable from one where nobody looked, and those are opposite
+  // findings. The stage renders as NOT READ, never as zero.
+  //
+  // Pure over its arguments: no DOM, no Graph, no globals. Testable with node.
+  const STAGE_META = [
+    { key: "users",    label: "In scope",            hint: "Every user this run judged." },
+    { key: "targeted", label: "Targeted by a policy", hint: "At least one active Conditional Access policy applies to them. Everyone below this line is outside Conditional Access altogether." },
+    { key: "enforced", label: "Covered by an enforced policy", hint: "At least one of those policies is switched On. Report-only policies evaluate and record — they do not protect anybody." },
+    { key: "mfa",      label: "Required to do MFA",  hint: "Some enforced policy demands MFA or an authentication strength of them." },
+    { key: "licensed", label: "Licensed for what they are targeted by", hint: "They hold Entra ID P2 where a risk-based policy targets them, P1 otherwise. The obligation follows targeting, not sign-ins." },
+  ];
+
+  // The predicate for each funnel stage's DROP — the users who did not get
+  // past it. Kept here, next to the stage definitions, and used both to count
+  // the drop and to filter the list when a row is clicked, so the number on the
+  // funnel and the number of rows it opens cannot disagree.
+  const DROP = {
+    users:    null,                                                        // the denominator drops nobody
+    targeted: (r) => r.applied.length === 0,
+    enforced: (r) => r.applied.length > 0 && r.enforcedCount === 0,
+    mfa:      (r) => r.enforcedCount > 0 && !r.mfaCovered,
+    licensed: (r) => r.applied.length > 0 && !!r.lic && !(r.needsP2 ? r.lic.p2 : r.lic.p1),
+  };
+
+  function coverage(report, licRead) {
+    const rows = report || [];
+    const inScope   = rows;
+    const targeted  = rows.filter((r) => r.applied.length > 0);
+    const enforced  = targeted.filter((r) => r.enforcedCount > 0);
+    const mfa       = enforced.filter((r) => r.mfaCovered);
+    // Only the targeted can be under-licensed: a user no policy reaches has no
+    // Conditional Access obligation, so counting them as unlicensed would
+    // invent a gap. Users whose licence is simply unknown (not in the map —
+    // guests, or a capped read) are excluded from the stage and counted
+    // separately, never silently treated as licensed.
+    let licensed = null, licUnknown = 0;
+    if (licRead) {
+      licensed = [];
+      for (const r of targeted) {
+        if (!r.lic) { licUnknown++; continue; }
+        if (r.needsP2 ? r.lic.p2 : r.lic.p1) licensed.push(r);
+      }
+    }
+
+    // Each stage states the population it FILTERS, rather than inheriting the
+    // previous row. Four of them do form a chain, but the licence stage does
+    // not: it asks a different question of the TARGETED users, so measuring it
+    // against the MFA row would have reported a drop of 1 while the list it
+    // opens held 2. The base is written down so that cannot drift again.
+    const BASE = {
+      users:    null,          // the denominator
+      targeted: inScope,
+      enforced: targeted,
+      mfa:      enforced,
+      licensed: targeted,      // NOT mfa
+    };
+    const stages = [];
+    for (const meta of STAGE_META) {
+      const set = BASE[meta.key] === null ? inScope : (meta.key === "licensed" ? licensed : { users: inScope, targeted, enforced, mfa }[meta.key]);
+      if (set === null || set === undefined) {  // licences not read
+        stages.push({ ...meta, n: null, of: BASE[meta.key].length,
+          pctAll: null, dropped: null, read: false });
+        continue;
+      }
+      const base = BASE[meta.key];
+      const of = base ? base.length : set.length;
+      // Users whose licence could not be read are not "unlicensed" — they are
+      // out of the question entirely, so they leave the denominator rather
+      // than being counted as a drop.
+      const denom = meta.key === "licensed" ? of - licUnknown : of;
+      stages.push({
+        ...meta,
+        n: set.length,
+        of: denom,
+        pctAll: inScope.length ? set.length / inScope.length : 0,
+        dropped: base ? denom - set.length : 0,
+        read: true,
+      });
+    }
+    return {
+      stages, total: inScope.length,
+      licenceRead: !!licRead, licUnknown,
+      // The two numbers the funnel exists to put next to each other.
+      untargeted: inScope.length - targeted.length,
+      reportOnlyOnly: targeted.length - enforced.length,
+    };
+  }
+
   // ---------- results rendering (in-app) ----------
   function pill(n, cls) { return `<span class="pill ${n ? cls : "zero"}">${n}</span>`; }
+
+  // The funnel, as proportional bars. Each row is one stage; the bar is its
+  // share of the WHOLE tenant, so the shape of the drop is visible at a glance
+  // rather than having to be computed from five percentages.
+  function coverageHtml(cov, filter, narrowed) {
+    if (!cov || !cov.total) return "";
+    const pc = (v) => v == null ? "—" : `${Math.round(v * 1000) / 10}%`;
+    const rows = cov.stages.map((st, i) => {
+      const w = st.read ? Math.max(st.pctAll * 100, st.n ? 0.6 : 0) : 0;
+      const drop = i > 0 && st.read && st.dropped > 0;
+      // A row is clickable only when it HAS a drop to show. A stage nobody
+      // fell out of, and a stage that was never read, are not links that
+      // quietly do nothing when pressed.
+      const f = drop ? `cf:${st.key}` : (st.key === "users" ? "all" : null);
+      const on = f && filter === f;
+      return `<div class="cf-row${st.read ? "" : " cf-unread"}${f ? " cf-click" : ""}${on ? " active" : ""}"
+        ${f ? `data-f="${esc(f)}" role="button" tabindex="0"` : ""}
+        title="${esc(st.hint)}${f && drop ? ` — click to list the ${st.dropped.toLocaleString()} who did not get this far.` : ""}">
+        <div class="cf-label">${esc(st.label)}</div>
+        <div class="cf-track"><div class="cf-fill cf-${esc(st.key)}" style="width:${w}%"></div></div>
+        <div class="cf-n">${st.read ? `<b>${st.n.toLocaleString()}</b> <span class="mini muted">${pc(st.pctAll)}</span>`
+          : '<span class="mini muted">not read</span>'}</div>
+        <div class="cf-drop mini">${drop
+          ? `<span style="color:var(--off)">−${st.dropped.toLocaleString()}</span> <span class="muted">of ${st.of.toLocaleString()}</span>`
+          : i === 0 ? '<span class="muted">the denominator</span>' : '<span class="muted">—</span>'}</div>
+      </div>`;
+    }).join("");
+    // One sentence that says what the shape means, so the funnel is not left
+    // to be interpreted. It names the biggest drop rather than every drop.
+    const notes = [];
+    if (cov.untargeted) notes.push(`<b>${cov.untargeted.toLocaleString()}</b> ${cov.untargeted === 1 ? "user is" : "users are"} reached by <b>no active policy at all</b> — for them Conditional Access is not weak, it is absent.`);
+    if (cov.reportOnlyOnly) notes.push(`<b>${cov.reportOnlyOnly.toLocaleString()}</b> ${cov.reportOnlyOnly === 1 ? "is" : "are"} targeted only by policies in <b>report-only</b>: evaluated and recorded, protected by nothing.`);
+    if (cov.licenceRead && cov.licUnknown) notes.push(`<b>${cov.licUnknown.toLocaleString()}</b> targeted ${cov.licUnknown === 1 ? "user has" : "users have"} no licence record in this run (guests, or a capped read) and ${cov.licUnknown === 1 ? "is" : "are"} left out of the licence stage rather than counted as licensed.`);
+    if (!cov.licenceRead) notes.push(`Licences were not read on this run, so the last stage is blank rather than zero — “we did not look” and “nobody is licensed” are opposite findings.`);
+    // The funnel counts the whole run; the list underneath can be narrowed
+    // further by the group, user-type and search controls. Saying so is the
+    // honest fix for two numbers that would otherwise appear to disagree.
+    if (narrowed) notes.push(`<b>The list below is filtered further</b> — by a group, a user type or a search — so it holds fewer rows than the numbers above. Clicking a row here clears those.`);
+    return `<div class="list-card cf-card">
+      <div class="cf-head"><b>Coverage</b> <span class="mini muted">— how many of the ${cov.total.toLocaleString()} in scope your policies actually reach, and how far each one gets. Click a row to list the users who did <b>not</b> get that far.</span></div>
+      ${rows}
+      ${notes.length ? `<div class="cf-notes mini">${notes.map((n) => `<div>${n}</div>`).join("")}</div>` : ""}
+    </div>`;
+  }
   function filterRows(report, filter, query, memberSet, utype) {
     const idx = [];
     report.forEach((r, i) => {
@@ -310,6 +486,16 @@ const Analyzer = (() => {
       if (filter === "risky" && !r.riskyCount) return;
       if (filter === "nomfa" && r.mfaCovered) return;
       if (filter === "noenforce" && r.enforcedCount) return;
+      // Coverage-flow drops. Deliberately NOT the same sets as the summary
+      // cards above them: "no MFA from CA" counts everyone without MFA
+      // including the users no policy reaches at all, while the funnel's MFA
+      // drop counts only those a policy DOES reach and still does not ask.
+      // Reusing the card filters would put a number on the funnel that opens a
+      // different number of rows.
+      if (filter.startsWith("cf:")) {
+        const drop = DROP[filter.slice(3)];
+        if (drop && !drop(r)) return;
+      }
       if (query && !r.user.toLowerCase().includes(query) && !r.upn.toLowerCase().includes(query)) return;
       idx.push(i);
     });
@@ -375,9 +561,17 @@ const Analyzer = (() => {
   }
 
   // ---------- standalone shareable HTML export (neutral branding) ----------
-  function exportHtml(meta, report, pols, groups) {
+  // `full` is the WHOLE run; `report` is what the current filter selected and
+  // is what the tables render. The funnel describes the run, so computing it
+  // from the filtered subset would make the drop set its own denominator.
+  function exportHtml(meta, report, pols, groups, licRead, full) {
     const sum = summary(report);
-    const data = JSON.stringify(report).replace(/</g, "\\u003c");
+    const cov = coverage(full || report, !!licRead);
+    // The report renders nothing per-user from `lic`, and this file is meant to
+    // be shared — so the licence entitlement of named people is dropped from
+    // the embedded data rather than travelling in it. The funnel above already
+    // carries the only thing the reader needs, which is the aggregate.
+    const data = JSON.stringify(report.map(({ lic, ...r }) => r)).replace(/</g, "\\u003c");
     const polData = JSON.stringify(pols || []).replace(/</g, "\\u003c");
     const grpData = JSON.stringify((groups || []).map(g => ({ label: g.label, category: g.category || "", ids: [...g.users] }))).replace(/</g, "\\u003c");
     return `<!DOCTYPE html>
@@ -409,6 +603,15 @@ tr.urow.open td{background:#f1f2f8}
 .tab{padding:11px 18px;cursor:pointer;border-bottom:2px solid transparent;font-size:14px;color:#6b7280;user-select:none}
 .tab.active{color:#1f2933;border-bottom-color:#323f4b;font-weight:600}
 .view.hidden{display:none}
+.cf{padding:14px 26px;background:#fff;border-bottom:1px solid #e6e6ee}
+.cf-h{font-size:13px;margin-bottom:9px}
+.cf-r{display:grid;grid-template-columns:minmax(150px,1.6fr) minmax(90px,3fr) 110px 120px;gap:10px;align-items:center;font-size:12.5px;padding:3px 0}
+.cf-t{height:12px;border-radius:6px;background:#eef0f6;border:1px solid #e0e3ec;overflow:hidden}
+.cf-f{height:100%;border-radius:6px 0 0 6px}
+.cf-users{background:#7a8899}.cf-targeted{background:#0a7d39}.cf-enforced{background:#2e9e5b}.cf-mfa{background:#b9770e}.cf-licensed{background:#4a7fb5}
+.cf-n{text-align:right;white-space:nowrap}.cf-m{color:#6b7280;font-size:11.5px}.cf-d{color:#c0392b}
+.cf-note{margin-top:9px;padding-top:8px;border-top:1px solid #f0f0f5;font-size:11.5px;color:#4b5563;line-height:1.7}
+@media(max-width:760px){.cf-r{grid-template-columns:1fr auto}.cf-t{grid-column:1/-1}.cf-n:last-child{grid-column:1/-1;text-align:left}}
 .mwrap{overflow:auto;background:#fff}
 .mtable{border-collapse:separate;border-spacing:0;font-size:12px}
 .mtable th,.mtable td{border-bottom:1px solid #f0f0f5;border-right:1px solid #f0f0f5;white-space:nowrap}
@@ -428,6 +631,21 @@ tr.urow.open td{background:#f1f2f8}
 .mini{font-size:12px;color:#6b7280}footer{padding:14px 26px;color:#6b7280;font-size:12px}
 </style></head><body>
 <header><h1>Conditional Access Impact Report</h1><div class="meta">${esc(meta.tenant)} · ${esc(meta.date)} · ${meta.policies} policies analysed · scope: ${esc(meta.scope)}</div></header>
+${cov.total ? `<div class="cf">
+  <div class="cf-h"><b>Coverage</b> — how many of the ${cov.total.toLocaleString()} in scope your policies actually reach, and how far each one gets.</div>
+  ${cov.stages.map((st, i) => `<div class="cf-r">
+    <div>${esc(st.label)}</div>
+    <div class="cf-t"><div class="cf-f cf-${esc(st.key)}" style="width:${st.read ? Math.max(st.pctAll * 100, st.n ? 0.6 : 0) : 0}%"></div></div>
+    <div class="cf-n">${st.read ? `<b>${st.n.toLocaleString()}</b> <span class="cf-m">${Math.round(st.pctAll * 1000) / 10}%</span>` : '<span class="cf-m">not read</span>'}</div>
+    <div class="cf-n cf-m">${i > 0 && st.read && st.dropped > 0 ? `<span class="cf-d">−${st.dropped.toLocaleString()}</span> of ${st.of.toLocaleString()}` : i === 0 ? "the denominator" : "—"}</div>
+  </div>`).join("")}
+  <div class="cf-note">${[
+    cov.untargeted ? `<b>${cov.untargeted.toLocaleString()}</b> reached by <b>no active policy at all</b> — for them Conditional Access is absent, not weak.` : "",
+    cov.reportOnlyOnly ? `<b>${cov.reportOnlyOnly.toLocaleString()}</b> targeted only by <b>report-only</b> policies: evaluated and recorded, protected by nothing.` : "",
+    cov.licenceRead && cov.licUnknown ? `<b>${cov.licUnknown.toLocaleString()}</b> targeted with no licence record in this run (guests, or a capped read), left out of the licence stage rather than counted as licensed.` : "",
+    !cov.licenceRead ? `Licences were not read on this run, so the last stage is blank rather than zero.` : "",
+  ].filter(Boolean).map((n) => `<div>${n}</div>`).join("")}</div>
+</div>` : ""}
 <div class="cards">
   <div class="card active" data-f="all"><div class="n">${sum.users}</div><div class="l">Users</div></div>
   <div class="card risk" data-f="risky"><div class="n">${sum.risky}</div><div class="l">Risky bypasses</div></div>
@@ -486,5 +704,6 @@ draw();
 </script></body></html>`;
   }
 
-  return { collect, collectNamed, collectDemo, evaluate, summary, filterRows, userRows, userDetail, policyMeta, buildMatrixMaps, matrixTable, exportHtml, resolveGroup };
+  return { collect, collectNamed, collectDemo, evaluate, summary, coverage, coverageHtml,
+    filterRows, userRows, userDetail, policyMeta, buildMatrixMaps, matrixTable, exportHtml, resolveGroup };
 })();
