@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25147, date: "2026-08-19", title: "The error code knows which control stopped the sign-in",
+    items: [
+      { kind: "improved", tool: "Sign-in failures", text: "Interrupt attribution is narrowed by what the error code can actually demand. First real-tenant record: a 50097 (device authentication required) listed both the MFA policy and the sign-in-frequency policy, and the honest answer was only one of them — neither has a device control, but enforcing sign-in frequency in a browser means authenticating the DEVICE to read the session's auth timestamp, and on an unmanaged machine without a PRT that round-trip is the interrupt. Now the MFA-family codes (50074, 50076, 50072, 50079, 500121) attach to the applied policies carrying an MFA or authentication-strength control, 50097 to compliant/joined-device or sign-in-frequency controls, and 50158 to terms of use. When no applied control matches the code — terms-of-use agreements can surface under their own display name — attribution falls back to every control-bearing applied policy rather than dropping the record." },
+    ],
+  },
+  {
     build: 25146, date: "2026-08-19", title: "A release the home page does not announce did not happen",
     items: [
       { kind: "fixed", tool: "Sign-in failures", text: "Build 25145 shipped the interrupt capture without the tile's UPDATED tag — and the tag is not decoration: it is what exempts a tile from the home-page collapse and lifts it to the top, so the change was invisible behind “Show 7 more” unless you already knew to expand. The tag is on, and the tile now says the tool covers interrupted sign-ins as well as failed ones." },

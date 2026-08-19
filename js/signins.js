@@ -48,6 +48,21 @@ const Signins = (() => {
   const INTERRUPT = new Set([50074, 50076, 50072, 50079, 50097, 50158, 500121]);
   const isInterrupt = (rec) => INTERRUPT.has((rec.status || {}).errorCode);
 
+  // The error code narrows WHICH control stopped the sign-in — a 50097 next
+  // to an MFA policy and a sign-in-frequency policy belongs to the latter:
+  // enforcing SIF in a browser means authenticating the DEVICE to read the
+  // session's auth timestamp, and on a machine without a PRT that round-trip
+  // is the interrupt. Matched against the enforced control strings; when no
+  // applied policy carries a matching control (terms-of-use agreements can
+  // surface under their own display name) attribution falls back to every
+  // control-bearing policy rather than dropping the record.
+  const MFA_RX = /mfa|auth(entication)?.?strength/i;
+  const INT_CONTROLS = {
+    50074: MFA_RX, 50076: MFA_RX, 50072: MFA_RX, 50079: MFA_RX, 500121: MFA_RX,
+    50097: /compliantdevice|domainjoineddevice|signinfrequency/i,
+    50158: /termsofuse|tou/i,
+  };
+
   // Graph filter for the fetch: date window, server-filtered to CA failures
   // when the mode allows it. signIns caps $top at 999 like directoryAudits.
   function query(days, mode) {
@@ -84,9 +99,13 @@ const Signins = (() => {
     // result is 'success' AND that imposed a control — that control is what
     // stopped the sign-in. An interrupt with no such policy (per-user MFA,
     // security defaults) is not CA's doing and is dropped by the caller.
-    return (rec.appliedConditionalAccessPolicies || [])
+    const bearing = (rec.appliedConditionalAccessPolicies || [])
       .filter((p) => p.result === "success"
-        && ((p.enforcedGrantControls || []).length || (p.enforcedSessionControls || []).length))
+        && ((p.enforcedGrantControls || []).length || (p.enforcedSessionControls || []).length));
+    const rx = INT_CONTROLS[(rec.status || {}).errorCode];
+    const matched = rx ? bearing.filter((p) =>
+      [...(p.enforcedGrantControls || []), ...(p.enforcedSessionControls || [])].some((c) => rx.test(String(c)))) : [];
+    return (matched.length ? matched : bearing)
       .map((p) => ({ ...shapePol(p), result: "interrupted" }));
   }
 
