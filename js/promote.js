@@ -63,6 +63,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 66,
+      title: "\ud83c\udf10 Named locations report what is wrong with them (R37)",
+      tools: ["Named locations"],
+      builds: [25152],
+      risk: "low",
+      what: "Locations.findings(list, raws) \u2014 a pure function over the location list and the policies already in memory \u2014 raises four checks: dangling policy reference to a missing location id, empty country location, overly broad IP range (/0 or /8, /32 for IPv6, raised a level when the location is trusted), and untrusted IP location where policies consume All trusted locations. Surfaced in a findings panel above the list, a \u26a0 badge per row/card, the per-location report and the inventory Markdown export (findings ahead of the inventory table). No new Graph call and no writes.",
+      why: "Reads only, and additive \u2014 nothing existing changes behaviour. It graduates once the four checks have been seen against a few real tenants, because the one that can be WRONG is the untrusted-IP check: it is suppressed where a Block policy names the location or the name says so, and the honest test of that suppression is a tenant with a block list nobody told us about. A check that cries wolf about the normal case is the failure mode to watch for here, not a crash.",
+      files: ["js/locations.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 65,
       title: "\ud83e\uddec The bundled baseline is renamed to CloudFellows (R35)",
       tools: ["Baseline Policies"],

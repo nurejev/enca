@@ -733,6 +733,17 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .lo-tact{white-space:nowrap;text-align:right}
 .lo-more{cursor:pointer;font-weight:600;color:var(--accent2);white-space:nowrap}
 .lo-more:hover{text-decoration:underline}
+/* findings panel (R37) — sits above the list in both views, so it keeps the
+   list's own left edge rather than looking like a card in the grid */
+.lo-find{padding:12px 14px;margin-bottom:12px}
+.lo-findh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
+.lo-findh .btn{margin-left:auto}
+.lo-findlist{margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto}
+.lo-findrow{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
+.lo-findt{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12.5px}
+.lo-findt b{overflow-wrap:anywhere}
+/* the ⚠ badge on a row/card opens the same report the name does */
+.lo-fbadge{cursor:pointer}
 /* one changed field per line in the compare view */
 .lo-drift{padding:1px 0}
 /* CA groups — member scan picker */

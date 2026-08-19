@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25151"></script>
+<script src="js/popup-guard.js?v=25152"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25151">
+<link rel="stylesheet" href="css/app.css?v=25152">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25151"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25151"></script>
+<script src="js/counter.js?v=25152"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25152"></script>
 </head>
 <body>
 
@@ -200,8 +200,8 @@
         <p>Place the CA exclusion groups in a restricted management administrative unit, so only AU-scoped roles can change their membership — closing the "an admin adds themselves to an exclusion group" bypass. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolLocations">
-        <div class="tool-ic">🌐</div><h3>Named locations</h3>
-        <p>View, create, edit and delete Conditional Access named locations — IP ranges and countries — and see which policies use each one. <span class="tag block">writes to tenant</span></p>
+        <div class="tool-ic">🌐</div><h3>Named locations <span class="tag upd">UPDATED</span></h3>
+        <p>View, create, edit and delete Conditional Access named locations — IP ranges and countries — see which policies use each one, and what is <b>wrong</b> with them: dangling policy references, empty country locations, overly broad ranges. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolAuthCtx">
         <div class="tool-ic">🎫</div><h3>Authentication contexts</h3>
@@ -1213,6 +1213,13 @@
             <p class="mini" style="margin:6px 0 0">A rename is not one string, and all of them moved together: the catalog's own <code>label</code> and <code>author</code> — which is what the 🧬 Baseline Policies header, the on-screen summary line and the Markdown gap report all read, so none of the three could drift from the others — the tile, the home overview, the Help section and the code comments that explain why a rule exists (📘 MS Learn's exclusion-group convention refers to the baseline by name).</p>
             <p class="mini" style="margin:6px 0 0"><b>Two things deliberately untouched.</b> The catalog <code>id</code> is still <code>limonit</code>: saved state and 📉 Drift watch snapshots key on it, so changing it would silently orphan every comparison stored before today — an identifier that appears in no interface has no reason to follow a display name. And the <b>CAB-SEC / CAD-SEC group names</b> are the tenant's own objects, not ours to rename; nothing in the 99-policy catalog, the group templates or the persona routing moved. Display name everywhere, identifiers nowhere.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25152">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R37</span> <a href="#" class="md-tool" data-tool="toolLocations">🌐 Named locations report what is wrong with them</a> <span class="tag grant">live · beta 25152</span></h4>
+            <p class="mini" style="margin:0">🌐 Named locations already knew all of this. It resolved which policies use each location and how, it counted the ones reachable only through <b>All trusted locations</b>, and it warned while editing that flipping the trusted flag moves every policy consuming it — and none of it became a <b>finding</b>. It was a reporting gap, not a reading gap, which is why it went ahead of anything needing new Graph calls: <b>the four checks cost no extra read</b>, they run over the location list and the policies already in memory.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Four checks.</b> A <b>dangling reference</b> — a policy naming a location id this tenant no longer has, the same failure ① Check reports for groups; high while an enforced policy still names it, because an exclusion built on it silently stopped applying while the policy went on reading as configured. An <b>empty country location</b>, which matches nothing, so the block scoped to it blocks nobody — and a location that includes unknown regions is deliberately <i>not</i> flagged, because that one does match something. An <b>overly broad IP range</b>: a <code>/0</code> is the whole internet and a <code>/8</code> is 16.7 million addresses, neither of which is an office, and a <b>trusted</b> location carrying one is raised a level because everything using All trusted locations inherits it without naming it. And the <b>untrusted IP location</b>.</p>
+            <p class="mini" style="margin:6px 0 0"><b>The fourth check is the one that had to be careful.</b> The trusted flag only changes behaviour when something actually consumes <i>All trusted locations</i>, so in a tenant where nothing does it says nothing at all. Where a <b>Block policy names the location</b>, or the name says so itself, nothing is raised either — <code>_Blocked IPs</code> is untrusted on purpose and marking it trusted would be the bug. Everywhere else it is raised as <b>low</b> and the finding text names the deliberate block list as a valid reason to leave it exactly as it is. A check that cries wolf about the normal case is worse than no check. The context-aware form follows <a href="https://github.com/Jhope188/ca-policy-analyzer" target="_blank" rel="noopener noreferrer">ca-policy-analyzer</a> v1.16.3, which shipped the naive version first and then had to narrow it for exactly this case.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Where they surface, and where they deliberately do not.</b> A panel above the list, a ⚠ badge on each row, the per-location report and both Markdown exports — with findings ahead of the inventory table, because the findings are why the file was opened. They are <b>not</b> in 🔍 Gap analyse: that tool reads policies and this reads objects, and a first non-policy finding there would need its own answer to “what is a finding <i>about</i>”. The open question is still open, now with an implementation to argue from.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -1221,12 +1228,6 @@
             <p class="mini" style="margin:0">Today <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Baseline (Joey Verlinden)</a> only compares: it tells you which of his 36 policies a tenant has and what differs. Everything else the bundled baseline gets — <b>group checks, group creation, persona checks, restricted-AU creation and placement</b> — stops at the CloudFellows catalog. The plan is parity: pick a baseline, and every tool downstream works against the one you picked.</p>
             <p class="mini" style="margin:6px 0 0">Plus <b>fetch the latest release</b> from <a href="https://github.com/j0eyv/ConditionalAccessBaseline" target="_blank" rel="noopener noreferrer">github.com/j0eyv/ConditionalAccessBaseline</a> rather than shipping a transcription. The catalog here is a hand-checked snapshot pinned at commit <code>38469a4</code>, release 2026.6.1 — accurate the day it was written and stale the day he pushes. Reading <code>Config/ConditionalAccess</code> live means the tool tracks his repo instead of our copy of it, and can say which commit it read.</p>
             <p class="mini" style="margin:6px 0 0"><b>Three things make this more than plumbing.</b> His <b>exclusion groups are named after the policy</b> — “&lt;policy name&gt; - Exclude” — not by CA number, and every routing decision in ⑥ Protect, ＋ Bulk add and the RMAU baseline reads a CA number out of a group name. That machinery needs a per-baseline naming contract, which is the same gap <span class="rm-ref">R28</span> opens for a tenant's own groups. His <b>personas differ</b> — Global / Admins / Internals / ServiceAccounts / Guests / Agents — and do not map onto our CA ranges at all (his CA300 block is service accounts, not externals), so the persona vaults are per-baseline too, not a rename of ours. And a <b>live fetch is a trust boundary</b>: unauthenticated GitHub is rate-limited, a repo can move or a release can be malformed, so the bundled snapshot has to stay as the fallback and the tool must say which of the two it is using rather than failing quietly to the old one.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R37</span> <a href="#" class="md-tool" data-tool="toolLocations">🌐 Named locations report what is wrong with them</a> <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">🌐 Named locations already knows this. It resolves which policies use each location and whether they use it as an include or an exclude, it counts how many locations are reachable only through <b>All trusted locations</b>, and it warns while editing that flipping the trusted flag moves every policy that consumes it. All of that is computed and none of it becomes a <b>finding</b>: a misconfigured location is visible only if somebody happens to open that one screen and read the row. It reaches no report, no export beyond the location list itself, and nothing in 🔍 Gap analyse. This is a reporting gap, not a reading gap — which is why it is worth doing before anything that needs new Graph calls.</p>
-            <p class="mini" style="margin:6px 0 0"><b>Four checks.</b> A <b>dangling reference</b> — a policy naming a location id this tenant no longer has, the same failure ① Check reports for groups, and the same cause: something was tidied up while a policy still pointed at it. An <b>empty country location</b>, which matches nothing, so the policy using it enforces nothing and still reads as configured. An <b>overly broad IP range</b> — a <code>/8</code> inside a location called “office”. And an <b>untrusted IP location</b>, which is the one that has to be careful: the trusted flag only changes behaviour when something actually consumes <i>All trusted locations</i>, so the check stays silent in a tenant with no such policy, and a deliberate block list — <code>_Blocked IPs</code> is untrusted on purpose — must be named as a valid reason to dismiss it rather than nagged about forever. A check that cries wolf about the normal case is worse than no check.</p>
-            <p class="mini" style="margin:6px 0 0">Findings surface in the tool and in its Markdown export, and the open question is whether they also belong in 🔍 Gap analyse — the argument for is that a location nobody notices is exactly the sort of hole that tool exists to find; the argument against is that Gap analyse reads policies and this reads objects, so it would be the first thing there that is not a policy finding. The context-aware form of the trusted check follows <a href="https://github.com/Jhope188/ca-policy-analyzer" target="_blank" rel="noopener noreferrer">ca-policy-analyzer</a> v1.16.3, which shipped the naive version first and then had to narrow it for exactly the block-list case.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span></h4>
@@ -1683,7 +1684,9 @@
         <li><b>Edit</b> — rename and change the ranges/countries. The <b>type is fixed at creation</b>: an IP location can't become a country location. If you change the trusted flag, you're warned how many policies use “All trusted locations” and would follow the change.</li>
         <li><b>Delete</b> — a location that no policy references deletes after a plain confirm; one that is still referenced lists those policies and needs a typed <b>DELETE</b>, because removing it drops that condition and usually widens the policy.</li>
         <li><b>Click a location name</b> — opens its report: every range or country, the trusted flag and what it means, the location id, and the <b>full list of policies</b> that name it plus the ones covering it through “All trusted locations” (each clickable through to the policy card). From there, <b>📄 Documentation (MD)</b> writes that one location up on its own.</li>
-        <li><b>Export MD</b> — the full inventory with usage, as Markdown.</li>
+        <li><b>⚠ Findings</b> — four checks over what the tool has already read, so they cost no extra call to your tenant. A <b>dangling reference</b> (a policy names a location id this tenant no longer has — the exclusion stopped applying, and the policy still reads as configured), an <b>empty country location</b> (no countries and unknown regions not included, so it matches nobody while every policy using it looks scoped), an <b>overly broad IP range</b> (a <code>/8</code> — 16.7 million addresses — or a <code>/0</code>; worse when the location is trusted, because everything using “All trusted locations” inherits it), and an <b>untrusted IP location</b> where policies do rely on “All trusted locations”. Findings appear in a panel above the list, as a ⚠ badge on the row, in the per-location report, and in Export MD. Nothing is written and nothing is stored.</li>
+        <li><b>The untrusted check stays quiet on purpose</b> — the trusted flag only changes behaviour when something actually consumes “All trusted locations”, so in a tenant where nothing does, the check says nothing at all. And a <b>deliberate block list is untrusted on purpose</b>: where a Block policy names the location, or its name says so, nothing is raised; everywhere else the finding names that as a valid reason to leave it exactly as it is. A check that cries wolf about the normal case is worse than no check.</li>
+        <li><b>Export MD</b> — findings first with the full text of each (what was found, why it matters, what closes it, which policies are involved), then the full inventory with usage.</li>
         <li><b>⭳ Export JSON</b> — the configuration of every location as a snapshot file. Nothing is stored server-side, so this is how you keep a record of what the ranges looked like on a given day.</li>
         <li><b>⇄ Compare…</b> — load an earlier JSON export and see what moved since: locations whose <b>ranges, countries or trusted flag</b> changed, ones in the file that are gone from the tenant, and ones created since. Matched by display name, because an id from another tenant means nothing here. A flipped trusted flag is the one worth looking at first — it silently changes which policies match.</li>
       </ul>
@@ -2458,50 +2461,50 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25151"></script>
-<script src="js/version.js?v=25151"></script>
-<script src="js/promote.js?v=25151"></script>
-<script src="js/authConfig.js?v=25151"></script>
-<script src="js/labels.js?v=25151"></script>
-<script src="js/graph.js?v=25151"></script>
-<script src="js/model.js?v=25151"></script>
-<script src="js/render.js?v=25151"></script>
-<script src="js/analyze.js?v=25151"></script>
-<script src="js/whatif.js?v=25151"></script>
-<script src="js/mslearn.js?v=25151"></script>
-<script src="js/gapcheck.js?v=25151"></script>
-<script src="js/cisdata.js?v=25151"></script>
-<script src="js/cischeck.js?v=25151"></script>
-<script src="js/exclusions.js?v=25151"></script>
-<script src="js/validator.js?v=25151"></script>
-<script src="js/whatifeval.js?v=25151"></script>
-<script src="js/compare.js?v=25151"></script>
-<script src="js/groupuse.js?v=25151"></script>
-<script src="js/iso3166.js?v=25151"></script>
-<script src="js/locations.js?v=25151"></script>
-<script src="js/authcontexts.js?v=25151"></script>
-<script src="js/authstrengths.js?v=25151"></script>
-<script src="js/recycle.js?v=25151"></script>
-<script src="js/rmau.js?v=25151"></script>
-<script src="js/rmaudoc.js?v=25151"></script>
-<script src="js/termsofuse.js?v=25151"></script>
-<script src="js/audit.js?v=25151"></script>
-<script src="js/drift.js?v=25151"></script>
-<script src="js/guide.js?v=25151"></script>
-<script src="js/devcheck.js?v=25151"></script>
-<script src="js/licgap.js?v=25151"></script>
-<script src="js/signins.js?v=25151"></script>
-<script src="js/reportimpact.js?v=25151"></script>
-<script src="js/changelog.js?v=25151"></script>
-<script src="js/baselineData.js?v=25151"></script>
-<script src="js/baselineJoeyData.js?v=25151"></script>
-<script src="js/baseline.js?v=25151"></script>
-<script src="js/groupTemplates.js?v=25151"></script>
-<script src="js/assign.js?v=25151"></script>
-<script src="js/cagroups.js?v=25151"></script>
-<script src="js/import.js?v=25151"></script>
-<script src="js/export.js?v=25151"></script>
-<script src="js/demo.js?v=25151"></script>
-<script src="js/app.js?v=25151"></script>
+<script src="js/branding.js?v=25152"></script>
+<script src="js/version.js?v=25152"></script>
+<script src="js/promote.js?v=25152"></script>
+<script src="js/authConfig.js?v=25152"></script>
+<script src="js/labels.js?v=25152"></script>
+<script src="js/graph.js?v=25152"></script>
+<script src="js/model.js?v=25152"></script>
+<script src="js/render.js?v=25152"></script>
+<script src="js/analyze.js?v=25152"></script>
+<script src="js/whatif.js?v=25152"></script>
+<script src="js/mslearn.js?v=25152"></script>
+<script src="js/gapcheck.js?v=25152"></script>
+<script src="js/cisdata.js?v=25152"></script>
+<script src="js/cischeck.js?v=25152"></script>
+<script src="js/exclusions.js?v=25152"></script>
+<script src="js/validator.js?v=25152"></script>
+<script src="js/whatifeval.js?v=25152"></script>
+<script src="js/compare.js?v=25152"></script>
+<script src="js/groupuse.js?v=25152"></script>
+<script src="js/iso3166.js?v=25152"></script>
+<script src="js/locations.js?v=25152"></script>
+<script src="js/authcontexts.js?v=25152"></script>
+<script src="js/authstrengths.js?v=25152"></script>
+<script src="js/recycle.js?v=25152"></script>
+<script src="js/rmau.js?v=25152"></script>
+<script src="js/rmaudoc.js?v=25152"></script>
+<script src="js/termsofuse.js?v=25152"></script>
+<script src="js/audit.js?v=25152"></script>
+<script src="js/drift.js?v=25152"></script>
+<script src="js/guide.js?v=25152"></script>
+<script src="js/devcheck.js?v=25152"></script>
+<script src="js/licgap.js?v=25152"></script>
+<script src="js/signins.js?v=25152"></script>
+<script src="js/reportimpact.js?v=25152"></script>
+<script src="js/changelog.js?v=25152"></script>
+<script src="js/baselineData.js?v=25152"></script>
+<script src="js/baselineJoeyData.js?v=25152"></script>
+<script src="js/baseline.js?v=25152"></script>
+<script src="js/groupTemplates.js?v=25152"></script>
+<script src="js/assign.js?v=25152"></script>
+<script src="js/cagroups.js?v=25152"></script>
+<script src="js/import.js?v=25152"></script>
+<script src="js/export.js?v=25152"></script>
+<script src="js/demo.js?v=25152"></script>
+<script src="js/app.js?v=25152"></script>
 </body>
 </html>

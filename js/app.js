@@ -9757,6 +9757,14 @@ max@contoso.com,"Global, DevOps"</pre>
   let loView = "cards";
   // Loaded JSON snapshot being compared against the tenant (null = normal list)
   let loCompare = null;
+  // Last computed findings (R37) — held so the detail modal and the two
+  // Markdown exports read the SAME result the list rendered from, rather than
+  // each recomputing and risking a different answer on screen and on paper.
+  let loFindings = null;
+  // Collapsed by default on a clean tenant is pointless (there is nothing to
+  // collapse); on a messy one the list is the first thing worth reading, so it
+  // opens expanded and the operator can fold it away.
+  let loFindOpen = true;
 
   async function openLocations(force) {
     crumb("🌐 Named locations");
@@ -9780,6 +9788,12 @@ max@contoso.com,"Global, DevOps"</pre>
   function renderLocations() {
     const raws = policies.map((p) => p.raw);
     const s = Locations.summarize(loList, raws);
+    // R37 — the tool already knew all of this; it just never said so out loud.
+    // Computed from the list and the policies in memory, so it costs no read.
+    const F = Locations.findings(loList, raws);
+    loFindings = F;
+    const sevWord = ["high", "medium", "low"].filter((k) => F.counts[k])
+      .map((k) => `${F.counts[k]} ${k}`).join(" · ");
     $("loHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
         <h3>🌐 Named locations <span class="tag block">writes to tenant</span></h3>
@@ -9790,12 +9804,16 @@ max@contoso.com,"Global, DevOps"</pre>
         <div style="font-size:26px;font-weight:700">${s.total}<span class="mini" style="font-weight:400"> locations</span></div>
         <div class="mini">${s.ip} IP (${s.ranges} ranges) · ${s.country} country${s.compliantNetwork ? ` · ${s.compliantNetwork} compliant network` : ""}</div>
         <div class="mini">${s.trusted} trusted${s.viaTrusted ? ` · ${s.viaTrusted} used only via “All trusted”` : ""}${s.unused ? ` · ${s.unused} unused` : ""}</div>
+        <div class="mini" style="margin-top:2px">${F.total
+          ? `<b style="color:var(--off)">⚠ ${F.total} finding${F.total === 1 ? "" : "s"}</b> <span class="muted">${esc(sevWord)}</span>`
+          : '<span class="muted">✓ no findings</span>'}</div>
       </div></div>`;
 
     const counts = { all: loList.length, ip: s.ip, country: s.country, trusted: s.trusted, unused: s.unused };
     $("loChips").innerHTML = [["all", `All (${counts.all})`], ["ip", `🖧 IP ranges (${counts.ip})`],
       ["country", `🌍 Countries (${counts.country})`], ["trusted", `✓ Trusted (${counts.trusted})`],
-      ["unused", `Unused (${counts.unused})`]]
+      ["unused", `Unused (${counts.unused})`],
+      ...(F.total ? [["findings", `⚠ Findings (${F.total})`]] : [])]
       .map(([k, l]) => `<button class="fchip ${loFilter === k ? "active" : ""}" data-lof="${k}">${esc(l)}</button>`).join("");
 
     const q = loQuery.toLowerCase();
@@ -9805,15 +9823,26 @@ max@contoso.com,"Global, DevOps"</pre>
       if (loFilter === "country" && k !== "country") return false;
       if (loFilter === "trusted" && !Locations.isTrusted(l)) return false;
       if (loFilter === "unused" && used) return false;
+      if (loFilter === "findings" && !(F.byLocation[l.id] || []).length) return false;
       return !q || `${l.displayName} ${Locations.detail(l)}`.toLowerCase().includes(q);
     }).sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
 
     [...$("loViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.loview === loView));
-    if (!rows.length) { $("loBody").innerHTML = '<p class="mini" style="padding:20px">No named location matches the current filter.</p>'; return; }
 
     // Compare view takes over the body until it is closed — it is a different
     // subject (this tenant vs a file), not a filter of the same list.
     if (loCompare) { renderLoCompare(); return; }
+
+    // The findings panel sits ABOVE the list in both views and is not part of
+    // the filtered set: a dangling reference belongs to no location, so a panel
+    // that came and went with the row filter would hide the one finding that
+    // has no row to hide behind.
+    const findingsPanel = loFindingsPanel(F);
+    if (!rows.length) {
+      $("loBody").innerHTML = findingsPanel
+        + `<p class="mini" style="padding:20px">No named location matches the current filter.</p>`;
+      return;
+    }
 
     // Shared per-location facts, so the card and the table row can never drift.
     const facts = (l) => {
@@ -9831,14 +9860,23 @@ max@contoso.com,"Global, DevOps"</pre>
          <button class="btn sm danger" data-lodel="${esc(l.id)}">🗑 Delete</button>`
       : '<span class="mini muted">service-managed</span>';
 
+    // One badge shape for both views, so the card and the row cannot disagree
+    // about whether a location has something wrong with it.
+    const findBadge = (l) => {
+      const fs = (F.byLocation[l.id] || []);
+      if (!fs.length) return "";
+      const worst = fs[0].severity;
+      return ` <span class="sev ${worst} lo-fbadge" data-lodet="${esc(l.id)}" title="${esc(fs.map((f) => f.title).join(" · "))}">⚠ ${fs.length}</span>`;
+    };
+
     if (loView === "table") {
-      $("loBody").innerHTML = `<div class="list-card" style="padding:0;overflow:hidden">
+      $("loBody").innerHTML = findingsPanel + `<div class="list-card" style="padding:0;overflow:hidden">
         <table class="plist lo-table">
           <thead><tr><th>Name</th><th>Type</th><th>Definition</th><th>Used by</th><th></th></tr></thead>
           <tbody>${rows.map((l) => {
             const { k, used, canEdit, direct, implicit } = facts(l);
             return `<tr>
-              <td><b class="pol-link" data-lodet="${esc(l.id)}" title="Open the location report">${esc(l.displayName || "(unnamed)")}</b>${Locations.isTrusted(l) ? ' <span class="tag ok">trusted</span>' : ""}</td>
+              <td><b class="pol-link" data-lodet="${esc(l.id)}" title="Open the location report">${esc(l.displayName || "(unnamed)")}</b>${Locations.isTrusted(l) ? ' <span class="tag ok">trusted</span>' : ""}${findBadge(l)}</td>
               <td class="mini">${icon(k)} ${esc(kindLabel(k))}</td>
               <td class="mini lo-d">${esc(Locations.detail(l))}</td>
               <td class="mini">${used.length ? [
@@ -9852,7 +9890,7 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
 
-    $("loBody").innerHTML = `<div class="lo-grid">` + rows.map((l) => {
+    $("loBody").innerHTML = findingsPanel + `<div class="lo-grid">` + rows.map((l) => {
       const { k, used, canEdit, direct, implicit } = facts(l);
       return `<div class="list-card lo-card">
         <div class="lo-h">
@@ -9860,6 +9898,7 @@ max@contoso.com,"Global, DevOps"</pre>
           <b class="pol-link" data-lodet="${esc(l.id)}" title="Open the location report">${esc(l.displayName || "(unnamed)")}</b>
           ${Locations.isTrusted(l) ? '<span class="tag ok">trusted</span>' : ""}
           <span class="tag">${esc(kindLabel(k))}</span>
+          ${findBadge(l)}
         </div>
         <div class="mini lo-d">${esc(Locations.detail(l))}</div>
         <div class="lo-u">${used.length ? [
@@ -9871,10 +9910,42 @@ max@contoso.com,"Global, DevOps"</pre>
       </div>`;
     }).join("") + `</div>`;
   }
+  // ---- the findings panel (R37) ----
+  // Rendered as markup rather than built node by node, like every other panel
+  // in this tool, so the whole body is one assignment and cannot half-update.
+  function loFindingsPanel(F) {
+    if (!F || !F.total) return "";
+    const pol = (f) => f.policies.length
+      ? `<div class="mini" style="margin-top:4px">${f.policies.length === 1 ? "Policy" : "Policies"}: `
+        + f.policies.slice(0, 6).map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.state === "enabled" ? "" : ` <span class="mini muted">(${esc(p.state)})</span>`}`).join(", ")
+        + (f.policies.length > 6 ? ` <span class="muted">+${f.policies.length - 6} more</span>` : "") + "</div>"
+      : "";
+    return `<div class="list-card lo-find">
+      <div class="lo-findh">
+        <b>⚠ ${F.total} finding${F.total === 1 ? "" : "s"} in the named locations</b>
+        ${["high", "medium", "low"].filter((k) => F.counts[k]).map((k) => `<span class="sev ${k}">${F.counts[k]} ${Locations.SEV_LABEL[k]}</span>`).join(" ")}
+        <button class="btn sm" id="loFindToggle">${loFindOpen ? "Hide" : "Show"}</button>
+      </div>
+      <p class="mini muted" style="margin:4px 0 0">Computed from the locations and the policies already loaded — no extra read of your tenant, and nothing here is written anywhere. The full text of every finding is in <b>Export MD</b>.</p>
+      ${loFindOpen ? `<div class="lo-findlist">${F.findings.map((f) => `
+        <div class="lo-findrow">
+          <div class="lo-findt">${Locations.SEV_LABEL[f.severity] ? `<span class="sev ${f.severity}">${Locations.SEV_LABEL[f.severity]}</span>` : ""}
+            ${f.locationId
+              ? `<b class="pol-link" data-lodet="${esc(f.locationId)}">${esc(f.locationName)}</b>`
+              : `<b>${esc(f.locationName)}</b> <span class="mini muted">(no such location)</span>`}
+            <span>${esc(f.title)}</span></div>
+          <div class="mini lo-d" style="margin-top:2px">${esc(f.detail)}</div>
+          <div class="mini" style="margin-top:4px">${esc(f.why)}</div>
+          <div class="mini" style="margin-top:4px"><b>What closes it:</b> ${esc(f.fix)}</div>
+          ${pol(f)}
+        </div>`).join("")}</div>` : ""}
+    </div>`;
+  }
   $("loChips").addEventListener("click", (e) => { const b = e.target.closest("[data-lof]"); if (!b) return; loFilter = b.dataset.lof; renderLocations(); });
   $("loViewSeg").addEventListener("click", (e) => { const b = e.target.closest("[data-loview]"); if (!b) return; loView = b.dataset.loview; renderLocations(); });
   $("loSearch").addEventListener("input", (e) => { loQuery = e.target.value; renderLocations(); });
   $("loBody").addEventListener("click", (e) => {
+    if (e.target.closest("#loFindToggle")) { loFindOpen = !loFindOpen; renderLocations(); return; }
     const ed = e.target.closest("[data-loedit]"); if (ed) { openLoEditor(loList.find((x) => x.id === ed.dataset.loedit)); return; }
     const dl = e.target.closest("[data-lodel]"); if (dl) { openLoDelete(loList.find((x) => x.id === dl.dataset.lodel)); return; }
     const dt = e.target.closest("[data-lodet]"); if (dt) { openLoDetail(dt.dataset.lodet); return; }
@@ -9915,7 +9986,18 @@ max@contoso.com,"Global, DevOps"</pre>
       ${implicit.length ? `<h4 style="margin:14px 0 6px">Covered by ${implicit.length} polic${implicit.length === 1 ? "y" : "ies"} using “All trusted locations”</h4>
         <p class="mini muted" style="margin:0 0 6px">These do not name it — they match it because it is trusted. Clearing the trusted flag removes it from all of them at once.</p>
         ${polList(implicit)}` : ""}
-      ${!used.length ? '<p class="mini" style="color:var(--off)">Not referenced by any policy — deleting it changes nothing today.</p>' : ""}`;
+      ${!used.length ? '<p class="mini" style="color:var(--off)">Not referenced by any policy — deleting it changes nothing today.</p>' : ""}
+      ${(() => {
+        const fs = ((loFindings && loFindings.byLocation[l.id]) || []);
+        if (!fs.length) return "";
+        return `<h4 style="margin:14px 0 6px">⚠ ${fs.length} finding${fs.length === 1 ? "" : "s"}</h4>`
+          + fs.map((f) => `<div class="lo-findrow">
+              <div class="lo-findt"><span class="sev ${f.severity}">${Locations.SEV_LABEL[f.severity]}</span> <span>${esc(f.title)}</span></div>
+              <div class="mini lo-d" style="margin-top:2px">${esc(f.detail)}</div>
+              <div class="mini" style="margin-top:4px">${esc(f.why)}</div>
+              <div class="mini" style="margin-top:4px"><b>What closes it:</b> ${esc(f.fix)}</div>
+            </div>`).join("");
+      })()}`;
     $("loDetEdit").style.display = Locations.editable(l) ? "" : "none";
     $("loDetModal").classList.add("open");
   }
@@ -9963,6 +10045,19 @@ max@contoso.com,"Global, DevOps"</pre>
         ...implicit.map((p) => `- ${p.name}`), "");
     }
     if (!used.length) L.push(`_Not referenced by any policy — deleting it changes nothing today._`, "");
+    // The findings for THIS location, from the same result the screen rendered
+    // — a report that disagrees with the screen it was exported from is worse
+    // than no report.
+    const fs = (Locations.findings(loList || [], raws).byLocation[l.id] || []);
+    if (fs.length) {
+      L.push(`## Findings (${fs.length})`, "");
+      for (const f of fs) {
+        L.push(`### [${Locations.SEV_LABEL[f.severity]}] ${f.title}`, "",
+          `- **What was found:** ${f.detail}`,
+          `- **Why it matters:** ${f.why}`,
+          `- **What closes it:** ${f.fix}`, "");
+      }
+    }
     return L.join("\n");
   }
 
@@ -10205,14 +10300,38 @@ max@contoso.com,"Global, DevOps"</pre>
   $("loMd").addEventListener("click", () => {
     if (!loList) return;
     const raws = policies.map((p) => p.raw), s = Locations.summarize(loList, raws);
+    const F = Locations.findings(loList, raws);
+    const e = (v) => String(v ?? "").replace(/\|/g, "\\|");
     const L = [`# Named locations — ${tenantName || "tenant"}`, "",
       Brand.generatedBy("Generated"), "",
       `- Total: **${s.total}** — ${s.ip} IP (${s.ranges} ranges), ${s.country} country`,
-      `- Trusted: ${s.trusted} · Not referenced by any policy: ${s.unused}`, "",
-      "| Location | Type | Trusted | Detail | Used by |", "| --- | --- | --- | --- | --- |"];
+      `- Trusted: ${s.trusted} · Not referenced by any policy: ${s.unused}`,
+      `- Findings: **${F.total}**${F.total ? ` — ${["high", "medium", "low"].filter((k) => F.counts[k]).map((k) => `${F.counts[k]} ${k}`).join(", ")}` : ""}`, ""];
+
+    // Findings lead the report. The inventory table below is the reference; the
+    // findings are the reason somebody opened the file.
+    if (F.total) {
+      L.push(`## Findings (${F.total})`, "",
+        "| Severity | Location | Finding | Policies |", "| --- | --- | --- | --- |");
+      for (const f of F.findings) {
+        L.push(`| ${Locations.SEV_LABEL[f.severity]} | ${e(f.locationName)}${f.locationId ? "" : " _(no such location)_"} | ${e(f.title)} | ${f.policies.length ? e(f.policies.map((p) => p.name).join(", ")) : "—"} |`);
+      }
+      L.push("");
+      for (const f of F.findings) {
+        L.push(`### [${Locations.SEV_LABEL[f.severity]}] ${f.locationName} — ${f.title}`, "",
+          `- **What was found:** ${f.detail}`,
+          `- **Why it matters:** ${f.why}`,
+          `- **What closes it:** ${f.fix}`,
+          `- **Policies involved:** ${f.policies.length ? f.policies.map((p) => `${p.name} (${p.state})`).join("; ") : "none"}`, "");
+      }
+    } else {
+      L.push(`## Findings`, "", "_None. The four checks — dangling policy references, empty country locations, overly broad IP ranges and untrusted IP locations where policies rely on “All trusted locations” — all came back clean._", "");
+    }
+
+    L.push(`## Inventory`, "",
+      "| Location | Type | Trusted | Detail | Used by |", "| --- | --- | --- | --- | --- |");
     loList.slice().sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "")).forEach((l) => {
       const used = Locations.usedBy(l, raws);
-      const e = (v) => String(v ?? "").replace(/\|/g, "\\|");
       L.push(`| ${e(l.displayName)} | ${Locations.kindOf(l) === "ip" ? "IP ranges" : "Countries"} | ${Locations.isTrusted(l) ? "yes" : "—"} | ${e(Locations.detail(l))} | ${used.length ? used.map((p) => `${e(p.name)} (${p.how})`).join("<br>") : "—"} |`);
     });
     showReport("🌐 Named locations", "CA-NamedLocations", L.join("\n"));
