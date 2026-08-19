@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25146, date: "2026-08-19", title: "A release the home page does not announce did not happen",
+    items: [
+      { kind: "fixed", tool: "Sign-in failures", text: "Build 25145 shipped the interrupt capture without the tile's UPDATED tag — and the tag is not decoration: it is what exempts a tile from the home-page collapse and lifts it to the top, so the change was invisible behind “Show 7 more” unless you already knew to expand. The tag is on, and the tile now says the tool covers interrupted sign-ins as well as failed ones." },
+    ],
+  },
+  {
     build: 25145, date: "2026-08-19", title: "Interrupted is not a failure, which is exactly how it hid",
     items: [
       { kind: "improved", tool: "Sign-in failures", text: "Enforced mode also gathers the sign-ins Conditional Access INTERRUPTED — the abandoned MFA prompt, MFA enrolment, device authentication, terms of use. These never showed, and could not have: Graph's conditionalAccessStatus has no 'interrupted' value, so a policy stopping a sign-in mid-flow is logged as CA 'success' with only an interrupt error code (50074, 50076, 50072, 50079, 50097, 50158, 500121) to tell the tale — the failure filter was blind to them by design. A second server-filtered fetch on those codes is deduped into the failures, and each interrupt is attributed to the applied policies that actually imposed a control — an interrupt with no such policy (per-user MFA, security defaults) is not CA's doing and stays out. On screen: an amber interrupted badge per sign-in, Blocked / Interrupted filter chips, interrupt counts in the header, the per-policy table and the Markdown report, and 'interrupted' in the CSV's result column." },
