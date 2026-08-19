@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25156"></script>
+<script src="js/popup-guard.js?v=25157"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25156">
+<link rel="stylesheet" href="css/app.css?v=25157">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25156"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25156"></script>
+<script src="js/counter.js?v=25157"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25157"></script>
 </head>
 <body>
 
@@ -177,8 +177,8 @@
         <p>Match this tenant against the CloudFellows R26.6 (v3.x) baseline: which baseline policies are present, outdated or missing — then import the gap.</p>
       </div>
       <div class="tool" id="toolBaselineJoey">
-        <div class="tool-ic">🧩</div><h3>Baseline (Joey Verlinden)</h3>
-        <p>Match this tenant against the community Conditional Access Baseline by Joey Verlinden (2026.6.1) — same view, different catalog.</p>
+        <div class="tool-ic">🧩</div><h3>Baseline (Joey Verlinden) <span class="tag upd">UPDATED</span></h3>
+        <p>Match this tenant against the community Conditional Access Baseline by Joey Verlinden (2026.6.1) — same table, different catalog.</p>
       </div>
       <div class="tool" id="toolMsLearn">
         <div class="tool-ic">📘</div><h3>MS Learn checks</h3>
@@ -572,10 +572,6 @@
       </div>
       <div class="seg" id="blCatalog"></div>
       <div class="chip-filter" id="blChips"></div>
-      <div class="seg">
-        <button class="active" id="blViewCards">Cards</button>
-        <button id="blViewTable">Table</button>
-      </div>
       <div class="tb-actions">
         <button class="btn" id="blCollapseAll" title="Expand or collapse all persona sections">⊟ Collapse all</button>
         <button class="btn" id="blRefresh" title="Fetch the latest policies from Entra and re-compare">⟳ Refresh</button>
@@ -1606,7 +1602,7 @@
       <p>Matches this tenant against the CloudFellows baseline catalog and shows the gap. It was published as the <i>Limon-IT baseline</i> until beta 25151; the release designation, the catalog and the CAB-SEC / CAD-SEC group names are unchanged — only the name it goes by.</p>
       <ul>
         <li><b>Status filters</b> — <b>Missing</b> (not in tenant), <b>Outdated</b> (older version present), <b>Up to date</b>, <b>Not in baseline</b> (in tenant but not the catalog).</li>
-        <li><b>Table / Cards</b> — the large CloudFellows catalog opens as a Table by default; switch to Cards for full detail. Search and collapsible persona sections.</li>
+        <li><b>One table, both catalogs</b> — a baseline comparison is a row per policy with a status, so that is what it renders, whichever catalog you pick. The Cards view was removed in beta 25157: the same screen answered the same question two different ways depending on which catalog you had clicked, which made the two baselines impossible to read side by side. Search and collapsible persona sections work as before.</li>
         <li><b>Catalog switch</b> — CloudFellows R26.6 or the community Joey Verlinden catalog.</li>
         <li><b>Export MD</b> — a gap report; <b>Refresh</b> re-compares in place; <b>Import baseline</b> hands the missing/outdated set to the Import tool.</li>
       </ul>
@@ -1615,7 +1611,7 @@
 
     <section class="help-sec">
       <h4>🧩 Baseline (Joey Verlinden)</h4>
-      <p>The same comparison view against the community Conditional Access Baseline by Joey Verlinden — a different catalog, opens as Cards.</p>
+      <p>The same comparison view against the community Conditional Access Baseline by Joey Verlinden — a different catalog, the same table.</p>
       <p class="help-x">Read-only.</p>
     </section>
 
@@ -2495,51 +2491,51 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25156"></script>
-<script src="js/version.js?v=25156"></script>
-<script src="js/promote.js?v=25156"></script>
-<script src="js/authConfig.js?v=25156"></script>
-<script src="js/labels.js?v=25156"></script>
-<script src="js/graph.js?v=25156"></script>
-<script src="js/model.js?v=25156"></script>
-<script src="js/render.js?v=25156"></script>
-<script src="js/analyze.js?v=25156"></script>
-<script src="js/whatif.js?v=25156"></script>
-<script src="js/mslearn.js?v=25156"></script>
-<script src="js/gapcheck.js?v=25156"></script>
-<script src="js/cisdata.js?v=25156"></script>
-<script src="js/cischeck.js?v=25156"></script>
-<script src="js/exclusions.js?v=25156"></script>
-<script src="js/validator.js?v=25156"></script>
-<script src="js/whatifeval.js?v=25156"></script>
-<script src="js/compare.js?v=25156"></script>
-<script src="js/groupuse.js?v=25156"></script>
-<script src="js/iso3166.js?v=25156"></script>
-<script src="js/locations.js?v=25156"></script>
-<script src="js/authcontexts.js?v=25156"></script>
-<script src="js/authstrengths.js?v=25156"></script>
-<script src="js/recycle.js?v=25156"></script>
-<script src="js/rmau.js?v=25156"></script>
-<script src="js/camap.js?v=25156"></script>
-<script src="js/rmaudoc.js?v=25156"></script>
-<script src="js/termsofuse.js?v=25156"></script>
-<script src="js/audit.js?v=25156"></script>
-<script src="js/drift.js?v=25156"></script>
-<script src="js/guide.js?v=25156"></script>
-<script src="js/devcheck.js?v=25156"></script>
-<script src="js/licgap.js?v=25156"></script>
-<script src="js/signins.js?v=25156"></script>
-<script src="js/reportimpact.js?v=25156"></script>
-<script src="js/changelog.js?v=25156"></script>
-<script src="js/baselineData.js?v=25156"></script>
-<script src="js/baselineJoeyData.js?v=25156"></script>
-<script src="js/baseline.js?v=25156"></script>
-<script src="js/groupTemplates.js?v=25156"></script>
-<script src="js/assign.js?v=25156"></script>
-<script src="js/cagroups.js?v=25156"></script>
-<script src="js/import.js?v=25156"></script>
-<script src="js/export.js?v=25156"></script>
-<script src="js/demo.js?v=25156"></script>
-<script src="js/app.js?v=25156"></script>
+<script src="js/branding.js?v=25157"></script>
+<script src="js/version.js?v=25157"></script>
+<script src="js/promote.js?v=25157"></script>
+<script src="js/authConfig.js?v=25157"></script>
+<script src="js/labels.js?v=25157"></script>
+<script src="js/graph.js?v=25157"></script>
+<script src="js/model.js?v=25157"></script>
+<script src="js/render.js?v=25157"></script>
+<script src="js/analyze.js?v=25157"></script>
+<script src="js/whatif.js?v=25157"></script>
+<script src="js/mslearn.js?v=25157"></script>
+<script src="js/gapcheck.js?v=25157"></script>
+<script src="js/cisdata.js?v=25157"></script>
+<script src="js/cischeck.js?v=25157"></script>
+<script src="js/exclusions.js?v=25157"></script>
+<script src="js/validator.js?v=25157"></script>
+<script src="js/whatifeval.js?v=25157"></script>
+<script src="js/compare.js?v=25157"></script>
+<script src="js/groupuse.js?v=25157"></script>
+<script src="js/iso3166.js?v=25157"></script>
+<script src="js/locations.js?v=25157"></script>
+<script src="js/authcontexts.js?v=25157"></script>
+<script src="js/authstrengths.js?v=25157"></script>
+<script src="js/recycle.js?v=25157"></script>
+<script src="js/rmau.js?v=25157"></script>
+<script src="js/camap.js?v=25157"></script>
+<script src="js/rmaudoc.js?v=25157"></script>
+<script src="js/termsofuse.js?v=25157"></script>
+<script src="js/audit.js?v=25157"></script>
+<script src="js/drift.js?v=25157"></script>
+<script src="js/guide.js?v=25157"></script>
+<script src="js/devcheck.js?v=25157"></script>
+<script src="js/licgap.js?v=25157"></script>
+<script src="js/signins.js?v=25157"></script>
+<script src="js/reportimpact.js?v=25157"></script>
+<script src="js/changelog.js?v=25157"></script>
+<script src="js/baselineData.js?v=25157"></script>
+<script src="js/baselineJoeyData.js?v=25157"></script>
+<script src="js/baseline.js?v=25157"></script>
+<script src="js/groupTemplates.js?v=25157"></script>
+<script src="js/assign.js?v=25157"></script>
+<script src="js/cagroups.js?v=25157"></script>
+<script src="js/import.js?v=25157"></script>
+<script src="js/export.js?v=25157"></script>
+<script src="js/demo.js?v=25157"></script>
+<script src="js/app.js?v=25157"></script>
 </body>
 </html>

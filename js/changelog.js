@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25157, date: "2026-08-19", title: "Both baselines render as one table",
+    items: [
+      { kind: "improved", tool: "Baseline Policies", text: "The Cards / Table toggle is gone and the table is the only view — in both catalogs. It defaulted to the table for CloudFellows and to cards for the community catalogs, so the same screen answered the same question two different ways depending on which catalog you had clicked, and reading the two baselines against each other meant comparing a table with a wall of cards. A baseline comparison is a row per policy with a status; that is a table. Status filters, search and the collapsible persona sections are unchanged." },
+      { kind: "improved", tool: "Baseline (Joey Verlinden)", text: "Opens as the same table as the CloudFellows catalog rather than as cards, which is the half of the split that made the two impossible to read side by side. Baseline Policies is v2.0, Baseline (Joey Verlinden) v1.2." },
+      { kind: "fixed", tool: "Baseline Policies", text: "Collapse all works under the \"Not in baseline\" filter. It asked which personas were on screen using the card view's row set, which dropped every row with no baseline entry — exactly the rows that filter shows — so it found nothing and the button did nothing. It now selects the same rows the table draws, by the same three steps in the same order." },
+      { kind: "fixed", tool: "Baseline Policies", text: "The card renderer went with it — renderCards, its policyCard helper and the 23 lines of CSS only they used. A view nobody can reach is not a feature held in reserve, it is a second answer waiting to disagree with the first the next time the comparison logic changes." },
+    ],
+  },
+  {
     build: 25156, date: "2026-08-19", title: "Documentation follows the same rule as Backup on a baseline tenant",
     items: [
       { kind: "new", tool: "Create documentation", text: "On a baseline tenant the document describes the BASELINE CATALOG, not the tenant — the same rule 🗄 Backup got at build 25150, through the same helper, so the two cannot drift apart. The export modal opens with the scope stated and the number of the tenant's own policies being left out. A backup at least has a folder structure to give the omission away; a Word file handed over as “the baseline” has nothing, which is exactly why prose needed the rule more than JSON did." },

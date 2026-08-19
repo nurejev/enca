@@ -63,6 +63,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 69,
+      title: "🧬 Both baselines render as one table",
+      tools: ["Baseline Policies", "Baseline (Joey Verlinden)"],
+      builds: [25157],
+      risk: "low",
+      what: "The Cards / Table toggle is removed from the baseline screen and the table is the only view, in every catalog. blView, blDefaultView and the two view buttons are gone; Baseline.renderCards, its policyCard helper, the ICON map and the 23 CSS lines only they used are deleted. Status filters, search, Export MD, Refresh and Import baseline are untouched. Also fixes Collapse all under the \"Not in baseline\" filter: Baseline.personas() selected the card view's row set (baseline entries only) rather than the table's, so with that chip active it returned nothing and the button did nothing — it now mirrors renderTable's filtering exactly. Help and both tiles updated.",
+      why: "Presentation only — nothing about the comparison itself changes, and the table renderer is the one already used for the CloudFellows catalog on every open. The reason it is worth promoting is that the split was per-catalog: table for CloudFellows, cards for the community ones, so the same screen answered the same question two ways and the two baselines could not be read against each other.",
+      files: ["js/app.js", "js/baseline.js", "index.html", "css/app.css", "js/version.js"],
+    },
+    {
       n: 68,
       title: "\ud83d\udd22 Permanent T-numbers for the tools (R33)",
       tools: ["All tools"],

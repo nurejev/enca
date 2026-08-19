@@ -5566,11 +5566,14 @@ max@contoso.com,"Global, DevOps"</pre>
   // ---------- Baseline Policies ----------
   // Pure client-side comparison against the bundled catalog — no Graph calls
   // beyond the policies already loaded, so it is instant and re-runs on filter.
-  let blResult = null, blFilter = "all", blQuery = "", blView = "table", blCat = "limonit";
+  let blResult = null, blFilter = "all", blQuery = "", blCat = "limonit";
   const blCollapsed = new Set();
-  // the CloudFellows R26.6 catalog is large — the table is the readable default;
-  // the community catalogs open as cards
-  const blDefaultView = (cat) => (cat === "limonit" ? "table" : "cards");
+  // ONE VIEW, THE TABLE. There used to be a Cards/Table toggle, defaulting to
+  // the table for the CloudFellows catalog and to cards for the community ones —
+  // so the same screen answered the same question two different ways depending
+  // on which catalog you had clicked, and comparing the two baselines meant
+  // comparing a table against a wall of cards. A baseline comparison is a row
+  // per policy with a status: that is a table, in both catalogs.
   // keepView: a refresh re-compares in place and must not throw away the filter,
   // search or collapsed sections the person was looking at.
   function openBaseline(catId, keepView) {
@@ -5583,7 +5586,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     blResult = Baseline.compare(policies, blCat);
     if (!keepView) {
-      blFilter = "all"; blQuery = ""; blView = blDefaultView(blCat); blCollapsed.clear(); $("blSearch").value = "";
+      blFilter = "all"; blQuery = ""; blCollapsed.clear(); $("blSearch").value = "";
     }
     renderBaseline();
   }
@@ -5593,11 +5596,7 @@ max@contoso.com,"Global, DevOps"</pre>
     $("blCatalog").innerHTML = Baseline.catalogs()
       .map((c) => `<button class="${c.id === blCat ? "active" : ""}" data-blcat="${esc(c.id)}">${c.icon || "🧬"} ${esc(c.label)}</button>`).join("");
     $("blChips").innerHTML = Baseline.chips(blResult, blFilter);
-    $("blViewCards").classList.toggle("active", blView === "cards");
-    $("blViewTable").classList.toggle("active", blView === "table");
-    $("blBody").innerHTML = blView === "cards"
-      ? Baseline.renderCards(blResult, blFilter, blQuery, blCollapsed)
-      : Baseline.renderTable(blResult, blFilter, blQuery, blCollapsed);
+    $("blBody").innerHTML = Baseline.renderTable(blResult, blFilter, blQuery, blCollapsed);
     const shown = Baseline.personas(blResult, blFilter, blQuery);
     const allCollapsed = shown.length > 0 && shown.every((g) => blCollapsed.has(g));
     $("blCollapseAll").textContent = allCollapsed ? "⊞ Expand all" : "⊟ Collapse all";
@@ -5608,7 +5607,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const b = e.target.closest("[data-blcat]"); if (!b || b.dataset.blcat === blCat) return;
     blCat = b.dataset.blcat;
     blResult = Baseline.compare(policies, blCat);
-    blFilter = "all"; blView = blDefaultView(blCat); blCollapsed.clear(); renderBaseline();
+    blFilter = "all"; blCollapsed.clear(); renderBaseline();
   });
   $("blChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-blf]"); if (!b) return;
@@ -5628,8 +5627,6 @@ max@contoso.com,"Global, DevOps"</pre>
     if (allCollapsed) blCollapsed.clear(); else shown.forEach((g) => blCollapsed.add(g));
     renderBaseline();
   });
-  $("blViewCards").addEventListener("click", () => { blView = "cards"; renderBaseline(); });
-  $("blViewTable").addEventListener("click", () => { blView = "table"; renderBaseline(); });
   // clicking a tenant policy name opens its card, same as everywhere else
   $("blBody").addEventListener("click", (e) => {
     const el = e.target.closest("[data-blpol]"); if (!el) return;
