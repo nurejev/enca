@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25163, date: "2026-08-19", title: "The logo and the changelog guard reached production",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue item 71 — the official ENCA mark in the header, on the sign-in page and as the favicon — is live in production build 289. The three files went across byte-identical, with the version query intact: those filenames previously held the Limon-IT mark, so without it a returning visitor is served the old logo out of cache." },
+      { kind: "improved", tool: "All tools", text: "Queue item 72 — the changelog's plain-text check — is live in production build 288, and shipped there ahead of this reconciliation rather than as part of it. Production was carrying 134 formatting tags and showing them, so the fix went to main in the same pass that fixed this channel. Both items are removed from the queue and their numbers retired rather than reused; productionBuild moves to v1.0.289." },
+      { kind: "improved", tool: "All tools", text: "Neither item has a roadmap card, so there is no card to move — but the promotion routine's other three steps still applied, and this entry is the fourth. What remains queued is 70 (the Gap analyse coverage flow), 67 (custom groups in the persona vaults, deliberately held back), and the two beta-only tools, neither of which can move without its tool." },
+    ],
+  },
+  {
     build: 25162, date: "2026-08-19", title: "The changelog is plain text, and now it says so when it is not",
     items: [
       { kind: "fixed", tool: "All tools", text: "Every b, i and code tag written into this page since build 25151 rendered as literal angle brackets — 146 of them across eleven releases. clEntries() escapes the item text and always has; the header of js/changelog.js has said so in capitals since build 25156, when the same thing was cleaned up for the first 228 tags. It was written there and then ignored. The tags are gone and the prose is untouched: 551 items across 270 releases compared before and after, and every one is identical once the markup is resolved." },

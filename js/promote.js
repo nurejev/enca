@@ -83,48 +83,9 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.287",
+  productionBuild: "v1.0.289",
 
   items: [
-    {
-      n: 72,
-      title: "\ud83d\udccb The changelog says when it is not plain text",
-      tools: ["All tools"],
-      builds: [25162],
-      risk: "low",
-      what: "js/changelog.js is plain text \u2014 clEntries() escapes item text \u2014 and 146 formatting tags were written into the 25151-25161 entries anyway, rendering as literal angle brackets. Stripped, along with two HTML entities (one predating this cycle). Added CL_MARKUP plus a self-check: a console warning on every channel naming the offending builds, and on non-production a chip beside the entry in the What's-new list. The check flags only formatting tags and entities, never prose that names an element. isProdHost() is extracted so the BETA banner, the promotion queue and this check share one answer.",
-      why: "Cosmetic, reads-only, and it fixes something a customer can see today \u2014 production 287 carries 124 of these tags and is showing them. The port to main is where the real value is; this beta item is the guard that stops the next one.",
-      test: [
-        "Open \ud83d\udccb What's new and read the entries for 25151-25161: no angle brackets mid-sentence, no stray b or code, and the prose still makes sense where the emphasis used to be.",
-        "THE ONE THAT MATTERS: temporarily put a b tag into any entry's text, reload the beta site, and confirm the entry gets a red \u201cmarkup \u2014 will render literally\u201d chip AND a console warning naming that build. Remove it again.",
-        "With that test tag still in place, check the chip does NOT appear when the page is served from the production host \u2014 the console warning should still fire. A customer must not see our authoring slips.",
-        "Confirm the entries that legitimately name an element still read normally and carry no chip: build 25028 mentions a datalist, build 25161 mentions an img src. If either is flagged, the check has become too broad and authors will start ignoring it.",
-        "Check the What's-new OVERLAY after sign-in as well as the full page \u2014 both render through clEntries(), so both should be clean and both should chip a test tag.",
-      ],
-      files: ["js/changelog.js", "js/app.js", "js/version.js"],
-    },
-    {
-      n: 71,
-      title: "\ud83e\udee7 The official ENCA logo",
-      tools: ["All tools"],
-      builds: [25160, 25161],
-      risk: "low",
-      what: "assets/enca-mark-light.svg and enca-mark-dark.svg replace the Limon-IT mark in the header, on the sign-in page and as the favicon. BRANDING.logo / logoDark / favicon point at them and the dark-theme swap in app.css follows; the marks are rounded like an app icon (.logo img, .login-card > img). The supplied artwork is unmodified except for the viewBox, cropped from the full 1024 tile to the inner disc because the outer third is orbit ring and the header renders at 34px — the original framing is recorded in a comment in each file. Internal SVG ids are suffixed per file (ids are document-global, and both marks can be on one page). 25161 rebuilds them to the convention the other product marks use (TUNO): TRANSPARENT rather than a tile with a painted background (the border-radius rule is dropped with it), the original file names back, and TWO framings from one drawing \u2014 the mark keeps the orbit ring at viewBox 84 84 856 856, the favicon crops to the inner disc at 270 263 484 484. The id-suffixing 25160 added is removed: an SVG loaded via <img> or content:url() is its own document, so the collision it guarded against was not reachable. Every reference carries ?v= because those filenames previously held the Limon-IT mark and would otherwise come from cache.",
-      why: "Cosmetic and reversible, and it touches no logic at all \u2014 but it is the FIRST thing anybody sees, on the one screen where nothing else is on the page yet, so a wrong-theme or missing mark is a bad first impression rather than a bug report. It also changes the favicon, which browsers cache aggressively.",
-      test: [
-        "Sign-in page in LIGHT theme: the mark is the ENCA shield, on its own pale background, rounded, and not the old Limon-IT leaf mark. Switch to DARK: it must swap to the dark artwork \u2014 green on near-black, not the light one dimmed.",
-        "THE ONE THAT MATTERS: hard-refresh the sign-in page in dark theme with the cache cleared. The swap is done by CSS rather than script precisely so it is right BEFORE the app boots; if you see the light mark flash first, that regressed.",
-        "Set the OS to dark and leave the app on Auto (no explicit theme): the prefers-color-scheme rule must pick the dark mark too \u2014 that is a second CSS rule and it has been missed before.",
-        "Header at normal window width: the shield and keyhole must be legible at 34px. If it looks like a pale smudge, the viewBox crop was lost and the full 1024 tile is being used.",
-        "Load the page with the cache NOT cleared, from a browser that visited before 25160. The mark must be the ENCA shield, not the old Limon-IT leaf \u2014 the filenames are the same as the old ones, and ?v= is the only thing preventing a cached logo. Check the favicon the same way.",
-        "Put the mark on a coloured surface (the sign-in card, then the header): there must be NO box behind it. If you see a pale or dark square, the background rect is being painted and the build has drifted back to the tile shape.",
-        "Compare side by side with TUNO\u2019s assets/logo-mark-light.svg: outside the middle glyph the two files should be structurally the same \u2014 same defs, same orbit rings, same dots, same framing. A difference anywhere else means one of the two has drifted.",
-        "Browser tab: the favicon is the ENCA mark. Check on a dark browser theme too \u2014 the mark carries its own background, which is why it works on either.",
-        "Open a brand-override front door (/pvm/) and confirm it still shows ITS logo, not ENCA's: the override rule sets content:normal and must still win.",
-        "Grep the built site for logo-mark- and favicon.svg: both should be gone. A stale reference renders a broken image rather than falling back.",
-      ],
-      files: ["assets/enca-mark-light.svg", "assets/enca-mark-dark.svg", "js/branding.js", "css/app.css", "index.html", "README.md", "js/version.js"],
-    },
     {
       n: 70,
       title: "\ud83d\udd0d Gap analyse: the coverage flow (T03)",
