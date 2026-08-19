@@ -23,6 +23,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25148, date: "2026-08-19", title: "Roadmap R37 — the named locations tool reports what it already knows",
+    items: [
+      { kind: "new", tool: "Roadmap", text: "R37 — 🌐 Named locations resolves which policies use each location, counts the ones reachable only through All trusted locations, and warns at edit time that flipping the trusted flag moves every policy consuming it. None of that becomes a finding: it reaches no report, no export beyond the location list, and nothing in 🔍 Gap analyse, so a misconfigured location is visible only to somebody who opens that one screen and reads the row. The card records this as a REPORTING gap rather than a reading one — the data is already computed, which is why it goes ahead of anything needing new Graph calls." },
+      { kind: "new", tool: "Roadmap", text: "It names four checks — a dangling location reference (the same failure ① Check reports for groups), an empty country location that matches nothing while still reading as configured, an overly broad IP range, and an untrusted IP location. The last one carries the warning: the trusted flag only changes behaviour when something consumes All trusted locations, so the check stays silent where nothing does, and a deliberate block list is untrusted on purpose and must be named as a valid reason to dismiss rather than nagged about. A check that cries wolf about the normal case is worse than no check. The open question is left open in writing — whether findings about OBJECTS belong in a tool that reads POLICIES." },
+    ],
+  },
+  {
     build: 25147, date: "2026-08-19", title: "The error code knows which control stopped the sign-in",
     items: [
       { kind: "improved", tool: "Sign-in failures", text: "Interrupt attribution is narrowed by what the error code can actually demand. First real-tenant record: a 50097 (device authentication required) listed both the MFA policy and the sign-in-frequency policy, and the honest answer was only one of them — neither has a device control, but enforcing sign-in frequency in a browser means authenticating the DEVICE to read the session's auth timestamp, and on an unmanaged machine without a PRT that round-trip is the interrupt. Now the MFA-family codes (50074, 50076, 50072, 50079, 500121) attach to the applied policies carrying an MFA or authentication-strength control, 50097 to compliant/joined-device or sign-in-frequency controls, and 50158 to terms of use. When no applied control matches the code — terms-of-use agreements can surface under their own display name — attribution falls back to every control-bearing applied policy rather than dropping the record." },

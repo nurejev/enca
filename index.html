@@ -10,16 +10,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25147"></script>
+<script src="js/popup-guard.js?v=25148"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
 <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25147">
+<link rel="stylesheet" href="css/app.css?v=25148">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25147"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25147"></script>
+<script src="js/counter.js?v=25148"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25148"></script>
 </head>
 <body>
 
@@ -1211,6 +1211,12 @@
             <p class="mini" style="margin:0">Today <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Baseline (Joey Verlinden)</a> only compares: it tells you which of his 36 policies a tenant has and what differs. Everything else the bundled baseline gets — <b>group checks, group creation, persona checks, restricted-AU creation and placement</b> — stops at the Limon-IT/CloudFellows catalog. The plan is parity: pick a baseline, and every tool downstream works against the one you picked.</p>
             <p class="mini" style="margin:6px 0 0">Plus <b>fetch the latest release</b> from <a href="https://github.com/j0eyv/ConditionalAccessBaseline" target="_blank" rel="noopener noreferrer">github.com/j0eyv/ConditionalAccessBaseline</a> rather than shipping a transcription. The catalog here is a hand-checked snapshot pinned at commit <code>38469a4</code>, release 2026.6.1 — accurate the day it was written and stale the day he pushes. Reading <code>Config/ConditionalAccess</code> live means the tool tracks his repo instead of our copy of it, and can say which commit it read.</p>
             <p class="mini" style="margin:6px 0 0"><b>Three things make this more than plumbing.</b> His <b>exclusion groups are named after the policy</b> — “&lt;policy name&gt; - Exclude” — not by CA number, and every routing decision in ⑥ Protect, ＋ Bulk add and the RMAU baseline reads a CA number out of a group name. That machinery needs a per-baseline naming contract, which is the same gap <span class="rm-ref">R28</span> opens for a tenant's own groups. His <b>personas differ</b> — Global / Admins / Internals / ServiceAccounts / Guests / Agents — and do not map onto our CA ranges at all (his CA300 block is service accounts, not externals), so the persona vaults are per-baseline too, not a rename of ours. And a <b>live fetch is a trust boundary</b>: unauthenticated GitHub is rate-limited, a repo can move or a release can be malformed, so the bundled snapshot has to stay as the fallback and the tool must say which of the two it is using rather than failing quietly to the old one.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R37</span> <a href="#" class="md-tool" data-tool="toolLocations">🌐 Named locations report what is wrong with them</a> <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">🌐 Named locations already knows this. It resolves which policies use each location and whether they use it as an include or an exclude, it counts how many locations are reachable only through <b>All trusted locations</b>, and it warns while editing that flipping the trusted flag moves every policy that consumes it. All of that is computed and none of it becomes a <b>finding</b>: a misconfigured location is visible only if somebody happens to open that one screen and read the row. It reaches no report, no export beyond the location list itself, and nothing in 🔍 Gap analyse. This is a reporting gap, not a reading gap — which is why it is worth doing before anything that needs new Graph calls.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Four checks.</b> A <b>dangling reference</b> — a policy naming a location id this tenant no longer has, the same failure ① Check reports for groups, and the same cause: something was tidied up while a policy still pointed at it. An <b>empty country location</b>, which matches nothing, so the policy using it enforces nothing and still reads as configured. An <b>overly broad IP range</b> — a <code>/8</code> inside a location called “office”. And an <b>untrusted IP location</b>, which is the one that has to be careful: the trusted flag only changes behaviour when something actually consumes <i>All trusted locations</i>, so the check stays silent in a tenant with no such policy, and a deliberate block list — <code>_Blocked IPs</code> is untrusted on purpose — must be named as a valid reason to dismiss it rather than nagged about forever. A check that cries wolf about the normal case is worse than no check.</p>
+            <p class="mini" style="margin:6px 0 0">Findings surface in the tool and in its Markdown export, and the open question is whether they also belong in 🔍 Gap analyse — the argument for is that a location nobody notices is exactly the sort of hole that tool exists to find; the argument against is that Gap analyse reads policies and this reads objects, so it would be the first thing there that is not a policy finding. The context-aware form of the trusted check follows <a href="https://github.com/Jhope188/ca-policy-analyzer" target="_blank" rel="noopener noreferrer">ca-policy-analyzer</a> v1.16.3, which shipped the naive version first and then had to narrow it for exactly the block-list case.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span></h4>
@@ -2445,50 +2451,50 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25147"></script>
-<script src="js/version.js?v=25147"></script>
-<script src="js/promote.js?v=25147"></script>
-<script src="js/authConfig.js?v=25147"></script>
-<script src="js/labels.js?v=25147"></script>
-<script src="js/graph.js?v=25147"></script>
-<script src="js/model.js?v=25147"></script>
-<script src="js/render.js?v=25147"></script>
-<script src="js/analyze.js?v=25147"></script>
-<script src="js/whatif.js?v=25147"></script>
-<script src="js/mslearn.js?v=25147"></script>
-<script src="js/gapcheck.js?v=25147"></script>
-<script src="js/cisdata.js?v=25147"></script>
-<script src="js/cischeck.js?v=25147"></script>
-<script src="js/exclusions.js?v=25147"></script>
-<script src="js/validator.js?v=25147"></script>
-<script src="js/whatifeval.js?v=25147"></script>
-<script src="js/compare.js?v=25147"></script>
-<script src="js/groupuse.js?v=25147"></script>
-<script src="js/iso3166.js?v=25147"></script>
-<script src="js/locations.js?v=25147"></script>
-<script src="js/authcontexts.js?v=25147"></script>
-<script src="js/authstrengths.js?v=25147"></script>
-<script src="js/recycle.js?v=25147"></script>
-<script src="js/rmau.js?v=25147"></script>
-<script src="js/rmaudoc.js?v=25147"></script>
-<script src="js/termsofuse.js?v=25147"></script>
-<script src="js/audit.js?v=25147"></script>
-<script src="js/drift.js?v=25147"></script>
-<script src="js/guide.js?v=25147"></script>
-<script src="js/devcheck.js?v=25147"></script>
-<script src="js/licgap.js?v=25147"></script>
-<script src="js/signins.js?v=25147"></script>
-<script src="js/reportimpact.js?v=25147"></script>
-<script src="js/changelog.js?v=25147"></script>
-<script src="js/baselineData.js?v=25147"></script>
-<script src="js/baselineJoeyData.js?v=25147"></script>
-<script src="js/baseline.js?v=25147"></script>
-<script src="js/groupTemplates.js?v=25147"></script>
-<script src="js/assign.js?v=25147"></script>
-<script src="js/cagroups.js?v=25147"></script>
-<script src="js/import.js?v=25147"></script>
-<script src="js/export.js?v=25147"></script>
-<script src="js/demo.js?v=25147"></script>
-<script src="js/app.js?v=25147"></script>
+<script src="js/branding.js?v=25148"></script>
+<script src="js/version.js?v=25148"></script>
+<script src="js/promote.js?v=25148"></script>
+<script src="js/authConfig.js?v=25148"></script>
+<script src="js/labels.js?v=25148"></script>
+<script src="js/graph.js?v=25148"></script>
+<script src="js/model.js?v=25148"></script>
+<script src="js/render.js?v=25148"></script>
+<script src="js/analyze.js?v=25148"></script>
+<script src="js/whatif.js?v=25148"></script>
+<script src="js/mslearn.js?v=25148"></script>
+<script src="js/gapcheck.js?v=25148"></script>
+<script src="js/cisdata.js?v=25148"></script>
+<script src="js/cischeck.js?v=25148"></script>
+<script src="js/exclusions.js?v=25148"></script>
+<script src="js/validator.js?v=25148"></script>
+<script src="js/whatifeval.js?v=25148"></script>
+<script src="js/compare.js?v=25148"></script>
+<script src="js/groupuse.js?v=25148"></script>
+<script src="js/iso3166.js?v=25148"></script>
+<script src="js/locations.js?v=25148"></script>
+<script src="js/authcontexts.js?v=25148"></script>
+<script src="js/authstrengths.js?v=25148"></script>
+<script src="js/recycle.js?v=25148"></script>
+<script src="js/rmau.js?v=25148"></script>
+<script src="js/rmaudoc.js?v=25148"></script>
+<script src="js/termsofuse.js?v=25148"></script>
+<script src="js/audit.js?v=25148"></script>
+<script src="js/drift.js?v=25148"></script>
+<script src="js/guide.js?v=25148"></script>
+<script src="js/devcheck.js?v=25148"></script>
+<script src="js/licgap.js?v=25148"></script>
+<script src="js/signins.js?v=25148"></script>
+<script src="js/reportimpact.js?v=25148"></script>
+<script src="js/changelog.js?v=25148"></script>
+<script src="js/baselineData.js?v=25148"></script>
+<script src="js/baselineJoeyData.js?v=25148"></script>
+<script src="js/baseline.js?v=25148"></script>
+<script src="js/groupTemplates.js?v=25148"></script>
+<script src="js/assign.js?v=25148"></script>
+<script src="js/cagroups.js?v=25148"></script>
+<script src="js/import.js?v=25148"></script>
+<script src="js/export.js?v=25148"></script>
+<script src="js/demo.js?v=25148"></script>
+<script src="js/app.js?v=25148"></script>
 </body>
 </html>
