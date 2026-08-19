@@ -8278,10 +8278,29 @@ max@contoso.com,"Global, DevOps"</pre>
   // every count and list — Microsoft licenses people, and a second
   // internal account of a licensed person needs no second licence.
   let lgAdmin = [], lgCtx = null;   // the designated groups, in pick order
+  let lgModalCat = "all";          // the pop-out's active category filter
   const lgAdmMap = new Map();   // suggestion label (lowercased) → { id, name }
   let lgAdmTimer = null, lgAdmBusy = false;
   const LG_PURPOSE_CAP = 600;  // gap users checked per run, in $batch chunks
   const LG_RESOURCE = new Set(["shared", "room", "equipment"]);
+  // ONE classifier decides which bucket a gap user is in — the card's
+  // chips, the pop-out's category column and its filters all read it, so
+  // a count on the card always matches the rows a click reveals.
+  function lgCatOf(u) {
+    const purpose = lgPurpose ? lgPurpose[u.id] : undefined;
+    if (purpose && LG_RESOURCE.has(purpose)) return "resource";
+    if (purpose === "mailbox-no-access") return "likely";
+    if (u.enabled === false) return "disabled";
+    if (u.lic0) return "nolic";
+    return "license";
+  }
+  const LG_CATS = {
+    license: { label: "to license", pill: "red", hint: "Enabled real users — license these (or exclude them deliberately)" },
+    disabled: { label: "disabled — cleanup", pill: "amber", hint: "Disabled accounts — cleanup candidates, not purchases" },
+    nolic: { label: "no licences at all — service account?", pill: "amber", hint: "Enabled accounts holding NO licences at all — usually service accounts or sync artifacts. Exclude or license deliberately." },
+    resource: { label: "shared/resource — never licensed", pill: "green", hint: "Shared / room / equipment mailbox accounts — never licensed; disable or exclude them" },
+    likely: { label: "likely shared/resource", pill: "amber", hint: "A mailbox exists but the account has no licence — almost always shared/room/equipment. Verify in the Exchange admin center." },
+  };
   const lgProg = makeProgress("lg");
   const LG_GROUP_CAP = 100;    // groups expanded per run
   const LG_MEMBER_PAGES = 10;  // ~10k members per group
@@ -8559,12 +8578,8 @@ max@contoso.com,"Global, DevOps"</pre>
     const lgClassify = (list) => {
       const c = { license: 0, disabled: 0, resource: 0, likely: 0, nolic: 0, unknown: 0 };
       for (const u of list) {
-        const purpose = lgPurpose ? lgPurpose[u.id] : undefined;
-        if (purpose && LG_RESOURCE.has(purpose)) c.resource++;
-        else if (purpose === "mailbox-no-access") c.likely++;
-        else if (u.enabled === false) c.disabled++;
-        else if (u.lic0) c.nolic++;
-        else { c.license++; if (lgPurpose && purpose === null) c.unknown++; }
+        c[lgCatOf(u)]++;
+        if (lgPurpose && lgPurpose[u.id] === null && lgCatOf(u) === "license") c.unknown++;
       }
       return c;
     };
@@ -8575,12 +8590,10 @@ max@contoso.com,"Global, DevOps"</pre>
       const c = lgClassify(o.gapUsers);
       return `<p class="mini" style="margin:0 0 8px"><b style="color:var(--off)">${o.gapUsers.length.toLocaleString()}</b> targeted user${o.gapUsers.length === 1 ? "" : "s"} with <b>no ${label} licence assigned</b>${r.totals.usersCapped ? ' <span class="tag new">partial — user read capped</span>' : ""}${unassigned ? ` · ${unassigned.toLocaleString()} owned seat${unassigned === 1 ? "" : "s"} still unassigned — assigning covers ${Math.min(unassigned, o.gapUsers.length)} before anything needs buying` : ""}</p>
       <p class="mini" style="margin:0 0 10px">
-        <span class="pill red" title="Enabled real users — license these (or exclude them deliberately)">${c.license}</span> <span class="mini muted">to license</span>
-        &nbsp;<span class="pill amber" title="Disabled accounts — cleanup candidates, not purchases">${c.disabled}</span> <span class="mini muted">disabled — cleanup</span>
-        ${c.nolic ? `&nbsp;<span class="pill amber" title="Enabled accounts holding NO licences at all — usually service accounts or sync artifacts that never consume Microsoft services. Exclude them from the policies deliberately, or license them deliberately — either way, decide rather than buy blindly.">${c.nolic}</span> <span class="mini muted">no licences at all — service account?</span>` : ""}
-        ${lgPurpose ? `&nbsp;<span class="pill green" title="Shared / room / equipment mailbox accounts — never licensed; disable or exclude them">${c.resource}</span> <span class="mini muted">shared/resource — never licensed</span>${c.likely ? `&nbsp;<span class="pill amber" title="A mailbox exists but the account has no licence — on an unlicensed account that is almost always a shared/room/equipment mailbox (a delegated sign-in cannot read its type directly). Verify in the Exchange admin center.">${c.likely}</span> <span class="mini muted">likely shared/resource</span>` : ""}` : ""}
-        ${o.graceCount ? `&nbsp;<span class="pill amber" title="These users still carry the plan from a suspended or expired subscription (grace period) — the licence shows on the user, but the seat is no longer owned, so they count in the gap.">${o.graceCount}</span> <span class="mini muted">in grace — seat no longer owned</span>` : ""}
-        ${o.gapUnknown ? `&nbsp;<span class="pill zero" title="Targeted identities with no member-user record — guests reached through a group, or beyond the user-read cap. They cannot be classified.">${o.gapUnknown}</span> <span class="mini muted">not classifiable</span>` : ""}
+        ${Object.entries(LG_CATS).filter(([k]) => lgPurpose || (k !== "resource" && k !== "likely")).map(([k, d]) =>
+          `<span data-lgusers="${key}" data-lgcat="${k}" style="cursor:pointer;margin-right:10px;white-space:nowrap" title="${d.hint} — click to see exactly these users."><span class="pill ${c[k] ? d.pill : "zero"}">${c[k]}</span> <span class="mini muted" style="text-decoration:underline dotted">${d.label}</span></span>`).join("")}
+        ${o.graceCount ? `<span class="pill amber" title="These users still carry the plan from a suspended or expired subscription (grace period) — the licence shows on the user, but the seat is no longer owned, so they count in the gap.">${o.graceCount}</span> <span class="mini muted">in grace — seat no longer owned</span>` : ""}
+        ${o.gapUnknown ? `&nbsp;<span class="pill zero" title="Targeted identities with no member-user record — guests reached through a group, or beyond the user-read cap. They cannot be classified and are NOT rows in the list.">${o.gapUnknown}</span> <span class="mini muted">not classifiable</span>` : ""}
       </p>
       <div class="tb-actions" style="justify-content:flex-start;gap:8px">
         <button class="btn sm" data-lgusers="${key}">👥 View all ${o.gapUsers.length.toLocaleString()}</button>
@@ -8748,11 +8761,21 @@ max@contoso.com,"Global, DevOps"</pre>
   function lgRenderUsers() {
     const o = lgModalKey === "p2" ? lgRes.p2 : lgRes.p1;
     const q = ($("lgUserSearch").value || "").toLowerCase().trim();
-    const list = (o.gapUsers || []).filter((u) => !q
-      || String(u.upn || "").toLowerCase().includes(q) || String(u.name || "").toLowerCase().includes(q));
+    const all = o.gapUsers || [];
+    const list = all.filter((u) => (lgModalCat === "all" || lgCatOf(u) === lgModalCat)
+      && (!q || String(u.upn || "").toLowerCase().includes(q) || String(u.name || "").toLowerCase().includes(q)));
+    // The filter chips mirror the card exactly — same classifier, same
+    // counts — so "1 to license" on the card is one click and one row here.
+    const counts = {};
+    for (const u of all) counts[lgCatOf(u)] = (counts[lgCatOf(u)] || 0) + 1;
+    const cats = Object.entries(LG_CATS).filter(([k]) => lgPurpose || (k !== "resource" && k !== "likely"));
+    $("lgUsersFilter").innerHTML = `<button class="btn sm ${lgModalCat === "all" ? "primary" : ""}" data-lgfcat="all">All (${all.length.toLocaleString()})</button>`
+      + cats.map(([k, d]) => `<button class="btn sm ${lgModalCat === k ? "primary" : ""}" data-lgfcat="${k}" title="${d.hint}">${d.label} (${(counts[k] || 0).toLocaleString()})</button>`).join("");
     const rows = list.map((u) => {
       const purpose = lgPurpose ? lgPurpose[u.id] : undefined;
       const res = purpose && LG_RESOURCE.has(purpose);
+      const cat = lgCatOf(u);
+      const catTag = `<span class="pill ${LG_CATS[cat].pill}" title="${LG_CATS[cat].hint}">${LG_CATS[cat].label}</span>`;
       const mb = lgPurpose === null ? "" : res
         ? `<span class="tag block">${lgPurposeLabel[purpose]} — never licensed, disable it</span>`
         : purpose === "mailbox-no-access" ? '<span class="tag new" title="A mailbox exists but the account holds no licence — on an unlicensed account that is almost always shared/room/equipment. A delegated sign-in cannot read the type directly; verify in the Exchange admin center.">unlicensed mailbox — likely shared/resource</span>'
@@ -8760,15 +8783,17 @@ max@contoso.com,"Global, DevOps"</pre>
         : purpose === null ? '<span class="tag">not readable</span>'
         : purpose === undefined ? '<span class="tag">not checked</span>' : '<span class="tag ok">user mailbox</span>';
       return `<tr><td class="mini"><code>${esc(u.upn || u.id)}</code></td><td class="mini">${esc(u.name || "")}</td>
+        <td>${catTag}</td>
         <td>${u.enabled === false ? '<span class="tag block">disabled</span>' : '<span class="tag ok">enabled</span>'}${(lgModalKey === "p2" ? u.p2grace : u.p1grace) ? ' <span class="tag new" title="The plan is still on the user from a suspended/expired subscription (grace) — the seat is no longer owned, so this user counts in the gap.">in grace</span>' : ""}${u.lic0 && u.enabled !== false ? ' <span class="tag" title="Holds no licences of any kind — usually a service account or sync artifact. Exclude deliberately or license deliberately.">no licences at all</span>' : ""}</td>
         ${lgPurpose === null ? "" : `<td>${mb}</td>`}</tr>`;
     }).join("");
-    $("lgUsersBody").innerHTML = `<table class="plist"><thead><tr><th>User</th><th>Name</th><th>Account</th>${lgPurpose === null ? "" : "<th>Mailbox</th>"}</tr></thead><tbody>${rows || `<tr><td colspan="4" class="mini muted">No match.</td></tr>`}</tbody></table>`;
+    $("lgUsersBody").innerHTML = `<table class="plist"><thead><tr><th>User</th><th>Name</th><th>Category</th><th>Account</th>${lgPurpose === null ? "" : "<th>Mailbox</th>"}</tr></thead><tbody>${rows || `<tr><td colspan="5" class="mini muted">No match.</td></tr>`}</tbody></table>`;
     $("lgUsersSub").textContent = `${list.length.toLocaleString()}${q ? ` of ${o.gapUsers.length.toLocaleString()}` : ""} targeted user${list.length === 1 ? "" : "s"} without ${lgModalKey === "p2" ? "P2" : "P1"} assigned — disabled and shared/resource accounts are cleanup, not purchases. The full list is also in 📄 Export MD.`;
   }
-  function lgShowUsers(key) {
+  function lgShowUsers(key, cat) {
     if (!lgRes) return;
     lgModalKey = key;
+    lgModalCat = cat || "all";
     $("lgUsersTitle").textContent = `Who is in the ${key === "p2" ? "P2" : "P1"} gap`;
     $("lgUserSearch").value = "";
     lgRenderUsers();
@@ -8830,12 +8855,18 @@ max@contoso.com,"Global, DevOps"</pre>
   $("lgBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-lgrun]")) { lgRun(); return; }
     const vu = e.target.closest("[data-lgusers]");
-    if (vu) { lgShowUsers(vu.dataset.lgusers); return; }
+    if (vu) { lgShowUsers(vu.dataset.lgusers, vu.dataset.lgcat); return; }
     if (e.target.closest("[data-lgcheck]")) { lgCheckPurpose(); return; }
     const pl = e.target.closest(".pol-link");
     if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
   });
   $("lgUsersClose").addEventListener("click", () => $("lgUsersModal").classList.remove("open"));
+  $("lgUsersFilter").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-lgfcat]");
+    if (!b || !lgRes) return;
+    lgModalCat = b.dataset.lgfcat;
+    lgRenderUsers();
+  });
   $("lgUserSearch").addEventListener("input", () => { if (lgRes) lgRenderUsers(); });
   $("lgMd").addEventListener("click", () => {
     if (!lgRes) { toast("Run the count first — the report is the comparison."); return; }

@@ -23,6 +23,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25144, date: "2026-08-19", title: "A count you cannot click is a claim, not an answer",
+    items: [
+      { kind: "improved", tool: "Licence gap", text: "Promotion item 61 — the card said “1 to license” but the pop-out gave no way to tell WHICH one: fifty-two rows, buckets only readable from scattered tags. The breakdown chips are now clickable and open the pop-out pre-filtered to exactly that bucket; inside, a Category column names each row’s bucket and filter buttons (All / to license / disabled / no licences / shared-resource / likely) carry the same counts as the card — one shared classifier decides the bucket for both, so the numbers cannot disagree. The not-classifiable pill now says outright that those identities are not rows in the list (no member-user record), which previously read as rows gone missing." },
+    ],
+  },
+  {
     build: 25143, date: "2026-08-19", title: "A role held through a group is people, not one opaque id",
     items: [
       { kind: "fixed", tool: "Licence gap", text: "Promotion item 61 — follow-up from the office365itpros comparison: /directoryRoles/members returns DIRECT assignments, which are not all users. A role held through a role-assignable group arrived as the group object — one opaque id that matched no member user, so the people holding the role that way were silently missing from the targeting of role-scoped policies (a gap the compared script shares). Group-typed role members are now expanded to their transitive users, service principals holding a role are ignored on purpose (they hold no user licences and previously counted as unclassifiable identities), and a failed group expansion marks only that role’s count approximate rather than poisoning the run." },
