@@ -10,23 +10,23 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=293"></script>
+<script src="js/popup-guard.js?v=294"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=293" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=293">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=294" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=294">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=293"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=293"></script>
+<script src="js/counter.js?v=294"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=294"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=293" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=294" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -54,7 +54,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=293" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=294" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -99,7 +99,7 @@
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
     <div class="tools">
       <div class="tool" id="toolUserImpact">
-        <div class="tool-ic">🗣</div><h3>User impact brief <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">🗣</div><h3>User impact brief</h3>
         <p>The rollout email, written by the tenant itself: what people will notice and what will deliberately no longer be possible, derived from the Conditional Access policies actually deployed — with what is live today kept apart from what changes at go-live. Filter by audience, export as Markdown or a Word document for the communications team.</p>
       </div>
       <div class="tool" id="toolDrift">
@@ -150,7 +150,7 @@
         <p>A grant demanding a compliant device is only worth what Intune's compliance policies are worth — and nothing checks the other half. Per CA policy and per platform: is the scope actually assigned a compliance policy, or does it fall through to the tenant default? Same check for app protection behind “require approved client app”. <span class="tag grant">extra permissions</span></p>
       </div>
       <div class="tool" id="toolLicGap">
-        <div class="tool-ic">🎫</div><h3>Licence gap <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
+        <div class="tool-ic">🎫</div><h3>Licence gap <span class="tag upd">UPDATED</span></h3>
         <p>Microsoft's licence usage blade counts who <i>triggered</i> a policy last month — the obligation is on who your policies <i>target</i>. Every targeted user needs Entra ID P1, risk-based policies need P2. This counts the real number, compares it with the seats you own, and lays out the ways to close a gap.</p>
       </div>
       <div class="tool" id="toolAudit">
@@ -204,7 +204,7 @@
         <p>The step-up requirements apps and Protected Actions can ask for (c1–c99): create, rename, publish or unpublish each context and see which Conditional Access policies enforce it. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolAuthStr">
-        <div class="tool-ic">💪</div><h3>Authentication strengths <span class="tag new">BETA</span></h3>
+        <div class="tool-ic">💪</div><h3>Authentication strengths</h3>
         <p>The method combinations a policy can require: the three built-in strengths read-only, custom strengths created, re-combined, renamed and deleted — with the policies granting each one. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolTou">
@@ -870,7 +870,7 @@
     <div id="acBody" style="margin-top:14px"></div>
   </section>
 
-  <!-- ============ AUTHENTICATION STRENGTHS (BETA) ============ -->
+  <!-- ============ AUTHENTICATION STRENGTHS ============ -->
   <section id="screen-authstr" class="screen">
     <div class="list-card readme" id="asHead" style="margin-top:0"></div>
     <div class="toolbar" style="margin-top:14px">
@@ -1077,6 +1077,11 @@
     <div class="list-card readme" id="uiHead" style="margin-top:0"></div>
     <div class="toolbar" id="uiToolbar" style="margin-top:14px">
       <div class="tb-actions">
+        <!-- The brief is DERIVED from the policy set in memory, not read for
+             itself, so it is exactly as current as the last tenant read. It has
+             no first-run step, so unlike the Change-audit shape this button is
+             always present: it re-reads and re-analyses rather than starting. -->
+        <button class="btn" id="uiRescan" title="Re-read the policies from the tenant and rebuild the brief">⟳ Re-read &amp; analyse</button>
         <button class="btn" id="uiMd">Export MD</button>
         <button class="btn" id="uiDocx">Export Word</button>
       </div>
@@ -1370,7 +1375,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>🗣 User impact brief <span class="tag new">BETA</span></h4>
+      <h4>🗣 User impact brief</h4>
       <p>The rollout communication, derived from the policies this tenant actually has: what people will <b>notice</b>, and what will deliberately <b>no longer be possible</b>. It is the one document in ENCA written for the people the baseline happens to, rather than for the person deploying it.</p>
       <ul>
         <li><b>Every statement names its policies.</b> Click one and the policy card opens — a sentence the communications team is about to send to the whole company can be checked against the configuration it claims to describe, which is the only thing that makes a generated brief safe to forward.</li>
@@ -1797,7 +1802,7 @@
     </section>
 
     <section class="help-sec">
-      <h4>🎫 Licence gap <span class="tag new">BETA</span></h4>
+      <h4>🎫 Licence gap</h4>
       <p>Microsoft has started showing a <b>“Licensing overage”</b> warning on the Conditional Access page, linked to the licence usage blade. The blade counts <b>evaluated</b> users — unique users who actually triggered a policy during the previous month. But that is not what Microsoft licenses on: <b>every user targeted by a Conditional Access policy needs Entra ID P1</b>, and every user targeted by a risk-based (sign-in / user risk) policy needs <b>P2</b> — whether they signed in or not. A blade showing “2 of 25, no warning” can sit on a tenant whose broadest policy targets every one of its 121 users. This tool computes the <i>targeted</i> number — the obligation — and compares it with the seats the tenant owns.</p>
       <ul>
         <li><b>Targeting is resolved on the actual members</b> — an All-users policy is the member-user count minus its resolvable exclusions; a scoped policy is the union of its included users, transitive group members (nesting counts) and directory-role holders (a role held through a role-assignable group is expanded to its users; service principals holding a role are ignored — they hold no user licences), minus its exclusions. Per-policy counts overlap, so the obligation is the <b>union across policies</b>, computed on user ids — one user under five policies needs one licence, never five.</li>
@@ -2478,48 +2483,48 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=293"></script>
-<script src="js/version.js?v=293"></script>
-<script src="js/authConfig.js?v=293"></script>
-<script src="js/labels.js?v=293"></script>
-<script src="js/graph.js?v=293"></script>
-<script src="js/model.js?v=293"></script>
-<script src="js/render.js?v=293"></script>
-<script src="js/analyze.js?v=293"></script>
-<script src="js/whatif.js?v=293"></script>
-<script src="js/mslearn.js?v=293"></script>
-<script src="js/gapcheck.js?v=293"></script>
-<script src="js/exclusions.js?v=293"></script>
-<script src="js/validator.js?v=293"></script>
-<script src="js/whatifeval.js?v=293"></script>
-<script src="js/compare.js?v=293"></script>
-<script src="js/groupuse.js?v=293"></script>
-<script src="js/iso3166.js?v=293"></script>
-<script src="js/locations.js?v=293"></script>
-<script src="js/authcontexts.js?v=293"></script>
-<script src="js/authstrengths.js?v=293"></script>
-<script src="js/recycle.js?v=293"></script>
-<script src="js/rmau.js?v=293"></script>
-<script src="js/camap.js?v=293"></script>
-<script src="js/rmaudoc.js?v=293"></script>
-<script src="js/termsofuse.js?v=293"></script>
-<script src="js/audit.js?v=293"></script>
-<script src="js/drift.js?v=293"></script>
-<script src="js/userimpact.js?v=293"></script>
-<script src="js/devcheck.js?v=293"></script>
-<script src="js/licgap.js?v=293"></script>
-<script src="js/signins.js?v=293"></script>
-<script src="js/reportimpact.js?v=293"></script>
-<script src="js/changelog.js?v=293"></script>
-<script src="js/baselineData.js?v=293"></script>
-<script src="js/baselineJoeyData.js?v=293"></script>
-<script src="js/baseline.js?v=293"></script>
-<script src="js/groupTemplates.js?v=293"></script>
-<script src="js/assign.js?v=293"></script>
-<script src="js/cagroups.js?v=293"></script>
-<script src="js/import.js?v=293"></script>
-<script src="js/export.js?v=293"></script>
-<script src="js/demo.js?v=293"></script>
-<script src="js/app.js?v=293"></script>
+<script src="js/branding.js?v=294"></script>
+<script src="js/version.js?v=294"></script>
+<script src="js/authConfig.js?v=294"></script>
+<script src="js/labels.js?v=294"></script>
+<script src="js/graph.js?v=294"></script>
+<script src="js/model.js?v=294"></script>
+<script src="js/render.js?v=294"></script>
+<script src="js/analyze.js?v=294"></script>
+<script src="js/whatif.js?v=294"></script>
+<script src="js/mslearn.js?v=294"></script>
+<script src="js/gapcheck.js?v=294"></script>
+<script src="js/exclusions.js?v=294"></script>
+<script src="js/validator.js?v=294"></script>
+<script src="js/whatifeval.js?v=294"></script>
+<script src="js/compare.js?v=294"></script>
+<script src="js/groupuse.js?v=294"></script>
+<script src="js/iso3166.js?v=294"></script>
+<script src="js/locations.js?v=294"></script>
+<script src="js/authcontexts.js?v=294"></script>
+<script src="js/authstrengths.js?v=294"></script>
+<script src="js/recycle.js?v=294"></script>
+<script src="js/rmau.js?v=294"></script>
+<script src="js/camap.js?v=294"></script>
+<script src="js/rmaudoc.js?v=294"></script>
+<script src="js/termsofuse.js?v=294"></script>
+<script src="js/audit.js?v=294"></script>
+<script src="js/drift.js?v=294"></script>
+<script src="js/userimpact.js?v=294"></script>
+<script src="js/devcheck.js?v=294"></script>
+<script src="js/licgap.js?v=294"></script>
+<script src="js/signins.js?v=294"></script>
+<script src="js/reportimpact.js?v=294"></script>
+<script src="js/changelog.js?v=294"></script>
+<script src="js/baselineData.js?v=294"></script>
+<script src="js/baselineJoeyData.js?v=294"></script>
+<script src="js/baseline.js?v=294"></script>
+<script src="js/groupTemplates.js?v=294"></script>
+<script src="js/assign.js?v=294"></script>
+<script src="js/cagroups.js?v=294"></script>
+<script src="js/import.js?v=294"></script>
+<script src="js/export.js?v=294"></script>
+<script src="js/demo.js?v=294"></script>
+<script src="js/app.js?v=294"></script>
 </body>
 </html>
