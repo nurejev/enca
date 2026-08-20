@@ -87,6 +87,28 @@ const PROMOTE = {
 
   items: [
     {
+      n: 82,
+      title: "🧬 Baseline catalog revision 2026-08-20",
+      tools: ["Baseline Policies"],
+      builds: [25178],
+      risk: "medium",
+      what: "js/baselineData.js re-cut from the 2026-08-20 CloudFellows export. Same 99 policies. CA205 and CA301 move from a compliant-device grant to BLOCK with an Entra-joined device filter (CA301 admits hybrid joined too); CA213 includes Persona-Internals instead of CA213-Inclusion; revision stamp 2026-08-20, release still R26.6 (v3.x). Guest-type wording and group order were compared out as ENCA rendering changes, not policy changes. Two departures from the export kept on purpose: the 58 per-policy exclusion-group references are carried forward, and CA001's tenant-specific SEC-VIP-Exceptions is not taken.",
+      why: "Data, not code — but it is the data every tenant's gap report is measured against, so a wrong entry reads as a wrong tenant. Production is still on the 2026-07-21 revision and will tell a customer CA205 should be a compliant-device grant; the two channels disagree about the baseline until this moves. Graduates once the three changed policies have been read against a real tenant and the counts still reconcile.",
+      test: [
+        "🧬 Baseline Policies header shows revision 2026-08-20, release R26.6 (v3.x), 99 policies.",
+        "CA205 row reads CA205-BLOCK-Internals-BP-AnyApp-Windows-EntraJoined-v3.0 and its card shows Block access, not a grant.",
+        "CA301 card shows Block access and the device filter admitting AzureAD OR ServerAD — a tenant with hybrid joined devices must not read as uncovered.",
+        "CA213 card includes CAB-SEC-U-Persona-Internals and no CA213-Inclusion group.",
+        "CA001 card still excludes CAB-SEC-U-CA001-Exclusion, and SEC-VIP-Exceptions appears nowhere in the catalog.",
+        "Spot-check three policies that lost their exclusion group in the export (CA002, CA101, CA1009): each still lists its CAB-SEC-U-CAxxx-Exclusion group.",
+        "👥 CA groups ① Check against a tenant: no baseline group is expected that has no template, and the template count still reads 100.",
+        "Run the gap report on a tenant deployed from the July revision: CA205, CA301 and CA213 come back as version mismatches and nothing else does — if other policies show as changed, the rendering noise was not fully compared out.",
+        "📥 Import a persona on a scratch tenant: CA205 and CA301 create as block policies with their filters intact.",
+        "Needs a tenant with hybrid joined Windows devices to prove the CA301 filter matters; say so if that check was skipped.",
+      ],
+      files: ["js/baselineData.js"],
+    },
+    {
       n: 81,
       title: "\ud83d\udc65 REMOVE from assignment starts from what is assigned",
       tools: ["List Policies", "CA groups"],
