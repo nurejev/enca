@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25181, date: "2026-08-20", title: "A brief you send to other people should not be quietly stale",
+    items: [
+      { kind: "new", tool: "User impact brief", text: "\u27f3 Re-read & analyse. This tool is DERIVED from the policy set already in memory rather than reading the tenant for itself, which is what makes it instant \u2014 and also means it was exactly as current as whenever the policies were last loaded, with nothing on screen saying when that was. The button re-reads the tenant, rebuilds the brief, and returns you HERE: a refresh normally ends on the policy list, and a re-read pressed inside a tool should not move you to a different one." },
+      { kind: "improved", tool: "User impact brief", text: "The header says how old the answer is \u2014 just now, 5 min ago, 3 d ago \u2014 and says outright that policies change, so re-read before sending it anywhere. This is the one output in ENCA written to be handed to other people; a brief describing what users will notice, quoting policies that were edited this morning, is exactly the document that gets quoted back at you." },
+      { kind: "fixed", tool: "All tools", text: "The tenant load now reports whether it actually succeeded, and stamps the policy set with a read time. Both were needed for the above and neither existed: without the first, a re-read whose sign-in had expired would have drawn the tool over the login screen; without the second, no tool that derives from the loaded policies could say how fresh it is. The read time is available to any of them now." },
+    ],
+  },
+  {
     build: 25180, date: "2026-08-20", title: "Items 80 to 83 reached production 293",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue items 80 (🎚 Report-only impact's chips and search), 81 (👥 REMOVE starting from what is assigned), 82 (the 2026-08-20 baseline catalog) and 83 (R38, restoring a policy's own exclusion group) are live in production build 293. Removed from the queue; the numbers are retired rather than reused. productionBuild moves to v1.0.293. That is everything this channel had built since 25175 — the four items and the four builds are the same set." },

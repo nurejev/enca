@@ -4,6 +4,10 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   let policies = [];          // view models
+  // When the policy set in memory was last read from the tenant. Tools that
+  // derive from it rather than reading for themselves need to be able to say
+  // how old their answer is — and to offer a re-read.
+  let policiesReadAt = null;
   let tenantName = "";
   let tenantDomain = "";
   // Baseline tenants deploy the persona policies Off first; there the Gap and
@@ -1423,6 +1427,7 @@
       $("tenantBox").style.display = "flex";
     $("homeBtn").style.display = "inline-flex";
       selected = new Set();
+      policiesReadAt = Date.now();
       refreshViews();
       renderPermissions();
       show(isRefresh ? "screen-list" : "screen-home");
@@ -1431,6 +1436,7 @@
         : `Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
       warnUnresolved();
       if (!isRefresh) maybeShowWhatsNew();   // after sign-in, never over the login screen
+      return true;
     } catch (e) {
       console.error("Failed while " + phase + ":", e); // full details for diagnostics
       alert(`Something went wrong while ${phase}.\n\nError: ${e.message || e}\n\n` +
@@ -1438,6 +1444,7 @@
           ? "If this mentions 401/403: admin consent for this app may not be granted in your tenant yet."
           : "This looks like an app bug — please report the error text above."));
       show("screen-login");
+      return false;
     }
   }
 
@@ -1455,6 +1462,7 @@
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
     const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
     policies = DEMO_DATA.policies.map((r, i) => buildViewModel(r, resolve, i));
+    policiesReadAt = Date.now();
     $("tenantName").textContent = tenantName;
     $("tenantUser").textContent = "demo@contoso.onmicrosoft.com";
     $("avatar").textContent = "DM";
@@ -8987,9 +8995,16 @@ max@contoso.com,"Global, DevOps"</pre>
   // in memory — nothing is read from Graph here, so the tool renders on open
   // and re-renders when the audience filter changes.
   let uiRes = null, uiAud = "all";
+  // auAgo() rounds up to "1 min ago", which reads as stale the instant a
+  // re-read finishes — and freshness is the entire point of this line.
+  const uiReadAgo = () => {
+    if (!policiesReadAt) return "—";
+    return (Date.now() - policiesReadAt) < 60e3 ? "just now" : auAgo(policiesReadAt);
+  };
   function renderUserImpact() {
     uiRes = UserImpact.analyze(policies);
     $("uiHead").innerHTML = `<h3 style="margin:0 0 6px">🗣 User impact brief</h3>
+      <p class="mini muted" style="margin:0 0 4px">Read from the tenant <b>${esc(uiReadAgo())}</b>. This brief is derived from the policies already loaded, so it is exactly that current — policies change, so <b>⟳ Re-read &amp; analyse</b> before you send it anywhere.</p>
       <p class="mini" style="margin:0">What people will notice — and what will deliberately no longer be possible — derived from the <b>${uiRes.total} persona baseline policies</b> (${uiRes.counts.on} enforced, ${uiRes.counts.report} report-only, ${uiRes.counts.off} prepared)${uiRes.other.total ? `; the ${uiRes.other.total} policies without a persona CA number are analyzed LAST, in their own section at the bottom` : ""}. Statements from enforced policies are marked <b>live now</b>; the rest describe go-live. Export the draft for the communications team as Markdown or Word.</p>`;
     const auds = ["all", ...uiRes.audiences];
     const chips = auds.map((a) => `<button class="btn${uiAud === a ? " primary" : ""}" data-uiaud="${esc(a)}" style="padding:4px 10px">${a === "all" ? "All audiences" : esc(a)}</button>`).join(" ");
@@ -9017,6 +9032,18 @@ max@contoso.com,"Global, DevOps"</pre>
   }
   function openUserImpact() { crumb("🗣 User impact brief"); show("screen-userimpact"); renderUserImpact(); }
   $("toolUserImpact").addEventListener("click", openUserImpact);
+  // loadFromGraph() lands on the policy list when it is a refresh, so come back
+  // here afterwards — a re-read pressed in this tool should not move you to a
+  // different one. Only on success: a failed read shows the sign-in screen, and
+  // navigating over that would hide it.
+  $("uiRescan").addEventListener("click", async (e) => {
+    const btn = e.target.closest("#uiRescan"), label = btn.innerHTML;
+    btn.disabled = true; btn.textContent = "Reading…";
+    try {
+      if (isDemo) { policiesReadAt = Date.now(); openUserImpact(); toast("Demo — <span>re-analysed</span> the sample policies"); return; }
+      if (await loadFromGraph(true)) openUserImpact();
+    } finally { btn.disabled = false; btn.innerHTML = label; }
+  });
   $("uiBody").addEventListener("click", (e) => {
     const a = e.target.closest("[data-uiaud]");
     if (a) { e.preventDefault(); uiAud = a.dataset.uiaud; renderUserImpact(); return; }

@@ -87,6 +87,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 84,
+      title: "\ud83d\udde3 User impact brief can re-read the tenant",
+      tools: ["User impact brief"],
+      builds: [25181],
+      risk: "medium",
+      what: "T32 gains \u27f3 Re-read & analyse, and a header line saying how old the answer is (just now / 5 min ago / 3 d ago). The re-read reloads the policies from the tenant, rebuilds the brief and returns to this tool instead of landing on the policy list, which is where a refresh normally ends up. loadFromGraph() now reports whether the read succeeded, so a failed one leaves the sign-in screen up rather than being navigated over, and the policy set carries a read timestamp any tool can use.",
+      why: "The brief is derived from the policy set already in memory, not read for itself, so it was exactly as current as whenever the tenant was last loaded \u2014 and nothing on screen said when that was. It is the one output here meant to be sent to other people: an impact brief describing policies that changed this morning, with no way to refresh it and no indication it might be stale, is the kind of document that gets quoted back at you.",
+      test: [
+        "Open T32 straight after signing in: the header says read just now, not 1 min ago.",
+        "Leave it open a few minutes and revisit: the line ages (5 min ago, then hours, then days).",
+        "Change a policy in the portal, press Re-read & analyse: the brief reflects the change and you are still in T32, not on the policy list.",
+        "The button disables and reads Reading... while it runs, and comes back afterwards.",
+        "Force the read to fail (sign out in another tab first): the sign-in screen is shown and stays shown - T32 must not be drawn over it.",
+        "Demo mode: the button re-analyses the sample set, says so, and makes no Graph call.",
+        "Sign in normally afterwards: the What's new overlay still appears - loadFromGraph returning a value must not have skipped it.",
+        "Export MD and Export Word still work, and the exported brief matches what is on screen after a re-read.",
+      ],
+      files: ["index.html", "js/app.js"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],
