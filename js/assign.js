@@ -15,9 +15,20 @@ const Assign = (() => {
     "Set INCLUDE to All Users (clear include groups)",
     "REMOVE from INCLUDE groups (keep the rest)",
     "REMOVE from EXCLUDE groups (keep the rest)",
+    "RESTORE each policy's own CAxxx-Exclusion group (adds only what is missing)",
   ];
-  // Which actions read a group selection (everything except "All Users").
-  const NEEDS_GROUPS = (a) => a !== 4;
+  // Which actions read a group selection (everything except "All Users" and
+  // the mapped restore, which works out its own group per policy).
+  const NEEDS_GROUPS = (a) => a !== 4 && !MAPPED_ACTIONS.has(a);
+
+  // ---------- the mapped action: one group PER POLICY --------------------
+  // Every other action applies ONE group list to every selected policy. The
+  // baseline's per-policy exclusion groups cannot work that way: CA200 wants
+  // CAB-SEC-U-CA200-Exclusion and CA201 wants CAB-SEC-U-CA201-Exclusion, so
+  // the target is a mapping, not a list. That is the whole reason this action
+  // exists rather than being "ADD to EXCLUDE" used carefully — and why the
+  // write goes through applyMapped() instead of apply().
+  const MAPPED_ACTIONS = new Set([7]);
 
   // The same seven actions, aimed at directory roles instead. This is the
   // portal's "Directory roles" under Include/Exclude — the assignment behind
@@ -31,6 +42,7 @@ const Assign = (() => {
     null,
     "REMOVE from INCLUDE roles (keep the rest)",
     "REMOVE from EXCLUDE roles (keep the rest)",
+    null,   // the CAxxx-Exclusion convention is about groups; roles have none
   ];
   const actionsFor = (target) => (target === "roles" ? ROLE_ACTIONS : ACTIONS);
 
@@ -137,6 +149,105 @@ const Assign = (() => {
       try { const g = await findGroup(name); if (g) out.push(g); } catch {}
     }
     return out;
+  }
+
+  // ---------- convention exclusions: what each policy SHOULD exclude -----
+  // The baseline gives most numbered policies their own exclusion group, and
+  // that reference is the first thing to go missing: somebody rebuilds a
+  // policy, imports an older version, or tidies an exclusion list, and the
+  // group is left in the directory with nothing pointing at it. Nothing
+  // notices, because an absent exclusion looks exactly like a policy that
+  // never had one — until the day the exception it existed for is needed.
+  const CONV_RE = /^CAB-SEC-U-CA(\d+)-Exclusion$/i;
+  // The CA token as the policy NAME spells it, leading zeros intact: CA006
+  // and CA1009 are both real, and the group name has to match the tenant's
+  // spelling character for character or the lookup finds nothing.
+  const caToken = (policyName) => {
+    const m = String(policyName || "").match(/\bCA(\d{3,4})\b/);
+    return m ? m[1] : null;
+  };
+
+  // What group this policy should exclude, and on whose authority.
+  //   catalog — the baseline itself names one for this CA number. Definitive.
+  //   derived — the policy carries a CA number the catalog does not have (a
+  //             tenant's own numbering), so the convention is applied by
+  //             pattern. Offered, but labelled: it is an inference.
+  // null means there is nothing to restore, which is the right answer for a
+  // policy with no CA number AND for a catalog policy that legitimately has
+  // no exclusion group of its own — 14 of the 99 do not.
+  function conventionExclusionFor(policyName) {
+    const tok = caToken(policyName);
+    if (!tok) return null;
+    const cat = (typeof BASELINE !== "undefined" ? BASELINE.policies : [])
+      .find((p) => p.num === parseInt(tok, 10));
+    if (cat) {
+      const hit = (cat.exclude || [])
+        .map((x) => String(x).replace(/\s*\(group\)$/, ""))
+        .find((x) => CONV_RE.test(x));
+      return hit ? { name: hit, source: "catalog" } : null;
+    }
+    return { name: `CAB-SEC-U-CA${tok}-Exclusion`, source: "derived" };
+  }
+
+  // One row per policy, so the panel can be read as a drift report rather
+  // than a list of things to tick. States, and each is a different job:
+  //   present  — already excluded. Nothing to do, and worth showing, because
+  //              "how many are already right" is half the answer.
+  //   missing  — the group exists in the tenant and the policy does not
+  //              reference it. This is the one a run actually fixes.
+  //   nogroup  — the group does not exist at all, so it must be created
+  //              before it can be referenced.
+  //   none     — no convention group applies to this policy.
+  function conventionPlan(policyList, groupsByName) {
+    const byName = groupsByName instanceof Map ? groupsByName
+      : new Map((groupsByName || []).map((g) => [String(g.name).toLowerCase(), g]));
+    return (policyList || []).map((p) => {
+      const want = conventionExclusionFor(p.name);
+      const row = { id: p.id, policy: p.name };
+      if (!want) return { ...row, state: "none" };
+      const g = byName.get(want.name.toLowerCase()) || null;
+      const cur = new Set(((((p.raw || {}).conditions || {}).users || {}).excludeGroups) || []);
+      if (!g) return { ...row, group: want.name, source: want.source, state: "nogroup" };
+      if (cur.has(g.id)) return { ...row, group: want.name, groupId: g.id, source: want.source, state: "present" };
+      return { ...row, group: want.name, groupId: g.id, source: want.source, state: "missing" };
+    });
+  }
+
+  const planCounts = (rows) => (rows || []).reduce((a, r) => (a[r.state] = (a[r.state] || 0) + 1, a), {});
+
+  // Every CAB-SEC group in one read. Resolving 99 names one at a time is 99
+  // round trips for a question a single prefix filter answers.
+  async function groupsByPrefix(prefix) {
+    const p = String(prefix || "CAB-SEC-").replace(/'/g, "''");
+    const flt = encodeURIComponent(`startswith(displayName,'${p}')`);
+    const found = await Graph.ggetAll(`/groups?$filter=${flt}&$select=id,displayName&$top=999`);
+    return found.map((g) => ({ id: g.id, name: g.displayName }));
+  }
+
+  // The mapped write. Same PATCH as apply(), but the group ids come from the
+  // row rather than from one shared selection, and the action is fixed to
+  // ADD-to-exclude: restoring a reference must never rewrite the exclusions a
+  // policy already has, whatever else is in that list.
+  async function applyMapped(items, onStatus) {
+    const results = [];
+    for (let i = 0; i < (items || []).length; i++) {
+      const it = items[i];
+      let name = it.policy || it.policyId;
+      try {
+        const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${it.id}`);
+        name = fresh.displayName || name;
+        onStatus?.(`Updating ${name} (${i + 1}/${items.length})…`);
+        const { users } = newUsersBlock(fresh, 3, [it.groupId], "groups");
+        if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false, group: it.group }); continue; }
+        await Graph.gpatch(`/identity/conditionalAccess/policies/${it.id}`, { conditions: { users } });
+        results.push({ name, ok: true, changed: true, group: it.group });
+        await pause(80);
+      } catch (e) {
+        console.error(`Assign restore: ${name} failed`, e);
+        results.push({ name, ok: false, error: e.message || String(e), group: it.group });
+      }
+    }
+    return results;
   }
 
   // ---------- group creation (pure Graph, no PowerShell) ----------
@@ -423,5 +534,6 @@ const Assign = (() => {
     return results;
   }
 
-  return { ACTIONS, ROLE_ACTIONS, actionsFor, ADMIN_ROLE_NAMES, roleTemplates, isAdminRole, NEEDS_GROUPS, REMOVE_ACTIONS, PERSONAS, personasWithGroup, templateFor, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, confirmNesting, NEST_SCOPES, templates };
+  return { ACTIONS, ROLE_ACTIONS, actionsFor, ADMIN_ROLE_NAMES, roleTemplates, isAdminRole, NEEDS_GROUPS, REMOVE_ACTIONS, MAPPED_ACTIONS,
+    conventionExclusionFor, conventionPlan, planCounts, groupsByPrefix, applyMapped, PERSONAS, personasWithGroup, templateFor, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, confirmNesting, NEST_SCOPES, templates };
 })();

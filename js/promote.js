@@ -87,6 +87,29 @@ const PROMOTE = {
 
   items: [
     {
+      n: 83,
+      title: "🔁 RESTORE each policy's own CAxxx-Exclusion group (R38)",
+      tools: ["List Policies", "CA groups"],
+      builds: [25179],
+      risk: "medium",
+      what: "An eighth action in the Assign wizard, and the first that maps a DIFFERENT group to every policy: the CA number in the policy name resolves to its exclusion group via the baseline catalog (derived by convention when the catalog has no such number, and labelled as such). Step 2 is a drift report — already correct / lost the reference / group not in the tenant / no convention group — with only the repairs pre-ticked, optional creation of missing groups from their templates, and the whole tenant as a scope for the sweep. Additive only; tenant-wide needs the typed ALL. New Assign.conventionExclusionFor / conventionPlan / groupsByPrefix / applyMapped, and a per-policy change report.",
+      why: "It WRITES, and what it writes widens policies: an exclusion group with members in it exempts those members the moment the reference is restored. Reading a tenant that has drifted is safe; putting 58 references back across a production estate in one pass is the part that has to be proven. Graduates once a sweep has been run against a real tenant and the change report reconciles with what the Baseline gap check expected.",
+      test: [
+        "Demo mode covers all three states (CA200 correct, CA201 lost the reference, CA204's group absent) — step 2 must show 1 already correct, 1 missing, 1 group not in tenant.",
+        "Scope to a selection of one policy that already has its group: step 2 says there is nothing to restore and points at Back.",
+        "A policy whose CA number the catalog does not have (e.g. rename one to CA250-…): the row appears with a derived tag, and the group name follows the convention.",
+        "A policy with no CA number in its name is counted under 'no convention group' and never ticked.",
+        "Untick the create-missing-groups box: the nogroup rows go disabled and Tick all does not select them; the count excludes them.",
+        "Tick create-missing-groups on a real tenant: the group is created from its baseline template, appears in Entra as a plain security group, and the policy references it afterwards.",
+        "Run it scoped to all policies: the review demands the typed ALL, and the change report lists policy → group pairs, not one group list.",
+        "Re-run the same sweep immediately: every row now reads 'already set' and nothing is written twice.",
+        "A policy that already excludes the group plus others: after the run its other exclusions are still there — this action must never replace a list.",
+        "Break one deliberately (remove the group from a policy in the portal), sweep, and confirm 🧬 Baseline Policies stops reporting that policy as drifted afterwards.",
+        "Needs a tenant where the CAB-SEC-U-CAxxx-Exclusion groups actually exist to prove the group lookup — say so if that check was skipped.",
+      ],
+      files: ["js/assign.js", "js/app.js", "js/demo.js", "index.html"],
+    },
+    {
       n: 82,
       title: "🧬 Baseline catalog revision 2026-08-20",
       tools: ["Baseline Policies"],
@@ -112,9 +135,9 @@ const PROMOTE = {
       n: 81,
       title: "\ud83d\udc65 REMOVE from assignment starts from what is assigned",
       tools: ["List Policies", "CA groups"],
-      builds: [25177],
+      builds: [25177, 25179],
       risk: "medium",
-      what: "The two REMOVE actions in the Assign wizard list the groups the selected policies actually carry in that bucket, all ticked, so the job is unticking whatever should stay. Names are resolved per object id; an id the directory no longer has is labelled a dangling reference instead of being shown as its own GUID; each row says how many of the selected policies reference it. Nothing assigned gives an honest empty state rather than a catalog. A tenant-wide REMOVE now needs the typed ALL that tenant-wide rewrites already needed.",
+      what: "FIXED IN 25179 BEFORE IT SHIPPED: the panel this item adds threw \"asAssignedGroups is not defined\" for everybody. Its helper functions were declared inside renderAssign's Directory-roles branch, and a function declaration in a block is only ASSIGNED when that block runs — so unless you had visited Directory roles first, which nobody does when the default target is Groups, step 2 stopped dead at \"Reading the current assignment…\". They are declared at module level now. The first line of the test list below would have caught it. — The two REMOVE actions in the Assign wizard list the groups the selected policies actually carry in that bucket, all ticked, so the job is unticking whatever should stay. Names are resolved per object id; an id the directory no longer has is labelled a dangling reference instead of being shown as its own GUID; each row says how many of the selected policies reference it. Nothing assigned gives an honest empty state rather than a catalog. A tenant-wide REMOVE now needs the typed ALL that tenant-wide rewrites already needed.",
       why: "REMOVE acts on what a policy ALREADY has, and step 2 offered the baseline catalog: ticking a group the policy never referenced did nothing, and the group actually assigned might not be in the catalog to tick. So the one action whose target set is knowable made you guess it. Pre-ticking also turns the question into the right one - which of these should stay - instead of hunting names out of a list of fifteen.",
       test: [
         "Pick one policy with a couple of exclusions, action REMOVE from EXCLUDE: step 2 lists exactly those groups, all ticked, under CURRENTLY EXCLUDED.",

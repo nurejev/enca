@@ -10,23 +10,23 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25178"></script>
+<script src="js/popup-guard.js?v=25179"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25178" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25178">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25179" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25179">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25178"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25178"></script>
+<script src="js/counter.js?v=25179"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25179"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25178" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25179" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -54,7 +54,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25178" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25179" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1161,6 +1161,11 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+          <div class="list-card rm-card" data-shipped="25179">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R38</span> 🔁 Restore the exclusion group a policy has lost <span class="tag grant">live · beta 25179</span></h4>
+            <p class="mini" style="margin:0">The baseline gives most numbered policies their own exclusion group, and that reference is the first thing to go missing: a policy gets rebuilt, an older version is imported, somebody tidies an exclusion list, and the group is left in the directory with nothing pointing at it. Nothing notices — a policy that lost its exclusion group looks exactly like one that never had it, until the day the exception it existed for is needed and the bypass is not there.</p>
+            <p class="mini" style="margin:6px 0 0">👥 <a href="#" class="md-tool" data-tool="toolPolicies">Assign groups or roles</a> gains an eighth action, and the only one that aims a <b>different group at every policy</b>: CA200 gets CA200-Exclusion, CA201 gets CA201-Exclusion, read from the CA number in the name and confirmed against the baseline catalog. Step 2 is a <b>drift report</b> — how many are already right, how many lost the reference, how many name a group that no longer exists — with only the repairs pre-ticked and missing groups creatable from their templates in the same run. Point it at a selection to fix one, or at <b>every policy in the tenant</b> for the sweep. Additive only, and the tenant-wide run asks for the typed ALL, because an exclusion widens a policy rather than narrowing it.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="25115">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R27</span> <a href="#" class="md-tool" data-tool="toolDocument">📄 Documentation for the restricted units</a> <span class="tag grant">live · beta 25115 · production 283</span></h4>
             <p class="mini" style="margin:0">📄 Create documentation can now add the restricted administrative units to the <b>same document</b> as the Conditional Access policies. Each unit gets an auditor-ready page naming its persona, the groups it protects, every policy that includes or excludes those groups, the people scoped to it and whether their role can change group membership.</p>
@@ -1702,6 +1707,10 @@
         <li><b>⟳ Make dynamic</b> — appears when the template defines a membership rule but the tenant group is <b>assigned</b>. A plain security group is converted <b>in place</b>: same id, so every policy, app and role assignment that points at it is untouched. A <b>role-assignable</b> group cannot be dynamic at all — Entra makes the two mutually exclusive and <code>isAssignableToRole</code> is immutable — so it is replaced instead: the old group is renamed <code>-static-YYYYMMDD</code> and kept as your rollback, a dynamic group is created under the original name, added to the include/exclude of every policy that referenced the old one, and only then is the old one removed from those policies (so nothing is uncovered mid-flight). The replacement is <b>not role-assignable</b> — don’t convert a group that carries a directory role or PIM assignment. In both cases members who don’t match the rule stop being members.</li>
         <li><b>Members</b> — a members × groups matrix.</li>
         <li><b>Assign</b> — add a group to policies’ include or exclude lists (ADD is additive — it never removes what’s there). A final confirmation and a change report before anything is written.</li>
+        <li><b>🔁 Restore convention exclusions <span class="tag new">NEW</span></b> — the eighth action, and the only one that targets a <b>different group for every policy</b>: CA200 gets <code>CAB-SEC-U-CA200-Exclusion</code>, CA201 gets <code>CA201-Exclusion</code>, from the CA number in the policy name. That reference is the first thing to go missing — a policy is rebuilt, an older version imported, an exclusion list tidied — and nothing notices, because a policy that lost its exclusion group looks exactly like one that never had it, right up until the exception it existed for is needed.<br>
+        Step 2 is a <b>drift report</b> rather than a list to tick: how many policies are already correct, how many have lost the reference, and how many name a group that does not exist in the tenant at all. Only the ones needing repair arrive ticked. Scope it to your selection for a repair, or to <b>all policies in this tenant</b> for the <b>sweep</b> — the same question asked of everything, which is how you find out how far an estate has drifted.<br>
+        The group name comes from the <b>baseline catalog</b> where the catalog has that CA number (definitive — and 14 of the 99 policies legitimately have no exclusion group, so those are reported as nothing to do rather than invented). A policy carrying a CA number the catalog does not have gets the convention applied by inference, labelled <span class="tag">derived</span> so it can be checked before it is ticked. Groups that do not exist yet can be <b>created first</b> from their baseline templates in the same run.<br>
+        <b>Additive only</b> — the group is added to whatever the policy already excludes; nothing is replaced and nothing is removed. But an exclusion <b>widens</b> a policy: anyone already in one of these groups stops being covered by the policy it is added to, so a tenant-wide sweep asks for the typed <b>ALL</b> like every other tenant-wide write, and the change report records the policy → group pairing rather than one group list.</li>
         <li><b>Assign directory roles <span class="tag new">NEW</span></b> — the wizard can target a policy’s <b>Directory roles</b> include/exclude, the same assignment the portal offers, not only groups. Choose <b>Directory roles</b> at the top and the same actions apply to them (bar “All users”, which has no role equivalent). Quick picks give <b>Microsoft’s privileged set</b> — the fourteen roles Microsoft names as the minimum to require MFA on, resolved against this tenant’s own role templates rather than hard-coded IDs — or every built-in role. <b>Conditional Access enforces built-in roles only:</b> custom roles and administrative-unit-scoped assignments are not covered by a policy scoped this way, which the wizard says at the point of choosing, in the review and in the change report.</li>
         <li><b>🚫 Disable group nesting <span class="tag new">BETA</span></b> — on any present, non-dynamic group in <b>① Check</b>. <b>Not generally available:</b> Microsoft documents the permission (<i>Group-NestingSupport.ReadWrite.All</i>) but publishes <code>disableNesting</code> on neither the v1.0 nor the beta <code>group</code> resource, and a tenant that lacks it answers <code>400 Request_BadRequest — “Unexpected request made to property ‘disableNesting’”</code>. ENCA sends this one request to <b>v1.0</b> (the only version whose docs name it), and when the directory refuses it says so, stops offering the action for the rest of the session, and does <b>not</b> fall through to the recreate — that route sets the property at creation, which is the request that was just refused, so it would destroy and rebuild a group to reach the same error. A nested group is an invisible route into a Conditional Access assignment: someone adds a group to a group and a policy's scope widens without the policy being touched, and the extra members never show up in a review of the policy itself. Entra's beta <code>disableNesting</code> property closes that side door — with it set, no group can be added as a member.<br>
         Two things make this awkward, and the tool is explicit about both. <b>Reading it is not free</b>: a plain read does not return the property at all, so ENCA asks for it separately and reports three states — disabled, allowed, or <i>not reported</i> (which honestly means "this tenant does not surface it yet", not "allowed"). <b>Writing it is undocumented</b>: Microsoft lists a dedicated permission for updating it but does not list the property as updatable, and in the field it currently only takes at creation. So ENCA <b>tries the in-place change first</b> — and verifies it by reading the value back, because Entra will accept a PATCH and silently ignore a property it does not know. Only if that genuinely fails does it offer to <b>recreate</b> the group: rename the current one aside, create it again with nesting disabled, move the user members and repoint every Conditional Access assignment. That path is behind its own typed confirmation, never the first one. When Microsoft finishes shipping this, the recreate simply stops being offered.<br>
@@ -2538,52 +2547,52 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25178"></script>
-<script src="js/version.js?v=25178"></script>
-<script src="js/promote.js?v=25178"></script>
-<script src="js/authConfig.js?v=25178"></script>
-<script src="js/labels.js?v=25178"></script>
-<script src="js/graph.js?v=25178"></script>
-<script src="js/model.js?v=25178"></script>
-<script src="js/render.js?v=25178"></script>
-<script src="js/analyze.js?v=25178"></script>
-<script src="js/whatif.js?v=25178"></script>
-<script src="js/mslearn.js?v=25178"></script>
-<script src="js/gapcheck.js?v=25178"></script>
-<script src="js/cisdata.js?v=25178"></script>
-<script src="js/cischeck.js?v=25178"></script>
-<script src="js/exclusions.js?v=25178"></script>
-<script src="js/validator.js?v=25178"></script>
-<script src="js/whatifeval.js?v=25178"></script>
-<script src="js/compare.js?v=25178"></script>
-<script src="js/groupuse.js?v=25178"></script>
-<script src="js/iso3166.js?v=25178"></script>
-<script src="js/locations.js?v=25178"></script>
-<script src="js/authcontexts.js?v=25178"></script>
-<script src="js/authstrengths.js?v=25178"></script>
-<script src="js/recycle.js?v=25178"></script>
-<script src="js/rmau.js?v=25178"></script>
-<script src="js/camap.js?v=25178"></script>
-<script src="js/rmaudoc.js?v=25178"></script>
-<script src="js/termsofuse.js?v=25178"></script>
-<script src="js/audit.js?v=25178"></script>
-<script src="js/drift.js?v=25178"></script>
-<script src="js/guide.js?v=25178"></script>
-<script src="js/userimpact.js?v=25178"></script>
-<script src="js/devcheck.js?v=25178"></script>
-<script src="js/licgap.js?v=25178"></script>
-<script src="js/signins.js?v=25178"></script>
-<script src="js/reportimpact.js?v=25178"></script>
-<script src="js/changelog.js?v=25178"></script>
-<script src="js/baselineData.js?v=25178"></script>
-<script src="js/baselineJoeyData.js?v=25178"></script>
-<script src="js/baseline.js?v=25178"></script>
-<script src="js/groupTemplates.js?v=25178"></script>
-<script src="js/assign.js?v=25178"></script>
-<script src="js/cagroups.js?v=25178"></script>
-<script src="js/import.js?v=25178"></script>
-<script src="js/export.js?v=25178"></script>
-<script src="js/demo.js?v=25178"></script>
-<script src="js/app.js?v=25178"></script>
+<script src="js/branding.js?v=25179"></script>
+<script src="js/version.js?v=25179"></script>
+<script src="js/promote.js?v=25179"></script>
+<script src="js/authConfig.js?v=25179"></script>
+<script src="js/labels.js?v=25179"></script>
+<script src="js/graph.js?v=25179"></script>
+<script src="js/model.js?v=25179"></script>
+<script src="js/render.js?v=25179"></script>
+<script src="js/analyze.js?v=25179"></script>
+<script src="js/whatif.js?v=25179"></script>
+<script src="js/mslearn.js?v=25179"></script>
+<script src="js/gapcheck.js?v=25179"></script>
+<script src="js/cisdata.js?v=25179"></script>
+<script src="js/cischeck.js?v=25179"></script>
+<script src="js/exclusions.js?v=25179"></script>
+<script src="js/validator.js?v=25179"></script>
+<script src="js/whatifeval.js?v=25179"></script>
+<script src="js/compare.js?v=25179"></script>
+<script src="js/groupuse.js?v=25179"></script>
+<script src="js/iso3166.js?v=25179"></script>
+<script src="js/locations.js?v=25179"></script>
+<script src="js/authcontexts.js?v=25179"></script>
+<script src="js/authstrengths.js?v=25179"></script>
+<script src="js/recycle.js?v=25179"></script>
+<script src="js/rmau.js?v=25179"></script>
+<script src="js/camap.js?v=25179"></script>
+<script src="js/rmaudoc.js?v=25179"></script>
+<script src="js/termsofuse.js?v=25179"></script>
+<script src="js/audit.js?v=25179"></script>
+<script src="js/drift.js?v=25179"></script>
+<script src="js/guide.js?v=25179"></script>
+<script src="js/userimpact.js?v=25179"></script>
+<script src="js/devcheck.js?v=25179"></script>
+<script src="js/licgap.js?v=25179"></script>
+<script src="js/signins.js?v=25179"></script>
+<script src="js/reportimpact.js?v=25179"></script>
+<script src="js/changelog.js?v=25179"></script>
+<script src="js/baselineData.js?v=25179"></script>
+<script src="js/baselineJoeyData.js?v=25179"></script>
+<script src="js/baseline.js?v=25179"></script>
+<script src="js/groupTemplates.js?v=25179"></script>
+<script src="js/assign.js?v=25179"></script>
+<script src="js/cagroups.js?v=25179"></script>
+<script src="js/import.js?v=25179"></script>
+<script src="js/export.js?v=25179"></script>
+<script src="js/demo.js?v=25179"></script>
+<script src="js/app.js?v=25179"></script>
 </body>
 </html>
