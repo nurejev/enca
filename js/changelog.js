@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25174, date: "2026-08-20", title: "Item 78 reached production 291",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue item 78 — 🗣 User impact brief opening without a tab, and the console warning for a breadcrumb name that resolves to none — is live in production build 291. Removed from the queue; the number is retired rather than reused. productionBuild moves to v1.0.291. No roadmap card carries it: the item is a wiring fix with no Rnn reference, so steps 2 and 3 of the promotion routine do not apply, and saying so is cheaper than somebody later looking for the card that was never there." },
+      { kind: "improved", tool: "User impact brief", text: "Production 291 also carries the release note this channel already had and main did not: 290 tagged 🗂 List Policies as UPDATED while nothing in its notes named the tool. Queue item 76 changed that screen and its note had been filed under 🔍 Gap analyse alone. Nothing about the code moved — only what production says about itself, which is the half of a release that is easiest to leave half done." },
+      { kind: "improved", tool: "All tools", text: "What is left in the queue is 79, and 34 and 24 behind it. 79 is a day old and has not been looked at on a real tenant yet; 34 and 24 cannot move at all without the tools they belong to." },
+    ],
+  },
+  {
     build: 25173, date: "2026-08-20", title: "Two Check the coverage buttons, and no way back from a failed read",
     items: [
       { kind: "fixed", tool: "Device reality check", text: "The toolbar carried \u25b6 Check the coverage right next to the big one in the run prompt, and before a first run the two did exactly the same thing. The toolbar button is now \u27f3 Rescan and exists only once there is a result worth redoing \u2014 the shape Change audit uses and \ud83c\udfab Licence gap adopted in 25164." },

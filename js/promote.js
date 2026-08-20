@@ -83,7 +83,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.290",
+  productionBuild: "v1.0.291",
 
   items: [
     {
@@ -103,25 +103,6 @@ const PROMOTE = {
         "Both tools: leave and re-enter after a successful run - the result is still there and the toolbar still shows Rescan, not the first-run label.",
       ],
       files: ["index.html", "js/app.js"],
-    },
-    {
-      n: 78,
-      title: "🗣 User impact brief opens without a tab — one word, in production",
-      tools: ["User impact brief", "All tools"],
-      builds: [25172],
-      risk: "medium",
-      what: "The tool announced itself as \"🗣 User impact brief\" while the tab registry had it as \"🗣 User impact\". idForCrumb matches the label exactly, so the lookup returned null and crumb() took its go-home branch: no tab pushed, and activeTab cleared, so the home button rendered active while the tool was on screen. The two strings are now identical. In the same build, a crumb name that resolves to no tab warns in the console on any non-production host (the isProdHost guard the changelog markup check already uses), so the next tool wired this way says so on beta instead of in production.",
-      why: "MEDIUM because production is affected today and the tool it affects shipped four hours ago: 🗣 User impact brief is live on enca.limon-it.nl at 290 and cannot be reopened from the tab bar, which is the only route back to a tool once you have navigated away from it. The change itself is one string and one guarded console.warn — no behaviour anywhere else moves — so the risk is not in the fix but in whether the guard is silent where it must be: crumb(\"\") is the deliberate go-home call and firing a warning on every trip to the home screen would train everybody to ignore the console.",
-      test: [
-        "Open 🗣 User impact brief from the home tile: a tab appears in the bar reading 🗣 User impact brief, it is the ACTIVE tab, and the home button is no longer lit. Before this build the tab was absent entirely.",
-        "Navigate away to another tool and click the User impact brief tab: you land back on it. That route did not exist before - this is the whole point of the fix.",
-        "Open it from the ＋ menu instead of the tile: same result, and the ＋ menu row reads \"· open\" afterwards.",
-        "Close the tab with its ✕: it disappears and you land on a neighbouring tab or home, exactly as for any other tool.",
-        "Click the home button, then the logo: no console warning either time. crumb(\"\") is the deliberate empty call and must stay silent, or the guard becomes noise.",
-        "On the BETA site with devtools open, open every tool once: the console must carry no crumb() warning at all. One appearing names a tool whose crumb text and tab label have drifted apart - that is the bug this guard exists to catch.",
-        "On PRODUCTION (or any host equal to BRANDING.host), the warning must never fire even if a name did fail to resolve - isProdHost guards it, and a customer console is not where our wiring slips belong.",
-      ],
-      files: ["js/app.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
     },
     {
       n: 34,
