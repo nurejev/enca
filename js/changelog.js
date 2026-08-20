@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25175, date: "2026-08-20", title: "Item 79 reached production 292, and the queue is back to the two that cannot move",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue item 79 — 🖥 Device reality check's duplicate run button, and the Try again both it and 🎫 Licence gap were missing on a run that ends without a result — is live in production build 292. Removed from the queue; the number is retired rather than reused. productionBuild moves to v1.0.292. No roadmap card carries it: like 78, it is a wiring fix with no Rnn reference, so steps 2 and 3 of the promotion routine do not apply." },
+      { kind: "improved", tool: "Device reality check", text: "Worth recording where the fix landed on each channel, because the two numbers differ: the Rescan pattern reached production with 🎫 Licence gap at 290, and the gap it opened — a failed read leaving no run control at all — was found here one build later and is closed in production at 292. Production never ran Device reality check with the duplicate button hidden and no Try again behind it, which is the only reason this was a small fix rather than a broken tool on the live site." },
+      { kind: "improved", tool: "All tools", text: "The queue is 34 and 24 again, and neither can move on its own: 34 is the ❓ Help section written for 📐 CIS Benchmark, and 24 is 📖 Baseline usage guide (R05). Both travel with their tool, and both tools stay on this channel by design. An empty-looking queue here means the two channels differ only by the things that are meant to differ." },
+    ],
+  },
+  {
     build: 25174, date: "2026-08-20", title: "Item 78 reached production 291",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue item 78 — 🗣 User impact brief opening without a tab, and the console warning for a breadcrumb name that resolves to none — is live in production build 291. Removed from the queue; the number is retired rather than reused. productionBuild moves to v1.0.291. No roadmap card carries it: the item is a wiring fix with no Rnn reference, so steps 2 and 3 of the promotion routine do not apply, and saying so is cheaper than somebody later looking for the card that was never there." },
