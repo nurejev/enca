@@ -48,6 +48,35 @@ const UserImpact = (() => {
   const s = (vm) => (vm.raw || {}).sessionControls || {};
   const c = (vm) => (vm.raw || {}).conditions || {};
   const isBlock = (vm) => (g(vm).builtInControls || []).includes("block");
+
+  // ---- "you need a company device", written two different ways ------------
+  // Entra has no grant control for "must be Entra joined" — only compliantDevice
+  // and domainJoinedDevice exist — so the baseline expresses that requirement
+  // as a BLOCK on everything that is NOT joined, through a device filter.
+  // CA205 and CA301 are exactly that, and CA309 is the same shape on isCompliant.
+  // To the person reading this brief all of it means one thing: a personal or
+  // unmanaged machine will not get you in. Matching only the grant form left
+  // those three out of the brief entirely.
+  const MANAGED_GRANTS = ["compliantDevice", "domainJoinedDevice"];
+  const MANAGED_ATTR = /device\.(trusttype|iscompliant|isdomainjoined|deviceownership)/i;
+  const devFilter = (vm) => (c(vm).devices || {}).deviceFilter || null;
+  const managedGrant = (vm) => (g(vm).builtInControls || []).some((x) => MANAGED_GRANTS.includes(x)) && !isBlock(vm);
+  // Direction matters, and getting it backwards would report the opposite of
+  // the truth. A filter names a set; the mode says whether the policy applies
+  // TO that set or to everything else:
+  //   exclude + positive rule ("is joined")     -> applies to the NOT-joined -> blocks them   ✓
+  //   include + negated rule  ("is not joined") -> applies to the NOT-joined -> blocks them   ✓
+  //   include + positive rule                   -> blocks COMPANY devices — a different thing ✗
+  //   exclude + negated rule                    -> same, inverted twice                       ✗
+  const managedBlock = (vm) => {
+    if (!isBlock(vm)) return false;
+    const f = devFilter(vm);
+    const rule = String((f || {}).rule || "");
+    if (!f || !MANAGED_ATTR.test(rule)) return false;
+    const negated = /-ne\b/i.test(rule);
+    const mode = String(f.mode || "").toLowerCase();
+    return (mode === "exclude" && !negated) || (mode === "include" && negated);
+  };
   const grantTxt = (vm) => (vm.grant && vm.grant.controls || []).join(" · ");
   const hasMfa = (vm) => /strength|multifactor|mfa/i.test(grantTxt(vm)) && !isBlock(vm);
   const phishRes = (vm) => /phishing/i.test(grantTxt(vm));
@@ -121,9 +150,18 @@ const UserImpact = (() => {
       expect: "On company Windows/macOS devices the Global Secure Access client must be active — if it is off or broken, access to company data is blocked until it runs again.",
       lost: "Working without the secure network client on corporate desktops and laptops." },
     { id: "compliant", icon: "💻", title: "Company devices must be enrolled and healthy",
-      match: (vm) => (g(vm).builtInControls || []).includes("compliantDevice") && !isBlock(vm),
+      match: (vm) => managedGrant(vm) || managedBlock(vm),
+      // Both forms can be in scope for the same audience, and they do not say
+      // the same thing to a user: one is about the device being HEALTHY, the
+      // other about it being a company device at all. Say whichever applies.
+      dynamic: (vms) => {
+        const parts = [];
+        if (vms.some(managedGrant)) parts.push("it must be enrolled in Intune and compliant — encrypted, updated, protected — and a device that falls out of compliance loses access until it is healthy again");
+        if (vms.some(managedBlock)) parts.push("a device that is not joined to the company directory is refused outright, so a personal or unmanaged machine cannot be used for this at all");
+        return `You need a company device: ${parts.join(". And ")}.`;
+      },
       expect: "Windows and macOS devices must be enrolled in Intune and compliant (encrypted, updated, protected). A device that falls out of compliance loses access until it is healthy again.",
-      lost: "Full access from laptops that are not enrolled, or that ignore compliance warnings." },
+      lost: "Working from a personal or unmanaged laptop, and full access from company laptops that are not enrolled or that ignore compliance warnings." },
     { id: "platform", icon: "🖥", title: "Unrecognised device platforms are blocked",
       match: (vm) => isBlock(vm) && ((c(vm).platforms || {}).includePlatforms || []).includes("all") && ((c(vm).platforms || {}).excludePlatforms || []).length > 0 && !((c(vm).locations || {}).includeLocations || []).length,
       dynamic: (vms) => {
@@ -182,6 +220,27 @@ const UserImpact = (() => {
   // rendered as its own trailing section, so a statement from a temporary
   // policy can never lead the brief. Same persona rule Backup and the Gap
   // checks use: a CAxxx number in the name.
+  // ---- tied to the baseline (T10 \ud83e\uddec Baseline Policies) -------------------
+  // These rules read POLICY SHAPE, and the bundled baseline decides what shape
+  // a requirement is written in. That is not theoretical: revision 2026-08-20
+  // moved CA205 and CA301 from a compliant-device GRANT to a BLOCK with a
+  // device filter — the same requirement, expressed the only way Entra allows —
+  // and the brief silently stopped covering either of them until 25184.
+  //
+  // So the rules carry the revision they were last checked against. When the
+  // catalog is newer than this, the brief says so rather than quietly assuming
+  // it still matches. Bumping this is a deliberate act: read the new catalog's
+  // header, walk the RULES, THEN change the date.
+  const RULES_CHECKED_AGAINST = "2026-08-20";
+  const baselineRev = () => (typeof BASELINE !== "undefined" && BASELINE && BASELINE.revised) || null;
+  // Absent or unreadable is not "stale" — an integration that is missing must
+  // not turn into a warning about something else (roadmap R32/R34).
+  function baselineState() {
+    const revised = baselineRev();
+    return { revised, checked: RULES_CHECKED_AGAINST,
+      stale: !!revised && String(revised) > RULES_CHECKED_AGAINST };
+  }
+
   const isPersona = (vm) => (typeof Render !== "undefined" && Render.caGroup)
     ? Render.caGroup(vm.name).num != null
     : /CA\d{3,4}/i.test(String(vm.name || ""));
@@ -227,17 +286,26 @@ const UserImpact = (() => {
     const items = collect(base);
     const otherItems = collect(rest);
     return {
+      baseline: baselineState(),
       items, total: base.length, counts: countsOf(base), audiences: audsOf(items),
       other: { items: otherItems, total: rest.length, counts: countsOf(rest), audiences: audsOf(otherItems) },
       grand: (policies || []).length,
     };
   }
 
+  // The same caveat in both exports. A brief handed to people outlives the
+  // screen it was generated on, so the warning has to travel with the file.
+  const staleNote = (res) => (res.baseline && res.baseline.stale)
+    ? `The bundled baseline was revised ${res.baseline.revised}; the wordings in this brief were last checked against ${res.baseline.checked}. A baseline revision can change how a requirement is written, so re-check against the Baseline Policies tool before circulating this.`
+    : null;
+
   // ---------- Markdown (the communication draft) ----------
   function toMd(res, { tenantName } = {}) {
     const d = new Date().toISOString().slice(0, 10);
     const out = [];
     out.push(`# Conditional Access — what you will notice`);
+    const warn = staleNote(res);
+    if (warn) { out.push(``); out.push(`> ⚠ **Check before circulating.** ${warn}`); }
     out.push(`> ${tenantName || "This organization"} · generated ${d} from the ${res.total} persona baseline policies (${res.counts.on} enforced, ${res.counts.report} report-only, ${res.counts.off} prepared)${res.other.total ? `; ${res.other.total} non-baseline policies analyzed separately at the end` : ""}. Draft for the communications team — review before sending.`);
     out.push(``);
     out.push(`Conditional Access checks every sign-in — who you are, how healthy the device is and where the sign-in comes from — before access is granted. It reads sign-in signals only: it never opens your mail, chats or documents, and it is not used to monitor performance.`);
@@ -301,6 +369,8 @@ const UserImpact = (() => {
     const d = new Date().toISOString().slice(0, 10);
     const body = [];
     body.push(P(`Conditional Access — what you will notice`, { h: 1 }));
+    const warn = staleNote(res);
+    if (warn) body.push(P(`Check before circulating. ${warn}`));
     body.push(P(`${tenantName || "This organization"} · generated ${d} from the ${res.total} persona baseline policies (${res.counts.on} enforced, ${res.counts.report} report-only, ${res.counts.off} prepared)${res.other.total ? `; ${res.other.total} non-baseline policies analyzed separately at the end` : ""}. Draft — review before sending.`));
     body.push(P(`Conditional Access checks every sign-in — who you are, how healthy the device is and where the sign-in comes from — before access is granted. It reads sign-in signals only: it never opens your mail, chats or documents, and it is not used to monitor performance.`));
     const live = res.items.filter((i) => i.liveNow);

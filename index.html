@@ -10,23 +10,23 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=294"></script>
+<script src="js/popup-guard.js?v=295"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=294" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=294">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=295" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=295">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=294"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=294"></script>
+<script src="js/counter.js?v=295"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=295"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=294" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=295" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -54,7 +54,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=294" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=295" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -99,7 +99,7 @@
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
     <div class="tools">
       <div class="tool" id="toolUserImpact">
-        <div class="tool-ic">🗣</div><h3>User impact brief</h3>
+        <div class="tool-ic">🗣</div><h3>User impact brief <span class="tag upd">UPDATED</span></h3>
         <p>The rollout email, written by the tenant itself: what people will notice and what will deliberately no longer be possible, derived from the Conditional Access policies actually deployed — with what is live today kept apart from what changes at go-live. Filter by audience, export as Markdown or a Word document for the communications team.</p>
       </div>
       <div class="tool" id="toolDrift">
@@ -2483,48 +2483,48 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=294"></script>
-<script src="js/version.js?v=294"></script>
-<script src="js/authConfig.js?v=294"></script>
-<script src="js/labels.js?v=294"></script>
-<script src="js/graph.js?v=294"></script>
-<script src="js/model.js?v=294"></script>
-<script src="js/render.js?v=294"></script>
-<script src="js/analyze.js?v=294"></script>
-<script src="js/whatif.js?v=294"></script>
-<script src="js/mslearn.js?v=294"></script>
-<script src="js/gapcheck.js?v=294"></script>
-<script src="js/exclusions.js?v=294"></script>
-<script src="js/validator.js?v=294"></script>
-<script src="js/whatifeval.js?v=294"></script>
-<script src="js/compare.js?v=294"></script>
-<script src="js/groupuse.js?v=294"></script>
-<script src="js/iso3166.js?v=294"></script>
-<script src="js/locations.js?v=294"></script>
-<script src="js/authcontexts.js?v=294"></script>
-<script src="js/authstrengths.js?v=294"></script>
-<script src="js/recycle.js?v=294"></script>
-<script src="js/rmau.js?v=294"></script>
-<script src="js/camap.js?v=294"></script>
-<script src="js/rmaudoc.js?v=294"></script>
-<script src="js/termsofuse.js?v=294"></script>
-<script src="js/audit.js?v=294"></script>
-<script src="js/drift.js?v=294"></script>
-<script src="js/userimpact.js?v=294"></script>
-<script src="js/devcheck.js?v=294"></script>
-<script src="js/licgap.js?v=294"></script>
-<script src="js/signins.js?v=294"></script>
-<script src="js/reportimpact.js?v=294"></script>
-<script src="js/changelog.js?v=294"></script>
-<script src="js/baselineData.js?v=294"></script>
-<script src="js/baselineJoeyData.js?v=294"></script>
-<script src="js/baseline.js?v=294"></script>
-<script src="js/groupTemplates.js?v=294"></script>
-<script src="js/assign.js?v=294"></script>
-<script src="js/cagroups.js?v=294"></script>
-<script src="js/import.js?v=294"></script>
-<script src="js/export.js?v=294"></script>
-<script src="js/demo.js?v=294"></script>
-<script src="js/app.js?v=294"></script>
+<script src="js/branding.js?v=295"></script>
+<script src="js/version.js?v=295"></script>
+<script src="js/authConfig.js?v=295"></script>
+<script src="js/labels.js?v=295"></script>
+<script src="js/graph.js?v=295"></script>
+<script src="js/model.js?v=295"></script>
+<script src="js/render.js?v=295"></script>
+<script src="js/analyze.js?v=295"></script>
+<script src="js/whatif.js?v=295"></script>
+<script src="js/mslearn.js?v=295"></script>
+<script src="js/gapcheck.js?v=295"></script>
+<script src="js/exclusions.js?v=295"></script>
+<script src="js/validator.js?v=295"></script>
+<script src="js/whatifeval.js?v=295"></script>
+<script src="js/compare.js?v=295"></script>
+<script src="js/groupuse.js?v=295"></script>
+<script src="js/iso3166.js?v=295"></script>
+<script src="js/locations.js?v=295"></script>
+<script src="js/authcontexts.js?v=295"></script>
+<script src="js/authstrengths.js?v=295"></script>
+<script src="js/recycle.js?v=295"></script>
+<script src="js/rmau.js?v=295"></script>
+<script src="js/camap.js?v=295"></script>
+<script src="js/rmaudoc.js?v=295"></script>
+<script src="js/termsofuse.js?v=295"></script>
+<script src="js/audit.js?v=295"></script>
+<script src="js/drift.js?v=295"></script>
+<script src="js/userimpact.js?v=295"></script>
+<script src="js/devcheck.js?v=295"></script>
+<script src="js/licgap.js?v=295"></script>
+<script src="js/signins.js?v=295"></script>
+<script src="js/reportimpact.js?v=295"></script>
+<script src="js/changelog.js?v=295"></script>
+<script src="js/baselineData.js?v=295"></script>
+<script src="js/baselineJoeyData.js?v=295"></script>
+<script src="js/baseline.js?v=295"></script>
+<script src="js/groupTemplates.js?v=295"></script>
+<script src="js/assign.js?v=295"></script>
+<script src="js/cagroups.js?v=295"></script>
+<script src="js/import.js?v=295"></script>
+<script src="js/export.js?v=295"></script>
+<script src="js/demo.js?v=295"></script>
+<script src="js/app.js?v=295"></script>
 </body>
 </html>

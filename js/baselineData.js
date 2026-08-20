@@ -37,6 +37,15 @@
 //     the CAB-SEC convention and has no group template, so every tenant would
 //     be told to create a group the baseline never defines. CA001 keeps its
 //     CAB-SEC-U-CA001-Exclusion group.
+// WHEN YOU BUMP `revised`, RE-CHECK js/userimpact.js.
+// \ud83d\udde3 User impact brief (T32) matches on POLICY SHAPE, and this catalog
+// decides what shape a requirement is written in. Revision 2026-08-20 moved
+// CA205 and CA301 from a compliant-device GRANT to a BLOCK with a device
+// filter — the same requirement, expressed the only way Entra allows — and the
+// brief silently stopped covering either of them. Its RULES carry a
+// RULES_CHECKED_AGAINST date; walk them against the new catalog, then move that
+// date. Until it is moved the brief warns on screen and in its exports, which
+// is the safety net rather than the process.
 // ======================================================================
 const BASELINE = {
   release: "R26.6",
