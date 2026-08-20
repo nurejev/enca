@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25186, date: "2026-08-20", title: "Items 86 and 87 reached production 295, and the tile that should have said so",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue items 86 (the brief missing every device requirement written as a block) and 87 (the brief tied to the baseline revision it was checked against) are live in production build 295. Removed from the queue; the numbers are retired rather than reused. productionBuild moves to v1.0.295. 86 was the only HIGH-risk row in the queue and it was high risk because production was already wrong: the brief that gets handed to end users omitted CA205, CA301 and CA309 entirely." },
+      { kind: "fixed", tool: "User impact brief", text: "The tile carried no NEW, BETA or UPDATED tag through 25184 and 25185 — the two builds that fixed a wrong brief and then tied it to the catalog. That tag is not decoration: it is what exempts a tile from the home-page collapse and lifts it to the top, so both builds landed behind “Show N more” unless you already knew to expand. Exactly the failure build 25146 was written about, on a tool whose output goes to the whole company. It is flagged now, on both channels." },
+      { kind: "improved", tool: "All tools", text: "Production's release note for 293 now names (R38) the way its roadmap card always did — main described the item in the body but not the title, while this channel had it in both. Documentation is not queued; it travels with the next promotion, which is what it did." },
+      { kind: "improved", tool: "All tools", text: "The queue is 34 and 24 again. Neither moves without its tool, and neither tool is leaving this channel yet: 34 is the ❓ Help section for 📐 CIS Benchmark, and 24 is 📖 Baseline usage guide (R05)." },
+    ],
+  },
+  {
     build: 25185, date: "2026-08-20", title: "The brief now knows which baseline it was written against",
     items: [
       { kind: "new", tool: "User impact brief", text: "T32 is tied to T10 \ud83e\uddec Baseline Policies, because it has always depended on it without saying so. These rules match on POLICY SHAPE, and the bundled catalog decides what shape a requirement is written in. That is not theoretical: revision 2026-08-20 moved CA205 and CA301 from a compliant-device grant to a block with a device filter \u2014 the same requirement, expressed the only way Entra allows \u2014 and the brief silently stopped covering either of them. Nothing connected the two, so the next revision would have done it again." },

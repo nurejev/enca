@@ -83,47 +83,9 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.294",
+  productionBuild: "v1.0.295",
 
   items: [
-    {
-      n: 87,
-      title: "\ud83d\udde3 The brief is tied to the baseline revision it was written against",
-      tools: ["User impact brief", "Baseline Policies"],
-      builds: [25185],
-      risk: "medium",
-      what: "T32's rules carry RULES_CHECKED_AGAINST, the bundled baseline revision they were last verified against. When the loaded catalog is newer, the brief warns on screen \u2014 naming both dates and linking T10 \ud83e\uddec Baseline Policies \u2014 and the same caveat is written into the Markdown and Word exports, because a brief handed to people outlives the screen it came from. js/baselineData.js now tells whoever bumps `revised` to walk the rules first. A missing or older catalog is treated as fine, not as a warning.",
-      why: "This is the failure that produced item 86, generalised. The rules match on POLICY SHAPE; the catalog decides what shape a requirement is written in. Revision 2026-08-20 moved CA205 and CA301 from a compliant-device grant to a block with a device filter, and the brief stopped covering either without anything anywhere saying so. Nothing connected the two, so the next catalog revision would do it again \u2014 and the output is the one written to be handed to end users.",
-      test: [
-        "Normal case: catalog revision equals RULES_CHECKED_AGAINST, so T32 shows no warning and the exports carry none.",
-        "Edit BASELINE.revised in js/baselineData.js to a later date and reload: T32 shows the amber warning naming both dates, with a working link to Baseline Policies.",
-        "Export MD and Word in that state: the caveat is directly under the title, not buried at the end.",
-        "Put the date back: warning gone from screen and both exports.",
-        "Set BASELINE.revised EARLIER than the rules date: no warning - an older catalog is not a reason to distrust the wordings.",
-        "The warning must never appear because a catalog failed to load; T32 works with no baseline present at all.",
-      ],
-      files: ["js/userimpact.js", "js/baselineData.js", "js/app.js"],
-    },
-    {
-      n: 86,
-      title: "\ud83d\udde3 The brief was missing every device requirement written as a block",
-      tools: ["User impact brief"],
-      builds: [25184],
-      risk: "high",
-      what: "The company-device item matched only a compliantDevice GRANT, and explicitly excluded blocks. Entra has no grant control for require Entra joined \u2014 only compliantDevice and domainJoinedDevice exist \u2014 so the baseline writes that requirement as a BLOCK on everything the device filter does not cover. Those policies are now matched too, folded into the same item per audience, with the text naming whichever consequences apply. domainJoinedDevice is recognised as a grant for the first time. Filter DIRECTION is honoured, so a block aimed AT company devices is not mistaken for one requiring them.",
-      why: "In production the brief tells people what to expect at go-live, and it silently omitted three of the baseline's device requirements \u2014 CA205 and CA301 (blocked unless Entra joined or hybrid joined) and CA309 (selected apps blocked unless compliant). A user reading it would be told their Mac must be enrolled and never told a Windows machine that is not joined is refused outright. It is the one output written to be handed to end users, so an omission reads as a promise.",
-      test: [
-        "Open T32 on a tenant carrying the baseline. The company-device item for Employees now lists CA205 alongside CA208, not CA208 on its own.",
-        "The Externals audience gets its own company-device item listing CA301 and CA309.",
-        "Read the item text: with both forms present it names BOTH consequences - enrolled and compliant, and refused outright if not joined. With only one form present it names only that one.",
-        "Session policies that carry a device filter (CA005, CA007, CA202, CA206, CA214) must NOT appear in this item - they are session limits, not device requirements.",
-        "CA215, the compliant-NETWORK block, must stay in its own Global Secure Access item.",
-        "No policy appears twice across the whole brief.",
-        "Export MD and Word: the same policies are listed there as on screen.",
-        "A tenant with a policy blocking access FROM company devices (device filter include, positive rule) must not have it described as requiring one - the direction is the whole meaning.",
-      ],
-      files: ["js/userimpact.js"],
-    },
     {
       n: 34,
       title: "CIS Benchmark Help section",
