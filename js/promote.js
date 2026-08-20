@@ -83,46 +83,9 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.293",
+  productionBuild: "v1.0.294",
 
   items: [
-    {
-      n: 85,
-      title: "\ud83c\udfab Licence gap, \ud83d\udde3 User impact brief and \ud83d\udcaa Authentication strengths out of BETA",
-      tools: ["Licence gap", "User impact brief", "Authentication strengths"],
-      builds: [25182],
-      risk: "low",
-      what: "The BETA chip comes off all three \u2014 tile, Help heading and screen header \u2014 and the two that were still numbered below 1.0 become 1.0, per the rule in js/version.js that a tool a customer can open is not a 0.x thing. Authentication strengths was already 1.0 and only carried the chip.",
-      why: "Nothing breaks either way; the chip is a claim about confidence, and leaving it on a tool that has been in production for weeks makes every other BETA chip mean less. Ships with item 84, which is the last outstanding change to any of the three.",
-      test: [
-        "Home grid: none of the three tiles carries BETA any more. Baseline guide, CIS Benchmark, Terms of use and Disable group nesting still do.",
-        "Open each of the three: the screen header has no BETA chip either (Licence gap and Authentication strengths render theirs from app.js, not the markup).",
-        "Help: the Licence gap and User impact brief entries have lost the chip.",
-        "Authentication strengths still shows its writes-to-tenant chip - only BETA came off.",
-        "Tool versions in the header read 1.0 for Licence gap and User impact brief.",
-      ],
-      files: ["index.html", "js/app.js", "js/version.js"],
-    },
-    {
-      n: 84,
-      title: "\ud83d\udde3 User impact brief can re-read the tenant",
-      tools: ["User impact brief"],
-      builds: [25181],
-      risk: "medium",
-      what: "T32 gains \u27f3 Re-read & analyse, and a header line saying how old the answer is (just now / 5 min ago / 3 d ago). The re-read reloads the policies from the tenant, rebuilds the brief and returns to this tool instead of landing on the policy list, which is where a refresh normally ends up. loadFromGraph() now reports whether the read succeeded, so a failed one leaves the sign-in screen up rather than being navigated over, and the policy set carries a read timestamp any tool can use.",
-      why: "The brief is derived from the policy set already in memory, not read for itself, so it was exactly as current as whenever the tenant was last loaded \u2014 and nothing on screen said when that was. It is the one output here meant to be sent to other people: an impact brief describing policies that changed this morning, with no way to refresh it and no indication it might be stale, is the kind of document that gets quoted back at you.",
-      test: [
-        "Open T32 straight after signing in: the header says read just now, not 1 min ago.",
-        "Leave it open a few minutes and revisit: the line ages (5 min ago, then hours, then days).",
-        "Change a policy in the portal, press Re-read & analyse: the brief reflects the change and you are still in T32, not on the policy list.",
-        "The button disables and reads Reading... while it runs, and comes back afterwards.",
-        "Force the read to fail (sign out in another tab first): the sign-in screen is shown and stays shown - T32 must not be drawn over it.",
-        "Demo mode: the button re-analyses the sample set, says so, and makes no Graph call.",
-        "Sign in normally afterwards: the What's new overlay still appears - loadFromGraph returning a value must not have skipped it.",
-        "Export MD and Export Word still work, and the exported brief matches what is on screen after a re-read.",
-      ],
-      files: ["index.html", "js/app.js"],
-    },
     {
       n: 34,
       title: "CIS Benchmark Help section",

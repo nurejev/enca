@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25183, date: "2026-08-20", title: "Items 84 and 85 reached production (294)",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue items 84 (\ud83d\udde3 User impact brief can re-read the tenant, and says how old its answer is) and 85 (\ud83c\udfab Licence gap, \ud83d\udde3 User impact brief and \ud83d\udcaa Authentication strengths out of BETA, the first two renumbered 1.0) are live in production build 294. Removed from the queue; the numbers are retired rather than reused. What remains is the two beta-only tools, and neither can move without its tool." },
+    ],
+  },
+  {
     build: 25182, date: "2026-08-20", title: "Three tools stop calling themselves unproven",
     items: [
       { kind: "improved", tool: "All tools", text: "\ud83c\udfab Licence gap, \ud83d\udde3 User impact brief and \ud83d\udcaa Authentication strengths are out of BETA. The chip comes off in all three places it appears \u2014 the home tile, the Help heading and the tool's own screen header, two of which are rendered from app.js rather than the markup and are exactly the ones a tile-only sweep would miss." },
