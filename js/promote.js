@@ -87,6 +87,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 85,
+      title: "\ud83c\udfab Licence gap, \ud83d\udde3 User impact brief and \ud83d\udcaa Authentication strengths out of BETA",
+      tools: ["Licence gap", "User impact brief", "Authentication strengths"],
+      builds: [25182],
+      risk: "low",
+      what: "The BETA chip comes off all three \u2014 tile, Help heading and screen header \u2014 and the two that were still numbered below 1.0 become 1.0, per the rule in js/version.js that a tool a customer can open is not a 0.x thing. Authentication strengths was already 1.0 and only carried the chip.",
+      why: "Nothing breaks either way; the chip is a claim about confidence, and leaving it on a tool that has been in production for weeks makes every other BETA chip mean less. Ships with item 84, which is the last outstanding change to any of the three.",
+      test: [
+        "Home grid: none of the three tiles carries BETA any more. Baseline guide, CIS Benchmark, Terms of use and Disable group nesting still do.",
+        "Open each of the three: the screen header has no BETA chip either (Licence gap and Authentication strengths render theirs from app.js, not the markup).",
+        "Help: the Licence gap and User impact brief entries have lost the chip.",
+        "Authentication strengths still shows its writes-to-tenant chip - only BETA came off.",
+        "Tool versions in the header read 1.0 for Licence gap and User impact brief.",
+      ],
+      files: ["index.html", "js/app.js", "js/version.js"],
+    },
+    {
       n: 84,
       title: "\ud83d\udde3 User impact brief can re-read the tenant",
       tools: ["User impact brief"],

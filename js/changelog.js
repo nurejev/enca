@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25182, date: "2026-08-20", title: "Three tools stop calling themselves unproven",
+    items: [
+      { kind: "improved", tool: "All tools", text: "\ud83c\udfab Licence gap, \ud83d\udde3 User impact brief and \ud83d\udcaa Authentication strengths are out of BETA. The chip comes off in all three places it appears \u2014 the home tile, the Help heading and the tool's own screen header, two of which are rendered from app.js rather than the markup and are exactly the ones a tile-only sweep would miss." },
+      { kind: "improved", tool: "All tools", text: "Licence gap and User impact brief are renumbered 1.0. js/version.js has said since build 25078 that a tool which has reached production is at least 1.0 \u2014 whatever it accumulated on the beta channel, something a customer can open is not a 0.x thing, and it is the BETA chip rather than the version number that says still proving itself. Authentication strengths was already 1.0 and only carried the chip." },
+      { kind: "improved", tool: "All tools", text: "Four tiles keep theirs, and should: \ud83d\udcd6 Baseline guide and \ud83d\udcd0 CIS Benchmark run on this channel only, \ud83d\udcdc Terms of use has not been asked for yet, and \ud83d\udeab Disable group nesting depends on a Graph property that is not generally available. A chip that everything carries is decoration; these four are the ones that still mean something." },
+    ],
+  },
+  {
     build: 25181, date: "2026-08-20", title: "A brief you send to other people should not be quietly stale",
     items: [
       { kind: "new", tool: "User impact brief", text: "\u27f3 Re-read & analyse. This tool is DERIVED from the policy set already in memory rather than reading the tenant for itself, which is what makes it instant \u2014 and also means it was exactly as current as whenever the policies were last loaded, with nothing on screen saying when that was. The button re-reads the tenant, rebuilds the brief, and returns you HERE: a refresh normally ends on the policy list, and a re-read pressed inside a tool should not move you to a different one." },
