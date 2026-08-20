@@ -5214,12 +5214,17 @@ max@contoso.com,"Global, DevOps"</pre>
 
   // ---------- assign-groups wizard ----------
   let asStep = 0, asAction = null, asGroups = [], asPolicies = [], asResults = null;
+  // What the cached asGroups list was built for. Going Back and picking a
+  // different action has to rebuild it: the two modes hold different rows.
+  let asGroupsMode = null;
   // "groups" | "roles" — the portal's two ways of naming who a policy covers.
   let asTarget = "groups", asRoles = [], asRoleQuery = "", asRoleAdminOnly = true;
   // "selection" = the policies ticked in the list; "all" = every policy loaded
   // from the tenant. Tenant-wide is what you want for a break-glass or
   // service-account exclusion that must never miss a policy.
   let asScope = "selection", asFound = [], asRun = null;
+  // Action 7 works from a per-policy plan rather than a group selection.
+  let asPlan = [], asPlanCreate = false;
   const asScopePolicies = () => exportOrder(asScope === "all"
     ? policies.slice()
     : [...selected].map(id => policies.find(p => p.id === id)).filter(Boolean));
@@ -5228,12 +5233,146 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!policies.length) { toast("No policies loaded"); return; }
     if (asScope === "all" && !selected.size) toast("Nothing selected — scoped to <span>all policies</span>, change it in step 1");
     asPolicies = asScopePolicies();
-    asStep = 0; asAction = null; asGroups = []; asResults = null; asFound = [];
+    asStep = 0; asAction = null; asGroups = []; asGroupsMode = null; asResults = null; asFound = [];
     asTarget = "groups"; asRoles = []; asRoleQuery = ""; asRoleAdminOnly = true;
+    asPlan = []; asPlanCreate = false;
     renderAssign();
     $("assignModal").classList.add("open");
   }
   function assignEsc(s) { return esc(s); }
+  // ---------- wizard panels, declared at MODULE level on purpose ---------
+  // These used to sit inside renderAssign's roles branch. Function
+  // declarations in a block are hoisted to the enclosing function but only
+  // ASSIGNED when that block actually runs, so asAssignedGroups was undefined
+  // for anybody who picked REMOVE without first visiting Directory roles —
+  // which is everybody, since Groups is the default target. Step 2 threw
+  // "asAssignedGroups is not defined" and stopped at "Reading the current
+  // assignment…". Declared out here they exist before the first render.
+  // The groups the selected policies actually reference, in the bucket this
+  // action removes from, with a real name per id — including ids the directory
+  // no longer has. Those are dangling references, and being able to see and
+  // clear one is a reason to run this action rather than an edge case.
+  async function asAssignedGroups() {
+    const key = asAction === 5 ? "includeGroups" : "excludeGroups";
+    const count = new Map();                 // id -> how many selected policies carry it
+    for (const p of asPolicies) {
+      for (const id of ((((p.raw || {}).conditions || {}).users || {})[key] || [])) {
+        count.set(id, (count.get(id) || 0) + 1);
+      }
+    }
+    const ids = [...count.keys()];
+    if (!ids.length) return [];
+    const names = new Map();
+    if (isDemo) {
+      ids.forEach((id) => { const n = (DEMO_DATA.names || {})[id]; if (n) names.set(id, n); });
+    } else {
+      // One batch for the lot. A failure here is not fatal: an id with no name
+      // is still removable, and it is labelled as unresolved rather than shown
+      // as if it were a group called by its own GUID.
+      try {
+        const res = await Graph.gbatch(ids.map((id, i) => ({ id: String(i), url: `/groups/${id}?$select=id,displayName` })));
+        ids.forEach((id, i) => { const g = res[i] && res[i].body; if (g && g.displayName) names.set(id, g.displayName); });
+      } catch (e) { console.warn("assigned-group names failed", e); }
+    }
+    return ids.map((id) => ({ id, name: names.get(id) || id, checked: true,
+      missing: !names.has(id), inPolicies: count.get(id) }));
+  }
+
+  function asRemovePanel() {
+    const bucket = asAction === 5 ? "INCLUDE" : "EXCLUDE";
+    const n = asGroups.length, many = asPolicies.length > 1;
+    if (!n) {
+      return `<p class="mini" style="padding:6px 0">None of the ${asPolicies.length} selected polic${asPolicies.length === 1 ? "y has" : "ies have"} any group in the ${bucket} list, so there is nothing to remove. Go <b>← Back</b> and pick a different action.</p>`;
+    }
+    const ticked = asGroups.filter((g) => g.checked).length;
+    return `<h4 class="mini" style="margin-bottom:6px">CURRENTLY ${bucket}D — ${n} GROUP${n === 1 ? "" : "S"}</h4>
+      <p class="mini muted" style="margin-bottom:8px">This is what the selected polic${asPolicies.length === 1 ? "y has" : "ies have"} today, and it is all ticked — removing is the action you chose, so the question here is what to <b>keep</b>. <b>Untick anything that should stay.</b> Whatever is still ticked comes off${many ? `, from whichever of the ${asPolicies.length} policies actually reference it; the rest are left untouched` : ""}.</p>
+      <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 8px;flex-wrap:wrap">
+        <button class="btn sm" id="asRmNone">☐ Untick all</button>
+        <button class="btn sm" id="asRmAll">☑ Tick all ${n}</button>
+        <span class="mini muted" id="asRmCount"><b>${ticked}</b> of ${n} will be removed</span>
+      </div>` +
+      asGroups.map((g, i) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asg="${i}" ${g.checked ? "checked" : ""}> ${assignEsc(g.name)}${
+        g.missing ? ' <span class="tag block" title="No group with this id exists in the directory any more — removing it clears a dangling reference">dangling reference</span>' : ""}${
+        many ? ` <span class="mini muted">in ${g.inPolicies} of ${asPolicies.length}</span>` : ""}</label>`).join("");
+  }
+
+  // Update the count in place — re-rendering the panel would fight the tick the
+  // reader just made, and there is no other reason to rebuild it.
+  function asRmSync() {
+    const c = $("asRmCount");
+    if (c) c.innerHTML = `<b>${asGroups.filter((g) => g.checked).length}</b> of ${asGroups.length} will be removed`;
+  }
+
+  // ---------- action 7: restore each policy's own CAxxx-Exclusion ----------
+  // Scoped to the selection this is a repair; scoped to the whole tenant it is
+  // the sweep — one pass that says how far the estate has drifted from the
+  // convention and puts it back. Same panel either way, because they are the
+  // same question asked of a different number of policies.
+  async function asBuildPlan() {
+    let groups = [];
+    if (isDemo) {
+      groups = Object.keys(DEMO_DATA.scopeGroups || {}).map((n) => ({ id: "g-" + n, name: n }));
+    } else {
+      // One prefix read for every CAB-SEC group in the tenant. If it fails the
+      // plan still builds — every row simply reports the group as absent,
+      // which is visibly wrong rather than quietly wrong.
+      try { groups = await Assign.groupsByPrefix("CAB-SEC-"); }
+      catch (e) { console.warn("restore: CAB-SEC group read failed", e); }
+    }
+    asPlan = Assign.conventionPlan(asPolicies, groups).map((r) => ({ ...r, checked: r.state === "missing" }));
+  }
+
+  const asPlanActionable = () => asPlan.filter((r) => r.checked && (r.state === "missing" || (r.state === "nogroup" && asPlanCreate)));
+
+  function asRestorePanel() {
+    const c = Assign.planCounts(asPlan);
+    const missing = asPlan.filter((r) => r.state === "missing");
+    const nogroup = asPlan.filter((r) => r.state === "nogroup");
+    const derived = asPlan.filter((r) => r.source === "derived" && r.state !== "none").length;
+    const total = asPlan.length;
+    if (!missing.length && !nogroup.length) {
+      return `<h4 class="mini" style="margin-bottom:6px">NOTHING TO RESTORE</h4>
+        <p class="mini" style="padding:6px 0">Every one of the ${total} polic${total === 1 ? "y" : "ies"} in scope already excludes the group the baseline gives it${c.none ? `, or has no convention group to restore (${c.none})` : ""}. <b>${c.present || 0}</b> checked out, nothing has drifted. Go <b>← Back</b> for a different action.</p>`;
+    }
+    const row = (r, i) => {
+      const dis = r.state === "nogroup" && !asPlanCreate;
+      return `<label class="chk" style="margin:5px 0;${dis ? "opacity:.55" : ""}">
+        <input type="checkbox" data-asplan="${i}" ${r.checked && !dis ? "checked" : ""} ${dis ? "disabled" : ""}>
+        ${assignEsc(r.policy)}
+        <div class="mini muted" style="margin-left:22px">${r.state === "nogroup"
+          ? `needs <b>${assignEsc(r.group)}</b> — <span style="color:var(--off)">no such group in this tenant</span>${asPlanCreate ? " · will be created from its baseline template" : ""}`
+          : `add <b>${assignEsc(r.group)}</b>`}${r.source === "derived" ? ' <span class="tag">derived</span>' : ""}</div></label>`;
+    };
+    const idx = new Map(asPlan.map((r, i) => [r, i]));
+    return `<h4 class="mini" style="margin-bottom:6px">CONVENTION EXCLUSIONS — ${total} POLIC${total === 1 ? "Y" : "IES"} IN SCOPE</h4>
+      <p class="mini muted" style="margin-bottom:8px">Each policy gets <b>its own</b> exclusion group — CA200 gets CAB-SEC-U-CA200-Exclusion, CA201 gets CA201-Exclusion — so this is a mapping rather than one group applied to everything. Nothing is replaced: the group is <b>added</b> to whatever the policy already excludes, and a policy that already has it is left alone.</p>
+      <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 10px;flex-wrap:wrap">
+        <span class="tag ok">✅ ${c.present || 0} already correct</span>
+        <span class="tag new">⚠️ ${missing.length} missing the reference</span>
+        ${nogroup.length ? `<span class="tag block">❌ ${nogroup.length} group not in tenant</span>` : ""}
+        ${c.none ? `<span class="tag">— ${c.none} no convention group</span>` : ""}
+      </div>
+      ${derived ? `<p class="mini muted" style="margin:0 0 8px">${derived} row${derived === 1 ? " carries" : "s carry"} a <span class="tag">derived</span> name: the policy has a CA number the baseline catalog does not, so the group name follows the convention by inference rather than from the catalog. Check those before ticking them.</p>` : ""}
+      ${nogroup.length ? `<label class="chk" style="margin:0 0 10px"><input type="checkbox" id="asPlanCreate" ${asPlanCreate ? "checked" : ""}> <b>Create the ${nogroup.length} missing group${nogroup.length === 1 ? "" : "s"}</b> from their baseline templates first <span class="mini muted">— empty security groups; protect them afterwards from 🔒 Protect exclusions</span></label>` : ""}
+      <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 8px;flex-wrap:wrap">
+        <button class="btn sm" id="asPlanNone">☐ Untick all</button>
+        <button class="btn sm" id="asPlanAll">☑ Tick all</button>
+        <span class="mini muted" id="asPlanCount"><b>${asPlanActionable().length}</b> polic${asPlanActionable().length === 1 ? "y" : "ies"} will be updated</span>
+      </div>
+      <div style="max-height:38vh;overflow:auto">
+        ${missing.map((r) => row(r, idx.get(r))).join("")}
+        ${nogroup.length ? `<h4 class="mini" style="margin:12px 0 6px">GROUP DOES NOT EXIST YET</h4>` + nogroup.map((r) => row(r, idx.get(r))).join("") : ""}
+      </div>
+      <p class="mini muted" style="margin-top:10px">An exclusion <b>widens</b> a policy: whoever is in these groups stops being covered by the policy they are added to. Restoring the reference is what the baseline intends, but if a group already has members, this exempts them the moment it is applied — check the membership of anything unexpected before running a tenant-wide sweep.</p>`;
+  }
+
+  function asPlanSync() {
+    const c = $("asPlanCount");
+    const n = asPlanActionable().length;
+    if (c) c.innerHTML = `<b>${n}</b> polic${n === 1 ? "y" : "ies"} will be updated`;
+  }
+
   async function renderAssign() {
     const b = $("asBody"), next = $("asNext"), back = $("asBack");
     $("asSub").textContent = `${asPolicies.length} ${asPolicies.length === 1 ? "policy" : "policies"}`
@@ -5295,15 +5434,40 @@ max@contoso.com,"Global, DevOps"</pre>
         <div style="max-height:34vh;overflow:auto">` +
         (vis.map((r) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asrole="${esc(r.id)}" ${r.checked ? "checked" : ""}> ${assignEsc(r.name)}${r.recommended ? ' <span class="tag grant">privileged</span>' : ""}</label>`).join("")
           || '<p class="mini muted">No role matches that search.</p>') + `</div>`;
+
+    } else if (asStep === 1 && Assign.MAPPED_ACTIONS.has(asAction)) {
+      next.textContent = "Next";
+      // The plan is DERIVED from the policies in scope, so a change of scope
+      // has to rebuild it — same reason the REMOVE list does.
+      const mode = `restore:${asScope}:${asPolicies.length}`;
+      if (asGroupsMode !== mode) { asPlan = []; asGroupsMode = mode; }
+      if (!asPlan.length) {
+        b.innerHTML = '<p class="mini">Reading the CAB-SEC groups and working out which policies have lost their exclusion reference…</p>';
+        await asBuildPlan();
+      }
+      b.innerHTML = asRestorePanel();
     } else if (asStep === 1) {
       next.textContent = "Next";
+      // REMOVE works on what a policy ALREADY has, so the catalog of baseline
+      // groups is the wrong list to show: ticking a group the policy never
+      // referenced does nothing, and the group you actually want to take off
+      // may not be in the baseline at all. Show the current assignment instead,
+      // pre-ticked — for a removal the question is which ones to KEEP, so the
+      // work is unticking rather than hunting the right names out of a catalog.
+      const removing = Assign.REMOVE_ACTIONS.has(asAction);
+      // The remove list is DERIVED from the selected policies, so a change of
+      // scope has to rebuild it — otherwise going Back, switching to "all
+      // policies" and pressing Next shows the previous scope's assignment.
+      const mode = removing ? `remove:${asAction}:${asScope}:${asPolicies.length}` : "catalog";
+      if (asGroupsMode !== mode) { asGroups = []; asFound = []; asGroupsMode = mode; }
       if (!asGroups.length) {
-        b.innerHTML = '<p class="mini">Checking which persona groups exist in this tenant…</p>';
-        asGroups = (isDemo
+        b.innerHTML = `<p class="mini">${removing ? "Reading the current assignment…" : "Checking which persona groups exist in this tenant…"}</p>`;
+        asGroups = removing ? await asAssignedGroups() : (isDemo
           ? Object.keys(DEMO_DATA.scopeGroups || {}).map(n => ({ id: "g-" + n, name: n }))
           : await Assign.resolveGroups((m) => { const el = b.querySelector("p"); if (el) el.textContent = m; })
         ).map(g => ({ ...g, checked: false }));
       }
+      if (removing) { b.innerHTML = asRemovePanel(); return; }
       const tpls = Assign.templates().filter(t => !asGroups.some(g => g.name === t.displayName));
       // Pick by persona: one click adds that persona's group, creating it from
       // its template first if the tenant does not have it. A persona already in
@@ -5340,6 +5504,23 @@ max@contoso.com,"Global, DevOps"</pre>
           Protect them from <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> once they exist. Dynamic templates keep their membership rule instead,
           and nesting is not sent for those (a rule can only match users and devices). Consents <code>Group.ReadWrite.All</code> + <code>Group-NestingSupport.ReadWrite.All</code>
           on demand. Existing groups with the same name are reused, never duplicated — and are left exactly as they are, including their nesting setting.</p>`;
+    } else if (asStep === 2 && Assign.MAPPED_ACTIONS.has(asAction)) {
+      next.textContent = "Review →";
+      const rows = asPlanActionable();
+      const create = rows.filter((r) => r.state === "nogroup");
+      // Additive, but tenant-wide it touches everything and every touch widens
+      // a policy. Same typed gate as the other tenant-wide rewrites.
+      const wide = asScope === "all";
+      b.innerHTML = `<h4 class="mini">STEP 3 — review</h4>
+        ${wide ? `<div class="danger-note"><b>This adds an exclusion group to ${rows.length} polic${rows.length === 1 ? "y" : "ies"} across the whole tenant.</b>
+          Nothing is replaced and nothing is removed — but every one of these policies stops covering whoever is in its exclusion group. Type <b>ALL</b> if that is really what you want.</div>
+        <input id="asWideOk" class="txt" placeholder="ALL" autocomplete="off" spellcheck="false" style="margin-bottom:6px">` : ""}
+        <p style="margin:8px 0"><b>Action:</b> restore each policy's own CAxxx-Exclusion group (added, never replaced)</p>
+        ${create.length ? `<p style="margin:8px 0"><b>Groups to create first (${create.length}):</b></p>
+          <ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px">${create.map((r) => `<li>${assignEsc(r.group)}</li>`).join("")}</ul>` : ""}
+        <p style="margin:8px 0"><b>Policies (${rows.length}):</b></p>
+        <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${rows.map((r) =>
+          `<li>${assignEsc(r.policy)}<div class="mini muted">+ ${assignEsc(r.group)}${r.state === "nogroup" ? " (created first)" : ""}${r.source === "derived" ? " · derived name" : ""}</div></li>`).join("")}</ul>`;
     } else if (asStep === 2) {
       next.textContent = "Review →";
       const gsel = asGroups.filter(g => g.checked);
@@ -5351,9 +5532,14 @@ max@contoso.com,"Global, DevOps"</pre>
       // wide they get a typed confirmation. Additive (2,3) and REMOVE (5,6) only
       // touch the named groups, so they are safe to run across everything.
       const rewrites = asAction === 0 || asAction === 1 || asAction === 4;
-      const wide = asScope === "all" && rewrites;
-      const wideWarn = wide ? `<div class="danger-note"><b>This rewrites the assignment of all ${asPolicies.length} policies.</b>
-          "${assignEsc(Assign.actionsFor(asTarget)[asAction])}" replaces what is there now — it does not merge. Type <b>ALL</b> if that is really what you want.</div>
+      // A REMOVE across the whole tenant belongs behind the same typed gate.
+      // The list it works from arrives fully ticked (that is the point — you
+      // untick what stays), so stripping every exclusion in the tenant is
+      // otherwise three clicks with nothing in the way.
+      const wideRemove = asScope === "all" && Assign.REMOVE_ACTIONS.has(asAction);
+      const wide = asScope === "all" && (rewrites || wideRemove);
+      const wideWarn = wide ? `<div class="danger-note"><b>This ${wideRemove ? `takes ${gsel.length} group${gsel.length === 1 ? "" : "s"} off every one of the ${asPolicies.length} policies that reference ${gsel.length === 1 ? "it" : "them"}` : `rewrites the assignment of all ${asPolicies.length} policies`}.</b>
+          ${wideRemove ? "Only the policies that actually have the group are rewritten, but that is still tenant-wide." : `"${assignEsc(Assign.actionsFor(asTarget)[asAction])}" replaces what is there now — it does not merge.`} Type <b>ALL</b> if that is really what you want.</div>
         <input id="asWideOk" class="txt" placeholder="ALL" autocomplete="off" spellcheck="false" style="margin-bottom:6px">` : "";
       b.innerHTML = `<h4 class="mini">STEP 3 — review</h4>
         ${wideWarn}
@@ -5384,7 +5570,9 @@ max@contoso.com,"Global, DevOps"</pre>
         <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
         asResults.map(r => `<li>${r.ok
           ? (r.changed === false ? '<span class="tag grant">already set</span>' : '<span class="tag grant">updated</span>')
-          : '<span class="tag block">failed</span>'} ${assignEsc(r.name)}${r.error ? `<div class="mini">${assignEsc(r.error)}</div>` : ""}</li>`).join("") + "</ul>";
+          : '<span class="tag block">failed</span>'} ${assignEsc(r.name)}${
+          r.group ? `<div class="mini muted">+ ${assignEsc(r.group)}</div>` : ""}${
+          r.error ? `<div class="mini">${assignEsc(r.error)}</div>` : ""}</li>`).join("") + "</ul>";
     }
   }
   $("asBody").addEventListener("change", (e) => {
@@ -5396,7 +5584,10 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "asRoleAdminOnly") { asRoleAdminOnly = e.target.checked; renderAssign(); return; }
     const rr = e.target.closest("[data-asrole]");
     if (rr) { const role = asRoles.find((x) => x.id === rr.dataset.asrole); if (role) role.checked = rr.checked; renderAssign(); return; }
-    const g = e.target.closest("[data-asg]"); if (g) { asGroups[+g.dataset.asg].checked = g.checked; return; }
+    if (e.target.id === "asPlanCreate") { asPlanCreate = e.target.checked; renderAssign(); return; }
+    const pl = e.target.closest("[data-asplan]");
+    if (pl) { const r = asPlan[+pl.dataset.asplan]; if (r) r.checked = pl.checked; asPlanSync(); return; }
+    const g = e.target.closest("[data-asg]"); if (g) { asGroups[+g.dataset.asg].checked = g.checked; asRmSync(); return; }
     // a search hit promotes into the target list, so review shows it like any other
     const f = e.target.closest("[data-asfound]");
     if (f && f.checked) { asAddCreated(asFound[+f.dataset.asfound]); }
@@ -5413,6 +5604,27 @@ max@contoso.com,"Global, DevOps"</pre>
     }
   });
   $("asBody").addEventListener("click", async (e) => {
+    // Bulk tick for the remove list. Reflect the model onto the inputs in place
+    // rather than re-rendering, so the panel does not jump under the reader.
+    const pbulk = e.target.closest("#asPlanAll, #asPlanNone");
+    if (pbulk) {
+      const on = pbulk.id === "asPlanAll";
+      // Ticking all never reaches rows whose group does not exist unless
+      // creating them was asked for — otherwise "tick all" would promise
+      // something the run cannot deliver.
+      asPlan.forEach((r) => { if (r.state === "missing" || (r.state === "nogroup" && asPlanCreate)) r.checked = on; });
+      $("asBody").querySelectorAll("[data-asplan]").forEach((cb) => { if (!cb.disabled) cb.checked = on; });
+      asPlanSync();
+      return;
+    }
+    const bulk = e.target.closest("#asRmAll, #asRmNone");
+    if (bulk) {
+      const on = bulk.id === "asRmAll";
+      asGroups.forEach((g) => { g.checked = on; });
+      $("asBody").querySelectorAll("[data-asg]").forEach((cb) => { cb.checked = on; });
+      asRmSync();
+      return;
+    }
     const set = e.target.closest("[data-asroleset]");
     if (set) {
       const how = set.dataset.asroleset;
@@ -5512,7 +5724,9 @@ max@contoso.com,"Global, DevOps"</pre>
       asStep = asAction === 4 ? 2 : 1; // "All Users" needs no group selection
       renderAssign();
     } else if (asStep === 1) {
-      if (asTarget === "roles") {
+      if (Assign.MAPPED_ACTIONS.has(asAction)) {
+        if (!asPlanActionable().length) { toast("Nothing ticked — <span>nothing to restore</span>"); return; }
+      } else if (asTarget === "roles") {
         if (!asRoles.some((r) => r.checked)) { toast("Select at least one <span>directory role</span>"); return; }
       } else if (!asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
       asStep = 2; renderAssign();
@@ -5522,7 +5736,9 @@ max@contoso.com,"Global, DevOps"</pre>
         toast("Type <span>ALL</span> to confirm a tenant-wide assignment change");
         wideBox.focus(); return;
       }
-      if (asTarget === "roles") {
+      if (Assign.MAPPED_ACTIONS.has(asAction)) {
+        if (!asPlanActionable().length) { toast("Nothing ticked — <span>nothing to restore</span>"); return; }
+      } else if (asTarget === "roles") {
         if (!asRoles.some((r) => r.checked)) { toast("Select at least one <span>directory role</span>"); return; }
       } else if (asAction !== 4 && !asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
       openAssignConfirm();
@@ -5537,8 +5753,10 @@ max@contoso.com,"Global, DevOps"</pre>
     2: "Add to the include groups of", 3: "Add to the exclude groups of",
     4: "Set to All Users (clear include groups)",
     5: "Remove from the include groups of", 6: "Remove from the exclude groups of",
+    7: "Restore the convention exclusion group of",
   };
   function openAssignConfirm() {
+    if (Assign.MAPPED_ACTIONS.has(asAction)) return openRestoreConfirm();
     const gsel = asGroups.filter(g => g.checked);
     const scope = asScope === "all" ? `all **${asPolicies.length}** policies in this tenant` : `**${asPolicies.length}** selected polic${asPolicies.length === 1 ? "y" : "ies"}`;
     const rsel = asRoles.filter((r) => r.checked);
@@ -5572,15 +5790,69 @@ max@contoso.com,"Global, DevOps"</pre>
     $("asConfirmBody").innerHTML = mdToHtml(lines.join("\n"));
     $("asConfirm").classList.add("open");
   }
+  // The restore run says it in policy → group pairs, because that mapping IS
+  // the thing being confirmed: one shared group list would read as a much
+  // smaller change than it is.
+  function openRestoreConfirm() {
+    const rows = asPlanActionable();
+    const create = rows.filter((r) => r.state === "nogroup");
+    const lines = [];
+    lines.push(`**Restore the convention exclusion group** of ${asScope === "all" ? `all **${rows.length}** affected policies in this tenant` : `**${rows.length}** polic${rows.length === 1 ? "y" : "ies"}`}.`);
+    lines.push("");
+    if (create.length) {
+      lines.push(`**${create.length}** group${create.length === 1 ? "" : "s"} will be **created** first, from the baseline templates:`);
+      create.forEach((r) => lines.push(`- ${r.group}`));
+      lines.push("");
+    }
+    lines.push("Each policy gets its own group, added to the exclusions it already has:");
+    rows.slice(0, 25).forEach((r) => lines.push(`- ${r.policy} → **${r.group}**`));
+    if (rows.length > 25) lines.push(`- …and ${rows.length - 25} more`);
+    lines.push("");
+    lines.push("Nothing is replaced and nothing is removed. An exclusion **widens** a policy, so anyone already in these groups stops being covered by the policy they are added to.");
+    lines.push("");
+    lines.push(isDemo ? "_Demo mode — this is simulated, nothing is written._" : "This **writes to your tenant**.");
+    $("asConfirmBody").innerHTML = mdToHtml(lines.join("\n"));
+    $("asConfirm").classList.add("open");
+  }
+
+  // The restore write: create whatever groups were asked for, then one PATCH
+  // per policy with that policy's own group. Creation failures drop their row
+  // rather than failing the run — the other policies are still repairable.
+  async function runRestore() {
+    const rows = asPlanActionable();
+    const items = [];
+    for (const r of rows) {
+      if (r.state === "nogroup") {
+        try {
+          toast(`Creating ${esc(r.group)}…`);
+          const g = await Assign.createGroup(Assign.templateFor(r.group), { nesting: false });
+          items.push({ ...r, groupId: g.id });
+        } catch (e) {
+          console.error("restore: create failed", r.group, e);
+          items.push({ ...r, createFailed: e.message || String(e) });
+        }
+      } else items.push(r);
+    }
+    const creatable = items.filter((r) => r.groupId);
+    const failed = items.filter((r) => !r.groupId)
+      .map((r) => ({ name: r.policy, ok: false, group: r.group, error: `${r.group} could not be created: ${r.createFailed || "unknown error"}` }));
+    const done = await Assign.applyMapped(creatable, (m) => toast(m));
+    return [...done, ...failed];
+  }
+
   $("asConfirmBack").addEventListener("click", () => $("asConfirm").classList.remove("open"));
   $("asConfirmGo").addEventListener("click", async () => {
     if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) return;
     const gids = asGroups.filter(g => g.checked).map(g => g.id);
     const btn = $("asConfirmGo"); btn.disabled = true;
     try {
+      const mapped = Assign.MAPPED_ACTIONS.has(asAction);
       if (isDemo) {
-        asResults = asPolicies.map(p => ({ name: p.name, ok: true, changed: true }));
+        asResults = (mapped ? asPlanActionable() : asPolicies)
+          .map((x) => ({ name: mapped ? x.policy : x.name, ok: true, changed: true, group: x.group }));
         toast("Demo — changes <span>simulated</span>");
+      } else if (mapped) {
+        asResults = await runRestore();
       } else {
         const ids = asTarget === "roles" ? asRoles.filter(r => r.checked).map(r => r.id) : gids;
         asResults = await Assign.apply(asPolicies.map(p => p.id), asAction, ids, (m) => toast(m), asTarget);
@@ -5588,6 +5860,7 @@ max@contoso.com,"Global, DevOps"</pre>
       // Snapshot the run so the report reflects exactly what was applied, not
       // whatever the wizard state happens to be when the button is clicked.
       asRun = { action: asAction, scope: asScope, target: asTarget,
+        plan: mapped ? asPlanActionable().map((r) => ({ ...r })) : null,
         groups: asGroups.filter(g => g.checked).map(g => ({ ...g })),
         roles: asRoles.filter(r => r.checked).map(r => ({ ...r })),
         results: asResults, when: new Date() };
@@ -5624,7 +5897,11 @@ max@contoso.com,"Global, DevOps"</pre>
     L.push(`- **When:** ${run.when.toISOString().slice(0, 16).replace("T", " ")} UTC`);
     L.push(`- **Action:** ${md(verb)}`);
     L.push(`- **Scope:** ${run.scope === "all" ? `all ${r.length} policies in the tenant` : `${r.length} selected`}`);
-    if (run.action !== 4) {
+    if (run.plan) {
+      // A mapped run has no single group list — the pairing is the record.
+      const created = run.plan.filter((r) => r.state === "nogroup");
+      L.push(`- **Mapping:** one group per policy, added to the existing exclusions${created.length ? ` · ${created.length} group(s) created first` : ""}`);
+    } else if (run.action !== 4) {
       L.push(run.target === "roles"
         ? `- **Directory role(s):** ${(run.roles || []).map(r => `${md(r.name)}${r.recommended ? " *(privileged)*" : ""}`).join(", ") || "—"}`
         : `- **Group(s):** ${run.groups.map(g => `${md(g.name)}${g.id ? ` (\`${md(g.id)}\`)` : ""}`).join(", ") || "—"}`);
@@ -5640,11 +5917,11 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     L.push("## Every policy");
     L.push("");
-    L.push("| Result | Policy |");
-    L.push("|---|---|");
+    L.push(run.plan ? "| Result | Policy | Group added |" : "| Result | Policy |");
+    L.push(run.plan ? "|---|---|---|" : "|---|---|");
     for (const x of r) {
       const tag = !x.ok ? "❌ failed" : x.changed === false ? "✅ already set" : "✅ updated";
-      L.push(`| ${tag} | ${md(x.name)} |`);
+      L.push(run.plan ? `| ${tag} | ${md(x.name)} | ${md(x.group || "—")} |` : `| ${tag} | ${md(x.name)} |`);
     }
     L.push("");
     L.push("---");
@@ -9919,20 +10196,44 @@ max@contoso.com,"Global, DevOps"</pre>
         <div class="mini">${r.users.length} user${r.users.length === 1 ? "" : "s"} evaluated</div>
       </div></div>`;
 
-    const C = r.counts;
-    const chips = [["all", `All (${r.policies.length})`],
-      ["block", `🔴 would block (${C.block})`], ["prompt", `🟡 prompts (${C.prompt})`],
-      ["clean", `🟢 no change (${C.clean})`], ["scoped", `⚪ never in scope (${C.scoped})`], ["nodata", `⚪ no data (${C.nodata})`]]
-      .filter(([k]) => k === "all" || C[k]);
-    $("riChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${riFilter === k ? "active" : ""}" data-rif="${k}">${l}</button>`).join("");
     [...$("riViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.riview === riView));
     const q = riQuery.toLowerCase();
+    const perPolicy = riView === "policies";
+
+    // The search narrows the population the chips describe. Counting the whole
+    // run while the list shows a searched subset is how you end up with chips
+    // claiming five would-block policies directly above the words "nothing
+    // matches the current filter" — the two disagreeing about the same screen.
+    // They also have to count the right SUBJECT: in Per user the filter reads
+    // u.worst, so policy verdicts (and a "never in scope" chip no user can
+    // ever carry) were the wrong numbers entirely.
+    const searched = perPolicy
+      ? r.policies.filter((p) => !q || riPolText(p).includes(q))
+      : r.users.filter((u) => !q || riUserText(u).includes(q));
+    const C = {};
+    for (const x of searched) { const v = perPolicy ? x.verdict : x.worst; C[v] = (C[v] || 0) + 1; }
+    const chips = [["all", `All (${searched.length})`],
+      ["block", `🔴 would block (${C.block || 0})`], ["prompt", `🟡 prompts (${C.prompt || 0})`],
+      ["clean", `🟢 no change (${C.clean || 0})`], ["scoped", `⚪ never in scope (${C.scoped || 0})`], ["nodata", `⚪ no data (${C.nodata || 0})`]]
+      // An empty verdict is hidden, EXCEPT the one currently selected: a filter
+      // you cannot see is a filter you cannot clear.
+      .filter(([k]) => k === "all" || C[k] || riFilter === k);
+    $("riChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${riFilter === k ? "active" : ""}" data-rif="${k}">${l}</button>`).join("");
+
+    // Suggest what is actually in this result, so a typed term cannot silently
+    // match nothing. Target GROUPS are included because that is the name people
+    // reach for first — a deployment group is how a policy is scoped, and it
+    // does not appear in the policy's own name.
+    const sugg = perPolicy
+      ? r.policies.flatMap((p) => [p.name, ...riTargetNames(p.id)])
+      : r.users.map((u) => u.upn);
+    $("riSearchList").innerHTML = [...new Set(sugg.filter(Boolean))].slice(0, 300)
+      .map((v) => `<option value="${esc(v)}">`).join("");
 
     // ---- Per policy: is flipping THIS one on safe? -----------------------
     if (riView === "policies") {
-      const pols = r.policies.filter((p) => (riFilter === "all" || p.verdict === riFilter)
-        && (!q || `${p.name} ${p.users.map((u) => u.upn + " " + u.name).join(" ")} ${p.apps.map(([a]) => a).join(" ")}`.toLowerCase().includes(q)));
-      if (!pols.length) { $("riBody").innerHTML = '<p class="mini" style="padding:20px">No report-only policy matches the current filter.</p>'; return; }
+      const pols = searched.filter((p) => riFilter === "all" || p.verdict === riFilter);
+      if (!pols.length) { $("riBody").innerHTML = riEmpty(true, q, searched.length); return; }
       $("riBody").innerHTML = pols.map((p) => {
         const [ic, vlab] = RI_V[p.verdict];
         const open = riOpen.has("p:" + p.key);
@@ -9969,9 +10270,8 @@ max@contoso.com,"Global, DevOps"</pre>
     }
 
     // ---- Per user: what changes for this person? -------------------------
-    const users = r.users.filter((u) => (riFilter === "all" || u.worst === riFilter)
-      && (!q || `${u.name} ${u.upn} ${u.policies.map((x) => x.name).join(" ")} ${u.apps.join(" ")}`.toLowerCase().includes(q)));
-    if (!users.length) { $("riBody").innerHTML = '<p class="mini" style="padding:20px">No user matches the current filter.</p>'; return; }
+    const users = searched.filter((u) => riFilter === "all" || u.worst === riFilter);
+    if (!users.length) { $("riBody").innerHTML = riEmpty(false, q, searched.length); return; }
     const W = { block: ["🔴", "locked out of something"], prompt: ["🟡", "new prompts"], clean: ["🟢", "unaffected"] };
     $("riBody").innerHTML = `<div class="list-card"><table class="plist au-sum">
       <thead><tr><th>User</th><th style="width:140px">Going live means</th><th style="width:100px">Would deny</th><th style="width:100px">Interrupted</th><th>Policies involved</th><th style="width:110px">Last seen</th></tr></thead>
@@ -10029,6 +10329,40 @@ max@contoso.com,"Global, DevOps"</pre>
   // the per-user "why?" resolves the person's membership against the
   // policy's include entries, so "in scope" gets a concrete reason.
   const riVm = (polId) => policies.find((x) => x.id === polId) || null;
+  // The names a policy is SCOPED by. They are not in the policy's own name, and
+  // they are what somebody types first — a deployment group like
+  // CAD-SEC-U-DG-INT is how the policy was aimed, so a search that cannot see
+  // it answers "no match" to a question the tool can actually answer.
+  function riTargetNames(polId) {
+    const vm = riVm(polId);
+    if (!vm) return [];
+    return [...(vm.users.inc || []), ...(vm.users.exc || [])];
+  }
+  // One definition of "matches", shared by the list and by the chip counts, so
+  // the two can never disagree about the same screen.
+  const riPolText = (p) => `${p.name} ${riTargetNames(p.id).join(" ")} ${p.users.map((u) => u.upn + " " + u.name).join(" ")} ${p.apps.map(([a]) => a).join(" ")}`.toLowerCase();
+  const riUserText = (u) => `${u.name} ${u.upn} ${u.policies.map((x) => x.name).join(" ")} ${u.apps.join(" ")}`.toLowerCase();
+
+  // "Nothing matches the current filter" is three different situations, and the
+  // reader has two controls to undo without being told which one did it. Name
+  // the cause and carry the way out.
+  function riEmpty(perPolicy, q, searchedTotal) {
+    const noun = perPolicy ? "report-only policy" : "user";
+    const nouns = perPolicy ? "policies" : "users";
+    const clear = '<button class="fchip" id="riClearQ">✕ clear the search</button>';
+    if (q && !searchedTotal) {
+      return `<p class="mini" style="padding:20px">No ${noun} matches <b>“${esc(riQuery)}”</b> — nothing in this run carries that name.
+        ${perPolicy ? "The box searches policy names, the groups a policy targets, the users it touched and their apps." : "The box searches user names, UPNs, their policies and their apps."} ${clear}</p>`;
+    }
+    if (q) {
+      const lab = (RI_V[riFilter] || [])[1] || riFilter;
+      return `<p class="mini" style="padding:20px"><b>${searchedTotal}</b> ${searchedTotal === 1 ? noun : nouns} match <b>“${esc(riQuery)}”</b>, but none of ${searchedTotal === 1 ? "it is" : "them are"} <b>${esc(lab)}</b>.
+        <button class="fchip" data-rif="all">show all ${searchedTotal}</button> ${clear}</p>`;
+    }
+    return `<p class="mini" style="padding:20px">No ${noun} has that verdict in this window.
+      <button class="fchip" data-rif="all">show every ${noun}</button></p>`;
+  }
+
   function riTargets(polId) {
     const vm = riVm(polId);
     if (!vm) return "";
@@ -10069,6 +10403,11 @@ max@contoso.com,"Global, DevOps"</pre>
 
   $("riBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-rirun]")) { runImpact(); return; }
+    // The empty state carries its own undo, so both controls that can produce
+    // it are reachable from where the reader is actually looking.
+    if (e.target.closest("#riClearQ")) { riQuery = ""; $("riSearch").value = ""; renderImpact(); return; }
+    const fc = e.target.closest("[data-rif]");
+    if (fc) { riFilter = fc.dataset.rif; renderImpact(); return; }
     const wy = e.target.closest("[data-riwhy]");
     if (wy) { riWhy(wy.dataset.riwhy, wy.dataset.ripol, wy); return; }
     const pl = e.target.closest(".pol-link");

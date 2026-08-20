@@ -78,6 +78,47 @@ const DEMO_DATA = {
         secureSignInSession: { isEnabled: true },
       },
     },
+    // Three baseline-numbered policies, so the demo can show what a tenant
+    // deployed from the catalog looks like — and, between them, all three
+    // states of the convention-exclusion check: one correct, one that has
+    // lost the reference, and one whose group was never created.
+    {
+      id: "d7", displayName: "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0",
+      state: "enabledForReportingButNotEnforced", modifiedDateTime: "2026-08-11T09:00:00Z",
+      conditions: {
+        users: { includeGroups: ["g-CAB-SEC-U-Persona-Internals"],
+                 excludeGroups: ["g-CAB-SEC-U-CA200-Exclusion", "g-CAB-SEC-U-BreakGlass"] },
+        applications: { includeApplications: ["All"] },
+        clientAppTypes: ["all"],
+      },
+      grantControls: { operator: "OR", builtInControls: ["mfa"] },
+    },
+    {
+      id: "d8", displayName: "CA201-GRANT-Internals-IP-AnyApp-AnyPlatform-MediumUserRisk-v3.0",
+      state: "enabledForReportingButNotEnforced", modifiedDateTime: "2026-08-11T09:00:00Z",
+      conditions: {
+        // The exclusion group exists in the directory; the policy has lost the
+        // reference to it. This is the drift the restore action repairs.
+        users: { includeGroups: ["g-CAB-SEC-U-Persona-Internals"], excludeGroups: ["g-CAB-SEC-U-BreakGlass"] },
+        applications: { includeApplications: ["All"] },
+        clientAppTypes: ["all"],
+        userRiskLevels: ["medium"],
+      },
+      grantControls: { operator: "OR", builtInControls: ["passwordChange"] },
+    },
+    {
+      id: "d9", displayName: "CA204-BLOCK-Internals-ASR-AllApps-AnyPlatform-BlockUnknownPlatforms-v1.0",
+      state: "disabled", modifiedDateTime: "2026-08-11T09:00:00Z",
+      conditions: {
+        // Its exclusion group was never created, so restoring the reference
+        // has to create the group first.
+        users: { includeGroups: ["g-CAB-SEC-U-Persona-Internals"], excludeGroups: ["g-CAB-SEC-U-BreakGlass"] },
+        applications: { includeApplications: ["All"] },
+        clientAppTypes: ["all"],
+        platforms: { includePlatforms: ["all"], excludePlatforms: ["windows", "macOS", "iOS", "android", "linux"] },
+      },
+      grantControls: { operator: "OR", builtInControls: ["block"] },
+    },
   ],
   names: {
     "62e90394-69f5-4237-9190-012177145e10": "Global Administrator",
@@ -159,6 +200,10 @@ const DEMO_DATA = {
   ],
   scopeGroups: {
     "CAB-SEC-U-BreakGlass": ["u-break1", "u-break2"],
+    // CA200's exclusion group exists and is referenced; CA201's exists but the
+    // policy has lost the reference. CA204's is deliberately absent.
+    "CAB-SEC-U-CA200-Exclusion": [],
+    "CAB-SEC-U-CA201-Exclusion": ["u-old"],
     "CAB-SEC-U-Persona-Admins": ["u-admin"],
     "CAB-SEC-U-Persona-Internals": ["u-emp1", "u-emp2", "u-old"],
     "CAB-SEC-U-Persona-Guests": ["u-guest1"],
