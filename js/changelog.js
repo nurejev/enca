@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25184, date: "2026-08-20", title: "The brief left out every device requirement written as a block",
+    items: [
+      { kind: "fixed", tool: "User impact brief", text: "The company-device item matched a compliantDevice GRANT and nothing else \u2014 it explicitly excluded blocks. But Entra has no grant control meaning require Entra joined: only compliantDevice and domainJoinedDevice exist, so the baseline expresses that requirement the only way it can, as a BLOCK on everything a device filter does not cover. CA205 and CA301 (blocked unless Entra joined or hybrid joined) and CA309 (selected apps blocked unless compliant) were therefore absent from the brief altogether. Somebody reading it was told their Mac must be enrolled and never told that a Windows machine which is not joined is refused outright." },
+      { kind: "improved", tool: "User impact brief", text: "Both forms now land in one item per audience, because to the person reading this they mean one thing: a personal or unmanaged machine will not get you in. The text names whichever consequences actually apply \u2014 enrolled and compliant, refused outright if not joined, or both \u2014 rather than one sentence covering cases that may not be in scope. And domainJoinedDevice, the hybrid-join grant, is recognised for the first time; it had never been matched at all." },
+      { kind: "fixed", tool: "User impact brief", text: "The direction of a device filter is honoured, which is the difference between the requirement and its opposite. A filter names a set and the mode says whether the policy applies to that set or to everything else: exclude plus a positive rule blocks the devices that are NOT joined, and so does include plus a negated one. The other two combinations block company devices instead, and are deliberately not described as requiring one. Session policies carrying a device filter (CA005, CA007, CA202, CA206, CA214) stay out entirely \u2014 they limit what a session can do, they do not decide whether you get in." },
+    ],
+  },
+  {
     build: 25183, date: "2026-08-20", title: "Items 84 and 85 reached production (294)",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue items 84 (\ud83d\udde3 User impact brief can re-read the tenant, and says how old its answer is) and 85 (\ud83c\udfab Licence gap, \ud83d\udde3 User impact brief and \ud83d\udcaa Authentication strengths out of BETA, the first two renumbered 1.0) are live in production build 294. Removed from the queue; the numbers are retired rather than reused. What remains is the two beta-only tools, and neither can move without its tool." },

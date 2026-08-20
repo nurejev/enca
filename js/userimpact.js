@@ -48,6 +48,35 @@ const UserImpact = (() => {
   const s = (vm) => (vm.raw || {}).sessionControls || {};
   const c = (vm) => (vm.raw || {}).conditions || {};
   const isBlock = (vm) => (g(vm).builtInControls || []).includes("block");
+
+  // ---- "you need a company device", written two different ways ------------
+  // Entra has no grant control for "must be Entra joined" — only compliantDevice
+  // and domainJoinedDevice exist — so the baseline expresses that requirement
+  // as a BLOCK on everything that is NOT joined, through a device filter.
+  // CA205 and CA301 are exactly that, and CA309 is the same shape on isCompliant.
+  // To the person reading this brief all of it means one thing: a personal or
+  // unmanaged machine will not get you in. Matching only the grant form left
+  // those three out of the brief entirely.
+  const MANAGED_GRANTS = ["compliantDevice", "domainJoinedDevice"];
+  const MANAGED_ATTR = /device\.(trusttype|iscompliant|isdomainjoined|deviceownership)/i;
+  const devFilter = (vm) => (c(vm).devices || {}).deviceFilter || null;
+  const managedGrant = (vm) => (g(vm).builtInControls || []).some((x) => MANAGED_GRANTS.includes(x)) && !isBlock(vm);
+  // Direction matters, and getting it backwards would report the opposite of
+  // the truth. A filter names a set; the mode says whether the policy applies
+  // TO that set or to everything else:
+  //   exclude + positive rule ("is joined")     -> applies to the NOT-joined -> blocks them   ✓
+  //   include + negated rule  ("is not joined") -> applies to the NOT-joined -> blocks them   ✓
+  //   include + positive rule                   -> blocks COMPANY devices — a different thing ✗
+  //   exclude + negated rule                    -> same, inverted twice                       ✗
+  const managedBlock = (vm) => {
+    if (!isBlock(vm)) return false;
+    const f = devFilter(vm);
+    const rule = String((f || {}).rule || "");
+    if (!f || !MANAGED_ATTR.test(rule)) return false;
+    const negated = /-ne\b/i.test(rule);
+    const mode = String(f.mode || "").toLowerCase();
+    return (mode === "exclude" && !negated) || (mode === "include" && negated);
+  };
   const grantTxt = (vm) => (vm.grant && vm.grant.controls || []).join(" · ");
   const hasMfa = (vm) => /strength|multifactor|mfa/i.test(grantTxt(vm)) && !isBlock(vm);
   const phishRes = (vm) => /phishing/i.test(grantTxt(vm));
@@ -121,9 +150,18 @@ const UserImpact = (() => {
       expect: "On company Windows/macOS devices the Global Secure Access client must be active — if it is off or broken, access to company data is blocked until it runs again.",
       lost: "Working without the secure network client on corporate desktops and laptops." },
     { id: "compliant", icon: "💻", title: "Company devices must be enrolled and healthy",
-      match: (vm) => (g(vm).builtInControls || []).includes("compliantDevice") && !isBlock(vm),
+      match: (vm) => managedGrant(vm) || managedBlock(vm),
+      // Both forms can be in scope for the same audience, and they do not say
+      // the same thing to a user: one is about the device being HEALTHY, the
+      // other about it being a company device at all. Say whichever applies.
+      dynamic: (vms) => {
+        const parts = [];
+        if (vms.some(managedGrant)) parts.push("it must be enrolled in Intune and compliant — encrypted, updated, protected — and a device that falls out of compliance loses access until it is healthy again");
+        if (vms.some(managedBlock)) parts.push("a device that is not joined to the company directory is refused outright, so a personal or unmanaged machine cannot be used for this at all");
+        return `You need a company device: ${parts.join(". And ")}.`;
+      },
       expect: "Windows and macOS devices must be enrolled in Intune and compliant (encrypted, updated, protected). A device that falls out of compliance loses access until it is healthy again.",
-      lost: "Full access from laptops that are not enrolled, or that ignore compliance warnings." },
+      lost: "Working from a personal or unmanaged laptop, and full access from company laptops that are not enrolled or that ignore compliance warnings." },
     { id: "platform", icon: "🖥", title: "Unrecognised device platforms are blocked",
       match: (vm) => isBlock(vm) && ((c(vm).platforms || {}).includePlatforms || []).includes("all") && ((c(vm).platforms || {}).excludePlatforms || []).length > 0 && !((c(vm).locations || {}).includeLocations || []).length,
       dynamic: (vms) => {

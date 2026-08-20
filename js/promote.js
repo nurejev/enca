@@ -87,6 +87,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 86,
+      title: "\ud83d\udde3 The brief was missing every device requirement written as a block",
+      tools: ["User impact brief"],
+      builds: [25184],
+      risk: "high",
+      what: "The company-device item matched only a compliantDevice GRANT, and explicitly excluded blocks. Entra has no grant control for require Entra joined \u2014 only compliantDevice and domainJoinedDevice exist \u2014 so the baseline writes that requirement as a BLOCK on everything the device filter does not cover. Those policies are now matched too, folded into the same item per audience, with the text naming whichever consequences apply. domainJoinedDevice is recognised as a grant for the first time. Filter DIRECTION is honoured, so a block aimed AT company devices is not mistaken for one requiring them.",
+      why: "In production the brief tells people what to expect at go-live, and it silently omitted three of the baseline's device requirements \u2014 CA205 and CA301 (blocked unless Entra joined or hybrid joined) and CA309 (selected apps blocked unless compliant). A user reading it would be told their Mac must be enrolled and never told a Windows machine that is not joined is refused outright. It is the one output written to be handed to end users, so an omission reads as a promise.",
+      test: [
+        "Open T32 on a tenant carrying the baseline. The company-device item for Employees now lists CA205 alongside CA208, not CA208 on its own.",
+        "The Externals audience gets its own company-device item listing CA301 and CA309.",
+        "Read the item text: with both forms present it names BOTH consequences - enrolled and compliant, and refused outright if not joined. With only one form present it names only that one.",
+        "Session policies that carry a device filter (CA005, CA007, CA202, CA206, CA214) must NOT appear in this item - they are session limits, not device requirements.",
+        "CA215, the compliant-NETWORK block, must stay in its own Global Secure Access item.",
+        "No policy appears twice across the whole brief.",
+        "Export MD and Word: the same policies are listed there as on screen.",
+        "A tenant with a policy blocking access FROM company devices (device filter include, positive rule) must not have it described as requiring one - the direction is the whole meaning.",
+      ],
+      files: ["js/userimpact.js"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],
