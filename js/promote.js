@@ -87,6 +87,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 87,
+      title: "\ud83d\udde3 The brief is tied to the baseline revision it was written against",
+      tools: ["User impact brief", "Baseline Policies"],
+      builds: [25185],
+      risk: "medium",
+      what: "T32's rules carry RULES_CHECKED_AGAINST, the bundled baseline revision they were last verified against. When the loaded catalog is newer, the brief warns on screen \u2014 naming both dates and linking T10 \ud83e\uddec Baseline Policies \u2014 and the same caveat is written into the Markdown and Word exports, because a brief handed to people outlives the screen it came from. js/baselineData.js now tells whoever bumps `revised` to walk the rules first. A missing or older catalog is treated as fine, not as a warning.",
+      why: "This is the failure that produced item 86, generalised. The rules match on POLICY SHAPE; the catalog decides what shape a requirement is written in. Revision 2026-08-20 moved CA205 and CA301 from a compliant-device grant to a block with a device filter, and the brief stopped covering either without anything anywhere saying so. Nothing connected the two, so the next catalog revision would do it again \u2014 and the output is the one written to be handed to end users.",
+      test: [
+        "Normal case: catalog revision equals RULES_CHECKED_AGAINST, so T32 shows no warning and the exports carry none.",
+        "Edit BASELINE.revised in js/baselineData.js to a later date and reload: T32 shows the amber warning naming both dates, with a working link to Baseline Policies.",
+        "Export MD and Word in that state: the caveat is directly under the title, not buried at the end.",
+        "Put the date back: warning gone from screen and both exports.",
+        "Set BASELINE.revised EARLIER than the rules date: no warning - an older catalog is not a reason to distrust the wordings.",
+        "The warning must never appear because a catalog failed to load; T32 works with no baseline present at all.",
+      ],
+      files: ["js/userimpact.js", "js/baselineData.js", "js/app.js"],
+    },
+    {
       n: 86,
       title: "\ud83d\udde3 The brief was missing every device requirement written as a block",
       tools: ["User impact brief"],

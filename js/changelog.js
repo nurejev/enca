@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25185, date: "2026-08-20", title: "The brief now knows which baseline it was written against",
+    items: [
+      { kind: "new", tool: "User impact brief", text: "T32 is tied to T10 \ud83e\uddec Baseline Policies, because it has always depended on it without saying so. These rules match on POLICY SHAPE, and the bundled catalog decides what shape a requirement is written in. That is not theoretical: revision 2026-08-20 moved CA205 and CA301 from a compliant-device grant to a block with a device filter \u2014 the same requirement, expressed the only way Entra allows \u2014 and the brief silently stopped covering either of them. Nothing connected the two, so the next revision would have done it again." },
+      { kind: "improved", tool: "User impact brief", text: "The rules now carry the revision they were last verified against. When the loaded catalog is newer, the brief says so at the top: both dates, what kind of thing a revision can change, and a link straight to Baseline Policies to compare. The same caveat is written into the Markdown and the Word export, under the title rather than at the end \u2014 a brief handed to people outlives the screen it was generated on, and that is the copy that gets quoted back at you." },
+      { kind: "improved", tool: "Baseline Policies", text: "js/baselineData.js tells whoever bumps the revision what else to do: walk the brief's rules against the new catalog, then move the date. The on-screen warning is the safety net, not the process. A catalog that is absent, unreadable or OLDER than the rules is treated as fine and says nothing \u2014 a missing integration must not turn into a warning about something else." },
+    ],
+  },
+  {
     build: 25184, date: "2026-08-20", title: "The brief left out every device requirement written as a block",
     items: [
       { kind: "fixed", tool: "User impact brief", text: "The company-device item matched a compliantDevice GRANT and nothing else \u2014 it explicitly excluded blocks. But Entra has no grant control meaning require Entra joined: only compliantDevice and domainJoinedDevice exist, so the baseline expresses that requirement the only way it can, as a BLOCK on everything a device filter does not cover. CA205 and CA301 (blocked unless Entra joined or hybrid joined) and CA309 (selected apps blocked unless compliant) were therefore absent from the brief altogether. Somebody reading it was told their Mac must be enrolled and never told that a Windows machine which is not joined is refused outright." },
