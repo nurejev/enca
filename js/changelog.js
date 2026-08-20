@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25173, date: "2026-08-20", title: "Two Check the coverage buttons, and no way back from a failed read",
+    items: [
+      { kind: "fixed", tool: "Device reality check", text: "The toolbar carried \u25b6 Check the coverage right next to the big one in the run prompt, and before a first run the two did exactly the same thing. The toolbar button is now \u27f3 Rescan and exists only once there is a result worth redoing \u2014 the shape Change audit uses and \ud83c\udfab Licence gap adopted in 25164." },
+      { kind: "fixed", tool: "Device reality check", text: "Hiding that button exposed a worse problem underneath it. Two paths leave a run early \u2014 a declined Intune consent, and a failed read \u2014 and both write their explanation over the run prompt and return without re-rendering. With a toolbar button that only appears once there is a result, that left the tool with NO run control anywhere: the message told you what went wrong and gave you nothing to do about it short of leaving the tool and coming back. Both panels now carry Try again." },
+      { kind: "fixed", tool: "Licence gap", text: "The same trap has been live here since 25164, when the Rescan pattern was introduced: a failed tenant read replaced the prompt with an error and hid the toolbar button, and the tool could only be recovered by reopening it. Its error panel carries Try again now too. The pattern is worth keeping \u2014 it just has to account for the runs that never produce a result." },
+    ],
+  },
+  {
     build: 25172, date: "2026-08-19", title: "A tool that opens without a tab, and the one word that did it",
     items: [
       { kind: "fixed", tool: "User impact brief", text: "Opening the tool added no tab, and the home button stayed lit while you were standing on it. The cause is one word: the tool announced itself as 🗣 User impact brief and the tab registry had it as 🗣 User impact. The lookup matches the label exactly, found nothing, and took the branch meant for going home — which both skips pushing a tab and clears the active one. The two strings are the same now. It shipped to production 290 this way, which is the part worth remembering: nothing failed, nothing threw, and the only symptom was a missing tab on a tool nobody had opened twice yet." },

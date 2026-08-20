@@ -8858,12 +8858,17 @@ max@contoso.com,"Global, DevOps"</pre>
   async function dvRun() {
     if (dvBusy) return;
     dvBusy = true;
+    $("dvRun").style.display = "none";
     dvProg.start(DV_AREAS.length, "objects", "area");
     $("dvBody").innerHTML = dvProg.panel("Reading the Intune side of the device grants…",
       "Compliance policies with their assignments, app-protection policies, and the tenant default for devices with no policy — reads only, nothing is written.");
     try {
       if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...DV_COMP_READ, ...DV_APP_READ])) {
-        $("dvBody").innerHTML = '<div class="list-card"><p class="mini">Reading Intune needs DeviceManagementConfiguration.Read.All and DeviceManagementApps.Read.All — asked once, on this click. Without them the other half of the device grant stays unreadable.</p></div>';
+        // The retry lives in the panel: the toolbar button is hidden until
+        // there is a result, so without this a refused consent or a failed read
+        // leaves the tool with no way to run at all short of reopening it.
+        $("dvBody").innerHTML = '<div class="list-card"><p class="mini">Reading Intune needs DeviceManagementConfiguration.Read.All and DeviceManagementApps.Read.All — asked once, on this click. Without them the other half of the device grant stays unreadable.</p>'
+          + '<div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-dvrun>▶ Try again</button></div>' + '</div>';
         dvBusy = false;
         return;
       }
@@ -8940,7 +8945,7 @@ max@contoso.com,"Global, DevOps"</pre>
         }
       }
     } catch (e) {
-      $("dvBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading Intune failed: ${esc(e.message || e)}</p></div>`;
+      $("dvBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading Intune failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-dvrun>▶ Try again</button></div></div>`;
       dvBusy = false;
       return;
     }
@@ -8962,6 +8967,11 @@ max@contoso.com,"Global, DevOps"</pre>
     $("dvHead").innerHTML = `<h3>🖥 Compliant-device reality check <span class="tag new">NEW</span></h3>
       <p style="margin-bottom:4px">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — the CA side names <b>who</b> must present a compliant device, the Intune side decides <b>which devices can ever be one</b>, and nothing else checks that the two halves meet. Per CA policy and per platform: is the scope actually assigned a compliance policy? Same check for app-protection behind “require approved client app”.</p>
       <p class="mini muted" style="margin:0">Reads only — Intune compliance and app-protection policies with their assignments, and the tenant default that decides what an uncovered device becomes.</p>`;
+    // The toolbar Rescan exists only when there is a result to redo — the first
+    // run belongs to the big button in the prompt, and two buttons doing the
+    // same thing is one too many (the Change audit pattern, as in Licence gap).
+    // Set before the busy return, so a run in flight hides it too.
+    $("dvRun").style.display = dvRes && !dvBusy ? "" : "none";
     if (dvBusy) return;   // the run panel owns dvBody until the read finishes
 
     if (!dvRes) {
@@ -9265,7 +9275,7 @@ max@contoso.com,"Global, DevOps"</pre>
       lgCtx = ctx;
       lgRes = LicGap.analyze(ctx);
     } catch (e) {
-      $("lgBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p></div>`;
+      $("lgBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-lgrun>▶ Try again</button></div></div>`;
       lgBusy = false;
       return;
     }

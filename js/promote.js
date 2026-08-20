@@ -87,6 +87,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 79,
+      title: "\ud83d\udda5 Two Check the coverage buttons, and no way back from a failed read",
+      tools: ["Device reality check", "Licence gap"],
+      builds: [25173],
+      risk: "medium",
+      what: "\ud83d\udda5 Device reality check carried \u25b6 Check the coverage in the toolbar AND in the run prompt, doing the same thing before a first run. The toolbar one becomes \u27f3 Rescan and appears only once there is a result \u2014 the Change audit shape that \ud83c\udfab Licence gap adopted in 25164. Both tools also gain a Try again button on their error panels.",
+      why: "The duplicate is cosmetic; the second half is not. Hiding a toolbar run button until there is a result means an early exit that writes an error panel leaves NO run control anywhere \u2014 the tool is stuck until you leave and reopen it. Licence gap has shipped that way since 25164, and the same trap would have arrived in Device reality check with the fix for the duplicate.",
+      test: [
+        "Device reality check, first open: exactly ONE run button, the big one in the prompt. No Rescan in the toolbar.",
+        "Run it: while the progress panel is up, still no toolbar button. When results land, \u27f3 Rescan appears; click it and the run repeats.",
+        "Decline the Intune consent prompt: the panel explains what is needed AND offers Try again. Click it - the consent prompt comes back.",
+        "Force a read failure (deny DeviceManagementConfiguration.Read.All, or block the request): the error names the reason AND offers Try again, rather than leaving the screen with no run control at all.",
+        "Licence gap: same failed-read check - the error panel must now carry Try again. Before this build it did not, and the tool could only be recovered by reopening it.",
+        "Both tools: leave and re-enter after a successful run - the result is still there and the toolbar still shows Rescan, not the first-run label.",
+      ],
+      files: ["index.html", "js/app.js"],
+    },
+    {
       n: 78,
       title: "🗣 User impact brief opens without a tab — one word, in production",
       tools: ["User impact brief", "All tools"],
