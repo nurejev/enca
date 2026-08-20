@@ -10,23 +10,23 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25179"></script>
+<script src="js/popup-guard.js?v=25180"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25179" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25179">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25180" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25180">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25179"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25179"></script>
+<script src="js/counter.js?v=25180"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25180"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25179" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25180" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -54,7 +54,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25179" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25180" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1162,7 +1162,7 @@
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
           <div class="list-card rm-card" data-shipped="25179">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R38</span> 🔁 Restore the exclusion group a policy has lost <span class="tag grant">live · beta 25179</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R38</span> 🔁 Restore the exclusion group a policy has lost <span class="tag grant">live · beta 25179 · production 293</span></h4>
             <p class="mini" style="margin:0">The baseline gives most numbered policies their own exclusion group, and that reference is the first thing to go missing: a policy gets rebuilt, an older version is imported, somebody tidies an exclusion list, and the group is left in the directory with nothing pointing at it. Nothing notices — a policy that lost its exclusion group looks exactly like one that never had it, until the day the exception it existed for is needed and the bypass is not there.</p>
             <p class="mini" style="margin:6px 0 0">👥 <a href="#" class="md-tool" data-tool="toolPolicies">Assign groups or roles</a> gains an eighth action, and the only one that aims a <b>different group at every policy</b>: CA200 gets CA200-Exclusion, CA201 gets CA201-Exclusion, read from the CA number in the name and confirmed against the baseline catalog. Step 2 is a <b>drift report</b> — how many are already right, how many lost the reference, how many name a group that no longer exists — with only the repairs pre-ticked and missing groups creatable from their templates in the same run. Point it at a selection to fix one, or at <b>every policy in the tenant</b> for the sweep. Additive only, and the tenant-wide run asks for the typed ALL, because an exclusion widens a policy rather than narrowing it.</p>
           </div>
@@ -2547,52 +2547,52 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25179"></script>
-<script src="js/version.js?v=25179"></script>
-<script src="js/promote.js?v=25179"></script>
-<script src="js/authConfig.js?v=25179"></script>
-<script src="js/labels.js?v=25179"></script>
-<script src="js/graph.js?v=25179"></script>
-<script src="js/model.js?v=25179"></script>
-<script src="js/render.js?v=25179"></script>
-<script src="js/analyze.js?v=25179"></script>
-<script src="js/whatif.js?v=25179"></script>
-<script src="js/mslearn.js?v=25179"></script>
-<script src="js/gapcheck.js?v=25179"></script>
-<script src="js/cisdata.js?v=25179"></script>
-<script src="js/cischeck.js?v=25179"></script>
-<script src="js/exclusions.js?v=25179"></script>
-<script src="js/validator.js?v=25179"></script>
-<script src="js/whatifeval.js?v=25179"></script>
-<script src="js/compare.js?v=25179"></script>
-<script src="js/groupuse.js?v=25179"></script>
-<script src="js/iso3166.js?v=25179"></script>
-<script src="js/locations.js?v=25179"></script>
-<script src="js/authcontexts.js?v=25179"></script>
-<script src="js/authstrengths.js?v=25179"></script>
-<script src="js/recycle.js?v=25179"></script>
-<script src="js/rmau.js?v=25179"></script>
-<script src="js/camap.js?v=25179"></script>
-<script src="js/rmaudoc.js?v=25179"></script>
-<script src="js/termsofuse.js?v=25179"></script>
-<script src="js/audit.js?v=25179"></script>
-<script src="js/drift.js?v=25179"></script>
-<script src="js/guide.js?v=25179"></script>
-<script src="js/userimpact.js?v=25179"></script>
-<script src="js/devcheck.js?v=25179"></script>
-<script src="js/licgap.js?v=25179"></script>
-<script src="js/signins.js?v=25179"></script>
-<script src="js/reportimpact.js?v=25179"></script>
-<script src="js/changelog.js?v=25179"></script>
-<script src="js/baselineData.js?v=25179"></script>
-<script src="js/baselineJoeyData.js?v=25179"></script>
-<script src="js/baseline.js?v=25179"></script>
-<script src="js/groupTemplates.js?v=25179"></script>
-<script src="js/assign.js?v=25179"></script>
-<script src="js/cagroups.js?v=25179"></script>
-<script src="js/import.js?v=25179"></script>
-<script src="js/export.js?v=25179"></script>
-<script src="js/demo.js?v=25179"></script>
-<script src="js/app.js?v=25179"></script>
+<script src="js/branding.js?v=25180"></script>
+<script src="js/version.js?v=25180"></script>
+<script src="js/promote.js?v=25180"></script>
+<script src="js/authConfig.js?v=25180"></script>
+<script src="js/labels.js?v=25180"></script>
+<script src="js/graph.js?v=25180"></script>
+<script src="js/model.js?v=25180"></script>
+<script src="js/render.js?v=25180"></script>
+<script src="js/analyze.js?v=25180"></script>
+<script src="js/whatif.js?v=25180"></script>
+<script src="js/mslearn.js?v=25180"></script>
+<script src="js/gapcheck.js?v=25180"></script>
+<script src="js/cisdata.js?v=25180"></script>
+<script src="js/cischeck.js?v=25180"></script>
+<script src="js/exclusions.js?v=25180"></script>
+<script src="js/validator.js?v=25180"></script>
+<script src="js/whatifeval.js?v=25180"></script>
+<script src="js/compare.js?v=25180"></script>
+<script src="js/groupuse.js?v=25180"></script>
+<script src="js/iso3166.js?v=25180"></script>
+<script src="js/locations.js?v=25180"></script>
+<script src="js/authcontexts.js?v=25180"></script>
+<script src="js/authstrengths.js?v=25180"></script>
+<script src="js/recycle.js?v=25180"></script>
+<script src="js/rmau.js?v=25180"></script>
+<script src="js/camap.js?v=25180"></script>
+<script src="js/rmaudoc.js?v=25180"></script>
+<script src="js/termsofuse.js?v=25180"></script>
+<script src="js/audit.js?v=25180"></script>
+<script src="js/drift.js?v=25180"></script>
+<script src="js/guide.js?v=25180"></script>
+<script src="js/userimpact.js?v=25180"></script>
+<script src="js/devcheck.js?v=25180"></script>
+<script src="js/licgap.js?v=25180"></script>
+<script src="js/signins.js?v=25180"></script>
+<script src="js/reportimpact.js?v=25180"></script>
+<script src="js/changelog.js?v=25180"></script>
+<script src="js/baselineData.js?v=25180"></script>
+<script src="js/baselineJoeyData.js?v=25180"></script>
+<script src="js/baseline.js?v=25180"></script>
+<script src="js/groupTemplates.js?v=25180"></script>
+<script src="js/assign.js?v=25180"></script>
+<script src="js/cagroups.js?v=25180"></script>
+<script src="js/import.js?v=25180"></script>
+<script src="js/export.js?v=25180"></script>
+<script src="js/demo.js?v=25180"></script>
+<script src="js/app.js?v=25180"></script>
 </body>
 </html>

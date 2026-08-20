@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25180, date: "2026-08-20", title: "Items 80 to 83 reached production 293",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue items 80 (🎚 Report-only impact's chips and search), 81 (👥 REMOVE starting from what is assigned), 82 (the 2026-08-20 baseline catalog) and 83 (R38, restoring a policy's own exclusion group) are live in production build 293. Removed from the queue; the numbers are retired rather than reused. productionBuild moves to v1.0.293. That is everything this channel had built since 25175 — the four items and the four builds are the same set." },
+      { kind: "improved", tool: "Baseline Policies", text: "Item 82 is the one that was quietly costing something every day it waited. Production was measuring every tenant against the 2026-07-21 revision, so it told customers CA205 and CA301 should be compliant-device grants when the baseline had already moved them to a BLOCK with an Entra-joined device filter. A stale catalog does not fail; it answers confidently and wrongly, and the answer is the one people act on. Both channels are on 2026-08-20 now." },
+      { kind: "improved", tool: "Roadmap", text: "R38's card reads live · beta 25179 · production 293 on this channel and live · build 293 on main — step 3 of the promotion routine, the one that gets missed because the port is finished and working by the time it comes round. Items 80, 81 and 82 carry no Rnn reference and so have no card on either channel." },
+      { kind: "improved", tool: "All tools", text: "The queue is 34 and 24 again, and both are stuck by design: 34 is the ❓ Help section written for 📐 CIS Benchmark, and a Help entry for a tile production does not have is a lie; 24 is 📖 Baseline usage guide (R05), whose prose has to survive real deployments first. Neither moves without its tool, and neither tool is leaving this channel yet." },
+    ],
+  },
+  {
     build: 25179, date: "2026-08-20", title: "Put back the exclusion group a policy has lost (R38)",
     items: [
       { kind: "new", tool: "List Policies", text: "👥 Assign groups or roles gains an eighth action, and it is the only one that does not aim a single group list at everything you selected: RESTORE each policy's own CAxxx-Exclusion group. The baseline's per-policy exclusions cannot work the other way — CA200 wants CA200-Exclusion and CA201 wants CA201-Exclusion — so this action aims a DIFFERENT group at every policy, read from the CA number in the name. It exists because that reference is the first thing to go missing: a policy gets rebuilt, an older version is imported, somebody tidies an exclusion list, and the group is left in the directory with nothing pointing at it. Nothing notices, because a policy that lost its exclusion group looks exactly like one that never had it — until the day the exception it existed for is needed and the bypass is not there." },
