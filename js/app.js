@@ -5280,6 +5280,9 @@ max@contoso.com,"Global, DevOps"</pre>
 
   // ---------- assign-groups wizard ----------
   let asStep = 0, asAction = null, asGroups = [], asPolicies = [], asResults = null;
+  // What the cached asGroups list was built for. Going Back and picking a
+  // different action has to rebuild it: the two modes hold different rows.
+  let asGroupsMode = null;
   // "groups" | "roles" — the portal's two ways of naming who a policy covers.
   let asTarget = "groups", asRoles = [], asRoleQuery = "", asRoleAdminOnly = true;
   // "selection" = the policies ticked in the list; "all" = every policy loaded
@@ -5294,7 +5297,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!policies.length) { toast("No policies loaded"); return; }
     if (asScope === "all" && !selected.size) toast("Nothing selected — scoped to <span>all policies</span>, change it in step 1");
     asPolicies = asScopePolicies();
-    asStep = 0; asAction = null; asGroups = []; asResults = null; asFound = [];
+    asStep = 0; asAction = null; asGroups = []; asGroupsMode = null; asResults = null; asFound = [];
     asTarget = "groups"; asRoles = []; asRoleQuery = ""; asRoleAdminOnly = true;
     renderAssign();
     $("assignModal").classList.add("open");
@@ -5361,15 +5364,84 @@ max@contoso.com,"Global, DevOps"</pre>
         <div style="max-height:34vh;overflow:auto">` +
         (vis.map((r) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asrole="${esc(r.id)}" ${r.checked ? "checked" : ""}> ${assignEsc(r.name)}${r.recommended ? ' <span class="tag grant">privileged</span>' : ""}</label>`).join("")
           || '<p class="mini muted">No role matches that search.</p>') + `</div>`;
+  // The groups the selected policies actually reference, in the bucket this
+  // action removes from, with a real name per id — including ids the directory
+  // no longer has. Those are dangling references, and being able to see and
+  // clear one is a reason to run this action rather than an edge case.
+  async function asAssignedGroups() {
+    const key = asAction === 5 ? "includeGroups" : "excludeGroups";
+    const count = new Map();                 // id -> how many selected policies carry it
+    for (const p of asPolicies) {
+      for (const id of ((((p.raw || {}).conditions || {}).users || {})[key] || [])) {
+        count.set(id, (count.get(id) || 0) + 1);
+      }
+    }
+    const ids = [...count.keys()];
+    if (!ids.length) return [];
+    const names = new Map();
+    if (isDemo) {
+      ids.forEach((id) => { const n = (DEMO_DATA.names || {})[id]; if (n) names.set(id, n); });
+    } else {
+      // One batch for the lot. A failure here is not fatal: an id with no name
+      // is still removable, and it is labelled as unresolved rather than shown
+      // as if it were a group called by its own GUID.
+      try {
+        const res = await Graph.gbatch(ids.map((id, i) => ({ id: String(i), url: `/groups/${id}?$select=id,displayName` })));
+        ids.forEach((id, i) => { const g = res[i] && res[i].body; if (g && g.displayName) names.set(id, g.displayName); });
+      } catch (e) { console.warn("assigned-group names failed", e); }
+    }
+    return ids.map((id) => ({ id, name: names.get(id) || id, checked: true,
+      missing: !names.has(id), inPolicies: count.get(id) }));
+  }
+
+  function asRemovePanel() {
+    const bucket = asAction === 5 ? "INCLUDE" : "EXCLUDE";
+    const n = asGroups.length, many = asPolicies.length > 1;
+    if (!n) {
+      return `<p class="mini" style="padding:6px 0">None of the ${asPolicies.length} selected polic${asPolicies.length === 1 ? "y has" : "ies have"} any group in the ${bucket} list, so there is nothing to remove. Go <b>← Back</b> and pick a different action.</p>`;
+    }
+    const ticked = asGroups.filter((g) => g.checked).length;
+    return `<h4 class="mini" style="margin-bottom:6px">CURRENTLY ${bucket}D — ${n} GROUP${n === 1 ? "" : "S"}</h4>
+      <p class="mini muted" style="margin-bottom:8px">This is what the selected polic${asPolicies.length === 1 ? "y has" : "ies have"} today, and it is all ticked — removing is the action you chose, so the question here is what to <b>keep</b>. <b>Untick anything that should stay.</b> Whatever is still ticked comes off${many ? `, from whichever of the ${asPolicies.length} policies actually reference it; the rest are left untouched` : ""}.</p>
+      <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 8px;flex-wrap:wrap">
+        <button class="btn sm" id="asRmNone">☐ Untick all</button>
+        <button class="btn sm" id="asRmAll">☑ Tick all ${n}</button>
+        <span class="mini muted" id="asRmCount"><b>${ticked}</b> of ${n} will be removed</span>
+      </div>` +
+      asGroups.map((g, i) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asg="${i}" ${g.checked ? "checked" : ""}> ${assignEsc(g.name)}${
+        g.missing ? ' <span class="tag block" title="No group with this id exists in the directory any more — removing it clears a dangling reference">dangling reference</span>' : ""}${
+        many ? ` <span class="mini muted">in ${g.inPolicies} of ${asPolicies.length}</span>` : ""}</label>`).join("");
+  }
+
+  // Update the count in place — re-rendering the panel would fight the tick the
+  // reader just made, and there is no other reason to rebuild it.
+  function asRmSync() {
+    const c = $("asRmCount");
+    if (c) c.innerHTML = `<b>${asGroups.filter((g) => g.checked).length}</b> of ${asGroups.length} will be removed`;
+  }
+
     } else if (asStep === 1) {
       next.textContent = "Next";
+      // REMOVE works on what a policy ALREADY has, so the catalog of baseline
+      // groups is the wrong list to show: ticking a group the policy never
+      // referenced does nothing, and the group you actually want to take off
+      // may not be in the baseline at all. Show the current assignment instead,
+      // pre-ticked — for a removal the question is which ones to KEEP, so the
+      // work is unticking rather than hunting the right names out of a catalog.
+      const removing = Assign.REMOVE_ACTIONS.has(asAction);
+      // The remove list is DERIVED from the selected policies, so a change of
+      // scope has to rebuild it — otherwise going Back, switching to "all
+      // policies" and pressing Next shows the previous scope's assignment.
+      const mode = removing ? `remove:${asAction}:${asScope}:${asPolicies.length}` : "catalog";
+      if (asGroupsMode !== mode) { asGroups = []; asFound = []; asGroupsMode = mode; }
       if (!asGroups.length) {
-        b.innerHTML = '<p class="mini">Checking which persona groups exist in this tenant…</p>';
-        asGroups = (isDemo
+        b.innerHTML = `<p class="mini">${removing ? "Reading the current assignment…" : "Checking which persona groups exist in this tenant…"}</p>`;
+        asGroups = removing ? await asAssignedGroups() : (isDemo
           ? Object.keys(DEMO_DATA.scopeGroups || {}).map(n => ({ id: "g-" + n, name: n }))
           : await Assign.resolveGroups((m) => { const el = b.querySelector("p"); if (el) el.textContent = m; })
         ).map(g => ({ ...g, checked: false }));
       }
+      if (removing) { b.innerHTML = asRemovePanel(); return; }
       const tpls = Assign.templates().filter(t => !asGroups.some(g => g.name === t.displayName));
       // Pick by persona: one click adds that persona's group, creating it from
       // its template first if the tenant does not have it. A persona already in
@@ -5417,9 +5489,14 @@ max@contoso.com,"Global, DevOps"</pre>
       // wide they get a typed confirmation. Additive (2,3) and REMOVE (5,6) only
       // touch the named groups, so they are safe to run across everything.
       const rewrites = asAction === 0 || asAction === 1 || asAction === 4;
-      const wide = asScope === "all" && rewrites;
-      const wideWarn = wide ? `<div class="danger-note"><b>This rewrites the assignment of all ${asPolicies.length} policies.</b>
-          "${assignEsc(Assign.actionsFor(asTarget)[asAction])}" replaces what is there now — it does not merge. Type <b>ALL</b> if that is really what you want.</div>
+      // A REMOVE across the whole tenant belongs behind the same typed gate.
+      // The list it works from arrives fully ticked (that is the point — you
+      // untick what stays), so stripping every exclusion in the tenant is
+      // otherwise three clicks with nothing in the way.
+      const wideRemove = asScope === "all" && Assign.REMOVE_ACTIONS.has(asAction);
+      const wide = asScope === "all" && (rewrites || wideRemove);
+      const wideWarn = wide ? `<div class="danger-note"><b>This ${wideRemove ? `takes ${gsel.length} group${gsel.length === 1 ? "" : "s"} off every one of the ${asPolicies.length} policies that reference ${gsel.length === 1 ? "it" : "them"}` : `rewrites the assignment of all ${asPolicies.length} policies`}.</b>
+          ${wideRemove ? "Only the policies that actually have the group are rewritten, but that is still tenant-wide." : `"${assignEsc(Assign.actionsFor(asTarget)[asAction])}" replaces what is there now — it does not merge.`} Type <b>ALL</b> if that is really what you want.</div>
         <input id="asWideOk" class="txt" placeholder="ALL" autocomplete="off" spellcheck="false" style="margin-bottom:6px">` : "";
       b.innerHTML = `<h4 class="mini">STEP 3 — review</h4>
         ${wideWarn}
@@ -5462,7 +5539,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "asRoleAdminOnly") { asRoleAdminOnly = e.target.checked; renderAssign(); return; }
     const rr = e.target.closest("[data-asrole]");
     if (rr) { const role = asRoles.find((x) => x.id === rr.dataset.asrole); if (role) role.checked = rr.checked; renderAssign(); return; }
-    const g = e.target.closest("[data-asg]"); if (g) { asGroups[+g.dataset.asg].checked = g.checked; return; }
+    const g = e.target.closest("[data-asg]"); if (g) { asGroups[+g.dataset.asg].checked = g.checked; asRmSync(); return; }
     // a search hit promotes into the target list, so review shows it like any other
     const f = e.target.closest("[data-asfound]");
     if (f && f.checked) { asAddCreated(asFound[+f.dataset.asfound]); }
@@ -5479,6 +5556,16 @@ max@contoso.com,"Global, DevOps"</pre>
     }
   });
   $("asBody").addEventListener("click", async (e) => {
+    // Bulk tick for the remove list. Reflect the model onto the inputs in place
+    // rather than re-rendering, so the panel does not jump under the reader.
+    const bulk = e.target.closest("#asRmAll, #asRmNone");
+    if (bulk) {
+      const on = bulk.id === "asRmAll";
+      asGroups.forEach((g) => { g.checked = on; });
+      $("asBody").querySelectorAll("[data-asg]").forEach((cb) => { cb.checked = on; });
+      asRmSync();
+      return;
+    }
     const set = e.target.closest("[data-asroleset]");
     if (set) {
       const how = set.dataset.asroleset;

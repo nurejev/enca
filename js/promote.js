@@ -87,6 +87,28 @@ const PROMOTE = {
 
   items: [
     {
+      n: 81,
+      title: "\ud83d\udc65 REMOVE from assignment starts from what is assigned",
+      tools: ["List Policies", "CA groups"],
+      builds: [25177],
+      risk: "medium",
+      what: "The two REMOVE actions in the Assign wizard list the groups the selected policies actually carry in that bucket, all ticked, so the job is unticking whatever should stay. Names are resolved per object id; an id the directory no longer has is labelled a dangling reference instead of being shown as its own GUID; each row says how many of the selected policies reference it. Nothing assigned gives an honest empty state rather than a catalog. A tenant-wide REMOVE now needs the typed ALL that tenant-wide rewrites already needed.",
+      why: "REMOVE acts on what a policy ALREADY has, and step 2 offered the baseline catalog: ticking a group the policy never referenced did nothing, and the group actually assigned might not be in the catalog to tick. So the one action whose target set is knowable made you guess it. Pre-ticking also turns the question into the right one - which of these should stay - instead of hunting names out of a list of fifteen.",
+      test: [
+        "Pick one policy with a couple of exclusions, action REMOVE from EXCLUDE: step 2 lists exactly those groups, all ticked, under CURRENTLY EXCLUDED.",
+        "Untick one, Next: the review lists only the ones still ticked, and after applying the unticked group is still on the policy.",
+        "Same with REMOVE from INCLUDE: the list is the include groups, not the exclude ones.",
+        "A policy with nothing in that bucket: step 2 says there is nothing to remove and points at Back - no catalog, no empty checkbox list.",
+        "A policy that excludes a deleted group: the row shows the raw id with a dangling reference tag, and removing it clears the reference.",
+        "Select several policies: each row says in N of M, and the counts are right (a group on 2 of 3 says so).",
+        "Untick all / Tick all: the live count follows and the list does not jump or re-render under the click.",
+        "Scope All policies in this tenant with a REMOVE: the review demands the typed ALL, as a tenant-wide rewrite does.",
+        "Go Back from step 2, switch scope from selected to all, Next again: the list rebuilds for the new scope rather than showing the previous one.",
+        "Go Back to step 1, change the action from REMOVE to ADD: the list switches back to the baseline catalog, unticked.",
+      ],
+      files: ["js/app.js"],
+    },
+    {
       n: 80,
       title: "\ud83c\udf9a Report-only impact: chips that count the search, and a search that suggests",
       tools: ["Report-only impact"],

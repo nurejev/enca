@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25177, date: "2026-08-20", title: "Removing an assignment started from a list of things that were not assigned",
+    items: [
+      { kind: "fixed", tool: "List Policies", text: "The two REMOVE actions in \ud83d\udc65 Assign groups or roles asked step 2 the wrong question. REMOVE acts on what a policy ALREADY has, and the panel offered the baseline catalog: ticking a group the policy never referenced did nothing at all, and a group that IS assigned but is not part of the baseline never appeared, so it could not be removed from here. The one action whose target set the tool can know for certain was the one that made you guess it. Step 2 now lists the groups the selected policies actually carry in that bucket." },
+      { kind: "improved", tool: "List Policies", text: "They arrive TICKED, because for a removal the useful question is which ones should stay: untick those, and whatever is still ticked comes off. Untick all and Tick all sit above the list with a live count of what will be removed. Where several policies are selected each row says how many of them carry that group, and only those are rewritten." },
+      { kind: "new", tool: "List Policies", text: "Names are read per object id rather than looked up in the baseline, so a group with any name at all shows correctly \u2014 and an id the directory no longer has is labelled a dangling reference instead of being rendered as its own GUID. Clearing one of those is a good reason to run this action, not an edge case. If the name read fails the group is still listed and still removable, marked as unresolved rather than dropped." },
+      { kind: "improved", tool: "List Policies", text: "Selected policies with nothing in that bucket now say so and point at Back, instead of showing a catalog of groups that removing could not affect. And a REMOVE across the whole tenant asks for the typed ALL that tenant-wide rewrites already ask for: the list arrives fully ticked by design, so stripping every exclusion in the tenant would otherwise be three clicks with nothing in the way." },
+    ],
+  },
+  {
     build: 25176, date: "2026-08-20", title: "Chips that counted one thing while the list showed another",
     items: [
       { kind: "fixed", tool: "Report-only impact", text: "The verdict chips read All (31), would block (5), prompts (4), no change (6) directly above the words \u201cNo report-only policy matches the current filter\u201d. Both were rendered from the same run and they disagreed about it: the chips counted every policy, the list counted what the search had left. Numbers win that argument with the reader, so the screen looked broken rather than empty. The chips now count the searched set, and they recount as you type." },
