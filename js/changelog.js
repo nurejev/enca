@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25176, date: "2026-08-20", title: "Chips that counted one thing while the list showed another",
+    items: [
+      { kind: "fixed", tool: "Report-only impact", text: "The verdict chips read All (31), would block (5), prompts (4), no change (6) directly above the words \u201cNo report-only policy matches the current filter\u201d. Both were rendered from the same run and they disagreed about it: the chips counted every policy, the list counted what the search had left. Numbers win that argument with the reader, so the screen looked broken rather than empty. The chips now count the searched set, and they recount as you type." },
+      { kind: "fixed", tool: "Report-only impact", text: "They also counted the wrong subject in Per user. That view filters on the worst verdict per USER, while the chips were showing per-POLICY counts \u2014 including a never in scope chip that no user can ever carry, so clicking it could only ever produce an empty list. Each view now counts its own rows." },
+      { kind: "new", tool: "Report-only impact", text: "The box searches the GROUPS a policy targets, and suggests as you type. A deployment group is how a policy is scoped and it appears nowhere in the policy's own name, so searching one \u2014 the first thing anybody reaches for \u2014 returned nothing, with no hint that the box had never looked there. Suggestions come from this run: policy names and their target groups in Per policy, UPNs in Per user, so a typed term cannot silently match nothing." },
+      { kind: "improved", tool: "Report-only impact", text: "An empty list says which of the two controls emptied it and carries the undo. Nothing matching the search quotes the term and states what the box actually searches; a search that hits while the chosen verdict has none of it gives both numbers and offers show all N as well as clear the search; a verdict empty with no search offers only the verdict reset. A verdict chip that drops to zero under a search stays visible rather than disappearing \u2014 a filter you cannot see is a filter you cannot clear." },
+    ],
+  },
+  {
     build: 25175, date: "2026-08-20", title: "Item 79 reached production 292, and the queue is back to the two that cannot move",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue item 79 — 🖥 Device reality check's duplicate run button, and the Try again both it and 🎫 Licence gap were missing on a run that ends without a result — is live in production build 292. Removed from the queue; the number is retired rather than reused. productionBuild moves to v1.0.292. No roadmap card carries it: like 78, it is a wiring fix with no Rnn reference, so steps 2 and 3 of the promotion routine do not apply." },

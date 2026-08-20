@@ -10146,20 +10146,44 @@ max@contoso.com,"Global, DevOps"</pre>
         <div class="mini">${r.users.length} user${r.users.length === 1 ? "" : "s"} evaluated</div>
       </div></div>`;
 
-    const C = r.counts;
-    const chips = [["all", `All (${r.policies.length})`],
-      ["block", `🔴 would block (${C.block})`], ["prompt", `🟡 prompts (${C.prompt})`],
-      ["clean", `🟢 no change (${C.clean})`], ["scoped", `⚪ never in scope (${C.scoped})`], ["nodata", `⚪ no data (${C.nodata})`]]
-      .filter(([k]) => k === "all" || C[k]);
-    $("riChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${riFilter === k ? "active" : ""}" data-rif="${k}">${l}</button>`).join("");
     [...$("riViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.riview === riView));
     const q = riQuery.toLowerCase();
+    const perPolicy = riView === "policies";
+
+    // The search narrows the population the chips describe. Counting the whole
+    // run while the list shows a searched subset is how you end up with chips
+    // claiming five would-block policies directly above the words "nothing
+    // matches the current filter" — the two disagreeing about the same screen.
+    // They also have to count the right SUBJECT: in Per user the filter reads
+    // u.worst, so policy verdicts (and a "never in scope" chip no user can
+    // ever carry) were the wrong numbers entirely.
+    const searched = perPolicy
+      ? r.policies.filter((p) => !q || riPolText(p).includes(q))
+      : r.users.filter((u) => !q || riUserText(u).includes(q));
+    const C = {};
+    for (const x of searched) { const v = perPolicy ? x.verdict : x.worst; C[v] = (C[v] || 0) + 1; }
+    const chips = [["all", `All (${searched.length})`],
+      ["block", `🔴 would block (${C.block || 0})`], ["prompt", `🟡 prompts (${C.prompt || 0})`],
+      ["clean", `🟢 no change (${C.clean || 0})`], ["scoped", `⚪ never in scope (${C.scoped || 0})`], ["nodata", `⚪ no data (${C.nodata || 0})`]]
+      // An empty verdict is hidden, EXCEPT the one currently selected: a filter
+      // you cannot see is a filter you cannot clear.
+      .filter(([k]) => k === "all" || C[k] || riFilter === k);
+    $("riChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${riFilter === k ? "active" : ""}" data-rif="${k}">${l}</button>`).join("");
+
+    // Suggest what is actually in this result, so a typed term cannot silently
+    // match nothing. Target GROUPS are included because that is the name people
+    // reach for first — a deployment group is how a policy is scoped, and it
+    // does not appear in the policy's own name.
+    const sugg = perPolicy
+      ? r.policies.flatMap((p) => [p.name, ...riTargetNames(p.id)])
+      : r.users.map((u) => u.upn);
+    $("riSearchList").innerHTML = [...new Set(sugg.filter(Boolean))].slice(0, 300)
+      .map((v) => `<option value="${esc(v)}">`).join("");
 
     // ---- Per policy: is flipping THIS one on safe? -----------------------
     if (riView === "policies") {
-      const pols = r.policies.filter((p) => (riFilter === "all" || p.verdict === riFilter)
-        && (!q || `${p.name} ${p.users.map((u) => u.upn + " " + u.name).join(" ")} ${p.apps.map(([a]) => a).join(" ")}`.toLowerCase().includes(q)));
-      if (!pols.length) { $("riBody").innerHTML = '<p class="mini" style="padding:20px">No report-only policy matches the current filter.</p>'; return; }
+      const pols = searched.filter((p) => riFilter === "all" || p.verdict === riFilter);
+      if (!pols.length) { $("riBody").innerHTML = riEmpty(true, q, searched.length); return; }
       $("riBody").innerHTML = pols.map((p) => {
         const [ic, vlab] = RI_V[p.verdict];
         const open = riOpen.has("p:" + p.key);
@@ -10196,9 +10220,8 @@ max@contoso.com,"Global, DevOps"</pre>
     }
 
     // ---- Per user: what changes for this person? -------------------------
-    const users = r.users.filter((u) => (riFilter === "all" || u.worst === riFilter)
-      && (!q || `${u.name} ${u.upn} ${u.policies.map((x) => x.name).join(" ")} ${u.apps.join(" ")}`.toLowerCase().includes(q)));
-    if (!users.length) { $("riBody").innerHTML = '<p class="mini" style="padding:20px">No user matches the current filter.</p>'; return; }
+    const users = searched.filter((u) => riFilter === "all" || u.worst === riFilter);
+    if (!users.length) { $("riBody").innerHTML = riEmpty(false, q, searched.length); return; }
     const W = { block: ["🔴", "locked out of something"], prompt: ["🟡", "new prompts"], clean: ["🟢", "unaffected"] };
     $("riBody").innerHTML = `<div class="list-card"><table class="plist au-sum">
       <thead><tr><th>User</th><th style="width:140px">Going live means</th><th style="width:100px">Would deny</th><th style="width:100px">Interrupted</th><th>Policies involved</th><th style="width:110px">Last seen</th></tr></thead>
@@ -10256,6 +10279,40 @@ max@contoso.com,"Global, DevOps"</pre>
   // the per-user "why?" resolves the person's membership against the
   // policy's include entries, so "in scope" gets a concrete reason.
   const riVm = (polId) => policies.find((x) => x.id === polId) || null;
+  // The names a policy is SCOPED by. They are not in the policy's own name, and
+  // they are what somebody types first — a deployment group like
+  // CAD-SEC-U-DG-INT is how the policy was aimed, so a search that cannot see
+  // it answers "no match" to a question the tool can actually answer.
+  function riTargetNames(polId) {
+    const vm = riVm(polId);
+    if (!vm) return [];
+    return [...(vm.users.inc || []), ...(vm.users.exc || [])];
+  }
+  // One definition of "matches", shared by the list and by the chip counts, so
+  // the two can never disagree about the same screen.
+  const riPolText = (p) => `${p.name} ${riTargetNames(p.id).join(" ")} ${p.users.map((u) => u.upn + " " + u.name).join(" ")} ${p.apps.map(([a]) => a).join(" ")}`.toLowerCase();
+  const riUserText = (u) => `${u.name} ${u.upn} ${u.policies.map((x) => x.name).join(" ")} ${u.apps.join(" ")}`.toLowerCase();
+
+  // "Nothing matches the current filter" is three different situations, and the
+  // reader has two controls to undo without being told which one did it. Name
+  // the cause and carry the way out.
+  function riEmpty(perPolicy, q, searchedTotal) {
+    const noun = perPolicy ? "report-only policy" : "user";
+    const nouns = perPolicy ? "policies" : "users";
+    const clear = '<button class="fchip" id="riClearQ">✕ clear the search</button>';
+    if (q && !searchedTotal) {
+      return `<p class="mini" style="padding:20px">No ${noun} matches <b>“${esc(riQuery)}”</b> — nothing in this run carries that name.
+        ${perPolicy ? "The box searches policy names, the groups a policy targets, the users it touched and their apps." : "The box searches user names, UPNs, their policies and their apps."} ${clear}</p>`;
+    }
+    if (q) {
+      const lab = (RI_V[riFilter] || [])[1] || riFilter;
+      return `<p class="mini" style="padding:20px"><b>${searchedTotal}</b> ${searchedTotal === 1 ? noun : nouns} match <b>“${esc(riQuery)}”</b>, but none of ${searchedTotal === 1 ? "it is" : "them are"} <b>${esc(lab)}</b>.
+        <button class="fchip" data-rif="all">show all ${searchedTotal}</button> ${clear}</p>`;
+    }
+    return `<p class="mini" style="padding:20px">No ${noun} has that verdict in this window.
+      <button class="fchip" data-rif="all">show every ${noun}</button></p>`;
+  }
+
   function riTargets(polId) {
     const vm = riVm(polId);
     if (!vm) return "";
@@ -10296,6 +10353,11 @@ max@contoso.com,"Global, DevOps"</pre>
 
   $("riBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-rirun]")) { runImpact(); return; }
+    // The empty state carries its own undo, so both controls that can produce
+    // it are reachable from where the reader is actually looking.
+    if (e.target.closest("#riClearQ")) { riQuery = ""; $("riSearch").value = ""; renderImpact(); return; }
+    const fc = e.target.closest("[data-rif]");
+    if (fc) { riFilter = fc.dataset.rif; renderImpact(); return; }
     const wy = e.target.closest("[data-riwhy]");
     if (wy) { riWhy(wy.dataset.riwhy, wy.dataset.ripol, wy); return; }
     const pl = e.target.closest(".pol-link");

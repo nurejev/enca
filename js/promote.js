@@ -87,6 +87,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 80,
+      title: "\ud83c\udf9a Report-only impact: chips that count the search, and a search that suggests",
+      tools: ["Report-only impact"],
+      builds: [25176],
+      risk: "medium",
+      what: "The verdict chips are counted from the searched set rather than the whole run, and count the right subject per view (policies in Per policy, users in Per user). The search box gains type-ahead over the names actually present \u2014 policy names and the GROUPS each policy targets, or UPNs in Per user \u2014 and now matches target groups, which it never did. The empty state names which control emptied the list and carries the undo.",
+      why: "In production the chips read All (31), would block (5), prompts (4) directly above \u201cNo report-only policy matches the current filter\u201d \u2014 the numbers and the list describing the same screen and disagreeing. A reader trusts the numbers. Searching a deployment group name, which is how a policy is actually scoped, returned nothing at all with no hint that the box never looked there.",
+      test: [
+        "Run the tool, then type a policy name fragment: the chip counts drop to match what is listed. Clear it and they go back to the run totals.",
+        "Type a deployment group name (CAD-SEC-U-DG-INT or similar): the policies scoped by that group are listed. Before this build the answer was always no match.",
+        "Start typing in the box: suggestions appear, and they are names from THIS run - policy names and target groups in Per policy, UPNs in Per user.",
+        "Type something that exists nowhere: the empty state quotes the term, says what the box searches, and offers clear the search. No verdict-reset button, because that would not help.",
+        "Search a term that hits, then click a verdict chip with none of them in it: the empty state gives both numbers and offers BOTH show all N and clear the search.",
+        "Pick a verdict chip that then drops to zero under a search: the chip stays visible so it can be clicked off. A filter you cannot see is one you cannot clear.",
+        "Switch to Per user: the chips recount over users (no never in scope chip - no user can carry that verdict), and the suggestions become UPNs.",
+        "Clear the search from inside the empty state: the input empties too, not just the internal state.",
+      ],
+      files: ["index.html", "js/app.js"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],
