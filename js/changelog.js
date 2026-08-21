@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25187, date: "2026-08-20", title: "Baseline update pre-requirements",
+    items: [
+      { kind: "new", tool: "Baseline Policies", text: "\ud83e\uddf7 Update pre-requirements \u2014 one click, before you change anything, for the three things that cannot be captured afterwards. A configuration SNAPSHOT (JSON) goes first, because it is the only one that can be diffed against a later read in \ud83d\udcc9 Drift watch: it is what answers \"what did this change?\". Then a full policy BACKUP with every dependency resolved \u2014 groups, named locations, authentication strengths and contexts, terms of use \u2014 because a policy backup without its dependencies restores to a policy pointing at ids the tenant may no longer have, which is not a backup. Then DOCUMENTATION as Markdown, for the change record and the reviewer." },
+      { kind: "improved", tool: "Baseline Policies", text: "It captures EVERY policy, not the current selection: a pre-requirement that took whatever happened to be ticked would be worse than none, because it would look complete. The three artefacts are attempted independently, so one failing does not cost the other two, and the run always ends in a report saying which were captured \u2014 with anything unreadable named rather than skipped silently: an area the snapshot could not read, a dependency that failed to fetch. A backup with a silent hole in it is the kind you find out about while restoring." },
+      { kind: "improved", tool: "Baseline Policies", text: "If any step failed the report says so and tells you not to start the update, because a failed pre-requirement is not a formality \u2014 it is the copy you would have restored from. The report also states what each artefact answers and warns to keep all three together: the snapshot without the backup tells you what broke but not how to undo it." },
+    ],
+  },
+  {
     build: 25186, date: "2026-08-20", title: "Items 86 and 87 reached production 295, and the tile that should have said so",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue items 86 (the brief missing every device requirement written as a block) and 87 (the brief tied to the baseline revision it was checked against) are live in production build 295. Removed from the queue; the numbers are retired rather than reused. productionBuild moves to v1.0.295. 86 was the only HIGH-risk row in the queue and it was high risk because production was already wrong: the brief that gets handed to end users omitted CA205, CA301 and CA309 entirely." },

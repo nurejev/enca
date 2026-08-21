@@ -87,6 +87,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 61,
+      title: "Baseline update pre-requirements",
+      tools: ["Baseline Policies"],
+      builds: [25187],
+      risk: "medium",
+      what: "One button in \ud83e\uddec Baseline Policies that takes a configuration snapshot, a full policy backup with every dependency resolved, and Markdown documentation \u2014 every policy, not the selection \u2014 then reports which of the three were captured and names anything unreadable.",
+      why: "Production has the three capabilities in three different tools, so taking them before a baseline change is a manual routine that is easy to half-do; and half-doing it is only discovered when a restore is needed.",
+      files: ["index.html", "js/app.js"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],

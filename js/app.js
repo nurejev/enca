@@ -8696,6 +8696,113 @@ max@contoso.com,"Global, DevOps"</pre>
     catch { return true; }   // never block a snapshot over an optional area
   }
 
+  // ---- 🧷 Baseline update pre-requirements ---------------------------------
+  // Everything you would want and could not get AFTERWARDS, taken before the
+  // baseline is changed. Three artefacts, deliberately in this order:
+  //
+  //   1. a DRIFT SNAPSHOT — the whole configuration as structured JSON. This is
+  //      the only one that can be diffed later, so it is the one that answers
+  //      "what did this change?" It goes first because it is the cheapest to
+  //      lose and the most expensive to reconstruct.
+  //   2. a FULL POLICY BACKUP with every dependency resolved — groups, named
+  //      locations, authentication strengths and contexts, terms of use. A
+  //      policy backup without its dependencies restores to a policy pointing
+  //      at ids the tenant may no longer have, which is not a backup.
+  //   3. DOCUMENTATION as Markdown — the human-readable record of what the
+  //      tenant looked like, for the change ticket and the reviewer.
+  //
+  // Every policy is included, not the current selection: a pre-requirement that
+  // captured whatever happened to be ticked would be worse than none, because
+  // it would look complete.
+  let blPreBusy = false;
+  async function blPrereqRun(btn) {
+    if (blPreBusy) return;
+    if (!policies.length) { toast("Load the policies first"); return; }
+    blPreBusy = true;
+    const label = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; }
+    const stamp = new Date().toISOString().slice(0, 10);
+    const safeTenant = (tenantName || "tenant").replace(/[^\w.-]+/g, "-");
+    const done = [], failed = [];
+    const step = (n, what) => { if (btn) btn.textContent = `${n}/3 ${what}…`; toast(`${n}/3 — ${what}`); };
+    try {
+      // 1 — drift snapshot
+      step(1, "configuration snapshot");
+      try {
+        await drConsent();
+        const snap = await drTake(false);
+        if (!snap) throw new Error("the configuration could not be read");
+        const notRead = Object.entries(snap.areas || {}).filter(([, v]) => !v.ok).map(([k]) => k);
+        downloadText(`CA-Prereq-DriftSnapshot-${safeTenant}-${stamp}`, "json", "application/json", JSON.stringify(snap, null, 2));
+        done.push(notRead.length
+          ? `Configuration snapshot — <b>${notRead.length} area${notRead.length === 1 ? "" : "s"} could not be read</b> and ${notRead.length === 1 ? "is" : "are"} marked as not captured: ${esc(notRead.join(", "))}`
+          : "Configuration snapshot — every area captured, diffable against a later read");
+      } catch (e) { failed.push(`Configuration snapshot — ${esc(e.message || e)}`); }
+
+      // 2 — full backup, every policy, every dependency
+      step(2, "full policy backup with dependencies");
+      try {
+        const ps = exportOrder(policies.slice());
+        const ids = backupDependencyIds(ps);
+        const total = Object.values(ids).reduce((a, l) => a + l.length, 0);
+        const deps = { groups: [], authStrengths: [], namedLocations: [], authContexts: [], termsOfUse: [] };
+        const skipped = [];
+        let n = 0;
+        for (const [cat, list] of Object.entries(ids)) {
+          for (const id of list) {
+            if (btn) btn.textContent = `2/3 dependency ${++n}/${total}…`;
+            try {
+              deps[cat].push(isDemo
+                ? { id, displayName: (typeof DEMO_DATA !== "undefined" && DEMO_DATA.names && DEMO_DATA.names[id]) || id, demo: true }
+                : await Graph.gget(DEP_ENDPOINTS[cat](id), DEP_SCOPES[cat]));
+            } catch (e) { skipped.push(`${cat}: ${id}`); }
+          }
+        }
+        await Exporter.policiesJson(ps, tenantName, {
+          ...deps,
+          tenantId: (Graph.account && Graph.account.tenantId) || "",
+          reason: "baseline update pre-requirement",
+        });
+        // A dependency that could not be read is named, because a backup with a
+        // silent hole in it is the kind you find out about while restoring.
+        done.push(`Full backup — ${ps.length} polic${ps.length === 1 ? "y" : "ies"} and ${total - skipped.length}/${total} dependencies`
+          + (skipped.length ? ` · <b>${skipped.length} could not be read</b>: ${esc(skipped.slice(0, 5).join(", "))}${skipped.length > 5 ? "…" : ""}` : ""));
+      } catch (e) { failed.push(`Full backup — ${esc(e.message || e)}`); }
+
+      // 3 — documentation
+      step(3, "documentation");
+      try {
+        const ps = exportOrder(policies.slice());
+        // default document options: this is a record of what is there, not a
+        // styled deliverable, so nothing is filtered out of it.
+        await Exporter.policiesMd(ps, tenantName, {});
+        done.push(`Documentation — ${ps.length} polic${ps.length === 1 ? "y" : "ies"} as Markdown`);
+      } catch (e) { failed.push(`Documentation — ${esc(e.message || e)}`); }
+    } finally {
+      blPreBusy = false;
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
+    showReport("🧷 Baseline update pre-requirements", "CA-Baseline-Prereq", [
+      `# Baseline update pre-requirements — ${tenantName || "tenant"}`, "",
+      typeof Brand !== "undefined" && Brand.generatedBy ? Brand.generatedBy() : "", "",
+      `Taken **before** changing the baseline, because none of it can be captured afterwards.`, "",
+      `## Captured (${done.length}/3)`, "",
+      ...(done.length ? done.map((d) => `- ${String(d).replace(/<\/?b>/g, "**")}`) : ["- nothing"]), "",
+      ...(failed.length ? [`## Failed (${failed.length})`, "",
+        ...failed.map((f) => `- ${f}`), "",
+        `**Do not start the update until these are dealt with.** A pre-requirement that failed is not a formality — it is the copy you would have restored from.`, ""] : []),
+      `## What each one is for`, "",
+      `| Artefact | Answers |`, `| --- | --- |`,
+      `| Configuration snapshot (JSON) | what changed — this is the only one that can be diffed against a later read, in 📉 Drift watch |`,
+      `| Full backup (zip) | put it back — every policy plus the groups, locations, strengths, contexts and terms of use they reference |`,
+      `| Documentation (Markdown) | what it looked like, for the change record and the reviewer |`, "",
+      `_Downloads land in your browser's download folder. Keep all three together: the snapshot without the backup tells you what broke but not how to undo it._`,
+    ].join("\n"));
+    if (failed.length) toast(`<span>${done.length}/3</span> captured — ${failed.length} failed, see the report`);
+    else toast(`<span>All three captured</span> — snapshot, backup and documentation`);
+  }
+  $("blPrereq").addEventListener("click", (e) => blPrereqRun(e.currentTarget));
+
   $("drSnap").addEventListener("click", async () => {
     await drConsent();
     const snap = await drTake(false);
