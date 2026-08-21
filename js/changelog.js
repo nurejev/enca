@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25190, date: "2026-08-21", title: "Items 88 and 89 reached production 296, and the guard learned about the other branch",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue items 88 (🧷 Update pre-requirements in 🧬 Baseline Policies) and 89 (the two dropdowns that did not look like dropdowns) are live in production build 296. Removed from the queue; the numbers are retired rather than reused. productionBuild moves to v1.0.296. Both tiles already carried UPDATED, so nothing new had to be flagged — which is what the tag discipline is supposed to feel like." },
+      { kind: "fixed", tool: "All tools", text: "tools/check-plain-text.js read js/promote.js unconditionally, and this file is beta-only by design. The script is per-clone tooling that follows the working tree across branches, so the pre-commit hook its own header recommends would have thrown ENOENT and refused every commit on main — a guard that blocks the branch it was never meant to check. A file that is not on this branch is now nothing to check; a file that exists and cannot be parsed still throws, because that is a real problem. It went to production with 296 for the same reason: one hook, both branches." },
+      { kind: "improved", tool: "All tools", text: "The queue is 34 and 24 again — the ❓ Help section for 📐 CIS Benchmark, and 📖 Baseline usage guide (R05). Neither moves without its tool, and neither tool is leaving this channel yet." },
+    ],
+  },
+  {
     build: 25189, date: "2026-08-21", title: "The guard that only fires after the commit now runs before it",
     items: [
       { kind: "fixed", tool: "All tools", text: "Build 25188 put two formatting tags into its own changelog entry, so the beta page rendered them as literal angle brackets with the markup chip beside them. Stripped, emphasis carried in the words. That is the second time in a fortnight, and both times the self-check did its job and nobody was looking: it console.warns on every channel and shows a chip on beta, but both happen AFTER the commit is made." },

@@ -32,7 +32,15 @@ const ROOT = path.resolve(__dirname, "..");
 const MARKUP = /<\/?(?:b|i|em|strong|code|u|br|small|mark)\b[^>]*>|&(?:nbsp|amp|lt|gt|quot);/gi;
 
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
+// A FILE THAT IS NOT ON THIS BRANCH IS NOT A SLIP. js/promote.js is
+// beta-only by design, and this script is per-clone tooling that follows the
+// working tree across branches — so on main the read would throw ENOENT and
+// the pre-commit hook would refuse every commit for a file that is correctly
+// absent. Missing means "nothing to check here", which is the honest answer;
+// a file that EXISTS and cannot be parsed still throws, because that is a
+// real problem.
 const evaluate = (rel, name) => {
+  if (!fs.existsSync(path.join(ROOT, rel))) return null;
   const m = { exports: {} };
   new Function("module", read(rel) + `\n;module.exports=typeof ${name}!=="undefined"?${name}:null;`)(m);
   return m.exports;
