@@ -87,6 +87,16 @@ const PROMOTE = {
 
   items: [
     {
+      n: 62,
+      title: "Fallback AU dropdown styled like every other one",
+      tools: ["Protect exclusions", "CA groups"],
+      builds: [25188],
+      risk: "low",
+      what: "The fallback administrative unit picker in \u2465 Protect and the CSV persona-mapping dropdown in \u2464 Import members get the shared select styling instead of rendering as bare native controls.",
+      why: "In production both render unstyled \u2014 a black box in dark mode that looks unlike every other dropdown, on the screen where somebody decides where unmapped groups are filed.",
+      files: ["js/app.js"],
+    },
+    {
       n: 61,
       title: "Baseline update pre-requirements",
       tools: ["Baseline Policies"],

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25188, date: "2026-08-20", title: "Two dropdowns that did not look like dropdowns",
+    items: [
+      { kind: "fixed", tool: "Protect exclusions", text: "The <b>fallback administrative unit</b> picker rendered as a bare native control — no border treatment, no pointer cursor, and in dark mode a black box that looked nothing like every other dropdown in the app. Styling a select here is opt-in (class=\"btn\", or sitting inside a .wi-f wrapper), so a select added without it simply comes out unstyled. It now matches the rest. The CSV persona-mapping dropdown in ⑤ Import members had the same omission and is fixed with it — those were the only two." },
+      { kind: "improved", tool: "All tools", text: "Because the styling is opt-in, the next one would have gone the same way. The verification now catches both kinds: the boot harness checks every select in the page DOM, where it can tell whether one sits inside a styled wrapper, and a source scan covers the selects written into JS templates — which never exist until a panel renders, and are exactly the ones that get forgotten. The source scan skips selects inside a standalone exported document (Gap analyse's HTML report ships its own stylesheet, so bare is correct there), deciding by the enclosing function rather than a fixed window, so a real miss in a neighbouring function is not swallowed with it." },
+    ],
+  },
+  {
     build: 25187, date: "2026-08-20", title: "Baseline update pre-requirements",
     items: [
       { kind: "new", tool: "Baseline Policies", text: "\ud83e\uddf7 Update pre-requirements \u2014 one click, before you change anything, for the three things that cannot be captured afterwards. A configuration SNAPSHOT (JSON) goes first, because it is the only one that can be diffed against a later read in \ud83d\udcc9 Drift watch: it is what answers \"what did this change?\". Then a full policy BACKUP with every dependency resolved \u2014 groups, named locations, authentication strengths and contexts, terms of use \u2014 because a policy backup without its dependencies restores to a policy pointing at ids the tenant may no longer have, which is not a backup. Then DOCUMENTATION as Markdown, for the change record and the reviewer." },

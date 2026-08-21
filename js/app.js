@@ -2975,7 +2975,7 @@ max@contoso.com,"Global, DevOps"</pre>
         `<option value="${esc(g)}"${g === sel ? " selected" : ""}>${esc(g)}</option>`)].join("");
       const mapRows = t.personaCol
         ? t.personas.map((p) => `<tr><td><b>${esc(p)}</b> <span class="mini muted">${t.users.filter((u) => u.personas.some((x) => x.toLowerCase() === p.toLowerCase())).length} users</span></td>
-            <td><select data-cgcsvmap="${esc(p)}">${opt(t.mapping[p] || "")}</select></td></tr>`).join("")
+            <td><select data-cgcsvmap="${esc(p)}" class="btn" style="cursor:pointer;width:100%">${opt(t.mapping[p] || "")}</select></td></tr>`).join("")
         : "";
       const manual = !t.personaCol
         ? `<p class="mini" style="margin-top:8px">No persona column — pick the target group(s); <b>every</b> user in the CSV is added to all of them.</p>
@@ -3977,7 +3977,7 @@ max@contoso.com,"Global, DevOps"</pre>
 
     const unmatched = cands.filter((g) => !t.status.get(g.id) && !g.roleAssignable && rmauTarget(t, g).source.startsWith("fallback"));
     const auPick = `<label class="mini" style="display:block;margin:14px 0 4px">Fallback administrative unit <span class="muted">— used only for the ${unmatched.length} unmapped group${unmatched.length === 1 ? "" : "s"}: no CA number the baseline recognises, and nothing said about them in 🏷 Group personas. Everything else goes to its own persona vault.</span></label>
-      <select id="cgRmauAu" style="max-width:420px">
+      <select id="cgRmauAu" class="btn" style="cursor:pointer;max-width:420px">
         <option value=""${t.auChoice ? "" : " selected"}>— none: skip the groups that match no persona —</option>
         ${t.rmaus.map((a) => `<option value="${esc(a.id)}"${t.auChoice === a.id ? " selected" : ""}>${esc(a.name)} (existing)</option>`).join("")}
         <option value="new"${t.auChoice === "new" ? " selected" : ""}>＋ Create a new one…</option>
