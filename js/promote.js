@@ -87,23 +87,41 @@ const PROMOTE = {
 
   items: [
     {
-      n: 62,
+      n: 89,
       title: "Fallback AU dropdown styled like every other one",
       tools: ["Protect exclusions", "CA groups"],
       builds: [25188],
       risk: "low",
       what: "The fallback administrative unit picker in \u2465 Protect and the CSV persona-mapping dropdown in \u2464 Import members get the shared select styling instead of rendering as bare native controls.",
       why: "In production both render unstyled \u2014 a black box in dark mode that looks unlike every other dropdown, on the screen where somebody decides where unmapped groups are filed.",
+      test: [
+        "\u2465 Protect exclusions, the fallback administrative unit picker: same border, background and pointer cursor as every other dropdown on the page.",
+        "Switch to DARK mode and look at it again - the reported symptom was a black box, so light mode alone does not prove this.",
+        "CA groups \u2464 Import members, the CSV persona-mapping dropdown: same check, same result.",
+        "Both still WORK: pick a value and the selection changes and the panel reacts. Styling a select is easy to do in a way that eats the click.",
+        "Every other dropdown in the app is untouched - compare two or three that were already correct.",
+        "Run the boot harness and the source scan that shipped in this build: no unstyled selects reported, and deliberately deface one to confirm the scan actually fails.",
+      ],
       files: ["js/app.js"],
     },
     {
-      n: 61,
+      n: 88,
       title: "Baseline update pre-requirements",
       tools: ["Baseline Policies"],
       builds: [25187],
       risk: "medium",
       what: "One button in \ud83e\uddec Baseline Policies that takes a configuration snapshot, a full policy backup with every dependency resolved, and Markdown documentation \u2014 every policy, not the selection \u2014 then reports which of the three were captured and names anything unreadable.",
       why: "Production has the three capabilities in three different tools, so taking them before a baseline change is a manual routine that is easy to half-do; and half-doing it is only discovered when a restore is needed.",
+      test: [
+        "With no policies loaded, press it: it says to load the policies first and downloads nothing.",
+        "On a loaded tenant, press it once: the button counts 1/3, 2/3, 3/3 and THREE files arrive - a JSON configuration snapshot, a policy backup and a Markdown document.",
+        "THE ONE THAT MATTERS: tick two policies first, then run it. The backup and the documentation must still cover EVERY policy. A pre-requirement that captured the selection would look complete and not be.",
+        "The report names all three outcomes, and a step that failed is named as failed rather than quietly left out.",
+        "Force a step to fail - decline the terms-of-use consent, or deny a dependency read - and the report says which one, lists what could not be read, and tells you not to start the update.",
+        "Filenames carry the tenant and the date; a tenant whose name has spaces or a slash still produces valid filenames.",
+        "A dependency the tenant cannot resolve is listed as skipped rather than silently dropped from the backup.",
+        "Run it twice: the second run is not blocked by the first, and the button label is restored afterwards either way.",
+      ],
       files: ["index.html", "js/app.js"],
     },
     {
