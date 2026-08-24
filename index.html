@@ -10,23 +10,23 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25190"></script>
+<script src="js/popup-guard.js?v=25191"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25190" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25190">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25191" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25191">
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25190"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25190"></script>
+<script src="js/counter.js?v=25191"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25191"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25190" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25191" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -54,7 +54,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25190" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25191" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1364,6 +1364,13 @@
             <p class="mini" style="margin:0">The newer tools already follow a pattern worth making a rule: the logic lives in its own file as pure functions over a plain data contract — no DOM, no globals, no Graph calls — and the app contributes only a thin wiring layer that fills the contract and renders the result. That split is why the Restricted-AUs checks, the guide and the device check can be tested with <code>node</code> alone, and it is exactly what makes a tool liftable: another application (a customer's own portal, a CLI in a pipeline, a scheduled report) reimplements the small wiring and takes the logic file as-is.</p>
             <p class="mini" style="margin:6px 0 0">This item makes that the standard for <b>every</b> tool: each one a logic module with a documented contract (what goes in, what comes out, which reads the host must supply), thin host wiring, and optional integrations behind adapters <b>outside the core contract</b>. A host may supply another tool's result or expose a hand-off, but it may omit every integration and the module must still work. Tests run the core with integrations absent and throwing: an integration failure may remove convenience, never break the main tool. Portability is the honest test of <span class="rm-ref">R32</span>.</p>
           </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R39</span> 🤖 AI analysis without growing a backend <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Bring your own key, and let a model read the policies with you: a second opinion on what a set of Conditional Access policies actually does, and — the useful half — <b>which of them fight each other</b>, with a suggested resolution for each conflict. The obvious way to build that is a small server that holds the key and forwards the calls. <b>ENCA is not going to grow one.</b> Everything here is static files in a browser, no server and nothing stored anywhere, and that promise is worth more than the convenience of any feature.</p>
+            <p class="mini" style="margin:6px 0 0"><b>It does not need one.</b> The Anthropic API can be called <i>directly from the browser</i> — CORS is enabled for it, opted into with the <code>anthropic-dangerous-direct-browser-access</code> request header — so a BYO-key analysis stays fully static. The key is pasted per session and held <b>in memory</b>, never in <code>localStorage</code> where it would outlive the tab and sit in a profile backup; it is sent to <code>api.anthropic.com</code> and nowhere else; and the whole feature is <b>off</b> until somebody types a key in. Tools that solve this with a proxy are solving a problem this architecture does not have.</p>
+            <p class="mini" style="margin:6px 0 0"><b>The prerequisite is redaction, and ENCA does not have it yet.</b> A Conditional Access policy set is not neutral text: it carries the tenant's name, its group names, break-glass account UPNs and the shape of its administrative model. Sending that to a third party because a checkbox was ticked is not a trade this tool gets to make quietly. So the first half of this item is a <b>redaction pass in <a href="#" class="md-tool" data-tool="toolDocument">📄 Create documentation</a></b> — names replaced by stable placeholders, the mapping kept in the browser so a finding can be read back to real names afterwards — and the second half is the analysis riding on it. The redaction is worth having on its own merits: every export this tool already produces leaves the building with those names in it.</p>
+            <p class="mini" style="margin:6px 0 0">Two things it will <b>not</b> do. It will not generate PowerShell: ENCA ships scripts that have been written and tested deliberately, and a model improvising a script that writes to a tenant is exactly the wrong shape for a toolset whose pitch is that it cannot do much harm. And the model's output is never presented as a finding of ENCA's own — it is a second reader, labelled as one, with the redacted payload it saw available to inspect. The <code>connect-src</code> in the Content-Security-Policy would have to name <code>api.anthropic.com</code>, which is a deliberate, reviewable one-line change and not something to slip in ahead of the rest.</p>
+          </div>
         </div>
         <div class="rm-more">→ and further, steered by what you ask for</div>
       </div>
@@ -2555,52 +2562,52 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25190"></script>
-<script src="js/version.js?v=25190"></script>
-<script src="js/promote.js?v=25190"></script>
-<script src="js/authConfig.js?v=25190"></script>
-<script src="js/labels.js?v=25190"></script>
-<script src="js/graph.js?v=25190"></script>
-<script src="js/model.js?v=25190"></script>
-<script src="js/render.js?v=25190"></script>
-<script src="js/analyze.js?v=25190"></script>
-<script src="js/whatif.js?v=25190"></script>
-<script src="js/mslearn.js?v=25190"></script>
-<script src="js/gapcheck.js?v=25190"></script>
-<script src="js/cisdata.js?v=25190"></script>
-<script src="js/cischeck.js?v=25190"></script>
-<script src="js/exclusions.js?v=25190"></script>
-<script src="js/validator.js?v=25190"></script>
-<script src="js/whatifeval.js?v=25190"></script>
-<script src="js/compare.js?v=25190"></script>
-<script src="js/groupuse.js?v=25190"></script>
-<script src="js/iso3166.js?v=25190"></script>
-<script src="js/locations.js?v=25190"></script>
-<script src="js/authcontexts.js?v=25190"></script>
-<script src="js/authstrengths.js?v=25190"></script>
-<script src="js/recycle.js?v=25190"></script>
-<script src="js/rmau.js?v=25190"></script>
-<script src="js/camap.js?v=25190"></script>
-<script src="js/rmaudoc.js?v=25190"></script>
-<script src="js/termsofuse.js?v=25190"></script>
-<script src="js/audit.js?v=25190"></script>
-<script src="js/drift.js?v=25190"></script>
-<script src="js/guide.js?v=25190"></script>
-<script src="js/userimpact.js?v=25190"></script>
-<script src="js/devcheck.js?v=25190"></script>
-<script src="js/licgap.js?v=25190"></script>
-<script src="js/signins.js?v=25190"></script>
-<script src="js/reportimpact.js?v=25190"></script>
-<script src="js/changelog.js?v=25190"></script>
-<script src="js/baselineData.js?v=25190"></script>
-<script src="js/baselineJoeyData.js?v=25190"></script>
-<script src="js/baseline.js?v=25190"></script>
-<script src="js/groupTemplates.js?v=25190"></script>
-<script src="js/assign.js?v=25190"></script>
-<script src="js/cagroups.js?v=25190"></script>
-<script src="js/import.js?v=25190"></script>
-<script src="js/export.js?v=25190"></script>
-<script src="js/demo.js?v=25190"></script>
-<script src="js/app.js?v=25190"></script>
+<script src="js/branding.js?v=25191"></script>
+<script src="js/version.js?v=25191"></script>
+<script src="js/promote.js?v=25191"></script>
+<script src="js/authConfig.js?v=25191"></script>
+<script src="js/labels.js?v=25191"></script>
+<script src="js/graph.js?v=25191"></script>
+<script src="js/model.js?v=25191"></script>
+<script src="js/render.js?v=25191"></script>
+<script src="js/analyze.js?v=25191"></script>
+<script src="js/whatif.js?v=25191"></script>
+<script src="js/mslearn.js?v=25191"></script>
+<script src="js/gapcheck.js?v=25191"></script>
+<script src="js/cisdata.js?v=25191"></script>
+<script src="js/cischeck.js?v=25191"></script>
+<script src="js/exclusions.js?v=25191"></script>
+<script src="js/validator.js?v=25191"></script>
+<script src="js/whatifeval.js?v=25191"></script>
+<script src="js/compare.js?v=25191"></script>
+<script src="js/groupuse.js?v=25191"></script>
+<script src="js/iso3166.js?v=25191"></script>
+<script src="js/locations.js?v=25191"></script>
+<script src="js/authcontexts.js?v=25191"></script>
+<script src="js/authstrengths.js?v=25191"></script>
+<script src="js/recycle.js?v=25191"></script>
+<script src="js/rmau.js?v=25191"></script>
+<script src="js/camap.js?v=25191"></script>
+<script src="js/rmaudoc.js?v=25191"></script>
+<script src="js/termsofuse.js?v=25191"></script>
+<script src="js/audit.js?v=25191"></script>
+<script src="js/drift.js?v=25191"></script>
+<script src="js/guide.js?v=25191"></script>
+<script src="js/userimpact.js?v=25191"></script>
+<script src="js/devcheck.js?v=25191"></script>
+<script src="js/licgap.js?v=25191"></script>
+<script src="js/signins.js?v=25191"></script>
+<script src="js/reportimpact.js?v=25191"></script>
+<script src="js/changelog.js?v=25191"></script>
+<script src="js/baselineData.js?v=25191"></script>
+<script src="js/baselineJoeyData.js?v=25191"></script>
+<script src="js/baseline.js?v=25191"></script>
+<script src="js/groupTemplates.js?v=25191"></script>
+<script src="js/assign.js?v=25191"></script>
+<script src="js/cagroups.js?v=25191"></script>
+<script src="js/import.js?v=25191"></script>
+<script src="js/export.js?v=25191"></script>
+<script src="js/demo.js?v=25191"></script>
+<script src="js/app.js?v=25191"></script>
 </body>
 </html>
