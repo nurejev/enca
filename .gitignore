@@ -14,3 +14,8 @@ js/authConfig.local.js
 # published anymore (removed from the repo in build 25196).
 /pvm/
 /assets/pvm/
+
+# Dovilo branding — offline only, same rule as PVM above: customer branding
+# is never published from this repo. dovilo/selfhost-branding.json is theirs
+# to serve on a self-hosted instance.
+/dovilo/
