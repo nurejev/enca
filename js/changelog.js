@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25194, date: "2026-08-24", title: "The header said the app name twice, and one of them was not true",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The host string next to the Tools button is gone. The ENCA chip sits two elements to its left, so the header was saying the same thing twice in a row that also has to fit a tenant name, a user, a theme button and sign-out." },
+      { kind: "fixed", tool: "All tools", text: "It was also not what it appeared to be. That label rendered BRANDING.host \u2014 the brand's canonical PRODUCTION host \u2014 rather than the address you are actually on, so on the beta site, on a local server or on any fork it read enca.limon-it.nl while you were somewhere else. A line that looks like a location and is not one is worse than no line: the red BETA banner is what tells you which deployment you are on, and it should not have to argue with the header. BRANDING.host is untouched and still drives that banner, isProdHost, and the credit and stamp on exports." },
+      { kind: "improved", tool: "All tools", text: "Its branding hook and the phone rule that used to hide it went with it, so nothing is left referring to an element that no longer exists." },
+    ],
+  },
+  {
     build: 25193, date: "2026-08-24", title: "The action bar was hiding under the toolbar it is supposed to sit below",
     items: [
       { kind: "fixed", tool: "List Policies", text: "The green action bar slid underneath the toolbar and took its own first line with it. That line is the one carrying the policy count and the sentence explaining that Documentation, Backup and Gap analyse act on everything in view \u2014 so what was left was a strip of buttons apparently floating under the filters, with nothing saying what they would act on. The toolbar is z-index 40 and the bar 39, which is deliberate layering; the fault was the offset the bar sticks at, not the stacking." },

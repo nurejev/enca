@@ -87,6 +87,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 91,
+      title: "The host string leaves the header",
+      tools: ["All tools"],
+      builds: [25194],
+      risk: "low",
+      what: "The enca.limon-it.nl label next to the Tools button is removed, with its branding hook and its now-dead mobile rule. The ENCA chip beside the logo already names the app, so the string was saying the same thing twice in a row that has to fit a tenant name and a sign-out button.",
+      why: "It was also not what it looked like. The label rendered BRANDING.host, the brand's canonical production host, not the address you are actually on \u2014 so on the beta site, on a local server or on any fork it read enca.limon-it.nl while you were somewhere else entirely. The red BETA banner is what tells you where you are, and it is not competing with a line claiming otherwise. BRANDING.host itself is untouched and still drives that banner, isProdHost and the export credit and stamp.",
+      test: [
+        "Production header: logo, Limon-IT, ENCA chip, Tools - no host string, and nothing else has shifted.",
+        "Beta site: same, and the red BETA banner is now the only statement about which deployment you are on.",
+        "A branded deployment (the /pvm entry point): its own name and chip render, still no host line.",
+        "Narrow to a phone width: the header wraps as before - the rule that used to hide the host is gone, and nothing depended on it.",
+        "Export a PNG or PDF: the corner stamp still reads ENCA and the host, since that comes from BRANDING.host and was never this element.",
+        "Search the source for brandHost: no references left in markup, script or stylesheet.",
+      ],
+      files: ["index.html", "js/app.js", "css/app.css"],
+    },
+    {
       n: 90,
       title: "\ud83d\udccb The action bar stopped hiding under the toolbar",
       tools: ["List Policies"],

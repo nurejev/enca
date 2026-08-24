@@ -1186,10 +1186,9 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
    wall, tighter cards, and the per-policy table scrolls sideways (its
    pinned label goes static there — a scroll container would break it). */
 @media (max-width: 680px){
-  /* the header wraps instead of pushing the page wide: host string hidden
-     (decoration), tenant box on its own row, long names ellipsised */
+  /* the header wraps instead of pushing the page wide: tenant box on its own
+     row, long names ellipsised */
   .hwrap{flex-wrap:wrap;row-gap:6px;padding:10px 14px}
-  #brandHost{display:none}
   .tenant{flex:1 1 100%;min-width:0;justify-content:flex-end}
   #tenantName,#tenantUser{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:48vw}
   /* wide tables (permissions overview, per-policy summaries) scroll inside
