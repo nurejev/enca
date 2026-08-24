@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25198, date: "2026-08-24", title: "Dark mode stops keeping the green to itself under a brand",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Under a custom brand, dark mode kept drawing the policy-card header in the default green while light mode wore the brand's colour. Light mode builds that header from the brand variables, but the dark rules hard-coded the muted greens - for the card header gradient, the matrix header, the selection bar and toast, and the page glow. Those are now brand-overridable variables (pchead-a, pchead-b, panel-deep, hero-glow) with the greens as fallbacks, so an unbranded deployment is pixel-identical and a branded dark mode finally matches its light mode." },
+      { kind: "improved", tool: "All tools", text: "A branding file's colorsDark can now carry the four new variables; files without them keep the default dark chrome rather than breaking." },
+    ],
+  },
+  {
     build: 25197, date: "2026-08-24", title: "The branding dialog can read the file it writes",
     items: [
       { kind: "new", tool: "All tools", text: "Import from JSON in the branding settings. The dialog could produce a selfhost-branding.json but not read one back - so a look made on one machine, or handed over by a customer, had to be retyped field by field. The new import button loads such a file into the form for REVIEW: nothing is saved or applied until Apply, and the file passes through exactly the same sanitiser as the fetched deployment file, because an imported file earns no more trust than a downloaded one." },
