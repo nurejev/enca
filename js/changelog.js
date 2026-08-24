@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25201, date: "2026-08-24", title: "Items 90, 91, 94 and 95 reached production 297 — and 92 and 93 stayed behind on purpose",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Queue items 90 (the action bar hiding under the toolbar), 91 (the host string leaving the header), 94 (the self-host branding gear, S02) and 95 (the per-audience demo retired from the repository) are live in production build 297. Removed from the queue; the numbers are retired rather than reused. productionBuild moves to v1.0.297." },
+      { kind: "improved", tool: "All tools", text: "92 (the Docker self-hosting package, R06) and 93 (fork detection, R15) did NOT go, and build 25195 bundled all three of 92, 93 and 94 — so the port was a carve rather than a copy: js/selfhost.js and its three app.js hooks crossed, js/fork.js did not, and production's Content-Security-Policy keeps its current connect-src, because the upstream host was named there for the fork check alone. This is what the queue header means by one item per change: three items in one build cost a hand-separation that three builds would not have." },
+      { kind: "improved", tool: "Roadmap", text: "S02's card reads live · beta 25195 · production 297 here and live · build 297 on main. R06 and R15 stay in beta today here and planned there, which is the honest reading on each channel. Main's copies of S01 and S03 are reworded rather than copied: this channel's versions describe a published image and a live fork notice, and production has neither until 92 and 93 follow." },
+      { kind: "improved", tool: "All tools", text: "Item 95's reach is the part worth restating now it has landed: production no longer serves the /pvm front door or the mail-domain-triggered look. Anyone still using that entry point gets the default ENCA. The look itself was exported whole into a selfhost-branding.json before the removal, so it can be worn on a self-hosted instance — which is what the gear promoted alongside it exists for." },
+    ],
+  },
+  {
     build: 25200, date: "2026-08-24", title: "The retired demo's name leaves the code, not just the code's behaviour",
     items: [
       { kind: "fixed", tool: "All tools", text: "Retiring the per-audience demo in 25196 removed its pages, logos and branding entry - but the customer's company name and both UPN domains still sat in the served JavaScript: an old changelog entry, a promotion-queue item and a comment in the branding file. All identifying strings are now scrubbed from every tracked file; the historical entries still describe what happened, they just no longer name who it happened with. What remains is the neutral pvm folder path in the ignore rules, which has to stay or the offline folders would be re-added by accident." },

@@ -11,7 +11,7 @@ js/authConfig.local.js
 
 # Retired per-audience demo — kept locally as offline reference only. The
 # look lives in a local selfhost-branding.json for the customer's own
-# self-hosting; none of it is published anymore (removed in build 25196).
+# self-hosting; none of it is published anymore (removed in beta 25196, production 297).
 /pvm/
 /assets/pvm/
 
