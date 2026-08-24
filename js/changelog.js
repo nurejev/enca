@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25196, date: "2026-08-24", title: "A gear you can see, and the PVM demo retires into a branding file",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The branding gear next to Sign out was drawn at the button's default text size and was easy to miss entirely - a settings entry nobody finds may as well not exist. It now draws at 21px in the same neutral button: larger glyph, same header height, still only on non-production hosts." },
+      { kind: "improved", tool: "All tools", text: "The Perfetti Van Melle per-audience look was a demo of the override mechanism, and the demo is done: the entry, its logos and the /pvm front door have left the repository and the deployed sites. The look itself was exported whole - names, wordmark and favicon embedded as data URIs, login text, both full colour palettes - into a selfhost-branding.json, so trying it from now on means self-hosting it: serve that one file next to index.html and every visitor gets the branding. BRAND_OVERRIDES ships empty; the machinery - UPN matching, the brand query, the per-theme stylesheet injection - stays, working, for the day a real entry returns." },
+    ],
+  },
+  {
     build: 25195, date: "2026-08-24", title: "Run it yourself: Docker self-hosting, a fork that knows it is behind, and branding without a fork",
     items: [
       { kind: "new", tool: "Self-hosting", text: "R06 first cut. A published Docker image - ghcr.io/nurejev/enca, nginx over these same files, built by CI as :latest from main and :beta from the beta channel - plus a docker compose example, one-command install scripts for Mac (install.sh) and Windows (install.ps1) that check Docker, pull, run and open the browser, and a Deploy to Azure button that stands up an Azure Container App with scale-to-zero, so an idle instance costs close to nothing. SELF-HOSTING.md ties it together and leads with the one step nothing can automate: every host you serve from must be a SPA redirect URI on the app registration - the step that produces the AADSTS50011 sign-in error when missed." },

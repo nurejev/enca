@@ -8,3 +8,9 @@ _to_delete/
 # Tenant-specific auth override for a self-hosted single-tenant deployment.
 # Never committed: it names YOUR client ID and tenant. See SINGLE-TENANT.md.
 js/authConfig.local.js
+
+# Retired PVM demo — kept locally as offline reference only. The look lives
+# in pvm/selfhost-branding.json for their self-hosting; none of it is
+# published anymore (removed from the repo in build 25196).
+/pvm/
+/assets/pvm/

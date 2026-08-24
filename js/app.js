@@ -1445,8 +1445,9 @@
       // two customers can share a display name and a mapping landing in the
       // wrong tenant would file groups into the wrong vaults.
       try { CaMap.use(account?.tenantId || tenantName); } catch (e) { console.warn("group mapping:", e); }
-      // Audience branding by who signed in: an @pvmict.com account gets the
-      // Perfetti Van Melle look even without coming in through /pvm.
+      // Audience branding by who signed in: an account whose UPN matches a
+      // BRAND_OVERRIDES entry gets that look even without the front door.
+      // (The list ships empty since 25196 — the machinery stays.)
       if (typeof BrandOverrides !== "undefined") {
         const bo = BrandOverrides.forUpn(account?.username);
         if (bo && activeOverrideKey() !== bo.key) {

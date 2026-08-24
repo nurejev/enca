@@ -5,7 +5,7 @@
 // forking, through the same mechanism as the per-audience looks in
 // js/branding.js: everything here becomes a BRAND_OVERRIDES entry with
 // the key "selfhost", and activeOverrideKey() (js/app.js) falls back to
-// it when no other override is chosen. Chrome only, exactly like PVM —
+// it when no other override is chosen. Chrome only, like any override —
 // exports keep the neutral product credit by design.
 //
 // Two places the settings can live, in priority order:
@@ -186,7 +186,7 @@
       <div id="shColLRow" style="display:${cur.colorsLight ? "flex" : "none"};gap:12px;flex-wrap:wrap;margin:6px 0">${colorRow("colorsLight")}</div>
       <label class="chk mini"><input type="checkbox" id="shColD" ${cur.colorsDark ? "checked" : ""}> Override identity colours — dark</label>
       <div id="shColDRow" style="display:${cur.colorsDark ? "flex" : "none"};gap:12px;flex-wrap:wrap;margin:6px 0">${colorRow("colorsDark")}</div>
-      <p class="mini" style="margin:8px 0 0">Full per-theme palettes (every CSS variable, like the PVM look) fit the same file — edit the downloaded JSON's colorsLight / colorsDark by hand; js/branding.js documents the variables.</p>
+      <p class="mini" style="margin:8px 0 0">Full per-theme palettes (every CSS variable, not just the identity five) fit the same file — edit the downloaded JSON's colorsLight / colorsDark by hand; js/branding.js documents the variables.</p>
       <div class="modal-foot" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px">
         <button class="btn" id="shReset" title="Remove the branding saved in this browser">✖ Remove local branding</button>
         <button class="btn" id="shDownload">⭳ Download selfhost-branding.json</button>
@@ -257,6 +257,11 @@
     b.className = "btn";
     b.id = "selfhostGearBtn";
     b.textContent = "⚙";
+    // The glyph at the .btn default size rendered near-invisible next to
+    // Sign out; drawn at 21px (same button, no label) it reads as a control.
+    b.style.fontSize = "21px";
+    b.style.lineHeight = "1";
+    b.style.padding = "3px 10px 5px";
     b.title = "Branding settings for this self-hosted deployment";
     b.addEventListener("click", () => buildModal().classList.add("open"));
     out.insertAdjacentElement("afterend", b);
