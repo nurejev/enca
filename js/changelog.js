@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25200, date: "2026-08-24", title: "The retired demo's name leaves the code, not just the code's behaviour",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Retiring the per-audience demo in 25196 removed its pages, logos and branding entry - but the customer's company name and both UPN domains still sat in the served JavaScript: an old changelog entry, a promotion-queue item and a comment in the branding file. All identifying strings are now scrubbed from every tracked file; the historical entries still describe what happened, they just no longer name who it happened with. What remains is the neutral pvm folder path in the ignore rules, which has to stay or the offline folders would be re-added by accident." },
+      { kind: "improved", tool: "All tools", text: "Worth knowing about any scrub of this kind: git history is not rewritten by it. The identifiers remain in old commits on both remotes; removing them from history would mean a coordinated rewrite of every clone. The current build serves none of them, which is what the served site and every future fork gets." },
+    ],
+  },
+  {
     build: 25199, date: "2026-08-24", title: "A branded instance stops flashing Limon-IT on every hard refresh",
     items: [
       { kind: "fixed", tool: "All tools", text: "index.html carries the default look as static markup and every app script loads at the end of the body, so on a hard refresh a branded self-hosted instance painted Limon-IT first and swapped to its own look only when the scripts arrived - and the deployment branding file is fetched even later than that. A small blocking script now runs in the head before first paint: it reads the brand this browser already knows - the gear's saved look, or a cache of the last fetched selfhost-branding.json - and injects the palette, logo and favicon before anything is drawn." },
@@ -50,10 +57,10 @@ const CHANGELOG = [
     ],
   },
   {
-    build: 25196, date: "2026-08-24", title: "A gear you can see, and the PVM demo retires into a branding file",
+    build: 25196, date: "2026-08-24", title: "A gear you can see, and the per-audience demo retires into a branding file",
     items: [
       { kind: "fixed", tool: "All tools", text: "The branding gear next to Sign out was drawn at the button's default text size and was easy to miss entirely - a settings entry nobody finds may as well not exist. It now draws at 21px in the same neutral button: larger glyph, same header height, still only on non-production hosts." },
-      { kind: "improved", tool: "All tools", text: "The Perfetti Van Melle per-audience look was a demo of the override mechanism, and the demo is done: the entry, its logos and the /pvm front door have left the repository and the deployed sites. The look itself was exported whole - names, wordmark and favicon embedded as data URIs, login text, both full colour palettes - into a selfhost-branding.json, so trying it from now on means self-hosting it: serve that one file next to index.html and every visitor gets the branding. BRAND_OVERRIDES ships empty; the machinery - UPN matching, the brand query, the per-theme stylesheet injection - stays, working, for the day a real entry returns." },
+      { kind: "improved", tool: "All tools", text: "The per-audience demo look was a demo of the override mechanism, and the demo is done: the entry, its logos and the /pvm front door have left the repository and the deployed sites. The look itself was exported whole - names, wordmark and favicon embedded as data URIs, login text, both full colour palettes - into a selfhost-branding.json, so trying it from now on means self-hosting it: serve that one file next to index.html and every visitor gets the branding. BRAND_OVERRIDES ships empty; the machinery - UPN matching, the brand query, the per-theme stylesheet injection - stays, working, for the day a real entry returns." },
     ],
   },
   {
@@ -1469,7 +1476,7 @@ const CHANGELOG = [
   {
     build: 25003, date: "2026-08-12", onlyBrand: "pvm", title: "The house look follows the account",
     items: [
-      { kind: "improved", tool: "All tools", text: "Signing in with an @perfettivanmelle.onmicrosoft.com account now applies the Perfetti Van Melle look automatically, exactly as @pvmict.com already did — no need for the branded front door. (This entry is visible only on branded sessions.)" },
+      { kind: "improved", tool: "All tools", text: "Signing in with an account on the demo audience's second UPN domain now applies its look automatically, exactly as the first domain already did — no need for the branded front door. (This entry is visible only on branded sessions; the audience's identifying details were scrubbed from this record in build 25200, after the demo retired.)" },
     ],
   },
   {

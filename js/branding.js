@@ -96,7 +96,7 @@ const BRANDING = {
 // injected as a stylesheet by applyBranding()). An optional front door at
 // /<key>/ is a static page that opens the app with ?brand=<key>.
 //
-// The list ships EMPTY. The one entry it carried — Perfetti Van Melle —
+// The list ships EMPTY. The one entry it carried — a customer demo —
 // was a demo of the mechanism and was retired in build 25196; the same
 // look now lives on as a selfhost-branding.json (kept out of the repo),
 // which is the self-hosting way to wear a brand without forking at all
