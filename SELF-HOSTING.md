@@ -49,7 +49,8 @@ A self-hosted instance can wear your organisation's identity without forking —
 
 1. On any non-production host, a **⚙ gear appears next to Sign out**. It opens the branding settings: product and organisation names, logos, login text, and light/dark colour palettes.
 2. **Apply in this browser** previews and keeps the look locally (per browser).
-3. **Download selfhost-branding.json** exports the same settings as a file. Serve it at the site root — the compose file and install scripts mount `./selfhost-branding.json` automatically — and **every visitor** to your instance gets the branding, and the red "BETA — not production" ribbon becomes a neutral "SELF-HOSTED" one.
+3. **Import from JSON** loads an existing `selfhost-branding.json` into the form for review — a look made on another machine, or handed to you as a file, never has to be retyped.
+4. **Download selfhost-branding.json** exports the same settings as a file. Serve it at the site root — the compose file and install scripts mount `./selfhost-branding.json` automatically — and **every visitor** to your instance gets the branding, and the red "BETA — not production" ribbon becomes a neutral "SELF-HOSTED" one.
 
 Exports (Word/PDF/Markdown) keep the neutral ENCA credit by design, exactly like the hosted per-audience looks. For a full rebrand including export credits, fork and edit `js/branding.js` — its header comment is the guide.
 

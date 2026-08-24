@@ -138,10 +138,14 @@
     r.readAsDataURL(f);
   }
 
-  function buildModal() {
+  // `prefill` (optional) fills the form from an imported brand instead of the
+  // saved one — the import flow rebuilds the dialog with it so the person can
+  // REVIEW what a file contains before 💾 Apply makes it this browser's look.
+  function buildModal(prefill) {
     let bg = document.getElementById("selfhostModal");
-    if (bg) return bg;
-    const cur = localBrand || deploymentBrand || {};
+    if (bg && !prefill) return bg;
+    if (bg) bg.remove();
+    const cur = prefill || localBrand || deploymentBrand || {};
     const B = (typeof BRANDING !== "undefined") ? BRANDING : {};
     const val = (k, d) => esc(cur[k] != null ? cur[k] : (d != null ? d : (B[k] || "")));
     const cs = getComputedStyle(document.documentElement);
@@ -186,9 +190,11 @@
       <div id="shColLRow" style="display:${cur.colorsLight ? "flex" : "none"};gap:12px;flex-wrap:wrap;margin:6px 0">${colorRow("colorsLight")}</div>
       <label class="chk mini"><input type="checkbox" id="shColD" ${cur.colorsDark ? "checked" : ""}> Override identity colours — dark</label>
       <div id="shColDRow" style="display:${cur.colorsDark ? "flex" : "none"};gap:12px;flex-wrap:wrap;margin:6px 0">${colorRow("colorsDark")}</div>
-      <p class="mini" style="margin:8px 0 0">Full per-theme palettes (every CSS variable, not just the identity five) fit the same file — edit the downloaded JSON's colorsLight / colorsDark by hand; js/branding.js documents the variables.</p>
+      <p class="mini" style="margin:8px 0 0">Full per-theme palettes (every CSS variable, not just the identity five) fit the same file — edit the downloaded JSON's colorsLight / colorsDark by hand (js/branding.js documents the variables), then ⭱ Import it here; the extra entries survive the round-trip.</p>
       <div class="modal-foot" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px">
         <button class="btn" id="shReset" title="Remove the branding saved in this browser">✖ Remove local branding</button>
+        <button class="btn" id="shImport" title="Load a selfhost-branding.json into the form to review, then Apply">⭱ Import from JSON</button>
+        <input type="file" id="shImportFile" accept=".json,application/json" style="display:none">
         <button class="btn" id="shDownload">⭳ Download selfhost-branding.json</button>
         <button class="btn" id="shClose">Close</button>
         <button class="btn primary" id="shApply">💾 Apply in this browser</button>
@@ -205,8 +211,13 @@
     $("shColD").addEventListener("change", () => { $("shColDRow").style.display = $("shColD").checked ? "flex" : "none"; });
 
     function collect() {
+      // Start from the palette the form was opened with, then let the five
+      // identity pickers override their keys. A full palette (every CSS
+      // variable, as an imported or hand-edited file can carry) must survive
+      // a round-trip through this dialog — the pickers edit five of its
+      // entries, they do not define the set.
       const colors = (theme) => {
-        const out = {};
+        const out = Object.assign({}, cur[theme] || {});
         bg.querySelectorAll(`input[data-ct="${theme}"]`).forEach((el) => { out[el.dataset.ck] = el.value; });
         return out;
       };
@@ -236,6 +247,26 @@
       try { localStorage.removeItem(STORE); } catch { /* private mode */ }
       register(); rebrand();
       bg.remove();   // rebuilt with fresh values next open
+    });
+    $("shImport").addEventListener("click", () => $("shImportFile").click());
+    $("shImportFile").addEventListener("change", () => {
+      const f = $("shImportFile").files && $("shImportFile").files[0];
+      if (!f) return;
+      if (f.size > 900000) { alert("That file is too large to be a branding file — the limit is ~900 KB."); $("shImportFile").value = ""; return; }
+      const r = new FileReader();
+      r.onload = () => {
+        let parsed = null;
+        try { parsed = JSON.parse(String(r.result || "")); } catch { /* handled below */ }
+        // Accept the exported shape ({ v, brand }) and a bare brand object,
+        // then run it through the same sanitiser every other source gets —
+        // an imported file earns no more trust than a fetched one.
+        const b = cleanBrand(parsed && (parsed.brand || (parsed.org || parsed.name || parsed.colorsLight ? parsed : null)));
+        if (!b) { alert("Could not read that as a branding file. Expected a selfhost-branding.json as exported by ⭳ Download (or its inner brand object)."); return; }
+        // Rebuild the form with the file's values so they can be reviewed —
+        // nothing is saved or applied until 💾 Apply.
+        buildModal(b).classList.add("open");
+      };
+      r.readAsText(f);
     });
     $("shDownload").addEventListener("click", () => {
       const data = JSON.stringify({ v: 1, comment: "Serve this file as /selfhost-branding.json next to index.html — see SELF-HOSTING.md.", brand: collect() || {} }, null, 2);

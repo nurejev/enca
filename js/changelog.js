@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25197, date: "2026-08-24", title: "The branding dialog can read the file it writes",
+    items: [
+      { kind: "new", tool: "All tools", text: "Import from JSON in the branding settings. The dialog could produce a selfhost-branding.json but not read one back - so a look made on one machine, or handed over by a customer, had to be retyped field by field. The new import button loads such a file into the form for REVIEW: nothing is saved or applied until Apply, and the file passes through exactly the same sanitiser as the fetched deployment file, because an imported file earns no more trust than a downloaded one." },
+      { kind: "fixed", tool: "All tools", text: "Full palettes now survive the dialog. A branding file can carry every CSS variable per theme, but the form shows only the five identity colours - and Apply rebuilt the palette from those five, silently dropping the rest. The pickers now override their five entries in the palette the form was opened with instead of replacing it, so an imported or hand-edited full palette round-trips intact." },
+    ],
+  },
+  {
     build: 25196, date: "2026-08-24", title: "A gear you can see, and the PVM demo retires into a branding file",
     items: [
       { kind: "fixed", tool: "All tools", text: "The branding gear next to Sign out was drawn at the button's default text size and was easy to miss entirely - a settings entry nobody finds may as well not exist. It now draws at 21px in the same neutral button: larger glyph, same header height, still only on non-production hosts." },
