@@ -1,0 +1,99 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "ENCA self-hosted (R06): Azure Container Apps running the published image with scale-to-zero, so an instance used by one team costs close to nothing while idle. After deployment, add the app's HTTPS URL (in the deployment outputs) as a SPA redirect URI on your Entra app registration - sign-in fails with AADSTS50011 until you do. See SELF-HOSTING.md."
+  },
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "defaultValue": "enca",
+      "minLength": 2,
+      "maxLength": 30,
+      "metadata": { "description": "Name for the container app; also prefixes the environment and log workspace." }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": { "description": "Azure region. Defaults to the resource group's region." }
+    },
+    "image": {
+      "type": "string",
+      "defaultValue": "ghcr.io/nurejev/enca:latest",
+      "metadata": { "description": "Container image. Use ghcr.io/nurejev/enca:beta for the beta channel, or your own fork's image." }
+    }
+  },
+  "variables": {
+    "envName": "[format('{0}-env', parameters('appName'))]",
+    "logsName": "[format('{0}-logs', parameters('appName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('logsName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": { "name": "PerGB2018" },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('envName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logsName'))]"
+      ],
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('logsName')), '2023-09-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('logsName')), '2023-09-01').primarySharedKey]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('appName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]"
+      ],
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 80,
+            "allowInsecure": false
+          }
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "enca",
+              "image": "[parameters('image')]",
+              "resources": { "cpu": "0.25", "memory": "0.5Gi" }
+            }
+          ],
+          "scale": { "minReplicas": 0, "maxReplicas": 1 }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "appUrl": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', parameters('appName')), '2024-03-01').configuration.ingress.fqdn)]"
+    },
+    "nextStep": {
+      "type": "string",
+      "value": "[format('Add https://{0} as a SPA redirect URI on your Entra app registration (Authentication -> Single-page application), or sign-in fails with AADSTS50011. New-EncaAppRegistration.ps1 in the repo does this for you.', reference(resourceId('Microsoft.App/containerApps', parameters('appName')), '2024-03-01').configuration.ingress.fqdn)]"
+    }
+  }
+}

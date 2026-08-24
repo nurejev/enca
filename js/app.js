@@ -272,7 +272,11 @@
       try { q && typeof BrandOverrides !== "undefined" && BrandOverrides.byKey(q) ? sessionStorage.setItem(BRAND_STORE, q) : sessionStorage.removeItem(BRAND_STORE); } catch {}
       return q;
     }
-    try { return sessionStorage.getItem(BRAND_STORE); } catch { return null; }
+    try { const s = sessionStorage.getItem(BRAND_STORE); if (s) return s; } catch { /* private mode */ }
+    // Self-host branding (js/selfhost.js) registers itself as the "selfhost"
+    // override; with nothing chosen explicitly, a deployment that has one
+    // wears it. It only ever exists on a non-production host.
+    return (typeof BrandOverrides !== "undefined" && BrandOverrides.byKey("selfhost")) ? "selfhost" : null;
   }
   function activeBrand() {
     if (typeof BRANDING === "undefined") return null;
@@ -356,6 +360,14 @@
     });
   }
   applyBranding(activeBrand());
+  // Self-host branding can change after first paint — the deployment file
+  // arrives async, and the ⚙ gear saves without a reload. Repainting resets
+  // document.title, so the ribbon's channel tag has to be put back on.
+  document.addEventListener("enca:brand-updated", () => {
+    applyBranding(activeBrand());
+    const rb = document.getElementById("betaRibbon");
+    if (rb && rb.dataset.titleTag && !document.title.startsWith("[")) document.title = rb.dataset.titleTag + " " + document.title;
+  });
   // ---------- beta / preview ribbon ----------
   // Is this THE production deployment? Three places asked the same question
   // three slightly different ways (the BETA banner, the promotion queue, and
@@ -380,6 +392,12 @@
       const here = location.hostname.toLowerCase();
       if (!prod || !here || here === prod) return;
       const r = document.createElement("div");
+      // The id and title tag let js/selfhost.js soften this to a neutral
+      // SELF-HOSTED ribbon when a deployment branding file is served \u2014 a
+      // configured instance is not a test site, but it must still never be
+      // mistakable for production.
+      r.id = "betaRibbon";
+      r.dataset.titleTag = "[BETA]";
       r.textContent = "\u26A0 BETA \u2014 not production";
       r.style.cssText = "position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9999;" +
         "background:#b04a3a;color:#fff;font:800 13px/1 Inter,system-ui,sans-serif;padding:7px 22px;" +

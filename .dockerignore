@@ -1,0 +1,9 @@
+.git
+.github
+.dockerignore
+Dockerfile
+_to_delete
+selfhost/install.sh
+selfhost/install.ps1
+selfhost/docker-compose.yml
+selfhost/azuredeploy.json
