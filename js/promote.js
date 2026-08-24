@@ -87,6 +87,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 90,
+      title: "\ud83d\udccb The action bar stopped hiding under the toolbar",
+      tools: ["List Policies"],
+      builds: [25193],
+      risk: "medium",
+      what: "The sticky offsets (--sticky-header, --sticky-nav, --selbar-top) are recomputed by a ResizeObserver on the header, the tool tab bar and the list toolbar, instead of only at load, on window resize and on a few render paths. The formula was already right; it was being applied to a measurement taken before the box changed height. The resize listener stays as the fallback where ResizeObserver is absent.",
+      why: "In production the green action bar sticks at an offset for a toolbar that is no longer that tall, and because the toolbar is z-index 40 and the bar 39 it slides UNDERNEATH it. The bar is two rows, so what disappears is the whole first line \u2014 the policy count and the line explaining that Documentation, Backup and Gap analyse act on everything in view \u2014 leaving a strip of buttons apparently floating under the filters, and no way to tell what they will act on.",
+      test: [
+        "List Policies with policies loaded: the green bar sits fully below the toolbar, both rows visible - the count line AND the buttons.",
+        "Scroll down: the bar stays put directly under the toolbar and never tucks behind it.",
+        "Open a second tool so the tab bar has two tabs, go back to List Policies: still correct. The tab bar getting taller used to leave the offset short.",
+        "Narrow the window until the toolbar wraps Collapse all and Refresh onto their own row, then widen it again: the bar follows both ways, without needing a reload.",
+        "Type in the search box so the counts change (All (105) to All (3)): if the chips rewrap, the bar follows.",
+        "Select a policy so the bar text changes to N policies selected: still aligned.",
+        "Zoom the browser to 80% and 150%: the bar stays below the toolbar at both.",
+        "On a phone width the toolbar and bar are position:static by design - confirm nothing here made them sticky again.",
+      ],
+      files: ["js/app.js"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],

@@ -72,6 +72,30 @@
   window.addEventListener("resize", syncStickyTops);
   syncStickyTops();
 
+  // Measuring at a few chosen moments is what made this fragile. These boxes
+  // change height for reasons nothing calls a "resize": the state chips render
+  // after the policies load, "Select all" grows from (0) to (105), a second
+  // open tab takes the tool nav to two rows, and the toolbar itself wraps its
+  // actions onto a second line at some widths and not others.
+  //
+  // When that happens after the last measurement, the action bar goes on
+  // sticking at an offset for a toolbar that is no longer that tall — and
+  // since the toolbar is z-index 40 and the bar 39, the bar slides UNDERNEATH
+  // it. On a two-row bar that hides the whole "N policies in view" line and
+  // leaves a strip of buttons apparently floating under the filters.
+  //
+  // So observe the boxes rather than guessing when they move. The resize
+  // listener stays as the fallback where ResizeObserver is missing.
+  const syncStickyStack = () => { syncStickyTops(); syncSelbarTop(); };
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(syncStickyStack);
+    for (const el of [document.querySelector("header"),
+                      document.getElementById("toolNav"),
+                      document.querySelector("#screen-list .toolbar")]) {
+      if (el) ro.observe(el);
+    }
+  }
+
   // ---------- screens + browser history ----------
   // This is a single page, so without history entries the Back button leaves
   // the site entirely — and after an MSAL popup sign-in the previous entry may

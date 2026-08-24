@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25193, date: "2026-08-24", title: "The action bar was hiding under the toolbar it is supposed to sit below",
+    items: [
+      { kind: "fixed", tool: "List Policies", text: "The green action bar slid underneath the toolbar and took its own first line with it. That line is the one carrying the policy count and the sentence explaining that Documentation, Backup and Gap analyse act on everything in view \u2014 so what was left was a strip of buttons apparently floating under the filters, with nothing saying what they would act on. The toolbar is z-index 40 and the bar 39, which is deliberate layering; the fault was the offset the bar sticks at, not the stacking." },
+      { kind: "fixed", tool: "List Policies", text: "The formula was right and the measurement was stale. The sticky offsets were computed at load, on window resize and on a few render paths \u2014 but these boxes change height for reasons nothing calls a resize: the state chips render after the policies load, Select all grows from (0) to (105), a second open tab wraps the tool nav onto two rows, and the toolbar wraps Collapse all and Refresh onto a second line at some widths and not others. Any of those after the last measurement left the bar sticking at an offset for a toolbar that had since grown." },
+      { kind: "improved", tool: "All tools", text: "So the boxes are observed rather than guessed at. A ResizeObserver on the header, the tool tab bar and the list toolbar recomputes the offsets whenever any of them actually changes size, which removes the whole class rather than the one path that was reported. The window resize listener stays as the fallback where ResizeObserver is not available, and the phone layout is untouched \u2014 there both bars are deliberately static, because a sticky toolbar on a phone eats a third of the viewport." },
+    ],
+  },
+  {
     build: 25192, date: "2026-08-24", title: "R39 gets its design: what the second opinion reads, and what it is allowed to say",
     items: [
       { kind: "improved", tool: "Roadmap", text: "R39 is rewritten from a one-paragraph idea into a design. It starts as ONE button on the expanded policy card, next to the per-policy What-If flow, because that is already the corner where you interrogate a single policy. It is called Second opinion rather than anything with Analyse or AI in it: the name is the promise, advisory and labelled as such. A selection of two to five policies comes later, which is where conflict and shadowing analysis actually lives, and the whole set later still." },
