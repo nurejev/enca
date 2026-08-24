@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
-  <!-- Placeholder Perfetti Van Melle mark: swap this file for the official
-       logo (1:1 works best; drawn at 34px and 76px). -->
-  <rect x="4" y="4" width="88" height="88" rx="20" fill="#003d7d"/>
-  <path d="M14 26 q34 -14 68 0 l0 8 q-34 -14 -68 0 z" fill="#e30613"/>
-  <path d="M14 34 q34 -14 68 0 l0 5 q-34 -14 -68 0 z" fill="#f2a900"/>
-  <text x="48" y="70" font-family="Inter,system-ui,Segoe UI,Helvetica,Arial,sans-serif" font-size="30" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="1">PVM</text>
-</svg>

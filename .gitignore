@@ -8,3 +8,14 @@ _to_delete/
 # Tenant-specific auth override for a self-hosted single-tenant deployment.
 # Never committed: it names YOUR client ID and tenant. See SINGLE-TENANT.md.
 js/authConfig.local.js
+
+# Retired per-audience demo — kept locally as offline reference only. The
+# look lives in a local selfhost-branding.json for the customer's own
+# self-hosting; none of it is published anymore (removed in beta 25196, production 297).
+/pvm/
+/assets/pvm/
+
+# Dovilo branding — offline only, same rule as above: customer branding is
+# never published from this repo. dovilo/selfhost-branding.json is theirs
+# to serve on a self-hosted instance.
+/dovilo/

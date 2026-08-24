@@ -72,6 +72,30 @@
   window.addEventListener("resize", syncStickyTops);
   syncStickyTops();
 
+  // Measuring at a few chosen moments is what made this fragile. These boxes
+  // change height for reasons nothing calls a "resize": the state chips render
+  // after the policies load, "Select all" grows from (0) to (105), a second
+  // open tab takes the tool nav to two rows, and the toolbar itself wraps its
+  // actions onto a second line at some widths and not others.
+  //
+  // When that happens after the last measurement, the action bar goes on
+  // sticking at an offset for a toolbar that is no longer that tall — and
+  // since the toolbar is z-index 40 and the bar 39, the bar slides UNDERNEATH
+  // it. On a two-row bar that hides the whole "N policies in view" line and
+  // leaves a strip of buttons apparently floating under the filters.
+  //
+  // So observe the boxes rather than guessing when they move. The resize
+  // listener stays as the fallback where ResizeObserver is missing.
+  const syncStickyStack = () => { syncStickyTops(); syncSelbarTop(); };
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(syncStickyStack);
+    for (const el of [document.querySelector("header"),
+                      document.getElementById("toolNav"),
+                      document.querySelector("#screen-list .toolbar")]) {
+      if (el) ro.observe(el);
+    }
+  }
+
   // ---------- screens + browser history ----------
   // This is a single page, so without history entries the Back button leaves
   // the site entirely — and after an MSAL popup sign-in the previous entry may
@@ -248,7 +272,11 @@
       try { q && typeof BrandOverrides !== "undefined" && BrandOverrides.byKey(q) ? sessionStorage.setItem(BRAND_STORE, q) : sessionStorage.removeItem(BRAND_STORE); } catch {}
       return q;
     }
-    try { return sessionStorage.getItem(BRAND_STORE); } catch { return null; }
+    try { const s = sessionStorage.getItem(BRAND_STORE); if (s) return s; } catch { /* private mode */ }
+    // Self-host branding (js/selfhost.js) registers itself as the "selfhost"
+    // override; with nothing chosen explicitly, a deployment that has one
+    // wears it. It only ever exists on a non-production host.
+    return (typeof BrandOverrides !== "undefined" && BrandOverrides.byKey("selfhost")) ? "selfhost" : null;
   }
   function activeBrand() {
     if (typeof BRANDING === "undefined") return null;
@@ -286,6 +314,11 @@
     // light/dark via data-theme, auto via prefers-color-scheme — so both
     // modes get a palette designed for them (appended last, so it wins ties).
     document.getElementById("brandOverrideCss")?.remove();
+    // The pre-paint boot stylesheet (js/selfhost-boot.js) hands over here:
+    // its palette matches what this function is about to apply, but its
+    // logo content:url rule would beat the src= this function sets, so it
+    // must not outlive the authoritative branding pass.
+    document.getElementById("selfhostBootCss")?.remove();
     if (oBrand) {
       const decl = (obj) => Object.entries(obj || {}).filter(([k, v]) => k.startsWith("--") && v)
         .map(([k, v]) => `${k}:${v}`).join(";");
@@ -315,7 +348,6 @@
         : esc(org);
     });
     set("brandTag", (el) => { el.textContent = B.name; });
-    set("brandHost", (el) => { el.textContent = B.host || ""; el.style.display = B.host ? "" : "none"; });
     set("brandLoginTitle", (el) => { el.textContent = B.loginTitle || Brand.title; });
     set("brandLoginBlurb", (el) => { if (B.loginBlurb) el.textContent = B.loginBlurb; });
     set("brandFoot", (el) => { el.textContent = [B.copyright, B.name].filter(Boolean).join(" · "); });
@@ -333,6 +365,14 @@
     });
   }
   applyBranding(activeBrand());
+  // Self-host branding can change after first paint — the deployment file
+  // arrives async, and the ⚙ gear saves without a reload. Repainting resets
+  // document.title, so the ribbon's channel tag has to be put back on.
+  document.addEventListener("enca:brand-updated", () => {
+    applyBranding(activeBrand());
+    const rb = document.getElementById("betaRibbon");
+    if (rb && rb.dataset.titleTag && !document.title.startsWith("[")) document.title = rb.dataset.titleTag + " " + document.title;
+  });
   // ---------- beta / preview ribbon ----------
   // Is this THE production deployment? Three places asked the same question
   // three slightly different ways (the BETA banner, the promotion queue, and
@@ -357,6 +397,12 @@
       const here = location.hostname.toLowerCase();
       if (!prod || !here || here === prod) return;
       const r = document.createElement("div");
+      // The id and title tag let js/selfhost.js soften this to a neutral
+      // SELF-HOSTED ribbon when a deployment branding file is served \u2014 a
+      // configured instance is not a test site, but it must still never be
+      // mistakable for production.
+      r.id = "betaRibbon";
+      r.dataset.titleTag = "[BETA]";
       r.textContent = "\u26A0 BETA \u2014 not production";
       r.style.cssText = "position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9999;" +
         "background:#b04a3a;color:#fff;font:800 13px/1 Inter,system-ui,sans-serif;padding:7px 22px;" +
@@ -1341,8 +1387,9 @@
       // two customers can share a display name and a mapping landing in the
       // wrong tenant would file groups into the wrong vaults.
       try { CaMap.use(account?.tenantId || tenantName); } catch (e) { console.warn("group mapping:", e); }
-      // Audience branding by who signed in: an @pvmict.com account gets the
-      // Perfetti Van Melle look even without coming in through /pvm.
+      // Audience branding by who signed in: an account whose UPN matches a
+      // BRAND_OVERRIDES entry gets that look even without the front door.
+      // (The list ships empty since 25196 — the machinery stays.)
       if (typeof BrandOverrides !== "undefined") {
         const bo = BrandOverrides.forUpn(account?.username);
         if (bo && activeOverrideKey() !== bo.key) {

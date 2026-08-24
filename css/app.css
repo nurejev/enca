@@ -948,9 +948,15 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 /* dark-mode rules that need more than a variable swap (incl. the logo variant) */
 :root[data-theme="dark"] .btn.primary, :root[data-theme="dark"] .seg button.active, :root[data-theme="dark"] .avatar{color:var(--green-deep)}
 :root[data-theme="dark"] .btn.lemon{color:var(--green-deep)}
-:root[data-theme="dark"] .pcard-head{background:linear-gradient(100deg,#132119 0%,#20402a 70%)}
-:root[data-theme="dark"] table.matrix thead th{background:#132119}
-:root[data-theme="dark"] .selbar, :root[data-theme="dark"] .toast{background:#0d1a12;border:1px solid var(--border)}
+/* Dark chrome that a brand can restyle. Light mode reads --green/--green-deep
+   directly, so a brand palette recolours it for free — these dark rules used
+   to hard-code the muted greens, which is why a branded dark mode kept green
+   card headers. The greens stay as fallbacks; a brand's colorsDark overrides
+   --pchead-a/--pchead-b (card header gradient, matrix header) and
+   --panel-deep (selection bar, toast). */
+:root[data-theme="dark"] .pcard-head{background:linear-gradient(100deg,var(--pchead-a,#132119) 0%,var(--pchead-b,#20402a) 70%)}
+:root[data-theme="dark"] table.matrix thead th{background:var(--pchead-a,#132119)}
+:root[data-theme="dark"] .selbar, :root[data-theme="dark"] .toast{background:var(--panel-deep,#0d1a12);border:1px solid var(--border)}
 :root[data-theme="dark"] .exp-ic.md{background:#4a5450}
 :root[data-theme="dark"] .fs-bg{background:rgba(0,0,0,.62)}
 :root[data-theme="dark"] .logo img, :root[data-theme="dark"] .login-card > img{content:url("../assets/logo-mark-dark.svg?v=25163")}
@@ -961,14 +967,14 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 :root[data-theme="dark"] .btn.primary{background:var(--lemon);border-color:var(--lemon)}
 :root[data-theme="dark"] .btn.primary:hover{background:var(--lemon-deep);border-color:var(--lemon-deep)}
 :root[data-theme="dark"] .app-tag{background:var(--lemon);border-color:var(--lemon);color:var(--green-deep)}
-:root[data-theme="dark"] main{background-image:radial-gradient(900px 500px at 85% -140px,rgba(30,71,41,.45) 0%,transparent 60%),radial-gradient(700px 420px at -10% 18%,rgba(247,214,90,.055) 0%,transparent 60%);background-repeat:no-repeat}
+:root[data-theme="dark"] main{background-image:radial-gradient(900px 500px at 85% -140px,var(--hero-glow,rgba(30,71,41,.45)) 0%,transparent 60%),radial-gradient(700px 420px at -10% 18%,rgba(247,214,90,.055) 0%,transparent 60%);background-repeat:no-repeat}
 
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary, :root:not([data-theme="light"]):not([data-theme="dark"]) .seg button.active, :root:not([data-theme="light"]):not([data-theme="dark"]) .avatar{color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.lemon{color:var(--green-deep)}
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .pcard-head{background:linear-gradient(100deg,#132119 0%,#20402a 70%)}
-  :root:not([data-theme="light"]):not([data-theme="dark"]) table.matrix thead th{background:#132119}
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .selbar, :root:not([data-theme="light"]):not([data-theme="dark"]) .toast{background:#0d1a12;border:1px solid var(--border)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .pcard-head{background:linear-gradient(100deg,var(--pchead-a,#132119) 0%,var(--pchead-b,#20402a) 70%)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) table.matrix thead th{background:var(--pchead-a,#132119)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .selbar, :root:not([data-theme="light"]):not([data-theme="dark"]) .toast{background:var(--panel-deep,#0d1a12);border:1px solid var(--border)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .exp-ic.md{background:#4a5450}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-btn.home.active{color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x{color:var(--green-deep)}
@@ -980,7 +986,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary{background:var(--lemon);border-color:var(--lemon)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary:hover{background:var(--lemon-deep);border-color:var(--lemon-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .app-tag{background:var(--lemon);border-color:var(--lemon);color:var(--green-deep)}
-  :root:not([data-theme="light"]):not([data-theme="dark"]) main{background-image:radial-gradient(900px 500px at 85% -140px,rgba(30,71,41,.45) 0%,transparent 60%),radial-gradient(700px 420px at -10% 18%,rgba(247,214,90,.055) 0%,transparent 60%);background-repeat:no-repeat}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) main{background-image:radial-gradient(900px 500px at 85% -140px,var(--hero-glow,rgba(30,71,41,.45)) 0%,transparent 60%),radial-gradient(700px 420px at -10% 18%,rgba(247,214,90,.055) 0%,transparent 60%);background-repeat:no-repeat}
 }
 
 /* theme toggle in the header */
@@ -1186,10 +1192,9 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
    wall, tighter cards, and the per-policy table scrolls sideways (its
    pinned label goes static there — a scroll container would break it). */
 @media (max-width: 680px){
-  /* the header wraps instead of pushing the page wide: host string hidden
-     (decoration), tenant box on its own row, long names ellipsised */
+  /* the header wraps instead of pushing the page wide: tenant box on its own
+     row, long names ellipsised */
   .hwrap{flex-wrap:wrap;row-gap:6px;padding:10px 14px}
-  #brandHost{display:none}
   .tenant{flex:1 1 100%;min-width:0;justify-content:flex-end}
   #tenantName,#tenantUser{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:48vw}
   /* wide tables (permissions overview, per-policy summaries) scroll inside

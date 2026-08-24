@@ -10,23 +10,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=296"></script>
+<script src="js/popup-guard.js?v=297"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=296" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=296">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=297" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=297">
+<!-- Deliberately BLOCKING, before first paint: applies this browser's known
+     self-host branding (palette, logo, favicon) so a branded instance never
+     flashes the default look on load. No-op without a stored brand. -->
+<script src="js/selfhost-boot.js?v=297"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=296"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=296"></script>
+<script src="js/counter.js?v=297"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=297"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=296" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=297" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -34,7 +38,6 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M3 10.6 12 3.2l9 7.4"/><path d="M5.2 9.4V20.4h13.6V9.4"/><path d="M9.6 20.4v-6.2h4.8v6.2"/>
       </svg>Tools</button>
-    <span class="mini muted" id="brandHost">enca.limon-it.nl</span>
     <div class="spacer"></div>
     <button class="btn" id="themeBtn" title="Theme: Auto (follows your device)"><span class="tico">🌗</span></button>
     <div class="tenant" id="tenantBox">
@@ -54,7 +57,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=296" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=297" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1267,6 +1270,21 @@
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R16</span> 🔓 Revoke permissions when done <span class="tag ok">partially done</span></h4>
             <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses. <b>First step shipped:</b> the Permissions panel's <i>🔒 How to revoke</i> guide documents the three revocation routes with ready-to-run PowerShell and their consequences — what remains is doing it in one click, which needs careful design (see the guide for why the app deliberately holds no revoke rights itself).</p>
+          </div>
+        </div>
+        <div class="rm-era future">
+          <h3>Self-hosted <span class="rm-when">for the instance you run yourself</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">S01</span> 💾 Keep things between visits <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">This site stores nothing anywhere, by design, and keeps that promise. A host of your own changes what is possible: an optional <b>SQLite</b> store alongside the instance — a volume, nothing more — holding <b>Drift watch snapshots</b>, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having kept track of a JSON file. Strictly opt-in and self-hosted only; tokens stay out of it regardless — they belong in the browser session and nowhere else. Drift is the first customer: a snapshot that survives the tab closing is the difference between a drift <i>check</i> and a drift <i>watch</i>.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="297">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">S02</span> 🎨 Branding without a fork <span class="tag grant">live · build 297</span></h4>
+            <p class="mini" style="margin:0">The ⚙ gear next to Sign out, on any non-production host: product and organisation names, logos, login text and light/dark identity colours, through the same override mechanism the hosted per-audience looks used — chrome only, exports keep the neutral product credit. <b>Apply</b> keeps the look in this browser; <b>Download</b> produces <code>selfhost-branding.json</code>, <b>Import</b> reads one back into the form for review — so a look made elsewhere or handed over by a customer never has to be retyped — and serving that file next to index.html gives every visitor the branding, and softens the red BETA ribbon to a neutral SELF-HOSTED one, because a deliberately configured instance is not a test site. What the gear will never configure is the canonical host: that drives the production check and the export credit, and a settings dialog must not be able to make a copy claim to be production. Nothing here can appear on this site — the gear only exists where the host is not the canonical one.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">S03</span> 📦 Update channel choice <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Once there is a published image to follow, the choice of which build an instance tracks should be a stated, visible thing rather than whatever was pulled the day it was set up: the instance saying which channel it follows, guidance for unattended updates (a watchtower-style puller for those who want them, and the reasons a reviewed fork should not), and a pinned-digest example for the high-assurance case where even a moving tag is too much trust. Pairs with <span class="rm-ref">R15</span>, which is what tells a pinned copy it has fallen behind.</p>
           </div>
         </div>
         <div class="rm-era future far">
@@ -2486,48 +2504,49 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=296"></script>
-<script src="js/version.js?v=296"></script>
-<script src="js/authConfig.js?v=296"></script>
-<script src="js/labels.js?v=296"></script>
-<script src="js/graph.js?v=296"></script>
-<script src="js/model.js?v=296"></script>
-<script src="js/render.js?v=296"></script>
-<script src="js/analyze.js?v=296"></script>
-<script src="js/whatif.js?v=296"></script>
-<script src="js/mslearn.js?v=296"></script>
-<script src="js/gapcheck.js?v=296"></script>
-<script src="js/exclusions.js?v=296"></script>
-<script src="js/validator.js?v=296"></script>
-<script src="js/whatifeval.js?v=296"></script>
-<script src="js/compare.js?v=296"></script>
-<script src="js/groupuse.js?v=296"></script>
-<script src="js/iso3166.js?v=296"></script>
-<script src="js/locations.js?v=296"></script>
-<script src="js/authcontexts.js?v=296"></script>
-<script src="js/authstrengths.js?v=296"></script>
-<script src="js/recycle.js?v=296"></script>
-<script src="js/rmau.js?v=296"></script>
-<script src="js/camap.js?v=296"></script>
-<script src="js/rmaudoc.js?v=296"></script>
-<script src="js/termsofuse.js?v=296"></script>
-<script src="js/audit.js?v=296"></script>
-<script src="js/drift.js?v=296"></script>
-<script src="js/userimpact.js?v=296"></script>
-<script src="js/devcheck.js?v=296"></script>
-<script src="js/licgap.js?v=296"></script>
-<script src="js/signins.js?v=296"></script>
-<script src="js/reportimpact.js?v=296"></script>
-<script src="js/changelog.js?v=296"></script>
-<script src="js/baselineData.js?v=296"></script>
-<script src="js/baselineJoeyData.js?v=296"></script>
-<script src="js/baseline.js?v=296"></script>
-<script src="js/groupTemplates.js?v=296"></script>
-<script src="js/assign.js?v=296"></script>
-<script src="js/cagroups.js?v=296"></script>
-<script src="js/import.js?v=296"></script>
-<script src="js/export.js?v=296"></script>
-<script src="js/demo.js?v=296"></script>
-<script src="js/app.js?v=296"></script>
+<script src="js/branding.js?v=297"></script>
+<script src="js/selfhost.js?v=297"></script>
+<script src="js/version.js?v=297"></script>
+<script src="js/authConfig.js?v=297"></script>
+<script src="js/labels.js?v=297"></script>
+<script src="js/graph.js?v=297"></script>
+<script src="js/model.js?v=297"></script>
+<script src="js/render.js?v=297"></script>
+<script src="js/analyze.js?v=297"></script>
+<script src="js/whatif.js?v=297"></script>
+<script src="js/mslearn.js?v=297"></script>
+<script src="js/gapcheck.js?v=297"></script>
+<script src="js/exclusions.js?v=297"></script>
+<script src="js/validator.js?v=297"></script>
+<script src="js/whatifeval.js?v=297"></script>
+<script src="js/compare.js?v=297"></script>
+<script src="js/groupuse.js?v=297"></script>
+<script src="js/iso3166.js?v=297"></script>
+<script src="js/locations.js?v=297"></script>
+<script src="js/authcontexts.js?v=297"></script>
+<script src="js/authstrengths.js?v=297"></script>
+<script src="js/recycle.js?v=297"></script>
+<script src="js/rmau.js?v=297"></script>
+<script src="js/camap.js?v=297"></script>
+<script src="js/rmaudoc.js?v=297"></script>
+<script src="js/termsofuse.js?v=297"></script>
+<script src="js/audit.js?v=297"></script>
+<script src="js/drift.js?v=297"></script>
+<script src="js/userimpact.js?v=297"></script>
+<script src="js/devcheck.js?v=297"></script>
+<script src="js/licgap.js?v=297"></script>
+<script src="js/signins.js?v=297"></script>
+<script src="js/reportimpact.js?v=297"></script>
+<script src="js/changelog.js?v=297"></script>
+<script src="js/baselineData.js?v=297"></script>
+<script src="js/baselineJoeyData.js?v=297"></script>
+<script src="js/baseline.js?v=297"></script>
+<script src="js/groupTemplates.js?v=297"></script>
+<script src="js/assign.js?v=297"></script>
+<script src="js/cagroups.js?v=297"></script>
+<script src="js/import.js?v=297"></script>
+<script src="js/export.js?v=297"></script>
+<script src="js/demo.js?v=297"></script>
+<script src="js/app.js?v=297"></script>
 </body>
 </html>
