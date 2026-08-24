@@ -95,10 +95,19 @@
   const rebrand = () => document.dispatchEvent(new CustomEvent("enca:brand-updated"));
 
   // ---- the deployment file -------------------------------------------
+  const BOOT_CACHE = "enca-selfhost-brand-cache";
   fetch("selfhost-branding.json?v=" + Date.now(), { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => {
       deploymentBrand = cleanBrand(j && j.brand);
+      // The boot cache is what js/selfhost-boot.js paints from BEFORE this
+      // fetch can run, so it must mirror the fetch exactly: store the
+      // sanitised brand on success, clear it when the file is gone —
+      // otherwise a removed branding keeps flashing on every load.
+      try {
+        if (deploymentBrand) localStorage.setItem(BOOT_CACHE, JSON.stringify({ v: 1, brand: deploymentBrand }));
+        else localStorage.removeItem(BOOT_CACHE);
+      } catch { /* private mode */ }
       if (!deploymentBrand) return;
       register();
       rebrand();

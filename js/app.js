@@ -314,6 +314,11 @@
     // light/dark via data-theme, auto via prefers-color-scheme — so both
     // modes get a palette designed for them (appended last, so it wins ties).
     document.getElementById("brandOverrideCss")?.remove();
+    // The pre-paint boot stylesheet (js/selfhost-boot.js) hands over here:
+    // its palette matches what this function is about to apply, but its
+    // logo content:url rule would beat the src= this function sets, so it
+    // must not outlive the authoritative branding pass.
+    document.getElementById("selfhostBootCss")?.remove();
     if (oBrand) {
       const decl = (obj) => Object.entries(obj || {}).filter(([k, v]) => k.startsWith("--") && v)
         .map(([k, v]) => `${k}:${v}`).join(";");

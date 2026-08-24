@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25199, date: "2026-08-24", title: "A branded instance stops flashing Limon-IT on every hard refresh",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "index.html carries the default look as static markup and every app script loads at the end of the body, so on a hard refresh a branded self-hosted instance painted Limon-IT first and swapped to its own look only when the scripts arrived - and the deployment branding file is fetched even later than that. A small blocking script now runs in the head before first paint: it reads the brand this browser already knows - the gear's saved look, or a cache of the last fetched selfhost-branding.json - and injects the palette, logo and favicon before anything is drawn." },
+      { kind: "improved", tool: "All tools", text: "The cache mirrors the fetch exactly: stored on success, cleared when the file is gone, untouched on a network error - so a removed branding stops appearing after one load and going briefly offline changes nothing. The one flash that remains is the very first visit in a browser, which has nothing cached yet; avoiding that too would mean a blocking network fetch before every paint, which taxes every load to save the first. The boot stylesheet hands over to the real branding code as soon as it runs, so the two can never disagree for more than a moment." },
+    ],
+  },
+  {
     build: 25198, date: "2026-08-24", title: "Dark mode stops keeping the green to itself under a brand",
     items: [
       { kind: "fixed", tool: "All tools", text: "Under a custom brand, dark mode kept drawing the policy-card header in the default green while light mode wore the brand's colour. Light mode builds that header from the brand variables, but the dark rules hard-coded the muted greens - for the card header gradient, the matrix header, the selection bar and toast, and the page glow. Those are now brand-overridable variables (pchead-a, pchead-b, panel-deep, hero-glow) with the greens as fallbacks, so an unbranded deployment is pixel-identical and a branded dark mode finally matches its light mode." },
