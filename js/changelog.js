@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25205, date: "2026-08-25", title: "Next was answering two different questions at once",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "A new era sits between Now and Next: IN BETA TODAY, running on the beta channel and not yet in production. \ud83d\udcd0 CIS Benchmark, \ud83d\udc33 Self-hosting with Docker and \ud83c\udf74 Fork detection move into it \u2014 the three cards already carrying that chip. Next keeps what is planned or partially done." },
+      { kind: "improved", tool: "Roadmap", text: "They were answering two different questions from one list. R01 and R06 are running today and can be opened on this site right now; R12 and R13 are ideas with nothing behind them yet. Separated only by a small chip, the difference was easy to miss \u2014 and a reader on the beta channel could not tell which entries they were already able to use. Mixing them makes every row in the list worth less." },
+      { kind: "improved", tool: "Roadmap", text: "The new era's timeline dot is filled, because these exist, and deliberately not green, because green means production throughout this map. When one of the three graduates its card moves to Now with the build it went live in, exactly as before: this is a waiting room, not a second home for shipped work." },
+    ],
+  },
+  {
     build: 25204, date: "2026-08-25", title: "Two more blocks that collected all their slack on one side",
     items: [
       { kind: "fixed", tool: "All tools", text: "The Help page and the roadmap timeline sat hard against the left of the content column, so every pixel the column did not use piled up down the right. Both are centred now, and both keep their measure \u2014 920px and 820px are reading widths, so it is the block that moves to the middle, not the text that gets wider. A longer line is not more information." },

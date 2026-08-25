@@ -10,27 +10,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com https://enca.limon-it.nl; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25204"></script>
+<script src="js/popup-guard.js?v=25205"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25204" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25204">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25205" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25205">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25204"></script>
+<script src="js/selfhost-boot.js?v=25205"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25204"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25204"></script>
+<script src="js/counter.js?v=25205"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25205"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25204" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25205" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -66,7 +66,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25204" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25205" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1286,14 +1286,8 @@
             <p class="mini" style="margin:6px 0 0"><b>Three things are deliberately not numbered:</b> ❓ Help, 📋 What's new and 🗺 Roadmap. They are the app describing itself rather than tools that read a tenant, report on it or write to it — which is also why they carry no version. They go by name, and that is written down so nobody later "fixes" the gap by numbering them and shifting everything.</p>
           </div>
         </div>
-        <div class="rm-era future">
-          <h3>Next <span class="rm-when">being worked toward</span></h3>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R36</span> <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Joey Verlinden baseline as a first-class baseline</a> <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Today <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Baseline (Joey Verlinden)</a> only compares: it tells you which of his 36 policies a tenant has and what differs. Everything else the bundled baseline gets — <b>group checks, group creation, persona checks, restricted-AU creation and placement</b> — stops at the CloudFellows catalog. The plan is parity: pick a baseline, and every tool downstream works against the one you picked.</p>
-            <p class="mini" style="margin:6px 0 0">Plus <b>fetch the latest release</b> from <a href="https://github.com/j0eyv/ConditionalAccessBaseline" target="_blank" rel="noopener noreferrer">github.com/j0eyv/ConditionalAccessBaseline</a> rather than shipping a transcription. The catalog here is a hand-checked snapshot pinned at commit <code>38469a4</code>, release 2026.6.1 — accurate the day it was written and stale the day he pushes. Reading <code>Config/ConditionalAccess</code> live means the tool tracks his repo instead of our copy of it, and can say which commit it read.</p>
-            <p class="mini" style="margin:6px 0 0"><b>Three things make this more than plumbing.</b> His <b>exclusion groups are named after the policy</b> — “&lt;policy name&gt; - Exclude” — not by CA number, and every routing decision in ⑥ Protect, ＋ Bulk add and the RMAU baseline reads a CA number out of a group name. That machinery needs a per-baseline naming contract — <span class="rm-ref">R28</span> now solves the tenant half of it with a per-tenant mapping, and the same shape (one function deciding, an exact match, the unmapped left visible) is what a per-baseline contract has to take. His <b>personas differ</b> — Global / Admins / Internals / ServiceAccounts / Guests / Agents — and do not map onto our CA ranges at all (his CA300 block is service accounts, not externals), so the persona vaults are per-baseline too, not a rename of ours. And a <b>live fetch is a trust boundary</b>: unauthenticated GitHub is rate-limited, a repo can move or a release can be malformed, so the bundled snapshot has to stay as the fallback and the tool must say which of the two it is using rather than failing quietly to the old one.</p>
-          </div>
+        <div class="rm-era beta">
+          <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
@@ -1305,16 +1299,25 @@
             <p class="mini" style="margin:6px 0 0"><b>First cut shipped:</b> a published image — <code>ghcr.io/nurejev/enca</code>, nginx over these files, built by CI from <code>main</code> (<code>:latest</code>) and the beta channel (<code>:beta</code>) — plus a <code>docker compose</code> example, <b>one-command install scripts for Mac and Windows</b> that check Docker, pull, run and open the browser, and a <b>Deploy to Azure button</b> that stands up an Azure Container App with scale-to-zero, so an idle instance costs close to nothing. SELF-HOSTING.md in the repo ties it together and leads with the one step nothing can automate: the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, and it is the step that produces the confusing sign-in error when missed. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. A self-hosted instance also gets its <b>own branding</b> without forking — the ⚙ gear next to Sign out — and its own roadmap: the <b>Self-hosted</b> section below, where the SQLite idea above now lives as <span class="rm-ref">S01</span>.</p>
           </div>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R15</span> 🍴 Fork detection and update-from-upstream <span class="tag ok">in beta today</span></h4>
+            <p class="mini" style="margin:0">A high-assurance tenant is encouraged to fork, review and serve its own pinned copy — and the moment it does, it stops hearing about fixes. <b>Now shipped:</b> the app notices it is running as a fork (its origin is not the canonical host and the build it carries is older than upstream), says so plainly in a strip under the header, and shows what has changed since the pinned build — the What's-new headline of every build between here and there — with the commands to update a Docker instance and to pull <code>main</code> in and re-review the diff. The point is not auto-updating, which would defeat the reason for forking; it is making <b>“you are 14 builds behind, and here is what those builds changed”</b> impossible to miss. If upstream cannot be read — offline, air-gapped, a hardened CSP — it says nothing rather than something wrong. Pairs with <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a> and the security document's fork-review-pin guidance.</p>
+          </div>
+        </div>
+        <div class="rm-era future">
+          <h3>Next <span class="rm-when">being worked toward</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R36</span> <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Joey Verlinden baseline as a first-class baseline</a> <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Today <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Baseline (Joey Verlinden)</a> only compares: it tells you which of his 36 policies a tenant has and what differs. Everything else the bundled baseline gets — <b>group checks, group creation, persona checks, restricted-AU creation and placement</b> — stops at the CloudFellows catalog. The plan is parity: pick a baseline, and every tool downstream works against the one you picked.</p>
+            <p class="mini" style="margin:6px 0 0">Plus <b>fetch the latest release</b> from <a href="https://github.com/j0eyv/ConditionalAccessBaseline" target="_blank" rel="noopener noreferrer">github.com/j0eyv/ConditionalAccessBaseline</a> rather than shipping a transcription. The catalog here is a hand-checked snapshot pinned at commit <code>38469a4</code>, release 2026.6.1 — accurate the day it was written and stale the day he pushes. Reading <code>Config/ConditionalAccess</code> live means the tool tracks his repo instead of our copy of it, and can say which commit it read.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Three things make this more than plumbing.</b> His <b>exclusion groups are named after the policy</b> — “&lt;policy name&gt; - Exclude” — not by CA number, and every routing decision in ⑥ Protect, ＋ Bulk add and the RMAU baseline reads a CA number out of a group name. That machinery needs a per-baseline naming contract — <span class="rm-ref">R28</span> now solves the tenant half of it with a per-tenant mapping, and the same shape (one function deciding, an exact match, the unmapped left visible) is what a per-baseline contract has to take. His <b>personas differ</b> — Global / Admins / Internals / ServiceAccounts / Guests / Agents — and do not map onto our CA ranges at all (his CA300 block is service accounts, not externals), so the persona vaults are per-baseline too, not a rename of ours. And a <b>live fetch is a trust boundary</b>: unauthenticated GitHub is rate-limited, a repo can move or a release can be malformed, so the bundled snapshot has to stay as the fallback and the tool must say which of the two it is using rather than failing quietly to the old one.</p>
+          </div>
+          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R12</span> ↩️ Undo for writes <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Every write tool already produces a change report of exactly what it did. Make it replayable in reverse: one action that puts back the state before the run, with the same typed-confirmation discipline as the original write. It lowers the cost of every write tool already shipped, and it is the natural safety net under <i>Editable Conditional Access policies</i> further down this map.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R13</span> 🔐 Improve security <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R15</span> 🍴 Fork detection and update-from-upstream <span class="tag ok">in beta today</span></h4>
-            <p class="mini" style="margin:0">A high-assurance tenant is encouraged to fork, review and serve its own pinned copy — and the moment it does, it stops hearing about fixes. <b>Now shipped:</b> the app notices it is running as a fork (its origin is not the canonical host and the build it carries is older than upstream), says so plainly in a strip under the header, and shows what has changed since the pinned build — the What's-new headline of every build between here and there — with the commands to update a Docker instance and to pull <code>main</code> in and re-review the diff. The point is not auto-updating, which would defeat the reason for forking; it is making <b>“you are 14 builds behind, and here is what those builds changed”</b> impossible to miss. If upstream cannot be read — offline, air-gapped, a hardened CSP — it says nothing rather than something wrong. Pairs with <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a> and the security document's fork-review-pin guidance.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R16</span> 🔓 Revoke permissions when done <span class="tag ok">partially done</span></h4>
@@ -2591,54 +2594,54 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25204"></script>
-<script src="js/selfhost.js?v=25204"></script>
-<script src="js/version.js?v=25204"></script>
-<script src="js/fork.js?v=25204"></script>
-<script src="js/promote.js?v=25204"></script>
-<script src="js/authConfig.js?v=25204"></script>
-<script src="js/labels.js?v=25204"></script>
-<script src="js/graph.js?v=25204"></script>
-<script src="js/model.js?v=25204"></script>
-<script src="js/render.js?v=25204"></script>
-<script src="js/analyze.js?v=25204"></script>
-<script src="js/whatif.js?v=25204"></script>
-<script src="js/mslearn.js?v=25204"></script>
-<script src="js/gapcheck.js?v=25204"></script>
-<script src="js/cisdata.js?v=25204"></script>
-<script src="js/cischeck.js?v=25204"></script>
-<script src="js/exclusions.js?v=25204"></script>
-<script src="js/validator.js?v=25204"></script>
-<script src="js/whatifeval.js?v=25204"></script>
-<script src="js/compare.js?v=25204"></script>
-<script src="js/groupuse.js?v=25204"></script>
-<script src="js/iso3166.js?v=25204"></script>
-<script src="js/locations.js?v=25204"></script>
-<script src="js/authcontexts.js?v=25204"></script>
-<script src="js/authstrengths.js?v=25204"></script>
-<script src="js/recycle.js?v=25204"></script>
-<script src="js/rmau.js?v=25204"></script>
-<script src="js/camap.js?v=25204"></script>
-<script src="js/rmaudoc.js?v=25204"></script>
-<script src="js/termsofuse.js?v=25204"></script>
-<script src="js/audit.js?v=25204"></script>
-<script src="js/drift.js?v=25204"></script>
-<script src="js/guide.js?v=25204"></script>
-<script src="js/userimpact.js?v=25204"></script>
-<script src="js/devcheck.js?v=25204"></script>
-<script src="js/licgap.js?v=25204"></script>
-<script src="js/signins.js?v=25204"></script>
-<script src="js/reportimpact.js?v=25204"></script>
-<script src="js/changelog.js?v=25204"></script>
-<script src="js/baselineData.js?v=25204"></script>
-<script src="js/baselineJoeyData.js?v=25204"></script>
-<script src="js/baseline.js?v=25204"></script>
-<script src="js/groupTemplates.js?v=25204"></script>
-<script src="js/assign.js?v=25204"></script>
-<script src="js/cagroups.js?v=25204"></script>
-<script src="js/import.js?v=25204"></script>
-<script src="js/export.js?v=25204"></script>
-<script src="js/demo.js?v=25204"></script>
-<script src="js/app.js?v=25204"></script>
+<script src="js/branding.js?v=25205"></script>
+<script src="js/selfhost.js?v=25205"></script>
+<script src="js/version.js?v=25205"></script>
+<script src="js/fork.js?v=25205"></script>
+<script src="js/promote.js?v=25205"></script>
+<script src="js/authConfig.js?v=25205"></script>
+<script src="js/labels.js?v=25205"></script>
+<script src="js/graph.js?v=25205"></script>
+<script src="js/model.js?v=25205"></script>
+<script src="js/render.js?v=25205"></script>
+<script src="js/analyze.js?v=25205"></script>
+<script src="js/whatif.js?v=25205"></script>
+<script src="js/mslearn.js?v=25205"></script>
+<script src="js/gapcheck.js?v=25205"></script>
+<script src="js/cisdata.js?v=25205"></script>
+<script src="js/cischeck.js?v=25205"></script>
+<script src="js/exclusions.js?v=25205"></script>
+<script src="js/validator.js?v=25205"></script>
+<script src="js/whatifeval.js?v=25205"></script>
+<script src="js/compare.js?v=25205"></script>
+<script src="js/groupuse.js?v=25205"></script>
+<script src="js/iso3166.js?v=25205"></script>
+<script src="js/locations.js?v=25205"></script>
+<script src="js/authcontexts.js?v=25205"></script>
+<script src="js/authstrengths.js?v=25205"></script>
+<script src="js/recycle.js?v=25205"></script>
+<script src="js/rmau.js?v=25205"></script>
+<script src="js/camap.js?v=25205"></script>
+<script src="js/rmaudoc.js?v=25205"></script>
+<script src="js/termsofuse.js?v=25205"></script>
+<script src="js/audit.js?v=25205"></script>
+<script src="js/drift.js?v=25205"></script>
+<script src="js/guide.js?v=25205"></script>
+<script src="js/userimpact.js?v=25205"></script>
+<script src="js/devcheck.js?v=25205"></script>
+<script src="js/licgap.js?v=25205"></script>
+<script src="js/signins.js?v=25205"></script>
+<script src="js/reportimpact.js?v=25205"></script>
+<script src="js/changelog.js?v=25205"></script>
+<script src="js/baselineData.js?v=25205"></script>
+<script src="js/baselineJoeyData.js?v=25205"></script>
+<script src="js/baseline.js?v=25205"></script>
+<script src="js/groupTemplates.js?v=25205"></script>
+<script src="js/assign.js?v=25205"></script>
+<script src="js/cagroups.js?v=25205"></script>
+<script src="js/import.js?v=25205"></script>
+<script src="js/export.js?v=25205"></script>
+<script src="js/demo.js?v=25205"></script>
+<script src="js/app.js?v=25205"></script>
 </body>
 </html>

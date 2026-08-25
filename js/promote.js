@@ -87,6 +87,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 98,
+      title: "\ud83d\uddfa The roadmap separates what is running from what is planned",
+      tools: ["Roadmap"],
+      builds: [25205],
+      risk: "low",
+      what: "A new era, In beta today, between Now and Next. R01 CIS Benchmark, R06 Self-hosting with Docker and R15 Fork detection move into it \u2014 the three cards already carrying the in-beta-today chip. Next keeps R36, R12, R13 and R16, which are planned or partially done. The era marker is filled, because these exist, but not green, because green is production.",
+      why: "Next mixed two different kinds of answer to the question a roadmap is asked. R01 and R06 are running today and can be opened on this site; R12 and R13 are ideas with nothing behind them yet. Reading them in one list, a chip apart, makes every row in it worth less \u2014 and a reader on the beta channel could not tell which entries they were already able to use.",
+      test: [
+        "Roadmap: the eras read Now, In beta today, Next, Self-hosted, Later, On the horizon, in that order.",
+        "In beta today holds exactly R01, R06 and R15, each still showing its own chip.",
+        "Next holds R36, R12, R13 and R16 - and none of them says in beta today.",
+        "No card is missing from the roadmap and none appears twice; the Shipped-before section is untouched.",
+        "The timeline dot for the new era is filled and distinct from Next's hollow one, in both light and dark mode.",
+        "When one of the three graduates, its card moves to Now with a production build number - the new era must not become a second place for shipped work.",
+      ],
+      files: ["index.html", "css/app.css"],
+    },
+    {
       n: 97,
       title: "\u2753 Help and \ud83d\uddfa Roadmap sat against the left of the column",
       tools: ["All tools"],

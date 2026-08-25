@@ -1302,6 +1302,9 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .rm-era::before{content:"";position:absolute;left:-27px;top:3px;width:12px;height:12px;border-radius:50%;
   background:var(--green);border:3px solid var(--surface);box-shadow:0 0 0 2px var(--green)}
 .rm-era.future::before{background:var(--surface);box-shadow:0 0 0 2px var(--green)}
+/* Between Now and Next: real and running, but on the other channel. Solid,
+   because it exists — and not green, because green is production. */
+.rm-era.beta::before{background:var(--lemon);box-shadow:0 0 0 2px var(--green)}
 .rm-era.far::before{box-shadow:0 0 0 2px var(--border)}
 .rm-era h3{margin:0 0 8px;font-size:15px}
 /* Roadmap reference. Monospaced and quiet: it is a handle for pointing at an
