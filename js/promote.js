@@ -87,6 +87,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 97,
+      title: "\u2753 Help and \ud83d\uddfa Roadmap sat against the left of the column",
+      tools: ["All tools"],
+      builds: [25204],
+      risk: "low",
+      what: "Two capped blocks inside main are centred: the Help page (920px reading measure) and the roadmap timeline (820px). Both keep their measure \u2014 it is the block that moves, not the text that gets wider. Found by sweeping every rule in the stylesheet with a max-width over 600px and checking which lacked auto margins; the rest of what that sweep returned is correct as it stands, and the note in the stylesheet says which and why.",
+      why: "A capped block inside main collects every unused pixel on ONE side, so the page reads as pushed left. This is not new and not the sidebar's doing \u2014 main is 1180 in production while these are 920 and 820, so production has roughly 260px of dead space down the right of the Help page today. The sidebar only made it obvious by widening the column to 1500.",
+      test: [
+        "Help screen: the heading, the tool chips and the promotion table sit in the middle of the column, with the same free space either side (discounting the rail).",
+        "Roadmap screen: the timeline is centred rather than hard against the left.",
+        "Both keep their line length - the text does not stretch to fill 1500px, because a longer line is not more readable.",
+        "Collapse and expand the sidebar on both screens: they stay centred at each width.",
+        "The tool intro card at the top of any tool screen is unchanged - it fills the column as before.",
+        "Prose inside a card (MS Learn detail, the readme paragraph) still starts at the card's left edge and is NOT centred - centring body text inside a card would be wrong.",
+        "Open any modal: still centred by its backdrop, unaffected.",
+        "Below 1240px, where the sidebar is hidden, everything returns to one centred column.",
+      ],
+      files: ["css/app.css"],
+    },
+    {
       n: 96,
       title: "📌 Side navigation — TUNO's console sidebar, ported",
       tools: ["All tools"],

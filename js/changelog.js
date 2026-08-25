@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25204, date: "2026-08-25", title: "Two more blocks that collected all their slack on one side",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The Help page and the roadmap timeline sat hard against the left of the content column, so every pixel the column did not use piled up down the right. Both are centred now, and both keep their measure \u2014 920px and 820px are reading widths, so it is the block that moves to the middle, not the text that gets wider. A longer line is not more information." },
+      { kind: "improved", tool: "All tools", text: "Found by sweep rather than by waiting for the next screenshot: every rule in the stylesheet with a max-width over 600px, checked for whether it centres. The rest of what that returned is right as it stands and the stylesheet now says so \u2014 modals are centred by their backdrop's flexbox, the tool intro card fills the column deliberately, and a paragraph measure inside a card must start at the card's edge, because centring body text inside a card is a different mistake." },
+      { kind: "improved", tool: "All tools", text: "This was never the sidebar's doing. Main is 1180px in production while these blocks are 920 and 820, so the dead strip down the right of the Help page has been there all along; widening the column to 1500 beside the rail only made it impossible to miss." },
+    ],
+  },
+  {
     build: 25203, date: "2026-08-25", title: "The page was centred; the thing inside it was not",
     items: [
       { kind: "fixed", tool: "All tools", text: "The home grid kept the 1180px cap it was given before the sidebar existed, while main widened to 1500px to make room beside the rail. So the section headings and the tiles sat against the left of the column and every pixel of slack collected on the right \u2014 the whole page read as pushed left, even though main itself centres correctly in both rail states. The block is centred in the column now, headings and tiles moving together." },

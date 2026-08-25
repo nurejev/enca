@@ -626,7 +626,13 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
    scrolls (avoids the padding-gap / see-through problem) */
 /* Help is a normal tool screen now — main provides width and padding;
    help-page just keeps the prose column readable */
-.help-page{max-width:920px}
+/* A capped block inside main has to be centred, or every pixel main does not
+   use collects on ONE side and the page reads as pushed left. 920px is a
+   reading measure and stays one; it is the block that moves to the middle,
+   not the text that gets wider. Same for the roadmap timeline below. This was
+   always true — main is 1180 and these are 920 and 820 — and the sidebar only
+   made it obvious by widening the column to 1500. */
+.help-page{max-width:920px;margin-inline:auto}
 /* sticky, scroll-spying table of contents — jump to any section, and the chip
    for the section you're reading stays highlighted */
 .help-toc{display:flex;flex-wrap:wrap;gap:6px;margin:0 -8px 14px;padding:10px 8px;
@@ -1289,7 +1295,7 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .ri-progbar{height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--green-deep),var(--green));transition:width .4s ease}
 
 /* ---- Roadmap timeline: a line running from Now into the future ---- */
-.rm-tl{position:relative;padding-left:30px;max-width:820px}
+.rm-tl{position:relative;padding-left:30px;max-width:820px;margin-inline:auto}
 .rm-tl::before{content:"";position:absolute;left:9px;top:8px;bottom:26px;width:3px;border-radius:2px;
   background:linear-gradient(180deg,var(--green) 0%,var(--green) 18%,var(--border) 100%)}
 .rm-era{position:relative;margin:0 0 20px}
