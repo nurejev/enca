@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25203, date: "2026-08-25", title: "The page was centred; the thing inside it was not",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The home grid kept the 1180px cap it was given before the sidebar existed, while main widened to 1500px to make room beside the rail. So the section headings and the tiles sat against the left of the column and every pixel of slack collected on the right \u2014 the whole page read as pushed left, even though main itself centres correctly in both rail states. The block is centred in the column now, headings and tiles moving together." },
+      { kind: "improved", tool: "All tools", text: "Centred rather than widened, deliberately. Letting the grid fill 1500px produces five columns of minmax(250px, 1fr), and a collapsed section shows four tiles \u2014 so every collapsed section would render four tiles in a five-wide row with a hole where the fifth belongs. Four across is the contract the collapse is built on, and it keeps its measure." },
+      { kind: "fixed", tool: "All tools", text: "The footer sits outside main and was still centred on the viewport rather than on the content column, so with a sidebar present it drifted left of everything above it by half the rail. It follows the same offset as main now, in both rail states, and the narrow breakpoint releases all of it together when the sidebar goes." },
+    ],
+  },
+  {
     build: 25202, date: "2026-08-25", title: "The sidebar arrives: every tool on the left, from anywhere",
     items: [
       { kind: "new", tool: "All tools", text: "A side navigation, ported from TUNO: once signed in, every tool sits in a fixed sidebar on the left, grouped exactly as on the home grid, reachable from any screen. The tab bar stays and the two do different jobs - the sidebar is where you CAN go, the tabs are what you HAVE open. The active entry follows the active tab, so the two can never disagree about where you are." },

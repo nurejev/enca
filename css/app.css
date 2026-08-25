@@ -1500,6 +1500,20 @@ body.with-side .toolnav-inner > :last-child{margin-right:0}
    more readable, it is less */
 body.with-side .readme{max-width:none}
 body.with-side .readme p{max-width:1100px}
+/* The home grid kept the pre-sidebar 1180px cap while main widened to 1500,
+   so the headings and the tiles sat against the left of the column and every
+   pixel of slack collected on the right — the page read as pushed left even
+   though main itself is centred correctly in both rail states.
+   CENTRED, NOT WIDENED. Letting the grid fill 1500px gives five columns of
+   minmax(250px,1fr), and a collapsed section shows HOME_VISIBLE = 4 tiles —
+   so every collapsed section would render four tiles in a five-wide row with
+   a hole where the fifth belongs. The block keeps its four-column measure and
+   is centred in the column instead, headings and tiles moving together.
+   The footer sits outside main and was centred on the viewport rather than on
+   the content, so it drifted left of the column by half the rail. */
+body.with-side #screen-home{max-width:1180px;margin-inline:auto}
+body.with-side .fwrap{max-width:1500px;margin-left:max(264px, calc((100vw - 1260px)/2));margin-right:0}
+body.with-side.side-min .fwrap{margin-left:max(76px, calc((100vw - 1444px)/2))}
 /* ---- collapsed rail ----
    The « toggle folds the sidebar to a 56px icon rail; every button already
    carries the full label as its title, so hover shows the name natively —
@@ -1533,5 +1547,8 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 @media (max-width:1240px){
   .sidenav{display:none !important}
   body.with-side main,body.with-side.side-min main{margin:0 auto;padding:28px 24px 80px}
+  /* the sidebar is gone here, so nothing is offset past it any more */
+  body.with-side .fwrap,body.with-side.side-min .fwrap{max-width:1180px;margin:0 auto}
+  body.with-side #screen-home{max-width:none}
   body.with-side .toolnav-inner,body.with-side.side-min .toolnav-inner{padding:0 24px}
 }
