@@ -87,6 +87,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 96,
+      title: "📌 Side navigation — TUNO's console sidebar, ported",
+      tools: ["All tools"],
+      builds: [25202],
+      risk: "low",
+      what: "The signed-in shell gets TUNO's fixed left sidebar: every tool grouped as on the home grid (built by walking the grid, never a second copy of the list), an Overview entry, active state driven by the tab bar's own activeTab, a chevron that folds it to a 56px icon rail with hover-peek, and the collapsed state remembered in guarded localStorage (enca.sideCollapsed). The content column widens to a 1500px cap beside the rail and centres in the remainder in both rail states; the tab strip's left edge follows the content. Hidden below 1240px and on the sign-in screen. New aside in index.html, one CSS block, and a JS block between the tab bar and the tile handlers.",
+      why: "Layout and navigation chrome only - no Graph call, no policy read or write changed. The mechanism is lifted from TUNO where it has soaked since build 10380 (rail 10387, remainder-centring 10389, peek 10391). The thing to watch is ENCA-specific: 35 sidebar entries against TUNO's 17, so the expanded list is the first to test on short viewports, and the home-grid walker assumes every .tool tile's id is in TOOL_TABS.",
+      test: [
+        "Sign in (or open the demo): the sidebar appears left with five group headings matching the home grid's sections, every tile present, Overview highlighted while on the home grid. Before sign-in: no sidebar, the login card stays centred.",
+        "Open a tool from a tile, another from the sidebar, a third from the + menu: each opens a tab AND highlights its own sidebar entry; closing the active tab moves both highlights together. The sidebar and the tab bar must never disagree.",
+        "Click the chevron: the rail folds to icons, section headings become divider lines, the content column shifts by under ~90px rather than relayouting. Hover the rail: after a beat it peeks open as an overlay over the content; picking a tool folds it back. Reload: the collapsed state survives.",
+        "On a 1080px-tall window, expanded: the sidebar scrolls to reach Help at the bottom and the last entries are not cut off unreachable - ENCA has 35 entries where TUNO has 17, so this is the check TUNO's soak did not cover.",
+        "Narrow the window below 1240px: the sidebar disappears entirely, the shell returns to the centred 1180px column, and every tool stays reachable through the tab bar's + and the home grid.",
+        "Sign out: sidebar gone, body.with-side gone, login card centred. Sign back in: it returns rebuilt.",
+      ],
+      files: ["index.html", "js/app.js", "css/app.css"],
+    },
+    {
       n: 93,
       title: "🍴 Fork detection and update-from-upstream (R15)",
       tools: ["All tools"],

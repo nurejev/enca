@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25202, date: "2026-08-25", title: "The sidebar arrives: every tool on the left, from anywhere",
+    items: [
+      { kind: "new", tool: "All tools", text: "A side navigation, ported from TUNO: once signed in, every tool sits in a fixed sidebar on the left, grouped exactly as on the home grid, reachable from any screen. The tab bar stays and the two do different jobs - the sidebar is where you CAN go, the tabs are what you HAVE open. The active entry follows the active tab, so the two can never disagree about where you are." },
+      { kind: "new", tool: "All tools", text: "The chevron at the top folds the sidebar to a 56px icon rail; hovering the rail peeks it open as an overlay, and picking a tool folds it back. The collapsed state survives a refresh the same guarded-localStorage way the theme does. The content column centres in whatever space the rail leaves, so collapsing reads as a rail folding, not a page relayout." },
+      { kind: "improved", tool: "All tools", text: "The signed-in shell widens from 1180px to a 1500px cap beside the sidebar - the header and the tab strip follow the content column. Below 1240px the sidebar goes and the shell returns to the centred column: the tab bar and the home grid keep every tool reachable, so the sidebar is a convenience, never the only door. The sign-in screen keeps its centred card and none of this exists before authentication." },
+    ],
+  },
+  {
     build: 25201, date: "2026-08-24", title: "Items 90, 91, 94 and 95 reached production 297 — and 92 and 93 stayed behind on purpose",
     items: [
       { kind: "improved", tool: "All tools", text: "Queue items 90 (the action bar hiding under the toolbar), 91 (the host string leaving the header), 94 (the self-host branding gear, S02) and 95 (the per-audience demo retired from the repository) are live in production build 297. Removed from the queue; the numbers are retired rather than reused. productionBuild moves to v1.0.297." },

@@ -977,6 +977,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .selbar, :root:not([data-theme="light"]):not([data-theme="dark"]) .toast{background:var(--panel-deep,#0d1a12);border:1px solid var(--border)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .exp-ic.md{background:#4a5450}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-btn.home.active{color:var(--green-deep)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .sidenav button.active{color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x{color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn:hover,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x:hover{background:rgba(0,0,0,.12);color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .fs-bg{background:rgba(0,0,0,.62)}
@@ -1452,3 +1453,85 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 /* Licence gap — the seats-vs-targeted coverage bar */
 .lg-bar{height:14px;border-radius:7px;background:var(--soft);border:1px solid var(--border);overflow:hidden;margin-top:4px}
 .lg-bar>div{height:100%;border-radius:7px 0 0 7px;transition:width .3s}
+
+/* ---- side navigation shell (ported from TUNO, builds 10380/10387/10389/10391) ----
+   The console layout: a fixed sidebar with every tool on the left, the
+   working screen beside it, and a wider content column because 1180px was
+   sized for a shell with nothing next to it. body.with-side is set at
+   sign-in and removed at sign-out, so the sign-in screen keeps its centred
+   card and none of this exists before authentication.
+
+   The sidebar starts BELOW the sticky chrome — top is --sticky-nav (header
+   plus tab bar, kept current by syncStickyTops()), so the tab bar never draws
+   across it and the sidebar never hides under it.
+
+   ONE WIDTH FOR EVERYTHING: moving between screens must not change the app's
+   size, and it does not — every signed-in screen shares the same sidebar and
+   the same content column, capped at 1500px because a longer line is not more
+   information, it is less readable information. */
+.sidenav{position:fixed;left:0;top:var(--sticky-nav,58px);bottom:0;width:240px;overflow-y:auto;z-index:40;
+  background:var(--surface);border-right:1px solid var(--border);padding:12px 10px 24px}
+.sidenav h4{margin:16px 10px 4px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.sidenav h4:first-of-type{margin-top:12px}
+.sidenav button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);cursor:pointer;
+  font:inherit;font-size:13px;font-weight:600;padding:7px 10px;border-radius:8px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidenav button:hover{background:var(--soft)}
+.sidenav button.active{background:var(--green);color:#fff}
+:root[data-theme="dark"] .sidenav button.active{color:var(--green-deep)}
+/* CENTRED IN THE REMAINDER, both sidebar states. Left-anchoring the column
+   beside the sidebar meant collapsing the rail slid the whole page 188px
+   left and the right side gaped — the collapse read as a relayout instead of
+   a rail folding. The column centres in whatever space the rail leaves,
+   clamped so it can never slide under it:
+   left = max(rail + 24px, (100vw − 1500 + rail)/2). Expanded and collapsed
+   land within ~90px of each other on any monitor, which reads as the same
+   page with a narrower rail — visually the same, which is the point. */
+body.with-side main{max-width:1500px;margin:0 auto;margin-left:max(264px, calc((100vw - 1260px)/2));padding:28px 32px 80px}
+body.with-side .hwrap{max-width:none}
+/* the tab strip starts where the content starts, not under the sidebar —
+   and the auto-margin centring trick must come off or the tabs float to the
+   middle of the now-uncapped bar */
+body.with-side .toolnav-inner{max-width:none;padding:0 24px;padding-left:max(264px, calc((100vw - 1260px)/2))}
+body.with-side .toolnav-inner > :first-child{margin-left:0}
+body.with-side .toolnav-inner > :last-child{margin-right:0}
+/* the tool intro cards match their neighbours in the wider column; the
+   PARAGRAPH inside keeps a measure, because a 1500px line of text is not
+   more readable, it is less */
+body.with-side .readme{max-width:none}
+body.with-side .readme p{max-width:1100px}
+/* ---- collapsed rail ----
+   The « toggle folds the sidebar to a 56px icon rail; every button already
+   carries the full label as its title, so hover shows the name natively —
+   a CSS tooltip inside this overflow:auto column would clip at the edge.
+   Section headings become divider lines: the grouping stays visible even
+   when its words do not. All of it scoped under with-side so none of it
+   exists on the sign-in screen. */
+.sidenav .sn-ic{display:inline-block;width:22px;text-align:center;margin-right:6px}
+.sn-toggle{display:block;width:100%;text-align:right;border:0;background:none;color:var(--muted);cursor:pointer;
+  font:inherit;font-size:15px;font-weight:700;padding:2px 10px 6px;border-radius:8px}
+.sn-toggle:hover{background:var(--soft);color:var(--ink)}
+/* The PEEK: hovering the collapsed rail expands it AS AN OVERLAY — the
+   content does not move, the rail floats over it at full width, and picking
+   a tool collapses it again. That is why every collapsed rule below carries
+   :not(.peek): a peeked rail renders exactly like the expanded one, just on
+   top instead of beside. */
+body.with-side.side-min .sidenav:not(.peek){width:56px;padding:12px 6px 24px}
+body.with-side.side-min .sidenav:not(.peek) h4{height:0;overflow:hidden;padding:0;margin:10px 8px;border-top:1px solid var(--border)}
+body.with-side.side-min .sidenav:not(.peek) .sn-txt{display:none}
+body.with-side.side-min .sidenav:not(.peek) button{text-align:center;padding:7px 0}
+body.with-side.side-min .sidenav:not(.peek) .sn-ic{margin:0;width:100%}
+body.with-side.side-min .sidenav:not(.peek) .sn-toggle{text-align:center;padding:2px 0 6px}
+body.with-side.side-min .sidenav.peek{width:240px;z-index:60;box-shadow:6px 0 24px rgba(0,0,0,.16)}
+body.with-side.side-min main{margin-left:max(76px, calc((100vw - 1444px)/2))}
+body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444px)/2))}
+
+/* Below the stylesheet's existing narrow breakpoint the sidebar would eat a
+   third of the screen: it goes, and the shell returns to the centred column.
+   The tab bar and the home grid keep every tool reachable — the sidebar is a
+   convenience, never the only door. */
+@media (max-width:1240px){
+  .sidenav{display:none !important}
+  body.with-side main,body.with-side.side-min main{margin:0 auto;padding:28px 24px 80px}
+  body.with-side .toolnav-inner,body.with-side.side-min .toolnav-inner{padding:0 24px}
+}

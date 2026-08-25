@@ -1473,6 +1473,7 @@
       $("avatar").textContent = (account?.name || account?.username || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
       $("tenantBox").style.display = "flex";
     $("homeBtn").style.display = "inline-flex";
+      showSideNav();
       selected = new Set();
       policiesReadAt = Date.now();
       refreshViews();
@@ -1515,6 +1516,7 @@
     $("avatar").textContent = "DM";
     $("tenantBox").style.display = "flex";
     $("homeBtn").style.display = "inline-flex";
+    showSideNav();
     refreshViews();
     renderPermissions();
     show("screen-home");
@@ -1821,6 +1823,9 @@
     $("toolNav").innerHTML = `<div class="toolnav-inner">${home}${tabs}${add}${closeAll}${help}</div>`;
     // the bar only appears once a tool is open (empty at the tools home)
     $("toolNav").style.display = openTabs.length ? "block" : "none";
+    renderSideActive();   // the sidebar highlights whatever the tabs say is active
+    // showing/hiding the bar changes the sticky stack the sidebar hangs from
+    (window.requestAnimationFrame || setTimeout)(syncStickyTops);
     // keep the tab you're on visible when the strip overflows
     const act = $("toolNav").querySelector(".toolnav-tab.active, .toolnav-btn.home.active");
     if (act && act.scrollIntoView) act.scrollIntoView({ inline: "nearest", block: "nearest" });
@@ -1885,6 +1890,99 @@
     else { activeTab = null; }
     renderTabs();
   }
+
+  // ---------- side navigation (ported from TUNO, builds 10380/10387/10391) ----------
+  // The sidebar is the console's map: every tool, grouped exactly as on the
+  // home grid, reachable from anywhere once signed in. The tab bar stays and
+  // the two do different jobs — the sidebar is where you CAN go, the tabs are
+  // what you HAVE open.
+  //
+  // It is built by WALKING THE HOME GRID (section heading, then tile ids, in
+  // document order), so there is no second copy of the grouping to fall out of
+  // step when a tool is added. But the LABELS come from the tool list via
+  // labelFor() — the same rule the tabs follow — because scraping tile
+  // headings would drag the NEW/BETA tag text into every label.
+  // Collapsed: an icon rail, names on hover. The state survives a refresh the
+  // same guarded-localStorage way the theme does — private mode throws, and a
+  // browser that cannot remember simply opens expanded.
+  const SIDE_KEY = "enca.sideCollapsed";
+  const sideStored = () => { try { return localStorage.getItem(SIDE_KEY) === "1"; } catch { return false; } };
+  function setSideCollapsed(on) {
+    document.body.classList.toggle("side-min", !!on);
+    $("sideNav") && $("sideNav").classList.remove("peek");
+    try { on ? localStorage.setItem(SIDE_KEY, "1") : localStorage.removeItem(SIDE_KEY); } catch { /* private mode */ }
+    const t = $("sideToggle");
+    if (t) { t.textContent = on ? "»" : "«"; t.title = on ? "Expand the sidebar" : "Collapse the sidebar — icons stay, names appear on hover"; }
+    syncStickyTops();
+  }
+  function renderSideNav() {
+    const secs = [];
+    let cur = null;
+    document.querySelectorAll("#screen-home .tool-sec, #screen-home .tool").forEach((el) => {
+      if (el.classList.contains("tool-sec")) {
+        const h = el.querySelector("h3");
+        cur = { title: h ? h.textContent : "", ids: [] };
+        secs.push(cur);
+      } else if (cur && el.id) cur.ids.push(el.id);
+    });
+    // Every label is "<emoji> <name>" from the tool list; the split lets the
+    // collapsed rail keep the icon and drop the text. The FULL label rides
+    // every button as its title, so the collapsed rail's hover names cost
+    // nothing and clip nowhere — a CSS tooltip inside an overflow:auto
+    // sidebar would be cut off at the edge, which is why it is native.
+    const item = (id) => {
+      const label = labelFor(id);
+      const sp = label.indexOf(" ");
+      const [ic, txt] = sp > 0 ? [label.slice(0, sp), label.slice(sp + 1)] : ["·", label];
+      return `<button data-nav="${id}" id="side-${id}" title="${esc(label)}"><span class="sn-ic">${esc(ic)}</span><span class="sn-txt">${esc(txt)}</span></button>`;
+    };
+    $("sideNav").innerHTML =
+      `<button class="sn-toggle" id="sideToggle" data-navtoggle>«</button>` +
+      `<button data-navhome id="side-home" title="🏠 Overview"><span class="sn-ic">🏠</span><span class="sn-txt">Overview</span></button>` +
+      secs.map((s) => `<h4 title="${esc(s.title)}">${esc(s.title)}</h4>` + s.ids.map(item).join("")).join("");
+    setSideCollapsed(sideStored());
+    renderSideActive();
+  }
+  // Active state follows the tabs' own truth (activeTab, set by crumb), so the
+  // sidebar and the tab bar can never disagree about where you are.
+  function renderSideActive() {
+    const nav = $("sideNav"); if (!nav) return;
+    nav.querySelectorAll("button.active").forEach((b) => b.classList.remove("active"));
+    const on = activeTab ? nav.querySelector("#side-" + activeTab) : nav.querySelector("#side-home");
+    if (on) on.classList.add("active");
+  }
+  // Shown at sign-in (real or demo), hidden at sign-out — the sign-in screen
+  // keeps its centred card and none of the console shell exists before auth.
+  function showSideNav() {
+    renderSideNav();
+    $("sideNav").style.display = "";
+    document.body.classList.add("with-side");
+  }
+  function hideSideNav() {
+    $("sideNav").style.display = "none";
+    document.body.classList.remove("with-side");
+  }
+  $("sideNav").addEventListener("click", (e) => {
+    if (e.target.closest("[data-navtoggle]")) { setSideCollapsed(!document.body.classList.contains("side-min")); return; }
+    // picking a destination while peeked collapses the rail again — the
+    // peek is a glance, not a state change
+    if (e.target.closest("[data-navhome]")) { $("sideNav").classList.remove("peek"); crumb(""); show("screen-home"); return; }
+    const b = e.target.closest("[data-nav]");
+    if (b) { $("sideNav").classList.remove("peek"); $(b.dataset.nav).click(); }   // the tile's own handler: crumb, screen, setup
+  });
+  // The peek: hovering the collapsed rail expands it as an overlay; leaving
+  // closes it. The 120ms delay keeps a cursor merely passing on its way to
+  // the content from flaring the rail open.
+  let peekTimer = null;
+  $("sideNav").addEventListener("mouseenter", () => {
+    if (!document.body.classList.contains("side-min")) return;
+    peekTimer = setTimeout(() => $("sideNav").classList.add("peek"), 120);
+  });
+  $("sideNav").addEventListener("mouseleave", () => {
+    clearTimeout(peekTimer);
+    $("sideNav").classList.remove("peek");
+  });
+
   $("homeBtn").addEventListener("click", () => { crumb(""); show("screen-home"); });
   // logo returns to the tools overview when signed in (does nothing on login)
   $("logoHome").addEventListener("click", () => { if (policies.length) { crumb(""); show("screen-home"); } });
@@ -14081,6 +14179,7 @@ max@contoso.com,"Global, DevOps"</pre>
     $("tenantBox").style.display = "none";
     $("homeBtn").style.display = "none";
     $("toolNav").style.display = "none";
+    hideSideNav();
     policies = []; selected.clear();
     // Back to the neutral look — the next person at this browser may not be
     // the same audience.
