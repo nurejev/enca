@@ -10,27 +10,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com https://enca.limon-it.nl; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=298"></script>
+<script src="js/popup-guard.js?v=299"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=298" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=298">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=299" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=299">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=298"></script>
+<script src="js/selfhost-boot.js?v=299"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=298"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=298"></script>
+<script src="js/counter.js?v=299"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=299"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=298" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=299" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -66,7 +66,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=298" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=299" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -108,6 +108,18 @@
          Clear UPDATED at the start of the next cycle — a stale flag takes a slot
          from something that genuinely changed. -->
     <h2 class="home-title">What do you want to do? <span class="home-count" id="homeCount"></span></h2>
+    <!-- TEMPORARY TOOLS — tools that exist for a dated migration or retirement.
+         Each one names the date it stops mattering, and the section is removed
+         once its last date has passed. Deliberately FIRST on the page: a
+         deadline-driven tool that sits below the fold is a tool that gets
+         opened after the deadline. -->
+    <div class="tool-sec"><h3>⏳ Temporary tools</h3><p>Deadline-driven tools for a dated migration or retirement. Each one names the date it stops mattering — and leaves once that date has passed.</p></div>
+    <div class="tools">
+      <div class="tool" id="toolSmsVoice">
+        <div class="tool-ic">📵</div><h3>SMS &amp; voice retirement <span class="tag new">BETA</span></h3>
+        <p>Microsoft retires its SMS and voice MFA delivery on <b>1 February 2027</b> — and from <b>1 September 2026</b> everyone still enabled for them is auto-enabled for passkeys and nudged at sign-in. Who is still in the SMS/Voice policy scope, who actually has a phone method registered, and who would be <b>locked out</b> — with Markdown and CSV export.</p>
+      </div>
+    </div>
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
     <div class="tools">
       <div class="tool" id="toolUserImpact">
@@ -1102,6 +1114,19 @@
     <div id="uiBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ SMS / VOICE RETIREMENT (T33 — temporary tool) ============ -->
+  <section id="screen-smsvoice" class="screen">
+    <div class="list-card readme" id="svHead" style="margin-top:0"></div>
+    <div class="toolbar" id="svToolbar" style="margin-top:14px">
+      <div class="tb-actions">
+        <button class="btn primary" id="svRun" style="display:none">⟳ Rescan</button>
+        <button class="btn" id="svMd">Export MD</button>
+        <button class="btn" id="svCsv">Export CSV</button>
+      </div>
+    </div>
+    <div id="svBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ COMPLIANT-DEVICE REALITY CHECK (R11) ============ -->
   <section id="screen-devcheck" class="screen">
     <div class="list-card readme" id="dvHead" style="margin-top:0"></div>
@@ -1242,7 +1267,7 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R33</span> 🔢 Tool reference numbers, in order of introduction <span class="tag grant">live · build 287</span></h4>
             <p class="mini" style="margin:0">The roadmap items carry <span class="rm-ref">Rnn</span> references so one can be pointed at without quoting its title; the tools went by name and emoji, which drift — tools get renamed, retitled and, once 🇳🇱 <span class="rm-ref">R26</span> lands, translated, at which point every English note about a tool stops being findable. Each tool now carries a permanent <b>T-number</b>, shown in the tile corner and in the tool's own header beside the per-tool version, and searchable in the ⌨️ command palette: type <code>T07</code>, or just <code>7</code>, and you land on 📘 MS Learn checks.</p>
             <p class="mini" style="margin:6px 0 0"><b>T01–T31 were reconstructed from git</b>, not assigned by preference: the first commit that put each tile in <code>index.html</code>, ordered by commit time, with tools that arrived together ordered as they were written into the page. That makes the order a fact about the repository — checkable rather than arguable — and it puts 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup at T01–T04, which is the day this app existed at all.</p>
-            <p class="mini" style="margin:6px 0 0"><b>Never reused</b> — not when a tool is retired, not when it is folded into another, because a recycled number makes every older note about it wrong, which is the exact failure the number exists to prevent. A new tool takes the next free number (32 next) in the same commit that adds its tile, alongside the changelog entry and the promotion-queue row.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Never reused</b> — not when a tool is retired, not when it is folded into another, because a recycled number makes every older note about it wrong, which is the exact failure the number exists to prevent. A new tool takes the next free number (34 next) in the same commit that adds its tile, alongside the changelog entry and the promotion-queue row.</p>
             <p class="mini" style="margin:6px 0 0"><b>Three things are deliberately not numbered:</b> ❓ Help, 📋 What's new and 🗺 Roadmap. They are the app describing itself rather than tools that read a tenant, report on it or write to it — which is also why they carry no version. They go by name, and that is written down so nobody later "fixes" the gap by numbering them and shifting everything.</p>
           </div>
         </div>
@@ -2516,50 +2541,51 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=298"></script>
-<script src="js/selfhost.js?v=298"></script>
-<script src="js/version.js?v=298"></script>
-<script src="js/fork.js?v=298"></script>
-<script src="js/authConfig.js?v=298"></script>
-<script src="js/labels.js?v=298"></script>
-<script src="js/graph.js?v=298"></script>
-<script src="js/model.js?v=298"></script>
-<script src="js/render.js?v=298"></script>
-<script src="js/analyze.js?v=298"></script>
-<script src="js/whatif.js?v=298"></script>
-<script src="js/mslearn.js?v=298"></script>
-<script src="js/gapcheck.js?v=298"></script>
-<script src="js/exclusions.js?v=298"></script>
-<script src="js/validator.js?v=298"></script>
-<script src="js/whatifeval.js?v=298"></script>
-<script src="js/compare.js?v=298"></script>
-<script src="js/groupuse.js?v=298"></script>
-<script src="js/iso3166.js?v=298"></script>
-<script src="js/locations.js?v=298"></script>
-<script src="js/authcontexts.js?v=298"></script>
-<script src="js/authstrengths.js?v=298"></script>
-<script src="js/recycle.js?v=298"></script>
-<script src="js/rmau.js?v=298"></script>
-<script src="js/camap.js?v=298"></script>
-<script src="js/rmaudoc.js?v=298"></script>
-<script src="js/termsofuse.js?v=298"></script>
-<script src="js/audit.js?v=298"></script>
-<script src="js/drift.js?v=298"></script>
-<script src="js/userimpact.js?v=298"></script>
-<script src="js/devcheck.js?v=298"></script>
-<script src="js/licgap.js?v=298"></script>
-<script src="js/signins.js?v=298"></script>
-<script src="js/reportimpact.js?v=298"></script>
-<script src="js/changelog.js?v=298"></script>
-<script src="js/baselineData.js?v=298"></script>
-<script src="js/baselineJoeyData.js?v=298"></script>
-<script src="js/baseline.js?v=298"></script>
-<script src="js/groupTemplates.js?v=298"></script>
-<script src="js/assign.js?v=298"></script>
-<script src="js/cagroups.js?v=298"></script>
-<script src="js/import.js?v=298"></script>
-<script src="js/export.js?v=298"></script>
-<script src="js/demo.js?v=298"></script>
-<script src="js/app.js?v=298"></script>
+<script src="js/branding.js?v=299"></script>
+<script src="js/selfhost.js?v=299"></script>
+<script src="js/version.js?v=299"></script>
+<script src="js/fork.js?v=299"></script>
+<script src="js/authConfig.js?v=299"></script>
+<script src="js/labels.js?v=299"></script>
+<script src="js/graph.js?v=299"></script>
+<script src="js/model.js?v=299"></script>
+<script src="js/render.js?v=299"></script>
+<script src="js/analyze.js?v=299"></script>
+<script src="js/whatif.js?v=299"></script>
+<script src="js/mslearn.js?v=299"></script>
+<script src="js/gapcheck.js?v=299"></script>
+<script src="js/exclusions.js?v=299"></script>
+<script src="js/validator.js?v=299"></script>
+<script src="js/whatifeval.js?v=299"></script>
+<script src="js/compare.js?v=299"></script>
+<script src="js/groupuse.js?v=299"></script>
+<script src="js/iso3166.js?v=299"></script>
+<script src="js/locations.js?v=299"></script>
+<script src="js/authcontexts.js?v=299"></script>
+<script src="js/authstrengths.js?v=299"></script>
+<script src="js/recycle.js?v=299"></script>
+<script src="js/rmau.js?v=299"></script>
+<script src="js/camap.js?v=299"></script>
+<script src="js/rmaudoc.js?v=299"></script>
+<script src="js/termsofuse.js?v=299"></script>
+<script src="js/audit.js?v=299"></script>
+<script src="js/drift.js?v=299"></script>
+<script src="js/userimpact.js?v=299"></script>
+<script src="js/smsvoice.js?v=299"></script>
+<script src="js/devcheck.js?v=299"></script>
+<script src="js/licgap.js?v=299"></script>
+<script src="js/signins.js?v=299"></script>
+<script src="js/reportimpact.js?v=299"></script>
+<script src="js/changelog.js?v=299"></script>
+<script src="js/baselineData.js?v=299"></script>
+<script src="js/baselineJoeyData.js?v=299"></script>
+<script src="js/baseline.js?v=299"></script>
+<script src="js/groupTemplates.js?v=299"></script>
+<script src="js/assign.js?v=299"></script>
+<script src="js/cagroups.js?v=299"></script>
+<script src="js/import.js?v=299"></script>
+<script src="js/export.js?v=299"></script>
+<script src="js/demo.js?v=299"></script>
+<script src="js/app.js?v=299"></script>
 </body>
 </html>

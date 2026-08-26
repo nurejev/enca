@@ -103,7 +103,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-userimpact", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-userimpact", "screen-smsvoice", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -1697,6 +1697,7 @@
   // handler sets, so the active tab can be matched from crumb() regardless of
   // whether the tool was opened from the grid or a tab.
   const TOOL_TABS = [
+    ["toolSmsVoice", "📵 SMS & voice retirement"],
     ["toolPolicies", "🗂 List Policies"],
     ["toolDocument", "📄 Create documentation"],
     ["toolAnalyze", "🔍 Gap analyse"],
@@ -14463,6 +14464,333 @@ max@contoso.com,"Global, DevOps"</pre>
   $("expCancel").addEventListener("click", () => $("exportModal").classList.remove("open"));
   $("expGo").addEventListener("click", doExport);
 
+  // ---------- SMS / Voice retirement (T33 — temporary tool) ----------
+  // The analysis lives in js/smsvoice.js as pure functions; this wiring reads
+  // the sms and voice authenticationMethodConfigurations (base scopes cover
+  // it), expands the scope to actual users, and — when the session can get
+  // AuditLog.Read.All — joins the registration-details report so the verdict
+  // is about who actually USES a phone, not just who a policy names. Reads
+  // only; the registration consent is asked once, on the run click, and a
+  // refusal degrades the report to scope-only instead of killing the run.
+  let svRes = null, svBusy = false, svFilter = "";
+  const svProg = makeProgress("sv");
+  const SV_REG_READ = ["AuditLog.Read.All"];
+  const SV_GROUP_PAGES = 10;   // ~10k members per group
+  const SV_USER_PAGES = 25;    // ~25k rows for an all_users scope / registration report
+
+  const SV_DEMO = {
+    campaignState: "default", optOut: false,
+    sms: { state: "enabled", includeTargets: [{ targetType: "group", id: "g-legacy" }] },
+    voice: { state: "disabled" },
+    names: { "g-legacy": "Legacy MFA users" },
+    members: { "g-legacy": [
+      { id: "u1", upn: "maria@contoso.com", name: "Maria Jansen", enabled: true },
+      { id: "u2", upn: "pieter@contoso.com", name: "Pieter de Vries", enabled: true },
+      { id: "u3", upn: "fatima@contoso.com", name: "Fatima el Amrani", enabled: true },
+      { id: "u4", upn: "svc-scanner@contoso.com", name: "Scanner service account", enabled: false },
+    ] },
+    reg: {
+      u1: { methods: ["mobilePhone"], defaultMethod: "mobilePhone" },
+      u2: { methods: ["mobilePhone", "microsoftAuthenticatorPush"], defaultMethod: "microsoftAuthenticatorPush" },
+      u3: { methods: ["passKeyDeviceBound", "microsoftAuthenticatorPush"], defaultMethod: "passKeyDeviceBound" },
+      u4: { methods: [], defaultMethod: "" },
+    },
+  };
+
+  async function svExpandGroup(id, nameOf) {
+    const out = [];
+    let next = `/groups/${id}/transitiveMembers/microsoft.graph.user?$select=id,displayName,userPrincipalName,accountEnabled&$top=999`, pages = 0;
+    while (next && pages < SV_GROUP_PAGES) {
+      const j = await Graph.gget(next);
+      for (const m of j.value || []) out.push({ id: m.id, upn: m.userPrincipalName || m.id, name: m.displayName || "", enabled: m.accountEnabled !== false });
+      next = j["@odata.nextLink"] || null;
+      pages++;
+    }
+    return { members: out, capped: !!next, label: nameOf(id) };
+  }
+
+  async function svRun() {
+    if (svBusy) return;
+    svBusy = true;
+    $("svRun").style.display = "none";
+    svProg.start(0, "users", "step");
+    $("svBody").innerHTML = svProg.panel("Reading the SMS and voice authentication method policies…",
+      "Policy scope first, then the members behind it, then — with your consent — the registration report that says who actually has a phone method registered. Reads only, nothing is written.");
+    try {
+      let ctx;
+      if (isDemo) {
+        const scope = (cfg) => cfg.state === "enabled" ? SmsVoice.parseScope(cfg) : null;
+        const smsScope = scope(SV_DEMO.sms), voiceScope = scope(SV_DEMO.voice);
+        const users = SV_DEMO.members["g-legacy"].map((u) => ({ ...u, via: ["group Legacy MFA users"], inSms: true, inVoice: false }));
+        ctx = { campaignState: SV_DEMO.campaignState, optOut: SV_DEMO.optOut,
+          sms: { state: SV_DEMO.sms.state, scope: smsScope }, voice: { state: SV_DEMO.voice.state, scope: voiceScope },
+          names: SV_DEMO.names, users, usersPartial: false, reg: SV_DEMO.reg, regPartial: false };
+      } else {
+        // Ask for the registration scope NOW, while the click gesture is
+        // fresh — a refusal is an answer, not an error: the run continues
+        // and the report says the registration half was not read.
+        const regOk = await preConsent([...AUTH_CONFIG.scopes, ...SV_REG_READ]);
+        const txt = (m) => { const t = $("svPgTxt"); if (t) t.textContent = m; };
+
+        txt("📵 Reading the authentication methods policy…");
+        const authPolicy = await Graph.gget("/policies/authenticationMethodsPolicy");
+        const regEnf = authPolicy.registrationEnforcement || {};
+        const campaign = regEnf.authenticationMethodsRegistrationCampaign || {};
+        const optOut = (authPolicy.optOutSettings && typeof authPolicy.optOutSettings.passkeyDynamicMigration === "boolean")
+          ? authPolicy.optOutSettings.passkeyDynamicMigration : null;
+        const smsCfg = await Graph.gget("/policies/authenticationMethodsPolicy/authenticationMethodConfigurations/sms");
+        const voiceCfg = await Graph.gget("/policies/authenticationMethodsPolicy/authenticationMethodConfigurations/voice");
+        const smsScope = smsCfg.state === "enabled" ? SmsVoice.parseScope(smsCfg) : null;
+        const voiceScope = voiceCfg.state === "enabled" ? SmsVoice.parseScope(voiceCfg) : null;
+
+        // Names for every id the scope mentions — the report must never
+        // speak in GUIDs when the directory knows better.
+        const names = {};
+        const gids = [...new Set([smsScope, voiceScope].filter(Boolean)
+          .flatMap((s) => [...s.includeGroups, ...s.excludeGroups, ...s.includeUsers, ...s.excludeUsers]))];
+        for (let i = 0; i < gids.length; i += 900) {
+          try {
+            const j = await Graph.gpost("/directoryObjects/getByIds", { ids: gids.slice(i, i + 900), types: ["group", "user"] });
+            for (const o of j.value || []) names[o.id] = o.displayName || o.userPrincipalName || o.id;
+          } catch { /* names stay GUIDs — the verdicts still hold */ }
+        }
+        const nameOf = (id) => names[id] || id;
+
+        // The union of every include group across both policies, expanded
+        // once; exclusion groups expanded to id-sets so a per-policy exclude
+        // really removes the members, not just the group object.
+        const incGroups = [...new Set([smsScope, voiceScope].filter(Boolean).flatMap((s) => s.includeGroups))];
+        const excGroups = [...new Set([smsScope, voiceScope].filter(Boolean).flatMap((s) => s.excludeGroups))];
+        const members = {}, exclIds = {};
+        let usersPartial = false;
+        svProg.start(incGroups.length + excGroups.length || 1, "members", "group");
+        let mDone = 0, mCount = 0;
+        for (const id of incGroups) {
+          txt(`👥 ${nameOf(id)}…`);
+          try {
+            const r = await svExpandGroup(id, nameOf);
+            members[id] = r.members;
+            if (r.capped) usersPartial = true;
+            mCount += r.members.length;
+          } catch { members[id] = null; usersPartial = true; }   // unreadable ≠ empty
+          svProg.tick(mCount, ++mDone);
+        }
+        for (const id of excGroups) {
+          txt(`🚫 ${nameOf(id)}…`);
+          try { exclIds[id] = new Set((await svExpandGroup(id, nameOf)).members.map((m) => m.id)); }
+          catch { exclIds[id] = new Set(); }   // an unreadable exclude excludes nobody we can prove
+          svProg.tick(mCount, ++mDone);
+        }
+
+        // Registration report — the difference between "the policy names
+        // them" and "they actually sign in with a phone".
+        let reg = null, regPartial = false;
+        if (regOk) {
+          try {
+            svProg.start(SV_USER_PAGES, "users", "page");
+            $("svBody").innerHTML = svProg.panel("Reading the registration report — who actually has which methods registered…",
+              "reports/authenticationMethods/userRegistrationDetails, read page by page. On a very large tenant the read is capped and says so.");
+            reg = {};
+            let next = "/reports/authenticationMethods/userRegistrationDetails?$top=999", pages = 0, n = 0;
+            while (next && pages < SV_USER_PAGES) {
+              const j = await Graph.gget(next);
+              for (const u of j.value || []) {
+                reg[u.id] = { methods: u.methodsRegistered || [],
+                  defaultMethod: u.userPreferredMethodForSecondaryAuthentication || u.defaultMfaMethod || "",
+                  upn: u.userPrincipalName || u.id, name: u.userDisplayName || "" };
+                n++;
+              }
+              next = j["@odata.nextLink"] || null;
+              svProg.tick(n, ++pages);
+            }
+            regPartial = !!next;
+          } catch { reg = null; }   // no licence / no role — scope-only report
+        }
+
+        // The user list. all_users on either policy means the whole tenant:
+        // the registration report IS that list when it was readable (it has a
+        // row per user); otherwise the directory is paged with a cap.
+        const anyAll = (smsScope && smsScope.isAllUsers) || (voiceScope && voiceScope.isAllUsers);
+        const base = new Map();   // id → { id, upn, name, enabled, via:Set }
+        const add = (u, via) => {
+          let r = base.get(u.id);
+          if (!r) { r = { id: u.id, upn: u.upn, name: u.name, enabled: u.enabled, via: new Set() }; base.set(u.id, r); }
+          if (via) r.via.add(via);
+        };
+        if (anyAll) {
+          if (reg) {
+            for (const [id, r] of Object.entries(reg)) add({ id, upn: r.upn, name: r.name, enabled: undefined }, "all users");
+            if (regPartial) usersPartial = true;
+          } else {
+            svProg.start(SV_USER_PAGES, "users", "page");
+            $("svBody").innerHTML = svProg.panel("A policy is scoped to ALL USERS — reading the directory…",
+              "Registration data was not readable, so the user list comes from the directory itself, page by page and capped.");
+            let next = "/users?$select=id,displayName,userPrincipalName,accountEnabled&$top=999", pages = 0, n = 0;
+            while (next && pages < SV_USER_PAGES) {
+              const j = await Graph.gget(next);
+              for (const m of j.value || []) { add({ id: m.id, upn: m.userPrincipalName || m.id, name: m.displayName || "", enabled: m.accountEnabled !== false }, "all users"); n++; }
+              next = j["@odata.nextLink"] || null;
+              svProg.tick(n, ++pages);
+            }
+            if (next) usersPartial = true;
+          }
+        }
+        for (const gid of incGroups) for (const m of members[gid] || []) add(m, `group ${nameOf(gid)}`);
+        for (const scope of [smsScope, voiceScope]) if (scope)
+          for (const uid of scope.includeUsers) add({ id: uid, upn: nameOf(uid), name: names[uid] || "", enabled: undefined }, "direct");
+
+        // Enabled / disabled. The registration report has no accountEnabled,
+        // so a row built from it (the ALL USERS path) — and a direct user
+        // target — would show "?" in the Enabled column for every user. One
+        // paged $select read over /users fills the flag in; anything past the
+        // cap keeps its honest "?" rather than guessing.
+        if ([...base.values()].some((u) => u.enabled === undefined)) {
+          try {
+            txt("👤 Reading which accounts are enabled…");
+            const en = new Map();
+            let next = "/users?$select=id,accountEnabled&$top=999", pages = 0;
+            while (next && pages < SV_USER_PAGES) {
+              const j = await Graph.gget(next);
+              for (const m of j.value || []) en.set(m.id, m.accountEnabled !== false);
+              next = j["@odata.nextLink"] || null;
+              pages++;
+            }
+            for (const u of base.values()) if (u.enabled === undefined && en.has(u.id)) u.enabled = en.get(u.id);
+          } catch { /* the column keeps its ? — never guessed */ }
+        }
+
+        // Per-policy membership, each policy's own excludes honoured.
+        const inScope = (scope, u) => {
+          if (!scope) return false;
+          if (scope.excludeUsers.includes(u.id)) return false;
+          for (const g of scope.excludeGroups) if ((exclIds[g] || new Set()).has(u.id)) return false;
+          if (scope.isAllUsers) return true;
+          if (scope.includeUsers.includes(u.id)) return true;
+          return scope.includeGroups.some((g) => (members[g] || []).some((m) => m.id === u.id));
+        };
+        const users = [...base.values()]
+          .map((u) => ({ id: u.id, upn: u.upn, name: u.name, enabled: u.enabled, via: [...u.via],
+            inSms: inScope(smsScope, u), inVoice: inScope(voiceScope, u) }))
+          .filter((u) => u.inSms || u.inVoice);
+
+        ctx = { campaignState: campaign.state || "unknown", optOut,
+          sms: { state: smsCfg.state, scope: smsScope }, voice: { state: voiceCfg.state, scope: voiceScope },
+          names, users, usersPartial, reg, regPartial };
+      }
+      svRes = SmsVoice.analyze(ctx);
+      svFilter = "";
+    } catch (e) {
+      $("svBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the authentication method policies failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-svrun>▶ Try again</button></div></div>`;
+      svBusy = false;
+      return;
+    }
+    svBusy = false;
+    renderSmsVoice();
+  }
+
+  const SV_RISK = {
+    blocking: { cls: "block", word: "locked out Feb 1", icon: "⛔" },
+    migrate:  { cls: "new",   word: "migrate", icon: "📵" },
+    unknown:  { cls: "",      word: "unknown", icon: "❔" },
+    clean:    { cls: "",      word: "no phone method", icon: "➖" },
+    ready:    { cls: "ok",    word: "passkey-ready", icon: "✅" },
+  };
+  const svChip = (k) => `<span class="tag ${SV_RISK[k].cls}">${SV_RISK[k].icon} ${SV_RISK[k].word}</span>`;
+  const SV_TABLE_CAP = 500;
+
+  function renderSmsVoice() {
+    const d = SmsVoice.DATES;
+    const dN = SmsVoice.daysUntil(d.nudge.iso), dR = SmsVoice.daysUntil(d.retire.iso);
+    $("svHead").innerHTML = `<h3>📵 SMS &amp; voice retirement <span class="tag new">BETA</span> <span class="tag" title="This tool exists for one dated retirement and is removed once the date has passed">⏳ temporary tool</span></h3>
+      <p style="margin-bottom:4px">Microsoft-provided SMS and voice MFA delivery <b>retires on ${d.retire.label}</b>${dR >= 0 ? ` (in ${dR} days)` : ""} — and from <b>${d.nudge.label}</b>${dN >= 0 ? ` (in ${dN} day${dN === 1 ? "" : "s"})` : ""} every user still enabled for SMS or voice is auto-enabled for passkeys and nudged at sign-in. After ${d.retire.label} a user whose <b>only</b> MFA method is a phone number gets a <b>blocking</b> passkey-registration prompt — no opt-out. This tool reads the SMS and Voice policy scope the way <a href="https://github.com/microsoft/entra-sms-voice-usage-analyzer" target="_blank" rel="noopener">Microsoft's own script</a> does, then goes further: the actual users, and who really has a phone method registered.</p>
+      <p class="mini muted" style="margin:0">Reads only. Sources: <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement" target="_blank" rel="noopener">retirement notice</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement-faq" target="_blank" rel="noopener">FAQ</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/how-to-deploy-phishing-resistant-passwordless-authentication" target="_blank" rel="noopener">passkey deployment guide</a> · <a href="https://aka.ms/mfatemplates" target="_blank" rel="noopener">end-user communication templates</a></p>`;
+    $("svRun").style.display = svRes && !svBusy ? "" : "none";
+    if (svBusy) return;   // the run panel owns svBody until the read finishes
+
+    if (!svRes) {
+      $("svBody").innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-svrun>▶ Check the tenant</button>
+        <p class="mini muted">Reads the SMS and Voice authentication method policies and expands their scope to users (covered by the baseline scopes). Registration data — who actually has a phone method — needs AuditLog.Read.All, asked once on this click; declining it still produces the scope report.</p>
+      </div>`;
+      return;
+    }
+
+    const r = svRes, s = r.summary;
+    const st = (x) => x === "enabled" ? '<span class="tag block">Enabled</span>' : x === "disabled" ? '<span class="tag ok">Disabled</span>' : `<span class="tag">${esc(SmsVoice.stateWord(x))}</span>`;
+    const scopeList = (scope) => SmsVoice.parseScope && scope
+      ? `<ul class="mini" style="margin:2px 0 0;padding-left:18px">${
+          (scope.isAllUsers ? ['<li><b>Include: ALL USERS</b></li>'] : [])
+          .concat(scope.includeGroups.map((g) => `<li>Include group: ${esc(r.names[g] || g)}</li>`))
+          .concat(scope.includeUsers.map((u) => `<li>Include user: ${esc(r.names[u] || u)}</li>`))
+          .concat(scope.excludeGroups.map((g) => `<li style="color:var(--off)">Exclude group: ${esc(r.names[g] || g)}</li>`))
+          .concat(scope.excludeUsers.map((u) => `<li style="color:var(--off)">Exclude user: ${esc(r.names[u] || u)}</li>`)).join("")
+        }</ul>` : '<p class="mini muted" style="margin:2px 0 0">Policy disabled — no scope.</p>';
+
+    const verdict = !r.anyEnabled
+      ? `<p class="mini" style="margin:0"><span class="tag ok">✅ no action required</span> Both policies are <b>disabled</b> — no user in this tenant is enabled for Microsoft-provided SMS or voice. Nothing is auto-enabled on ${esc(d.nudge.label)} and nothing breaks on ${esc(d.retire.label)}.</p>`
+      : `<p class="mini" style="margin:0">📅 <b>${esc(d.nudge.label)}</b>${dN >= 0 ? ` — in <b>${dN} day${dN === 1 ? "" : "s"}</b>` : " — passed"}: the ${s.total.toLocaleString()} user${s.total === 1 ? "" : "s"} below ${s.total === 1 ? "is" : "are"} auto-enabled for passkeys, the registration campaign goes Microsoft-managed, and MFA sign-ins start nudging. To prevent it: move them out of the SMS/Voice scope first${r.optOut === true ? " (this tenant has the temporary opt-out SET — the Sep 1 enablement is delayed, the Feb 1 enforcement is not)" : r.optOut === false ? ", or set the temporary opt-out (passkeyDynamicMigration) via Graph" : ""}.<br>📅 <b>${esc(d.retire.label)}</b>${dR >= 0 ? ` — in <b>${dR} days</b>` : " — passed"}: Microsoft's SMS/voice delivery stops. ${r.regRead ? `<b>${s.blocking} user${s.blocking === 1 ? "" : "s"}</b> below ha${s.blocking === 1 ? "s" : "ve"} a phone as their <b>only</b> MFA method and would hit the blocking prompt.` : "Whether anyone is phone-only was not read."} A regulatory need for SMS/voice keeps working only through a customer-managed telecom provider from the Microsoft Security Store.</p>`;
+
+    const chips = [
+      ["", `SMS ${st((r.sms || {}).state)}`],
+      ["", `Voice ${st((r.voice || {}).state)}`],
+      ["", `Campaign <span class="tag">${esc(SmsVoice.campaignWord(r.campaignState))}</span>`],
+    ];
+    const filters = r.regRead ? ["blocking", "migrate", "ready", "clean", "unknown"] : [];
+    const counts = { blocking: s.blocking, migrate: s.migrate, ready: s.ready, clean: s.clean, unknown: s.unknown };
+    const shown = svFilter ? r.rows.filter((x) => x.risk === svFilter) : r.rows;
+    const yn = (v) => v === null ? "?" : v ? "yes" : "—";
+    const head = `<div class="list-card" style="padding:14px 16px">
+      ${verdict}
+      <p class="mini" style="margin:10px 0 0">${chips.map((c) => c[1]).join(" · ")} · ${s.total.toLocaleString()} user${s.total === 1 ? "" : "s"} in scope${r.usersPartial ? ' <span style="color:var(--off)">(read capped — partial)</span>' : ""}${r.regRead ? ` · ${s.phone.toLocaleString()} with a phone method registered${r.regPartial ? ' <span style="color:var(--off)">(registration read capped)</span>' : ""}` : ' · <span style="color:var(--off)">registration data not read — scope only</span>'}</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
+        <div style="flex:1;min-width:220px"><p class="mini" style="margin:0"><b>SMS scope</b> ${st((r.sms || {}).state)}</p>${scopeList((r.sms || {}).scope)}</div>
+        <div style="flex:1;min-width:220px"><p class="mini" style="margin:0"><b>Voice scope</b> ${st((r.voice || {}).state)}</p>${scopeList((r.voice || {}).scope)}</div>
+      </div>
+    </div>`;
+
+    const table = !r.rows.length ? "" : `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      ${filters.length ? `<p class="mini" style="margin:0 0 8px">${filters.map((k) => `<button class="btn${svFilter === k ? " primary" : ""}" data-svfilter="${k}" style="margin-right:6px">${SV_RISK[k].icon} ${SV_RISK[k].word} (${counts[k]})</button>`).join("")}${svFilter ? '<button class="btn" data-svfilter="">✕ All</button>' : ""}</p>` : ""}
+      <div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">User</th><th style="padding:4px 8px">Enabled</th><th style="padding:4px 8px">SMS</th><th style="padding:4px 8px">Voice</th><th style="padding:4px 8px">Via</th><th style="padding:4px 8px">SMS reg.</th><th style="padding:4px 8px">Voice reg.</th><th style="padding:4px 8px">Phishing-resistant</th><th style="padding:4px 8px">Verdict</th></tr></thead>
+        <tbody>${shown.slice(0, SV_TABLE_CAP).map((x) => `<tr style="border-top:1px solid var(--line)">
+          <td style="padding:4px 8px"><b>${esc(x.upn)}</b>${x.name ? `<br><span class="muted">${esc(x.name)}</span>` : ""}</td>
+          <td style="padding:4px 8px">${x.enabled === false ? '<span style="color:var(--off)">no</span>' : x.enabled === true ? "yes" : "?"}</td>
+          <td style="padding:4px 8px">${x.inSms ? "✓" : "—"}</td>
+          <td style="padding:4px 8px">${x.inVoice ? "✓" : "—"}</td>
+          <td style="padding:4px 8px">${esc((x.via || []).join("; "))}</td>
+          <td style="padding:4px 8px">${yn(x.sms)}</td>
+          <td style="padding:4px 8px">${yn(x.voice)}</td>
+          <td style="padding:4px 8px">${yn(x.pr)}</td>
+          <td style="padding:4px 8px">${svChip(x.risk)}</td>
+        </tr>`).join("")}</tbody>
+      </table></div>
+      ${shown.length > SV_TABLE_CAP ? `<p class="mini muted" style="margin:8px 0 0">Showing the first ${SV_TABLE_CAP} of ${shown.length.toLocaleString()} rows — the CSV export carries all of them.</p>` : ""}
+    </div>`;
+
+    const empty = r.anyEnabled && !r.rows.length
+      ? `<div class="list-card" style="padding:14px 16px;margin-top:12px"><p class="mini" style="margin:0">A policy is enabled but its scope resolved to <b>no users</b> — empty groups, or every member excluded. The ${esc(d.nudge.label)} auto-enablement has nobody to touch as long as that stays true.</p></div>` : "";
+
+    $("svBody").innerHTML = head + table + empty;
+  }
+
+  function openSmsVoice() { crumb("📵 SMS & voice retirement"); show("screen-smsvoice"); renderSmsVoice(); }
+  $("toolSmsVoice").addEventListener("click", openSmsVoice);
+  $("svRun").addEventListener("click", svRun);
+  $("svBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-svrun]")) { svRun(); return; }
+    const f = e.target.closest("[data-svfilter]");
+    if (f) { svFilter = f.dataset.svfilter || ""; renderSmsVoice(); }
+  });
+  $("svMd").addEventListener("click", () => {
+    if (!svRes) { toast("Run the check first — the report is the verdicts."); return; }
+    showReport("📵 SMS & voice retirement check", "CA-SmsVoiceRetirement", SmsVoice.toMd(svRes, { tenantName }));
+  });
+  $("svCsv").addEventListener("click", () => {
+    if (!svRes) { toast("Run the check first — the CSV is the user list."); return; }
+    if (!svRes.rows.length) { toast("No users in scope — there is nothing to export."); return; }
+    downloadText("CA-SmsVoiceRetirement", "csv", "text/csv", SmsVoice.toCsv(svRes));
+  });
+
   // ---------- boot ----------
   // Keep the user informed during a throttle back-off instead of looking hung.
   buildToolNav();
@@ -14477,7 +14805,7 @@ max@contoso.com,"Global, DevOps"</pre>
     siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
     drHead: "toolDrift", dvHead: "toolDevCheck", lgHead: "toolLicGap",
-    uiHead: "toolUserImpact",
+    uiHead: "toolUserImpact", svHead: "toolSmsVoice",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
