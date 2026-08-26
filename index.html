@@ -10,27 +10,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com https://enca.limon-it.nl; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25208"></script>
+<script src="js/popup-guard.js?v=25209"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25208" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25208">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25209" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25209">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25208"></script>
+<script src="js/selfhost-boot.js?v=25209"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25208"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25208"></script>
+<script src="js/counter.js?v=25209"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25209"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25208" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25209" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -66,7 +66,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25208" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25209" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1204,6 +1204,10 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+          <div class="list-card rm-card" data-shipped="25195">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R15</span> 🍴 Fork detection and update-from-upstream <span class="tag grant">live · beta 25195 · production 298</span></h4>
+            <p class="mini" style="margin:0">A high-assurance tenant is encouraged to fork, review and serve its own pinned copy — and the moment it does, it stops hearing about fixes. <b>Now shipped:</b> the app notices it is running as a fork (its origin is not the canonical host and the build it carries is older than upstream), says so plainly in a strip under the header, and shows what has changed since the pinned build — the What's-new headline of every build between here and there — with the commands to update a Docker instance and to pull <code>main</code> in and re-review the diff. The point is not auto-updating, which would defeat the reason for forking; it is making <b>“you are 14 builds behind, and here is what those builds changed”</b> impossible to miss. If upstream cannot be read — offline, air-gapped, a hardened CSP — it says nothing rather than something wrong. Pairs with <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a> and the security document's fork-review-pin guidance.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="25179">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R38</span> 🔁 Restore the exclusion group a policy has lost <span class="tag grant">live · beta 25179 · production 293</span></h4>
             <p class="mini" style="margin:0">The baseline gives most numbered policies their own exclusion group, and that reference is the first thing to go missing: a policy gets rebuilt, an older version is imported, somebody tidies an exclusion list, and the group is left in the directory with nothing pointing at it. Nothing notices — a policy that lost its exclusion group looks exactly like one that never had it, until the day the exception it existed for is needed and the bypass is not there.</p>
@@ -1322,10 +1326,6 @@
             <p class="mini" style="margin:0">ENCA is static files and a browser — no server, no database, nothing stored anywhere. That makes it trivially self-hostable, and some tenants will require it: a security tool that reads Conditional Access is exactly the kind of thing an organisation wants served from its own infrastructure rather than from someone else's GitHub Pages, whatever the code does.</p>
             <p class="mini" style="margin:6px 0 0"><b>And with a host of your own, somewhere to keep things.</b> Today nothing survives the tab closing, by design — there is no server to keep it on, so a Drift snapshot is a file you download and a report is a file you save. A self-hosted instance changes what is possible: an optional <b>SQLite</b> store alongside the container could hold drift snapshots, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having had to keep track of a JSON file. Strictly opt-in and self-hosted only — the hosted site keeps storing nothing, because "nothing is kept anywhere" is a promise worth more than the convenience. Tokens would stay out of it regardless: they belong in the browser session and nowhere else.</p>
             <p class="mini" style="margin:6px 0 0"><b>First cut shipped:</b> a published image — <code>ghcr.io/nurejev/enca</code>, nginx over these files, built by CI from <code>main</code> (<code>:latest</code>) and the beta channel (<code>:beta</code>) — plus a <code>docker compose</code> example, <b>one-command install scripts for Mac and Windows</b> that check Docker, pull, run and open the browser, and a <b>Deploy to Azure button</b> that stands up an Azure Container App with scale-to-zero, so an idle instance costs close to nothing. SELF-HOSTING.md in the repo ties it together and leads with the one step nothing can automate: the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, and it is the step that produces the confusing sign-in error when missed. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. A self-hosted instance also gets its <b>own branding</b> without forking — the ⚙ gear next to Sign out — and its own roadmap: the <b>Self-hosted</b> section below, where the SQLite idea above now lives as <span class="rm-ref">S01</span>.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R15</span> 🍴 Fork detection and update-from-upstream <span class="tag ok">in beta today</span></h4>
-            <p class="mini" style="margin:0">A high-assurance tenant is encouraged to fork, review and serve its own pinned copy — and the moment it does, it stops hearing about fixes. <b>Now shipped:</b> the app notices it is running as a fork (its origin is not the canonical host and the build it carries is older than upstream), says so plainly in a strip under the header, and shows what has changed since the pinned build — the What's-new headline of every build between here and there — with the commands to update a Docker instance and to pull <code>main</code> in and re-review the diff. The point is not auto-updating, which would defeat the reason for forking; it is making <b>“you are 14 builds behind, and here is what those builds changed”</b> impossible to miss. If upstream cannot be read — offline, air-gapped, a hardened CSP — it says nothing rather than something wrong. Pairs with <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a> and the security document's fork-review-pin guidance.</p>
           </div>
         </div>
         <div class="rm-era future">
@@ -2619,55 +2619,55 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25208"></script>
-<script src="js/selfhost.js?v=25208"></script>
-<script src="js/version.js?v=25208"></script>
-<script src="js/fork.js?v=25208"></script>
-<script src="js/promote.js?v=25208"></script>
-<script src="js/authConfig.js?v=25208"></script>
-<script src="js/labels.js?v=25208"></script>
-<script src="js/graph.js?v=25208"></script>
-<script src="js/model.js?v=25208"></script>
-<script src="js/render.js?v=25208"></script>
-<script src="js/analyze.js?v=25208"></script>
-<script src="js/whatif.js?v=25208"></script>
-<script src="js/mslearn.js?v=25208"></script>
-<script src="js/gapcheck.js?v=25208"></script>
-<script src="js/cisdata.js?v=25208"></script>
-<script src="js/cischeck.js?v=25208"></script>
-<script src="js/exclusions.js?v=25208"></script>
-<script src="js/validator.js?v=25208"></script>
-<script src="js/whatifeval.js?v=25208"></script>
-<script src="js/compare.js?v=25208"></script>
-<script src="js/groupuse.js?v=25208"></script>
-<script src="js/iso3166.js?v=25208"></script>
-<script src="js/locations.js?v=25208"></script>
-<script src="js/authcontexts.js?v=25208"></script>
-<script src="js/authstrengths.js?v=25208"></script>
-<script src="js/recycle.js?v=25208"></script>
-<script src="js/rmau.js?v=25208"></script>
-<script src="js/camap.js?v=25208"></script>
-<script src="js/rmaudoc.js?v=25208"></script>
-<script src="js/termsofuse.js?v=25208"></script>
-<script src="js/audit.js?v=25208"></script>
-<script src="js/drift.js?v=25208"></script>
-<script src="js/guide.js?v=25208"></script>
-<script src="js/userimpact.js?v=25208"></script>
-<script src="js/smsvoice.js?v=25208"></script>
-<script src="js/devcheck.js?v=25208"></script>
-<script src="js/licgap.js?v=25208"></script>
-<script src="js/signins.js?v=25208"></script>
-<script src="js/reportimpact.js?v=25208"></script>
-<script src="js/changelog.js?v=25208"></script>
-<script src="js/baselineData.js?v=25208"></script>
-<script src="js/baselineJoeyData.js?v=25208"></script>
-<script src="js/baseline.js?v=25208"></script>
-<script src="js/groupTemplates.js?v=25208"></script>
-<script src="js/assign.js?v=25208"></script>
-<script src="js/cagroups.js?v=25208"></script>
-<script src="js/import.js?v=25208"></script>
-<script src="js/export.js?v=25208"></script>
-<script src="js/demo.js?v=25208"></script>
-<script src="js/app.js?v=25208"></script>
+<script src="js/branding.js?v=25209"></script>
+<script src="js/selfhost.js?v=25209"></script>
+<script src="js/version.js?v=25209"></script>
+<script src="js/fork.js?v=25209"></script>
+<script src="js/promote.js?v=25209"></script>
+<script src="js/authConfig.js?v=25209"></script>
+<script src="js/labels.js?v=25209"></script>
+<script src="js/graph.js?v=25209"></script>
+<script src="js/model.js?v=25209"></script>
+<script src="js/render.js?v=25209"></script>
+<script src="js/analyze.js?v=25209"></script>
+<script src="js/whatif.js?v=25209"></script>
+<script src="js/mslearn.js?v=25209"></script>
+<script src="js/gapcheck.js?v=25209"></script>
+<script src="js/cisdata.js?v=25209"></script>
+<script src="js/cischeck.js?v=25209"></script>
+<script src="js/exclusions.js?v=25209"></script>
+<script src="js/validator.js?v=25209"></script>
+<script src="js/whatifeval.js?v=25209"></script>
+<script src="js/compare.js?v=25209"></script>
+<script src="js/groupuse.js?v=25209"></script>
+<script src="js/iso3166.js?v=25209"></script>
+<script src="js/locations.js?v=25209"></script>
+<script src="js/authcontexts.js?v=25209"></script>
+<script src="js/authstrengths.js?v=25209"></script>
+<script src="js/recycle.js?v=25209"></script>
+<script src="js/rmau.js?v=25209"></script>
+<script src="js/camap.js?v=25209"></script>
+<script src="js/rmaudoc.js?v=25209"></script>
+<script src="js/termsofuse.js?v=25209"></script>
+<script src="js/audit.js?v=25209"></script>
+<script src="js/drift.js?v=25209"></script>
+<script src="js/guide.js?v=25209"></script>
+<script src="js/userimpact.js?v=25209"></script>
+<script src="js/smsvoice.js?v=25209"></script>
+<script src="js/devcheck.js?v=25209"></script>
+<script src="js/licgap.js?v=25209"></script>
+<script src="js/signins.js?v=25209"></script>
+<script src="js/reportimpact.js?v=25209"></script>
+<script src="js/changelog.js?v=25209"></script>
+<script src="js/baselineData.js?v=25209"></script>
+<script src="js/baselineJoeyData.js?v=25209"></script>
+<script src="js/baseline.js?v=25209"></script>
+<script src="js/groupTemplates.js?v=25209"></script>
+<script src="js/assign.js?v=25209"></script>
+<script src="js/cagroups.js?v=25209"></script>
+<script src="js/import.js?v=25209"></script>
+<script src="js/export.js?v=25209"></script>
+<script src="js/demo.js?v=25209"></script>
+<script src="js/app.js?v=25209"></script>
 </body>
 </html>

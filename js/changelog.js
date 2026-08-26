@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25209, date: "2026-08-26", title: "Items 93, 96, 97 and 98 reached production 298",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Promoted to production as build 298: the side navigation with its tool numbers and collapsed rail (item 96, betas 25202, 25203 and 25206), fork detection with the update-from-upstream notice (item 93, beta 25195), the centred Help page and roadmap timeline (item 97, beta 25204), and the In beta today roadmap era (item 98, beta 25205). The four items leave the promotion queue and the production build the queue measures against is now v1.0.298." },
+      { kind: "improved", tool: "Roadmap", text: "R15 Fork detection graduates from In beta today to Now on both channels - live at beta 25195, production 298 - which is the new era doing exactly what it was built for: a waiting room, not a second home for shipped work. The era keeps R01 CIS Benchmark and R06 Self-hosting, which stay beta-only; self-hosting's packaging (item 92) stays behind in the queue on purpose, as does the SMS and voice retirement tool (item 99)." },
+    ],
+  },
+  {
     build: 25208, date: "2026-08-26", title: "A tool with an expiry date, in a section that says so",
     items: [
       { kind: "new", tool: "SMS & voice retirement", text: "T33, BETA, beta-site only, and openly TEMPORARY. Microsoft retires its own SMS and voice MFA delivery on 1 February 2027, and from 1 September 2026 every user still enabled for SMS or voice is auto-enabled for passkeys and nudged at sign-in; after the retirement a user whose ONLY MFA method is a phone number gets a BLOCKING passkey-registration prompt, with no opt-out. The tool reads the sms and voice authentication method configurations the way Microsoft's own Get-SmsVoicePolicyUsers.ps1 does — state, registration campaign, include and exclude targets resolved to names — and then goes further than the script: the scope is expanded to the actual users, and each one carries a verdict." },
