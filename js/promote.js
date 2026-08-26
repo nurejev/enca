@@ -83,29 +83,9 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.298",
+  productionBuild: "v1.0.299",
 
   items: [
-    {
-      n: 99,
-      title: "📵 SMS & voice retirement check (T33) + Temporary tools section",
-      tools: ["SMS & voice retirement"],
-      builds: [25208, 25210],
-      risk: "medium",
-      what: "New TEMPORARY tool T33 in a new Temporary tools section at the top of the home page. Reads the sms and voice authentication method configurations (scope, state, registration campaign, opt-out) the way Microsoft's Get-SmsVoicePolicyUsers.ps1 does, expands the scope to actual users (transitive group members, direct targets, ALL USERS via the registration report or a capped directory read), and joins the registration-details report (AuditLog.Read.All, asked on the run click, refusal degrades to scope-only) into a per-user verdict: phone-only (blocked after 1 Feb 2027), migrate, ready, clean. Countdown to 1 Sep 2026 and 1 Feb 2027, filter chips, Markdown and CSV export. New js/smsvoice.js (pure analysis), wiring block in app.js, tile + screen in index.html.",
-      why: "Reads only, but three of its reads are new to the app: authenticationMethodsPolicy, the per-method sms/voice configurations, and reports/authenticationMethods/userRegistrationDetails. The registration read needs AuditLog.Read.All and an Entra ID P1 licence, and the report shape differs between clouds — the degrade-to-scope-only path is the thing that must actually work. The tool is temporary by design: it and its section leave the app after 1 February 2027.",
-      test: [
-        "Tenant with SMS or voice enabled: the run lists the scope (groups by name, ALL USERS flagged), the user table fills, and the summary counts match the CSV row count.",
-        "Decline the AuditLog.Read.All consent on the run click: the run continues, the banner says registration data was not read, and every verdict reads unknown rather than clean.",
-        "Tenant with both policies disabled: green no-action banner, no user table, and the Markdown report says so too.",
-        "Tenant without Entra ID P1 (needs a tenant to hand - say so if skipped): the registration read fails soft and the run still delivers the scope report.",
-        "Export MD and CSV: the MD table caps at 3000 rows and says so; the CSV carries every row with the verdict column filled.",
-        "Demo mode (?demo=1): the run returns the four demo users with one of each verdict, no Graph call made.",
-        "Home page: the Temporary tools section is FIRST, holds only this tile, and the tile carries BETA and only-here chips; sidebar and Ctrl+K find the tool as T33.",
-        "ALL USERS tenant (25210): the Enabled column shows yes or no for the listed users, not a question mark - only users past the read cap may keep one.",
-      ],
-      files: ["index.html", "js/smsvoice.js", "js/app.js", "js/version.js", "js/changelog.js", "js/promote.js"],
-    },
     {
       n: 92,
       title: "🐳 Self-hosting package (R06)",

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25211, date: "2026-08-26", title: "Item 99 reached production 299",
+    items: [
+      { kind: "improved", tool: "SMS & voice retirement", text: "Promoted to production as build 299, one day after it was built: the Temporary tools section and the whole tool - policy scope read the way Microsoft's script reads it, the users behind it, the registration-report verdicts and the Enabled-column fix from 25210. The only-here chip comes off on this channel too, the tool is 1.0 now (a tool a customer can open is not a 0.x thing - the BETA chip is what still says proving itself), and the queue's production build is v1.0.299. Items 92, 34 and 24 stay behind." },
+    ],
+  },
+  {
     build: 25210, date: "2026-08-26", title: "The Enabled column stops answering with a question mark",
     items: [
       { kind: "fixed", tool: "SMS & voice retirement", text: "On an ALL USERS scope every row's Enabled column read as a question mark. The user list on that path comes from the registration-details report, which does not carry accountEnabled, and the tool refuses to guess - so it printed the honest unknown for twenty-five thousand rows at once, which is honest and useless. One paged read over the directory (id and accountEnabled only) now fills the flag in; a user past the read cap keeps the question mark, because past the cap unknown is still the truth. Direct user targets, which had the same gap, get the same fix." },
