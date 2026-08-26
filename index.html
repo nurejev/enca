@@ -7,30 +7,30 @@
      is not enforceable from a meta tag. frame-src allows MSAL's hidden iframe
      for silent token renewal; img-src data:/blob: is needed for PNG/PDF export
      and the tenant branding logo. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com https://enca.limon-it.nl; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=297"></script>
+<script src="js/popup-guard.js?v=298"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=297" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=297">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=298" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=298">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=297"></script>
+<script src="js/selfhost-boot.js?v=298"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=297"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=297"></script>
+<script src="js/counter.js?v=298"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=298"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=297" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=298" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -53,11 +53,20 @@
      Populated from the tool tiles at startup; shown once signed in. -->
 <nav class="toolnav" id="toolNav" style="display:none"></nav>
 
+<!-- Side navigation (ported from TUNO) — the console's map: every tool,
+     grouped as on the home grid, reachable from anywhere once signed in. The
+     tab bar stays and the two do different jobs: the sidebar is WHERE YOU CAN
+     GO, the tabs are WHAT YOU HAVE OPEN. Built at sign-in by app.js from the
+     home grid's own sections and tiles — never a second copy of the list.
+     Hidden below 1240px (the stylesheet's existing narrow breakpoint) and
+     on the sign-in screen. -->
+<aside class="sidenav" id="sideNav" style="display:none"></aside>
+
 <main>
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=297" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=298" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1130,6 +1139,10 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+          <div class="list-card rm-card" data-shipped="298">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R15</span> 🍴 Fork detection and update-from-upstream <span class="tag grant">live · build 298</span></h4>
+            <p class="mini" style="margin:0">A high-assurance tenant is encouraged to fork, review and serve its own pinned copy — and the moment it does, it stops hearing about fixes. <b>Now shipped:</b> the app notices it is running as a fork (its origin is not the canonical host and the build it carries is older than upstream), says so plainly in a strip under the header, and shows what has changed since the pinned build — the What's-new headline of every build between here and there — with the commands to update a Docker instance and to pull <code>main</code> in and re-review the diff. The point is not auto-updating, which would defeat the reason for forking; it is making <b>“you are 14 builds behind, and here is what those builds changed”</b> impossible to miss. If upstream cannot be read — offline, air-gapped, a hardened CSP — it says nothing rather than something wrong. Pairs with <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a> and the security document's fork-review-pin guidance.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="293">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R38</span> 🔁 Restore the exclusion group a policy has lost <span class="tag grant">live · build 293</span></h4>
             <p class="mini" style="margin:0">The baseline gives most numbered policies their own exclusion group, and that reference is the first thing to go missing: a policy gets rebuilt, an older version is imported, somebody tidies an exclusion list, and the group is left in the directory with nothing pointing at it. Nothing notices — a policy that lost its exclusion group looks exactly like one that never had it, until the day the exception it existed for is needed and the bypass is not there.</p>
@@ -1233,6 +1246,19 @@
             <p class="mini" style="margin:6px 0 0"><b>Three things are deliberately not numbered:</b> ❓ Help, 📋 What's new and 🗺 Roadmap. They are the app describing itself rather than tools that read a tenant, report on it or write to it — which is also why they carry no version. They go by name, and that is written down so nobody later "fixes" the gap by numbering them and shifting everything.</p>
           </div>
         </div>
+        <div class="rm-era beta">
+          <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> 📐 CIS Benchmark alignment <span class="tag ok">in beta today</span></h4>
+            <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R06</span> 🐳 Self-hosting with Docker <span class="tag ok">in beta today</span></h4>
+            <p class="mini" style="margin:0">ENCA is static files and a browser — no server, no database, nothing stored anywhere. That makes it trivially self-hostable, and some tenants will require it: a security tool that reads Conditional Access is exactly the kind of thing an organisation wants served from its own infrastructure rather than from someone else's GitHub Pages, whatever the code does.</p>
+            <p class="mini" style="margin:6px 0 0"><b>And with a host of your own, somewhere to keep things.</b> Today nothing survives the tab closing, by design — there is no server to keep it on, so a Drift snapshot is a file you download and a report is a file you save. A self-hosted instance changes what is possible: an optional <b>SQLite</b> store alongside the container could hold drift snapshots, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having had to keep track of a JSON file. Strictly opt-in and self-hosted only — the hosted site keeps storing nothing, because "nothing is kept anywhere" is a promise worth more than the convenience. Tokens would stay out of it regardless: they belong in the browser session and nowhere else.</p>
+            <p class="mini" style="margin:6px 0 0">The plan is a published image (nginx over the built files) plus a <code>docker compose</code> example, so <code>docker run</code> gives a working instance. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. The one thing that cannot be automated is the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, so the documentation has to lead with that rather than bury it, since it is the step that produces the confusing sign-in error when missed.</p>
+          </div>
+        </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
           <div class="list-card rm-card">
@@ -1246,26 +1272,12 @@
             <p class="mini" style="margin:6px 0 0"><b>Three things make this more than plumbing.</b> His <b>exclusion groups are named after the policy</b> — “&lt;policy name&gt; - Exclude” — not by CA number, and every routing decision in ⑥ Protect, ＋ Bulk add and the RMAU baseline reads a CA number out of a group name. That machinery needs a per-baseline naming contract — <span class="rm-ref">R28</span> now solves the tenant half of it with a per-tenant mapping, and the same shape (one function deciding, an exact match, the unmapped left visible) is what a per-baseline contract has to take. His <b>personas differ</b> — Global / Admins / Internals / ServiceAccounts / Guests / Agents — and do not map onto our CA ranges at all (his CA300 block is service accounts, not externals), so the persona vaults are per-baseline too, not a rename of ours. And a <b>live fetch is a trust boundary</b>: unauthenticated GitHub is rate-limited, a repo can move or a release can be malformed, so the bundled snapshot has to stay as the fallback and the tool must say which of the two it is using rather than failing quietly to the old one.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> 📐 CIS Benchmark alignment <span class="tag ok">in beta today</span></h4>
-            <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R06</span> 🐳 Self-hosting with Docker <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">ENCA is static files and a browser — no server, no database, nothing stored anywhere. That makes it trivially self-hostable, and some tenants will require it: a security tool that reads Conditional Access is exactly the kind of thing an organisation wants served from its own infrastructure rather than from someone else's GitHub Pages, whatever the code does.</p>
-            <p class="mini" style="margin:6px 0 0"><b>And with a host of your own, somewhere to keep things.</b> Today nothing survives the tab closing, by design — there is no server to keep it on, so a Drift snapshot is a file you download and a report is a file you save. A self-hosted instance changes what is possible: an optional <b>SQLite</b> store alongside the container could hold drift snapshots, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having had to keep track of a JSON file. Strictly opt-in and self-hosted only — the hosted site keeps storing nothing, because "nothing is kept anywhere" is a promise worth more than the convenience. Tokens would stay out of it regardless: they belong in the browser session and nowhere else.</p>
-            <p class="mini" style="margin:6px 0 0">The plan is a published image (nginx over the built files) plus a <code>docker compose</code> example, so <code>docker run</code> gives a working instance. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. The one thing that cannot be automated is the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, so the documentation has to lead with that rather than bury it, since it is the step that produces the confusing sign-in error when missed.</p>
-          </div>
-          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R12</span> ↩️ Undo for writes <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Every write tool already produces a change report of exactly what it did. Make it replayable in reverse: one action that puts back the state before the run, with the same typed-confirmation discipline as the original write. It lowers the cost of every write tool already shipped, and it is the natural safety net under <i>Editable Conditional Access policies</i> further down this map.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R13</span> 🔐 Improve security <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R15</span> 🍴 Fork detection and update-from-upstream <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">A high-assurance tenant is encouraged to fork, review and serve its own pinned copy — and the moment it does, it stops hearing about fixes. The plan: the app notices it is running as a fork (its origin is not <code>BRANDING.host</code> and the build it carries is older than upstream), says so plainly, and shows what has changed since the pinned build — the What's-new entries between here and there — with the commands to pull <code>main</code> in and re-review the diff. The point is not auto-updating, which would defeat the reason for forking; it is making <b>“you are 14 builds behind, and here is what those builds changed”</b> impossible to miss. Pairs with <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a> and the security document's fork-review-pin guidance.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R16</span> 🔓 Revoke permissions when done <span class="tag ok">partially done</span></h4>
@@ -2504,49 +2516,50 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=297"></script>
-<script src="js/selfhost.js?v=297"></script>
-<script src="js/version.js?v=297"></script>
-<script src="js/authConfig.js?v=297"></script>
-<script src="js/labels.js?v=297"></script>
-<script src="js/graph.js?v=297"></script>
-<script src="js/model.js?v=297"></script>
-<script src="js/render.js?v=297"></script>
-<script src="js/analyze.js?v=297"></script>
-<script src="js/whatif.js?v=297"></script>
-<script src="js/mslearn.js?v=297"></script>
-<script src="js/gapcheck.js?v=297"></script>
-<script src="js/exclusions.js?v=297"></script>
-<script src="js/validator.js?v=297"></script>
-<script src="js/whatifeval.js?v=297"></script>
-<script src="js/compare.js?v=297"></script>
-<script src="js/groupuse.js?v=297"></script>
-<script src="js/iso3166.js?v=297"></script>
-<script src="js/locations.js?v=297"></script>
-<script src="js/authcontexts.js?v=297"></script>
-<script src="js/authstrengths.js?v=297"></script>
-<script src="js/recycle.js?v=297"></script>
-<script src="js/rmau.js?v=297"></script>
-<script src="js/camap.js?v=297"></script>
-<script src="js/rmaudoc.js?v=297"></script>
-<script src="js/termsofuse.js?v=297"></script>
-<script src="js/audit.js?v=297"></script>
-<script src="js/drift.js?v=297"></script>
-<script src="js/userimpact.js?v=297"></script>
-<script src="js/devcheck.js?v=297"></script>
-<script src="js/licgap.js?v=297"></script>
-<script src="js/signins.js?v=297"></script>
-<script src="js/reportimpact.js?v=297"></script>
-<script src="js/changelog.js?v=297"></script>
-<script src="js/baselineData.js?v=297"></script>
-<script src="js/baselineJoeyData.js?v=297"></script>
-<script src="js/baseline.js?v=297"></script>
-<script src="js/groupTemplates.js?v=297"></script>
-<script src="js/assign.js?v=297"></script>
-<script src="js/cagroups.js?v=297"></script>
-<script src="js/import.js?v=297"></script>
-<script src="js/export.js?v=297"></script>
-<script src="js/demo.js?v=297"></script>
-<script src="js/app.js?v=297"></script>
+<script src="js/branding.js?v=298"></script>
+<script src="js/selfhost.js?v=298"></script>
+<script src="js/version.js?v=298"></script>
+<script src="js/fork.js?v=298"></script>
+<script src="js/authConfig.js?v=298"></script>
+<script src="js/labels.js?v=298"></script>
+<script src="js/graph.js?v=298"></script>
+<script src="js/model.js?v=298"></script>
+<script src="js/render.js?v=298"></script>
+<script src="js/analyze.js?v=298"></script>
+<script src="js/whatif.js?v=298"></script>
+<script src="js/mslearn.js?v=298"></script>
+<script src="js/gapcheck.js?v=298"></script>
+<script src="js/exclusions.js?v=298"></script>
+<script src="js/validator.js?v=298"></script>
+<script src="js/whatifeval.js?v=298"></script>
+<script src="js/compare.js?v=298"></script>
+<script src="js/groupuse.js?v=298"></script>
+<script src="js/iso3166.js?v=298"></script>
+<script src="js/locations.js?v=298"></script>
+<script src="js/authcontexts.js?v=298"></script>
+<script src="js/authstrengths.js?v=298"></script>
+<script src="js/recycle.js?v=298"></script>
+<script src="js/rmau.js?v=298"></script>
+<script src="js/camap.js?v=298"></script>
+<script src="js/rmaudoc.js?v=298"></script>
+<script src="js/termsofuse.js?v=298"></script>
+<script src="js/audit.js?v=298"></script>
+<script src="js/drift.js?v=298"></script>
+<script src="js/userimpact.js?v=298"></script>
+<script src="js/devcheck.js?v=298"></script>
+<script src="js/licgap.js?v=298"></script>
+<script src="js/signins.js?v=298"></script>
+<script src="js/reportimpact.js?v=298"></script>
+<script src="js/changelog.js?v=298"></script>
+<script src="js/baselineData.js?v=298"></script>
+<script src="js/baselineJoeyData.js?v=298"></script>
+<script src="js/baseline.js?v=298"></script>
+<script src="js/groupTemplates.js?v=298"></script>
+<script src="js/assign.js?v=298"></script>
+<script src="js/cagroups.js?v=298"></script>
+<script src="js/import.js?v=298"></script>
+<script src="js/export.js?v=298"></script>
+<script src="js/demo.js?v=298"></script>
+<script src="js/app.js?v=298"></script>
 </body>
 </html>
