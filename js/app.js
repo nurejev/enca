@@ -586,6 +586,20 @@
       };
       const esc2 = (x) => String(x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
       const items = (PROMOTE.items || []).slice().sort((a, b) => a.n - b.n);
+      // Ticks for the promotion order. Persisted per item NUMBER, so a tick
+      // survives a reload and dies with its item: numbers no longer in the
+      // queue are pruned on render, because a shipped item must not stay
+      // ticked and reappear in an order.
+      const PQ_KEY = "enca.pqPick";
+      const readPicks = () => { try { return JSON.parse(localStorage.getItem(PQ_KEY) || "[]").map(Number); } catch { return []; } };
+      const writePicks = (ns) => { try { localStorage.setItem(PQ_KEY, JSON.stringify(ns)); } catch { /* private mode — ticks live for the session only */ } };
+      const picked = (() => {
+        const raw = new Set(readPicks());
+        const live = new Set(items.map((i) => i.n));
+        const kept = [...raw].filter((n) => live.has(n));
+        if (kept.length !== raw.size) writePicks(kept);
+        return new Set(kept);
+      })();
 
       el.innerHTML = `
         <h4>🚚 Waiting for production <span class="tag new">BETA CHANNEL</span></h4>
@@ -600,11 +614,18 @@
           under <b>How to test it</b> do — each one names the tenant state it needs and the outcome you should see, so a
           step can fail rather than be nodded through. Where a check needs a tenant nobody has to hand, the step says
           so: knowing which check was skipped is worth more than a list that pretends all of them were run.</p>
+        ${items.length ? `<div class="tb-actions" style="margin:0 0 8px">
+          <span class="mini" id="pqPickCount"><b>${picked.size}</b> of ${items.length} ticked for promotion</span>
+          <button class="btn sm" id="pqExport" ${picked.size ? "" : "disabled"}>⭳ Export promotion order</button>
+          <button class="btn sm" id="pqClear" ${picked.size ? "" : "disabled"}>Clear ticks</button>
+          <span class="mini muted">tick what you have verified, export, and hand the file to the working session — it is the order, not the verification</span>
+        </div>` : ""}
         <div class="cg-tablewrap"><table class="cg-table">
-          <thead><tr><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:120px">Beta builds</th></tr></thead>
+          <thead><tr><th style="width:34px" title="Tick to include in the promotion order"></th><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:120px">Beta builds</th></tr></thead>
           <tbody>${items.map((it) => {
             const r = RISK[it.risk] || RISK.low;
             return `<tr>
+              <td><input type="checkbox" data-pqpick="${it.n}" ${picked.has(it.n) ? "checked" : ""} title="Include item ${it.n} in the promotion order"></td>
               <td><b style="font-size:15px">${it.n}</b></td>
               <td><b>${esc2(it.title)}</b>
                 <div class="mini muted">${(it.tools || []).join(" · ")}</div>
@@ -625,6 +646,39 @@
         <p class="mini muted" style="margin-top:14px"><b>Promoting one of these is four steps, not one:</b> remove the row and bump the production build here; set the roadmap card on <b>main</b> to <code>live · build NNN</code>; set the <b>same card on this channel</b> to <code>live · beta NNNNN · production NNN</code>; and add the changelog entry on both. The third is the one that gets missed — each channel carries its own roadmap, so promoting touches main's copy and this one keeps claiming the work is beta-only. A shipped card here that says <code>live · beta NNNNN</code> with no production clause is either a tool that genuinely has not been promoted, or that step being skipped.</p>
         <p class="help-x">This list is written by hand — the app is static files in a browser and cannot read git or diff two branches. It is maintained alongside <b>📋 What's new</b>; if an entry looks stale, trust the changelog and the build numbers over this table.</p>`;
       el.style.display = "";
+
+      // ---- the tick wiring ----
+      const syncBar = () => {
+        const ns = readPicks();
+        const c = el.querySelector("#pqPickCount"), ex = el.querySelector("#pqExport"), cl = el.querySelector("#pqClear");
+        if (c) c.innerHTML = `<b>${ns.length}</b> of ${items.length} ticked for promotion`;
+        if (ex) ex.disabled = !ns.length;
+        if (cl) cl.disabled = !ns.length;
+      };
+      el.querySelectorAll("[data-pqpick]").forEach((cb) => cb.addEventListener("change", () => {
+        const n = Number(cb.dataset.pqpick);
+        const ns = new Set(readPicks());
+        cb.checked ? ns.add(n) : ns.delete(n);
+        writePicks([...ns]);
+        syncBar();
+      }));
+      const exBtn = el.querySelector("#pqExport");
+      if (exBtn) exBtn.addEventListener("click", () => {
+        try {
+          const o = PROMOTE.buildOrder(readPicks(), APP_BUILD);
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(new Blob([o.text], { type: "text/markdown" }));
+          a.download = o.filename;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        } catch (e) { toast(`Export refused: <span>${esc(e.message || e)}</span>`); }
+      });
+      const clBtn = el.querySelector("#pqClear");
+      if (clBtn) clBtn.addEventListener("click", () => {
+        writePicks([]);
+        el.querySelectorAll("[data-pqpick]").forEach((cb) => { cb.checked = false; });
+        syncBar();
+      });
     } catch (e) { console.warn("promotion queue not rendered:", e.message); }
   })();
 

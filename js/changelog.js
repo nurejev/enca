@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25207, date: "2026-08-26", title: "The queue takes ticks, and hands back an order",
+    items: [
+      { kind: "new", tool: "All tools", text: "The promotion queue in Help grew a tick box per item and an export button. Tick the items you have verified on this channel, press export, and a small file comes down \u2014 the promotion order: the ticked numbers up front, each item's title, tools, builds, risk and files below, and a machine-readable block at the end. Hand that file to the working session and it becomes the promotion instruction. Ticks persist across reloads, keyed on the item's stable number, and a tick whose item ships is pruned rather than left pointing at nothing. Ported from TUNO, build 10444." },
+      { kind: "new", tool: "All tools", text: "The file says on its face what it is and is not: the ORDER, not the verification. The receiving session still checks every item against what main actually contains before building the production commit \u2014 the queue's own oldest rule, and a nicer file format does not bend it. An export with nothing ticked refuses; a stale tick for an item that has already shipped refuses BY NAME rather than silently dropping it, because an order that quietly shrank is the same lie as a range that quietly shrank." },
+      { kind: "improved", tool: "All tools", text: "Both refusals surface as a toast rather than an alert, and the download URL is released afterwards. Nothing about the queue's contents changed: it is still hand-maintained, still beta-only, and still says at the foot not to trust its own list over the changelog and the build numbers." },
+    ],
+  },
+  {
     build: 25206, date: "2026-08-26", title: "The sidebar names the tools; now it numbers them too",
     items: [
       { kind: "improved", tool: "All tools", text: "Every row in the side navigation carries its tool number on the right, T01 through T32, the same permanent numbers the home tiles and the Tool numbers help section already use. They are what a tool is called when somebody quotes one to somebody else, and the sidebar is where you go looking for a tool \u2014 which made it the one place they were missing. Ported from TUNO, where the rail has had them since build 10391." },

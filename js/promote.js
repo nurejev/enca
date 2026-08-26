@@ -235,3 +235,54 @@ const PROMOTE = {
     },
   ],
 };
+
+// ======================================================================
+// THE PROMOTION ORDER (ported from TUNO, build 10444). The queue above grew
+// tick boxes; this turns the ticked numbers into a small file Mihai hands to
+// a working session as the promotion instruction.
+//
+// THE FILE IS THE ORDER, NOT THE VERIFICATION — it says which items to
+// promote, with the machine-readable order embedded. The session that
+// receives it still verifies every item against what main actually contains,
+// because the header of this file says not to trust its own list, and that
+// rule does not bend for a nicer file format.
+//
+// Two refusals, both deliberate. An export with nothing ticked is not an
+// empty order, it is a mistake. And a tick whose item is no longer queued —
+// it shipped since the tick — is named rather than quietly dropped: an order
+// that silently shrank is the same lie as a range that silently shrank.
+// ======================================================================
+PROMOTE.buildOrder = function (pickedNs, appBuild) {
+  const ns = [...new Set((pickedNs || []).map(Number))].sort((a, b) => a - b);
+  if (!ns.length) throw new Error("Nothing is ticked — an empty order is not an order.");
+  const items = ns.map((n) => {
+    const it = (PROMOTE.items || []).find((i) => i.n === n);
+    if (!it) throw new Error(`Item ${n} is not in the queue — it may have shipped since the tick. Untick it and export again.`);
+    return it;
+  });
+  const when = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  const L = [];
+  L.push("# ENCA promotion order");
+  L.push("");
+  L.push(`Generated ${when} on ${appBuild ? appBuild.label : ""} · production is ${PROMOTE.productionBuild}`);
+  L.push("");
+  L.push(`PROMOTE ITEMS: ${ns.join(", ")}`);
+  L.push("");
+  L.push("For the working session: this file is the ORDER, not the verification.");
+  L.push("Verify each item against what main actually contains before building");
+  L.push("the production commit — the queue's own rule. Items promote together");
+  L.push("where their builds interleave; the session decides the cut.");
+  L.push("");
+  for (const it of items) {
+    L.push(`## Item ${it.n} — ${it.title}`);
+    L.push(`- tools: ${(it.tools || []).join(", ")}`);
+    L.push(`- beta builds: ${(it.builds || []).join(", ")}`);
+    L.push(`- risk: ${it.risk}`);
+    L.push(`- files: ${(it.files || []).join(", ")}`);
+    L.push("");
+  }
+  L.push("```json");
+  L.push(JSON.stringify({ order: ns, generated: when, betaBuild: appBuild ? appBuild.build : null, productionBuild: PROMOTE.productionBuild }));
+  L.push("```");
+  return { filename: `enca-promotion-order-${when.slice(0, 10)}.md`, text: L.join("\n") };
+};
