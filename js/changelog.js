@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25206, date: "2026-08-26", title: "The sidebar names the tools; now it numbers them too",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Every row in the side navigation carries its tool number on the right, T01 through T32, the same permanent numbers the home tiles and the Tool numbers help section already use. They are what a tool is called when somebody quotes one to somebody else, and the sidebar is where you go looking for a tool \u2014 which made it the one place they were missing. Ported from TUNO, where the rail has had them since build 10391." },
+      { kind: "fixed", tool: "All tools", text: "The number rides in its own span pushed to the right, and the row is a flex line rather than a block. Appended to the label it would have been the first thing ellipsised on a 240px rail \u2014 on exactly the longer names it is most useful for. Now the NAME truncates and the number stays. The four pages that deliberately carry no number (Overview, What's new, Roadmap, Help) render none rather than an empty gap, and the collapsed rail drops the numbers with the names, keeping both in the hover tooltip." },
+    ],
+  },
+  {
     build: 25205, date: "2026-08-25", title: "Next was answering two different questions at once",
     items: [
       { kind: "improved", tool: "Roadmap", text: "A new era sits between Now and Next: IN BETA TODAY, running on the beta channel and not yet in production. \ud83d\udcd0 CIS Benchmark, \ud83d\udc33 Self-hosting with Docker and \ud83c\udf74 Fork detection move into it \u2014 the three cards already carrying that chip. Next keeps what is planned or partially done." },

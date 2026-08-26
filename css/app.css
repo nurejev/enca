@@ -1482,9 +1482,16 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
   background:var(--surface);border-right:1px solid var(--border);padding:12px 10px 24px}
 .sidenav h4{margin:16px 10px 4px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
 .sidenav h4:first-of-type{margin-top:12px}
-.sidenav button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);cursor:pointer;
+/* flex, not block, so the T number can be pushed to the right and the NAME is
+   what truncates. Appended to the label it would have been the first thing
+   ellipsised, on exactly the longer names it is most useful for. */
+.sidenav button{display:flex;align-items:center;width:100%;text-align:left;border:0;background:none;color:var(--ink);cursor:pointer;
   font:inherit;font-size:13px;font-weight:600;padding:7px 10px;border-radius:8px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  white-space:nowrap;overflow:hidden}
+.sidenav .sn-txt{overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* Quiet: the number is for finding and quoting a tool, not for reading past. */
+.sidenav .sn-t{margin-left:auto;padding-left:8px;flex:0 0 auto;
+  font-size:10.5px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
 .sidenav button:hover{background:var(--soft)}
 .sidenav button.active{background:var(--green);color:#fff}
 :root[data-theme="dark"] .sidenav button.active{color:var(--green-deep)}
@@ -1541,7 +1548,8 @@ body.with-side.side-min .fwrap{margin-left:max(76px, calc((100vw - 1444px)/2))}
    top instead of beside. */
 body.with-side.side-min .sidenav:not(.peek){width:56px;padding:12px 6px 24px}
 body.with-side.side-min .sidenav:not(.peek) h4{height:0;overflow:hidden;padding:0;margin:10px 8px;border-top:1px solid var(--border)}
-body.with-side.side-min .sidenav:not(.peek) .sn-txt{display:none}
+body.with-side.side-min .sidenav:not(.peek) .sn-txt,
+body.with-side.side-min .sidenav:not(.peek) .sn-t{display:none}
 body.with-side.side-min .sidenav:not(.peek) button{text-align:center;padding:7px 0}
 body.with-side.side-min .sidenav:not(.peek) .sn-ic{margin:0;width:100%}
 body.with-side.side-min .sidenav:not(.peek) .sn-toggle{text-align:center;padding:2px 0 6px}

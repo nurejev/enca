@@ -1934,7 +1934,15 @@
       const label = labelFor(id);
       const sp = label.indexOf(" ");
       const [ic, txt] = sp > 0 ? [label.slice(0, sp), label.slice(sp + 1)] : ["·", label];
-      return `<button data-nav="${id}" id="side-${id}" title="${esc(label)}"><span class="sn-ic">${esc(ic)}</span><span class="sn-txt">${esc(txt)}</span></button>`;
+      const n = toolNoOf(id);
+      // The number rides in its OWN span, pushed to the right, rather than
+      // being appended to the name. The rail is 240px and the names ellipsise;
+      // appended, the number would be the first thing cut off — on exactly the
+      // longer names people need it for. (TUNO's shape, build 10391.)
+      return `<button data-nav="${id}" id="side-${id}" title="${esc(n ? `${label} (${n})` : label)}">`
+        + `<span class="sn-ic">${esc(ic)}</span><span class="sn-txt">${esc(txt)}</span>`
+        + (n ? `<span class="sn-t">${esc(n)}</span>` : "")
+        + `</button>`;
     };
     $("sideNav").innerHTML =
       `<button class="sn-toggle" id="sideToggle" data-navtoggle>«</button>` +
