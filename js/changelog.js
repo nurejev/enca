@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25210, date: "2026-08-26", title: "The Enabled column stops answering with a question mark",
+    items: [
+      { kind: "fixed", tool: "SMS & voice retirement", text: "On an ALL USERS scope every row's Enabled column read as a question mark. The user list on that path comes from the registration-details report, which does not carry accountEnabled, and the tool refuses to guess - so it printed the honest unknown for twenty-five thousand rows at once, which is honest and useless. One paged read over the directory (id and accountEnabled only) now fills the flag in; a user past the read cap keeps the question mark, because past the cap unknown is still the truth. Direct user targets, which had the same gap, get the same fix." },
+    ],
+  },
+  {
     build: 25209, date: "2026-08-26", title: "Items 93, 96, 97 and 98 reached production 298",
     items: [
       { kind: "improved", tool: "All tools", text: "Promoted to production as build 298: the side navigation with its tool numbers and collapsed rail (item 96, betas 25202, 25203 and 25206), fork detection with the update-from-upstream notice (item 93, beta 25195), the centred Help page and roadmap timeline (item 97, beta 25204), and the In beta today roadmap era (item 98, beta 25205). The four items leave the promotion queue and the production build the queue measures against is now v1.0.298." },

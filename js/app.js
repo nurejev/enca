@@ -15028,6 +15028,26 @@ max@contoso.com,"Global, DevOps"</pre>
         for (const scope of [smsScope, voiceScope]) if (scope)
           for (const uid of scope.includeUsers) add({ id: uid, upn: nameOf(uid), name: names[uid] || "", enabled: undefined }, "direct");
 
+        // Enabled / disabled. The registration report has no accountEnabled,
+        // so a row built from it (the ALL USERS path) — and a direct user
+        // target — would show "?" in the Enabled column for every user. One
+        // paged $select read over /users fills the flag in; anything past the
+        // cap keeps its honest "?" rather than guessing.
+        if ([...base.values()].some((u) => u.enabled === undefined)) {
+          try {
+            txt("👤 Reading which accounts are enabled…");
+            const en = new Map();
+            let next = "/users?$select=id,accountEnabled&$top=999", pages = 0;
+            while (next && pages < SV_USER_PAGES) {
+              const j = await Graph.gget(next);
+              for (const m of j.value || []) en.set(m.id, m.accountEnabled !== false);
+              next = j["@odata.nextLink"] || null;
+              pages++;
+            }
+            for (const u of base.values()) if (u.enabled === undefined && en.has(u.id)) u.enabled = en.get(u.id);
+          } catch { /* the column keeps its ? — never guessed */ }
+        }
+
         // Per-policy membership, each policy's own excludes honoured.
         const inScope = (scope, u) => {
           if (!scope) return false;
