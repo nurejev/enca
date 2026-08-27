@@ -55,6 +55,12 @@ const SmsVoice = (() => {
   // locked out on Feb 1, they just keep getting nudged toward passkeys.
   const OTHER_MFA = new Set(["microsoftAuthenticatorPush", "microsoftAuthenticatorPasswordless",
     "softwareOneTimePasscode", "hardwareOneTimePasscode", "temporaryAccessPass"]);
+  // What the DEFAULT method looks like when it is a phone. The report speaks
+  // two dialects — userPreferredMethodForSecondaryAuthentication says "sms" /
+  // "voiceMobile" / "voiceAlternateMobile" / "voiceOffice", the legacy
+  // defaultMfaMethod field names the method itself — so both are recognised.
+  const PHONE_DEFAULTS = new Set(["sms", "voiceMobile", "voiceAlternateMobile", "voiceOffice",
+    "mobilePhone", "alternateMobilePhone", "officePhone"]);
 
   // ---- policy scope, the way Microsoft's script reads it -----------------
   // includeTargets/excludeTargets of an authenticationMethodConfiguration:
@@ -85,19 +91,36 @@ const SmsVoice = (() => {
   // clean     — in scope but no phone method registered (and nothing else
   //             at risk): the policy names them, the phones do not.
   // unknown   — registration data was not readable for this user.
+  // phoneOnly — a phone is the ONLY MFA method registered (the blocking case,
+  // stated as its own fact so the table can show it in a column rather than
+  // leaving it implied by the verdict). phoneDefault — a phone is what the
+  // user's MFA prompts actually use today, whatever else is registered: the
+  // people who will FEEL the retirement first, even when a passkey already
+  // sits unused next to the phone.
   function classify(rec) {
-    if (!rec) return { risk: "unknown", sms: null, voice: null, pr: null };
+    if (!rec) return { risk: "unknown", sms: null, voice: null, pr: null, phoneOnly: null, phoneDefault: null };
     const m = rec.methods || [];
     const sms = m.some((x) => SMS_METHODS.has(x));
     const voice = m.some((x) => VOICE_METHODS.has(x));
     const pr = m.some((x) => PR_METHODS.has(x));
     const other = m.some((x) => OTHER_MFA.has(x));
+    const phoneOnly = (sms || voice) && !pr && !other;
+    const phoneDefault = PHONE_DEFAULTS.has(String(rec.defaultMethod || ""));
     let risk;
     if (pr) risk = "ready";
-    else if ((sms || voice) && !other) risk = "blocking";
+    else if (phoneOnly) risk = "blocking";
     else if (sms || voice) risk = "migrate";
     else risk = "clean";
-    return { risk, sms, voice, pr };
+    return { risk, sms, voice, pr, phoneOnly, phoneDefault };
+  }
+
+  // One phrase for the new column: what the phone IS to this user.
+  function phoneRole(r) {
+    if (r.phoneOnly === null) return "?";
+    if (r.phoneOnly) return "only method";
+    if (r.phoneDefault) return "default";
+    if (r.sms || r.voice) return "backup";
+    return "—";
   }
 
   const RISK_RANK = { blocking: 0, migrate: 1, unknown: 2, clean: 3, ready: 4 };
@@ -121,9 +144,50 @@ const SmsVoice = (() => {
         blocking: n("blocking"), migrate: n("migrate"), ready: n("ready"),
         clean: n("clean"), unknown: n("unknown"),
         phone: rows.filter((r) => r.sms || r.voice).length,
+        phoneDefault: rows.filter((r) => r.phoneDefault).length,
         daysNudge: daysUntil(DATES.nudge.iso), daysRetire: daysUntil(DATES.retire.iso),
       },
     };
+  }
+
+  // ---- the notification email --------------------------------------------
+  // Who gets it: the users a phone method makes vulnerable — verdicts
+  // blocking and migrate — minus disabled accounts, which have nobody
+  // reading their mail. When the registration half was not read the whole
+  // scope is the honest fallback, and the modal says so. Recipients are the
+  // UPNs; a UPN is usually the primary address, but not always, and the
+  // modal carries that caveat rather than hiding it.
+  function notifyEmail(res) {
+    const rows = (res.rows || []).filter((r) => r.enabled !== false);
+    const targets = res.regRead ? rows.filter((r) => r.risk === "blocking" || r.risk === "migrate") : rows;
+    const recipients = [...new Set(targets.map((r) => r.upn))].filter((u) => /@/.test(u)).sort();
+    const subject = "Action required: set up a passkey — SMS and voice-call sign-in codes are being retired";
+    const body = [
+      "Hello,",
+      "",
+      "You are receiving this message because your work account currently uses text messages (SMS) or voice calls to confirm your sign-in.",
+      "",
+      "Microsoft is retiring SMS and voice-call sign-in codes:",
+      "",
+      `  * From ${DATES.nudge.label} you will be prompted to register a passkey when you sign in.`,
+      `  * On ${DATES.retire.label} SMS and voice codes stop working. If a phone number is your only sign-in method by then, you will be blocked at sign-in until you register a passkey.`,
+      "",
+      "What you need to do — it takes about two minutes:",
+      "",
+      "  1. Go to https://aka.ms/mysecurityinfo and sign in.",
+      "  2. Choose \"Add sign-in method\" and pick \"Passkey\". Follow the steps on your phone or computer (Face ID, fingerprint, Windows Hello or a security key).",
+      "  3. Sign out and back in once, using the passkey, to confirm it works.",
+      "  4. Then remove \"Phone\" from your sign-in methods on the same page, so the retiring method cannot interrupt you later.",
+      "",
+      "Passkeys are faster than codes and far more resistant to phishing — nothing is sent to your phone number, so nothing can be intercepted.",
+      "",
+      "If you run into trouble, contact [YOUR IT SERVICE DESK / CONTACT DETAILS].",
+      "",
+      "Thank you,",
+      "[YOUR IT TEAM]",
+    ].join("\n");
+    return { subject, body, recipients, scopeOnly: !res.regRead,
+      skippedDisabled: (res.rows || []).length - rows.length };
   }
 
   // ---- exports -----------------------------------------------------------
@@ -172,13 +236,13 @@ const SmsVoice = (() => {
     L.push("## Users in scope", "",
       `${s.total} user${s.total === 1 ? "" : "s"} in scope${res.usersPartial ? " (READ CAPPED — the list is partial)" : ""}` +
       (res.regRead
-        ? ` · ${s.phone} with a phone method registered · **${s.blocking} phone-only (blocked after ${DATES.retire.label})** · ${s.migrate} to migrate · ${s.ready} already phishing-resistant · ${s.clean} clean${s.unknown ? ` · ${s.unknown} unknown` : ""}${res.regPartial ? " · registration read was capped — unknowns may be understated" : ""}`
+        ? ` · ${s.phone} with a phone method registered (${s.phoneDefault} as their default) · **${s.blocking} phone-only (blocked after ${DATES.retire.label})** · ${s.migrate} to migrate · ${s.ready} already phishing-resistant · ${s.clean} clean${s.unknown ? ` · ${s.unknown} unknown` : ""}${res.regPartial ? " · registration read was capped — unknowns may be understated" : ""}`
         : " · registration data NOT read (needs AuditLog.Read.All) — the table shows scope only, not who actually uses a phone"), "");
     if (res.rows.length) {
-      L.push("| User | Name | Enabled | SMS scope | Voice scope | Via | SMS reg. | Voice reg. | Phishing-resistant | Verdict |", "|---|---|---|---|---|---|---|---|---|---|");
+      L.push("| User | Name | Enabled | SMS scope | Voice scope | Via | SMS reg. | Voice reg. | Phishing-resistant | Phone role | Verdict |", "|---|---|---|---|---|---|---|---|---|---|---|");
       const yn = (v) => v === null ? "?" : v ? "yes" : "no";
       for (const r of res.rows.slice(0, MD_ROW_CAP))
-        L.push(`| ${r.upn} | ${r.name || ""} | ${r.enabled === false ? "no" : r.enabled === true ? "yes" : "?"} | ${r.inSms ? "yes" : "no"} | ${r.inVoice ? "yes" : "no"} | ${(r.via || []).join("; ")} | ${yn(r.sms)} | ${yn(r.voice)} | ${yn(r.pr)} | ${RISK_WORD[r.risk]} |`);
+        L.push(`| ${r.upn} | ${r.name || ""} | ${r.enabled === false ? "no" : r.enabled === true ? "yes" : "?"} | ${r.inSms ? "yes" : "no"} | ${r.inVoice ? "yes" : "no"} | ${(r.via || []).join("; ")} | ${yn(r.sms)} | ${yn(r.voice)} | ${yn(r.pr)} | ${phoneRole(r)} | ${RISK_WORD[r.risk]} |`);
       if (res.rows.length > MD_ROW_CAP) L.push("", `…and ${res.rows.length - MD_ROW_CAP} more — the CSV export carries the full list.`);
       L.push("");
     }
@@ -194,13 +258,13 @@ const SmsVoice = (() => {
   function toCsv(res) {
     const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
     const yn = (v) => v === null ? "" : v ? "yes" : "no";
-    const L = ["userPrincipalName,displayName,accountEnabled,inSmsScope,inVoiceScope,via,smsRegistered,voiceRegistered,phishingResistantRegistered,defaultMethod,verdict"];
+    const L = ["userPrincipalName,displayName,accountEnabled,inSmsScope,inVoiceScope,via,smsRegistered,voiceRegistered,phishingResistantRegistered,phoneIsOnlyMfaMethod,phoneIsDefaultMethod,defaultMethod,verdict"];
     for (const r of res.rows)
       L.push([q(r.upn), q(r.name), r.enabled === false ? "no" : r.enabled === true ? "yes" : "",
         r.inSms ? "yes" : "no", r.inVoice ? "yes" : "no", q((r.via || []).join("; ")),
-        yn(r.sms), yn(r.voice), yn(r.pr), q(r.defaultMethod), q(RISK_WORD[r.risk])].join(","));
+        yn(r.sms), yn(r.voice), yn(r.pr), yn(r.phoneOnly), yn(r.phoneDefault), q(r.defaultMethod), q(RISK_WORD[r.risk])].join(","));
     return L.join("\n");
   }
 
-  return { DATES, daysUntil, parseScope, classify, analyze, toMd, toCsv, stateWord, campaignWord, RISK_WORD, MD_ROW_CAP };
+  return { DATES, daysUntil, parseScope, classify, phoneRole, analyze, toMd, toCsv, notifyEmail, stateWord, campaignWord, RISK_WORD, MD_ROW_CAP };
 })();
