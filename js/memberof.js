@@ -10,13 +10,14 @@
 // Conditional Access policy pointed at it keeps enforcing yesterday's answer.
 //   https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-member-of
 //
-// The scan half follows the same three surfaces EMOS reads
+// The scan half covers the same three surfaces EMOS reads
 // (github.com/kayasax/EMOS): dynamic groups, dynamic administrative units,
-// and entitlement-management auto-assignment policies. THIS TOOL READS TWO OF
-// THE THREE — groups and administrative units — and says so on screen rather
-// than letting a clean report imply a clean tenant. The third surface needs
-// EntitlementManagement.Read.All and Microsoft ships its own script for it;
-// the report links to both instead of pretending the gap is not there.
+// and entitlement-management auto-assignment policies. The third needs
+// EntitlementManagement.Read.All, which is asked for once on the run click —
+// and when it is refused, or the tenant has no ID Governance licence, that
+// surface reports itself as NOT READ rather than as clean. The difference
+// between "you have none" and "we could not look" is the whole value of a
+// scan somebody acts on, and this tool never blurs it.
 //
 // Where this goes further than a scan: ENCA already holds the tenant's
 // Conditional Access policies, so every affected group is cross-referenced
@@ -36,10 +37,14 @@
 //   ctx = {
 //     groups:   [{ id, displayName, membershipRule, ruleState, licensed, owners }],
 //     aus:      [{ id, displayName, membershipRule, ruleState, restricted }] | null,
+//     emps:     [{ id, displayName, pkg, rules:[], autoRequest, removeOnLeave,
+//                  gracePeriod }] | null,
 //     policies: [ raw Conditional Access policy JSON ],   // [] = not loaded
 //     names:    { sourceGroupId → displayName },          // absent = deleted
 //     namesRead: bool,
-//     groupsPartial: bool, ausRead: bool, ausPartial: bool, ownersRead: bool,
+//     groupsPartial: bool, ausRead: bool, ausPartial: bool,
+//     empsRead: bool, empsErr: string|null, totalEmps: number,
+//     ownersRead: bool,
 //     totalDynamic: number,      // dynamic groups looked at, affected or not
 //   }
 // ======================================================================
@@ -188,10 +193,53 @@ const MemberOf = (() => {
     };
   }
 
+  // Entitlement-management auto-assignment policies — the third surface, and
+  // the one nobody looks at, because the rule is buried in
+  // specificAllowedTargets on a policy inside an access package inside a
+  // catalog. A policy can carry SEVERAL allowed-target rules, so the rules are
+  // joined for display and counted separately.
+  //
+  // What decides severity here is `requestAccessForAllowedTargets`: a policy
+  // with it TRUE is handing out an access package right now, so a frozen rule
+  // means new joiners silently stop receiving it. `removeAccessWhenTargetLeaves`
+  // is the other half and it is worse in a quiet way — with the rule frozen,
+  // nobody ever leaves the scope, so access that should have been revoked is
+  // never revoked and the removal setting reads as if it is still working.
+  function empRow(e) {
+    const rule = (e.rules || []).join("\n");
+    const use = ruleUse(rule);
+    const src = sourceIds(rule);
+    let risk;
+    if (use === "mentions") risk = "suspect";
+    else if (e.autoRequest) risk = "critical";
+    else risk = "high";
+    const parts = [];
+    if (use === "mentions") {
+      parts.push("The rule contains the word memberof but not as user.memberof or device.memberof — read it by hand.");
+    } else {
+      parts.push(e.autoRequest
+        ? `Auto-assigning **${e.pkg || "an access package"}** today — when the rule freezes, new joiners silently stop receiving it`
+        : `Defined on **${e.pkg || "an access package"}** but not auto-assigning right now (requestAccessForAllowedTargets is off), so nothing is being handed out by it yet`);
+      if (e.removeOnLeave) parts.push("it also removes access when a target leaves the scope — with the rule frozen nobody ever leaves it, so revocation quietly stops happening while the setting still reads as on");
+      parts.push("ENCA cannot see what the access package itself grants, so this severity is a floor, not a ceiling");
+    }
+    return {
+      kind: "em", id: e.id, name: e.displayName || e.id, pkg: e.pkg || "",
+      rule, use, risk,
+      ruleState: use === "mentions" ? "" : e.autoRequest ? "Auto-assigning" : "Not auto-assigning",
+      licensed: false, refs: [], enforced: 0, bypass: 0,
+      src, missing: [], owners: null, restricted: null,
+      autoRequest: !!e.autoRequest, removeOnLeave: !!e.removeOnLeave,
+      ruleCount: (e.rules || []).length,
+      why: parts.join("; ").replace(/\*\*/g, ""),
+    };
+  }
+
   function analyze(ctx) {
     const rows = [];
     for (const g of ctx.groups || []) if (ruleUse(g.membershipRule) !== "no") rows.push(groupRow(g, ctx));
     for (const a of ctx.aus || []) if (ruleUse(a.membershipRule) !== "no") rows.push(auRow(a));
+    for (const e of ctx.emps || []) if (ruleUse((e.rules || []).join("\n")) !== "no") rows.push(empRow(e));
     rows.sort((a, b) => RISK_RANK[a.risk] - RISK_RANK[b.risk]
       || b.enforced - a.enforced
       || String(a.name).localeCompare(String(b.name)));
@@ -203,11 +251,18 @@ const MemberOf = (() => {
       namesRead: !!ctx.namesRead, names: ctx.names || {},
       groupsPartial: !!ctx.groupsPartial,
       ausRead: !!ctx.ausRead, ausPartial: !!ctx.ausPartial,
+      empsRead: !!ctx.empsRead, empsErr: ctx.empsErr || null,
       ownersRead: !!ctx.ownersRead,
+      // All three surfaces looked at, or not: the single fact that decides
+      // whether "nothing found" is an answer or only a partial one.
+      allSurfaces: !!ctx.ausRead && !!ctx.empsRead,
       summary: {
         total: rows.length,
         groups: groups.length,
         aus: rows.filter((r) => r.kind === "au").length,
+        emps: rows.filter((r) => r.kind === "em").length,
+        empsAuto: rows.filter((r) => r.kind === "em" && r.autoRequest).length,
+        totalEmps: ctx.totalEmps || 0,
         critical: n("critical"), high: n("high"), review: n("review"), suspect: n("suspect"),
         caPolicies: new Set(groups.flatMap((r) => r.refs.map((x) => x.id))).size,
         enforcedGroups: groups.filter((r) => r.enforced > 0).length,
@@ -225,9 +280,13 @@ const MemberOf = (() => {
   // ---- the notification email --------------------------------------------
   // Aimed at the OWNERS of the affected groups, not at end users: nobody who
   // signs in feels this retirement until the day their access is wrong, and by
-  // then the rule has been frozen for months. Administrative units have no
-  // owner in Entra at all, so they cannot be mailed to anybody — the modal
-  // says that outright rather than leaving them silently out of the count.
+  // then the rule has been frozen for months. Neither an administrative unit
+  // nor an entitlement-management policy has an owner this tool can read — an
+  // AU has no owner concept in Entra at all, and a policy's nearest equivalent
+  // is a catalog owner, several calls away inside entitlement management. Both
+  // are counted out loud in the modal rather than left out of the arithmetic,
+  // because a recipient count that silently covers only part of the findings
+  // is the kind of number somebody stops checking.
   function notifyOwners(res) {
     const groups = (res.rows || []).filter((r) => r.kind === "group");
     const withOwners = groups.filter((r) => (r.owners || []).length);
@@ -235,6 +294,7 @@ const MemberOf = (() => {
       .filter((u) => /@/.test(u)).sort();
     const ownerless = groups.length - withOwners.length;
     const aus = (res.rows || []).filter((r) => r.kind === "au").length;
+    const emps = (res.rows || []).filter((r) => r.kind === "em").length;
     const subject = `Action required before ${DATES.retire.label}: a group you own uses a rule Microsoft is retiring`;
     const body = [
       "Hello,",
@@ -261,7 +321,7 @@ const MemberOf = (() => {
       "Thank you,",
       "[YOUR IT TEAM]",
     ].join("\n");
-    return { subject, body, recipients, ownerless, aus,
+    return { subject, body, recipients, ownerless, aus, emps,
       groupList: withOwners.map((r) => `${r.name} (${r.id})`).join("\n") };
   }
 
@@ -278,10 +338,13 @@ const MemberOf = (() => {
       "## Tenant state", "",
       `- ${DATES.retire.label}: **${s.days >= 0 ? `in ${s.days} day${s.days === 1 ? "" : "s"}` : `${-s.days} days ago`}**`,
       `- Dynamic groups read: **${s.totalDynamic.toLocaleString()}**${res.groupsPartial ? " (READ CAPPED — the list is partial)" : ""} · using memberOf: **${s.groups.toLocaleString()}**`,
-      `- Dynamic administrative units using memberOf: **${res.ausRead ? s.aus.toLocaleString() : "not read"}**${res.ausPartial ? " (read capped)" : ""}`,
+      `- Dynamic administrative units using memberOf: **${res.ausRead ? s.aus.toLocaleString() : "NOT READ"}**${res.ausPartial ? " (read capped)" : ""}`,
+      `- Entitlement-management auto-assignment policies using memberOf: **${res.empsRead ? s.emps.toLocaleString() : "NOT READ"}**${res.empsRead && s.totalEmps ? ` (of ${s.totalEmps.toLocaleString()} auto-assignment ${s.totalEmps === 1 ? "policy" : "policies"} read)` : ""}${!res.empsRead && res.empsErr ? ` — ${res.empsErr}` : ""}`,
       `- Verdicts: **${s.critical} critical** · ${s.high} high · ${s.review} review${s.suspect ? ` · ${s.suspect} to read by hand` : ""}`, ""];
     if (!s.total) {
-      L.push(`**No dynamic group${res.ausRead ? " or administrative unit" : ""} in this tenant uses the memberOf operator. Nothing changes here on ${DATES.retire.label}.**`, "");
+      L.push(res.allSurfaces
+        ? `**No dynamic group, dynamic administrative unit or entitlement-management auto-assignment policy in this tenant uses the memberOf operator. All three surfaces were read. Nothing changes here on ${DATES.retire.label}.**`
+        : `**Nothing was found on the surfaces that could be read — but ${[!res.ausRead ? "dynamic administrative units" : null, !res.empsRead ? "entitlement-management auto-assignment policies" : null].filter(Boolean).join(" and ")} could NOT be read, so this is not yet a clean tenant. Run the check again with the missing permission or licence before treating this as an answer.**`, "");
     } else {
       L.push("## Blast radius", "",
         ...[
@@ -289,6 +352,7 @@ const MemberOf = (() => {
             ? `- Conditional Access policies pointing at an affected group: **${s.caPolicies}** · groups referenced by an **enforced** policy: **${s.enforcedGroups}** · of those, **${s.bypassGroups} used as an EXCLUSION** (a bypass that stops shrinking)`
             : "- Conditional Access cross-reference **not available** — no policies were loaded in this session, so the blast radius is unknown rather than empty",
           `- Groups carrying group-based licensing: **${s.licensedGroups}**`,
+          s.emps ? `- Entitlement-management auto-assignment policies affected: **${s.emps}**, of which **${s.empsAuto}** ${s.empsAuto === 1 ? "is handing out an access package today" : "are handing out an access package today"}` : null,
           `- Rules already pointing at a source group the directory no longer has: **${s.staleGroups}**`,
           s.pausedRules ? `- Rules whose processing state is already **Paused**: **${s.pausedRules}**` : null,
           s.nearLimit ? `- This tenant is at **${s.groups} of Microsoft's ${LIMITS.groupsPerTenant}** memberOf group limit — memberOf is architecture here, and the migration is a project rather than an afternoon.` : null,
@@ -299,35 +363,45 @@ const MemberOf = (() => {
         "| Type | Name | Rule state | CA policies | Enforced | Licensing | Stale sources | Verdict | Why |",
         "|---|---|---|---|---|---|---|---|---|");
       for (const r of res.rows.slice(0, MD_ROW_CAP))
-        L.push(`| ${r.kind === "au" ? (r.restricted ? "AU (restricted)" : "AU") : "Group"} | ${r.name} | ${r.ruleState || "—"} | ${r.kind === "group" ? r.refs.length : "—"} | ${r.kind === "group" ? r.enforced : "—"} | ${r.kind === "group" ? (r.licensed ? "yes" : "no") : "—"} | ${r.missing.length || "—"} | ${r.risk} | ${r.why} |`);
+        L.push(`| ${r.kind === "au" ? (r.restricted ? "AU (restricted)" : "AU") : r.kind === "em" ? "EM policy" : "Group"} | ${r.name}${r.kind === "em" && r.pkg ? ` — ${r.pkg}` : ""} | ${r.ruleState || "—"} | ${r.kind === "group" ? r.refs.length : "—"} | ${r.kind === "group" ? r.enforced : "—"} | ${r.kind === "group" ? (r.licensed ? "yes" : "no") : "—"} | ${r.missing.length || "—"} | ${r.risk} | ${r.why} |`);
       if (res.rows.length > MD_ROW_CAP) L.push("", `…and ${res.rows.length - MD_ROW_CAP} more — the CSV export carries the full list.`);
       L.push("", "### The rules themselves", "");
       for (const r of res.rows.slice(0, MD_ROW_CAP)) {
-        L.push(`**${r.name}** — ${r.kind === "au" ? "administrative unit" : "group"} \`${r.id}\``, "", "```", r.rule, "```", "");
+        const what = r.kind === "au" ? "administrative unit"
+          : r.kind === "em" ? `entitlement-management auto-assignment policy on ${r.pkg || "an access package"}${r.ruleCount > 1 ? ` — ${r.ruleCount} allowed-target rules` : ""}`
+          : "group";
+        L.push(`**${r.name}** — ${what} \`${r.id}\``, "", "```", r.rule, "```", "");
         if (r.kind === "group" && r.refs.length)
           L.push(...r.refs.map((x) => `- ${x.how === "excluded" ? "EXCLUDED from" : "included in"} **${x.name}** (${x.state})`), "");
       }
     }
     L.push("## What to do", "",
-      `1. **Replace the rule** with [supported operators](https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-more-efficient) where the membership can be expressed as attributes.`,
-      "2. **Convert to assigned membership** where it cannot, and manage the members by hand from then on.",
-      "3. **Delete what is unused** — a frozen group nobody needed is still a group handing out yesterday's access.",
-      `4. Start with the **critical** rows: those are the ones an enforced Conditional Access policy or a licence assignment already depends on.`, "",
-      "### The surface this tool does not read", "",
-      "Microsoft names a third surface — **entitlement-management auto-assignment policies** — whose rules can also use memberOf. This tool reads dynamic groups and dynamic administrative units only, so a clean report here does **not** mean a clean tenant. Check that surface with " +
-      "[Microsoft's own script](https://learn.microsoft.com/entra/id-governance/entitlement-management-access-package-auto-assignment-policy#find-automatic-assignment-policies-that-use-the-memberof-attribute) or " +
-      "[EMOS](https://github.com/kayasax/EMOS), which covers all three.", "",
-      "Links: [retirement notice](https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-member-of) · [supported rule operators](https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-more-efficient) · [dynamic administrative units](https://learn.microsoft.com/entra/identity/role-based-access-control/admin-units-members-dynamic)", "");
+      `1. Start with the **critical** rows: those are the ones an enforced Conditional Access policy, a licence assignment or a live access-package assignment already depends on.`,
+      "2. **Replace the rule** with [supported operators](https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-more-efficient) where the membership can be expressed as attributes.",
+      "3. **Convert to assigned membership** where it cannot, and manage the members by hand from then on. For an entitlement-management policy there is no assigned equivalent: plan a different assignment method **before** removing the policy, or the people it assigned lose their access packages.",
+      "4. **Delete what is unused** — a frozen group nobody needed is still a group handing out yesterday's access.",
+      "5. Validate after every change: group membership, the delegated scope of an administrative unit, and the access-package assignments of an entitlement-management policy.", "");
+    if (!res.allSurfaces) {
+      L.push("### What was not read", "",
+        "This report does **not** cover every surface Microsoft names, so a clean result above is not a clean tenant:", "",
+        ...[
+          !res.ausRead ? "- **Dynamic administrative units** could not be read — an Entra ID P1 licence or the right role is missing." : null,
+          !res.empsRead ? `- **Entitlement-management auto-assignment policies** could not be read${res.empsErr ? ` — ${res.empsErr}` : " — the EntitlementManagement.Read.All permission was declined, or the tenant has no ID Governance licence"}. Check that surface with [Microsoft's own script](https://learn.microsoft.com/entra/id-governance/entitlement-management-access-package-auto-assignment-policy#find-automatic-assignment-policies-that-use-the-memberof-attribute) or [EMOS](https://github.com/kayasax/EMOS).` : null,
+        ].filter(Boolean), "");
+    } else {
+      L.push("All three surfaces Microsoft names — dynamic groups, dynamic administrative units and entitlement-management auto-assignment policies — were read for this report.", "");
+    }
+    L.push("Links: [retirement notice](https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-member-of) · [supported rule operators](https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-more-efficient) · [dynamic administrative units](https://learn.microsoft.com/entra/identity/role-based-access-control/admin-units-members-dynamic) · [auto-assignment policies](https://learn.microsoft.com/entra/id-governance/entitlement-management-access-package-auto-assignment-policy)", "");
     return L.join("\n");
   }
 
   function toCsv(res) {
     const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
-    const L = ["type,displayName,objectId,ruleProcessingState,membershipRule,sourceGroupCount,staleSourceGroups,caPolicyCount,caEnforcedCount,caExclusionCount,caPolicies,groupBasedLicensing,restrictedManagementAu,owners,verdict,why"];
+    const L = ["type,displayName,accessPackage,objectId,ruleProcessingState,membershipRule,sourceGroupCount,staleSourceGroups,caPolicyCount,caEnforcedCount,caExclusionCount,caPolicies,groupBasedLicensing,restrictedManagementAu,autoAssigning,removesAccessOnLeave,owners,verdict,why"];
     for (const r of res.rows)
       L.push([
-        r.kind === "au" ? "administrativeUnit" : "group",
-        q(r.name), q(r.id), q(r.ruleState), q(r.rule),
+        r.kind === "au" ? "administrativeUnit" : r.kind === "em" ? "entitlementManagementAutoAssignmentPolicy" : "group",
+        q(r.name), q(r.pkg || ""), q(r.id), q(r.ruleState), q(r.rule),
         r.src.length, r.missing.length,
         r.kind === "group" ? r.refs.length : "",
         r.kind === "group" ? r.enforced : "",
@@ -335,6 +409,8 @@ const MemberOf = (() => {
         q(r.refs.map((x) => `${x.name} (${x.how}, ${x.state})`).join("; ")),
         r.kind === "group" ? (r.licensed ? "yes" : "no") : "",
         r.kind === "au" ? (r.restricted ? "yes" : "no") : "",
+        r.kind === "em" ? (r.autoRequest ? "yes" : "no") : "",
+        r.kind === "em" ? (r.removeOnLeave ? "yes" : "no") : "",
         q((r.owners || []).map((o) => o.upn).join("; ")),
         r.risk, q(r.why),
       ].join(","));
