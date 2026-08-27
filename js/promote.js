@@ -87,6 +87,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 106,
+      title: "🧷 memberOf retirement (T34) — a second temporary tool",
+      tools: ["memberOf retirement"],
+      builds: [25225],
+      risk: "low",
+      what: "New temporary tool for the 3 November 2026 retirement of the memberOf dynamic rule operator. Reads the tenant's dynamic groups (server-side filtered to DynamicMembership) and its dynamic administrative units, detects the operator by its documented user.memberof / device.memberof shape, and reports a memberof that does NOT match that shape as read-by-hand rather than dropping it. Crosses every affected group against the Conditional Access policies ENCA already holds - an EXCLUSION that stops shrinking is a permanent bypass, an INCLUSION that stops growing is an enforcement gap - and adds group-based licensing, membershipRuleProcessingState, and the source groups each rule names, so a rule pointing at a deleted source group is flagged as stale today. Verdicts critical / high / review / read-by-hand, owner notification email, Markdown report, CSV export. New files js/memberof.js, screen and tile in index.html, wiring and TOOL_TABS entry in js/app.js, TOOL_VERSIONS toolMemberOf t:34.",
+      why: "READS ONLY and asks for no extra consent - every call is covered by the baseline Directory.Read.All, and nothing in the tool writes, so the risk of shipping it is a WRONG REPORT rather than a changed tenant. That is still worth holding for a cycle: the operator-detection regex and the enforced/report-only split decide whether a row says critical, and a false clean here is the one output nobody would question. It graduates once it has been run against a tenant that genuinely uses memberOf and the findings have been checked by hand against the Entra portal.",
+      test: [
+        "DEMO MODE FIRST, and it is a real check rather than a smoke test: the demo builds its two affected group ids from the demo tenant's OWN Conditional Access policies at run time, so the CA policies column must be populated, one row must say EXCLUDED from an enforced policy, and one must say INCLUDED plus group-based licensing. If those cells are empty the cross-reference is broken, not the demo.",
+        "On a tenant with NO memberOf rule anywhere: the result must be the green nothing-to-migrate card, and it must state how many dynamic groups were actually read. A zero with no denominator next to it is the failure mode this card exists to prevent.",
+        "On a tenant that DOES use memberOf: take three rows and open each one's rule, then find the same group in the Entra portal and compare the rule text, the processing state and the source groups character by character. This is the check nothing automated can do, and the whole tool rests on it.",
+        "Deliberately break one: point a rule at a group object id that does not exist, rescan, and confirm the row reports one stale source and the expanded rule shows DELETED against that id rather than a bare GUID.",
+        "Write a rule containing an attribute whose NAME contains memberof (for example an extension attribute) with no user.memberof operator in it. It must come back as read-by-hand, never as critical and never as absent.",
+        "Sign in as an account that cannot read administrative units (no Entra ID P1, or the role missing). The administrative unit line must read NOT READ in the notes and in the Markdown report - not zero. Reading it as zero would tell a customer they are clean on a surface nobody looked at.",
+        "Open the tool WITHOUT loading policies first (a session where the policy read failed or was skipped): the verdict must say the blast radius is unknown rather than empty, and no row may claim a critical verdict on the strength of a cross-reference that never ran.",
+        "Click ✉️ Notify owners on a tenant where at least one affected group has no owner: the modal must count the ownerless groups out loud and must say that administrative units carry no owner in Entra at all.",
+        "Export both. The CSV must carry one row per affected object with the full membership rule intact through the quoting, and the Markdown must contain the paragraph naming entitlement-management auto-assignment policies as the surface this tool does not read. If that paragraph is missing, the report is claiming more coverage than the tool has.",
+      ],
+      files: ["js/memberof.js", "js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 92,
       title: "🐳 Self-hosting package (R06)",
       tools: ["Self-hosting"],

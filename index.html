@@ -10,27 +10,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com https://enca.limon-it.nl; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25224"></script>
+<script src="js/popup-guard.js?v=25225"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25224" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25224">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25225" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25225">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25224"></script>
+<script src="js/selfhost-boot.js?v=25225"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25224"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25224"></script>
+<script src="js/counter.js?v=25225"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25225"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25224" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25225" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -66,7 +66,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25224" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25225" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -118,6 +118,10 @@
       <div class="tool" id="toolSmsVoice">
         <div class="tool-ic">📵</div><h3>SMS &amp; voice retirement <span class="tag new">BETA</span></h3>
         <p>Microsoft retires its SMS and voice MFA delivery on <b>1 February 2027</b> — and from <b>1 September 2026</b> everyone still enabled for them is auto-enabled for passkeys and nudged at sign-in. Who is still in the SMS/Voice policy scope, who actually has a phone method registered, and who would be <b>locked out</b> — with Markdown and CSV export. Also reads and, if you want, <b>pauses</b> Microsoft's September rollout — the Graph-only opt-out with no control in the portal. <span class="tag block">writes to tenant</span></p>
+      </div>
+      <div class="tool" id="toolMemberOf">
+        <div class="tool-ic">🧷</div><h3>memberOf retirement <span class="tag new">BETA</span></h3>
+        <p>The <code>memberOf</code> dynamic rule operator leaves preview on <b>3 November 2026</b>. Rules still using it don't fail — they <b>stop updating</b> and keep handing out whatever membership they held that day. Finds every dynamic group and dynamic administrative unit using it, then says what it costs: which <b>Conditional Access</b> policies point at each one, whether it's an <b>include</b> that quietly stops covering joiners or an <b>exclude</b> that becomes a permanent bypass, and which groups carry licensing. Owner notification, Markdown and CSV export. <span class="tag ok">reads only</span></p>
       </div>
     </div>
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
@@ -1173,6 +1177,20 @@
          clear the other. -->
     <div id="svMig" style="margin-top:14px"></div>
     <div id="svBody" style="margin-top:14px"></div>
+  </section>
+
+  <!-- ============ memberOf RETIREMENT (T34 — temporary tool) ============ -->
+  <section id="screen-memberof" class="screen">
+    <div class="list-card readme" id="moHead" style="margin-top:0"></div>
+    <div class="toolbar" id="moToolbar" style="margin-top:14px">
+      <div class="tb-actions">
+        <button class="btn primary" id="moRun" style="display:none">⟳ Rescan</button>
+        <button class="btn" id="moMail" title="The owners of the affected groups and a ready-to-send email asking each of them to replace the rule, convert to assigned, or say it can go">✉️ Notify owners</button>
+        <button class="btn" id="moMd">Export MD</button>
+        <button class="btn" id="moCsv">Export CSV</button>
+      </div>
+    </div>
+    <div id="moBody" style="margin-top:14px"></div>
   </section>
 
   <!-- ============ COMPLIANT-DEVICE REALITY CHECK (R11) ============ -->
@@ -2627,55 +2645,56 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25224"></script>
-<script src="js/selfhost.js?v=25224"></script>
-<script src="js/version.js?v=25224"></script>
-<script src="js/fork.js?v=25224"></script>
-<script src="js/promote.js?v=25224"></script>
-<script src="js/authConfig.js?v=25224"></script>
-<script src="js/labels.js?v=25224"></script>
-<script src="js/graph.js?v=25224"></script>
-<script src="js/model.js?v=25224"></script>
-<script src="js/render.js?v=25224"></script>
-<script src="js/analyze.js?v=25224"></script>
-<script src="js/whatif.js?v=25224"></script>
-<script src="js/mslearn.js?v=25224"></script>
-<script src="js/gapcheck.js?v=25224"></script>
-<script src="js/cisdata.js?v=25224"></script>
-<script src="js/cischeck.js?v=25224"></script>
-<script src="js/exclusions.js?v=25224"></script>
-<script src="js/validator.js?v=25224"></script>
-<script src="js/whatifeval.js?v=25224"></script>
-<script src="js/compare.js?v=25224"></script>
-<script src="js/groupuse.js?v=25224"></script>
-<script src="js/iso3166.js?v=25224"></script>
-<script src="js/locations.js?v=25224"></script>
-<script src="js/authcontexts.js?v=25224"></script>
-<script src="js/authstrengths.js?v=25224"></script>
-<script src="js/recycle.js?v=25224"></script>
-<script src="js/rmau.js?v=25224"></script>
-<script src="js/camap.js?v=25224"></script>
-<script src="js/rmaudoc.js?v=25224"></script>
-<script src="js/termsofuse.js?v=25224"></script>
-<script src="js/audit.js?v=25224"></script>
-<script src="js/drift.js?v=25224"></script>
-<script src="js/guide.js?v=25224"></script>
-<script src="js/userimpact.js?v=25224"></script>
-<script src="js/smsvoice.js?v=25224"></script>
-<script src="js/devcheck.js?v=25224"></script>
-<script src="js/licgap.js?v=25224"></script>
-<script src="js/signins.js?v=25224"></script>
-<script src="js/reportimpact.js?v=25224"></script>
-<script src="js/changelog.js?v=25224"></script>
-<script src="js/baselineData.js?v=25224"></script>
-<script src="js/baselineJoeyData.js?v=25224"></script>
-<script src="js/baseline.js?v=25224"></script>
-<script src="js/groupTemplates.js?v=25224"></script>
-<script src="js/assign.js?v=25224"></script>
-<script src="js/cagroups.js?v=25224"></script>
-<script src="js/import.js?v=25224"></script>
-<script src="js/export.js?v=25224"></script>
-<script src="js/demo.js?v=25224"></script>
-<script src="js/app.js?v=25224"></script>
+<script src="js/branding.js?v=25225"></script>
+<script src="js/selfhost.js?v=25225"></script>
+<script src="js/version.js?v=25225"></script>
+<script src="js/fork.js?v=25225"></script>
+<script src="js/promote.js?v=25225"></script>
+<script src="js/authConfig.js?v=25225"></script>
+<script src="js/labels.js?v=25225"></script>
+<script src="js/graph.js?v=25225"></script>
+<script src="js/model.js?v=25225"></script>
+<script src="js/render.js?v=25225"></script>
+<script src="js/analyze.js?v=25225"></script>
+<script src="js/whatif.js?v=25225"></script>
+<script src="js/mslearn.js?v=25225"></script>
+<script src="js/gapcheck.js?v=25225"></script>
+<script src="js/cisdata.js?v=25225"></script>
+<script src="js/cischeck.js?v=25225"></script>
+<script src="js/exclusions.js?v=25225"></script>
+<script src="js/validator.js?v=25225"></script>
+<script src="js/whatifeval.js?v=25225"></script>
+<script src="js/compare.js?v=25225"></script>
+<script src="js/groupuse.js?v=25225"></script>
+<script src="js/iso3166.js?v=25225"></script>
+<script src="js/locations.js?v=25225"></script>
+<script src="js/authcontexts.js?v=25225"></script>
+<script src="js/authstrengths.js?v=25225"></script>
+<script src="js/recycle.js?v=25225"></script>
+<script src="js/rmau.js?v=25225"></script>
+<script src="js/camap.js?v=25225"></script>
+<script src="js/rmaudoc.js?v=25225"></script>
+<script src="js/termsofuse.js?v=25225"></script>
+<script src="js/audit.js?v=25225"></script>
+<script src="js/drift.js?v=25225"></script>
+<script src="js/guide.js?v=25225"></script>
+<script src="js/userimpact.js?v=25225"></script>
+<script src="js/smsvoice.js?v=25225"></script>
+<script src="js/memberof.js?v=25225"></script>
+<script src="js/devcheck.js?v=25225"></script>
+<script src="js/licgap.js?v=25225"></script>
+<script src="js/signins.js?v=25225"></script>
+<script src="js/reportimpact.js?v=25225"></script>
+<script src="js/changelog.js?v=25225"></script>
+<script src="js/baselineData.js?v=25225"></script>
+<script src="js/baselineJoeyData.js?v=25225"></script>
+<script src="js/baseline.js?v=25225"></script>
+<script src="js/groupTemplates.js?v=25225"></script>
+<script src="js/assign.js?v=25225"></script>
+<script src="js/cagroups.js?v=25225"></script>
+<script src="js/import.js?v=25225"></script>
+<script src="js/export.js?v=25225"></script>
+<script src="js/demo.js?v=25225"></script>
+<script src="js/app.js?v=25225"></script>
 </body>
 </html>
