@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25216, date: "2026-08-27", title: "The icons changed size when the sidebar unfolded",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "25214 gave the collapsed rail 20px icons and left the expanded list on the 13px it inherited from the button, so folding the sidebar out visibly shrank every icon and nudged it sideways. The size is now set once, on the shared rule, and applies to both states \u2014 the collapsed rule only re-centres the glyph in the 56px rail. Two numbers to keep in step is exactly how they fell out of step." },
+      { kind: "improved", tool: "All tools", text: "The icon box widens from 22px to 26px to hold the bigger glyph without clipping, and cannot be squeezed by the flex row. That also brings its centre to within about 5px of where the rail centres it, so the fold barely moves it \u2014 it was 7px before, with a size change on top. The line height stays at 1 in the expanded list: a 20px glyph should not also make every row 20px taller when there are 37 entries and the column already scrolls. The rail keeps its airier spacing." },
+    ],
+  },
+  {
     build: 25215, date: "2026-08-27", title: "The branding gear was hidden from the one host that pays for it",
     items: [
       { kind: "improved", tool: "All tools", text: "The \u2699 gear next to Sign out appears on every host now, production included. Two different things had been sitting behind one guard: the gear, which writes to localStorage and changes the look in THAT browser only, and the deployment file, which is served to every visitor. Only the second is a self-hosting mechanism. Anyone could already have the look by self-hosting, so denying it to the person running the hosted site was protecting nothing." },
