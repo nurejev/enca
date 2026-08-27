@@ -1527,7 +1527,15 @@ body.with-side.side-min .fwrap{margin-left:max(76px, calc((100vw - 1444px)/2))}
    Section headings become divider lines: the grouping stays visible even
    when its words do not. All of it scoped under with-side so none of it
    exists on the sign-in screen. */
-.sidenav .sn-ic{display:inline-block;width:22px;text-align:center;margin-right:6px}
+/* ONE icon size in both states. The rail set 20px and the expanded list kept
+   the button's 13px, so folding the sidebar out visibly shrank every icon and
+   nudged it sideways. Size lives here and applies to both; the collapsed rule
+   below only re-centres it in the 56px rail.
+   line-height:1 so a 20px glyph does not also make the row 20px taller —
+   there are 37 entries and the column already has to scroll. The box widens
+   22px -> 26px to hold the bigger glyph, which also brings its centre within
+   a few pixels of where the rail centres it, so the fold barely moves it. */
+.sidenav .sn-ic{display:inline-block;flex:0 0 auto;width:26px;text-align:center;margin-right:6px;font-size:20px;line-height:1}
 .sn-toggle{display:block;width:100%;text-align:right;border:0;background:none;color:var(--muted);cursor:pointer;
   font:inherit;font-size:15px;font-weight:700;padding:2px 10px 6px;border-radius:8px}
 .sn-toggle:hover{background:var(--soft);color:var(--ink)}
@@ -1541,7 +1549,11 @@ body.with-side.side-min .sidenav:not(.peek) h4{height:0;overflow:hidden;padding:
 body.with-side.side-min .sidenav:not(.peek) .sn-txt,
 body.with-side.side-min .sidenav:not(.peek) .sn-t{display:none}
 body.with-side.side-min .sidenav:not(.peek) button{text-align:center;padding:7px 0}
-body.with-side.side-min .sidenav:not(.peek) .sn-ic{margin:0;width:100%}
+/* The rail is icons only, so the icon carries the row: full width to centre
+   it, and a taller line so the stack breathes. The SIZE comes from .sn-ic
+   above and is deliberately not repeated here — two numbers to keep in step
+   is how they fell out of step in the first place. */
+body.with-side.side-min .sidenav:not(.peek) .sn-ic{margin:0;width:100%;line-height:1.35}
 body.with-side.side-min .sidenav:not(.peek) .sn-toggle{text-align:center;padding:2px 0 6px}
 body.with-side.side-min .sidenav.peek{width:240px;z-index:60;box-shadow:6px 0 24px rgba(0,0,0,.16)}
 body.with-side.side-min main{margin-left:max(76px, calc((100vw - 1444px)/2))}
