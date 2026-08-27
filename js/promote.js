@@ -83,31 +83,9 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.302",
+  productionBuild: "v1.0.303",
 
   items: [
-    {
-      n: 105,
-      title: "T33 reads and sets passkey dynamic migration",
-      tools: ["SMS & voice retirement"],
-      builds: [25222, 25223],
-      risk: "medium",
-      what: "A panel above the scan in T33: 🔎 Check dynamic migration reads optOutSettings.passkeyDynamicMigration from the authentication methods policy (beta, baseline scopes), and one action button pauses Microsoft's 1 September 2026 rollout (sets true) or resumes it (sets false) when it is already paused. Behind an acknowledgement naming what it does not do; Policy.ReadWrite.AuthenticationMethod asked on the click; the write is verified by re-reading the property. The full scan seeds the panel. The tile and the tool header stop claiming the tool is read-only and the tile gains a writes-to-tenant tag; the scope table names the tool on that permission. 25223: the panel is its own block (#svMig) above the scan's container rather than the first card inside it — a scan used to wipe it off screen — and the state is a coloured strip (PAUSED / NOT PAUSED / NOT CHECKED YET / COULD NOT READ) carrying the raw property value, the read time, a spinner while reading, and a flash plus a toast on every update so a re-read that finds the same value still answers. New .sv-mig / .sv-flash / .sv-spin rules in css/app.css.",
-      why: "T33's FIRST write, and a tenant-wide one on a property no portal screen shows — so a wrong value is invisible to whoever comes next. It graduates once it has been read on a real tenant (including one that does not expose the property at all) and once a pause and a resume have each been done and verified from the panel. The read half is harmless and could ship alone if the write needs to wait.",
-      test: [
-        "Demo mode: open T33 without signing in to a tenant. The panel says nobody has looked; 🔎 Check reports not paused; ticking the acknowledgement and clicking ⏸ Pause flips it to paused and the button becomes ▶ Resume; resuming flips it back. No Graph call is made.",
-        "Real tenant, read only: 🔎 Check on a tenant that has never used the opt-out reports the property as ABSENT and says Microsoft's rollout applies - not \"off\", and not an error.",
-        "Real tenant, pause: tick the acknowledgement, ⏸ Pause, consent to Policy.ReadWrite.AuthenticationMethod. The toast says paused, the panel says paused, and an independent read (Graph Explorer, or PowerShell per the article) shows optOutSettings.passkeyDynamicMigration = true. The acknowledgement is cleared afterwards.",
-        "Real tenant, resume: ▶ Resume sets it back to false and an independent read agrees. Both directions leave the rest of the authentication methods policy untouched - diff the policy before and after.",
-        "Refusal path: sign in WITHOUT Authentication Policy Administrator (or decline the consent). The panel reports the failure and keeps the previous value rather than showing success.",
-        "A tenant that does not expose the property (if one can be found): the write is accepted but the re-read still says not set, and the panel says exactly that instead of claiming the pause is in place.",
-        "After a full ▶ Check the tenant run: the panel's value and the verdict paragraph below it agree, with no second read - and re-running the scan does not wipe a value the panel just wrote.",
-        "25223, the panel survives the scan: check the migration state, then click ▶ Check the tenant. The strip stays on screen with its value and read time all through the progress panel, and its buttons still work while the scan runs.",
-        "25223, the read is visible: click 🔎 Re-check on a tenant whose value does not change. The strip flashes, the read time updates and a toast names the state - the result must not be indistinguishable from a button that did nothing. During the read the strip itself says READING with a spinner and both buttons are disabled.",
-        "25223, the four states: paused draws green, not-paused and absent both draw amber (the exposure is the same - only the words differ), never-checked draws grey, and a failed read draws red saying the state is unknown rather than off. Check both light and dark themes.",
-      ],
-      files: ["js/app.js", "js/smsvoice.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
-    },
     {
       n: 92,
       title: "🐳 Self-hosting package (R06)",

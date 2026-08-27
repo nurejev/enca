@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25224, date: "2026-08-27", title: "Item 105 reached production 303",
+    items: [
+      { kind: "improved", tool: "SMS & voice retirement", text: "Reading, pausing and resuming passkey dynamic migration is live on enca.limon-it.nl as build 303, the day it was built. The order file named only build 25222, but 25223 - the state strip and the panel the tenant scan can no longer wipe - is the same item and travelled with it; promoting half of it would have shipped the write with the presentation that made the read look like it did nothing. Carved out of the port: the beta-only promotion-queue styles that sit beside the new strip's rules in the stylesheet. Items 92, 34 and 24 stay behind." },
+    ],
+  },
+  {
     build: 25223, date: "2026-08-27", title: "A state you can read from across the room, and a panel the scan cannot wipe",
     items: [
       { kind: "fixed", tool: "SMS & voice retirement", text: "The dynamic-migration panel rendered inside the scan's own container, so clicking ▶ Check the tenant replaced it with the progress panel and the tenant's opt-out state disappeared from the screen — including a value the panel itself had just written. It now has its own block above the scan, with its own click and change handlers, and the two never clear each other: the scan owns its results area, the panel owns the one property it reads and writes." },
