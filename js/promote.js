@@ -83,28 +83,9 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.299",
+  productionBuild: "v1.0.300",
 
   items: [
-    {
-      n: 100,
-      title: "📵 SMS & voice retirement: Phone role column + Notify users email",
-      tools: ["SMS & voice retirement"],
-      builds: [25212],
-      risk: "low",
-      what: "Two additions to T33. A Phone role column saying what the phone IS to each user - only method / default / backup - read from the preferred-method field (both dialects), in the summary, table, Markdown and as two yes/no CSV columns. And a Notify users button: recipient list (locked-out + migrate verdicts, disabled accounts skipped; whole scope with a stated caveat when registration was not read) plus an editable ready-to-send plain-text email with both dates and the register-then-remove steps, copy and download actions, and a mailto link only when the URL stays under 1800 chars.",
-      why: "Reads nothing new from Graph - both features derive from data the run already holds, so the blast radius is rendering and clipboard. The judgement calls worth reviewing: UPN used as the mail address (stated in the modal, not always the mailbox), and the mailto cutoff that prevents a silently truncated recipient list.",
-      test: [
-        "Tenant with registration data: a user with only mobilePhone reads only method, one with phone + Authenticator whose default is sms/voiceMobile reads default in bold, phone + passkey with push default reads backup, and the summary counts N using it as their default.",
-        "CSV: phoneIsOnlyMfaMethod and phoneIsDefaultMethod columns filled, matching the on-screen roles.",
-        "Notify users on a run with registration data: recipient count equals the blocking + migrate rows minus disabled accounts; the modal says which verdicts are included.",
-        "Notify users on a scope-only run (consent declined): the modal says it is everyone in scope and why.",
-        "Small tenant (under ~15 recipients): Open in mail app appears and opens the client with BCC, subject and body filled. Large tenant: the link is replaced by the too-many-recipients note - it must never truncate.",
-        "Copy recipients and Copy email text both land on the clipboard; Download everything produces one .txt with BCC, subject and body.",
-        "Demo mode: the button works on the four demo users - two recipients (u1 blocking, u2 migrate), u4 disabled is skipped.",
-      ],
-      files: ["index.html", "js/smsvoice.js", "js/app.js"],
-    },
     {
       n: 92,
       title: "🐳 Self-hosting package (R06)",

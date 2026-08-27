@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25213, date: "2026-08-27", title: "Item 100 reached production 300",
+    items: [
+      { kind: "improved", tool: "SMS & voice retirement", text: "The Phone role column and the Notify users button are live on enca.limon-it.nl as build 300, the day after they were built. The queue item leaves and the production build the queue measures against is v1.0.300. Items 92, 34 and 24 stay behind." },
+    ],
+  },
+  {
     build: 25212, date: "2026-08-26", title: "What the phone IS to each user, and the email that tells them",
     items: [
       { kind: "new", tool: "SMS & voice retirement", text: "A Phone role column states outright what the verdict only implied: whether the phone is the user's ONLY MFA method, the DEFAULT their sign-in prompts actually use today, or a backup sitting next to something better. The default is read from the preferred-method field in both its dialects, and it matters even when a passkey is registered - those users feel the retirement first, because every prompt they see today goes to the phone. In the summary line, the table, the Markdown report, and as two explicit yes/no columns in the CSV." },
