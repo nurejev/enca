@@ -87,6 +87,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 101,
+      title: "\ud83d\udccc Collapsed sidebar icons are big enough to aim at",
+      tools: ["All tools"],
+      builds: [25214],
+      risk: "low",
+      what: "The icon in the collapsed rail goes from the 13px it inherited from the button to 20px, with the line height to match. Expanded rows are untouched: there the icon sits beside a label at text size, which is right. One line, and it makes ENCA's rule identical to TUNO's, where the rail has been 20px since it was built.",
+      why: "Collapsed, the icon IS the row - there is no label beside it. At button text size it reads as a smudge rather than a target, on a 56px rail with 30-odd of them stacked. This is the state the sidebar remembers, so it is the state most people see most of the time.",
+      test: [
+        "Collapse the sidebar: the icons are noticeably larger and centred, and the rail is still 56px wide - nothing overflows or wraps.",
+        "Count the rows: nothing has been pushed off the bottom on a 1080px-tall window, and Help is still reachable by scrolling.",
+        "Expand it again: icons return to text size beside their labels, aligned as before.",
+        "Hover a collapsed icon: the native tooltip still gives the full name with its T number.",
+        "The active row's highlight still fits the taller icon, in light and dark mode.",
+        "Peek mode (hovering the collapsed rail where it widens): labels and numbers appear and the icons return to text size with them.",
+      ],
+      files: ["css/app.css"],
+    },
+    {
       n: 92,
       title: "🐳 Self-hosting package (R06)",
       tools: ["Self-hosting"],

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25214, date: "2026-08-27", title: "In the collapsed rail the icon is the row",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The icons in the collapsed sidebar go from the 13px they inherited from the button to 20px. Collapsed there is no label beside them, so the icon IS the row \u2014 and at button text size, on a 56px rail with thirty-odd of them stacked, it reads as a smudge rather than something to aim at. That is also the state the sidebar remembers between visits, so it is what most people see most of the time. Expanded rows are untouched: there the icon sits next to a label at text size, which is correct." },
+    ],
+  },
+  {
     build: 25213, date: "2026-08-27", title: "Item 100 reached production 300",
     items: [
       { kind: "improved", tool: "SMS & voice retirement", text: "The Phone role column and the Notify users button are live on enca.limon-it.nl as build 300, the day after they were built. The queue item leaves and the production build the queue measures against is v1.0.300. Items 92, 34 and 24 stay behind." },

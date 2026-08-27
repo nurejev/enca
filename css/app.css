@@ -1551,7 +1551,10 @@ body.with-side.side-min .sidenav:not(.peek) h4{height:0;overflow:hidden;padding:
 body.with-side.side-min .sidenav:not(.peek) .sn-txt,
 body.with-side.side-min .sidenav:not(.peek) .sn-t{display:none}
 body.with-side.side-min .sidenav:not(.peek) button{text-align:center;padding:7px 0}
-body.with-side.side-min .sidenav:not(.peek) .sn-ic{margin:0;width:100%}
+/* The collapsed rail is icons only, so the icon has to carry the row on its
+   own — at the 13px the button inherits it reads as a smudge rather than a
+   thing you aim at. 20px on a 56px rail, matching TUNO. */
+body.with-side.side-min .sidenav:not(.peek) .sn-ic{margin:0;width:100%;font-size:20px;line-height:1.35}
 body.with-side.side-min .sidenav:not(.peek) .sn-toggle{text-align:center;padding:2px 0 6px}
 body.with-side.side-min .sidenav.peek{width:240px;z-index:60;box-shadow:6px 0 24px rgba(0,0,0,.16)}
 body.with-side.side-min main{margin-left:max(76px, calc((100vw - 1444px)/2))}
