@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25217, date: "2026-08-27", title: "Items 101 and 102 reached production 301",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The 20px sidebar icons \u2014 one shared rule, both states \u2014 and the branding gear on every host are live on enca.limon-it.nl as build 301, the day they were built. The two items leave the queue together because their builds interleave, and the production build the queue measures against is v1.0.301. The beta-only test-checklist styles travelled nowhere: they were carved out of the port. Items 92, 34 and 24 stay behind." },
+    ],
+  },
+  {
     build: 25216, date: "2026-08-27", title: "The icons changed size when the sidebar unfolded",
     items: [
       { kind: "fixed", tool: "All tools", text: "25214 gave the collapsed rail 20px icons and left the expanded list on the 13px it inherited from the button, so folding the sidebar out visibly shrank every icon and nudged it sideways. The size is now set once, on the shared rule, and applies to both states \u2014 the collapsed rule only re-centres the glyph in the 56px rail. Two numbers to keep in step is exactly how they fell out of step." },

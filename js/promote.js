@@ -83,52 +83,9 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.300",
+  productionBuild: "v1.0.301",
 
   items: [
-    {
-      n: 102,
-      title: "\u2699 The branding gear appears on every host",
-      tools: ["All tools"],
-      builds: [25215],
-      risk: "medium",
-      what: "Two things were behind one guard and are now separated. The GEAR is offered everywhere, including production: it writes to localStorage, so it changes the look in that browser only. The deployment FILE stays non-production \u2014 selfhost-branding.json is served TO every visitor and softens the ribbon, which is a self-hosting mechanism. The dialog says on production that the settings are local and that the downloaded file would do nothing if served here. BRANDING.host remains non-configurable on both.",
-      why: "S02 shipped gated on host, so the person running the hosted site could not have a look they could get simply by self-hosting. The original note argued a settings dialog must not redress enca.limon-it.nl \u2014 true of the served file, not of a per-browser preference nobody else can see, and production already wears other identities legitimately through the per-audience overrides.",
-      test: [
-        "Production host: the gear appears next to Sign out. Open it, change the product name, press Apply - the header changes.",
-        "Reload production: the change persists (localStorage). Press Reset - the stock look returns.",
-        "Open production in another browser or a private window: stock branding. The change must not be visible to anyone else.",
-        "Production, network tab: NO request for selfhost-branding.json. That fetch is non-production only.",
-        "Production: no BETA or SELF-HOSTED ribbon appears, whatever is applied. A local look must never make production look like a test site.",
-        "The dialog on production carries the note that the settings are local and the downloaded file would do nothing served here; on beta it does not.",
-        "Beta or a self-hosted host: unchanged from before - gear, deployment file fetched, ribbon softens to SELF-HOSTED when the file is present.",
-        "Exports (PNG, PDF) still carry the neutral product credit on every host - branding is chrome only.",
-      ],
-      files: ["js/selfhost.js"],
-    },
-    {
-      n: 101,
-      title: "\ud83d\udccc Collapsed sidebar icons are big enough to aim at",
-      tools: ["All tools"],
-      builds: [25214, 25216],
-      risk: "low",
-      what: "The icon in the collapsed rail goes from the 13px it inherited from the button to 20px, with the line height to match. Expanded rows are untouched: there the icon sits beside a label at text size, which is right. One line, and it makes ENCA's rule identical to TUNO's, where the rail has been 20px since it was built.",
-      why: "Collapsed, the icon IS the row - there is no label beside it. At button text size it reads as a smudge rather than a target, on a 56px rail with 30-odd of them stacked. This is the state the sidebar remembers, so it is the state most people see most of the time.",
-      test: [
-        "Expand the sidebar: the icons are the SAME size as in the rail. Folding in and out must not visibly shrink or grow them.",
-        "Watch one icon while you collapse and expand: it moves about 5px sideways and does not change size.",
-        "Expanded, the labels still line up in one column and the T numbers stay pinned right.",
-        "A long name (Conditional Access groups) still ellipsises rather than pushing the number out.",
-        "On a 1080px window the expanded list still reaches Help by scrolling - the bigger icon must not have cost so much row height that the last entries are unreachable.",
-        "Collapse the sidebar: the icons are noticeably larger and centred, and the rail is still 56px wide - nothing overflows or wraps.",
-        "Count the rows: nothing has been pushed off the bottom on a 1080px-tall window, and Help is still reachable by scrolling.",
-        "Expand it again: icons return to text size beside their labels, aligned as before.",
-        "Hover a collapsed icon: the native tooltip still gives the full name with its T number.",
-        "The active row's highlight still fits the taller icon, in light and dark mode.",
-        "Peek mode (hovering the collapsed rail where it widens): labels and numbers appear and the icons return to text size with them.",
-      ],
-      files: ["css/app.css"],
-    },
     {
       n: 92,
       title: "🐳 Self-hosting package (R06)",
