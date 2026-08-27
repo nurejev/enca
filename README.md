@@ -127,7 +127,7 @@ Every JS file is an IIFE assigned to one global — no modules, no bundler, no b
 ```
 index.html            app shell: login, tools home, every tool screen, modals
 css/app.css           theme + light/dark palettes
-js/branding.js        name, org, logos, colours  ← edit this to rebrand a fork
+js/branding.js        name, org, logos, colours  ← forks only; a self-hosted instance brands itself via the ⚙ gear / selfhost-branding.json
 js/authConfig.js      clientId + scopes  ← the only other file you must edit
 js/labels.js          friendly names for Graph enums / well-known IDs
 js/graph.js           MSAL sign-in, policy fetch (Graph beta), GUID→name resolver
@@ -223,9 +223,19 @@ open it until you widen it:
 Full walkthrough, including keeping a pinned copy current:
 **[SINGLE-TENANT.md](SINGLE-TENANT.md)**.
 
-## Rebranding a fork
+## Rebranding
 
-All of it lives in **`js/branding.js`** — one object, no other file hard-codes the name, the organisation or the colours:
+**You no longer need a fork to rebrand.** On any non-production host a **⚙ gear appears next to Sign out** with the branding settings — product and organisation names, logos, login text, light/dark colour palettes:
+
+- **Apply** keeps the look in this browser.
+- **Download selfhost-branding.json** exports it as a file. Serve that file next to `index.html` (the compose file and install scripts mount `./selfhost-branding.json` automatically) and **every visitor** to your instance gets the branding — and the red "BETA — not production" ribbon becomes a neutral "SELF-HOSTED" one.
+- **Import from JSON** loads an existing file back into the form, so a look made elsewhere never has to be retyped.
+
+Chrome only, deliberately: exports (Word/PDF/Markdown) keep the neutral ENCA credit, and the canonical host is not configurable — a settings dialog must not be able to make a copy claim to be production. Details in **[SELF-HOSTING.md](SELF-HOSTING.md)**.
+
+### Rebranding a fork
+
+A true fork — your own repo, your own identity baked into the code, your own export credit — edits **`js/branding.js`**: one object, no other file hard-codes the name, the organisation or the colours:
 
 ```js
 const BRANDING = {
