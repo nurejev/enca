@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 300, date: "2026-08-27", title: "What the phone IS to each user, and the email that tells them",
+    items: [
+      { kind: "new", tool: "SMS & voice retirement", text: "A Phone role column states outright what the verdict only implied: whether the phone is the user's ONLY MFA method, the DEFAULT their sign-in prompts actually use today, or a backup sitting next to something better. The default is read from the preferred-method field in both its dialects, and it matters even when a passkey is registered - those users feel the retirement first, because every prompt they see today goes to the phone. In the summary line, the table, the Markdown report, and as two explicit yes/no columns in the CSV." },
+      { kind: "new", tool: "SMS & voice retirement", text: "A Notify users button turns the result into the communication: the recipient list (the users whose verdict is locked out or migrate, disabled accounts skipped - or the whole scope when registration data was not read, and it says which) plus a ready-to-send plain-text email telling people to register a passkey at aka.ms/mysecurityinfo and then remove their phone method, with both retirement dates spelled out. Copy buttons for the BCC list and the text, a download of the whole thing, and an open-in-mail-app link that only appears when the list is small enough for a mailto URL to survive - a truncated link would silently notify an arbitrary prefix of the tenant. The bracketed service-desk lines are left for you on purpose; Microsoft's own templates are linked beside it." },
+    ],
+  },
+  {
     build: 299, date: "2026-08-26", title: "A tool with an expiry date, in a section that says so",
     items: [
       { kind: "new", tool: "SMS & voice retirement", text: "T33, BETA, and openly TEMPORARY - the first tenant of a new Temporary tools section that sits FIRST on the home page, for deadline-driven tools that name the date they stop mattering and leave once it has passed. Microsoft retires its own SMS and voice MFA delivery on 1 February 2027, and from 1 September 2026 every user still enabled for SMS or voice is auto-enabled for passkeys and nudged at sign-in; after the retirement a user whose ONLY MFA method is a phone number gets a BLOCKING passkey-registration prompt, with no opt-out. The tool reads the sms and voice authentication method configurations the way Microsoft's own Get-SmsVoicePolicyUsers.ps1 does - state, registration campaign, include and exclude targets resolved to names - and then goes further than the script: the scope is expanded to the actual users, and each one carries a verdict." },

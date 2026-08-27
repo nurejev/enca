@@ -14741,7 +14741,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const yn = (v) => v === null ? "?" : v ? "yes" : "—";
     const head = `<div class="list-card" style="padding:14px 16px">
       ${verdict}
-      <p class="mini" style="margin:10px 0 0">${chips.map((c) => c[1]).join(" · ")} · ${s.total.toLocaleString()} user${s.total === 1 ? "" : "s"} in scope${r.usersPartial ? ' <span style="color:var(--off)">(read capped — partial)</span>' : ""}${r.regRead ? ` · ${s.phone.toLocaleString()} with a phone method registered${r.regPartial ? ' <span style="color:var(--off)">(registration read capped)</span>' : ""}` : ' · <span style="color:var(--off)">registration data not read — scope only</span>'}</p>
+      <p class="mini" style="margin:10px 0 0">${chips.map((c) => c[1]).join(" · ")} · ${s.total.toLocaleString()} user${s.total === 1 ? "" : "s"} in scope${r.usersPartial ? ' <span style="color:var(--off)">(read capped — partial)</span>' : ""}${r.regRead ? ` · ${s.phone.toLocaleString()} with a phone method registered, <b>${s.phoneDefault.toLocaleString()} using it as their default</b>${r.regPartial ? ' <span style="color:var(--off)">(registration read capped)</span>' : ""}` : ' · <span style="color:var(--off)">registration data not read — scope only</span>'}</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
         <div style="flex:1;min-width:220px"><p class="mini" style="margin:0"><b>SMS scope</b> ${st((r.sms || {}).state)}</p>${scopeList((r.sms || {}).scope)}</div>
         <div style="flex:1;min-width:220px"><p class="mini" style="margin:0"><b>Voice scope</b> ${st((r.voice || {}).state)}</p>${scopeList((r.voice || {}).scope)}</div>
@@ -14751,7 +14751,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const table = !r.rows.length ? "" : `<div class="list-card" style="padding:14px 16px;margin-top:12px">
       ${filters.length ? `<p class="mini" style="margin:0 0 8px">${filters.map((k) => `<button class="btn${svFilter === k ? " primary" : ""}" data-svfilter="${k}" style="margin-right:6px">${SV_RISK[k].icon} ${SV_RISK[k].word} (${counts[k]})</button>`).join("")}${svFilter ? '<button class="btn" data-svfilter="">✕ All</button>' : ""}</p>` : ""}
       <div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
-        <thead><tr style="text-align:left"><th style="padding:4px 8px">User</th><th style="padding:4px 8px">Enabled</th><th style="padding:4px 8px">SMS</th><th style="padding:4px 8px">Voice</th><th style="padding:4px 8px">Via</th><th style="padding:4px 8px">SMS reg.</th><th style="padding:4px 8px">Voice reg.</th><th style="padding:4px 8px">Phishing-resistant</th><th style="padding:4px 8px">Verdict</th></tr></thead>
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">User</th><th style="padding:4px 8px">Enabled</th><th style="padding:4px 8px">SMS</th><th style="padding:4px 8px">Voice</th><th style="padding:4px 8px">Via</th><th style="padding:4px 8px">SMS reg.</th><th style="padding:4px 8px">Voice reg.</th><th style="padding:4px 8px">Phishing-resistant</th><th style="padding:4px 8px" title="What the phone IS to this user: their ONLY MFA method, the DEFAULT their prompts use today, or a backup next to something better">Phone role</th><th style="padding:4px 8px">Verdict</th></tr></thead>
         <tbody>${shown.slice(0, SV_TABLE_CAP).map((x) => `<tr style="border-top:1px solid var(--line)">
           <td style="padding:4px 8px"><b>${esc(x.upn)}</b>${x.name ? `<br><span class="muted">${esc(x.name)}</span>` : ""}</td>
           <td style="padding:4px 8px">${x.enabled === false ? '<span style="color:var(--off)">no</span>' : x.enabled === true ? "yes" : "?"}</td>
@@ -14761,6 +14761,7 @@ max@contoso.com,"Global, DevOps"</pre>
           <td style="padding:4px 8px">${yn(x.sms)}</td>
           <td style="padding:4px 8px">${yn(x.voice)}</td>
           <td style="padding:4px 8px">${yn(x.pr)}</td>
+          <td style="padding:4px 8px">${x.phoneOnly ? '<b style="color:var(--off)">only method</b>' : x.phoneDefault ? "<b>default</b>" : esc(SmsVoice.phoneRole(x))}</td>
           <td style="padding:4px 8px">${svChip(x.risk)}</td>
         </tr>`).join("")}</tbody>
       </table></div>
@@ -14780,6 +14781,70 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.closest("[data-svrun]")) { svRun(); return; }
     const f = e.target.closest("[data-svfilter]");
     if (f) { svFilter = f.dataset.svfilter || ""; renderSmsVoice(); }
+  });
+  // ✉️ Notify users — the recipient list plus a ready-to-send email. The
+  // modal is built fresh on every open so it always reflects the current run.
+  // mailto: is offered only when the whole link stays under ~1800 chars —
+  // beyond that browsers and mail clients truncate silently, which would
+  // notify an arbitrary prefix of the tenant, so copy/download take over.
+  const svCopy = (text, what) => {
+    const done = () => toast(`${what} <span>copied</span>`);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => toast("Copy failed — select the text and copy by hand"));
+    else toast("Copy failed — select the text and copy by hand");
+  };
+  $("svMail").addEventListener("click", () => {
+    if (!svRes) { toast("Run the check first — the recipients are the users it finds."); return; }
+    const mail = SmsVoice.notifyEmail(svRes);
+    if (!mail.recipients.length) { toast("Nobody to notify — no enabled user in scope carries a phone method."); return; }
+    const old = document.getElementById("svMailModal");
+    if (old) old.remove();
+    const bg = document.createElement("div");
+    bg.id = "svMailModal";
+    bg.className = "modal-bg open";
+    const recStr = mail.recipients.join("; ");
+    const mailto = `mailto:?bcc=${encodeURIComponent(recStr)}&subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body)}`;
+    bg.innerHTML = `<div class="modal" style="max-width:720px">
+      <h3>✉️ Notify the affected users</h3>
+      <p class="mini">${mail.recipients.length.toLocaleString()} recipient${mail.recipients.length === 1 ? "" : "s"} — ${mail.scopeOnly
+        ? "registration data was not read, so this is <b>everyone in scope</b>, including users who may not use a phone at all"
+        : "the users whose verdict is <b>locked out Feb 1</b> or <b>migrate</b>: a phone method is registered on their account"}${mail.skippedDisabled ? `; ${mail.skippedDisabled} disabled account${mail.skippedDisabled === 1 ? "" : "s"} skipped` : ""}.
+        Addresses are UPNs — usually the mailbox address, not always; your mail system is the judge.</p>
+      <p class="mini" style="margin:10px 0 4px"><b>Recipients</b> (BCC)</p>
+      <textarea id="svMailRec" readonly class="mini" style="width:100%;height:72px;resize:vertical">${esc(recStr)}</textarea>
+      <p class="mini" style="margin:6px 0 10px">
+        <button class="btn" data-svcopy="rec">Copy recipients</button>
+        <button class="btn" data-svdl="rec">⭳ Download .txt</button>
+      </p>
+      <p class="mini" style="margin:10px 0 4px"><b>Subject</b></p>
+      <input id="svMailSub" readonly class="mini" style="width:100%" value="${esc(mail.subject)}">
+      <p class="mini" style="margin:10px 0 4px"><b>Email text</b> — edit before sending: the [BRACKETED] lines need your service-desk details</p>
+      <textarea id="svMailBody" class="mini" style="width:100%;height:220px;resize:vertical">${esc(mail.body)}</textarea>
+      <p class="mini" style="margin:6px 0 0">
+        <button class="btn" data-svcopy="body">Copy email text</button>
+        <button class="btn" data-svdl="all">⭳ Download everything (.txt)</button>
+        ${mailto.length < 1800 ? `<a class="btn" href="${esc(mailto)}">Open in mail app</a>` : `<span class="muted">Too many recipients for a mailto link — copy the BCC list into your mail client instead.</span>`}
+      </p>
+      <p class="mini muted" style="margin:8px 0 0">Microsoft's own end-user templates: <a href="https://aka.ms/mfatemplates" target="_blank" rel="noopener">aka.ms/mfatemplates</a> — this text is a starting point, not a legal document.</p>
+      <div class="modal-foot"><button class="btn" id="svMailClose">Close</button></div>
+    </div>`;
+    document.body.appendChild(bg);
+    bg.querySelector("#svMailClose").addEventListener("click", () => bg.remove());
+    bg.addEventListener("click", (e) => {
+      if (e.target === bg) { bg.remove(); return; }
+      const c = e.target.closest("[data-svcopy]");
+      if (c) {
+        c.dataset.svcopy === "rec" ? svCopy(bg.querySelector("#svMailRec").value, "Recipient list")
+          : svCopy(bg.querySelector("#svMailBody").value, "Email text");
+        return;
+      }
+      const d = e.target.closest("[data-svdl]");
+      if (d) {
+        d.dataset.svdl === "rec"
+          ? downloadText("SmsVoice-Recipients", "txt", "text/plain", bg.querySelector("#svMailRec").value)
+          : downloadText("SmsVoice-Notification", "txt", "text/plain",
+              `BCC:\n${bg.querySelector("#svMailRec").value}\n\nSubject:\n${bg.querySelector("#svMailSub").value}\n\n${bg.querySelector("#svMailBody").value}`);
+      }
+    });
   });
   $("svMd").addEventListener("click", () => {
     if (!svRes) { toast("Run the check first — the report is the verdicts."); return; }
