@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25219, date: "2026-08-27", title: "The analyzer is named after both things it analyzes",
+    items: [
+      { kind: "improved", tool: "User or Group analyzer", text: "Renamed from Group Analyzer. The tool has taken a user as well as a group since its first build, but the home tile only promised groups — so the user half went unfound by exactly the people it was built for. The new name says both. Nothing else moved: same tile, same reports, same permissions, and Jasper Baes' Microsoft Cloud Group Analyzer keeps its own name in the credit, because that is the name of his project, not ours." },
+    ],
+  },
+  {
     build: 25218, date: "2026-08-27", title: "The refused row now carries the way out",
     items: [
       { kind: "improved", tool: "Protect exclusions", text: "A role-assignable group's row in the protection list refused the checkbox and explained why, but the way out — convert it to a plain group in CA groups (7) Migrate — was named only in the prose above the table. The refusal itself now ends in a (7) Migrate it button that takes you there; the conversion is not duplicated, because Migrate finds every role-assignable candidate in its own scan. From the standalone tool a toast says where you are being taken and to come back and protect the group afterwards. A frozen row — role-assignable AND already in a restricted unit — deliberately gets no button: its way out starts with removing it from the unit, and a Migrate button there would put the steps in the wrong order. The same row serves CA groups (6) Protect." },

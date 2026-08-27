@@ -72,7 +72,7 @@ const CisCheck = (() => {
   // Controls whose scope is the administrator set — a pass through a persona
   // group gets an explanatory note.
   const ADMIN_CONTROLS = new Set(["5.2.2.1", "5.2.2.4", "5.2.2.5"]);
-  const ADMIN_GROUP_NOTE = "Admin scope satisfied by an admin persona group rather than directory roles. The benchmark's Graph audit reads includeRoles — document the group as the tenant's administrator scope and verify every admin-role holder is actually a member (Compare users / Group Analyzer can check this).";
+  const ADMIN_GROUP_NOTE = "Admin scope satisfied by an admin persona group rather than directory roles. The benchmark's Graph audit reads includeRoles — document the group as the tenant's administrator scope and verify every admin-role holder is actually a member (Compare users / User or Group analyzer can check this).";
 
   // Pilot deployment groups: in the ENCA deployment model a policy rolls out
   // to a CAD-… deployment group first and is switched to All users when the

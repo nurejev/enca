@@ -87,6 +87,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 104,
+      title: "T19 renamed: User or Group analyzer",
+      tools: ["User or Group analyzer"],
+      builds: [25219],
+      risk: "low",
+      what: "The tool formerly named Group Analyzer is now User or Group analyzer everywhere it names itself: home tile (with UPDATED tag), sidebar, breadcrumb, tool header, Help section and every cross-reference in other tools' prose and confirm dialogs. Name only — the tool id (toolGroupUse), the report download basenames (CA-GroupAnalyzer) and Jasper Baes' Microsoft Cloud Group Analyzer credit are unchanged.",
+      why: "A string rename with no logic touched. The only risk is a missed or over-eager replacement: a leftover old name somewhere in the UI, or the Jasper Baes credit accidentally renamed — both are checked by reading, not by running anything.",
+      test: [
+        "Home page: the tile reads User or Group analyzer with an UPDATED tag; the sidebar entry and, after opening it, the breadcrumb and header all agree.",
+        "Help: the section heading is User or Group analyzer and its body still credits Jasper Baes' Microsoft Cloud Group Analyzer under that exact name.",
+        "Cross-references: CA groups' disable-nesting and recreate confirm texts, and the Restricted AUs / import prose, say User or Group analyzer — search the served page for the words Group Analyzer preceded by anything other than Microsoft Cloud: there should be no hit.",
+        "Run one analysis and export: the Markdown and HTML report titles carry the new name, and the download filename still starts CA-GroupAnalyzer (unchanged on purpose - saved links and habits keep working).",
+      ],
+      files: ["index.html", "js/app.js", "js/cagroups.js", "js/cischeck.js", "js/groupuse.js", "js/graph.js", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 103,
       title: "The refused role-assignable row offers (7) Migrate",
       tools: ["Protect exclusions", "CA groups"],
