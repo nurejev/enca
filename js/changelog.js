@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25221, date: "2026-08-27", title: "Items 103 and 104 reached production 302",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The (7) Migrate it button on a refused role-assignable row, the tab-bar fix that came with it, and the User or Group analyzer rename are live on enca.limon-it.nl as build 302. The two items promote together because their builds interleave — 25218 and 25220 are item 103, 25219 is item 104, and all three touch the same three files. The production build the queue measures against is now v1.0.302. Carved out of the port: the js/cischeck.js half of the rename, because CIS Benchmark is beta-only and that file does not exist on production. Items 92, 34 and 24 stay behind." },
+    ],
+  },
+  {
     build: 25220, date: "2026-08-27", title: "The tab bar now follows a cross-tool jump",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "Jumping into this tool from another one — the new (7) Migrate it button in Protect exclusions, the Restricted AUs cannot-list, the import preflight, the migration corner badge — switched the screen but not the tab bar: the tool you came from stayed the active tab, and no Conditional Access groups tab appeared at all. The tab registration was the home tile's job, and the tile is only one of the ways in. It now lives in the open function itself, so every way in gets a Conditional Access groups tab beside the one you came from, exactly as if you had opened it from the home page." },

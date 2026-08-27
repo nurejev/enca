@@ -83,43 +83,9 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.301",
+  productionBuild: "v1.0.302",
 
   items: [
-    {
-      n: 104,
-      title: "T19 renamed: User or Group analyzer",
-      tools: ["User or Group analyzer"],
-      builds: [25219],
-      risk: "low",
-      what: "The tool formerly named Group Analyzer is now User or Group analyzer everywhere it names itself: home tile (with UPDATED tag), sidebar, breadcrumb, tool header, Help section and every cross-reference in other tools' prose and confirm dialogs. Name only — the tool id (toolGroupUse), the report download basenames (CA-GroupAnalyzer) and Jasper Baes' Microsoft Cloud Group Analyzer credit are unchanged.",
-      why: "A string rename with no logic touched. The only risk is a missed or over-eager replacement: a leftover old name somewhere in the UI, or the Jasper Baes credit accidentally renamed — both are checked by reading, not by running anything.",
-      test: [
-        "Home page: the tile reads User or Group analyzer with an UPDATED tag; the sidebar entry and, after opening it, the breadcrumb and header all agree.",
-        "Help: the section heading is User or Group analyzer and its body still credits Jasper Baes' Microsoft Cloud Group Analyzer under that exact name.",
-        "Cross-references: CA groups' disable-nesting and recreate confirm texts, and the Restricted AUs / import prose, say User or Group analyzer — search the served page for the words Group Analyzer preceded by anything other than Microsoft Cloud: there should be no hit.",
-        "Run one analysis and export: the Markdown and HTML report titles carry the new name, and the download filename still starts CA-GroupAnalyzer (unchanged on purpose - saved links and habits keep working).",
-      ],
-      files: ["index.html", "js/app.js", "js/cagroups.js", "js/cischeck.js", "js/groupuse.js", "js/graph.js", "js/version.js", "js/changelog.js", "js/promote.js"],
-    },
-    {
-      n: 103,
-      title: "The refused role-assignable row offers (7) Migrate",
-      tools: ["Protect exclusions", "CA groups"],
-      builds: [25218, 25220],
-      risk: "low",
-      what: "In the protection group list (standalone Protect exclusions and CA groups (6) Protect — one shared render), a role-assignable row's refusal message ends in a (7) Migrate it button. From CA groups it switches to the (7) Migrate tab; from the standalone tool it opens CA groups, switches to (7), and a toast says to come back and protect the group afterwards. A frozen row (role-assignable AND already in a restricted unit) gets no button — its way out starts with leaving the unit. No write path changed; the conversion still lives only in (7) Migrate behind its own typed confirmation. 25220: the tab bar follows the jump — CA groups registers its tab in openCaGroups itself rather than on the home tile's click handler, so this button and the older hand-offs (Restricted AUs cannot-list, import preflight, migration corner badge) open a Conditional Access groups tab beside the one you came from instead of leaving the old tab active over the wrong screen.",
-      why: "Navigation and prose only — the button sets a tab and re-renders, the same hand-off Restricted AUs' cannot-list and the import preflight already make. The only thing that would hold it back is the button appearing on a row where migrating is the wrong first step, and the frozen case is excluded by construction.",
-      test: [
-        "Tenant with an unprotected role-assignable exclusion group (demo mode has CAB-SEC-U-BreakGlass): open Protect exclusions, scan — the group's row is refused, the red text ends in a (7) Migrate it button, and clicking it lands on CA groups (7) Migrate with a toast naming the way back.",
-        "Same group from CA groups (6) Protect: the button switches to the (7) tab in place, no toast, selection and scan of (6) untouched when you switch back.",
-        "Run (7)'s scan from there: the refused group appears among its candidates without any hand-over step.",
-        "A frozen group (role-assignable and already in a restricted AU — needs a tenant in that state, or read the row markup): the refusal text shows WITHOUT the button, and the Protection column still says to leave the unit first.",
-        "A plain (non-role-assignable) unprotected row: no refusal text, no button, checkbox still selectable — the new branch only fires on roleAssignable.",
-        "Tab bar (25220): with only Protect exclusions open, click (7) Migrate it — a Conditional Access groups tab appears next to it and is the active one; Protect exclusions stays open and clicking its tab returns to the scan untouched. Same from Restricted AUs' Migrate-it button and, on a tenant whose import file builds on role-assignable groups, from the import preflight's convert button.",
-      ],
-      files: ["js/app.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
-    },
     {
       n: 92,
       title: "🐳 Self-hosting package (R06)",
