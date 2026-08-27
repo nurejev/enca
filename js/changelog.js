@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25215, date: "2026-08-27", title: "The branding gear was hidden from the one host that pays for it",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The \u2699 gear next to Sign out appears on every host now, production included. Two different things had been sitting behind one guard: the gear, which writes to localStorage and changes the look in THAT browser only, and the deployment file, which is served to every visitor. Only the second is a self-hosting mechanism. Anyone could already have the look by self-hosting, so denying it to the person running the hosted site was protecting nothing." },
+      { kind: "fixed", tool: "All tools", text: "The deployment file stays non-production and so does the ribbon it softens: selfhost-branding.json is not fetched on the hosted site, and no amount of local branding produces a BETA or SELF-HOSTED ribbon there. BRANDING.host is still not configurable anywhere \u2014 it drives the production check, the ribbon and the export credit, and a wrong host would let a copy pass itself off as production. That reasoning was always about the served file rather than a per-browser preference, and the note in js/selfhost.js now says which is which instead of covering both with one sentence." },
+      { kind: "improved", tool: "All tools", text: "On production the dialog says what it is: the settings apply to your browser only, nobody else sees them, Reset undoes it, and the downloaded file is for an instance you run yourself \u2014 serving it on the hosted site would do nothing, because the identity there comes from js/branding.js. The tooltip on the gear changes with the host for the same reason." },
+    ],
+  },
+  {
     build: 25214, date: "2026-08-27", title: "In the collapsed rail the icon is the row",
     items: [
       { kind: "improved", tool: "All tools", text: "The icons in the collapsed sidebar go from the 13px they inherited from the button to 20px. Collapsed there is no label beside them, so the icon IS the row \u2014 and at button text size, on a 56px rail with thirty-odd of them stacked, it reads as a smudge rather than something to aim at. That is also the state the sidebar remembers between visits, so it is what most people see most of the time. Expanded rows are untouched: there the icon sits next to a label at text size, which is correct." },

@@ -16,12 +16,23 @@
 //      the container, so EVERY visitor gets the branding. The gear's
 //      ⭳ Download button produces exactly this file.
 //
-// Only on a non-production host. The production deployment's identity is
-// js/branding.js, reviewed in git — a settings dialog must never be able
-// to redress enca.limon-it.nl from a browser. For the same reason
-// BRANDING.host is NOT configurable here: it drives isProdHost, the BETA
-// ribbon and the export credit, and a wrong host would let a copy pass
-// itself off as production.
+// THE GEAR IS EVERYWHERE; THE DEPLOYMENT FILE IS NOT. Two different things
+// were behind one guard until this build.
+//
+//   The gear writes to localStorage — THIS browser, this person, chrome
+//   only. It cannot reach another visitor, cannot be served to anyone, and
+//   is undone by Reset or by clearing site data. There is no reason the
+//   person running the hosted site should be denied a look they can already
+//   have by self-hosting, so it is offered on every host.
+//
+//   The deployment FILE stays non-production. selfhost-branding.json is
+//   fetched and applied to every visitor, and softens the ribbon; that is a
+//   self-hosting mechanism and enca.limon-it.nl serves its identity from
+//   js/branding.js, reviewed in git.
+//
+// BRANDING.host is NOT configurable either way: it drives isProdHost, the
+// BETA ribbon and the export credit, and a wrong host would let a copy pass
+// itself off as production. That has not changed and must not.
 //
 // When the deployment file (not just localStorage) is present, the red
 // "BETA — not production" ribbon becomes a neutral "SELF-HOSTED" one: a
@@ -39,7 +50,6 @@
       return !!prod && (location.hostname || "").toLowerCase() === prod;
     } catch { return true; }
   };
-  if (isProd()) return;
 
   // ---- sanitising ----------------------------------------------------
   // Colour values end up inside a generated stylesheet; a value that can
@@ -95,8 +105,11 @@
   const rebrand = () => document.dispatchEvent(new CustomEvent("enca:brand-updated"));
 
   // ---- the deployment file -------------------------------------------
+  // Non-production only: this one is served TO people, and it is what turns
+  // the red ribbon into a neutral SELF-HOSTED one. The hosted site's identity
+  // is js/branding.js and stays there.
   const BOOT_CACHE = "enca-selfhost-brand-cache";
-  fetch("selfhost-branding.json?v=" + Date.now(), { cache: "no-store" })
+  if (!isProd()) fetch("selfhost-branding.json?v=" + Date.now(), { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => {
       deploymentBrand = cleanBrand(j && j.brand);
@@ -172,6 +185,7 @@
     bg.className = "modal-bg";
     bg.innerHTML = `<div class="modal" style="max-width:680px">
       <h3>⚙ Branding — this deployment</h3>
+      ${isProd() ? `<p class="mini" style="margin:0 0 14px;color:var(--report)">On this host the settings apply to <b>your browser only</b> \u2014 nobody else sees them, and \u21f2 Reset puts the look back. The downloaded file is for an instance you run yourself: served next to index.html there, it brands the site for every visitor. Serving it here would do nothing, because the hosted identity comes from js/branding.js.</p>` : ""}
       <p class="mini" style="margin:0 0 14px">The same mechanism as the hosted per-audience looks: chrome only, exports keep the neutral ${esc(B.name || "ENCA")} credit. 💾 applies in this browser; ⭳ downloads <b>selfhost-branding.json</b> — serve it next to index.html (the compose file mounts it) and every visitor gets this look.</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px">
         ${F("shName", "Product name", val("name"))}
@@ -302,7 +316,9 @@
     b.style.fontSize = "21px";
     b.style.lineHeight = "1";
     b.style.padding = "3px 10px 5px";
-    b.title = "Branding settings for this self-hosted deployment";
+    b.title = isProd()
+      ? "Branding — changes the look in this browser only"
+      : "Branding settings for this self-hosted deployment";
     b.addEventListener("click", () => buildModal().classList.add("open"));
     out.insertAdjacentElement("afterend", b);
   }

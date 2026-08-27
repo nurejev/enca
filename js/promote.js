@@ -87,6 +87,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 102,
+      title: "\u2699 The branding gear appears on every host",
+      tools: ["All tools"],
+      builds: [25215],
+      risk: "medium",
+      what: "Two things were behind one guard and are now separated. The GEAR is offered everywhere, including production: it writes to localStorage, so it changes the look in that browser only. The deployment FILE stays non-production \u2014 selfhost-branding.json is served TO every visitor and softens the ribbon, which is a self-hosting mechanism. The dialog says on production that the settings are local and that the downloaded file would do nothing if served here. BRANDING.host remains non-configurable on both.",
+      why: "S02 shipped gated on host, so the person running the hosted site could not have a look they could get simply by self-hosting. The original note argued a settings dialog must not redress enca.limon-it.nl \u2014 true of the served file, not of a per-browser preference nobody else can see, and production already wears other identities legitimately through the per-audience overrides.",
+      test: [
+        "Production host: the gear appears next to Sign out. Open it, change the product name, press Apply - the header changes.",
+        "Reload production: the change persists (localStorage). Press Reset - the stock look returns.",
+        "Open production in another browser or a private window: stock branding. The change must not be visible to anyone else.",
+        "Production, network tab: NO request for selfhost-branding.json. That fetch is non-production only.",
+        "Production: no BETA or SELF-HOSTED ribbon appears, whatever is applied. A local look must never make production look like a test site.",
+        "The dialog on production carries the note that the settings are local and the downloaded file would do nothing served here; on beta it does not.",
+        "Beta or a self-hosted host: unchanged from before - gear, deployment file fetched, ribbon softens to SELF-HOSTED when the file is present.",
+        "Exports (PNG, PDF) still carry the neutral product credit on every host - branding is chrome only.",
+      ],
+      files: ["js/selfhost.js"],
+    },
+    {
       n: 101,
       title: "\ud83d\udccc Collapsed sidebar icons are big enough to aim at",
       tools: ["All tools"],
