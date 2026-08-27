@@ -2921,9 +2921,18 @@
   const cgMemberSel = new Set();   // group names picked for the member read
   let cgMemberPick = false;        // showing the picker rather than the matrix
 
-  $("toolCaGroups").addEventListener("click", () => { crumb("👥 Conditional Access groups"); openCaGroups(); });
+  $("toolCaGroups").addEventListener("click", () => { openCaGroups(); });
 
   async function openCaGroups(keepTab) {
+    // The crumb lives HERE, not on the tile handler, because the tile is only
+    // one of the ways in. ⑦ Migrate it from Protect exclusions, the Restricted
+    // AUs cannot-list, the import preflight and the migration corner badge all
+    // open this screen directly — and when the crumb was the tile's job, every
+    // one of them switched the screen while the tab bar went on showing the
+    // tool you came from as active, with no CA groups tab opened at all.
+    // crumb() is idempotent (registers the tab if missing, activates it), so
+    // the in-tool refresh calls that also come through here are unaffected.
+    crumb("👥 Conditional Access groups");
     show("screen-cagroups");
     if (!keepTab) { cgTab = "check"; cgFilter = "all"; cgQuery = ""; $("cgSearch").value = ""; }
     if (!cgRes) {

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25220, date: "2026-08-27", title: "The tab bar now follows a cross-tool jump",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "Jumping into this tool from another one — the new (7) Migrate it button in Protect exclusions, the Restricted AUs cannot-list, the import preflight, the migration corner badge — switched the screen but not the tab bar: the tool you came from stayed the active tab, and no Conditional Access groups tab appeared at all. The tab registration was the home tile's job, and the tile is only one of the ways in. It now lives in the open function itself, so every way in gets a Conditional Access groups tab beside the one you came from, exactly as if you had opened it from the home page." },
+    ],
+  },
+  {
     build: 25219, date: "2026-08-27", title: "The analyzer is named after both things it analyzes",
     items: [
       { kind: "improved", tool: "User or Group analyzer", text: "Renamed from Group Analyzer. The tool has taken a user as well as a group since its first build, but the home tile only promised groups — so the user half went unfound by exactly the people it was built for. The new name says both. Nothing else moved: same tile, same reports, same permissions, and Jasper Baes' Microsoft Cloud Group Analyzer keeps its own name in the credit, because that is the name of his project, not ours." },
