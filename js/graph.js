@@ -216,7 +216,7 @@ const Graph = (() => {
   // Graph. Hence a second host guard rather than a relaxed one.
   //
   // Consent is separate too: management.azure.com/user_impersonation is asked
-  // for only when a tool actually reaches into Azure (Group Analyzer).
+  // for only when a tool actually reaches into Azure (User or Group analyzer).
   const ARM_BASE = "https://management.azure.com";
   const ARM_SCOPES = ["https://management.azure.com/user_impersonation"];
 

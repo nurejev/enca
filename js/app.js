@@ -1474,18 +1474,18 @@
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Grant a directory role scoped to a restricted administrative unit. No longer used to create role-assignable groups — nothing creates those any more — but still requested by the create flows for the scoped-role grant that can follow", tools: "Restricted AUs, CA groups (protect)", onDemand: true },
-    { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "Group Analyzer", onDemand: true },
+    { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "User or Group analyzer", onDemand: true },
     { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting so no group can be added as a member of a group (beta) — asked for by every path that CREATES a group, and by the ⑧ Disable nesting step", tools: "CA groups (create, disable nesting), Assign groups, Import, Restricted AUs", onDemand: true },
-    { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "Group Analyzer", onDemand: true },
-    { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "Group Analyzer, Device reality check", onDemand: true },
-    { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "Group Analyzer, Device reality check", onDemand: true },
-    { scope: "DeviceManagementServiceConfig.Read.All", use: "Read Intune enrolment restrictions and Autopilot deployment profiles", tools: "Group Analyzer", onDemand: true },
+    { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "User or Group analyzer", onDemand: true },
+    { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "User or Group analyzer, Device reality check", onDemand: true },
+    { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "User or Group analyzer, Device reality check", onDemand: true },
+    { scope: "DeviceManagementServiceConfig.Read.All", use: "Read Intune enrolment restrictions and Autopilot deployment profiles", tools: "User or Group analyzer", onDemand: true },
     { scope: "MailboxSettings.Read", use: "Read each mailbox's purpose (user / shared / room / equipment) so never-licensed resource accounts are told apart from real users", tools: "Licence gap", onDemand: true },
-    { scope: "DeviceManagementScripts.Read.All", use: "Read Intune PowerShell scripts, macOS shell scripts and remediations — a separate scope, not covered by DeviceManagementConfiguration.Read.All", tools: "Group Analyzer", onDemand: true },
+    { scope: "DeviceManagementScripts.Read.All", use: "Read Intune PowerShell scripts, macOS shell scripts and remediations — a separate scope, not covered by DeviceManagementConfiguration.Read.All", tools: "User or Group analyzer", onDemand: true },
   ];
   // Azure Resource Manager is a different resource, not a Graph scope, so it is
   // listed on its own rather than mixed into the Graph consent request.
-  const ARM_SCOPE_INFO = { scope: "management.azure.com/user_impersonation", use: "Read Azure role assignments across subscriptions and management groups", tools: "Group Analyzer (Azure area)" };
+  const ARM_SCOPE_INFO = { scope: "management.azure.com/user_impersonation", use: "Read Azure role assignments across subscriptions and management groups", tools: "User or Group analyzer (Azure area)" };
   // Revoking is the mirror image of consenting, and it belongs where the
   // permissions are listed. The panel explains the three routes and their
   // consequences; the PowerShell carries this deployment's real client ID.
@@ -1704,7 +1704,7 @@
     ["toolGapCheck", "🛡 Best-practice & bypass checks"],
     ["toolValidator", "⚡ CA validator"],
     ["toolWhatIf", "🧪 What-If"],
-    ["toolGroupUse", "🔗 Group Analyzer"],
+    ["toolGroupUse", "🔗 User or Group analyzer"],
     ["toolCompare", "⚖ Compare users"],
     ["toolAudit", "🕓 Change audit"],
     ["toolSignins", "🚦 Sign-in failures"],
@@ -2801,9 +2801,18 @@
   const cgMemberSel = new Set();   // group names picked for the member read
   let cgMemberPick = false;        // showing the picker rather than the matrix
 
-  $("toolCaGroups").addEventListener("click", () => { crumb("👥 Conditional Access groups"); openCaGroups(); });
+  $("toolCaGroups").addEventListener("click", () => { openCaGroups(); });
 
   async function openCaGroups(keepTab) {
+    // The crumb lives HERE, not on the tile handler, because the tile is only
+    // one of the ways in. ⑦ Migrate it from Protect exclusions, the Restricted
+    // AUs cannot-list, the import preflight and the migration corner badge all
+    // open this screen directly — and when the crumb was the tile's job, every
+    // one of them switched the screen while the tab bar went on showing the
+    // tool you came from as active, with no CA groups tab opened at all.
+    // crumb() is idempotent (registers the tab if missing, activates it), so
+    // the in-tool refresh calls that also come through here are unaffected.
+    crumb("👥 Conditional Access groups");
     show("screen-cagroups");
     if (!keepTab) { cgTab = "check"; cgFilter = "all"; cgQuery = ""; $("cgSearch").value = ""; }
     if (!cgRes) {
@@ -3347,6 +3356,22 @@ max@contoso.com,"Global, DevOps"</pre>
           // every admin, with its own outcome — a partial failure has to be
           // visible in the report, not flattened into "no admin was set"
           scopedAdmins: cgRmau.adminResults || [] }, cgRmau.au, cgRmau.results, cgRmau.units || []));
+      return true;
+    }
+    // The ⑦ Migrate it button on a refused role-assignable row. The conversion
+    // is not repeated here — it is destructive and lives in 👥 CA groups
+    // ⑦ Migrate behind its own typed confirmation, and ⑦ finds every
+    // role-assignable candidate in the same scan, so there is no selection to
+    // hand over. From CA groups ⑥ this is a tab switch; from the standalone
+    // 🔒 Protect exclusions it is a change of screen, so the toast says where
+    // you are being taken and what to do when you are done.
+    const mig = e.target.closest("[data-rmaumigrate]");
+    if (mig) {
+      if (rmauStandalone) {
+        toast("Convert it in 👥 <span>Conditional Access groups</span> → ⑦ Migrate, then come back and protect it");
+        await openCaGroups();
+      }
+      cgTab = "migrate"; renderCaGroups();
       return true;
     }
     return false;
@@ -4045,7 +4070,12 @@ max@contoso.com,"Global, DevOps"</pre>
       const disabled = !!prot || !!g.roleAssignable || !!g.unused;
       return `<tr>
         <td><label class="chk" style="margin:0"><input type="checkbox" data-cgrmau="${esc(g.id)}"${t.sel.has(g.id) ? " checked" : ""}${disabled ? " disabled" : ""}> <b>${esc(g.name)}</b></label>
-          ${g.roleAssignable ? '<div class="mini" style="color:var(--off)"><b>role-assignable — cannot be protected this way.</b> Its membership is already restricted to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two roles. Putting it in one would leave <b>nobody</b> able to change the members. Pick one protection or the other: for a CA exclusion group, a restricted AU is usually the better one, because it lets you name who may manage it.</div>' : ""}
+          ${/* The refusal used to end at the diagnosis, with ⑦ Migrate named
+               only in the header prose above the table — the one place nobody
+               reads while looking at a red row. The way out belongs ON the row
+               that closed the door: the same manners as Restricted AUs'
+               "cannot" list, whose reason carries a Migrate button too. */ ""}
+          ${g.roleAssignable ? `<div class="mini" style="color:var(--off)"><b>role-assignable — cannot be protected this way.</b> Its membership is already restricted to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two roles. Putting it in one would leave <b>nobody</b> able to change the members. Pick one protection or the other: for a CA exclusion group, a restricted AU is usually the better one, because it lets you name who may manage it — which means converting this group to a plain one first.${prot ? "" : ` <button class="btn sm" data-rmaumigrate="${esc(g.id)}">⑦ Migrate it</button>`}</div>` : ""}
           ${g.unused ? '<div class="mini muted">not referenced by any policy right now — listed so its protection state is visible. A baseline exclusion group can sit in a unit (or be frozen in one) long after the policy that used it was retired, and if it were not listed here nothing in the app would say so. Tick it deliberately if you want it protected.</div>' : ""}
           ${g.dynamic ? '<div class="mini" style="color:var(--report)">dynamic group — not pre-selected: members come and go with its membership rule, not by hand. Adding it still helps (the restriction covers the group object, so editing the <b>rule</b> also needs an AU-scoped role) — but protect the hand-managed exclusion groups first.</div>' : ""}</td>
         <td class="mini">${g.refs.exclude.length ? `${g.refs.exclude.length} polic${g.refs.exclude.length === 1 ? "y" : "ies"}` : '<span class="muted">not referenced</span>'}</td>
@@ -4512,7 +4542,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!n) { $("arcBody").innerHTML = '<p class="mini muted">No group in this tenant carries an archive suffix from a recreate.</p>'; return; }
     $("arcBody").innerHTML = `
       <p class="mini muted" style="margin:0 0 10px">A deleted group is <b>soft-deleted and restorable for 30 days</b>. Even so, check
-        <a href="#" class="md-tool" data-tool="toolGroupUse">Group Analyzer</a> first — Conditional Access is moved for you by a recreate,
+        <a href="#" class="md-tool" data-tool="toolGroupUse">User or Group analyzer</a> first — Conditional Access is moved for you by a recreate,
         but app assignments, Intune, licensing and Azure RBAC are not, and they would still be pointing at the old id.</p>
       ${(() => {
         // 95 rows and a checkbox each. Select-all ticks only what is SAFE to
@@ -4758,7 +4788,7 @@ max@contoso.com,"Global, DevOps"</pre>
         `> ${patchError}`, "",
         "The only remaining route is to recreate the group. That means:", "",
         ...p.fallback.map((s, i) => `${i + 1}. ${s.text}`), "",
-        `**The group gets a new object id.** Conditional Access assignments are moved for you. Anything else that points at this group — app assignments, Intune, group-based licensing, Azure RBAC — is **not**, and will keep pointing at the old, renamed group. Run [Group Analyzer](#tool:toolGroupUse) on it first if you are unsure.`, "",
+        `**The group gets a new object id.** Conditional Access assignments are moved for you. Anything else that points at this group — app assignments, Intune, group-based licensing, Azure RBAC — is **not**, and will keep pointing at the old, renamed group. Run [User or Group analyzer](#tool:toolGroupUse) on it first if you are unsure.`, "",
         "The old group is renamed, not deleted, so this is recoverable.",
       ].join("\n"));
       $("nestRcOk").value = ""; $("nestRcGo").disabled = true;
@@ -12628,7 +12658,7 @@ max@contoso.com,"Global, DevOps"</pre>
       Comparer.markdown({ tenant: tenantName || "tenant", scenarioLine: R.scLine }, R.users, R.rows, R.groups, R.roles, R.sr));
   });
 
-  // ---------- Group Analyzer (BETA) ----------
+  // ---------- User or Group analyzer (BETA) ----------
   // "Where is this group actually used?" The source registry, the matching and
   // the exports live in js/groupuse.js; this is screen, consent and rendering.
   let guMode = "all", guAreas = new Set(["entra", "m365"]);
@@ -12640,14 +12670,14 @@ max@contoso.com,"Global, DevOps"</pre>
   let guStash = null;
 
   function openGroupUse() {
-    crumb("🔗 Group Analyzer");
+    crumb("🔗 User or Group analyzer");
     show("screen-groupuse");
-    $("guHead").innerHTML = `<h3>🔗 Group Analyzer</h3>
+    $("guHead").innerHTML = `<h3>🔗 User or Group analyzer</h3>
       <p style="margin-bottom:6px">A group is a shared handle: one admin scopes a Conditional Access policy to it, another targets an Intune profile at it, a third grants it a role on a subscription. Paste a <b>group or user</b> and see every place it is referenced — or sweep the tenant and find the groups <b>nothing</b> references.</p>
       <p class="mini muted" style="margin:0">Read-only. Hits inherited from a <b>parent group</b> are marked as such — anything targeting the parent reaches these members too. After Jasper Baes' <i>Microsoft Cloud Group Analyzer</i>.</p>`;
 
     if (isDemo) {
-      $("guBody").innerHTML = `<div class="list-card"><p class="mini" style="margin:0">Group Analyzer reads live Entra, Intune, Microsoft 365 and Azure configuration, so there is nothing meaningful to show against the demo policy set. Sign in to a tenant to use it.</p></div>`;
+      $("guBody").innerHTML = `<div class="list-card"><p class="mini" style="margin:0">User or Group analyzer reads live Entra, Intune, Microsoft 365 and Azure configuration, so there is nothing meaningful to show against the demo policy set. Sign in to a tenant to use it.</p></div>`;
       $("guRun").disabled = true;
       return;
     }
@@ -12695,7 +12725,7 @@ max@contoso.com,"Global, DevOps"</pre>
         guSeedList = ((r && r.value) || []).map((g) => `<option value="${esc(g.displayName)}"></option>`).join("");
         if (!$("guTerm").value.trim()) $("guTermList").innerHTML = guSeedList;
       })
-      .catch((e) => console.warn("Group Analyzer: group preload failed", e.message));
+      .catch((e) => console.warn("User or Group analyzer: group preload failed", e.message));
   }
   $("guTerm").addEventListener("focus", guSeedPicker);
 
@@ -12725,7 +12755,7 @@ max@contoso.com,"Global, DevOps"</pre>
         $("guTermList").innerHTML =
           ((g.value || []).map((x) => `<option value="${esc(x.displayName)}" label="group"></option>`).join("")) +
           ((u.value || []).map((x) => `<option value="${esc(x.userPrincipalName)}" label="${esc(x.displayName || "")}"></option>`).join(""));
-      } catch (err) { console.warn("Group Analyzer: suggest failed", err.message); }
+      } catch (err) { console.warn("User or Group analyzer: suggest failed", err.message); }
     }, 250);
   });
   $("guTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runGroupUse(); } });
@@ -12788,7 +12818,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (f.q) {
       try { out = await collect(`${base}&$top=${top}${f.q}`); }
       catch (e) {
-        console.warn("Group Analyzer: server-side name filter rejected —", e.message);
+        console.warn("User or Group analyzer: server-side name filter rejected —", e.message);
         st?.("Name filter not supported here — filtering locally…");
         out = await collect(`${base}&$top=${top}`);
       }
@@ -12813,7 +12843,7 @@ max@contoso.com,"Global, DevOps"</pre>
       if (guMode === "all") await sweepGroupUse(st);
       else await analyzeOneGroup($("guTerm").value, st);
     } catch (e) {
-      console.error("Group Analyzer failed:", e);
+      console.error("User or Group analyzer failed:", e);
       $("guBody").innerHTML = `<div class="list-card"><p class="mini" style="margin:0;color:var(--off)">${esc(e.message || e)}</p></div>`;
     } finally { btn.disabled = false; btn.textContent = label; $("guProg").textContent = ""; }
   }
@@ -12869,7 +12899,7 @@ max@contoso.com,"Global, DevOps"</pre>
       try {
         const j = await Graph.gpost("/directoryObjects/getByIds", { ids: ids.slice(i, i + 900), types: ["group"] });
         (j.value || []).forEach((g) => found.set(String(g.id).toLowerCase(), g));
-      } catch (e) { console.warn("Group Analyzer: getByIds failed", e.message); }
+      } catch (e) { console.warn("User or Group analyzer: getByIds failed", e.message); }
     }
     return ids.map((id) => {
       const g = found.get(id);
@@ -13155,7 +13185,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!guModalGroup) return;
     const { res, meta, base } = guModalSlice();
     closeGuModal();
-    showReport(`🔗 Group Analyzer — ${meta.principalName}`, base, GroupUse.markdown(res, meta));
+    showReport(`🔗 User or Group analyzer — ${meta.principalName}`, base, GroupUse.markdown(res, meta));
   });
   $("guModalHtml").addEventListener("click", () => {
     if (!guModalGroup) return;
@@ -13207,8 +13237,8 @@ max@contoso.com,"Global, DevOps"</pre>
 
   $("guMd").addEventListener("click", () => {
     if (!guRes) return;
-    if (guTotals) showReport("🔗 Group Analyzer — tenant sweep", "CA-GroupAnalyzer-Sweep", GroupUse.sweepMarkdown(guTotals, guRes, guMeta));
-    else showReport(`🔗 Group Analyzer — ${guMeta.principalName}`, "CA-GroupAnalyzer", GroupUse.markdown(guRes, guMeta));
+    if (guTotals) showReport("🔗 User or Group analyzer — tenant sweep", "CA-GroupAnalyzer-Sweep", GroupUse.sweepMarkdown(guTotals, guRes, guMeta));
+    else showReport(`🔗 User or Group analyzer — ${guMeta.principalName}`, "CA-GroupAnalyzer", GroupUse.markdown(guRes, guMeta));
   });
   $("guHtml").addEventListener("click", () => {
     if (!guRes) return;

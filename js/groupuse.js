@@ -1,5 +1,5 @@
 // ======================================================================
-// Group Analyzer (BETA) — "where is this group actually used?"
+// User or Group analyzer (BETA) — "where is this group actually used?"
 //
 // An Entra group is a shared handle: one admin scopes a Conditional Access
 // policy to it, another targets an Intune compliance policy at it, a third
@@ -848,7 +848,7 @@ const GroupUse = (() => {
   // ---------------------------------------------------------------- exports --
   function markdown(res, meta) {
     const L = [];
-    L.push(`# Group Analyzer — ${meta.principalName}`, "");
+    L.push(`# User or Group analyzer — ${meta.principalName}`, "");
     L.push(Brand.generatedBy("Generated"));
     L.push("", `- **Object:** ${mdCell(meta.principalName)} (${meta.principalType}) \`${meta.principalId}\``);
     if (meta.parents?.length) L.push(`- **Member of:** ${meta.parents.map((p) => mdCell(p.name)).join(", ")}`);
@@ -959,7 +959,7 @@ footer{padding:16px 26px;color:#6b7280;font-size:12px}`;
     if (meta.roles?.length) rel.push(`Roles: ${meta.roles.map((p) => esc(p.name)).join(", ")}`);
     return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Group Analyzer — ${esc(meta.principalName)}</title><style>${REPORT_CSS}</style></head><body>
+<title>User or Group analyzer — ${esc(meta.principalName)}</title><style>${REPORT_CSS}</style></head><body>
 <header><h1>Group usage — ${esc(meta.principalName)}</h1>
   <div class="meta">${esc(meta.principalType)} · ${esc(meta.principalId)}${meta.tenant ? ` · ${esc(meta.tenant)}` : ""} · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</div></header>
 <div class="cards"><div class="card"><div class="n">${res.rows.length}</div><div class="l">References</div></div>${cards}</div>
@@ -973,7 +973,7 @@ ${failHtml(res)}</main>
     const unused = totals.filter((t) => !t.total);
     return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Group Analyzer — tenant sweep</title><style>${REPORT_CSS}</style></head><body>
+<title>User or Group analyzer — tenant sweep</title><style>${REPORT_CSS}</style></head><body>
 <header><h1>Group usage — tenant sweep</h1>
   <div class="meta">${totals.length} groups${meta && meta.scopeNote ? ` where ${esc(meta.scopeNote)}` : ""} · ${res.rows.length} references${meta && meta.tenant ? ` · ${esc(meta.tenant)}` : ""} · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</div></header>
 <div class="cards">
@@ -1018,7 +1018,7 @@ ${failHtml(res)}</main>
   }
 
   function sweepMarkdown(totals, res, meta) {
-    const L = [`# Group Analyzer — tenant sweep`, "", Brand.generatedBy("Generated"), "",
+    const L = [`# User or Group analyzer — tenant sweep`, "", Brand.generatedBy("Generated"), "",
       `- **Groups analysed:** ${totals.length}${meta && meta.scopeNote ? ` (${mdCell(meta.scopeNote)})` : ""}`,
       `- **Groups with no usage found:** ${totals.filter((t) => !t.total).length}`,
       `- **Total references:** ${res.rows.length}`, "",
