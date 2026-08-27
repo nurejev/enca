@@ -1581,3 +1581,27 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
   body.with-side #screen-home{max-width:none}
   body.with-side .toolnav-inner,body.with-side.side-min .toolnav-inner{padding:0 24px}
 }
+
+/* T33 — the passkey-dynamic-migration strip. Its whole job is to answer one
+   question from across the room: is Microsoft's September rollout running
+   against this tenant, or not? A tag-sized badge could not do that, and a
+   read whose result looks the same before and after the click reads as a
+   button that did nothing. Hence a coloured strip, a state word in caps, the
+   raw property value underneath, and a flash on every update — including an
+   update that changes nothing, because "still not paused" is an answer. */
+.sv-mig{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--border);border-left-width:6px;
+  border-radius:12px;padding:12px 14px;background:var(--soft)}
+.sv-mig-ic{font-size:24px;line-height:1.1}
+.sv-mig-t{font-size:14px;font-weight:700;letter-spacing:.04em;margin:0 0 3px}
+.sv-mig-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--muted);margin:4px 0 0}
+.sv-mig.on{border-left-color:var(--on);background:var(--ok-bg2)}
+.sv-mig.on .sv-mig-t{color:var(--on)}
+.sv-mig.warn{border-left-color:var(--report);background:var(--warn-bg2)}
+.sv-mig.warn .sv-mig-t{color:var(--report)}
+.sv-mig.bad{border-left-color:var(--off);background:var(--bad-bg2)}
+.sv-mig.bad .sv-mig-t{color:var(--off)}
+.sv-mig.idle .sv-mig-t{color:var(--muted)}
+@keyframes sv-flash{0%{box-shadow:0 0 0 0 var(--accent2)}30%{box-shadow:0 0 0 4px var(--accent2)}100%{box-shadow:0 0 0 0 transparent}}
+.sv-flash{animation:sv-flash 1.4s ease-out}
+.sv-spin{width:14px;height:14px;border:2px solid var(--soft);border-top-color:var(--accent2);border-radius:50%;
+  display:inline-block;vertical-align:-2px;margin:0;animation:spin .8s linear infinite}

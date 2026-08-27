@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25223, date: "2026-08-27", title: "A state you can read from across the room, and a panel the scan cannot wipe",
+    items: [
+      { kind: "fixed", tool: "SMS & voice retirement", text: "The dynamic-migration panel rendered inside the scan's own container, so clicking ▶ Check the tenant replaced it with the progress panel and the tenant's opt-out state disappeared from the screen — including a value the panel itself had just written. It now has its own block above the scan, with its own click and change handlers, and the two never clear each other: the scan owns its results area, the panel owns the one property it reads and writes." },
+      { kind: "improved", tool: "SMS & voice retirement", text: "🔎 Check dynamic migration now looks like it did something. The answer is a coloured state strip — PAUSED in green, NOT PAUSED in amber, NOT CHECKED YET in grey, COULD NOT READ in red — with a state word in caps, the raw optOutSettings.passkeyDynamicMigration value and the time it was read underneath, a spinner in the strip while the read runs, and a flash plus a toast on every update. That last part is the point: a re-read that finds the same value is still an answer, and it used to be indistinguishable from a button that did nothing. A tenant where the property is absent and one where it reads false are drawn identically, because the exposure is identical — the difference is spelled out in words instead of colour." },
+    ],
+  },
+  {
     build: 25222, date: "2026-08-27", title: "The September rollout you cannot see in the portal, read and paused from here",
     items: [
       { kind: "new", tool: "SMS & voice retirement", text: "Passkey dynamic migration is Microsoft's temporary opt-out from its OWN 1 September 2026 rollout — the day it auto-enables every SMS and voice user for passkeys and pulls them into a Microsoft-managed registration campaign. It is a Graph-only property, optOutSettings.passkeyDynamicMigration on the authentication methods policy, with no control anywhere in the Entra admin center: a tenant cannot see its own setting without calling Graph, and cannot tell \"we decided not to opt out\" from \"nobody ever looked\". The tool now answers both. A panel above the scan carries 🔎 Check dynamic migration, which reads the property, and one action button that pauses the rollout or, when it is already paused, resumes it. The full tenant scan seeds the panel too, so the answer costs no extra call after a run." },
