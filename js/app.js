@@ -3469,6 +3469,22 @@ max@contoso.com,"Global, DevOps"</pre>
           scopedAdmins: cgRmau.adminResults || [] }, cgRmau.au, cgRmau.results, cgRmau.units || []));
       return true;
     }
+    // The ⑦ Migrate it button on a refused role-assignable row. The conversion
+    // is not repeated here — it is destructive and lives in 👥 CA groups
+    // ⑦ Migrate behind its own typed confirmation, and ⑦ finds every
+    // role-assignable candidate in the same scan, so there is no selection to
+    // hand over. From CA groups ⑥ this is a tab switch; from the standalone
+    // 🔒 Protect exclusions it is a change of screen, so the toast says where
+    // you are being taken and what to do when you are done.
+    const mig = e.target.closest("[data-rmaumigrate]");
+    if (mig) {
+      if (rmauStandalone) {
+        toast("Convert it in 👥 <span>Conditional Access groups</span> → ⑦ Migrate, then come back and protect it");
+        await openCaGroups();
+      }
+      cgTab = "migrate"; renderCaGroups();
+      return true;
+    }
     return false;
   }
   function rmauChange(e) {
@@ -4165,7 +4181,12 @@ max@contoso.com,"Global, DevOps"</pre>
       const disabled = !!prot || !!g.roleAssignable || !!g.unused;
       return `<tr>
         <td><label class="chk" style="margin:0"><input type="checkbox" data-cgrmau="${esc(g.id)}"${t.sel.has(g.id) ? " checked" : ""}${disabled ? " disabled" : ""}> <b>${esc(g.name)}</b></label>
-          ${g.roleAssignable ? '<div class="mini" style="color:var(--off)"><b>role-assignable — cannot be protected this way.</b> Its membership is already restricted to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two roles. Putting it in one would leave <b>nobody</b> able to change the members. Pick one protection or the other: for a CA exclusion group, a restricted AU is usually the better one, because it lets you name who may manage it.</div>' : ""}
+          ${/* The refusal used to end at the diagnosis, with ⑦ Migrate named
+               only in the header prose above the table — the one place nobody
+               reads while looking at a red row. The way out belongs ON the row
+               that closed the door: the same manners as Restricted AUs'
+               "cannot" list, whose reason carries a Migrate button too. */ ""}
+          ${g.roleAssignable ? `<div class="mini" style="color:var(--off)"><b>role-assignable — cannot be protected this way.</b> Its membership is already restricted to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two roles. Putting it in one would leave <b>nobody</b> able to change the members. Pick one protection or the other: for a CA exclusion group, a restricted AU is usually the better one, because it lets you name who may manage it — which means converting this group to a plain one first.${prot ? "" : ` <button class="btn sm" data-rmaumigrate="${esc(g.id)}">⑦ Migrate it</button>`}</div>` : ""}
           ${g.unused ? '<div class="mini muted">not referenced by any policy right now — listed so its protection state is visible. A baseline exclusion group can sit in a unit (or be frozen in one) long after the policy that used it was retired, and if it were not listed here nothing in the app would say so. Tick it deliberately if you want it protected.</div>' : ""}
           ${g.dynamic ? '<div class="mini" style="color:var(--report)">dynamic group — not pre-selected: members come and go with its membership rule, not by hand. Adding it still helps (the restriction covers the group object, so editing the <b>rule</b> also needs an AU-scoped role) — but protect the hand-managed exclusion groups first.</div>' : ""}</td>
         <td class="mini">${g.refs.exclude.length ? `${g.refs.exclude.length} polic${g.refs.exclude.length === 1 ? "y" : "ies"}` : '<span class="muted">not referenced</span>'}</td>

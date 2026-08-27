@@ -87,6 +87,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 103,
+      title: "The refused role-assignable row offers (7) Migrate",
+      tools: ["Protect exclusions", "CA groups"],
+      builds: [25218],
+      risk: "low",
+      what: "In the protection group list (standalone Protect exclusions and CA groups (6) Protect — one shared render), a role-assignable row's refusal message ends in a (7) Migrate it button. From CA groups it switches to the (7) Migrate tab; from the standalone tool it opens CA groups, switches to (7), and a toast says to come back and protect the group afterwards. A frozen row (role-assignable AND already in a restricted unit) gets no button — its way out starts with leaving the unit. No write path changed; the conversion still lives only in (7) Migrate behind its own typed confirmation.",
+      why: "Navigation and prose only — the button sets a tab and re-renders, the same hand-off Restricted AUs' cannot-list and the import preflight already make. The only thing that would hold it back is the button appearing on a row where migrating is the wrong first step, and the frozen case is excluded by construction.",
+      test: [
+        "Tenant with an unprotected role-assignable exclusion group (demo mode has CAB-SEC-U-BreakGlass): open Protect exclusions, scan — the group's row is refused, the red text ends in a (7) Migrate it button, and clicking it lands on CA groups (7) Migrate with a toast naming the way back.",
+        "Same group from CA groups (6) Protect: the button switches to the (7) tab in place, no toast, selection and scan of (6) untouched when you switch back.",
+        "Run (7)'s scan from there: the refused group appears among its candidates without any hand-over step.",
+        "A frozen group (role-assignable and already in a restricted AU — needs a tenant in that state, or read the row markup): the refusal text shows WITHOUT the button, and the Protection column still says to leave the unit first.",
+        "A plain (non-role-assignable) unprotected row: no refusal text, no button, checkbox still selectable — the new branch only fires on roleAssignable.",
+      ],
+      files: ["js/app.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 92,
       title: "🐳 Self-hosting package (R06)",
       tools: ["Self-hosting"],
