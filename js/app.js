@@ -1470,7 +1470,7 @@
     { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies, manage named locations", tools: "CA groups (assign), Set Policy state, Import, Named locations, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
     { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
-    { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
+    { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths; pause or resume Microsoft's September passkey rollout (passkeyDynamicMigration on the authentication methods policy)", tools: "Import, SMS & voice retirement", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Grant a directory role scoped to a restricted administrative unit. No longer used to create role-assignable groups — nothing creates those any more — but still requested by the create flows for the scoped-role grant that can follow", tools: "Restricted AUs, CA groups (protect)", onDemand: true },
@@ -14503,6 +14503,14 @@ max@contoso.com,"Global, DevOps"</pre>
   // only; the registration consent is asked once, on the run click, and a
   // refusal degrades the report to scope-only instead of killing the run.
   let svRes = null, svBusy = false, svFilter = "";
+  // The dynamic-migration panel keeps its own state, deliberately separate
+  // from svRes: the opt-out is one cheap property and the question people
+  // open this tool for on a Monday morning ("are we still in Microsoft's
+  // September rollout?"), so it must be answerable without the full scan —
+  // and it must survive the scan being re-run, or a write would silently
+  // disappear from the screen that just made it.
+  //   { value: true|false|null, when: Date|null, err: string|null, busy: bool, ack: bool }
+  let svMig = { value: null, when: null, err: null, busy: false, ack: false };
   const svProg = makeProgress("sv");
   const SV_REG_READ = ["AuditLog.Read.All"];
   const SV_GROUP_PAGES = 10;   // ~10k members per group
@@ -14566,8 +14574,10 @@ max@contoso.com,"Global, DevOps"</pre>
         const authPolicy = await Graph.gget("/policies/authenticationMethodsPolicy");
         const regEnf = authPolicy.registrationEnforcement || {};
         const campaign = regEnf.authenticationMethodsRegistrationCampaign || {};
-        const optOut = (authPolicy.optOutSettings && typeof authPolicy.optOutSettings.passkeyDynamicMigration === "boolean")
-          ? authPolicy.optOutSettings.passkeyDynamicMigration : null;
+        const optOut = SmsVoice.readOptOut(authPolicy);
+        // The scan already holds the answer the panel above it asks for —
+        // seed it rather than making the same call twice.
+        svMig = { ...svMig, value: optOut, when: new Date(), err: null };
         const smsCfg = await Graph.gget("/policies/authenticationMethodsPolicy/authenticationMethodConfigurations/sms");
         const voiceCfg = await Graph.gget("/policies/authenticationMethodsPolicy/authenticationMethodConfigurations/voice");
         const smsScope = smsCfg.state === "enabled" ? SmsVoice.parseScope(smsCfg) : null;
@@ -14728,13 +14738,162 @@ max@contoso.com,"Global, DevOps"</pre>
   const svChip = (k) => `<span class="tag ${SV_RISK[k].cls}">${SV_RISK[k].icon} ${SV_RISK[k].word}</span>`;
   const SV_TABLE_CAP = 500;
 
+  // ---------- passkey dynamic migration: check, and pause / resume ----------
+  // The only write in this tool, and the reason it needs one: the property has
+  // no control anywhere in the Entra admin center, so without this panel a
+  // tenant cannot see its own setting — and cannot tell "we decided not to opt
+  // out" from "nobody ever looked". Both are read back from Graph after every
+  // write, because a PATCH that returns 204 and a property that actually
+  // changed are not the same claim.
+  async function svMigCheck() {
+    if (svMig.busy) return;
+    // The strip itself goes to READING… with a spinner — the button is small
+    // and the answer is the strip, so that is where the work has to show.
+    svMig.busy = true; renderSvMig();
+    try {
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 300));
+        svMig = { ...svMig, value: SV_DEMO.optOut, when: new Date(), err: null };
+      } else {
+        const p = await Graph.gget(SmsVoice.MIGRATION.path);
+        svMig = { ...svMig, value: SmsVoice.readOptOut(p), when: new Date(), err: null };
+      }
+      if (svRes) svRes.optOut = svMig.value;   // the verdict text below must not contradict the panel
+    } catch (e) {
+      console.error("dynamic migration read failed:", e);
+      svMig = { ...svMig, err: e.message || String(e), when: new Date() };
+    } finally {
+      svMig.busy = false;
+      renderSvMig(true);
+      // A read tells you something even when the value did not move, so it
+      // says so out loud — the complaint that started this was a button whose
+      // result looked exactly like its starting state.
+      if (!svMig.err) toast(`Dynamic migration: <span>${esc(SmsVoice.migrationWord(svMig.value))}</span>${svMig.value === null ? " — the property is not set in this tenant" : ""}`);
+      if (svRes) renderSmsVoice();
+    }
+  }
+
+  async function svMigSet(on) {
+    if (svMig.busy) return;
+    // Tenant-wide and invisible in the portal — so it is acknowledged, not
+    // just clicked. The tick is reset afterwards: the next write is its own
+    // decision, not a leftover from this one.
+    if (!svMig.ack) { toast("Tick the acknowledgement first — this is a <span>tenant-wide</span> change"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SmsVoice.MIGRATION.writeScopes])) return;
+    svMig.busy = true; renderSvMig();
+    try {
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 400));
+        SV_DEMO.optOut = on;
+        svMig = { ...svMig, value: on, when: new Date(), err: null, ack: false };
+        toast(`Demo — dynamic migration <span>${on ? "paused" : "resumed"}</span> (simulated)`);
+      } else {
+        await Graph.gpatch(SmsVoice.MIGRATION.path, SmsVoice.optOutBody(on),
+          [...AUTH_CONFIG.scopes, ...SmsVoice.MIGRATION.writeScopes]);
+        // Verify by reading it back. A tenant that does not expose the
+        // property can answer 204 and change nothing, and "it said OK" is not
+        // the same as "it is set" for a control nobody can see in the portal.
+        const p = await Graph.gget(SmsVoice.MIGRATION.path);
+        const now = SmsVoice.readOptOut(p);
+        svMig = { ...svMig, value: now, when: new Date(), err: null, ack: false };
+        if (now === on) toast(`Microsoft's September rollout is <span>${on ? "paused" : "resumed"}</span> for this tenant`);
+        else svMig.err = `The write was accepted but the property still reads ${SmsVoice.migrationWord(now)} — this tenant may not expose passkeyDynamicMigration.`;
+      }
+      if (svRes) svRes.optOut = svMig.value;
+    } catch (e) {
+      console.error("dynamic migration write failed:", e);
+      svMig = { ...svMig, err: e.message || String(e), when: new Date() };
+      toast(`Failed: <span>${esc(e.message || e)}</span>`);
+    } finally {
+      svMig.busy = false;
+      renderSvMig(true);
+      if (svRes) renderSmsVoice();
+    }
+  }
+
+  // The state strip. Four states, and the two that mean "Microsoft's rollout
+  // applies to you" are deliberately drawn the same amber whether the property
+  // says false or is absent — the tenant's exposure is identical, and colouring
+  // them differently would make an implementation detail look like a decision.
+  function svMigState() {
+    const d = SmsVoice.DATES, v = svMig.value;
+    const dN = SmsVoice.daysUntil(d.nudge.iso);
+    const soon = dN >= 0 ? ` — in <b>${dN} day${dN === 1 ? "" : "s"}</b>` : "";
+    if (svMig.busy) return { cls: "idle", ic: '<span class="sv-spin"></span>', title: "READING…",
+      text: "Asking Graph for this tenant's authentication methods policy.", val: "" };
+    if (svMig.err) return { cls: "bad", ic: "⚠", title: "COULD NOT READ",
+      text: `The state is <b>unknown</b>, not “off”. ${esc(svMig.err)}`,
+      val: "optOutSettings.passkeyDynamicMigration = unknown" };
+    if (v === true) return { cls: "on", ic: "⏸", title: "PAUSED — Microsoft's rollout is held off",
+      text: `This tenant is <b>opted out</b> of the ${esc(d.nudge.label)} automatic passkey enablement and the Microsoft-managed registration campaign that comes with it. The ${esc(d.retire.label)} retirement is unaffected and still applies.`,
+      val: "optOutSettings.passkeyDynamicMigration = true" };
+    if (v === false) return { cls: "warn", ic: "▶", title: "NOT PAUSED — the rollout applies",
+      text: `From <b>${esc(d.nudge.label)}</b>${soon}, every user still enabled for SMS or voice is auto-enabled for passkeys and pulled into a Microsoft-managed campaign.`,
+      val: "optOutSettings.passkeyDynamicMigration = false" };
+    if (svMig.when) return { cls: "warn", ic: "▶", title: "NOT PAUSED — never set here",
+      text: `The property is <b>absent</b> from this tenant's policy, so the opt-out has never been used and the rollout applies from <b>${esc(d.nudge.label)}</b>${soon}. (An absent property reads the same as a tenant that cannot expose it — which is why pausing verifies itself afterwards.)`,
+      val: "optOutSettings.passkeyDynamicMigration = (absent)" };
+    return { cls: "idle", ic: "❔", title: "NOT CHECKED YET",
+      text: "One read answers it. This setting appears nowhere in the Entra admin center, so nothing else on screen — here or in the portal — will tell you.",
+      val: "" };
+  }
+
+  function svMigCard() {
+    const d = SmsVoice.DATES, v = svMig.value;
+    const s = svMigState();
+    const state = `<div class="sv-mig ${s.cls}" id="svMigStrip">
+      <div class="sv-mig-ic">${s.ic}</div>
+      <div style="flex:1;min-width:0">
+        <p class="sv-mig-t">${s.title}</p>
+        <p class="mini" style="margin:0">${s.text}</p>
+        ${s.val ? `<p class="sv-mig-v">${esc(s.val)}${svMig.when ? ` · read ${svMig.when.toLocaleTimeString()}` : ""}</p>` : ""}
+      </div>
+    </div>`;
+    const btn = v === true
+      ? `<button class="btn" data-svmigset="off"${svMig.busy ? " disabled" : ""}>▶ Resume Microsoft's rollout</button>`
+      : `<button class="btn primary" data-svmigset="on"${svMig.busy ? " disabled" : ""}>⏸ Pause Microsoft's rollout</button>`;
+    const ackText = v === true
+      ? `I understand this puts the tenant back into Microsoft's ${esc(d.nudge.label)} automatic passkey enablement and campaign.`
+      : `I understand this is <b>tenant-wide</b>, delays only the ${esc(d.nudge.label)} rollout, and does <b>not</b> move the ${esc(d.retire.label)} retirement.`;
+    return `<div class="list-card" style="padding:14px 16px">
+      <p class="mini" style="margin:0 0 8px"><b>MICROSOFT'S SEPTEMBER ROLLOUT — passkey dynamic migration</b> <span class="tag" title="Graph-only: this property has no control in the Entra admin center">not in the portal</span></p>
+      ${state}
+      <p class="mini muted" style="margin:10px 0 0">Pausing sets <code>optOutSettings.passkeyDynamicMigration</code> on the authentication methods policy. It buys time to move people off SMS and voice on your own schedule — it is <b>not</b> an extension: on ${esc(d.retire.label)} Microsoft-provided SMS and voice stop regardless, and a user whose only method is a phone is then blocked until they register a passkey. Writing it needs <b>${esc(SmsVoice.MIGRATION.role)}</b> (or Global Administrator) and <code>${esc(SmsVoice.MIGRATION.writeScopes[0])}</code>, asked for on the click.</p>
+      <label class="chk" style="display:block;margin:10px 0 0"><input type="checkbox" id="svMigAck"${svMig.ack ? " checked" : ""}> <span class="mini">${ackText}</span></label>
+      <div class="row" style="justify-content:flex-start;margin-top:10px">
+        <button class="btn" data-svmigcheck${svMig.busy ? " disabled" : ""}>🔎 ${svMig.when ? "Re-check" : "Check"} dynamic migration</button>
+        ${btn}
+      </div>
+      <p class="mini muted" style="margin:8px 0 0">Background: <a href="https://rksolutions.nl/posts/microsoft-entra-passkey-dynamic-migration/" target="_blank" rel="noopener noreferrer">Roy Klooster ↗</a> · <a href="https://learn.microsoft.com/graph/api/authenticationmethodspolicy-update?view=graph-rest-beta" target="_blank" rel="noopener noreferrer">Graph reference ↗</a></p>
+    </div>`;
+  }
+
+  // Its own container, its own render: the tenant scan replaces #svBody
+  // wholesale, and this panel must survive that — a strip that disappears the
+  // moment you start a scan is a strip you cannot trust to still be right.
+  // `flash` is passed by the paths that just LEARNED something, so a read that
+  // returns the same value still visibly answers.
+  function renderSvMig(flash) {
+    const host = $("svMig");
+    if (!host) return;
+    host.innerHTML = svMigCard();
+    if (flash) {
+      const el = $("svMigStrip");
+      if (el) { el.classList.remove("sv-flash"); void el.offsetWidth; el.classList.add("sv-flash"); }
+    }
+  }
+
   function renderSmsVoice() {
     const d = SmsVoice.DATES;
     const dN = SmsVoice.daysUntil(d.nudge.iso), dR = SmsVoice.daysUntil(d.retire.iso);
     $("svHead").innerHTML = `<h3>📵 SMS &amp; voice retirement <span class="tag new">BETA</span> <span class="tag" title="This tool exists for one dated retirement and is removed once the date has passed">⏳ temporary tool</span></h3>
       <p style="margin-bottom:4px">Microsoft-provided SMS and voice MFA delivery <b>retires on ${d.retire.label}</b>${dR >= 0 ? ` (in ${dR} days)` : ""} — and from <b>${d.nudge.label}</b>${dN >= 0 ? ` (in ${dN} day${dN === 1 ? "" : "s"})` : ""} every user still enabled for SMS or voice is auto-enabled for passkeys and nudged at sign-in. After ${d.retire.label} a user whose <b>only</b> MFA method is a phone number gets a <b>blocking</b> passkey-registration prompt — no opt-out. This tool reads the SMS and Voice policy scope the way <a href="https://github.com/microsoft/entra-sms-voice-usage-analyzer" target="_blank" rel="noopener">Microsoft's own script</a> does, then goes further: the actual users, and who really has a phone method registered.</p>
-      <p class="mini muted" style="margin:0">Reads only. Sources: <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement" target="_blank" rel="noopener">retirement notice</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement-faq" target="_blank" rel="noopener">FAQ</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/how-to-deploy-phishing-resistant-passwordless-authentication" target="_blank" rel="noopener">passkey deployment guide</a> · <a href="https://aka.ms/mfatemplates" target="_blank" rel="noopener">end-user communication templates</a></p>`;
+      <p class="mini muted" style="margin:0">Reads, with <b>one</b> optional write: pausing or resuming Microsoft's September rollout below (<code>passkeyDynamicMigration</code>) — nothing else in this tool changes the tenant. Sources: <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement" target="_blank" rel="noopener">retirement notice</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement-faq" target="_blank" rel="noopener">FAQ</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/how-to-deploy-phishing-resistant-passwordless-authentication" target="_blank" rel="noopener">passkey deployment guide</a> · <a href="https://aka.ms/mfatemplates" target="_blank" rel="noopener">end-user communication templates</a></p>`;
     $("svRun").style.display = svRes && !svBusy ? "" : "none";
+    // The migration strip lives in its own container above #svBody and is
+    // rendered on every pass INCLUDING the busy one — the scan owns svBody,
+    // never this. It is also why the early return below is safe.
+    renderSvMig();
     if (svBusy) return;   // the run panel owns svBody until the read finishes
 
     if (!svRes) {
@@ -14812,6 +14971,17 @@ max@contoso.com,"Global, DevOps"</pre>
     const f = e.target.closest("[data-svfilter]");
     if (f) { svFilter = f.dataset.svfilter || ""; renderSmsVoice(); }
   });
+  // The migration panel's own container, so these survive a tenant scan
+  // replacing svBody underneath them.
+  $("svMig").addEventListener("click", (e) => {
+    if (e.target.closest("[data-svmigcheck]")) { svMigCheck(); return; }
+    const ms = e.target.closest("[data-svmigset]");
+    if (ms) { svMigSet(ms.dataset.svmigset === "on"); return; }
+  });
+  // The acknowledgement is remembered on the state rather than read off the
+  // DOM at click time — every path in this tool re-renders the panel, and a
+  // tick that vanishes with the render is a tick nobody can keep.
+  $("svMig").addEventListener("change", (e) => { if (e.target.id === "svMigAck") svMig.ack = e.target.checked; });
   // ✉️ Notify users — the recipient list plus a ready-to-send email. The
   // modal is built fresh on every open so it always reflects the current run.
   // mailto: is offered only when the whole link stays under ~1800 chars —

@@ -41,6 +41,39 @@ const SmsVoice = (() => {
   };
   const daysUntil = (iso) => Math.ceil((new Date(iso + "T00:00:00Z") - Date.now()) / 86400000);
 
+  // ---- passkey dynamic migration: the one thing this tool can WRITE --------
+  // Microsoft's temporary opt-out from its OWN September rollout, and the
+  // reason it needs a tool at all: it is a Graph-only property with no control
+  // anywhere in the Entra admin center, so a tenant cannot see its own setting
+  // without calling Graph, and cannot tell "we decided not to opt out" from
+  // "nobody ever looked". Tenant-wide, one boolean, on the authentication
+  // methods policy — beta only, which is what AUTH_CONFIG.graphBase already is.
+  //
+  // What TRUE does: excludes the tenant from the 1 September 2026 automatic
+  // passkey enablement and the Microsoft-managed registration campaign that
+  // comes with it. What it does NOT do — and this is the misreading worth
+  // spending words on — is move the 1 February 2027 retirement. SMS and voice
+  // stop working on that date whatever this says.
+  //   Background: Roy Klooster, rksolutions.nl/posts/microsoft-entra-passkey-dynamic-migration
+  //   Graph: learn.microsoft.com/graph/api/authenticationmethodspolicy-update?view=graph-rest-beta
+  const MIGRATION = {
+    path: "/policies/authenticationMethodsPolicy",
+    readScopes: ["Policy.Read.All"],                       // covered by the baseline consent
+    writeScopes: ["Policy.ReadWrite.AuthenticationMethod"], // asked on demand, at the click
+    role: "Authentication Policy Administrator",           // least-privileged built-in role that can write it
+  };
+  // null is a THIRD answer, not a falsy second one: an absent property means
+  // the tenant has never used the opt-out — but it also looks identical to a
+  // tenant that cannot expose it, so the caller must be able to say "not read".
+  const readOptOut = (policy) => {
+    const v = policy && policy.optOutSettings ? policy.optOutSettings.passkeyDynamicMigration : undefined;
+    return typeof v === "boolean" ? v : null;
+  };
+  const optOutBody = (on) => ({ optOutSettings: { passkeyDynamicMigration: !!on } });
+  const migrationWord = (v) => v === true ? "paused" : v === false ? "not paused" : "not read";
+
+  // ---- end passkey dynamic migration --------------------------------------
+
   // methodsRegistered values from the registration-details report, sorted
   // into what they mean for THIS retirement. mobilePhone can receive both
   // SMS and a call; the office and alternate numbers are voice-only.
@@ -248,7 +281,7 @@ const SmsVoice = (() => {
     }
     L.push("## What to do", "",
       `1. Move users to passkeys before ${DATES.retire.label} — [plan a passkey deployment](https://learn.microsoft.com/entra/identity/authentication/how-to-deploy-phishing-resistant-passwordless-authentication) and [enable passkeys (FIDO2)](https://learn.microsoft.com/entra/identity/authentication/how-to-authentication-passkeys-fido2).`,
-      `2. To stop the ${DATES.nudge.label} auto-enablement, move users out of the SMS/Voice policy scope before that date — or set the temporary opt-out (passkeyDynamicMigration) via Graph. Neither changes the ${DATES.retire.label} enforcement.`,
+      `2. To stop the ${DATES.nudge.label} auto-enablement, move users out of the SMS/Voice policy scope before that date — or pause it tenant-wide with the temporary opt-out (\`optOutSettings.passkeyDynamicMigration\`), which this tool can read and set for you at the top of its screen. Neither changes the ${DATES.retire.label} enforcement.`,
       "3. A regulatory need for SMS/voice? A customer-managed telecom provider can be configured through the Microsoft Security Store (selectable from 30 October 2026).",
       "4. Tell the users — [Microsoft's communication templates](https://aka.ms/mfatemplates), scoped to the people this report names.", "",
       "Links: [retirement notice](https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement) · [FAQ](https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement-faq) · [Microsoft's scope script](https://github.com/microsoft/entra-sms-voice-usage-analyzer)", "");
@@ -266,5 +299,6 @@ const SmsVoice = (() => {
     return L.join("\n");
   }
 
-  return { DATES, daysUntil, parseScope, classify, phoneRole, analyze, toMd, toCsv, notifyEmail, stateWord, campaignWord, RISK_WORD, MD_ROW_CAP };
+  return { DATES, daysUntil, parseScope, classify, phoneRole, analyze, toMd, toCsv, notifyEmail, stateWord, campaignWord, RISK_WORD, MD_ROW_CAP,
+    MIGRATION, readOptOut, optOutBody, migrationWord };
 })();
