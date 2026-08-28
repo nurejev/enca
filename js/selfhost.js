@@ -93,7 +93,17 @@
   const asset = (v) => {
     if (typeof v !== "string" || v.length > 800000) return "";
     if (/^data:image\/(png|jpe?g|svg\+xml|webp|gif);base64,/.test(v)) return v;
-    if (/^(?!.*:)[\w./?=-]+$/.test(v)) return v;   // relative, no scheme
+    // Relative, same-origin, no scheme. The "no colon" test alone was not
+    // enough and it now matters, because this value can be TYPED rather than
+    // only arriving in a hand-edited file:
+    //   //evil.example/x.png  is protocol-relative - no colon, but absolutely
+    //                         off-origin. img-src 'self' in the CSP catches it
+    //                         today, which is defence in depth, not a reason to
+    //                         let it through the value check.
+    //   ../../something       traversal, and nothing legitimate needs it: a
+    //                         branding names an asset this deployment serves.
+    if (v.startsWith("//") || v.startsWith("\\") || v.includes("..")) return "";
+    if (/^(?!.*:)[\w./?=-]+$/.test(v)) return v;
     return "";
   };
   function cleanBrand(b) {
@@ -206,6 +216,15 @@
       return `<label class="mini" style="display:flex;flex-direction:column;gap:2px">${esc(k.replace("--", ""))}
         <input type="color" data-ct="${theme}" data-ck="${esc(k)}" value="${esc(normHex(from))}" style="width:64px;height:30px;padding:0;border:1px solid var(--border);border-radius:6px;background:var(--surface)"></label>`;
     }).join("");
+    // Deliberately NOT val(): that falls back to the active branding, which on
+    // an unconfigured deployment is the app's own logo path complete with its
+    // ?v= cache-buster. Pre-filling that would pin every saved branding to one
+    // build's asset URL and leave it pointing at a stale file later. Only a
+    // path this branding actually set belongs in the box.
+    const pathVal = (k) => {
+      const v = typeof cur[k] === "string" ? cur[k] : "";
+      return v.startsWith("data:") ? "" : esc(v);
+    };
     const F = (id, label, v, ph) =>
       `<label class="mini" style="display:flex;flex-direction:column;gap:3px">${esc(label)}
         <input type="text" id="${id}" value="${v}" placeholder="${esc(ph || "")}" style="padding:7px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink)"></label>`;
@@ -235,6 +254,18 @@
         <label class="mini" style="display:flex;flex-direction:column;gap:3px">Favicon
           <input type="file" id="shFav" accept="image/*"></label>
       </div>
+      <!-- A file picker embeds the image as a data: URI, which is what makes a
+           branding large enough to be unusable as an environment variable. A
+           path is the alternative the size refusal used to recommend without
+           giving anywhere to type it. Same-origin relative paths only (the
+           sanitiser rejects anything carrying a scheme), so an image has to be
+           served by this deployment - a branding file cannot point the app at
+           somebody else's host. -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-top:8px">
+        ${F("shLogoPath", "…or a logo path already served here", pathVal("logo"), "assets/my-logo.svg")}
+        ${F("shFavPath", "…or a favicon path", pathVal("favicon"), "assets/my-favicon.svg")}
+      </div>
+      <p class="mini muted" style="margin:4px 0 0">A path keeps the branding small enough to travel as an environment variable; an uploaded file is embedded and often will not. A file chosen above wins over the path next to it.</p>
       <div style="display:flex;gap:18px;margin-top:8px">
         <label class="chk mini"><input type="checkbox" id="shWide" ${cur.logoWide ? "checked" : ""}> Wide wordmark (natural aspect, not 1:1)</label>
         <label class="chk mini"><input type="checkbox" id="shHideOrg" ${cur.hideOrgName ? "checked" : ""}> Hide the org name next to the logo</label>
@@ -244,6 +275,14 @@
       <label class="chk mini"><input type="checkbox" id="shColD" ${cur.colorsDark ? "checked" : ""}> Override identity colours — dark</label>
       <div id="shColDRow" style="display:${cur.colorsDark ? "flex" : "none"};gap:12px;flex-wrap:wrap;margin:6px 0">${colorRow("colorsDark")}</div>
       <p class="mini" style="margin:8px 0 0">Full per-theme palettes (every CSS variable, not just the identity five) fit the same file — edit the downloaded JSON's colorsLight / colorsDark by hand (js/branding.js documents the variables), then ⭱ Import it here; the extra entries survive the round-trip.</p>
+      ${IS_ACA ? `
+      <!-- The escape hatch for a look too big to be an environment variable.
+           Without a box to type it in, the size refusal was telling people to
+           set a variable the app gave them no way to set. -->
+      <div style="margin-top:14px;padding:10px 12px;border:1px solid var(--border);border-left:3px solid #3b5a72;border-radius:10px">
+        ${F("shBrandUrl", "Branding JSON URL (optional — for a look too large to be an environment variable)", esc(""), "https://example.com/selfhost-branding.json")}
+        <p class="mini muted" style="margin:6px 0 0">Fill this in and ☁ <b>Save to this deployment</b> sets <code>ENCA_BRANDING_URL</code> instead, with no size limit — the container fetches it on every start. Leave it empty and the look above is saved inline. ⭳ Download gives you the file to serve.</p>
+      </div>` : ""}
       <div class="modal-foot" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px">
         <button class="btn" id="shReset" title="Remove the branding saved in this browser">✖ Remove local branding</button>
         <button class="btn" id="shImport" title="Load a selfhost-branding.json into the form to review, then Apply">⭱ Import from JSON</button>
@@ -284,8 +323,11 @@
         loginBlurb: $("shBlurb").value.trim(),
         logoWide: $("shWide").checked, hideOrgName: $("shHideOrg").checked,
       };
-      if (logoUri) b.logo = logoUri;
-      if (favUri) b.favicon = favUri;
+      // An uploaded file wins over a typed path: choosing a file is the more
+      // recent, more deliberate gesture of the two.
+      const logoPath = $("shLogoPath").value.trim(), favPath = $("shFavPath").value.trim();
+      if (logoUri) b.logo = logoUri; else if (logoPath) b.logo = logoPath;
+      if (favUri) b.favicon = favUri; else if (favPath) b.favicon = favPath;
       if ($("shColL").checked) b.colorsLight = colors("colorsLight");
       if ($("shColD").checked) b.colorsDark = colors("colorsDark");
       return cleanBrand(b);
@@ -353,10 +395,11 @@
           + `Linux caps a single variable at 128 KB and hands the whole environment to exec(), so a container carrying `
           + `one bigger than that FAILS TO START — nothing runs, and the site is down until the variable is removed by hand.\n\n`
           + `An embedded logo is almost always the reason. Instead:\n\n`
-          + `  - ⭳ Download the file, serve it somewhere, and set ENCA_BRANDING_URL to that address.\n`
+          + `  - Use the "logo path already served here" box above to point at an image in the deployment\n`
+          + `    rather than embedding one. Smaller change, usually enough on its own.\n\n`
+          + `  - Or Download the file, serve it somewhere, and set ENCA_BRANDING_URL to that address.\n`
           + `    The container fetches it at start, with no size limit.\n\n`
-          + `  - Or mount the file at the site root, if your platform has a filesystem.\n\n`
-          + `  - Or reference the logo as a relative path already in the image rather than embedding it.`);
+          + `  - Or mount the file at the site root, if your platform has a filesystem.`);
       }
       let copied = false;
       try { await navigator.clipboard.writeText(data); copied = true; } catch { /* denied or insecure context */ }
@@ -440,26 +483,40 @@
         const containers = (tpl.containers || []).map((c) => Object.assign({}, c));
         if (!containers.length) return fail("This container app has no container defined, which the app cannot repair.");
 
+        // A URL in the box means the look is served rather than carried, so it
+        // is the URL that goes on the container and the inline value that is
+        // cleared - leaving both would be two sources of truth, and the
+        // entrypoint prefers the inline one, so the URL would look ignored.
+        const url = ($("shBrandUrl").value || "").trim();
         const data = JSON.stringify({ v: 1, brand: collect() || {} });
-        const env = (containers[0].env || []).filter((e) => e && e.name !== "ENCA_BRANDING");
-        env.push({ name: "ENCA_BRANDING", value: data });
-        containers[0].env = env;
+        let env = (containers[0].env || []).filter((e) => e && e.name !== "ENCA_BRANDING" && e.name !== "ENCA_BRANDING_URL");
 
-        // REFUSE, do not warn. Saving an oversized value here does not fail
-        // at save time - ARM accepts it happily. It fails at the NEXT container
-        // start, with exec dying on E2BIG before anything runs, and by then the
-        // site that would have told you is the site that is down.
-        if (data.length > ENV_MAX) {
-          return fail(
-            "This look is " + Math.round(data.length / 1024) + " KB, and an environment variable cannot safely carry more than "
-            + Math.round(ENV_MAX / 1024) + " KB.\n\n"
-            + "Linux caps a single variable at 128 KB and hands the whole environment to exec(). Past that, the container fails to "
-            + "start AT ALL - and since this page is served by that container, you would have to fix it from the Azure portal.\n\n"
-            + "An embedded logo is almost always the reason. Two ways round it:\n\n"
-            + "  - Serve this JSON at a URL and set ENCA_BRANDING_URL instead. The container fetches it at start, with no size limit.\n"
-            + "    Use ⭳ Download to get the file.\n\n"
-            + "  - Or reference the logo as a relative path already in the image rather than embedding it.");
+        if (url) {
+          if (!/^https:\/\/[^\s"']+$/i.test(url)) {
+            return fail("The branding URL must be a plain https:// address.\n\nIt is fetched by the container at start, so it has to be reachable from Azure - not from your browser only.");
+          }
+          env.push({ name: "ENCA_BRANDING_URL", value: url });
+        } else {
+          // REFUSE, do not warn. Saving an oversized value here does not fail
+          // at save time - ARM accepts it happily. It fails at the NEXT
+          // container start, with exec dying on E2BIG before anything runs,
+          // and by then the site that would have told you is the site that is
+          // down.
+          if (data.length > ENV_MAX) {
+            return fail(
+              "This look is " + Math.round(data.length / 1024) + " KB, and an environment variable cannot safely carry more than "
+              + Math.round(ENV_MAX / 1024) + " KB.\n\n"
+              + "Linux caps a single variable at 128 KB and hands the whole environment to exec(). Past that, the container fails to "
+              + "start AT ALL - and since this page is served by that container, you would have to fix it from the Azure portal.\n\n"
+              + "An embedded logo is almost always the reason, and there are now two boxes in this dialog for it:\n\n"
+              + "  - \"a logo path already served here\" - point at an image in the deployment instead of embedding one. This is\n"
+              + "    the smaller change and usually enough on its own.\n\n"
+              + "  - \"Branding JSON URL\" - Download the file, serve it somewhere Azure can reach, and put that address in the box.\n"
+              + "    Saving then sets ENCA_BRANDING_URL, which has no size limit at all.");
+          }
+          env.push({ name: "ENCA_BRANDING", value: data });
         }
+        containers[0].env = env;
 
         btn.textContent = "Saving…";
         const res = await Graph.apatch(id + "?api-version=2024-03-01", {
@@ -470,7 +527,8 @@
         setTimeout(() => { btn.textContent = was; btn.disabled = false; }, 2500);
         alert("Saved to this deployment.\n\n"
           + "Azure is rolling a new revision" + (res && res.accepted ? " (still in progress)" : "") + ". "
-          + "It carries ENCA_BRANDING, so this look now applies to EVERY visitor, and survives restarts and image updates — "
+          + "It carries " + (url ? "ENCA_BRANDING_URL, so the container fetches your look on every start" : "ENCA_BRANDING")
+          + ", which means this look now applies to EVERY visitor, and survives restarts and image updates — "
           + "the setting lives on the container app, not inside the container.\n\n"
           + "Give it a minute, then reload in a private window to see what other people will see. "
           + "Your own browser may still be showing the local preview from 💾 Apply, which wins over the deployment's look by design — "
