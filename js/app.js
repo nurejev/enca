@@ -631,6 +631,7 @@
                 <div class="mini muted">${(it.tools || []).join(" · ")}</div>
                 <div class="mini" style="margin-top:4px">${esc2(it.what)}</div>
                 <div class="mini" style="margin-top:4px;color:var(--report)"><b>Why:</b> ${esc2(it.why)}</div>
+                ${it.carveout ? `<div class="mini" style="margin-top:4px;color:var(--off)"><b>⚠ Carve-out on port:</b> ${esc2(it.carveout)}</div>` : ""}
                 ${(it.test || []).length ? `<details class="pq-test"><summary class="mini"><b>How to test it</b> — ${(it.test).length} step${(it.test).length === 1 ? "" : "s"}</summary>
                   <ol class="mini pq-steps">${(it.test).map((t) => `<li>${esc2(t)}</li>`).join("")}</ol></details>`
                   : `<div class="mini" style="margin-top:4px;color:var(--off)"><b>How to test it:</b> not written — this item is not finished, and promoting it means promoting something nobody has said how to check.</div>`}

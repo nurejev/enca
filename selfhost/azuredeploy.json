@@ -19,8 +19,8 @@
     },
     "image": {
       "type": "string",
-      "defaultValue": "ghcr.io/nurejev/enca:latest",
-      "metadata": { "description": "Container image. Use ghcr.io/nurejev/enca:beta for the beta channel, or your own fork's image." }
+      "defaultValue": "ghcr.io/nurejev/enca:beta",
+      "metadata": { "description": "Container image. This is the beta-channel copy of the template, so it defaults to :beta - use ghcr.io/nurejev/enca:latest for production, or your own fork's image. Anonymous pull requires the GHCR package to be Public." }
     }
   },
   "variables": {

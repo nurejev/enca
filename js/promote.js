@@ -30,6 +30,19 @@
 // An item without `test` is not finished. It lands in the same commit as the
 // change, like the changelog entry and the home-tile tag.
 //
+// `carveout` — OPTIONAL, and the only field here that is an INSTRUCTION rather
+// than a description. Write it when the item does not port verbatim: when the
+// beta copy of a file deliberately says something the production copy must
+// not. The self-hosting package (92) is the case that created this field — its
+// docs, scripts and ARM template point at the `beta` branch and the `:beta`
+// image so the feature is testable BEFORE promotion, and a straight copy to
+// main would ship a production page telling people to pull beta.
+//
+// It renders in the queue and, more importantly, in the exported order, where
+// the working session actually reads it. Say exactly what to rewrite and what
+// to delete, and end with the grep that proves the port was complete — a
+// carve-out you have to reconstruct from memory is one you will get wrong.
+//
 // PROMOTING AN ITEM — all four, or the two channels start disagreeing:
 //   1. delete the item here and bump `productionBuild`
 //   2. update the roadmap card ON MAIN: `live · build NNN`
@@ -90,20 +103,22 @@ const PROMOTE = {
       n: 92,
       title: "🐳 Self-hosting package (R06)",
       tools: ["Self-hosting"],
-      builds: [25195],
+      builds: [25195, 25228],
       risk: "low",
       what: "Dockerfile (nginx:1.27-alpine over these files), selfhost/nginx.conf, docker-compose.yml, install.sh (Mac/Linux) and install.ps1 (Windows), azuredeploy.json (Azure Container Apps, scale-to-zero) with a Deploy to Azure button, SELF-HOSTING.md leading with the redirect-URI step, and a GitHub Actions workflow publishing ghcr.io/nurejev/enca - :latest from main, :beta from beta, guarded so the enca-beta deploy repo can never publish :latest.",
-      why: "Not a byte of app code - packaging and documentation only, so the blast radius on the hosted sites is zero. It cannot be fully real until it reaches main: the raw.githubusercontent URLs in the scripts, the Deploy button and the workflow's :latest tag all point at main, so promoting this item is what turns the documentation true. One manual step after the first workflow run: set the GHCR package visibility to Public or anonymous docker pull fails.",
+      why: "Not a byte of app code - packaging and documentation only, so the blast radius on the hosted sites is zero. Originally it could not be tested at all before promotion: every raw.githubusercontent URL, the Deploy to Azure button and the image tags pointed at main and :latest, which do not exist until the port happens, so the button answered with 'error downloading the template from URI'. The beta copy now points at the beta branch and the :beta image throughout, which makes self-hosting testable here - at the cost of a carve-out the port MUST perform. One manual step after the first workflow run: set the GHCR package visibility to Public or anonymous docker pull fails, on Azure and on every machine.",
+      carveout: "PORT CARVE-OUT, do not copy these files verbatim. In SELF-HOSTING.md, selfhost/install.sh, selfhost/install.ps1, selfhost/docker-compose.yml and selfhost/azuredeploy.json, rewrite every nurejev/enca/beta URL to nurejev/enca/main, every github.com/nurejev/enca/blob/beta to blob/main, every ghcr.io/nurejev/enca:beta to :latest, the install scripts' default tag (TAG=\"${ENCA_TAG:-beta}\" and $Tag = \"beta\") back to latest, upstream/beta back to upstream/main, and DELETE the 'You are reading the beta-channel copy' banner at the top of SELF-HOSTING.md plus the two BETA-CHANNEL COPY header comments in the install scripts. Grep the ported tree for /beta and :beta before committing: on main the only surviving mentions should be the ones describing the beta channel as an option.",
       test: [
         "docker build -t enca . in a clean checkout, run it, sign in at http://localhost:8080 with the URI registered: every tool loads, no 404s in the network tab, and /CNAME returns 404 (stripped from the image).",
         "bash selfhost/install.sh on a Mac without the container running, then again with it running: first run creates, second run replaces, both print the redirect-URI block with the right port.",
         "selfhost/install.ps1 on Windows PowerShell 5 and 7: same behaviour, and Start-Process opens the URL.",
-        "After the first push to main: the workflow publishes :latest, the package is set Public once by hand, and docker pull ghcr.io/nurejev/enca:latest works logged out.",
+        "ON BETA, before promotion: the Deploy to Azure button in SELF-HOSTING.md opens the portal with the template loaded and no download error, deploys into a fresh resource group, and the output URL serves ENCA over https once that URL is added as a SPA redirect URI. Scale-to-zero: after idle, the first request cold-starts rather than erroring.",
+        "ON BETA: curl -fsSL the beta install.sh one-liner on a clean machine and confirm it pulls :beta and the container serves the beta build.",
+        "GHCR visibility is the usual cause of a deploy that never becomes healthy: if the Container App's Log stream shows an unauthorised pull, the package is still Private. Fix it once at github.com Packages, enca, Package settings.",
         "Push to beta publishes :beta and NOT :latest; the enca-beta repo runs no workflow at all (repository guard).",
-        "Deploy to Azure button from SELF-HOSTING.md on main: the template deploys in a fresh resource group, the output URL serves ENCA over https, and after adding that URL as a SPA redirect URI sign-in works. Scale-to-zero: after idle, the first request cold-starts rather than erroring.",
-        "Not testable until promoted: everything above that reads from main. On beta, verify the files exist and docker build passes.",
+        "AFTER the port to main: the workflow publishes :latest, docker pull ghcr.io/nurejev/enca:latest works logged out, and the ported files contain no nurejev/enca/beta URL and no :beta default - re-run the whole checklist against main.",
       ],
-      files: ["Dockerfile", ".dockerignore", ".github/workflows/docker.yml", "selfhost/nginx.conf", "selfhost/docker-compose.yml", "selfhost/install.sh", "selfhost/install.ps1", "selfhost/azuredeploy.json", "SELF-HOSTING.md"],
+      files: ["Dockerfile", ".dockerignore", ".github/workflows/docker.yml", "selfhost/nginx.conf", "selfhost/docker-compose.yml", "selfhost/install.sh", "selfhost/install.ps1", "selfhost/azuredeploy.json", "SELF-HOSTING.md", "tools/check-plain-text.js", "js/app.js (carve-out line in the queue renderer, inert where promote.js is absent)"],
     },
     {
       n: 34,
@@ -196,6 +211,10 @@ PROMOTE.buildOrder = function (pickedNs, appBuild) {
     L.push(`- beta builds: ${(it.builds || []).join(", ")}`);
     L.push(`- risk: ${it.risk}`);
     L.push(`- files: ${(it.files || []).join(", ")}`);
+    // A carve-out is the one thing in this file that is an instruction rather
+    // than a fact: the item does NOT port verbatim, and the port is wrong if
+    // this line is not read. It goes above the files for that reason.
+    if (it.carveout) L.push(`- CARVE-OUT: ${it.carveout}`);
     L.push("");
   }
   L.push("```json");

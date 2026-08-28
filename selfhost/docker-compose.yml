@@ -11,7 +11,7 @@
 # ======================================================================
 services:
   enca:
-    image: ghcr.io/nurejev/enca:latest   # or :beta for the beta channel
+    image: ghcr.io/nurejev/enca:beta   # beta-channel copy; :latest for production
     container_name: enca
     restart: unless-stopped
     ports:

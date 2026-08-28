@@ -1,19 +1,22 @@
 # ======================================================================
 # ENCA self-hosted — one-command local setup for Windows (R06).
 #
-#   irm https://raw.githubusercontent.com/nurejev/enca/main/selfhost/install.ps1 | iex
-#   # or, from a clone:  .\selfhost\install.ps1 [-Port 8080] [-Tag beta]
+#   irm https://raw.githubusercontent.com/nurejev/enca/beta/selfhost/install.ps1 | iex
+#   # or, from a clone:  .\selfhost\install.ps1 [-Port 8080] [-Tag latest]
+#
+# BETA-CHANNEL COPY: branch and default tag are `beta` here. The beta→main
+# port rewrites both to main / latest — see promote.js item 92.
 #
 # What it does — nothing more than the four steps it prints:
 #   1. checks Docker Desktop is installed and running
-#   2. pulls ghcr.io/nurejev/enca:latest (-Tag beta for the beta channel)
+#   2. pulls ghcr.io/nurejev/enca:beta (-Tag latest for production)
 #   3. runs it on http://localhost:PORT (default 8080), picking up an
 #      optional .\selfhost-branding.json next to where you run it
 #   4. tells you about the ONE step it cannot do for you: the redirect URI
 # ======================================================================
 param(
   [int]$Port = 8080,
-  [string]$Tag = "latest"
+  [string]$Tag = "beta"
 )
 $ErrorActionPreference = "Stop"
 $Image = "ghcr.io/nurejev/enca:$Tag"
@@ -62,7 +65,7 @@ Write-Host "      from the repo - it creates the registration AND adds this URI.
 Write-Host "    - An existing registration: Entra admin center -> App registrations ->"
 Write-Host "      your app -> Authentication -> Single-page application -> add $Url"
 Write-Host ""
-Write-Host "  Details: https://github.com/nurejev/enca/blob/main/SELF-HOSTING.md"
+Write-Host "  Details: https://github.com/nurejev/enca/blob/beta/SELF-HOSTING.md"
 Write-Host ""
 
 Start-Process $Url

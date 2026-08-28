@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25228, date: "2026-08-28", title: "Self-hosting is testable before it is promoted",
+    items: [
+      { kind: "fixed", tool: "Self-hosting", text: "The Deploy to Azure button did not work, and could not have. It pointed at selfhost/azuredeploy.json on the main branch, where the self-hosting package does not exist yet - it is queue item 92, still on beta - so the portal answered with \"There was an error downloading the template from URI\". The same was true of both install one-liners and every raw.githubusercontent URL in the package: written for the world that exists after promotion, in a copy of the docs that only lives before it." },
+      { kind: "improved", tool: "Self-hosting", text: "The beta copy now points at the beta branch and the beta image throughout - the Deploy button, the curl and irm one-liners, the compose file, the template's default image, and the install scripts' default tag. So the whole package can be tested here, on a real Azure deployment and a real container, instead of being verified for the first time on production. A banner at the top of SELF-HOSTING.md says which copy you are reading, because a page telling you to pull beta is wrong the moment it reaches main." },
+      { kind: "new", tool: "Promotion queue", text: "That trade needed somewhere to live, so queue items can now carry a carve-out: the one field in promote.js that is an instruction rather than a description, for an item whose beta copy deliberately says something production must not. It renders in the queue and in the exported promotion order, where the working session actually reads it, and item 92 now names every rewrite the port has to perform plus the grep that proves it was complete. The plain-text check covers it like every other field." },
+      { kind: "improved", tool: "Self-hosting", text: "One failure mode is now written down where it will be met rather than discovered: an Azure deployment that succeeds but never becomes healthy is almost always the GHCR package still being Private, and the Container App log stream is where that shows up as an unauthorised pull. Setting the package Public is the single manual step the workflow header has always mentioned and nothing else can do." },
+    ],
+  },
+  {
     build: 25227, date: "2026-08-28", title: "Item 106 reached production 304",
     items: [
       { kind: "new", tool: "memberOf retirement", text: "The whole tool is live on enca.limon-it.nl as build 304 - both beta builds it spans, 25225 and 25226, promoted together because half of a three-surface scanner is exactly the thing the tool warns against being. Its version goes to 1.0 on both channels, since something a customer can open is not a 0.x thing; the BETA chip stays on the tile while it proves itself against real tenants. The next free tool number is now 35." },

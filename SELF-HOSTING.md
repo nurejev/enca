@@ -1,5 +1,7 @@
 # Self-hosting ENCA (R06)
 
+> **You are reading the beta-channel copy.** Every URL and image tag on this page points at the `beta` branch and the `:beta` image, so self-hosting is testable here rather than only after promotion. The production copy on `main` says `main` and `:latest` throughout — the beta→main port rewrites them.
+
 ENCA is static files and a browser — no server code, no database, nothing stored anywhere. That makes it trivially self-hostable, and some tenants require it: a security tool that reads Conditional Access is exactly the kind of thing an organisation wants served from its own infrastructure.
 
 ## ⚠️ Read this first: the redirect URI
@@ -18,30 +20,32 @@ Two ways to do it:
 **macOS / Linux:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/nurejev/enca/main/selfhost/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/nurejev/enca/beta/selfhost/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/nurejev/enca/main/selfhost/install.ps1 | iex
+irm https://raw.githubusercontent.com/nurejev/enca/beta/selfhost/install.ps1 | iex
 ```
 
-Either script checks Docker is running, pulls `ghcr.io/nurejev/enca:latest`, starts it at `http://localhost:8080`, and prints the redirect-URI instructions above. Pass a port (`bash install.sh 9090` / `-Port 9090`) if 8080 is taken; use `ENCA_TAG=beta` / `-Tag beta` for the beta channel.
+Either script checks Docker is running, pulls `ghcr.io/nurejev/enca:beta`, starts it at `http://localhost:8080`, and prints the redirect-URI instructions above. Pass a port (`bash install.sh 9090` / `-Port 9090`) if 8080 is taken; use `ENCA_TAG=latest` / `-Tag latest` for the production channel.
 
 ## Plain Docker
 
 ```bash
-docker run -d --name enca -p 8080:80 --restart unless-stopped ghcr.io/nurejev/enca:latest
+docker run -d --name enca -p 8080:80 --restart unless-stopped ghcr.io/nurejev/enca:beta
 ```
 
 Or with compose — see [`selfhost/docker-compose.yml`](selfhost/docker-compose.yml). The image is nginx over the repo's files, built by [the workflow](.github/workflows/docker.yml) on every push: `:latest` from `main`, `:beta` from the beta channel. To build it yourself instead of trusting ours: `docker build -t enca .` in a clone — what you run is what you can read.
 
 ## Deploy to Azure
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fnurejev%2Fenca%2Fmain%2Fselfhost%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fnurejev%2Fenca%2Fbeta%2Fselfhost%2Fazuredeploy.json)
 
 The button deploys [`selfhost/azuredeploy.json`](selfhost/azuredeploy.json): an **Azure Container App** running the published image with **scale-to-zero** (min 0 / max 1 replicas, 0.25 vCPU), so an instance used by one team costs close to nothing while idle. The deployment outputs show the app's HTTPS URL and repeat the next step: **add that URL as a SPA redirect URI** on your app registration.
+
+The template's `image` parameter defaults to the channel this branch publishes — `ghcr.io/nurejev/enca:beta` here, `:latest` on `main` — and anonymous pull requires the GHCR package to be **Public** (github.com → Packages → enca → Package settings). If the container app deploys but never becomes healthy, an unauthorised pull is the first thing to check, in the Container App's *Log stream*.
 
 ## Branding your instance
 
@@ -61,12 +65,12 @@ A self-hosted copy stops hearing about fixes the moment it exists — so the app
 To update a Docker instance:
 
 ```bash
-docker pull ghcr.io/nurejev/enca:latest
+docker pull ghcr.io/nurejev/enca:beta
 docker rm -f enca
 # then the same docker run / compose up -d as before
 ```
 
-For a reviewed fork: `git fetch upstream && git merge upstream/main`, re-review the diff, redeploy.
+For a reviewed fork: `git fetch upstream && git merge upstream/beta`, re-review the diff, redeploy.
 
 ## Self-hosted roadmap
 

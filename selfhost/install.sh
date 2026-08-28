@@ -2,13 +2,16 @@
 # ======================================================================
 # ENCA self-hosted — one-command local setup for macOS / Linux (R06).
 #
-#   curl -fsSL https://raw.githubusercontent.com/nurejev/enca/main/selfhost/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/nurejev/enca/beta/selfhost/install.sh | bash
 #   # or, from a clone:  bash selfhost/install.sh [port]
+#
+# BETA-CHANNEL COPY: branch and default tag are `beta` here. The beta→main
+# port rewrites both to main / latest — see promote.js item 92.
 #
 # What it does — nothing more than the four steps it prints:
 #   1. checks Docker is installed and running
-#   2. pulls ghcr.io/nurejev/enca:latest (set ENCA_TAG=beta for the beta
-#      channel; falls back to a local `docker build` inside a repo clone)
+#   2. pulls ghcr.io/nurejev/enca:beta (set ENCA_TAG=latest for the
+#      production channel; falls back to a local `docker build` in a clone)
 #   3. runs it on http://localhost:PORT (default 8080), picking up an
 #      optional ./selfhost-branding.json next to where you run it
 #   4. tells you about the ONE step it cannot do for you: the redirect URI
@@ -16,7 +19,7 @@
 set -euo pipefail
 
 PORT="${1:-8080}"
-TAG="${ENCA_TAG:-latest}"
+TAG="${ENCA_TAG:-beta}"
 IMAGE="ghcr.io/nurejev/enca:${TAG}"
 NAME="enca"
 
@@ -65,7 +68,7 @@ cat <<EOF
     • An existing registration: Entra admin center → App registrations →
       your app → Authentication → Single-page application → add ${URL}
 
-  Details: https://github.com/nurejev/enca/blob/main/SELF-HOSTING.md
+  Details: https://github.com/nurejev/enca/blob/beta/SELF-HOSTING.md
 
 EOF
 
