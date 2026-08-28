@@ -228,9 +228,21 @@ const Graph = (() => {
 
   // Same 429 discipline as graphFetch — ARM throttles per subscription and
   // answers with Retry-After just as Graph does.
-  async function armFetch(url) {
+  //
+  // `init` carries a method and body for the two callers that write. Everything
+  // in ENCA reads; the ONE exception is a self-hosted instance saving its own
+  // branding onto its own container app, which is the user changing a resource
+  // they own, with their own rights, in their own subscription. It goes through
+  // this same host guard and the same retry discipline as every read.
+  async function armFetch(url, init) {
     const full = safeArmUrl(url);
-    const send = (t) => fetch(full, { headers: { Authorization: "Bearer " + t, Accept: "application/json" } });
+    const send = (t) => fetch(full, {
+      method: (init && init.method) || "GET",
+      headers: Object.assign(
+        { Authorization: "Bearer " + t, Accept: "application/json" },
+        init && init.body ? { "Content-Type": "application/json" } : {}),
+      body: init && init.body ? JSON.stringify(init.body) : undefined,
+    });
     let r = await send(await token(ARM_SCOPES));
     for (let attempt = 0; (r.status === 429 || r.status === 503 || r.status === 504) && attempt < MAX_RETRIES; attempt++) {
       const ra = parseInt(r.headers.get("Retry-After"), 10);
@@ -242,14 +254,30 @@ const Graph = (() => {
     return r;
   }
 
-  async function aget(url) {
-    const r = await armFetch(url);
+  async function aget(url) { return armSend(url); }
+
+  // POST is a read in one important case: Azure Resource Graph answers queries
+  // over every subscription the signed-in user can see, and it is a POST.
+  async function apost(url, body) { return armSend(url, { method: "POST", body }); }
+
+  // The only write. ARM answers a container-app PATCH with 200 or 202; a 202
+  // means the revision is still rolling, which the caller has to say rather
+  // than reporting a change that has not landed yet.
+  async function apatch(url, body) { return armSend(url, { method: "PATCH", body }); }
+
+  async function armSend(url, init) {
+    const r = await armFetch(url, init);
     if (!r.ok) {
       let msg = `Azure request failed (${r.status})`;
+      // ARM's own message names the missing permission or the bad field, and
+      // it is far more useful than a status code — a 403 here almost always
+      // means "you can read this resource but not change it", which the
+      // person can act on only if they are told.
       try { const e = (await r.json()).error || {}; if (e.message) msg += ": " + e.message; } catch { /* no body */ }
       throw new Error(msg);
     }
-    return r.json();
+    if (r.status === 204) return null;
+    return r.status === 202 ? { accepted: true } : r.json().catch(() => null);
   }
 
   // ARM pages with nextLink (absolute URL), same idea as Graph's @odata.nextLink.
@@ -523,5 +551,5 @@ const Graph = (() => {
     }
   }
 
-  return { init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, get account() { return account; } };
+  return { init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, apost, apatch, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, get account() { return account; } };
 })();

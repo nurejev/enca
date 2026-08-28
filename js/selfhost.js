@@ -44,6 +44,12 @@
   const STORE = "enca-selfhost-brand";
   const KEY = "selfhost";
 
+  // Azure Container Apps is the deployment with no filesystem to put a
+  // branding file on, so it is the one where "design it, then go and paste it
+  // into Azure" is the whole friction. It is also the one the app can finish
+  // by itself: ARM will take the change from the signed-in user's own token.
+  const IS_ACA = /\.azurecontainerapps\.io$/i.test((location.hostname || "").toLowerCase());
+
   const isProd = () => {
     try {
       const prod = ((typeof BRANDING !== "undefined" && BRANDING.host) || "").toLowerCase();
@@ -226,6 +232,7 @@
         <input type="file" id="shImportFile" accept=".json,application/json" style="display:none">
         <button class="btn" id="shDownload">⭳ Download selfhost-branding.json</button>
         <button class="btn" id="shEnv" title="Copy this look as the ENCA_BRANDING value for the container — every visitor gets it, not just this browser">📋 Copy for container</button>
+        ${IS_ACA ? `<button class="btn" id="shAzure" title="Write this look onto this container app's ENCA_BRANDING setting, using your own Azure rights">☁ Save to this deployment</button>` : ""}
         <button class="btn" id="shClose">Close</button>
         <button class="btn primary" id="shApply">💾 Apply in this browser</button>
       </div>
@@ -339,6 +346,90 @@
         window.prompt(how + "\n\nCopy the value below:", data);
       } else {
         alert(how);
+      }
+    });
+    // ---- ☁ Save to this deployment (Azure Container Apps only) ----------
+    //
+    // THE ONE PLACE ENCA WRITES TO AZURE. Everything else in the app reads.
+    // What it changes is this instance's own ENCA_BRANDING setting, on the
+    // container app serving the page you are looking at, with the signed-in
+    // user's own rights — nothing is stored, nothing is delegated, and a user
+    // without Contributor on that resource simply gets ARM's 403 and a message
+    // saying so. It is the same act as typing the value into the portal, minus
+    // leaving the app to do it.
+    //
+    // Finding the resource: the browser knows its hostname and nothing else —
+    // not the subscription, not the resource group. Azure Resource Graph
+    // answers "which container app has this ingress FQDN" across every
+    // subscription the user can see, in one query, which beats making them
+    // paste resource ids into a form.
+    if (IS_ACA) $("shAzure").addEventListener("click", async () => {
+      const btn = $("shAzure");
+      const was = btn.textContent;
+      const fail = (m) => { btn.textContent = was; alert("Could not save to this deployment.\n\n" + m); };
+      if (typeof Graph === "undefined" || !Graph.account) {
+        return fail("Sign in first — saving to the deployment uses your own Azure rights, so it needs your token.");
+      }
+      try {
+        btn.disabled = true;
+        btn.textContent = "Asking for Azure access…";
+        // Consent for ARM is asked here, on the click, rather than at sign-in:
+        // most people never touch this button, and a permission requested at
+        // the moment it is used is one somebody can actually judge.
+        await Graph.ensureScopes(Graph.ARM_SCOPES);
+
+        btn.textContent = "Finding this container app…";
+        const host = (location.hostname || "").toLowerCase();
+        const q = {
+          query: "resources | where type =~ 'microsoft.app/containerapps' "
+               + "| where tostring(properties.configuration.ingress.fqdn) =~ '" + host.replace(/'/g, "") + "' "
+               + "| project id, name, resourceGroup, subscriptionId | limit 2",
+        };
+        const found = await Graph.apost("/providers/Microsoft.ResourceGraph/resources?api-version=2021-03-01", q);
+        const rows = (found && found.data) || [];
+        if (!rows.length) {
+          return fail("No container app in your subscriptions has the ingress hostname " + host + ".\n\n"
+            + "That usually means your account cannot see the subscription it lives in — reader on the resource is not enough to change it, but you need at least to see it. "
+            + "Use 📋 Copy for container and set ENCA_BRANDING in the portal instead.");
+        }
+        if (rows.length > 1) {
+          return fail("More than one container app claims " + host + ", which should be impossible. Refusing to guess — set ENCA_BRANDING in the portal.");
+        }
+        const id = rows[0].id;
+
+        btn.textContent = "Reading the current settings…";
+        // GET before PATCH, and send the WHOLE template back. A container-app
+        // PATCH replaces the containers array wholesale, so patching a bare
+        // env list would drop the image, the resources and every other
+        // variable — including ENCA_CLIENT_ID, which would silently move the
+        // deployment back to the shared registration.
+        const app = await Graph.aget(id + "?api-version=2024-03-01");
+        const tpl = (app.properties && app.properties.template) || {};
+        const containers = (tpl.containers || []).map((c) => Object.assign({}, c));
+        if (!containers.length) return fail("This container app has no container defined, which the app cannot repair.");
+
+        const data = JSON.stringify({ v: 1, brand: collect() || {} });
+        const env = (containers[0].env || []).filter((e) => e && e.name !== "ENCA_BRANDING");
+        env.push({ name: "ENCA_BRANDING", value: data });
+        containers[0].env = env;
+
+        btn.textContent = "Saving…";
+        const res = await Graph.apatch(id + "?api-version=2024-03-01", {
+          properties: { template: Object.assign({}, tpl, { containers }) },
+        });
+
+        btn.textContent = "Saved";
+        setTimeout(() => { btn.textContent = was; btn.disabled = false; }, 2500);
+        alert("Saved to this deployment.\n\n"
+          + "Azure is rolling a new revision" + (res && res.accepted ? " (still in progress)" : "") + ". "
+          + "It carries ENCA_BRANDING, so this look now applies to EVERY visitor, and survives restarts and image updates — "
+          + "the setting lives on the container app, not inside the container.\n\n"
+          + "Give it a minute, then reload in a private window to see what other people will see. "
+          + "Your own browser may still be showing the local preview from 💾 Apply, which wins over the deployment's look by design — "
+          + "✖ Remove local branding clears it.");
+      } catch (e) {
+        btn.disabled = false;
+        fail((e && e.message) || String(e));
       }
     });
     $("shClose").addEventListener("click", () => bg.classList.remove("open"));

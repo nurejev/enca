@@ -100,6 +100,42 @@ const PROMOTE = {
 
   items: [
     {
+      n: 112,
+      title: "🚨 CSP never allowed Azure Resource Manager",
+      tools: ["Group Analyzer", "All tools"],
+      builds: [25234],
+      risk: "medium",
+      what: "connect-src in index.html gains https://management.azure.com. It was never there, from the build that first wrote the Azure area onwards, so every ARM call the app made was refused by the browser before it left the page.",
+      why: "PROMOTE THIS ON ITS OWN AND FIRST. Production has been giving a wrong answer rather than an error: the Group Analyzer's Azure area reports what it could not read rather than failing, so a blocked ARM call came back as a group with no Azure role assignments. Confident, wrong, and invisible. It is one host on one line, and the risk in it is the risk of any CSP widening - it must be read in the diff and understood, not waved through because the change is small.",
+      test: [
+        "BEFORE the fix, on production: open devtools, run the Group Analyzer with Azure ticked, and confirm the Refused to connect errors are there. Knowing the bug is real in production is what justifies the change.",
+        "After: the same run returns role assignments, and the console is clean.",
+        "Every other area still works - the widening must not have broken Graph, sign-in or the fork check. Watch for CSP violations across a full session.",
+        "The policy is a meta tag, so it ships in index.html and applies identically on GitHub Pages and in the container. Verify BOTH after promotion, not just one.",
+        "Anyone who used the Azure area before this build has an answer that was wrong, which is why the changelog entry tells them to re-run.",
+      ],
+      files: ["index.html"],
+    },
+    {
+      n: 113,
+      title: "☁ Save branding to the Azure deployment",
+      tools: ["Self-hosting"],
+      builds: [25234],
+      risk: "medium",
+      what: "On an azurecontainerapps.io host the branding gear gains Save to this deployment: it finds the container app by asking Resource Graph which one carries this page's ingress hostname, reads its template, and PATCHes ENCA_BRANDING onto it with the signed-in user's own ARM token. js/graph.js gains apost and apatch; armFetch takes a method and body.",
+      why: "It is the FIRST WRITE ENCA makes to Azure, and that is the whole review. Everything else in the app reads. The write is bounded - one environment variable, on the resource serving the page, with the user's own rights and ARM consent asked on the click - but the shape of the capability is new and deserves a deliberate decision rather than arriving inside a self-hosting item. Depends on 112: without management.azure.com in connect-src it cannot work at all.",
+      test: [
+        "As a user with Contributor on the container app: save, wait for the revision, then load the site in a private window and confirm the branding is there with no localStorage involved.",
+        "Restart the revision, then update the image: the branding survives both, because the setting is on the Azure resource rather than in the container. This is the claim the whole feature rests on.",
+        "As a user who can SEE the subscription but holds only Reader: the save must fail with Azure's own 403 message, not a generic error, and must change nothing.",
+        "As a user whose account cannot see that subscription at all: Resource Graph returns no rows and the message says to use Copy for container instead. Confirm it does not silently do nothing.",
+        "CRITICAL: set ENCA_CLIENT_ID on the container app first, then save branding, then read the revision back and confirm ENCA_CLIENT_ID is STILL THERE. A container-app patch replaces the containers array wholesale, so a narrower patch would drop it and move the deployment back to the shared registration without a word.",
+        "Decline the ARM consent prompt: the button must recover and say so rather than leaving the modal stuck mid-save.",
+        "The button must be ABSENT on every non-Container-Apps host, production included.",
+      ],
+      files: ["js/selfhost.js", "js/graph.js"],
+    },
+    {
       n: 111,
       title: "🕓 Who changed passkey dynamic migration, and when",
       tools: ["SMS & voice retirement"],

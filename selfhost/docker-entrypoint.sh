@@ -123,7 +123,17 @@ if [ -n "$CLIENT_ID" ] || [ -n "$TENANT_ID" ] || [ -n "$AUTHORITY" ]; then
     cat "$STRIPPED"
   } > "$BLOCK"
 
-  cat "$BLOCK" > "$CFG"
+  # Unlike branding, this one is FATAL on failure and meant to be. Carrying on
+  # would leave a container serving the app with whatever registration the
+  # image shipped with, while its operator believes it is using theirs - people
+  # would sign in and consent to the wrong application. A container that
+  # refuses to start is a problem you can see; that one is not.
+  if ! cat "$BLOCK" > "$CFG" 2>/dev/null; then
+    rm -f "$BLOCK" "$STRIPPED"
+    echo "enca: cannot write $CFG (mounted read-only?) - refusing to start." >&2
+    echo "enca: continuing would serve the image's built-in registration while you believe your own is in use." >&2
+    exit 1
+  fi
   rm -f "$BLOCK" "$STRIPPED"
 
   echo "enca: runtime configuration applied${CLIENT_ID:+ (clientId $CLIENT_ID)}${AUTH_VALUE:+, authority $AUTH_VALUE}."
@@ -181,8 +191,17 @@ if [ -n "$BRAND_JSON" ] || [ -n "$BRAND_URL" ]; then
   fi
 
   if [ -n "$BRAND_OK" ]; then
-    cat "$BRAND_TMP" > "$BRAND_FILE"
-    echo "enca: deployment branding written to selfhost-branding.json - every visitor gets it."
+    # The write can legitimately fail: mounting ./selfhost-branding.json read-only
+    # is the documented file route, and install.sh does exactly that with :ro. A
+    # deployment using BOTH must not die over it - the mounted file is already
+    # valid branding, so say which one is in force and carry on. Without this
+    # guard `set -e` turned a redundant configuration into a container that
+    # never starts.
+    if cat "$BRAND_TMP" > "$BRAND_FILE" 2>/dev/null; then
+      echo "enca: deployment branding written to selfhost-branding.json - every visitor gets it."
+    else
+      echo "enca: selfhost-branding.json is not writable (mounted read-only?) - keeping the mounted file and ignoring the variable." >&2
+    fi
   elif [ -s "$BRAND_TMP" ]; then
     echo "enca: branding did not parse as JSON - leaving the deployment unbranded." >&2
   fi

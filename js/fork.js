@@ -73,13 +73,27 @@
          + "git merge upstream/main",
     };
     if (!IS_ACA) return [docker, fork];
+    // Container Apps sets every container's image pull policy to `always`, so
+    // ANY command that starts a fresh container re-pulls the tag: a restart,
+    // a deactivate/activate, a new revision, or a scale-to-zero cold start.
+    // Restarting is the lightest of those and leaves no revision clutter.
+    //
+    // NOT offered, deliberately: `az containerapp update --image <same tag>`.
+    // An unchanged image reference is not a revision-scope change, so it can
+    // create no revision and do nothing at all - a command that looks like it
+    // worked and did not is worse than no command.
     return [{
       title: "Azure Container Apps — this deployment",
-      note: "a new revision pulls the tag again; replace the app and group names",
-      cmd: "az containerapp revision copy -n <app-name> -g <resource-group>\n\n"
+      note: "restart the active revision; it pulls the tag again on start",
+      cmd: "APP=<app-name>; RG=<resource-group>\n"
+         + "az containerapp revision restart -n $APP -g $RG \\\n"
+         + "  --revision $(az containerapp show -n $APP -g $RG \\\n"
+         + "      --query properties.latestRevisionName -o tsv)\n\n"
+         + "# Portal: Revisions and replicas -> the active revision -> Restart.\n"
+         + "# Heavier alternative, if you want a new revision to roll back to:\n"
+         + "#   az containerapp revision copy -n $APP -g $RG\n"
          + "# Already scaled to zero? The next request cold-starts and pulls the\n"
-         + "# new image on its own - Container Apps always pulls when a container\n"
-         + "# starts. This command is how you make that happen NOW instead.",
+         + "# new image by itself - this is how you make that happen NOW.",
     }, docker, fork];
   })();
 

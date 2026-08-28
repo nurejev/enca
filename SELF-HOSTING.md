@@ -110,11 +110,15 @@ docker rm -f enca
 # then the same docker run / compose up -d as before
 ```
 
-Azure Container Apps — a new revision re-pulls the tag:
+Azure Container Apps — restarting the active revision re-pulls the tag:
 
 ```bash
-az containerapp revision copy -n <app-name> -g <resource-group>
+APP=<app-name>; RG=<resource-group>
+az containerapp revision restart -n $APP -g $RG \
+  --revision $(az containerapp show -n $APP -g $RG --query properties.latestRevisionName -o tsv)
 ```
+
+Or in the portal: **Revisions and replicas → the active revision → Restart**. `az containerapp revision copy -n $APP -g $RG` does it too, and leaves a revision to roll back to. Do **not** reach for `az containerapp update --image <the same tag>`: an unchanged image reference is not a revision-scope change, so it can create no revision and do nothing — a command that looks like it worked and did not.
 
 **One honest exception.** Container Apps sets every container's image pull policy to `always`, so a container that *starts* pulls the tag fresh. With this template's scale-to-zero (min 0 replicas), an idle instance therefore picks up a republished `:beta` or `:latest` on its next cold start, without anyone asking it to. If you want a genuinely pinned deployment there, use a digest (`ghcr.io/nurejev/enca@sha256:…`) or your own immutable tag as the `image` parameter — a mutable tag plus scale-to-zero is a rolling deployment whether or not it was meant as one.
 
