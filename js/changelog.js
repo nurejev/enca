@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25227, date: "2026-08-28", title: "Item 106 reached production 304",
+    items: [
+      { kind: "new", tool: "memberOf retirement", text: "The whole tool is live on enca.limon-it.nl as build 304 - both beta builds it spans, 25225 and 25226, promoted together because half of a three-surface scanner is exactly the thing the tool warns against being. Its version goes to 1.0 on both channels, since something a customer can open is not a 0.x thing; the BETA chip stays on the tile while it proves itself against real tenants. The next free tool number is now 35." },
+    ],
+  },
+  {
     build: 25226, date: "2026-08-27", title: "All three surfaces, including the one nobody can see",
     items: [
       { kind: "new", tool: "memberOf retirement", text: "The third surface is read too. Entitlement-management auto-assignment policies can carry a memberOf rule, and 25225 shipped naming them as a gap and pointing at Microsoft's script instead. They are now scanned like the other two. This is the hardest of the three to check by hand: the rule sits in specificAllowedTargets, on a policy, inside an access package, inside a catalog - and there is no view anywhere in the portal that lists them across a tenant. The line is drawn where Microsoft's own script draws it, keeping only the policies that carry automaticRequestSettings, because a request-based policy has no rule to freeze." },
