@@ -86,8 +86,26 @@ origin **exactly** — scheme, host and port — or sign-in fails with
 `AADSTS50011`. Keep `http://localhost:8080` if you want to run it locally; drop
 it if you do not.
 
+The app is called `ENCA` unless you say otherwise. It is yours, in your
+directory, listed among your own enterprise applications — so name it the way
+your organisation names things:
+
+```powershell
+./New-EncaAppRegistration.ps1 -SingleTenant -AppName "Contoso CA Review" `
+    -SingleTenantRedirectUris "https://enca.contoso.example"
+```
+
+The name is also the handle the script finds the app by when `-AppObjectId` is
+not given, which makes it load-bearing: **re-run with exactly the same
+`-AppName` and the registration is updated; use a different one and you get a
+second app with a new client ID**, while every consent already recorded against
+the first is stranded on an app nothing points at. To rename one that exists,
+give `-AppObjectId` with the new `-AppName` — the object ID is immutable, so
+that path can never fork the registration in two.
+
 The script creates the registration with:
 
+- the display name you chose, or `ENCA`
 - `SignInAudience = AzureADMyOrg` — your directory only
 - an **SPA** platform (authorization code + PKCE, no client secret)
 - implicit grant explicitly **off**

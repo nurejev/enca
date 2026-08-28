@@ -125,6 +125,12 @@
       register();
       rebrand();
       // A configured instance is not a test site: soften the ribbon, keep it.
+      //
+      // app.js already says SELF-HOSTED on any host that is neither
+      // BRANDING.host nor BRANDING.betaHost, so on a real self-hosted copy this
+      // is a no-op that happens to re-state the same thing. It still earns its
+      // place for the one case app.js cannot cover: a branding file served from
+      // the publisher's OWN beta host, where the ribbon starts as BETA.
       const rb = document.getElementById("betaRibbon");
       if (rb) {
         rb.textContent = "⚙ SELF-HOSTED — not " + ((typeof BRANDING !== "undefined" && BRANDING.host) || "production");

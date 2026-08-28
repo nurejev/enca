@@ -100,6 +100,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 107,
+      title: "⚙ A self-hosted copy says so, and can be named",
+      tools: ["Self-hosting", "All tools"],
+      builds: [25229],
+      risk: "medium",
+      what: "Three deployments are now told apart instead of two. BRANDING.betaHost names the publisher's own pre-production site, so the ribbon reads BETA only there; every other non-production host - localhost, an Azure Container App, a fork's domain - reads SELF-HOSTED in slate rather than BETA in red. The sign-in card gains a matching notice on those hosts naming the host it is served from, the build, that it does not update itself, and the full client ID plus whether the authority is shared multi-tenant or single-tenant. New-EncaAppRegistration.ps1 documents -AppName as the self-hosting option it always was, stops applying the CA Documenter rename fallback to caller-chosen names, and warns at creation that a changed name makes a SECOND registration.",
+      why: "The ribbon change is the risky half and the reason this is medium rather than low: it decides what a customer's own deployment calls itself, and the failure mode is silent. If BRANDING.betaHost is wrong or missing after a port, the beta site starts calling ITSELF self-hosted - which is exactly the confusion this removes, pointed the other way. The login notice is additive and hidden on production, and the PowerShell change is defensive: the previous-name fallback firing on a caller-chosen name could rename an unrelated app in a customer tenant.",
+      test: [
+        "On the beta Pages host: the ribbon still reads BETA in red and the title tag is still [BETA]. This is the regression that matters - if it reads SELF-HOSTED, BRANDING.betaHost did not survive the port.",
+        "On production enca.limon-it.nl after promotion: NO ribbon, no title tag, and the sign-in card shows no self-hosted notice. Confirm in a private window, since localStorage branding is per-browser.",
+        "docker run the image on http://localhost:8080 with nothing else configured: slate SELF-HOSTED ribbon, [SELF-HOSTED] title, and the sign-in card names localhost, the build, and the client ID from js/authConfig.js.",
+        "Same container with a selfhost-branding.json mounted: still SELF-HOSTED, still one ribbon, and the branding applies - the app.js ribbon and the js/selfhost.js re-statement must not produce two.",
+        "Point js/authConfig.local.js at a single-tenant registration and reload: the notice reads single-tenant authority with the tenant id, not shared multi-tenant. Then set the authority back to organizations and confirm it flips.",
+        "The client ID on the card must be the FULL guid and selectable, so somebody can compare it against their own tenant. A truncated one is verification theatre.",
+        "New-EncaAppRegistration.ps1 -SingleTenant -AppName \"Contoso CA Review\" in a test tenant: creates under that name, prints the re-run warning, and running it AGAIN with the same name updates rather than creating a second app. Then run it with a different name and confirm a second app appears - that is the documented behaviour, not a bug, and the warning is what makes it survivable.",
+        "In a tenant that has an app called \"CA Documenter (Limon-IT)\": run with -AppName \"Something Else\" and confirm the old app is NOT renamed. Before this build it would have been.",
+      ],
+      files: ["js/branding.js", "js/app.js", "js/selfhost.js", "css/app.css", "index.html", "New-EncaAppRegistration.ps1", "SELF-HOSTING.md", "SINGLE-TENANT.md"],
+    },
+    {
       n: 92,
       title: "🐳 Self-hosting package (R06)",
       tools: ["Self-hosting"],

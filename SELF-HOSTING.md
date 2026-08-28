@@ -13,6 +13,15 @@ Every host you serve ENCA from — `http://localhost:8080`, `https://enca.yourco
 Two ways to do it:
 
 1. **Your own app registration (recommended for self-hosting).** Run [`New-EncaAppRegistration.ps1`](New-EncaAppRegistration.ps1) — it creates a registration in *your* tenant and adds your host's redirect URI. Then put its client id in `js/authConfig.js` (or see [SINGLE-TENANT.md](SINGLE-TENANT.md)). Your own registration, your own host: no dependency on anything of ours at run time.
+
+   Name it yours with `-AppName` — the registration lands in *your* Enterprise applications list, where a vendor's name on an app you own is at best confusing:
+
+   ```powershell
+   ./New-EncaAppRegistration.ps1 -SingleTenant -AppName "Contoso CA Review" `
+     -SingleTenantRedirectUris "https://enca.contoso.example","http://localhost:8080"
+   ```
+
+   The name is the handle the script looks the app up by, so **re-run it with exactly the same `-AppName` to update**; a different name creates a second registration with a new client ID and orphans the consent recorded against the first. To rename one that already exists, pass `-AppObjectId` alongside the new `-AppName`.
 2. **An existing registration.** Entra admin center → App registrations → your app → Authentication → *Single-page application* → add your URL exactly, including the port.
 
 ## Quick start on your own machine

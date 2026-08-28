@@ -388,27 +388,85 @@
     } catch { return false; }
   };
 
-  // The production deployment lives on BRANDING.host; any other origin
-  // (the beta Pages site, a local dev server) is visibly not production, so
-  // testers and screenshots can never be confused about what they're seeing.
+  // Which of the three deployments is this? Production is BRANDING.host. The
+  // publisher's own pre-production site is BRANDING.betaHost. ANYTHING ELSE is
+  // a copy somebody else is running \u2014 a container on localhost, an Azure
+  // Container App, a fork on their own domain \u2014 and calling that "BETA" was
+  // wrong in a way that mattered: it told an organisation which had
+  // deliberately deployed ENCA on its own infrastructure that it was looking
+  // at a test build. People who are told that every day stop reading the
+  // ribbon, which is the one thing it exists to prevent.
+  //
+  // localhost counts as self-hosted, because `docker run ... -p 8080:80` IS
+  // the documented quick start. The build stamp on the sign-in card is what
+  // says which build a developer is looking at; the ribbon answers a different
+  // question \u2014 whose deployment is this.
+  const deploymentKind = () => {
+    try {
+      const here = (location.hostname || "").toLowerCase();
+      if (!here) return "unknown";
+      const prod = ((typeof BRANDING !== "undefined" && BRANDING.host) || "").toLowerCase();
+      const beta = ((typeof BRANDING !== "undefined" && BRANDING.betaHost) || "").toLowerCase();
+      if (prod && here === prod) return "production";
+      if (beta && here === beta) return "beta";
+      return "selfhosted";
+    } catch { return "unknown"; }
+  };
+
   (function markNonProduction() {
     try {
-      const prod = (BRANDING.host || "").toLowerCase();
-      const here = location.hostname.toLowerCase();
-      if (!prod || !here || here === prod) return;
+      const kind = deploymentKind();
+      if (kind === "production" || kind === "unknown") return;
+      const selfHosted = kind === "selfhosted";
       const r = document.createElement("div");
-      // The id and title tag let js/selfhost.js soften this to a neutral
-      // SELF-HOSTED ribbon when a deployment branding file is served \u2014 a
-      // configured instance is not a test site, but it must still never be
+      // The id and title tag are also read by js/selfhost.js, which re-states
+      // the SELF-HOSTED wording once a deployment branding file has been
+      // fetched. Neither path may ever produce a ribbon that is absent or
       // mistakable for production.
       r.id = "betaRibbon";
-      r.dataset.titleTag = "[BETA]";
-      r.textContent = "\u26A0 BETA \u2014 not production";
+      r.dataset.titleTag = selfHosted ? "[SELF-HOSTED]" : "[BETA]";
+      r.textContent = selfHosted
+        ? "\u2699 SELF-HOSTED \u2014 not " + ((BRANDING && BRANDING.host) || "production")
+        : "\u26A0 BETA \u2014 not production";
       r.style.cssText = "position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9999;" +
-        "background:#b04a3a;color:#fff;font:800 13px/1 Inter,system-ui,sans-serif;padding:7px 22px;" +
+        "background:" + (selfHosted ? "#3b5a72" : "#b04a3a") + ";color:#fff;font:800 13px/1 Inter,system-ui,sans-serif;padding:7px 22px;" +
         "border-radius:0 0 10px 10px;letter-spacing:.5px;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none;white-space:nowrap";
       document.body.appendChild(r);
-      document.title = "[BETA] " + document.title;
+      document.title = r.dataset.titleTag + " " + document.title;
+    } catch { /* cosmetic only */ }
+  })();
+
+  // ---------- the sign-in screen says whose deployment this is ----------
+  // A ribbon at the top of the page is a glance, and a glance is not enough at
+  // the one moment that matters: consenting. Somebody signing in is handing a
+  // registration delegated access to their directory, so the sign-in card
+  // names the two things that decide whether that is safe \u2014 WHERE this copy is
+  // served from, and WHICH app registration is about to receive the consent.
+  //
+  // The client ID is shown in full. Truncating an identifier somebody is meant
+  // to check against their own tenant makes it un-checkable, which is worse
+  // than not showing it: it looks like verification without being any.
+  (function markSelfHostedLogin() {
+    try {
+      if (deploymentKind() !== "selfhosted") return;
+      const box = document.getElementById("loginSelfHost");
+      if (!box) return;
+      const cid = (typeof AUTH_CONFIG !== "undefined" && AUTH_CONFIG.clientId) || "";
+      const auth = (typeof AUTH_CONFIG !== "undefined" && AUTH_CONFIG.authority) || "";
+      // "organizations" (or "common") is the shared multi-tenant authority; a
+      // tenant id or verified domain in that slot means a registration that no
+      // directory but that one can use. The distinction is the whole point of
+      // SINGLE-TENANT.md, so it is named rather than left to be inferred.
+      const tail = auth.replace(/\/+$/, "").split("/").pop() || "";
+      const shared = /^(organizations|common|consumers)$/i.test(tail);
+      const build = (typeof APP_BUILD !== "undefined" && APP_BUILD.label) || "";
+      box.innerHTML =
+        `<b>\u2699 Self-hosted instance.</b> Served from <b>${esc(location.hostname)}</b>` +
+        (build ? ` on ${esc(build)}` : "") + ` \u2014 not ${esc((BRANDING && BRANDING.host) || "the canonical site")}, ` +
+        `and it does not update itself.<br>` +
+        `Signing in to app registration <code>${esc(cid || "(none configured)")}</code>` +
+        (tail ? ` \u00B7 ${shared ? "shared multi-tenant authority" : "single-tenant authority (" + esc(tail) + ")"}` : "") + `.`;
+      box.style.display = "";
     } catch { /* cosmetic only */ }
   })();
 
