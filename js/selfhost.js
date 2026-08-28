@@ -283,6 +283,13 @@
         ${F("shBrandUrl", "Branding JSON URL (optional — for a look too large to be an environment variable)", esc(""), "https://example.com/selfhost-branding.json")}
         <p class="mini muted" style="margin:6px 0 0">Fill this in and ☁ <b>Save to this deployment</b> sets <code>ENCA_BRANDING_URL</code> instead, with no size limit — the container fetches it on every start. Leave it empty and the look above is saved inline. ⭳ Download gives you the file to serve.</p>
       </div>` : ""}
+      <!-- THE NUMBER, WHILE THERE IS STILL TIME TO ACT ON IT. Both size
+           refusals below fire at the end of the job, on the click that was
+           meant to finish it, about a logo chosen many fields ago. This says
+           the same thing continuously and from the moment the dialog opens,
+           so "too big" arrives as a property of the look being designed
+           rather than as a verdict on it. -->
+      <div id="shSize" class="mini" style="margin-top:14px;padding:8px 11px;border:1px solid var(--border);border-radius:9px"></div>
       <div class="modal-foot" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px">
         <button class="btn" id="shReset" title="Remove the branding saved in this browser">✖ Remove local branding</button>
         <button class="btn" id="shImport" title="Load a selfhost-branding.json into the form to review, then Apply">⭱ Import from JSON</button>
@@ -299,8 +306,8 @@
     const $ = (id) => bg.querySelector("#" + id);
     let logoUri = cur.logo && String(cur.logo).startsWith("data:") ? cur.logo : "";
     let favUri = cur.favicon && String(cur.favicon).startsWith("data:") ? cur.favicon : "";
-    $("shLogo").addEventListener("change", () => fileToDataUri($("shLogo"), (u) => { logoUri = u; }));
-    $("shFav").addEventListener("change", () => fileToDataUri($("shFav"), (u) => { favUri = u; }));
+    $("shLogo").addEventListener("change", () => fileToDataUri($("shLogo"), (u) => { logoUri = u; updateSize(); }));
+    $("shFav").addEventListener("change", () => fileToDataUri($("shFav"), (u) => { favUri = u; updateSize(); }));
     $("shColL").addEventListener("change", () => { $("shColLRow").style.display = $("shColL").checked ? "flex" : "none"; });
     $("shColD").addEventListener("change", () => { $("shColDRow").style.display = $("shColD").checked ? "flex" : "none"; });
 
@@ -332,6 +339,70 @@
       if ($("shColD").checked) b.colorsDark = colors("colorsDark");
       return cleanBrand(b);
     }
+
+    // What actually gets written to a file, a clipboard or a container app.
+    //
+    // cleanBrand() sets logoDark to the same value as logo, because a single
+    // uploaded mark has to serve both themes. Serialising that copies the
+    // WHOLE data: URI a second time — on a look whose logo is 10 KB, a third
+    // of the payload was one image written twice, against a hard 48 KB
+    // ceiling. Dropping it is lossless: every route back in (the fetched
+    // file, Import, localStorage) runs cleanBrand, which puts it back.
+    const forWire = (b) => {
+      const o = Object.assign({}, b || {});
+      if (o.logoDark && o.logoDark === o.logo) delete o.logoDark;
+      return o;
+    };
+
+    // ---- the live size readout ------------------------------------------
+    //
+    // Measured through collect() and the SAME serialisation 📋 Copy and ☁ Save
+    // use, so the number on screen is the number those buttons will judge —
+    // a meter that estimated its own way would be a second opinion, and the
+    // wrong one whenever they disagreed.
+    //
+    // It names the embedded images separately because that is the actionable
+    // part: "122 KB" invites deleting text that costs nothing, while "the logo
+    // is 90 KB of it" points at the one field that can fix it.
+    // Bytes below 2 KB, KB above. A look with no image in it is a few hundred
+    // bytes, and "0.0 KB" reads as a broken meter rather than a small one —
+    // it also has to visibly MOVE when a field is typed into, or the readout
+    // looks stuck and nobody trusts the number when it matters.
+    const kb = (n) => (n < 2048 ? n + " bytes" : (n < 10240 ? (n / 1024).toFixed(1) : Math.round(n / 1024)) + " KB");
+    function updateSize() {
+      const el = $("shSize");
+      if (!el) return;
+      const b = forWire(collect());
+      const n = JSON.stringify({ v: 1, brand: b }).length;
+      const embedded = ["logo", "favicon"]
+        .map((k) => ({ k, len: String(b[k] || "").startsWith("data:") ? b[k].length : 0 }))
+        .filter((x) => x.len);
+      const paths = ["logo", "favicon"].some((k) => b[k] && !String(b[k]).startsWith("data:"));
+      const from = embedded.length
+        ? " " + embedded.map((x) => `The embedded ${x.k} is ${kb(x.len)} of it.`).join(" ")
+        : (paths ? " No image is embedded — they are paths, which is what keeps this small." : "");
+      let tone, text;
+      if (n > ENV_MAX) {
+        tone = ["var(--off)", "var(--bad-bd)", "var(--bad-bg2)"];
+        text = `<b>${kb(n)} — too large for ENCA_BRANDING.</b> An environment variable cannot safely carry more than ${Math.round(ENV_MAX / 1024)} KB, so 📋 Copy and ☁ Save will refuse this look.${from} Use a logo path above, or serve the downloaded file and point a branding URL at it. ⭳ Download and 💾 Apply are unaffected — neither has a size limit.`;
+      } else if (n > ENV_WARN) {
+        tone = ["var(--report)", "var(--warn-bd)", "var(--warn-bg2)"];
+        text = `<b>${kb(n)} — large for an environment variable</b>, though still under the ${Math.round(ENV_MAX / 1024)} KB ceiling.${from} A shade smaller and there is room to keep editing this look later.`;
+      } else {
+        tone = ["var(--muted)", "var(--border)", "transparent"];
+        text = `${kb(n)} — comfortably inside the ${Math.round(ENV_MAX / 1024)} KB an environment variable can carry, so every route out of this dialog is open.${from}`;
+      }
+      el.style.color = tone[0];
+      el.style.borderColor = tone[1];
+      el.style.background = tone[2];
+      el.innerHTML = text;
+    }
+    // Delegated, so it survives the fields being rearranged, and covers the
+    // colour pickers and checkboxes as well as the text boxes. The file
+    // inputs read asynchronously and are updated from their own callbacks.
+    bg.addEventListener("input", updateSize);
+    bg.addEventListener("change", updateSize);
+    updateSize();
 
     $("shApply").addEventListener("click", () => {
       localBrand = collect();
@@ -366,7 +437,7 @@
       r.readAsText(f);
     });
     $("shDownload").addEventListener("click", () => {
-      const data = JSON.stringify({ v: 1, comment: "Serve this file as /selfhost-branding.json next to index.html — see SELF-HOSTING.md.", brand: collect() || {} }, null, 2);
+      const data = JSON.stringify({ v: 1, comment: "Serve this file as /selfhost-branding.json next to index.html — see SELF-HOSTING.md.", brand: forWire(collect()) }, null, 2);
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
       a.download = "selfhost-branding.json";
@@ -378,7 +449,7 @@
     // no filesystem to mount into. Same JSON either way — the entrypoint writes
     // it to exactly the path the download tells you to serve it from.
     $("shEnv").addEventListener("click", async () => {
-      const data = JSON.stringify({ v: 1, brand: collect() || {} });
+      const data = JSON.stringify({ v: 1, brand: forWire(collect()) });
       const kb = Math.round(data.length / 1024);
       // Environment variables are not a file, and the ceiling is the kernel's,
       // not the platform's: exec() refuses a single variable over 128 KB, so a
@@ -488,7 +559,7 @@
         // cleared - leaving both would be two sources of truth, and the
         // entrypoint prefers the inline one, so the URL would look ignored.
         const url = ($("shBrandUrl").value || "").trim();
-        const data = JSON.stringify({ v: 1, brand: collect() || {} });
+        const data = JSON.stringify({ v: 1, brand: forWire(collect()) });
         let env = (containers[0].env || []).filter((e) => e && e.name !== "ENCA_BRANDING" && e.name !== "ENCA_BRANDING_URL");
 
         if (url) {

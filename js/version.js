@@ -30,7 +30,7 @@ const APP_BUILD = {
   // graduating to production one queue number at a time — production walked
   // 250 → 281 while this cycle stayed 250. It is a cycle NAME, not a promise.
   cycle: 250,
-  build: 25236,
+  build: 25237,
   date: "2026-08-28",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time
@@ -40,7 +40,7 @@ const APP_BUILD = {
   // Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
-  released: "2026-08-28T13:20Z",
+  released: "2026-08-28T13:28Z",
   get isBeta() { return this.build >= 10000; },
   // Stored UTC, shown in the reader's own timezone with the offset named.
   // A build is cut once, so one absolute instant is the right thing to record —

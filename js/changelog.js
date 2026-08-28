@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25237, date: "2026-08-28", title: "The branding dialog says how big the look is",
+    items: [
+      { kind: "new", tool: "Self-hosting", text: "The branding gear now carries a live size readout above its buttons, updating as you type, pick colours or choose a logo. Builds 25235 and 25236 taught the two save routes to refuse a look too large to be an environment variable, which was the right call and still arrives at the worst moment: at the end of the job, on the click meant to finish it, about a logo chosen many fields earlier. The number is now a property of the look being designed rather than a verdict on it once it is done." },
+      { kind: "improved", tool: "Self-hosting", text: "The readout names the embedded images separately - the logo is 90 KB of the 122 KB, say - because that is the part anyone can act on. A total alone invites trimming text that costs nothing, when one field is almost always the whole problem. When the images are paths instead of files it says so, since that is the fix the refusals recommend and it is worth seeing it working." },
+      { kind: "improved", tool: "Self-hosting", text: "It measures through the same collect-and-serialise path that Copy for container and Save to this deployment judge, so the number on screen is the number those buttons will act on. Three colours: quiet under 24 KB, amber past it, red past the 48 KB ceiling with the reason and the two ways out. Download and Apply in this browser are called out as unaffected, because neither has a size limit and a red box should not scare anyone off the routes that still work." },
+      { kind: "fixed", tool: "Self-hosting", text: "Watching that number is what found this: every downloaded file, clipboard value and saved container setting carried the logo TWICE. One uploaded mark has to serve both themes, so the sanitiser copies it to logoDark - and serialising the result wrote the whole data URI out a second time, against a hard 48 KB ceiling. It is now dropped on the way out, which is lossless because every route back in re-derives it. The three brandings kept alongside this repo fell from 20, 26 and 30 KB to 11, 16 and 17 - two of them out of the amber band entirely, without a pixel changing." },
+    ],
+  },
+  {
     build: 25236, date: "2026-08-28", title: "Somewhere to type what the size limit asks for",
     items: [
       { kind: "fixed", tool: "Self-hosting", text: "Build 25235's size refusal told people to do two things the branding gear gave them no way to do - reference a logo by path, or set ENCA_BRANDING_URL - so it was advice with nowhere to act on it, which is not much better than the crash it replaced. Both now exist in the dialog. The logo and favicon get a path box beside their file pickers, for an image the deployment already serves; a chosen file still wins over a typed path, being the more deliberate gesture of the two. A path also keeps the branding small enough to travel as an environment variable at all, which is the whole point." },
