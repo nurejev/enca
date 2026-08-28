@@ -133,7 +133,7 @@
       // the publisher's OWN beta host, where the ribbon starts as BETA.
       const rb = document.getElementById("betaRibbon");
       if (rb) {
-        rb.textContent = "⚙ SELF-HOSTED — not " + ((typeof BRANDING !== "undefined" && BRANDING.host) || "production");
+        rb.textContent = "⚙ SELF-HOSTED";
         rb.style.background = "#3b5a72";
         rb.dataset.titleTag = "[SELF-HOSTED]";
         document.title = document.title.replace(/^\[BETA\] /, "[SELF-HOSTED] ");

@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25232, date: "2026-08-28", title: "The sign-in card stops contradicting itself",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The sign-in card said \"Multi-tenant - read-only Microsoft Graph permissions\" on every deployment, including one whose entire point was being single-tenant, sitting directly underneath a notice that correctly said single-tenant. Whichever of the two a reader believed, the card had told them something false - on the screen where they decide whether to hand a registration delegated access to their directory. Both lines now come from one reading of AUTH_CONFIG.authority, so they cannot disagree. The static markup still says Multi-tenant, which is the right answer if the script never runs, because that is what the canonical site serves." },
+      { kind: "improved", tool: "All tools", text: "The self-hosted ribbon reads SELF-HOSTED and stops there. It used to append \"- not enca.limon-it.nl\", which puts a vendor's domain on somebody else's sign-in page and reads as a watermark on their deployment. What the ribbon exists to prevent is a copy being mistaken for the canonical site, and saying SELF-HOSTED does that without naming anyone." },
+      { kind: "improved", tool: "All tools", text: "The update window now leads with the command for the platform it is running on. On an azurecontainerapps.io host that is az containerapp revision copy, not a docker pull there is nowhere to run; docker and the reviewed-fork route follow. Every block has a Copy button, and where the clipboard is blocked - a plain http origin - it selects the text and says to press Ctrl+C rather than being a button that does nothing." },
+      { kind: "improved", tool: "Self-hosting", text: "It also says plainly what it cannot do. The app is static files in a browser with no server behind it: nothing in it can restart a container, and anything that could would be a control plane you then have to trust. One honest exception is now documented rather than left to be discovered - Container Apps always pulls when a container starts, so with this template's scale-to-zero an idle instance picks up a republished tag by itself on the next request. A deployment that must stay pinned there should reference a digest, not a moving tag." },
+    ],
+  },
+  {
     build: 25231, date: "2026-08-28", title: "Branding that reaches everyone, not one browser",
     items: [
       { kind: "fixed", tool: "Self-hosting", text: "The branding gear could design a look and then had nowhere to put it. Apply in this browser writes to localStorage - one person, one browser, by design - and the only way to reach every visitor was a selfhost-branding.json mounted at the site root, which a platform with no filesystem cannot do. On Azure Container Apps an organisation could brand its instance for itself and nobody else, which is the opposite of what branding an instance is for." },

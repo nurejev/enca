@@ -425,14 +425,43 @@
       // mistakable for production.
       r.id = "betaRibbon";
       r.dataset.titleTag = selfHosted ? "[SELF-HOSTED]" : "[BETA]";
-      r.textContent = selfHosted
-        ? "\u2699 SELF-HOSTED \u2014 not " + ((BRANDING && BRANDING.host) || "production")
-        : "\u26A0 BETA \u2014 not production";
+      // Just the fact. An earlier version appended "\u2014 not <publisher host>",
+      // which reads as a disclaimer on somebody else's deployment and puts a
+      // vendor's domain on their sign-in page. What the ribbon has to prevent
+      // is a copy being mistaken for the canonical site; saying SELF-HOSTED
+      // does that without naming anyone.
+      r.textContent = selfHosted ? "\u2699 SELF-HOSTED" : "\u26A0 BETA \u2014 not production";
       r.style.cssText = "position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9999;" +
         "background:" + (selfHosted ? "#3b5a72" : "#b04a3a") + ";color:#fff;font:800 13px/1 Inter,system-ui,sans-serif;padding:7px 22px;" +
         "border-radius:0 0 10px 10px;letter-spacing:.5px;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none;white-space:nowrap";
       document.body.appendChild(r);
       document.title = r.dataset.titleTag + " " + document.title;
+    } catch { /* cosmetic only */ }
+  })();
+
+  // Is the configured authority the shared multi-tenant one, or a single
+  // directory? "organizations", "common" and "consumers" are the shared
+  // endpoints; anything else in that slot — a tenant id or a verified domain —
+  // means a registration no other directory can use. Asked in one place
+  // because the sign-in card states it twice, and the two must never differ.
+  const authorityTail = () => {
+    try {
+      const a = (typeof AUTH_CONFIG !== "undefined" && AUTH_CONFIG.authority) || "";
+      return a.replace(/\/+$/, "").split("/").pop() || "";
+    } catch { return ""; }
+  };
+  const isSharedAuthority = () => /^(organizations|common|consumers)$/i.test(authorityTail());
+
+  // ---------- the sign-in card must not contradict itself ----------
+  // This line said "Multi-tenant" on every deployment, including one whose
+  // whole point was being single-tenant — sitting directly under a notice
+  // that correctly said otherwise. Whichever of the two a reader believed,
+  // the card had told them something false.
+  (function setAudience() {
+    try {
+      const el = document.getElementById("loginAudience");
+      if (!el || !authorityTail()) return;
+      el.textContent = isSharedAuthority() ? "Multi-tenant" : "Single-tenant";
     } catch { /* cosmetic only */ }
   })();
 
@@ -452,20 +481,14 @@
       const box = document.getElementById("loginSelfHost");
       if (!box) return;
       const cid = (typeof AUTH_CONFIG !== "undefined" && AUTH_CONFIG.clientId) || "";
-      const auth = (typeof AUTH_CONFIG !== "undefined" && AUTH_CONFIG.authority) || "";
-      // "organizations" (or "common") is the shared multi-tenant authority; a
-      // tenant id or verified domain in that slot means a registration that no
-      // directory but that one can use. The distinction is the whole point of
-      // SINGLE-TENANT.md, so it is named rather than left to be inferred.
-      const tail = auth.replace(/\/+$/, "").split("/").pop() || "";
-      const shared = /^(organizations|common|consumers)$/i.test(tail);
+      const tail = authorityTail();
+      const shared = isSharedAuthority();
       const build = (typeof APP_BUILD !== "undefined" && APP_BUILD.label) || "";
       box.innerHTML =
         `<b>\u2699 Self-hosted instance.</b> Served from <b>${esc(location.hostname)}</b>` +
-        (build ? ` on ${esc(build)}` : "") + ` \u2014 not ${esc((BRANDING && BRANDING.host) || "the canonical site")}, ` +
-        `and it does not update itself.<br>` +
+        (build ? ` on ${esc(build)}` : "") + `.<br>` +
         `Signing in to app registration <code>${esc(cid || "(none configured)")}</code>` +
-        (tail ? ` \u00B7 ${shared ? "shared multi-tenant authority" : "single-tenant authority (" + esc(tail) + ")"}` : "") + `.`;
+        (tail ? ` \u00B7 ${shared ? "shared <b>multi-tenant</b> authority" : "<b>single-tenant</b> \u2014 your directory only (" + esc(tail) + ")"}` : "") + `.`;
       box.style.display = "";
     } catch { /* cosmetic only */ }
   })();

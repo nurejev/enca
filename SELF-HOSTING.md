@@ -98,7 +98,9 @@ Exports (Word/PDF/Markdown) keep the neutral ENCA credit by design, exactly like
 
 ## Staying up to date
 
-A self-hosted copy stops hearing about fixes the moment it exists — so the app tells you (R15): when it runs on a non-canonical host and its build is older than upstream `enca.limon-it.nl`, a notice says **how many builds behind you are and what those builds changed**, with the commands to update. Deliberately not auto-updating — that would defeat the reason for self-hosting.
+A self-hosted copy stops hearing about fixes the moment it exists — so the app tells you (R15): when it runs on a non-canonical host and its build is older than upstream `enca.limon-it.nl`, a notice says **how many builds behind you are and what those builds changed**, with the command for *your* deployment, ready to copy. On an `*.azurecontainerapps.io` host it leads with the `az` command rather than a `docker pull` you have nowhere to run.
+
+**The app cannot update itself, and that is not an oversight.** It is static files in a browser with no server behind it: nothing in it can restart a container, and anything that could would be a control plane you would then have to trust. Not auto-updating is also the point of a pinned, reviewed copy — nothing changes without a review.
 
 To update a Docker instance:
 
@@ -107,6 +109,14 @@ docker pull ghcr.io/nurejev/enca:beta
 docker rm -f enca
 # then the same docker run / compose up -d as before
 ```
+
+Azure Container Apps — a new revision re-pulls the tag:
+
+```bash
+az containerapp revision copy -n <app-name> -g <resource-group>
+```
+
+**One honest exception.** Container Apps sets every container's image pull policy to `always`, so a container that *starts* pulls the tag fresh. With this template's scale-to-zero (min 0 replicas), an idle instance therefore picks up a republished `:beta` or `:latest` on its next cold start, without anyone asking it to. If you want a genuinely pinned deployment there, use a digest (`ghcr.io/nurejev/enca@sha256:…`) or your own immutable tag as the `image` parameter — a mutable tag plus scale-to-zero is a rolling deployment whether or not it was meant as one.
 
 For a reviewed fork: `git fetch upstream && git merge upstream/beta`, re-review the diff, redeploy.
 

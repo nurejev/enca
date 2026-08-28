@@ -100,6 +100,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 110,
+      title: "🔄 The sign-in card stops contradicting itself, and update tells you how",
+      tools: ["Self-hosting", "All tools"],
+      builds: [25232],
+      risk: "low",
+      what: "Three fixes on what a self-hosted instance says. The hard-coded \"Multi-tenant\" line on the sign-in card is now read from AUTH_CONFIG.authority, so it says Single-tenant on a single-tenant deployment instead of contradicting the notice directly above it. The SELF-HOSTED ribbon is just that, with the trailing \"- not <publisher host>\" dropped. And the R15 update window leads with the command for the platform it is actually running on - az containerapp revision copy on an azurecontainerapps.io host - with a Copy button on every block and a plain statement that a static app cannot restart its own container.",
+      why: "The first is the sharp one: a card that says Multi-tenant above a notice saying single-tenant has told the reader something false whichever half they believe, on the screen where they decide whether to consent. The ribbon change is judgement - a vendor's domain appended to a disclaimer on somebody else's deployment reads as a watermark. The update window is additive. Low risk throughout, but it touches the sign-in screen on every host, so the multi-tenant case has to be checked on production and not only on a self-hosted copy.",
+      test: [
+        "On production and on beta: the card still reads \"Multi-tenant - read-only Microsoft Graph permissions\", unchanged. This is the case that must not regress, and it is the one a self-hosted test will not exercise.",
+        "With js/authConfig.local.js or ENCA_TENANT_ID pointing at a single tenant: the line reads Single-tenant AND the notice below says single-tenant. They now come from one function, so a disagreement is a real bug.",
+        "With the script blocked entirely (disable JS or break app.js deliberately): the static markup still says Multi-tenant, which is the correct fallback for the canonical site.",
+        "The ribbon on a self-hosted host reads exactly \"SELF-HOSTED\" with no host name after it; the beta Pages host still reads \"BETA - not production\".",
+        "Deployed on Azure Container Apps and behind upstream: the update window's FIRST block is the az containerapp revision copy command, and the docker and fork blocks follow. On any other non-canonical host the az block is absent entirely.",
+        "Copy button on each block puts that block's text on the clipboard and says Copied. Over plain http, where the clipboard API is blocked, it selects the text and says to press Ctrl+C rather than doing nothing.",
+        "KNOWN GAP, not fixed here: fork.js returns early on a five-digit beta build, so a self-hosted copy of the :beta image never sees the update window at all - the beta series has no upstream to compare against. Test this on a self-hosted copy of a PRODUCTION build. Whether a self-hosted beta should compare against upstream beta is its own decision.",
+      ],
+      files: ["index.html", "js/app.js", "js/selfhost.js", "js/fork.js", "SELF-HOSTING.md"],
+    },
+    {
       n: 109,
       title: "🎨 Deployment branding without a filesystem",
       tools: ["Self-hosting"],
