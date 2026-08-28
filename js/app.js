@@ -1664,7 +1664,7 @@
   const SCOPE_INFO = [
     { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
     { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
-    { scope: "AuditLog.Read.All", use: "Read the directory audit log for Conditional Access changes and the sign-in log for CA failures", tools: "Change audit, Sign-in failures", onDemand: true },
+    { scope: "AuditLog.Read.All", use: "Read the directory audit log for Conditional Access changes and for who changed passkey dynamic migration, the registration-details report, and the sign-in log for CA failures", tools: "Change audit, Sign-in failures, SMS & voice retirement", onDemand: true },
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
     { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies, manage named locations", tools: "CA groups (assign), Set Policy state, Import, Named locations, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
@@ -14982,9 +14982,17 @@ max@contoso.com,"Global, DevOps"</pre>
   // and it must survive the scan being re-run, or a write would silently
   // disappear from the screen that just made it.
   //   { value: true|false|null, when: Date|null, err: string|null, busy: bool, ack: bool }
-  let svMig = { value: null, when: null, err: null, busy: false, ack: false };
+  // The history half (who changed it, from the audit log) is deliberately its
+  // own state with its own busy flag: it needs a scope the rest of the panel
+  // does not, a tenant may refuse that scope, and a failure there must leave
+  // the state strip above it exactly as it was — the value is still true even
+  // when nobody is allowed to read who set it.
+  //   hist: null | SmsVoice.migrationHistory() result
+  let svMig = { value: null, when: null, err: null, busy: false, ack: false,
+    hist: null, histWhen: null, histErr: null, histBusy: false, histOpen: false, histCapped: false };
   const svProg = makeProgress("sv");
   const SV_REG_READ = ["AuditLog.Read.All"];
+  const SV_HIST_PAGES = 10;    // ~10k audit records behind "who changed this?"
   const SV_GROUP_PAGES = 10;   // ~10k members per group
   const SV_USER_PAGES = 25;    // ~25k rows for an all_users scope / registration report
 
@@ -15006,6 +15014,27 @@ max@contoso.com,"Global, DevOps"</pre>
       u4: { methods: [], defaultMethod: "" },
     },
   };
+
+  // Demo audit records for "who changed this?" — the same shape Graph returns,
+  // fed through the same parser, so the demo exercises the parsing rather than
+  // faking its output. They end on FALSE, which is what SV_DEMO.optOut says:
+  // a demo whose history contradicts its own strip teaches the wrong reading.
+  const svDemoAudit = (hoursAgo, name, upn, ip, from, to, activity) => ({
+    id: `demo-au-${hoursAgo}`,
+    activityDateTime: new Date(Date.now() - hoursAgo * 36e5).toISOString(),
+    activityDisplayName: activity || "Update authentication methods policy",
+    result: "success", category: "Policy", loggedByService: "Core Directory",
+    initiatedBy: { user: { displayName: name, userPrincipalName: upn, ipAddress: ip } },
+    targetResources: [{ type: "Policy", displayName: "Authentication Methods Policy",
+      modifiedProperties: [{ displayName: "AuthenticationMethodsPolicy",
+        oldValue: JSON.stringify({ optOutSettings: { passkeyDynamicMigration: from } }),
+        newValue: JSON.stringify({ optOutSettings: { passkeyDynamicMigration: to } }) }] }],
+  });
+  const SV_DEMO_AUDIT = [
+    svDemoAudit(26, "Pieter de Vries", "pieter@contoso.com", "145.53.10.4", true, false),
+    svDemoAudit(52, "Maria Jansen", "maria@contoso.com", "145.53.10.4", false, false, "Update authentication methods policy"),
+    svDemoAudit(196, "Maria Jansen", "maria@contoso.com", "82.174.3.19", false, true),
+  ];
 
   async function svExpandGroup(id, nameOf) {
     const out = [];
@@ -15256,6 +15285,11 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       if (isDemo) {
         await new Promise((r) => setTimeout(r, 400));
+        // The demo's own write joins the demo's audit log, so "who changed
+        // this?" names the person who just clicked instead of quietly
+        // disagreeing with the strip they changed.
+        SV_DEMO_AUDIT.unshift(svDemoAudit(0, "You (demo)", "you@contoso.com", "", SV_DEMO.optOut, on));
+        if (svMig.hist) svMig.hist = SmsVoice.migrationHistory(SV_DEMO_AUDIT, SmsVoice.MIGRATION_AUDIT.days);
         SV_DEMO.optOut = on;
         svMig = { ...svMig, value: on, when: new Date(), err: null, ack: false };
         toast(`Demo — dynamic migration <span>${on ? "paused" : "resumed"}</span> (simulated)`);
@@ -15281,6 +15315,99 @@ max@contoso.com,"Global, DevOps"</pre>
       renderSvMig(true);
       if (svRes) renderSmsVoice();
     }
+  }
+
+  // ---- who changed it, and when ----
+  // The strip says what the setting IS. This says how it got that way, which
+  // is the next question every time — and the one nothing else can answer,
+  // because the property has no control in the portal and therefore no change
+  // record anybody can click their way to. Its own button, and its own scope
+  // asked for on that click: a tenant that refuses AuditLog.Read.All still
+  // gets the value, it just does not get the name.
+  async function svMigHistory() {
+    if (svMig.histBusy) return;
+    const days = SmsVoice.MIGRATION_AUDIT.days;
+    svMig.histBusy = true; svMig.histErr = null; renderSvMig();
+    try {
+      let records, capped = false;
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 350));
+        records = SV_DEMO_AUDIT;
+      } else {
+        // Asked here, on the gesture, and a refusal is reported as a refusal —
+        // not as "nobody ever changed it", which is what an empty list would
+        // have said.
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...SmsVoice.MIGRATION_AUDIT.scopes]))
+          throw new Error(`${SmsVoice.MIGRATION_AUDIT.scopes[0]} was not granted, so the log could not be read.`);
+        // Capped, and the cap is remembered. The window is ordered newest
+        // first, so a truncated read can still be trusted when it FINDS the
+        // change — but "nothing here" from a read that stopped early is a
+        // claim this tool is not entitled to make, and the line below says so.
+        records = [];
+        let next = SmsVoice.MIGRATION_AUDIT.query(days), pages = 0;
+        while (next && pages < SV_HIST_PAGES) {
+          const j = await Graph.gget(next);
+          records = records.concat(j.value || []);
+          next = j["@odata.nextLink"] || null;
+          pages++;
+        }
+        capped = !!next;
+      }
+      svMig.histCapped = capped;
+      svMig.hist = SmsVoice.migrationHistory(records, days);
+      svMig.histWhen = new Date();
+      svMig.histOpen = false;
+      const h = svMig.hist;
+      toast(h.matched === "property"
+        ? `Last changed by <span>${esc(h.last.actor.name)}</span> — ${esc(SmsVoice.migrationMove(h.last))}`
+        : h.matched === "policy"
+          ? `No opt-out change in ${days} days — <span>${h.rows.length}</span> other policy edit${h.rows.length === 1 ? "" : "s"} found`
+          : `No authentication methods policy change in the last <span>${days}</span> days`);
+    } catch (e) {
+      console.error("dynamic migration history failed:", e);
+      svMig.histErr = e.message || String(e);
+      toast(`Could not read the audit log: <span>${esc(svMig.histErr)}</span>`);
+    } finally {
+      svMig.histBusy = false;
+      renderSvMig();
+    }
+  }
+
+  // Reading the log answers one of three questions, and they are not the same
+  // answer dressed differently — so each gets its own sentence. A policy edit
+  // that does not name the property is shown as exactly that, because Entra
+  // does not reliably diff nested fields and pretending otherwise would put a
+  // person's name against a change they may not have made.
+  function svMigHistHtml() {
+    const days = SmsVoice.MIGRATION_AUDIT.days;
+    if (svMig.histBusy) return '<p class="mini muted" style="margin:10px 0 0">🕓 Reading the directory audit log…</p>';
+    if (svMig.histErr) return `<p class="mini" style="margin:10px 0 0;color:var(--off)">🕓 Could not read the audit log: ${esc(svMig.histErr)}
+      <span class="muted">The state above is unaffected — this is who and when, not what. Reading it needs <code>${esc(SmsVoice.MIGRATION_AUDIT.scopes[0])}</code> and a role such as ${esc(SmsVoice.MIGRATION_AUDIT.role)}.</span></p>`;
+    if (!svMig.hist) return "";
+    const h = svMig.hist;
+    const who = (r) => `<b>${esc(r.actor.name)}</b>${r.actor.upn && r.actor.upn !== r.actor.name ? ` <span class="muted">(${esc(r.actor.upn)})</span>` : ""}${r.actor.kind === "app" ? ' <span class="tag">app</span>' : ""}`;
+    const when = (r) => esc(new Date(r.when).toLocaleString());
+    const head = h.matched === "property"
+      ? `<p class="mini" style="margin:10px 0 0">🕓 <b>Last changed ${when(h.last)}</b> by ${who(h.last)} — <b>${esc(SmsVoice.migrationMove(h.last))}</b>${h.last.actor.ip ? ` <span class="muted">· from ${esc(h.last.actor.ip)}</span>` : ""}${h.moved.length > 1 ? ` <span class="muted">· ${h.moved.length} changes in the window</span>` : ""}</p>`
+      : h.matched === "policy"
+        ? `<p class="mini" style="margin:10px 0 0">🕓 <b>No change to <code>passkeyDynamicMigration</code> in the last ${days} days</b> that Entra recorded as such. The authentication methods policy itself was last edited ${when(h.lastTouch)} by ${who(h.lastTouch)}. <span class="muted">Entra does not always diff nested properties, so this edit may or may not be the one — Show all lists every policy edit in the window.</span></p>`
+        : `<p class="mini" style="margin:10px 0 0">🕓 <b>No authentication methods policy change in the last ${days} days.</b> <span class="muted">Audit retention is licence-bound — about 30 days on Entra ID P1/P2, 7 days otherwise — so a change older than that is gone from the log, not absent from history.</span></p>`;
+    // A truncated read that FOUND the change is still right — the window is
+    // ordered newest first. One that found nothing has not earned the word
+    // "no", so the cap is stated wherever the answer is an absence.
+    const cap = svMig.histCapped && h.matched !== "property"
+      ? `<p class="mini" style="margin:4px 0 0;color:var(--off)">⚠ The audit read stopped at the ${(SV_HIST_PAGES * 1000).toLocaleString()}-record cap, so the oldest part of the window was not read — treat this as “not found in what was read”, not as “it never happened”.</p>`
+      : "";
+    const rows = h.rows.slice(0, 40);
+    const list = !svMig.histOpen || !rows.length ? "" : `<ul class="wi-list" style="margin-top:6px">${rows.map((r) => `<li>
+        <div class="wi-pn">${r.moved ? `<span class="tag new">${esc(SmsVoice.migrationMove(r))}</span> ` : r.seen ? '<span class="tag">property unchanged</span> ' : ""}${esc(r.activity)}${r.result && r.result.toLowerCase() !== "success" ? ` <span style="color:var(--off)">${esc(r.result)}</span>` : ""}</div>
+        <div class="wi-why">${when(r)} · by ${who(r)}${r.actor.ip ? ` · from ${esc(r.actor.ip)}` : ""}${r.service ? ` · ${esc(r.service)}` : ""}</div>
+      </li>`).join("")}${h.rows.length > rows.length ? `<li><span class="mini muted">+${h.rows.length - rows.length} more in the window — 🕓 Change audit lists them all.</span></li>` : ""}</ul>`;
+    const toggle = h.rows.length
+      ? `<button class="btn" data-svmighistopen style="margin-top:6px">${svMig.histOpen ? "▲ Hide" : `▼ Show all ${h.rows.length} policy edit${h.rows.length === 1 ? "" : "s"}`}</button>`
+      : "";
+    return `${head}${cap}${toggle}${list}
+      <p class="mini muted" style="margin:6px 0 0">Read ${svMig.histWhen ? esc(svMig.histWhen.toLocaleTimeString()) : ""} from the directory audit log, last ${days} days.</p>`;
   }
 
   // The state strip. Four states, and the two that mean "Microsoft's rollout
@@ -15320,7 +15447,8 @@ max@contoso.com,"Global, DevOps"</pre>
         <p class="mini" style="margin:0">${s.text}</p>
         ${s.val ? `<p class="sv-mig-v">${esc(s.val)}${svMig.when ? ` · read ${svMig.when.toLocaleTimeString()}` : ""}</p>` : ""}
       </div>
-    </div>`;
+    </div>
+    ${svMigHistHtml()}`;
     const btn = v === true
       ? `<button class="btn" data-svmigset="off"${svMig.busy ? " disabled" : ""}>▶ Resume Microsoft's rollout</button>`
       : `<button class="btn primary" data-svmigset="on"${svMig.busy ? " disabled" : ""}>⏸ Pause Microsoft's rollout</button>`;
@@ -15334,6 +15462,7 @@ max@contoso.com,"Global, DevOps"</pre>
       <label class="chk" style="display:block;margin:10px 0 0"><input type="checkbox" id="svMigAck"${svMig.ack ? " checked" : ""}> <span class="mini">${ackText}</span></label>
       <div class="row" style="justify-content:flex-start;margin-top:10px">
         <button class="btn" data-svmigcheck${svMig.busy ? " disabled" : ""}>🔎 ${svMig.when ? "Re-check" : "Check"} dynamic migration</button>
+        <button class="btn" data-svmighist${svMig.histBusy ? " disabled" : ""} title="Reads the directory audit log for changes to the authentication methods policy — needs AuditLog.Read.All, asked for on this click">🕓 ${svMig.hist || svMig.histErr ? "Re-read who changed it" : "Who changed this?"}</button>
         ${btn}
       </div>
       <p class="mini muted" style="margin:8px 0 0">Background: <a href="https://rksolutions.nl/posts/microsoft-entra-passkey-dynamic-migration/" target="_blank" rel="noopener noreferrer">Roy Klooster ↗</a> · <a href="https://learn.microsoft.com/graph/api/authenticationmethodspolicy-update?view=graph-rest-beta" target="_blank" rel="noopener noreferrer">Graph reference ↗</a></p>
@@ -15447,6 +15576,8 @@ max@contoso.com,"Global, DevOps"</pre>
   // replacing svBody underneath them.
   $("svMig").addEventListener("click", (e) => {
     if (e.target.closest("[data-svmigcheck]")) { svMigCheck(); return; }
+    if (e.target.closest("[data-svmighist]")) { svMigHistory(); return; }
+    if (e.target.closest("[data-svmighistopen]")) { svMig.histOpen = !svMig.histOpen; renderSvMig(); return; }
     const ms = e.target.closest("[data-svmigset]");
     if (ms) { svMigSet(ms.dataset.svmigset === "on"); return; }
   });
