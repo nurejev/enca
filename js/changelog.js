@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25231, date: "2026-08-28", title: "Branding that reaches everyone, not one browser",
+    items: [
+      { kind: "fixed", tool: "Self-hosting", text: "The branding gear could design a look and then had nowhere to put it. Apply in this browser writes to localStorage - one person, one browser, by design - and the only way to reach every visitor was a selfhost-branding.json mounted at the site root, which a platform with no filesystem cannot do. On Azure Container Apps an organisation could brand its instance for itself and nobody else, which is the opposite of what branding an instance is for." },
+      { kind: "new", tool: "Self-hosting", text: "ENCA_BRANDING on the container carries the look. The entrypoint writes it to selfhost-branding.json at the site root - the same path the gear's download tells you to serve from, so the file route and the variable route are one mechanism reached two ways rather than two things to keep in step. Raw JSON or base64, because pipelines mangle braces and quotes in environment variables, and telling somebody their branding is invalid when the platform ate it is a bad afternoon. ENCA_BRANDING_URL fetches the same JSON once at start, for a look too large to sit in a variable." },
+      { kind: "new", tool: "Self-hosting", text: "The gear gains Copy for container next to Download. It produces the value, says how many KB it is, and prints the az containerapp update and docker run lines to paste it into - and when the look carries an embedded logo, warns that a variable may not hold it and points at ENCA_BRANDING_URL. Where the clipboard is unavailable, on a plain http origin or a denied permission, it falls back to a prompt holding the value rather than silently copying nothing." },
+      { kind: "improved", tool: "Self-hosting", text: "Two refusals, both deliberate. Branding that does not parse is not written: a truncated file at that path is fetched on every page load and produces a failure nobody would think to trace back to an environment variable, so no file is better than a broken one. And a branding URL that cannot be reached warns and carries on rather than stopping the container - a logo nobody can fetch is a cosmetic problem, and refusing to serve the tool over it would turn it into an outage." },
+    ],
+  },
+  {
     build: 25230, date: "2026-08-28", title: "Self-hosting without forking, actually",
     items: [
       { kind: "fixed", tool: "Self-hosting", text: "Self-hosting without forking was not true, and an Azure Container App is where it became obvious. The one value an organisation must change to own its identity - the client id of its own app registration - lived in a file inside the image, so changing it meant building your own image. On a platform with no filesystem to mount into there was no way at all. The documented alternative was worse than it looked: js/authConfig.local.js is gitignored AND was referenced by nothing, so the file the script told you to create was never loaded even if you made it." },

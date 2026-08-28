@@ -21,7 +21,12 @@ param(
   # them the container uses the shared multi-tenant registration.
   [string]$ClientId,
   # Only for a SINGLE-TENANT registration (-SingleTenant). Omit otherwise.
-  [string]$TenantId
+  [string]$TenantId,
+  # This deployment's look for EVERY visitor - the value the branding gear's
+  # "Copy for container" button produces. -BrandingUrl serves the same JSON
+  # from a URL, for a look too large to sit in an environment variable.
+  [string]$Branding,
+  [string]$BrandingUrl
 )
 $ErrorActionPreference = "Stop"
 $Image = "ghcr.io/nurejev/enca:$Tag"
@@ -60,6 +65,8 @@ $authArgs = @()
 if ($ClientId) { $authArgs += @("-e", "ENCA_CLIENT_ID=$ClientId") }
 if ($TenantId) { $authArgs += @("-e", "ENCA_TENANT_ID=$TenantId") }
 if ($authArgs.Count) { Say "Using your own app registration ($ClientId)." }
+if ($Branding)    { $authArgs += @("-e", "ENCA_BRANDING=$Branding"); Say "Applying branding to this deployment." }
+if ($BrandingUrl) { $authArgs += @("-e", "ENCA_BRANDING_URL=$BrandingUrl") }
 docker run -d --name $Name --restart unless-stopped -p "${Port}:80" @brandingArgs @authArgs $Image *> $null
 if ($LASTEXITCODE -ne 0) { Fail "docker run failed - is port $Port free?" }
 

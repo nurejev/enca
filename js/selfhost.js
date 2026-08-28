@@ -225,6 +225,7 @@
         <button class="btn" id="shImport" title="Load a selfhost-branding.json into the form to review, then Apply">⭱ Import from JSON</button>
         <input type="file" id="shImportFile" accept=".json,application/json" style="display:none">
         <button class="btn" id="shDownload">⭳ Download selfhost-branding.json</button>
+        <button class="btn" id="shEnv" title="Copy this look as the ENCA_BRANDING value for the container — every visitor gets it, not just this browser">📋 Copy for container</button>
         <button class="btn" id="shClose">Close</button>
         <button class="btn primary" id="shApply">💾 Apply in this browser</button>
       </div>
@@ -304,6 +305,41 @@
       a.download = "selfhost-branding.json";
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    });
+    // ⭳ Download gives you a file to serve. This gives you the same look as a
+    // value to hand the container, which is the only route on a platform with
+    // no filesystem to mount into. Same JSON either way — the entrypoint writes
+    // it to exactly the path the download tells you to serve it from.
+    $("shEnv").addEventListener("click", async () => {
+      const data = JSON.stringify({ v: 1, brand: collect() || {} });
+      const kb = Math.round(data.length / 1024);
+      // Environment variables are not a file. Platforms cap them — Azure
+      // Container Apps counts every variable against one revision-definition
+      // budget — and an embedded PNG logo is what blows past it. Say so with
+      // the number, here, rather than letting a deploy fail with a size error
+      // that names nothing the person recognises.
+      const big = data.length > 30000;
+      let copied = false;
+      try { await navigator.clipboard.writeText(data); copied = true; } catch { /* denied or insecure context */ }
+      const how =
+        `ENCA_BRANDING — ${kb} KB${copied ? ", copied to your clipboard" : ""}.\n\n` +
+        `Azure Container Apps:\n` +
+        `  az containerapp update -n <app> -g <rg> \\\n    --set-env-vars ENCA_BRANDING='<paste>'\n\n` +
+        `Docker:\n  docker run -e ENCA_BRANDING='<paste>' ...\n\n` +
+        (big
+          ? `⚠ This is large, because a logo is embedded in it. If the platform refuses the\n` +
+            `variable, serve the same JSON at a URL and set ENCA_BRANDING_URL instead — the\n` +
+            `container fetches it once at start. Or keep logos as relative paths in the image.\n\n`
+          : "") +
+        `Either way it is written to selfhost-branding.json at the site root, so EVERY\n` +
+        `visitor sees this look — not just this browser.`;
+      if (!copied) {
+        // Clipboard refused (an http:// origin, or a denied permission). The
+        // value is the point of the button, so it must still be obtainable.
+        window.prompt(how + "\n\nCopy the value below:", data);
+      } else {
+        alert(how);
+      }
     });
     $("shClose").addEventListener("click", () => bg.classList.remove("open"));
     bg.addEventListener("click", (e) => { if (e.target === bg) bg.classList.remove("open"); });

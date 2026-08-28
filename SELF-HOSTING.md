@@ -82,7 +82,17 @@ A self-hosted instance can wear your organisation's identity without forking —
 1. On any non-production host, a **⚙ gear appears next to Sign out**. It opens the branding settings: product and organisation names, logos, login text, and light/dark colour palettes.
 2. **Apply in this browser** previews and keeps the look locally (per browser).
 3. **Import from JSON** loads an existing `selfhost-branding.json` into the form for review — a look made on another machine, or handed to you as a file, never has to be retyped.
-4. **Download selfhost-branding.json** exports the same settings as a file. Serve it at the site root — the compose file and install scripts mount `./selfhost-branding.json` automatically — and **every visitor** to your instance gets the branding, and the red "BETA — not production" ribbon becomes a neutral "SELF-HOSTED" one.
+4. **Download selfhost-branding.json** exports the same settings as a file. Serve it at the site root — the compose file and install scripts mount `./selfhost-branding.json` automatically — and **every visitor** to your instance gets the branding.
+5. **Copy for container** gives you the same look as a value instead of a file, for a platform with no filesystem to mount into:
+
+   ```bash
+   az containerapp update -n enca -g <rg> --set-env-vars ENCA_BRANDING='<paste>'
+   docker run -e ENCA_BRANDING='<paste>' ...
+   ```
+
+   The entrypoint writes it to `selfhost-branding.json` at the site root — the same path the download tells you to serve from, so the two routes are the same mechanism reached two ways. If the branding is too large for an environment variable (an embedded PNG logo is the usual reason, and the button tells you the size), serve the same JSON at a URL and set **`ENCA_BRANDING_URL`**; the container fetches it once at start, and a fetch that fails leaves the instance unbranded rather than refusing to serve.
+
+Branding saved with **Apply in this browser** stays in that browser. Only the file and the environment variable reach other people — that distinction is deliberate, and it is why the gear has three buttons rather than one.
 
 Exports (Word/PDF/Markdown) keep the neutral ENCA credit by design, exactly like the hosted per-audience looks. For a full rebrand including export credits, fork and edit `js/branding.js` — its header comment is the guide.
 

@@ -19,3 +19,6 @@ js/authConfig.local.js
 # never published from this repo. dovilo/selfhost-branding.json is theirs
 # to serve on a self-hosted instance.
 /dovilo/
+
+# CloudFellows branding — offline only, same rule as above.
+/cloudfellows/

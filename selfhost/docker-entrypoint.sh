@@ -20,6 +20,23 @@
 #                  above shapes fits (a verified domain, a national cloud).
 #                  Wins over ENCA_TENANT_ID when both are set.
 #
+# ENCA_BRANDING       Your deployment's look, as the JSON the ⚙ gear exports —
+#                     raw, or base64 if your platform dislikes braces in an
+#                     env var. Written to selfhost-branding.json at the site
+#                     root, which is where the app already looks for it, so
+#                     EVERY visitor gets it rather than only the browser it
+#                     was designed in.
+# ENCA_BRANDING_URL   Same thing, fetched once at start. For when the branding
+#                     will not fit in an environment variable — an embedded
+#                     PNG logo is the usual reason. ENCA_BRANDING wins when
+#                     both are set. A fetch that fails WARNS AND CARRIES ON:
+#                     branding is cosmetic, and a container that refuses to
+#                     serve the tool because a logo was unreachable has turned
+#                     a cosmetic problem into an outage.
+#
+# A branding file MOUNTED into the image still works and still wins over
+# nothing — this is the route for platforms with no filesystem to mount into.
+#
 # WHY IT PREPENDS RATHER THAN EDITS. js/authConfig.js already ends with
 # Object.assign(defaults, window.ENCA_AUTH || {}) — the override hook is
 # there, it just had nowhere to be set from. So this writes one block
@@ -111,6 +128,65 @@ if [ -n "$CLIENT_ID" ] || [ -n "$TENANT_ID" ] || [ -n "$AUTHORITY" ]; then
 
   echo "enca: runtime configuration applied${CLIENT_ID:+ (clientId $CLIENT_ID)}${AUTH_VALUE:+, authority $AUTH_VALUE}."
   echo "enca: REMINDER - this instance's URL must be a SPA redirect URI on that registration, or sign-in fails with AADSTS50011."
+fi
+
+# ---------------------------------------------------------------------
+# Branding: the deployment's look, for every visitor rather than for one
+# browser. The ⚙ gear writes to localStorage, which is per-person and
+# per-browser by design; the FILE at the site root is what the app serves to
+# everyone, and until now the only way to put it there was a bind mount.
+# ---------------------------------------------------------------------
+BRAND_JSON="${ENCA_BRANDING:-}"
+BRAND_URL="${ENCA_BRANDING_URL:-}"
+BRAND_FILE="$ROOT/selfhost-branding.json"
+
+if [ -n "$BRAND_JSON" ] || [ -n "$BRAND_URL" ]; then
+  BRAND_TMP="$(mktemp)"
+  BRAND_OK=""
+
+  if [ -n "$BRAND_JSON" ]; then
+    # Accept base64 as well as raw JSON: some pipelines mangle braces and
+    # quotes in environment variables, and telling somebody their branding is
+    # invalid when the platform ate it is a bad afternoon. If it does not look
+    # like JSON, try decoding it before giving up.
+    if printf '%s' "$BRAND_JSON" | head -c 1 | grep -q '{'; then
+      printf '%s' "$BRAND_JSON" > "$BRAND_TMP"
+    elif printf '%s' "$BRAND_JSON" | base64 -d > "$BRAND_TMP" 2>/dev/null; then
+      echo "enca: ENCA_BRANDING decoded from base64."
+    else
+      echo "enca: ENCA_BRANDING is neither JSON nor base64 - ignoring it." >&2
+      : > "$BRAND_TMP"
+    fi
+  elif [ -n "$BRAND_URL" ]; then
+    # One attempt, short timeouts, never fatal. wget is what nginx:alpine has.
+    if wget -q -T 10 -t 2 -O "$BRAND_TMP" "$BRAND_URL"; then
+      echo "enca: branding fetched from $BRAND_URL."
+    else
+      echo "enca: could not fetch ENCA_BRANDING_URL ($BRAND_URL) - starting without it." >&2
+      : > "$BRAND_TMP"
+    fi
+  fi
+
+  # Serve it only if it parses. A truncated or half-written file at that path
+  # is worse than no file: the app fetches it on every load, and a parse error
+  # there is a puzzle nobody would think to look for in an env var.
+  if [ -s "$BRAND_TMP" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+      python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$BRAND_TMP" 2>/dev/null && BRAND_OK=1
+    else
+      # No JSON parser in the image: fall back to a shape check rather than
+      # trusting it blindly. The app sanitises every field it reads anyway.
+      head -c 1 "$BRAND_TMP" | grep -q '{' && tail -c 2 "$BRAND_TMP" | grep -q '}' && BRAND_OK=1
+    fi
+  fi
+
+  if [ -n "$BRAND_OK" ]; then
+    cat "$BRAND_TMP" > "$BRAND_FILE"
+    echo "enca: deployment branding written to selfhost-branding.json - every visitor gets it."
+  elif [ -s "$BRAND_TMP" ]; then
+    echo "enca: branding did not parse as JSON - leaving the deployment unbranded." >&2
+  fi
+  rm -f "$BRAND_TMP"
 fi
 
 exec "$@"

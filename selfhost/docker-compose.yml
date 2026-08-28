@@ -20,9 +20,16 @@ services:
     # multi-tenant one - the client id New-EncaAppRegistration.ps1 printed.
     # ENCA_TENANT_ID only for a single-tenant registration; omit it otherwise.
     # Both are optional: with neither set the image behaves as it always did.
+    #
+    # ENCA_BRANDING is this deployment's look for EVERY visitor - the value the
+    # gear's "Copy for container" button produces. The volume mount below does
+    # the same thing from a file; use whichever suits. ENCA_BRANDING_URL is for
+    # a look too large for an environment variable.
     environment:
       ENCA_CLIENT_ID: "${ENCA_CLIENT_ID:-}"
       ENCA_TENANT_ID: "${ENCA_TENANT_ID:-}"
+      ENCA_BRANDING: "${ENCA_BRANDING:-}"
+      ENCA_BRANDING_URL: "${ENCA_BRANDING_URL:-}"
     # Optional: brand this deployment without forking. Export the file from
     # the ⚙ branding settings (gear next to Sign out) and uncomment:
     # volumes:

@@ -100,6 +100,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 109,
+      title: "🎨 Deployment branding without a filesystem",
+      tools: ["Self-hosting"],
+      builds: [25231],
+      risk: "low",
+      what: "ENCA_BRANDING on the container, written to selfhost-branding.json at the site root by the entrypoint - the same path the gear's download tells you to serve from, so the file route and the variable route are one mechanism reached two ways. Raw JSON or base64, because pipelines mangle braces. ENCA_BRANDING_URL fetches the same JSON once at start for a look too big for an environment variable. The gear gains a Copy for container button that produces the value, names its size in KB, and prints the az containerapp update and docker run lines. Wired through the ARM template, compose and both install scripts.",
+      why: "The gear saved to localStorage, which is one person in one browser, and the only way to reach every visitor was a file mounted at the site root - impossible on Azure Container Apps. So an organisation could design its look and then have nowhere to put it. Low risk because it is additive and inert without the variables: no variable, no write, and a branding that does not parse is refused rather than served, since a broken file at that path is fetched on every load and is a puzzle nobody would think to look for in an env var.",
+      test: [
+        "docker run -e ENCA_BRANDING='{\"v\":1,\"brand\":{\"name\":\"Contoso\"}}': every visitor in a fresh private window sees the branding, with no localStorage involved.",
+        "The same value base64-encoded: identical result, and the log says it decoded.",
+        "ENCA_BRANDING='not json' and a truncated '{\"v\":1' - the container starts, logs the refusal, and serves NO selfhost-branding.json. Check the file is absent rather than empty.",
+        "ENCA_BRANDING_URL pointing at an unreachable host: the container still starts and serves the tool unbranded. This is the one that must never be fatal.",
+        "Both set: ENCA_BRANDING wins and no fetch is attempted.",
+        "Neither set, with a ./selfhost-branding.json bind-mounted as before: unchanged behaviour. Existing deployments are the regression that matters.",
+        "In the gear on a self-hosted host: Copy for container puts valid JSON on the clipboard, reports a plausible KB size, and warns when a logo is embedded. Then open the tool over plain http where the clipboard API is blocked and confirm it falls back to a prompt containing the value rather than losing it.",
+        "Round-trip: Copy for container, paste into the container, reload - the deployment wears the look the browser was previewing.",
+        "Note the image has no python3, so the JSON check that actually runs in production is the shape fallback. Verify the truncated case against the REAL image, not a local shell with python3 on PATH.",
+      ],
+      files: ["selfhost/docker-entrypoint.sh", "selfhost/azuredeploy.json", "selfhost/docker-compose.yml", "selfhost/install.sh", "selfhost/install.ps1", "js/selfhost.js", "SELF-HOSTING.md"],
+    },
+    {
       n: 108,
       title: "🔑 A self-hosted copy can be told which registration to use",
       tools: ["Self-hosting"],

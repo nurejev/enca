@@ -59,6 +59,11 @@ AUTH_ENV=()
 if [ -n "${ENCA_CLIENT_ID:-}" ]; then AUTH_ENV+=(-e "ENCA_CLIENT_ID=${ENCA_CLIENT_ID}"); fi
 if [ -n "${ENCA_TENANT_ID:-}" ]; then AUTH_ENV+=(-e "ENCA_TENANT_ID=${ENCA_TENANT_ID}"); fi
 if [ ${#AUTH_ENV[@]} -gt 0 ]; then say "Using your own app registration (${ENCA_CLIENT_ID:-tenant only})."; fi
+# Branding for EVERY visitor, not just this browser: the value the gear's
+# "Copy for container" button produces. The ./selfhost-branding.json mount
+# above does the same job from a file and still works.
+if [ -n "${ENCA_BRANDING:-}" ]; then AUTH_ENV+=(-e "ENCA_BRANDING=${ENCA_BRANDING}"); say "Applying ENCA_BRANDING to this deployment."; fi
+if [ -n "${ENCA_BRANDING_URL:-}" ]; then AUTH_ENV+=(-e "ENCA_BRANDING_URL=${ENCA_BRANDING_URL}"); fi
 docker run -d --name "${NAME}" --restart unless-stopped -p "${PORT}:80" "${BRANDING_MOUNT[@]}" "${AUTH_ENV[@]}" "${IMAGE}" >/dev/null
 
 URL="http://localhost:${PORT}"

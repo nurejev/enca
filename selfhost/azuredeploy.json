@@ -31,6 +31,16 @@
       "type": "string",
       "defaultValue": "",
       "metadata": { "description": "OPTIONAL: your Directory (tenant) ID, for a SINGLE-TENANT registration (New-EncaAppRegistration.ps1 -SingleTenant). Leave blank for a multi-tenant one. Ignored unless clientId is also set." }
+    },
+    "branding": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "OPTIONAL: this deployment's look, as the JSON from the gear next to Sign out (Copy for container). Written to selfhost-branding.json so EVERY visitor gets it, not just the browser it was designed in. An embedded logo can outgrow what an environment variable holds - use brandingUrl for those." }
+    },
+    "brandingUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "OPTIONAL: https URL serving the same branding JSON, fetched once at container start. For a look too large for the branding parameter. Ignored when branding is set; a fetch that fails leaves the instance unbranded rather than stopping it." }
     }
   },
   "variables": {
@@ -91,7 +101,9 @@
               "resources": { "cpu": "0.25", "memory": "0.5Gi" },
               "env": [
                 { "name": "ENCA_CLIENT_ID", "value": "[parameters('clientId')]" },
-                { "name": "ENCA_TENANT_ID", "value": "[parameters('tenantId')]" }
+                { "name": "ENCA_TENANT_ID", "value": "[parameters('tenantId')]" },
+                { "name": "ENCA_BRANDING", "value": "[parameters('branding')]" },
+                { "name": "ENCA_BRANDING_URL", "value": "[parameters('brandingUrl')]" }
               ]
             }
           ],
