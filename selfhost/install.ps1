@@ -16,7 +16,12 @@
 # ======================================================================
 param(
   [int]$Port = 8080,
-  [string]$Tag = "beta"
+  [string]$Tag = "beta",
+  # Your own registration, from New-EncaAppRegistration.ps1. Optional: without
+  # them the container uses the shared multi-tenant registration.
+  [string]$ClientId,
+  # Only for a SINGLE-TENANT registration (-SingleTenant). Omit otherwise.
+  [string]$TenantId
 )
 $ErrorActionPreference = "Stop"
 $Image = "ghcr.io/nurejev/enca:$Tag"
@@ -49,7 +54,13 @@ if (Test-Path $brandingFile) {
   Say "Found .\selfhost-branding.json - this deployment will wear your branding."
   $brandingArgs = @("-v", "${brandingFile}:/usr/share/nginx/html/selfhost-branding.json:ro")
 }
-docker run -d --name $Name --restart unless-stopped -p "${Port}:80" @brandingArgs $Image *> $null
+# Your own app registration: .\selfhost\install.ps1 -ClientId <guid> [-TenantId <guid>]
+# Omitted values are not passed at all, so the image keeps its defaults.
+$authArgs = @()
+if ($ClientId) { $authArgs += @("-e", "ENCA_CLIENT_ID=$ClientId") }
+if ($TenantId) { $authArgs += @("-e", "ENCA_TENANT_ID=$TenantId") }
+if ($authArgs.Count) { Say "Using your own app registration ($ClientId)." }
+docker run -d --name $Name --restart unless-stopped -p "${Port}:80" @brandingArgs @authArgs $Image *> $null
 if ($LASTEXITCODE -ne 0) { Fail "docker run failed - is port $Port free?" }
 
 $Url = "http://localhost:$Port"

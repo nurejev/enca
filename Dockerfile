@@ -22,5 +22,20 @@ COPY selfhost/nginx.conf /etc/nginx/conf.d/default.conf
 COPY . /usr/share/nginx/html/
 
 # The CNAME file belongs to GitHub Pages on the canonical host, not to a
-# self-hosted copy.
-RUN rm -f /usr/share/nginx/html/CNAME
+# self-hosted copy. The entrypoint has to stay in the build context so the
+# COPY below can reach it, which means `COPY .` also drops a copy into the
+# web root - remove that one, because nothing served to a browser should be
+# a shell script.
+RUN rm -f /usr/share/nginx/html/CNAME \
+ && rm -f /usr/share/nginx/html/selfhost/docker-entrypoint.sh
+
+# Point the copy at YOUR OWN app registration without forking or rebuilding:
+#   -e ENCA_CLIENT_ID=<guid> [-e ENCA_TENANT_ID=<guid>]
+# The entrypoint applies them to js/authConfig.js at start and does nothing
+# at all when they are unset, so the image is unchanged without them. This is
+# what makes the promise hold on Azure Container Apps, where there is no
+# filesystem to mount a config file into. See selfhost/docker-entrypoint.sh.
+COPY selfhost/docker-entrypoint.sh /docker-entrypoint-enca.sh
+RUN chmod +x /docker-entrypoint-enca.sh
+ENTRYPOINT ["/docker-entrypoint-enca.sh"]
+CMD ["nginx", "-g", "daemon off;"]

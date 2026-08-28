@@ -7,3 +7,5 @@ selfhost/install.sh
 selfhost/install.ps1
 selfhost/docker-compose.yml
 selfhost/azuredeploy.json
+# NOT selfhost/docker-entrypoint.sh - the Dockerfile COPYs it, so excluding it
+# here would break the build rather than slim the image.

@@ -316,11 +316,30 @@ if (-not $SkipAdminConsent) {
 }
 
 #--- 6. Patch js/authConfig.js -------------------------------------------
-if (Test-Path $AuthConfigPath) {
+# ONLY for the shared multi-tenant registration, which is what that file is:
+# the canonical app's identity, tracked in git and served from the canonical
+# host. A -SingleTenant run creates an app for YOUR tenant, and writing its
+# client id in there replaced the canonical one in a working tree - one
+# `git commit -a` away from pointing the published site at a private tenant.
+# The single-tenant route has always had its own answer printed below
+# (js/authConfig.local.js, or ENCA_CLIENT_ID on the container), and neither
+# touches a file that upstream also changes.
+if ($SingleTenant) {
+  Write-Host "Left $AuthConfigPath untouched - a single-tenant client id does not belong in the shared config." -ForegroundColor Cyan
+} elseif (Test-Path $AuthConfigPath) {
   $cfg = Get-Content $AuthConfigPath -Raw
-  $cfg = $cfg -replace 'clientId:\s*"[^"]*"', "clientId: `"$($app.AppId)`""
-  Set-Content -Path $AuthConfigPath -Value $cfg -NoNewline
-  Write-Host "Patched clientId in $AuthConfigPath" -ForegroundColor Green
+  # Anchored to the start of a line and to two leading spaces: the file's header
+  # comment contains the example `//     clientId:  "<your Application (client)
+  # ID>",` and an unanchored pattern rewrote THAT too, quietly turning the
+  # documentation into a copy of somebody's tenant id.
+  $pattern = '(?m)^  clientId:\s*"[^"]*"'
+  if ($cfg -notmatch $pattern) {
+    Write-Host "Could not find the clientId assignment in $AuthConfigPath - left it alone. Set it by hand." -ForegroundColor Yellow
+  } else {
+    $cfg = $cfg -replace $pattern, "  clientId: `"$($app.AppId)`""
+    Set-Content -Path $AuthConfigPath -Value $cfg -NoNewline
+    Write-Host "Patched clientId in $AuthConfigPath" -ForegroundColor Green
+  }
 } else {
   Write-Host "authConfig.js not found at $AuthConfigPath - set clientId manually." -ForegroundColor Yellow
 }
@@ -353,6 +372,12 @@ if ($SingleTenant) {
   Write-Host ""
   Write-Host "  ...and reference it in index.html just before js/authConfig.js:" -ForegroundColor Cyan
   Write-Host "    <script src=`"js/authConfig.local.js`"></script>"
+  Write-Host ""
+  Write-Host "  RUNNING THE PUBLISHED CONTAINER INSTEAD? Nothing to edit - pass these:" -ForegroundColor Cyan
+  Write-Host "    docker run -e ENCA_CLIENT_ID=$($app.AppId) ``"
+  Write-Host "               -e ENCA_TENANT_ID=$tenantId ..."
+  Write-Host "    Azure Container Apps: the clientId and tenantId parameters on the"
+  Write-Host "    Deploy to Azure template do the same thing."
   Write-Host ""
   Write-Host "  Admin-consent URL (this tenant):" -ForegroundColor Cyan
   Write-Host "  https://login.microsoftonline.com/$tenantId/adminconsent?client_id=$($app.AppId)&redirect_uri=$([uri]::EscapeDataString($RedirectUris[0]))"

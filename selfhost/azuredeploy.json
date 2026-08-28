@@ -21,6 +21,16 @@
       "type": "string",
       "defaultValue": "ghcr.io/nurejev/enca:beta",
       "metadata": { "description": "Container image. This is the beta-channel copy of the template, so it defaults to :beta - use ghcr.io/nurejev/enca:latest for production, or your own fork's image. Anonymous pull requires the GHCR package to be Public." }
+    },
+    "clientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "OPTIONAL but recommended: the Application (client) ID of YOUR OWN Entra app registration, from New-EncaAppRegistration.ps1. Leave blank to use the shared multi-tenant registration. Setting it is what makes this instance yours - own registration, own consent record, own audit trail." }
+    },
+    "tenantId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "OPTIONAL: your Directory (tenant) ID, for a SINGLE-TENANT registration (New-EncaAppRegistration.ps1 -SingleTenant). Leave blank for a multi-tenant one. Ignored unless clientId is also set." }
     }
   },
   "variables": {
@@ -78,7 +88,11 @@
             {
               "name": "enca",
               "image": "[parameters('image')]",
-              "resources": { "cpu": "0.25", "memory": "0.5Gi" }
+              "resources": { "cpu": "0.25", "memory": "0.5Gi" },
+              "env": [
+                { "name": "ENCA_CLIENT_ID", "value": "[parameters('clientId')]" },
+                { "name": "ENCA_TENANT_ID", "value": "[parameters('tenantId')]" }
+              ]
             }
           ],
           "scale": { "minReplicas": 0, "maxReplicas": 1 }

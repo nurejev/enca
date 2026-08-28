@@ -100,6 +100,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 108,
+      title: "🔑 A self-hosted copy can be told which registration to use",
+      tools: ["Self-hosting"],
+      builds: [25230],
+      risk: "medium",
+      what: "ENCA_CLIENT_ID, ENCA_TENANT_ID and ENCA_AUTHORITY on the container. A new entrypoint writes them into js/authConfig.js at start, above the file's existing Object.assign hook rather than by editing values inside it, idempotently, and does nothing whatever when they are unset. Surfaced as clientId/tenantId parameters on the Deploy to Azure template, environment keys in docker-compose.yml, ENCA_CLIENT_ID for install.sh and -ClientId/-TenantId for install.ps1. Separately: New-EncaAppRegistration.ps1 no longer patches js/authConfig.js on a -SingleTenant run.",
+      why: "Self-hosting without forking was not true. The one value you must change to own your identity - the client id - could only be changed by editing a file inside the image, so an Azure Container App, which has no filesystem to mount into, could not be pointed at its owner's registration at all. It is medium risk because the entrypoint now stands between the image and nginx: if it fails, nothing serves. It is written to fail closed and loud on a bad value, and to be a complete no-op without one. The PowerShell fix is the sharper bug of the two - a -SingleTenant run rewrote the canonical client id in the working tree, one git commit -a away from pointing the published site at a private tenant.",
+      test: [
+        "docker run with NO env vars: byte-compare js/authConfig.js inside the container against the repo copy - identical. This is the regression that matters, because it is every existing deployment.",
+        "docker run -e ENCA_CLIENT_ID=<guid> -e ENCA_TENANT_ID=<guid>: the sign-in card's self-hosted notice shows that client id and reads single-tenant authority with that tenant, and signing in actually reaches the right registration once the host is a SPA redirect URI on it.",
+        "Restart that same container twice: exactly one config block in the file, not three. A restarted container keeps its writable layer, so a non-idempotent entrypoint stacks.",
+        "ENCA_CLIENT_ID='x\"; alert(1); //' - the container must refuse to start with a message naming the variable, not escape it and serve it.",
+        "ENCA_TENANT_ID alone, no client id: authority is overridden, client id stays the shared one. ENCA_AUTHORITY set alongside ENCA_TENANT_ID: the explicit authority wins.",
+        "Deploy to Azure with clientId and tenantId filled in: the container app comes up configured, and the deployment output URL added as a SPA redirect URI signs in. Leave both blank: it behaves exactly as the previous template did.",
+        "The image must not serve the entrypoint: curl /selfhost/docker-entrypoint.sh returns 404.",
+        "New-EncaAppRegistration.ps1 -SingleTenant in a test tenant: js/authConfig.js is UNCHANGED afterwards (git status clean) and the console says so. Without -SingleTenant it still patches, as before.",
+      ],
+      files: ["Dockerfile", ".dockerignore", "selfhost/docker-entrypoint.sh", "selfhost/azuredeploy.json", "selfhost/docker-compose.yml", "selfhost/install.sh", "selfhost/install.ps1", "New-EncaAppRegistration.ps1", "SELF-HOSTING.md"],
+    },
+    {
       n: 107,
       title: "⚙ A self-hosted copy says so, and can be named",
       tools: ["Self-hosting", "All tools"],

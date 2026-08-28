@@ -40,6 +40,25 @@ irm https://raw.githubusercontent.com/nurejev/enca/beta/selfhost/install.ps1 | i
 
 Either script checks Docker is running, pulls `ghcr.io/nurejev/enca:beta`, starts it at `http://localhost:8080`, and prints the redirect-URI instructions above. Pass a port (`bash install.sh 9090` / `-Port 9090`) if 8080 is taken; use `ENCA_TAG=latest` / `-Tag latest` for the production channel.
 
+## Pointing it at your own app registration
+
+Two environment variables, and nothing to edit or rebuild:
+
+```bash
+docker run -d --name enca -p 8080:80 --restart unless-stopped \
+  -e ENCA_CLIENT_ID=00000000-1111-2222-3333-444444444444 \
+  -e ENCA_TENANT_ID=55555555-6666-7777-8888-999999999999 \
+  ghcr.io/nurejev/enca:beta
+```
+
+`ENCA_CLIENT_ID` is the Application (client) ID printed by `New-EncaAppRegistration.ps1`. `ENCA_TENANT_ID` is only for a **single-tenant** registration (`-SingleTenant`) — omit it for a multi-tenant one and the shared `organizations` authority is kept. `ENCA_AUTHORITY` takes a full URL for a verified domain or a national cloud.
+
+The container's entrypoint applies them to `js/authConfig.js` at start, and **does nothing at all when they are unset** — the image without them behaves exactly as before. Values that are not a plain GUID or `https://` URL are refused rather than escaped, because a value able to close a JavaScript string literal would be script injection into the sign-in page.
+
+The install scripts take the same thing (`ENCA_CLIENT_ID=… bash install.sh`, `.\install.ps1 -ClientId … -TenantId …`), the compose file reads both from your environment, and the Deploy to Azure template exposes them as the `clientId` and `tenantId` parameters. **Every one of these still needs that host registered as a SPA redirect URI** — the variables change which registration you sign in to, not what it will accept.
+
+Editing files still works if you prefer it: drop a `js/authConfig.local.js` setting `window.ENCA_AUTH` and reference it from `index.html` just before `js/authConfig.js`. That route survives a `git pull`; it needs an image you build yourself.
+
 ## Plain Docker
 
 ```bash

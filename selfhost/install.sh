@@ -52,7 +52,14 @@ if [ -f "./selfhost-branding.json" ]; then
   say "Found ./selfhost-branding.json — this deployment will wear your branding."
   BRANDING_MOUNT=(-v "$(pwd)/selfhost-branding.json:/usr/share/nginx/html/selfhost-branding.json:ro")
 fi
-docker run -d --name "${NAME}" --restart unless-stopped -p "${PORT}:80" "${BRANDING_MOUNT[@]}" "${IMAGE}" >/dev/null
+# Your own app registration, passed straight through to the entrypoint:
+#   ENCA_CLIENT_ID=<guid> ENCA_TENANT_ID=<guid> bash selfhost/install.sh
+# Unset variables are not passed at all, so the image keeps its defaults.
+AUTH_ENV=()
+if [ -n "${ENCA_CLIENT_ID:-}" ]; then AUTH_ENV+=(-e "ENCA_CLIENT_ID=${ENCA_CLIENT_ID}"); fi
+if [ -n "${ENCA_TENANT_ID:-}" ]; then AUTH_ENV+=(-e "ENCA_TENANT_ID=${ENCA_TENANT_ID}"); fi
+if [ ${#AUTH_ENV[@]} -gt 0 ]; then say "Using your own app registration (${ENCA_CLIENT_ID:-tenant only})."; fi
+docker run -d --name "${NAME}" --restart unless-stopped -p "${PORT}:80" "${BRANDING_MOUNT[@]}" "${AUTH_ENV[@]}" "${IMAGE}" >/dev/null
 
 URL="http://localhost:${PORT}"
 say "ENCA is running at ${URL}"
