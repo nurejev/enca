@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25235, date: "2026-08-28", title: "A branding big enough to stop a container from starting",
+    items: [
+      { kind: "fixed", tool: "Self-hosting", text: "Saving a branding with an embedded logo to an Azure Container App took the deployment down. Linux caps a SINGLE environment variable at 128 KB and hands the whole environment to exec, so a container carrying a bigger one never starts: not the entrypoint, not nginx, nothing, with \"argument list too long\" in the log and a site that is simply gone. ARM accepts the oversized value without complaint, so the failure lands at the next container start rather than at save time - and by then the page that would have explained it is the page that is down. Recovering means removing the variable from the portal or the CLI, which is a long way from where the button was pressed." },
+      { kind: "improved", tool: "Self-hosting", text: "So it is now a refusal rather than a warning. Both routes - Save to this deployment and Copy for container - stop at 48 KB, well under the kernel's ceiling, and say what to do instead: serve the same JSON at a URL and set ENCA_BRANDING_URL, which has no size limit, or reference the logo as a relative path in the image rather than embedding it. Copy for container no longer even puts an oversized value on the clipboard. Handing somebody something that will break their deployment, with a caveat underneath, is what went wrong the first time. The Deploy to Azure template carries the same 48 KB cap on its branding parameter." },
+      { kind: "improved", tool: "Self-hosting", text: "The lesson generalises and is worth stating: an environment variable is not a file, and the limit that bites is the operating system's rather than the platform's. Anything that might carry an image belongs at a URL or on a mount." },
+    ],
+  },
+  {
     build: 25234, date: "2026-08-28", title: "Every Azure read this app makes was blocked, and nobody saw it",
     items: [
       { kind: "fixed", tool: "Group Analyzer", text: "The Content-Security-Policy never named management.azure.com, from the day the Azure area was written. Every call the app made to Azure Resource Manager was therefore refused by the browser before it left - so ticking Azure in the Group Analyzer read no subscriptions, no management groups and no role assignments. And because that tool is built to report an area it could not read rather than to fail, the result did not look like an error. It looked like a group with no Azure role assignments, which is a wrong answer given confidently, by a tool whose entire value is being right about what it found. Anyone who used the Azure area before this build should re-run it." },

@@ -90,7 +90,11 @@ A self-hosted instance can wear your organisation's identity without forking —
    docker run -e ENCA_BRANDING='<paste>' ...
    ```
 
-   The entrypoint writes it to `selfhost-branding.json` at the site root — the same path the download tells you to serve from, so the two routes are the same mechanism reached two ways. If the branding is too large for an environment variable (an embedded PNG logo is the usual reason, and the button tells you the size), serve the same JSON at a URL and set **`ENCA_BRANDING_URL`**; the container fetches it once at start, and a fetch that fails leaves the instance unbranded rather than refusing to serve.
+   The entrypoint writes it to `selfhost-branding.json` at the site root — the same path the download tells you to serve from, so the two routes are the same mechanism reached two ways.
+
+   > **Size limit, and it is a hard one.** Linux refuses a single environment variable over **128 KB** and hands the whole environment to `exec()`, so a container carrying one bigger than that **fails to start at all** — not nginx, not the entrypoint, nothing — with `argument list too long` in the log. Since the app is served *by* that container, you then have to remove the variable from the portal or the CLI to get it back. An embedded PNG logo is almost always what crosses the line. ENCA refuses to hand you a value over 48 KB for this reason; for anything larger, serve the same JSON at a URL and set **`ENCA_BRANDING_URL`**, which the container fetches at start with no size limit. A fetch that fails leaves the instance unbranded rather than refusing to serve.
+
+   On an Azure Container Apps host the gear also offers **☁ Save to this deployment**, which writes `ENCA_BRANDING` onto the container app for you using your own Azure rights — no copying, no portal. It applies the same 48 KB refusal.
 
 Branding saved with **Apply in this browser** stays in that browser. Only the file and the environment variable reach other people — that distinction is deliberate, and it is why the gear has three buttons rather than one.
 

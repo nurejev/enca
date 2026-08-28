@@ -136,6 +136,23 @@ const PROMOTE = {
       files: ["js/selfhost.js", "js/graph.js"],
     },
     {
+      n: 114,
+      title: "🧨 A branding too big to exec",
+      tools: ["Self-hosting"],
+      builds: [25235],
+      risk: "low",
+      what: "A hard 48 KB refusal on ENCA_BRANDING in both the Save to this deployment path and Copy for container, plus a maxLength on the template's branding parameter and the explanation in SELF-HOSTING.md. Over the limit, Copy for container will not even put the value on the clipboard.",
+      why: "TRAVELS WITH 113 - it is the fix for a bug 113 shipped, and 113 must never reach production without it. Saving a branding with an embedded logo set an environment variable over the kernel's 128 KB per-string limit, and the container then failed to exec anything at all: no nginx, no entrypoint, site gone, recoverable only from the portal. ARM accepts the oversized value silently, so the failure lands at the next container start rather than at save time. Low risk in itself: it only ever refuses.",
+      test: [
+        "Design a branding with a PNG logo embedded until the value passes 48 KB, then press Save to this deployment: it must REFUSE, name the size, and point at ENCA_BRANDING_URL. Nothing may reach ARM.",
+        "The same look through Copy for container: refused, and the clipboard must NOT contain it - check by pasting somewhere afterwards.",
+        "Just under 48 KB: both routes work as before, and the container starts.",
+        "The recovery path, once, deliberately: set an oversized ENCA_BRANDING with the az CLI, confirm the container dies with argument list too long, then remove the variable and confirm it comes back. Knowing the recovery works is worth one broken container in a test resource group.",
+        "Deploy to Azure with an oversized branding parameter: ARM must reject it on the maxLength before creating anything, rather than deploying a container app that cannot start.",
+      ],
+      files: ["js/selfhost.js", "selfhost/azuredeploy.json", "SELF-HOSTING.md"],
+    },
+    {
       n: 111,
       title: "🕓 Who changed passkey dynamic migration, and when",
       tools: ["SMS & voice retirement"],

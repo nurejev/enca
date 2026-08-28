@@ -35,7 +35,8 @@
     "branding": {
       "type": "string",
       "defaultValue": "",
-      "metadata": { "description": "OPTIONAL: this deployment's look, as the JSON from the gear next to Sign out (Copy for container). Written to selfhost-branding.json so EVERY visitor gets it, not just the browser it was designed in. An embedded logo can outgrow what an environment variable holds - use brandingUrl for those." }
+      "maxLength": 48000,
+      "metadata": { "description": "OPTIONAL: this deployment's look, as the JSON from the gear next to Sign out (Copy for container). Written to selfhost-branding.json so EVERY visitor gets it, not just the browser it was designed in. HARD SIZE LIMIT, and it is the kernel's: Linux refuses a single environment variable over 128 KB, and a container carrying one FAILS TO START - nothing runs, and the site is down until somebody removes the variable by hand. An embedded logo is what gets you there. Use brandingUrl for anything large." }
     },
     "brandingUrl": {
       "type": "string",

@@ -50,6 +50,24 @@
   // by itself: ARM will take the change from the signed-in user's own token.
   const IS_ACA = /\.azurecontainerapps\.io$/i.test((location.hostname || "").toLowerCase());
 
+  // HOW BIG AN ENVIRONMENT VARIABLE MAY BE, and why this is a hard limit
+  // rather than a warning. Linux caps a SINGLE argv/envp string at
+  // MAX_ARG_STRLEN — 128 KB — and the whole environment is handed to exec().
+  // Go past it and exec fails with E2BIG before any program runs: not the
+  // entrypoint, not nginx, nothing. The container is dead on arrival and the
+  // app cannot repair it, because the app is served BY that container. The
+  // only way back is removing the variable in the portal or the CLI.
+  //
+  // Build 25234 shipped this as a warning at 30 KB and no limit at all, and a
+  // branding with an embedded logo — which is most of them — went straight
+  // past 128 KB and took a live deployment down. A warning is the wrong shape
+  // for a failure the user cannot undo from where they are standing.
+  //
+  // 48 KB leaves generous room under the kernel limit for the variable's name,
+  // every other variable, and whatever the platform adds of its own.
+  const ENV_MAX = 48000;
+  const ENV_WARN = 24000;
+
   const isProd = () => {
     try {
       const prod = ((typeof BRANDING !== "undefined" && BRANDING.host) || "").toLowerCase();
@@ -320,12 +338,26 @@
     $("shEnv").addEventListener("click", async () => {
       const data = JSON.stringify({ v: 1, brand: collect() || {} });
       const kb = Math.round(data.length / 1024);
-      // Environment variables are not a file. Platforms cap them — Azure
-      // Container Apps counts every variable against one revision-definition
-      // budget — and an embedded PNG logo is what blows past it. Say so with
-      // the number, here, rather than letting a deploy fail with a size error
-      // that names nothing the person recognises.
-      const big = data.length > 30000;
+      // Environment variables are not a file, and the ceiling is the kernel's,
+      // not the platform's: exec() refuses a single variable over 128 KB, so a
+      // container carrying one never starts. An embedded logo is what gets you
+      // there. Over the hard limit this stops being advice.
+      const tooBig = data.length > ENV_MAX;
+      const big = data.length > ENV_WARN;
+      // Too big to be an environment variable at all: do not put it on the
+      // clipboard. Handing somebody a value that will stop their container
+      // from starting, with a caveat underneath, is how this went wrong once.
+      if (tooBig) {
+        return alert(
+          `This look is ${kb} KB — too large for an environment variable, so ENCA_BRANDING is not the route for it.\n\n`
+          + `Linux caps a single variable at 128 KB and hands the whole environment to exec(), so a container carrying `
+          + `one bigger than that FAILS TO START — nothing runs, and the site is down until the variable is removed by hand.\n\n`
+          + `An embedded logo is almost always the reason. Instead:\n\n`
+          + `  - ⭳ Download the file, serve it somewhere, and set ENCA_BRANDING_URL to that address.\n`
+          + `    The container fetches it at start, with no size limit.\n\n`
+          + `  - Or mount the file at the site root, if your platform has a filesystem.\n\n`
+          + `  - Or reference the logo as a relative path already in the image rather than embedding it.`);
+      }
       let copied = false;
       try { await navigator.clipboard.writeText(data); copied = true; } catch { /* denied or insecure context */ }
       const how =
@@ -334,9 +366,9 @@
         `  az containerapp update -n <app> -g <rg> \\\n    --set-env-vars ENCA_BRANDING='<paste>'\n\n` +
         `Docker:\n  docker run -e ENCA_BRANDING='<paste>' ...\n\n` +
         (big
-          ? `⚠ This is large, because a logo is embedded in it. If the platform refuses the\n` +
-            `variable, serve the same JSON at a URL and set ENCA_BRANDING_URL instead — the\n` +
-            `container fetches it once at start. Or keep logos as relative paths in the image.\n\n`
+          ? `⚠ ${kb} KB is on the large side for a variable — an embedded logo is why. The hard\n` +
+            `ceiling is 128 KB, above which the container will not start at all. If you are going\n` +
+            `to keep growing this look, serve the JSON at a URL and use ENCA_BRANDING_URL instead.\n\n`
           : "") +
         `Either way it is written to selfhost-branding.json at the site root, so EVERY\n` +
         `visitor sees this look — not just this browser.`;
@@ -412,6 +444,22 @@
         const env = (containers[0].env || []).filter((e) => e && e.name !== "ENCA_BRANDING");
         env.push({ name: "ENCA_BRANDING", value: data });
         containers[0].env = env;
+
+        // REFUSE, do not warn. Saving an oversized value here does not fail
+        // at save time - ARM accepts it happily. It fails at the NEXT container
+        // start, with exec dying on E2BIG before anything runs, and by then the
+        // site that would have told you is the site that is down.
+        if (data.length > ENV_MAX) {
+          return fail(
+            "This look is " + Math.round(data.length / 1024) + " KB, and an environment variable cannot safely carry more than "
+            + Math.round(ENV_MAX / 1024) + " KB.\n\n"
+            + "Linux caps a single variable at 128 KB and hands the whole environment to exec(). Past that, the container fails to "
+            + "start AT ALL - and since this page is served by that container, you would have to fix it from the Azure portal.\n\n"
+            + "An embedded logo is almost always the reason. Two ways round it:\n\n"
+            + "  - Serve this JSON at a URL and set ENCA_BRANDING_URL instead. The container fetches it at start, with no size limit.\n"
+            + "    Use ⭳ Download to get the file.\n\n"
+            + "  - Or reference the logo as a relative path already in the image rather than embedding it.");
+        }
 
         btn.textContent = "Saving…";
         const res = await Graph.apatch(id + "?api-version=2024-03-01", {
