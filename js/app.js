@@ -103,7 +103,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-userimpact", "screen-smsvoice", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -1698,6 +1698,7 @@
   // whether the tool was opened from the grid or a tab.
   const TOOL_TABS = [
     ["toolSmsVoice", "📵 SMS & voice retirement"],
+    ["toolMemberOf", "🧷 memberOf retirement"],
     ["toolPolicies", "🗂 List Policies"],
     ["toolDocument", "📄 Create documentation"],
     ["toolAnalyze", "🔍 Gap analyse"],
@@ -15056,6 +15057,467 @@ max@contoso.com,"Global, DevOps"</pre>
     downloadText("CA-SmsVoiceRetirement", "csv", "text/csv", SmsVoice.toCsv(svRes));
   });
 
+  // ---------- memberOf retirement (T34 — temporary tool) ----------
+  // The analysis lives in js/memberof.js as pure functions; this wiring reads
+  // the tenant's dynamic groups and dynamic administrative units, resolves the
+  // source groups each rule points at, reads the owners of whatever it found,
+  // and hands the whole lot — together with the Conditional Access policies
+  // ENCA already holds — to MemberOf.analyze.
+  //
+  // READS ONLY. Groups and administrative units are covered by the baseline
+  // consent (Directory.Read.All); the third surface — entitlement-management
+  // auto-assignment policies — needs EntitlementManagement.Read.All, asked
+  // once on the run click while the gesture is fresh, exactly as 📵 SMS &
+  // voice asks for AuditLog.Read.All. A refusal is an answer, not an error:
+  // the run continues and that surface reports itself NOT READ. Nothing in
+  // this tool writes.
+  let moRes = null, moBusy = false, moOpen = new Set();
+  const moProg = makeProgress("mo");
+  const MO_GROUP_PAGES = 25;    // ~25k dynamic groups; past that the read says it was capped
+  const MO_AU_PAGES = 10;
+  const MO_EM_PAGES = 10;
+  const MO_OWNER_CAP = 300;     // Microsoft caps a tenant at 500 memberOf groups; this caps the owner reads
+  const MO_TABLE_CAP = 500;
+  const MO_EM_READ = ["EntitlementManagement.Read.All"];
+  // Entitlement management is the one place in Graph where hard-coding the
+  // schema loses: the relationship name moved between beta and v1.0
+  // (accessPackageAssignmentPolicies → assignmentPolicies) and ENCA runs on
+  // beta. js/groupuse.js learned this the hard way and answers it with a
+  // candidate ladder; the same ladder is used here rather than a second guess.
+  const MO_EM_URLS = [
+    "/identityGovernance/entitlementManagement/assignmentPolicies?$expand=accessPackage&$top=100",
+    "/identityGovernance/entitlementManagement/accessPackageAssignmentPolicies?$expand=accessPackage&$top=100",
+    "/identityGovernance/entitlementManagement/assignmentPolicies?$top=100",
+  ];
+
+  // Demo data. The two group ids are deliberately taken from the demo tenant's
+  // OWN Conditional Access policies at run time, so the blast-radius column
+  // lights up with real cross-references instead of showing the one thing this
+  // tool exists to show as an empty cell.
+  function moDemoCtx() {
+    const raws = policies.map((p) => p.raw);
+    const withExc = raws.find((p) => p.state === "enabled" && ((p.conditions || {}).users || {}).excludeGroups && p.conditions.users.excludeGroups.length);
+    const withInc = raws.find((p) => p.state === "enabled" && ((p.conditions || {}).users || {}).includeGroups && p.conditions.users.includeGroups.length);
+    const excId = withExc ? withExc.conditions.users.excludeGroups[0] : "11111111-1111-1111-1111-111111111111";
+    const incId = withInc ? withInc.conditions.users.includeGroups[0] : "22222222-2222-2222-2222-222222222222";
+    const src1 = "aaaaaaaa-1111-2222-3333-444444444444", src2 = "bbbbbbbb-1111-2222-3333-444444444444";
+    const gone = "cccccccc-dead-dead-dead-cccccccccccc";
+    return {
+      groups: [
+        { id: excId, displayName: "CA-BreakGlass-Exclusion (memberOf)", membershipRule: `user.memberOf -any (group.objectId -in ['${src1}'])`,
+          ruleState: "On", licensed: false, owners: [{ id: "o1", upn: "iam-team@contoso.com", name: "IAM team" }] },
+        { id: incId, displayName: "All licensed staff (memberOf)", membershipRule: `user.memberOf -any (group.objectId -in ['${src1}', '${src2}'])`,
+          ruleState: "On", licensed: true, owners: [{ id: "o2", upn: "hr-systems@contoso.com", name: "HR Systems" }] },
+        { id: "33333333-3333-3333-3333-333333333333", displayName: "Project Kestrel devices (memberOf)", membershipRule: `device.memberOf -any (group.objectId -in ['${gone}'])`,
+          ruleState: "Paused", licensed: false, owners: [] },
+        { id: "44444444-4444-4444-4444-444444444444", displayName: "Contractors by attribute", membershipRule: '(user.extension_9a_memberOfDivision -eq "Field")',
+          ruleState: "On", licensed: false, owners: [{ id: "o3", upn: "servicedesk@contoso.com", name: "Service desk" }] },
+      ],
+      aus: [
+        { id: "55555555-5555-5555-5555-555555555555", displayName: "Executives (restricted)", membershipRule: `(user.memberOf -any (group.objectId -in ['${src2}']))`, ruleState: "On", restricted: true },
+      ],
+      emps: [
+        { id: "77777777-7777-7777-7777-777777777777", displayName: "Auto-assign on joining Finance", pkg: "Finance applications",
+          rules: [`user.memberOf -any (group.objectId -in ['${src2}'])`], autoRequest: true, removeOnLeave: true, gracePeriod: "P7D" },
+        { id: "88888888-8888-8888-8888-888888888888", displayName: "Draft: contractor onboarding", pkg: "Contractor toolkit",
+          rules: [`user.memberOf -any (group.objectId -in ['${src1}'])`], autoRequest: false, removeOnLeave: false, gracePeriod: null },
+      ],
+      policies: raws,
+      names: { [src1]: "Legacy MFA users", [src2]: "All staff (assigned)" },
+      namesRead: true, groupsPartial: false, ausRead: true, ausPartial: false,
+      empsRead: true, empsErr: null, totalEmps: 6, ownersRead: true,
+      totalDynamic: 42,
+    };
+  }
+
+  async function moRun() {
+    if (moBusy) return;
+    moBusy = true;
+    $("moRun").style.display = "none";
+    moProg.start(0, "groups", "page");
+    $("moBody").innerHTML = moProg.panel("Reading this tenant's dynamic groups…",
+      "Dynamic groups first, then the dynamic administrative units, then the source groups each rule points at and the owners of what was found. Reads only, nothing is written.");
+    try {
+      let ctx;
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 500));
+        ctx = moDemoCtx();
+      } else {
+        // Ask for the entitlement-management scope NOW, while the click
+        // gesture is fresh. A refusal is an answer: the run carries on and
+        // that surface reports NOT READ instead of quietly reporting clean.
+        const emOk = await preConsent([...AUTH_CONFIG.scopes, ...MO_EM_READ]);
+        const txt = (m) => { const t = $("moPgTxt"); if (t) t.textContent = m; };
+
+        // Dynamic groups. The $filter keeps this off every static group in the
+        // tenant — an important difference on a directory with 40,000 groups.
+        // assignedLicenses comes along in the same $select because group-based
+        // licensing is one of the two things that makes a frozen rule cost
+        // something on the day it freezes.
+        const groupsRaw = [];
+        let next = "/groups?$filter=groupTypes/any(c:c eq 'DynamicMembership')&$select=id,displayName,membershipRule,membershipRuleProcessingState,assignedLicenses&$top=999";
+        let pages = 0;
+        while (next && pages < MO_GROUP_PAGES) {
+          const j = await Graph.gget(next);
+          for (const g of j.value || []) groupsRaw.push(g);
+          next = j["@odata.nextLink"] || null;
+          moProg.tick(groupsRaw.length, ++pages);
+        }
+        const groupsPartial = !!next;
+        const groups = groupsRaw.map((g) => ({
+          id: g.id, displayName: g.displayName || g.id,
+          membershipRule: g.membershipRule || "",
+          ruleState: g.membershipRuleProcessingState || "",
+          licensed: !!((g.assignedLicenses || []).length),
+          owners: null,
+        }));
+
+        // Dynamic administrative units. A separate endpoint, a separate
+        // failure: a tenant without Entra ID P1 has none, and a session that
+        // cannot read them must say NOT READ rather than showing zero — the
+        // difference between "you have none" and "we could not look" is the
+        // whole point of a scan somebody acts on.
+        let aus = null, ausPartial = false;
+        try {
+          txt("🏷 Reading the dynamic administrative units…");
+          moProg.start(MO_AU_PAGES, "units", "page");
+          const auRaw = [];
+          let an = "/directory/administrativeUnits?$select=id,displayName,membershipRule,membershipType,membershipRuleProcessingState,isMemberManagementRestricted&$top=999";
+          let ap = 0;
+          while (an && ap < MO_AU_PAGES) {
+            const j = await Graph.gget(an);
+            for (const a of j.value || []) auRaw.push(a);
+            an = j["@odata.nextLink"] || null;
+            moProg.tick(auRaw.length, ++ap);
+          }
+          ausPartial = !!an;
+          aus = auRaw.map((a) => ({
+            id: a.id, displayName: a.displayName || a.id,
+            membershipRule: a.membershipRule || "",
+            ruleState: a.membershipRuleProcessingState || "",
+            restricted: a.isMemberManagementRestricted === true,
+          }));
+        } catch (e) { console.warn("administrative units not readable:", e); aus = null; }
+
+        // Entitlement-management auto-assignment policies — the third surface,
+        // and the one that is genuinely hard to look at by hand: the rule sits
+        // in specificAllowedTargets on a policy inside an access package
+        // inside a catalog, and there is no view in the portal that lists
+        // them across the tenant.
+        //
+        // Microsoft's own script draws the line the same way this does: read
+        // EVERY assignment policy, keep only the ones carrying
+        // automaticRequestSettings (that property is present on an
+        // auto-assignment policy and absent on a request-based one), and look
+        // at their membership rules. A request-based policy has no rule to
+        // freeze and does not belong in the count.
+        let emps = null, empsErr = null, totalEmps = 0;
+        if (emOk) {
+          txt("📦 Reading the entitlement-management assignment policies…");
+          moProg.start(MO_EM_PAGES, "policies", "page");
+          for (const base of MO_EM_URLS) {
+            try {
+              const raw = [];
+              let en = base, ep = 0;
+              while (en && ep < MO_EM_PAGES) {
+                const j = await Graph.gget(en);
+                for (const p of j.value || []) raw.push(p);
+                en = j["@odata.nextLink"] || null;
+                moProg.tick(raw.length, ++ep);
+              }
+              const auto = raw.filter((p) => p.automaticRequestSettings);
+              totalEmps = auto.length;
+              emps = auto.map((p) => {
+                const ar = p.automaticRequestSettings || {};
+                return {
+                  id: p.id,
+                  displayName: p.displayName || p.id,
+                  pkg: (p.accessPackage && p.accessPackage.displayName) || "",
+                  // A policy can carry several allowed-target rules; every one
+                  // of them is a rule that can freeze, so all of them are kept
+                  // rather than only the first.
+                  rules: (p.specificAllowedTargets || [])
+                    .map((t) => t && t.membershipRule).filter((x) => typeof x === "string" && x),
+                  autoRequest: ar.requestAccessForAllowedTargets === true,
+                  removeOnLeave: ar.removeAccessWhenTargetLeavesAllowedTargets === true,
+                  gracePeriod: ar.gracePeriodBeforeAccessRemoval || null,
+                };
+              });
+              empsErr = null;
+              break;   // the first shape that answers is the shape this tenant speaks
+            } catch (e) {
+              empsErr = (e && (e.message || String(e))) || "the read failed";
+              emps = null;
+            }
+          }
+          if (!emps) console.warn("entitlement management not readable:", empsErr);
+        } else {
+          empsErr = "the EntitlementManagement.Read.All permission was declined on the run";
+        }
+
+        // The source groups every affected rule points at, resolved in one
+        // batched call. An id the directory cannot return is a source group
+        // that has been DELETED — the rule is already stale today, months
+        // before the deadline, and Microsoft's own notice says membership does
+        // not update when a child group goes.
+        const affectedRules = [...groups, ...(aus || [])].map((x) => x.membershipRule)
+          .concat((emps || []).map((e) => (e.rules || []).join("\n")))
+          .filter((r) => MemberOf.ruleUse(r) !== "no");
+        const srcIds = [...new Set(affectedRules.flatMap((r) => MemberOf.sourceIds(r)))];
+        const names = {};
+        let namesRead = false;
+        if (srcIds.length) {
+          txt(`🔎 Resolving ${srcIds.length} source group${srcIds.length === 1 ? "" : "s"}…`);
+          namesRead = true;
+          for (let i = 0; i < srcIds.length; i += 900) {
+            try {
+              const j = await Graph.gpost("/directoryObjects/getByIds", { ids: srcIds.slice(i, i + 900), types: ["group"] });
+              for (const o of j.value || []) names[o.id] = o.displayName || o.id;
+            } catch { namesRead = false; }   // one failed batch and the whole "deleted" claim is off the table
+          }
+        }
+
+        // Owners, for the affected groups only. This is what makes ✉️ Notify
+        // owners possible; an administrative unit has no owner in Entra, so
+        // there is nothing to read for those and the modal says so.
+        const affGroups = groups.filter((g) => MemberOf.ruleUse(g.membershipRule) !== "no");
+        let ownersRead = false;
+        if (affGroups.length) {
+          ownersRead = true;
+          moProg.start(Math.min(affGroups.length, MO_OWNER_CAP), "owners", "group");
+          $("moBody").innerHTML = moProg.panel("Reading the owners of the affected groups…",
+            "One read per affected group — the recipients for the notification email.");
+          let done = 0, found = 0;
+          for (const g of affGroups.slice(0, MO_OWNER_CAP)) {
+            try {
+              const j = await Graph.gget(`/groups/${g.id}/owners?$select=id,displayName,userPrincipalName&$top=50`);
+              g.owners = (j.value || []).filter((o) => o.userPrincipalName)
+                .map((o) => ({ id: o.id, upn: o.userPrincipalName, name: o.displayName || "" }));
+              found += g.owners.length;
+            } catch { g.owners = []; }   // unreadable owners are not "no owners", and the modal counts them as ownerless
+            moProg.tick(found, ++done);
+          }
+        }
+
+        ctx = { groups, aus, emps, policies: policies.map((p) => p.raw), names, namesRead,
+          groupsPartial, ausRead: aus !== null, ausPartial,
+          empsRead: emps !== null, empsErr: emps === null ? empsErr : null, totalEmps,
+          ownersRead, totalDynamic: groups.length };
+      }
+      moRes = MemberOf.analyze(ctx);
+      moOpen = new Set();
+    } catch (e) {
+      console.error("memberOf scan failed:", e);
+      $("moBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant's dynamic groups failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-morun>▶ Try again</button></div></div>`;
+      moBusy = false;
+      return;
+    }
+    moBusy = false;
+    renderMemberOf();
+  }
+
+  const MO_RISK = {
+    critical: { cls: "block", word: "critical", icon: "⛔" },
+    high:     { cls: "new",   word: "high", icon: "⚠" },
+    review:   { cls: "",      word: "review", icon: "🔎" },
+    suspect:  { cls: "",      word: "read by hand", icon: "❔" },
+  };
+  const moChip = (k) => `<span class="tag ${MO_RISK[k].cls}">${MO_RISK[k].icon} ${MO_RISK[k].word}</span>`;
+
+  function renderMemberOf() {
+    const d = MemberOf.DATES, days = MemberOf.daysUntil(d.retire.iso);
+    $("moHead").innerHTML = `<h3>🧷 memberOf retirement <span class="tag new">BETA</span> <span class="tag" title="This tool exists for one dated retirement and is removed once the date has passed">⏳ temporary tool</span> <span class="tag ok">reads only</span></h3>
+      <p style="margin-bottom:4px">The <code>memberOf</code> dynamic rule operator has been in public preview since 2022, and Microsoft <b>ends that preview on ${d.retire.label}</b>${days >= 0 ? ` (in ${days} day${days === 1 ? "" : "s"})` : ""}. Rules using it do not fail on that date — they <b>stop updating</b> and stay in their last known state. A group frozen that day keeps handing out whatever membership it held, so joiners are never covered and leavers are never removed, with nothing on screen anywhere to say so.</p>
+      <p class="mini muted" style="margin:0">Reads all <b>three</b> surfaces Microsoft names — dynamic groups, dynamic administrative units and entitlement-management auto-assignment policies — then crosses every affected group against the Conditional Access policies ENCA already holds: an <b>exclusion</b> that stops shrinking is a permanent bypass; an <b>inclusion</b> that stops growing is an enforcement gap. Nothing here writes. Sources: <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-member-of" target="_blank" rel="noopener">retirement notice</a> · <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-more-efficient" target="_blank" rel="noopener">supported operators</a> · <a href="https://learn.microsoft.com/entra/id-governance/entitlement-management-access-package-auto-assignment-policy" target="_blank" rel="noopener">auto-assignment policies</a> · <a href="https://github.com/kayasax/EMOS" target="_blank" rel="noopener">EMOS</a></p>`;
+    $("moRun").style.display = moRes && !moBusy ? "" : "none";
+    if (moBusy) return;
+
+    if (!moRes) {
+      $("moBody").innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-morun>▶ Check the tenant</button>
+        <p class="mini muted">Reads the dynamic groups, the dynamic administrative units, the source groups their rules point at and the owners of whatever it finds — all covered by the permissions you already granted. The entitlement-management auto-assignment policies are the third surface and need <b>EntitlementManagement.Read.All</b>, asked once on this click; declining it still produces the report, with that surface marked <b>not read</b> rather than clean. Nothing is written either way.</p>
+      </div>`;
+      return;
+    }
+
+    const r = moRes, s = r.summary;
+    const clean = !s.total;
+
+    const unread = [!r.ausRead ? "dynamic administrative units" : null, !r.empsRead ? "entitlement-management auto-assignment policies" : null].filter(Boolean);
+    const verdict = clean
+      ? (r.allSurfaces
+        ? `<p class="mini" style="margin:0"><span class="tag ok">✅ nothing to migrate</span> Nothing in this tenant uses the <code>memberOf</code> operator — <b>all three</b> surfaces were read: ${s.totalDynamic.toLocaleString()} dynamic group${s.totalDynamic === 1 ? "" : "s"}, the dynamic administrative units, and ${s.totalEmps.toLocaleString()} entitlement-management auto-assignment ${s.totalEmps === 1 ? "policy" : "policies"}${r.groupsPartial ? " — though the group read was capped, so this is a partial answer" : ""}.</p>`
+        : `<p class="mini" style="margin:0"><span class="tag new">⚠ not a clean tenant yet</span> Nothing was found on the surfaces that could be read — but <b>${unread.join("</b> and <b>")}</b> could <b>NOT</b> be read${r.empsErr && !r.empsRead ? ` (${esc(r.empsErr)})` : ""}. A surface nobody looked at is not a surface with nothing on it: run this again with the missing permission or licence before calling the tenant clean.</p>`)
+      : `<p class="mini" style="margin:0">📅 <b>${esc(d.retire.label)}</b>${days >= 0 ? ` — in <b>${days} day${days === 1 ? "" : "s"}</b>` : " — passed"}: <b>${s.total}</b> object${s.total === 1 ? "" : "s"} below stop${s.total === 1 ? "s" : ""} updating and keep${s.total === 1 ? "s" : ""} whatever membership ${s.total === 1 ? "it holds" : "they hold"} that day.
+        ${r.policiesRead
+          ? `<b>${s.enforcedGroups}</b> of them ${s.enforcedGroups === 1 ? "is" : "are"} referenced by an <b>enforced</b> Conditional Access policy${s.bypassGroups ? `, and <b>${s.bypassGroups}</b> ${s.bypassGroups === 1 ? "is used as an EXCLUSION — a bypass that will never shrink again" : "are used as EXCLUSIONS — bypasses that will never shrink again"}` : ""}.`
+          : "Conditional Access could not be cross-referenced — no policies are loaded in this session, so the blast radius here is <b>unknown</b>, not empty."}
+        ${s.licensedGroups ? `<b>${s.licensedGroups}</b> carr${s.licensedGroups === 1 ? "ies" : "y"} group-based licensing.` : ""}
+        ${s.emps ? `<b>${s.emps}</b> ${s.emps === 1 ? "is an entitlement-management auto-assignment policy" : "are entitlement-management auto-assignment policies"}${s.empsAuto ? `, <b>${s.empsAuto}</b> of ${s.empsAuto === 1 ? "which is handing out an access package today" : "which are handing out access packages today"}` : ""}.` : ""}
+        ${s.staleGroups ? `<b>${s.staleGroups}</b> already point${s.staleGroups === 1 ? "s" : ""} at a source group the directory no longer has — ${s.staleGroups === 1 ? "that rule is" : "those rules are"} stale today, before any deadline.` : ""}</p>`;
+
+    const notes = [
+      `${s.totalDynamic.toLocaleString()} dynamic group${s.totalDynamic === 1 ? "" : "s"} read${r.groupsPartial ? ' <span style="color:var(--off)">(capped — partial)</span>' : ""}`,
+      r.ausRead ? `administrative units read${r.ausPartial ? ' <span style="color:var(--off)">(capped)</span>' : ""}` : '<span style="color:var(--off)">administrative units NOT read — a P1 licence or the right role is missing, so their column is unknown rather than clean</span>',
+      r.empsRead ? `${s.totalEmps.toLocaleString()} auto-assignment ${s.totalEmps === 1 ? "policy" : "policies"} read` : `<span style="color:var(--off)">entitlement management NOT read${r.empsErr ? ` — ${esc(r.empsErr)}` : ""}, so that surface is unknown rather than clean</span>`,
+      s.pausedRules ? `<b>${s.pausedRules}</b> rule${s.pausedRules === 1 ? "" : "s"} already <b>Paused</b>` : "",
+      s.nearLimit ? `<b style="color:var(--off)">at ${s.groups} of Microsoft's ${MemberOf.LIMITS.groupsPerTenant} memberOf limit</b> — this is architecture, and the migration is a project` : "",
+    ].filter(Boolean);
+
+    const head = `<div class="list-card" style="padding:14px 16px">
+      ${verdict}
+      ${clean ? "" : `<p class="mini" style="margin:10px 0 0">${moChip("critical")} ${s.critical} · ${moChip("high")} ${s.high} · ${moChip("review")} ${s.review}${s.suspect ? ` · ${moChip("suspect")} ${s.suspect}` : ""}</p>`}
+      <p class="mini muted" style="margin:10px 0 0">${notes.join(" · ")}</p>
+      <p class="mini muted" style="margin:6px 0 0">${r.allSurfaces
+        ? "✅ All <b>three</b> surfaces Microsoft names were read for this result — dynamic groups, dynamic administrative units and entitlement-management auto-assignment policies."
+        : `⚠ <b>${esc(unread.join(" and "))}</b> could not be read, so this result covers ${3 - unread.length} of the 3 surfaces Microsoft names. Fill the gap with <a href="https://learn.microsoft.com/entra/id-governance/entitlement-management-access-package-auto-assignment-policy#find-automatic-assignment-policies-that-use-the-memberof-attribute" target="_blank" rel="noopener">Microsoft's script</a> or <a href="https://github.com/kayasax/EMOS" target="_blank" rel="noopener">EMOS</a>, or rerun with the missing permission.`}</p>
+    </div>`;
+
+    const rowHtml = (x) => {
+      const open = moOpen.has(x.id);
+      const srcList = x.src.map((id) => {
+        const nm = r.names[id];
+        return nm ? `<li>${esc(nm)} <span class="muted">${esc(id)}</span></li>`
+          : `<li style="color:var(--off)">${r.namesRead ? "DELETED — no longer in the directory" : "not resolved"} <span class="muted">${esc(id)}</span></li>`;
+      }).join("");
+      return `<tr style="border-top:1px solid var(--line)">
+        <td style="padding:4px 8px">${x.kind === "au" ? (x.restricted ? "🛡 AU <b>restricted</b>" : "🏷 AU") : x.kind === "em" ? "📦 EM policy" : "👥 Group"}</td>
+        <td style="padding:4px 8px"><b>${esc(x.name)}</b>${x.kind === "em" && x.pkg ? `<br><span class="muted">grants ${esc(x.pkg)}</span>` : ""}<br><span class="muted">${esc(x.id)}</span></td>
+        <td style="padding:4px 8px">${x.ruleState ? (/paused/i.test(x.ruleState) ? `<b style="color:var(--off)">${esc(x.ruleState)}</b>` : esc(x.ruleState)) : "—"}</td>
+        <td style="padding:4px 8px">${x.kind === "group" ? (x.refs.length ? `${x.refs.length}${x.enforced ? ` <b>(${x.enforced} on)</b>` : ""}${x.bypass ? ` <b style="color:var(--off)">${x.bypass}× exclude</b>` : ""}` : "—") : "—"}</td>
+        <td style="padding:4px 8px">${x.kind === "group" ? (x.licensed ? "<b>yes</b>" : "no") : "—"}</td>
+        <td style="padding:4px 8px">${x.missing.length ? `<b style="color:var(--off)">${x.missing.length}</b>` : "—"}</td>
+        <td style="padding:4px 8px">${moChip(x.risk)}<br><span class="mini muted">${esc(x.why)}</span>
+          <br><button class="btn" data-morule="${esc(x.id)}" style="margin-top:6px">${open ? "▾" : "▸"} ${x.kind === "em" && x.ruleCount > 1 ? `the ${x.ruleCount} rules` : "the rule"}${x.kind === "group" && x.refs.length ? " and its policies" : ""}</button>
+          ${open ? `<div class="mini" style="margin-top:6px">
+            <pre style="white-space:pre-wrap;word-break:break-word;margin:0 0 6px">${esc(x.rule)}</pre>
+            ${x.kind === "em" ? `<b>Auto-assignment</b> ${x.autoRequest ? "assigning to targets in scope <b>today</b>" : "defined but <b>not</b> assigning (requestAccessForAllowedTargets is off)"} · removes access when a target leaves the scope: <b>${x.removeOnLeave ? "yes" : "no"}</b>${x.removeOnLeave ? " — and with the rule frozen nobody ever leaves it, so revocation quietly stops while the setting still reads as on" : ""}<br>` : ""}
+            ${x.src.length ? `<b>Source groups</b><ul style="margin:2px 0 6px;padding-left:18px">${srcList}</ul>` : ""}
+            ${x.refs.length ? `<b>Conditional Access</b><ul style="margin:2px 0 0;padding-left:18px">${x.refs.map((p) => `<li>${p.how === "excluded" ? '<b style="color:var(--off)">EXCLUDED from</b>' : "included in"} ${esc(p.name)} <span class="muted">(${esc(p.state)})</span></li>`).join("")}</ul>` : ""}
+            ${(x.owners || []).length ? `<b>Owners</b> ${esc(x.owners.map((o) => o.upn).join(", "))}` : x.kind === "group" && r.ownersRead ? '<span style="color:var(--off)">No owner — nobody to ask, so this one lands on whoever runs the directory.</span>' : ""}
+          </div>` : ""}
+        </td>
+      </tr>`;
+    };
+
+    const table = clean ? "" : `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
+        <thead><tr style="text-align:left">
+          <th style="padding:4px 8px">Type</th><th style="padding:4px 8px">Name</th>
+          <th style="padding:4px 8px" title="For a group or administrative unit: Entra's own membershipRuleProcessingState — a rule already Paused is already frozen. For an entitlement-management policy: whether it is actually auto-assigning today.">Rule state</th>
+          <th style="padding:4px 8px">CA policies</th><th style="padding:4px 8px">Licensing</th>
+          <th style="padding:4px 8px" title="Source groups the rule names that the directory no longer has — the rule is already stale">Stale sources</th>
+          <th style="padding:4px 8px">Verdict</th>
+        </tr></thead>
+        <tbody>${r.rows.slice(0, MO_TABLE_CAP).map(rowHtml).join("")}</tbody>
+      </table></div>
+      ${r.rows.length > MO_TABLE_CAP ? `<p class="mini muted" style="margin:8px 0 0">Showing the first ${MO_TABLE_CAP} of ${r.rows.length.toLocaleString()} rows — the CSV export carries all of them.</p>` : ""}
+    </div>`;
+
+    const next = clean ? "" : `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <p class="mini" style="margin:0 0 6px"><b>WHAT TO DO — in this order</b></p>
+      <p class="mini" style="margin:0">1. Take the <b>critical</b> rows first: an enforced Conditional Access policy, a licence assignment or a live access-package assignment already rides on those rules, so they are the ones that cost something on the day they freeze.<br>
+      2. <b>Replace the rule</b> where the membership can be written with <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-more-efficient" target="_blank" rel="noopener">supported operators</a> — department, job title, country, an extension attribute.<br>
+      3. <b>Convert to assigned</b> where it cannot, and accept that somebody manages the members by hand from then on. An <b>entitlement-management policy has no assigned equivalent</b>: plan a different assignment method <b>before</b> removing the policy, or everyone it assigned loses their access package.<br>
+      4. <b>Delete what is unused.</b> A frozen group nobody needed is still a group handing out yesterday's access.<br>
+      5. Validate after every change — group membership, an administrative unit's delegated scope, and an entitlement-management policy's access-package assignments.</p>
+      <p class="mini muted" style="margin:8px 0 0">ENCA does not make these changes. Rewriting a membership rule changes who is in a group and therefore who a Conditional Access policy hits; that is a decision for a person in the portal, with the group's owner in the room.</p>
+    </div>`;
+
+    $("moBody").innerHTML = head + table + next;
+  }
+
+  function openMemberOf() { crumb("🧷 memberOf retirement"); show("screen-memberof"); renderMemberOf(); }
+  $("toolMemberOf").addEventListener("click", openMemberOf);
+  $("moRun").addEventListener("click", moRun);
+  $("moBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-morun]")) { moRun(); return; }
+    const t = e.target.closest("[data-morule]");
+    if (t) {
+      const id = t.dataset.morule;
+      moOpen.has(id) ? moOpen.delete(id) : moOpen.add(id);
+      renderMemberOf();
+    }
+  });
+  // ✉️ Notify owners — the group owners plus a ready-to-send email. Aimed at
+  // owners rather than end users on purpose: nobody who signs in feels this
+  // retirement until the day their access is wrong, and by then the rule has
+  // been frozen for months. Administrative units have no owner in Entra, so
+  // they are counted out loud instead of quietly dropped.
+  const moCopy = (text, what) => {
+    const done = () => toast(`${what} <span>copied</span>`);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => toast("Copy failed — select the text and copy by hand"));
+    else toast("Copy failed — select the text and copy by hand");
+  };
+  $("moMail").addEventListener("click", () => {
+    if (!moRes) { toast("Run the check first — the recipients are the owners it finds."); return; }
+    const mail = MemberOf.notifyOwners(moRes);
+    if (!mail.recipients.length) {
+      toast(mail.ownerless || mail.aus || mail.emps
+        ? "No owner to notify — the affected objects have no owner this tool can read, so this one lands on whoever runs the directory."
+        : "Nothing to notify about — no affected group was found.");
+      return;
+    }
+    const old = document.getElementById("moMailModal");
+    if (old) old.remove();
+    const bg = document.createElement("div");
+    bg.id = "moMailModal";
+    bg.className = "modal-bg open";
+    const recStr = mail.recipients.join("; ");
+    const mailto = `mailto:?bcc=${encodeURIComponent(recStr)}&subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body)}`;
+    bg.innerHTML = `<div class="modal" style="max-width:720px">
+      <h3>✉️ Notify the group owners</h3>
+      <p class="mini">${mail.recipients.length.toLocaleString()} recipient${mail.recipients.length === 1 ? "" : "s"} — the registered owners of the affected dynamic groups.${mail.ownerless ? ` <b>${mail.ownerless}</b> affected group${mail.ownerless === 1 ? " has" : "s have"} no owner and nobody to write to.` : ""}${mail.aus || mail.emps ? ` Not in this list at all: ${[mail.aus ? `${mail.aus} administrative unit${mail.aus === 1 ? "" : "s"}` : null, mail.emps ? `${mail.emps} entitlement-management ${mail.emps === 1 ? "policy" : "policies"}` : null].filter(Boolean).join(" and ")} — an administrative unit has no owner in Entra, and a policy's nearest equivalent is a catalog owner this tool does not read. Those land on whoever runs the directory.` : ""}
+        Addresses are UPNs — usually the mailbox address, not always; your mail system is the judge.</p>
+      <p class="mini" style="margin:10px 0 4px"><b>Recipients</b> (BCC)</p>
+      <textarea id="moMailRec" readonly class="mini" style="width:100%;height:72px;resize:vertical">${esc(recStr)}</textarea>
+      <p class="mini" style="margin:6px 0 10px">
+        <button class="btn" data-mocopy="rec">Copy recipients</button>
+        <button class="btn" data-modl="rec">⭳ Download .txt</button>
+      </p>
+      <p class="mini" style="margin:10px 0 4px"><b>Subject</b></p>
+      <input id="moMailSub" readonly class="mini" style="width:100%" value="${esc(mail.subject)}">
+      <p class="mini" style="margin:10px 0 4px"><b>Email text</b> — edit before sending: the [BRACKETED] line needs your team's name, and the group list below belongs in it</p>
+      <textarea id="moMailBody" class="mini" style="width:100%;height:220px;resize:vertical">${esc(mail.body)}</textarea>
+      <p class="mini" style="margin:10px 0 4px"><b>The groups</b> — paste into the email, or send the CSV export instead</p>
+      <textarea id="moMailList" readonly class="mini" style="width:100%;height:80px;resize:vertical">${esc(mail.groupList)}</textarea>
+      <p class="mini" style="margin:6px 0 0">
+        <button class="btn" data-mocopy="body">Copy email text</button>
+        <button class="btn" data-modl="all">⭳ Download everything (.txt)</button>
+        ${mailto.length < 1800 ? `<a class="btn" href="${esc(mailto)}">Open in mail app</a>` : `<span class="muted">Too many recipients for a mailto link — copy the BCC list into your mail client instead.</span>`}
+      </p>
+      <p class="mini muted" style="margin:8px 0 0">One email to all owners at once names no group in particular, which is why the group list is separate — a per-owner mail is more work and lands better.</p>
+      <div class="modal-foot"><button class="btn" id="moMailClose">Close</button></div>
+    </div>`;
+    document.body.appendChild(bg);
+    bg.querySelector("#moMailClose").addEventListener("click", () => bg.remove());
+    bg.addEventListener("click", (e) => {
+      if (e.target === bg) { bg.remove(); return; }
+      const c = e.target.closest("[data-mocopy]");
+      if (c) {
+        c.dataset.mocopy === "rec" ? moCopy(bg.querySelector("#moMailRec").value, "Recipient list")
+          : moCopy(bg.querySelector("#moMailBody").value, "Email text");
+        return;
+      }
+      const dl = e.target.closest("[data-modl]");
+      if (dl) {
+        dl.dataset.modl === "rec"
+          ? downloadText("MemberOf-Owners", "txt", "text/plain", bg.querySelector("#moMailRec").value)
+          : downloadText("MemberOf-Notification", "txt", "text/plain",
+              `BCC:\n${bg.querySelector("#moMailRec").value}\n\nSubject:\n${bg.querySelector("#moMailSub").value}\n\n${bg.querySelector("#moMailBody").value}\n\nGroups:\n${bg.querySelector("#moMailList").value}`);
+      }
+    });
+  });
+  $("moMd").addEventListener("click", () => {
+    if (!moRes) { toast("Run the check first — the report is what it finds."); return; }
+    showReport("🧷 memberOf retirement check", "CA-MemberOfRetirement", MemberOf.toMd(moRes, { tenantName }));
+  });
+  $("moCsv").addEventListener("click", () => {
+    if (!moRes) { toast("Run the check first — the CSV is the affected objects."); return; }
+    if (!moRes.rows.length) { toast("Nothing uses memberOf in this tenant — there is nothing to export."); return; }
+    downloadText("CA-MemberOfRetirement", "csv", "text/csv", MemberOf.toCsv(moRes));
+  });
+
   // ---------- boot ----------
   // Keep the user informed during a throttle back-off instead of looking hung.
   buildToolNav();
@@ -15070,7 +15532,7 @@ max@contoso.com,"Global, DevOps"</pre>
     siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
     drHead: "toolDrift", dvHead: "toolDevCheck", lgHead: "toolLicGap",
-    uiHead: "toolUserImpact", svHead: "toolSmsVoice",
+    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
