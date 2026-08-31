@@ -24,6 +24,34 @@ Two ways to do it:
    The name is the handle the script looks the app up by, so **re-run it with exactly the same `-AppName` to update**; a different name creates a second registration with a new client ID and orphans the consent recorded against the first. To rename one that already exists, pass `-AppObjectId` alongside the new `-AppName`.
 2. **An existing registration.** Entra admin center → App registrations → your app → Authentication → *Single-page application* → add your URL exactly, including the port.
 
+## Prerequisite: Docker
+
+Everything below needs Docker running locally. Skip this section if `docker info` already answers without an error. Azure Container Apps needs none of it — nothing is built or run on your machine there.
+
+**macOS** — [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/), macOS 14 or newer:
+
+```bash
+brew install --cask docker-desktop
+```
+
+The cask was renamed: it used to be `docker`, so an older note telling you `brew install --cask docker` is out of date. Without Homebrew, download the installer directly — [Apple silicon](https://desktop.docker.com/mac/main/arm64/Docker.dmg) (M1 and later) or [Intel](https://desktop.docker.com/mac/main/amd64/Docker.dmg) — then open the `.dmg` and drag Docker to Applications.
+
+**Windows** — [Docker Desktop for Windows](https://docs.docker.com/desktop/setup/install/windows-install/), which uses WSL 2:
+
+```powershell
+winget install -e --id Docker.DockerDesktop
+```
+
+Or download the installer: [x86_64](https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe) · [Arm64](https://desktop.docker.com/win/main/arm64/Docker%20Desktop%20Installer.exe). WSL 2 is installed for you if it is missing, and **that needs a reboot** — worth knowing before you start rather than halfway through.
+
+**Linux** — Docker Engine is enough; you do not need Desktop. Follow [the install guide for your distribution](https://docs.docker.com/engine/install/), then add yourself to the `docker` group (`sudo usermod -aG docker $USER`, then log out and back in) so the commands below work without `sudo`.
+
+**On every platform, start Docker Desktop once after installing** and wait for the whale icon to settle. The install scripts check for this and stop with a clear message if the daemon is not up, because "Docker is installed but not running" is the single most common way the quick start below fails.
+
+```bash
+docker --version && docker info >/dev/null && echo "Docker is ready"
+```
+
 ## Quick start on your own machine
 
 **macOS / Linux:**
@@ -42,12 +70,23 @@ Either script checks Docker is running, pulls `ghcr.io/nurejev/enca:beta`, start
 
 ## Pointing it at your own app registration
 
-Two environment variables, and nothing to edit or rebuild:
+Two environment variables, and nothing to edit or rebuild.
+
+**macOS / Linux** (`\` continues a line in bash):
 
 ```bash
 docker run -d --name enca -p 8080:80 --restart unless-stopped \
   -e ENCA_CLIENT_ID=00000000-1111-2222-3333-444444444444 \
   -e ENCA_TENANT_ID=55555555-6666-7777-8888-999999999999 \
+  ghcr.io/nurejev/enca:beta
+```
+
+**Windows PowerShell** — the continuation character is a backtick, not a backslash. Pasting the bash form above into PowerShell runs the first line on its own and fails with `docker: invalid reference format`:
+
+```powershell
+docker run -d --name enca -p 8080:80 --restart unless-stopped `
+  -e ENCA_CLIENT_ID=00000000-1111-2222-3333-444444444444 `
+  -e ENCA_TENANT_ID=55555555-6666-7777-8888-999999999999 `
   ghcr.io/nurejev/enca:beta
 ```
 
@@ -114,12 +153,22 @@ docker rm -f enca
 # then the same docker run / compose up -d as before
 ```
 
-Azure Container Apps — restarting the active revision re-pulls the tag:
+Azure Container Apps — restarting the active revision re-pulls the tag.
+
+**bash:**
 
 ```bash
 APP=<app-name>; RG=<resource-group>
 az containerapp revision restart -n $APP -g $RG \
   --revision $(az containerapp show -n $APP -g $RG --query properties.latestRevisionName -o tsv)
+```
+
+**PowerShell** — different continuation character *and* different substitution syntax, so the bash form does not survive a paste:
+
+```powershell
+$APP = "<app-name>"; $RG = "<resource-group>"
+$rev = az containerapp show -n $APP -g $RG --query properties.latestRevisionName -o tsv
+az containerapp revision restart -n $APP -g $RG --revision $rev
 ```
 
 Or in the portal: **Revisions and replicas → the active revision → Restart**. `az containerapp revision copy -n $APP -g $RG` does it too, and leaves a revision to roll back to. Do **not** reach for `az containerapp update --image <the same tag>`: an unchanged image reference is not a revision-scope change, so it can create no revision and do nothing — a command that looks like it worked and did not.

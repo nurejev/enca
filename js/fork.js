@@ -58,6 +58,14 @@
   // discover their instance moved.
   const IS_ACA = /\.azurecontainerapps\.io$/i.test(here);
   const IMAGE = "ghcr.io/nurejev/enca:latest";
+
+  // A command block is only useful if it survives being pasted into the shell
+  // the reader actually has. Bash line continuations (\) and $(...) both fail
+  // in PowerShell - the first line runs alone and docker answers "invalid
+  // reference format", which names nothing a person can act on. So the blocks
+  // are written for the platform the browser is running on.
+  const IS_WINDOWS = /Windows/i.test((navigator.userAgentData && navigator.userAgentData.platform)
+    || navigator.platform || navigator.userAgent || "");
   const UPDATE_STEPS = (() => {
     const docker = {
       title: "Docker or compose",
@@ -82,19 +90,29 @@
     // An unchanged image reference is not a revision-scope change, so it can
     // create no revision and do nothing at all - a command that looks like it
     // worked and did not is worse than no command.
-    return [{
-      title: "Azure Container Apps — this deployment",
-      note: "restart the active revision; it pulls the tag again on start",
-      cmd: "APP=<app-name>; RG=<resource-group>\n"
-         + "az containerapp revision restart -n $APP -g $RG \\\n"
-         + "  --revision $(az containerapp show -n $APP -g $RG \\\n"
-         + "      --query properties.latestRevisionName -o tsv)\n\n"
-         + "# Portal: Revisions and replicas -> the active revision -> Restart.\n"
-         + "# Heavier alternative, if you want a new revision to roll back to:\n"
-         + "#   az containerapp revision copy -n $APP -g $RG\n"
-         + "# Already scaled to zero? The next request cold-starts and pulls the\n"
-         + "# new image by itself - this is how you make that happen NOW.",
-    }, docker, fork];
+    const aca = IS_WINDOWS
+      ? { title: "Azure Container Apps — this deployment (PowerShell)",
+          note: "restart the active revision; it pulls the tag again on start",
+          cmd: "$APP = \"<app-name>\"; $RG = \"<resource-group>\"\n"
+             + "$rev = az containerapp show -n $APP -g $RG --query properties.latestRevisionName -o tsv\n"
+             + "az containerapp revision restart -n $APP -g $RG --revision $rev\n\n"
+             + "# Portal: Revisions and replicas -> the active revision -> Restart.\n"
+             + "# Heavier alternative, if you want a new revision to roll back to:\n"
+             + "#   az containerapp revision copy -n $APP -g $RG\n"
+             + "# Already scaled to zero? The next request cold-starts and pulls the\n"
+             + "# new image by itself - this is how you make that happen NOW." }
+      : { title: "Azure Container Apps — this deployment",
+          note: "restart the active revision; it pulls the tag again on start",
+          cmd: "APP=<app-name>; RG=<resource-group>\n"
+             + "az containerapp revision restart -n $APP -g $RG \\\n"
+             + "  --revision $(az containerapp show -n $APP -g $RG \\\n"
+             + "      --query properties.latestRevisionName -o tsv)\n\n"
+             + "# Portal: Revisions and replicas -> the active revision -> Restart.\n"
+             + "# Heavier alternative, if you want a new revision to roll back to:\n"
+             + "#   az containerapp revision copy -n $APP -g $RG\n"
+             + "# Already scaled to zero? The next request cold-starts and pulls the\n"
+             + "# new image by itself - this is how you make that happen NOW." };
+    return [aca, docker, fork];
   })();
 
   // The titles of every release between here and upstream, newest first —

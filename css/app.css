@@ -1,7 +1,7 @@
 :root{
   --ink:#12331f; --green:#1e4729; --green-deep:#12331f; --accent2:#3f7a24;
   --lemon:#f7d65a; --lemon-deep:#dfb32b; --muted:#5f7a67; --border:#dbe7de;
-  --surface:#ffffff; --bg:#f2f7f3; --soft:#eaf3ec; --radius:16px;
+  --surface:#ffffff; --bg:#dbeade; --soft:#eaf3ec; --radius:16px;
   --shadow:0 10px 30px rgba(18,51,31,.10);
   --on:#3f7a24; --off:#b04a3a; --report:#b8860b;
   --hover:#fafdf9; --line:#f0f5f1; --soft2:#f6faf7; --glow:#cdeed4;

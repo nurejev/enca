@@ -27,8 +27,30 @@ say()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
 # 1 — Docker present and running
-command -v docker >/dev/null 2>&1 || fail "Docker is not installed. Get Docker Desktop from https://www.docker.com/products/docker-desktop/ and run this script again."
-docker info >/dev/null 2>&1 || fail "Docker is installed but not running. Start Docker Desktop and run this script again."
+# The message names the command for THIS platform rather than a download page
+# to go and read. "Docker is not installed" is the most common way this script
+# ends, and the least useful thing to say at that moment is a URL.
+if ! command -v docker >/dev/null 2>&1; then
+  case "$(uname -s)" in
+    Darwin) fail "Docker is not installed.
+
+  brew install --cask docker-desktop      (the cask was renamed from 'docker')
+
+  or download it: https://desktop.docker.com/mac/main/arm64/Docker.dmg   (Apple silicon)
+                  https://desktop.docker.com/mac/main/amd64/Docker.dmg   (Intel)
+
+  Then open Docker Desktop once and run this script again." ;;
+    *)      fail "Docker is not installed.
+
+  Install Docker Engine for your distribution: https://docs.docker.com/engine/install/
+  Then add yourself to the docker group so this works without sudo:
+
+    sudo usermod -aG docker \$USER      (log out and back in afterwards)
+
+  Then run this script again." ;;
+  esac
+fi
+docker info >/dev/null 2>&1 || fail "Docker is installed but not running. Start Docker Desktop (or 'sudo systemctl start docker' on Linux), wait for it to settle, and run this script again."
 
 # 2 — the image
 say "Pulling ${IMAGE} ..."

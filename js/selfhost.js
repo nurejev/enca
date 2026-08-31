@@ -477,7 +477,11 @@
       const how =
         `ENCA_BRANDING — ${kb} KB${copied ? ", copied to your clipboard" : ""}.\n\n` +
         `Azure Container Apps:\n` +
-        `  az containerapp update -n <app> -g <rg> \\\n    --set-env-vars ENCA_BRANDING='<paste>'\n\n` +
+        // One line, no continuation character. A backslash is a bash
+        // continuation and a backtick is PowerShell's, so ANY wrapped form is
+        // wrong for half the readers - and pasting the wrong one runs the
+        // first line alone, which fails with an error naming neither problem.
+        `  az containerapp update -n <app> -g <rg> --set-env-vars ENCA_BRANDING='<paste>'\n\n` +
         `Docker:\n  docker run -e ENCA_BRANDING='<paste>' ...\n\n` +
         (big
           ? `⚠ ${kb} KB is on the large side for a variable — an embedded logo is why. The hard\n` +

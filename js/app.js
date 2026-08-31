@@ -3489,6 +3489,317 @@ max@contoso.com,"Global, DevOps"</pre>
   const RMAU_WRITE = ["AdministrativeUnit.ReadWrite.All"];
   const RMAU_DEFAULT_NAME = "CAB-SEC-RMAU-CA-Exclusions";
   const GROUPS_ADMIN_TEMPLATE = "fdd7a751-b60b-444a-984c-02652fe8fa1c"; // Groups Administrator
+
+  // ---- ⑥ Protect and ⑦ Migrate: groups added by hand ----------------------
+  // Both tabs list what the SCAN found, and nothing else: the groups the
+  // policies point at, and the role-assignable groups the baseline knows about.
+  // A tenant's own groups fall outside both — a break-glass group no policy
+  // references yet, an exclusion group named nothing like the baseline, a
+  // role-assignable group that predates all of this — and there was no route in
+  // for them at all. The search below is that route: it reads the directory, so
+  // it can reach any group, and the row it adds is checked exactly like a
+  // scanned one rather than trusted because somebody typed it.
+  //
+  // Held OUTSIDE cgRmau / cgMig deliberately. A rescan rebuilds both of those
+  // objects, and a rescan quietly discarding a group you added by hand is the
+  // one failure this has to avoid. Session-scoped: a reload starts clean.
+  const cgManual = { protect: new Map(), migrate: new Map() };
+
+  // One directory search for both tabs. $search rather than $filter: Graph has
+  // no contains() for displayName, and startswith alone cannot find a group by
+  // the end of its name — "CA001 - Exclude" is what somebody types "exclude"
+  // looking for. Some tenants refuse $search outright, so startswith stays as
+  // the narrower fallback: a smaller answer is still an answer.
+  async function cgFindGroups(term) {
+    const t = String(term || "").trim();
+    const sel = "$select=id,displayName,description,isAssignableToRole,groupTypes,membershipRule,mailEnabled,securityEnabled,onPremisesSyncEnabled";
+    if (isDemo) {
+      const lo = t.toLowerCase();
+      return (cgRes && cgRes.rows || []).filter((r) => r.id && String(r.name).toLowerCase().includes(lo)).slice(0, 25)
+        .map((r) => ({ id: r.id, displayName: r.name, isAssignableToRole: !!r.roleAssignable, securityEnabled: true,
+          groupTypes: r.dynamic ? ["DynamicMembership"] : [], membershipRule: r.membershipRule || "" }));
+    }
+    try {
+      const r = await Graph.gget(`/groups?$search=${encodeURIComponent(`"displayName:${t}"`)}&${sel}&$top=25`);
+      return (r && r.value) || [];
+    } catch (e) {
+      console.warn("CA groups: $search refused, falling back to startswith —", e.message);
+      const f = t.replace(/'/g, "''");
+      const r = await Graph.gget(`/groups?$filter=${encodeURIComponent(`startswith(displayName,'${f}')`)}&${sel}&$top=25`);
+      return (r && r.value) || [];
+    }
+  }
+
+  // A directory hit in the shape the candidate tables already render, so a
+  // hand-added group takes the same code path as a scanned one — same routing,
+  // same refusals, same write. `manual` is carried only so the row can say
+  // where it came from.
+  function cgManualRow(g) {
+    const refs = CaGroups.policyRefs(policies.map((p) => p.raw)).get(g.id) || { include: [], exclude: [] };
+    const types = (g.groupTypes || []).slice();
+    return {
+      id: g.id, name: g.displayName || g.id, status: "extra", sources: ["added by hand"],
+      description: g.description || "",
+      roleAssignable: !!g.isAssignableToRole,
+      groupTypes: types,
+      dynamic: types.includes("DynamicMembership") || !!g.membershipRule,
+      membershipRule: g.membershipRule || "",
+      mailEnabled: !!g.mailEnabled,
+      securityEnabled: g.securityEnabled !== false,
+      onPrem: !!g.onPremisesSyncEnabled,
+      refs, refCount: refs.include.length + refs.exclude.length,
+      members: null, memberTotal: null, memberError: null,
+      unused: !refs.exclude.length,
+      manual: true,
+    };
+  }
+
+  // What the directory refuses as a member of an administrative unit. Only
+  // cloud security groups may go in, so a Microsoft 365 group, a mail-enabled
+  // security group, a distribution list or an on-premises-synced group is
+  // rejected — better said on the row than discovered at apply time. Scanned
+  // rows do not carry these fields, so they are unaffected.
+  function cgAuIneligible(g) {
+    if (!g) return null;
+    if (g.mailEnabled) return "mail-enabled — only cloud security groups can be placed in an administrative unit";
+    if (g.securityEnabled === false) return "not a security group — only cloud security groups can be placed in an administrative unit";
+    if ((g.groupTypes || []).includes("Unified")) return "a Microsoft 365 group — only security groups can be placed in an administrative unit";
+    if (g.onPrem || g.onPremisesSyncEnabled) return "synchronised from on-premises — Entra refuses an on-premises group as an administrative unit member";
+    return null;
+  }
+
+  // The ⑥ Protect candidate list: what the scan found, plus what was added by
+  // hand. Every caller goes through this — the render, select-all, the rescan,
+  // the re-check and the write itself — so none of them can hold a different
+  // idea of which groups are on the table.
+  function rmauCands() {
+    const found = CaGroups.rmauCandidates(cgRes);
+    const seen = new Set(found.map((g) => g.id));
+    return [...found, ...[...cgManual.protect.values()].filter((g) => !seen.has(g.id))];
+  }
+
+  // What each tab can accept. Stated once, so the ＋ Add button and the row it
+  // produces cannot disagree — and a refusal always carries the way out rather
+  // than just the word "no".
+  function cgFindVerdict(kind, g, listed) {
+    if (listed) return { can: false, why: "already on the list below." };
+    if (kind === "migrate") {
+      if (!g.isAssignableToRole) return { can: false, why: "not role-assignable — there is nothing here to convert. To place it in a restricted unit as it stands, use <b>⑥ Protect</b>." };
+      return { can: true, why: "" };
+    }
+    const bad = cgAuIneligible(g);
+    if (bad) return { can: false, why: `cannot go into an administrative unit — ${esc(bad)}.` };
+    if (g.isAssignableToRole) return { can: true, why: "role-assignable — it can be listed here, but a restricted unit would leave <b>nobody</b> able to change its members. Convert it in <b>⑦ Migrate</b> first." };
+    return { can: true, why: "" };
+  }
+
+  // The search box and its results — one implementation, both tabs. Nothing is
+  // searched until asked: a directory read on every keystroke is a cost the
+  // tenant pays for a box most runs never touch.
+  function cgFindPanel(kind, find, title, blurb) {
+    const f = find || {};
+    const hits = f.hits;
+    const refs = CaGroups.policyRefs(policies.map((p) => p.raw));
+    const listed = kind === "migrate"
+      ? new Set(((cgMig && cgMig.plan && cgMig.plan.items) || []).map((x) => x.id))
+      : new Set(rmauCands().map((g) => g.id));
+    const tags = (g) => {
+      const r = refs.get(g.id) || { include: [], exclude: [] };
+      const n = r.include.length + r.exclude.length;
+      return [
+        g.isAssignableToRole ? '<span class="tag block">role-assignable</span>' : "",
+        ((g.groupTypes || []).includes("DynamicMembership") || g.membershipRule) ? '<span class="tag">dynamic</span>' : "",
+        (g.groupTypes || []).includes("Unified") ? '<span class="tag">Microsoft 365</span>' : "",
+        g.mailEnabled ? '<span class="tag">mail-enabled</span>' : "",
+        g.onPremisesSyncEnabled ? '<span class="tag">on-premises</span>' : "",
+        n ? `<span class="tag">${n} policy reference${n === 1 ? "" : "s"}</span>` : '<span class="tag">no policy references it</span>',
+      ].filter(Boolean).join(" ");
+    };
+    return `<div style="margin:0 0 10px;padding:10px;border:1px dashed var(--border);border-radius:8px">
+      <h5 class="mini" style="margin:0 0 4px">${esc(title)}</h5>
+      <p class="mini muted" style="margin:0 0 8px">${blurb}</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input data-cgfindbox="${kind}" class="txt" value="${esc(f.term || "")}" placeholder="Part of the group's name…" autocomplete="off" spellcheck="false" style="max-width:340px;letter-spacing:normal;font-weight:400">
+        <button class="btn sm" data-cgfind="${kind}"${f.busy ? " disabled" : ""}>${f.busy ? "Searching…" : "🔎 Search the directory"}</button>
+        ${hits ? `<button class="btn sm" data-cgfindclear="${kind}">✕ Clear results</button>` : ""}
+      </div>
+      ${f.error ? `<p class="mini" style="color:var(--off);margin:8px 0 0">Search failed: ${esc(f.error)}</p>` : ""}
+      ${hits && !hits.length ? `<p class="mini muted" style="margin:8px 0 0">Nothing in the directory matches “${esc(f.searched || f.term || "")}”. The search reads <b>display names</b> only.</p>` : ""}
+      ${hits && hits.length ? `<div class="cg-pick" style="margin:8px 0 0">${hits.map((g) => {
+        const v = cgFindVerdict(kind, g, listed.has(g.id));
+        return `<div class="dr-row"><div class="dr-head">
+            <button class="btn sm" data-cgfindadd="${kind}|${esc(g.id)}"${v.can ? "" : " disabled"}>＋ Add</button>
+            <b>${esc(g.displayName || g.id)}</b> ${tags(g)}
+          </div>${v.why ? `<div class="mini" style="margin:4px 0 0;color:${v.can ? "var(--report)" : "var(--off)"}">${v.why}</div>` : ""}</div>`;
+      }).join("")}</div>` : ""}
+    </div>`;
+  }
+
+  const cgFindState = (kind) => (kind === "migrate" ? cgMig : cgRmau);
+  function cgFindRender(kind) {
+    if (kind === "migrate") renderCgMigrate(); else renderCgRmau();
+    // The panel is rebuilt, so the box being typed into is a different element
+    // by now — put the caret back rather than making somebody click it again.
+    const host = kind === "migrate" ? migBody() : rmauBody();
+    const box = host.querySelector(`[data-cgfindbox="${kind}"]`);
+    if (box) { box.focus(); try { box.setSelectionRange(box.value.length, box.value.length); } catch {} }
+  }
+
+  async function cgFindRun(kind) {
+    const st = cgFindState(kind); if (!st) return;
+    const f = st.find = st.find || {};
+    if (f.busy) return;
+    const host = kind === "migrate" ? migBody() : rmauBody();
+    const box = host.querySelector(`[data-cgfindbox="${kind}"]`);
+    if (box) f.term = box.value;
+    if (String(f.term || "").trim().length < 2) { toast("Type at least <span>two characters</span> to search"); return; }
+    f.busy = true; f.error = null; f.hits = null;
+    cgFindRender(kind);
+    try {
+      f.hits = await cgFindGroups(f.term);
+      f.searched = String(f.term).trim();
+    } catch (e) {
+      console.error("group search failed:", e);
+      f.error = e.message || String(e);
+      f.hits = [];
+    }
+    f.busy = false;
+    cgFindRender(kind);
+  }
+
+  async function cgFindAdd(kind, id) {
+    const st = cgFindState(kind); if (!st) return;
+    const g = ((st.find || {}).hits || []).find((h) => h.id === id);
+    if (!g) return;
+    const row = cgManualRow(g);
+
+    if (kind !== "migrate") {
+      // One read for one group: readProtectionMap() expands every unit in the
+      // tenant, which is right for a whole scan and wasteful for one addition.
+      if (isDemo) st.status.set(row.id, null);
+      else {
+        try {
+          const r = await Graph.gget(`/groups/${row.id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
+          const hit = ((r && r.value) || []).find((a) => a.isMemberManagementRestricted === true);
+          st.status.set(row.id, hit ? { auId: hit.id, auName: hit.displayName } : null);
+        } catch (err) {
+          // Unknown, not unprotected — the reassuring answer is the one that
+          // must never be a guess here.
+          console.warn("protect: AU membership read failed for the added group —", err.message);
+          row.statusUnknown = true;
+        }
+      }
+      cgManual.protect.set(row.id, row);
+      if (!st.status.get(row.id) && !row.statusUnknown && !row.roleAssignable && !cgAuIneligible(row)) st.sel.add(row.id);
+      st.q = "";                                  // the filter above would hide what was just added
+      toast(`<span>${esc(row.name)}</span> added to the list`);
+      cgFindRender(kind);
+      return;
+    }
+
+    // ⑦ Migrate plans on evidence, so a hand-added group gets the same three
+    // reads a scanned candidate gets — held directory roles, member count and
+    // restricted-unit membership — before it appears in the plan.
+    const roles = new Map(), protectedIn = new Map();
+    try {
+      if (isDemo) { roles.set(row.id, { ok: true, active: [], eligible: [] }); row.memberTotal = 2; }
+      else {
+        roles.set(row.id, await CaGroups.heldRoles(row.id));
+        try {
+          const ms = await Graph.ggetAll(`/groups/${row.id}/members?$select=id&$top=999`);
+          row.memberTotal = ms.length;
+        } catch (err) { console.warn("migrate: member count failed for", row.name, err.message); }
+        try {
+          const r = await Graph.gget(`/groups/${row.id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
+          const hit = ((r && r.value) || []).find((a) => a.isMemberManagementRestricted === true);
+          if (hit) protectedIn.set(row.id, { auId: hit.id, auName: hit.displayName });
+        } catch { /* not fatal: the plan just will not know */ }
+      }
+    } catch (err) {
+      toast(`Could not check <span>${esc(row.name)}</span>: ${esc(err.message || err)}`);
+      return;
+    }
+    cgManual.migrate.set(row.id, row);
+    const one = CaGroups.migratePlan([row], { roles, protectedIn, rmauName: st.auName,
+      disableNesting: st.nesting, toAu: st.toAu !== false });
+    const mark = (x) => ({ ...x, manual: true });
+    st.plan = { ...st.plan,
+      items: [...st.plan.items, ...one.items.map(mark)],
+      eligible: [...st.plan.eligible, ...one.eligible.map(mark)],
+      skipped: [...st.plan.skipped, ...one.skipped.map(mark)] };
+    if (st.sel) one.eligible.forEach((x) => st.sel.add(x.id));
+    toast(one.eligible.length
+      ? `<span>${esc(row.name)}</span> added to the migration`
+      : `<span>${esc(row.name)}</span> listed — it cannot be migrated; the reason is on the row`);
+    cgFindRender(kind);
+  }
+
+  // Shared by both tabs and both hosts. Returns true when it handled the click,
+  // so the caller's chain stops.
+  async function cgFindClick(e) {
+    const go = e.target.closest("[data-cgfind]");
+    if (go) { await cgFindRun(go.dataset.cgfind); return true; }
+    const cl = e.target.closest("[data-cgfindclear]");
+    if (cl) {
+      const st = cgFindState(cl.dataset.cgfindclear);
+      if (st && st.find) { st.find.hits = null; st.find.error = null; }
+      cgFindRender(cl.dataset.cgfindclear);
+      return true;
+    }
+    const add = e.target.closest("[data-cgfindadd]");
+    if (add) {
+      const raw = String(add.dataset.cgfindadd || ""), i = raw.indexOf("|");
+      add.disabled = true;
+      await cgFindAdd(raw.slice(0, i), raw.slice(i + 1));
+      return true;
+    }
+    // Taking one back off the list. Nothing in the tenant is touched — this
+    // removes a row somebody added, not a group.
+    const drop = e.target.closest("[data-cgfinddrop]");
+    if (drop) {
+      const raw = String(drop.dataset.cgfinddrop || ""), i = raw.indexOf("|");
+      const kind = raw.slice(0, i), id = raw.slice(i + 1);
+      if (kind === "migrate") {
+        cgManual.migrate.delete(id);
+        if (cgMig && cgMig.plan) {
+          // A live add marks the plan item; a rescan rebuilds the item from the
+          // row, which carries the mark instead. Both count, or the ✕ works
+          // before a rescan and quietly stops working after one.
+          const keep = (xs) => xs.filter((x) => !((x.manual || (x.row && x.row.manual)) && x.id === id));
+          cgMig.plan = { ...cgMig.plan, items: keep(cgMig.plan.items),
+            eligible: keep(cgMig.plan.eligible), skipped: keep(cgMig.plan.skipped) };
+          if (cgMig.sel) cgMig.sel.delete(id);
+        }
+      } else {
+        cgManual.protect.delete(id);
+        if (cgRmau) { cgRmau.sel.delete(id); cgRmau.status.delete(id); }
+      }
+      cgFindRender(kind);
+      return true;
+    }
+    return false;
+  }
+
+  // Enter searches, so the box behaves like every other search field.
+  const cgFindKey = (e) => {
+    if (e.key !== "Enter") return;
+    const box = e.target.closest("[data-cgfindbox]"); if (!box) return;
+    e.preventDefault();
+    cgFindRun(box.dataset.cgfindbox);
+  };
+  // Typing is remembered but nothing is repainted: this panel sits inside a
+  // table that is rebuilt wholesale, and re-rendering per keystroke is what
+  // takes the caret away from you.
+  const cgFindInput = (e) => {
+    const box = e.target.closest("[data-cgfindbox]"); if (!box) return;
+    const st = cgFindState(box.dataset.cgfindbox); if (!st) return;
+    st.find = st.find || {};
+    st.find.term = box.value;
+  };
+  $("cgBody").addEventListener("keydown", cgFindKey);
+  $("prBody").addEventListener("keydown", cgFindKey);
+  $("cgBody").addEventListener("input", cgFindInput);
+  $("prBody").addEventListener("input", cgFindInput);
   let cgRmau = null;  // { status: Map(groupId → {auName, restricted}), rmaus: [], sel: Set, auChoice, auName, admin, busy, results, au }
   // The same workflow is reachable two ways: as ⑥ Protect inside CA groups,
   // and as its own tool tile. One state, one renderer — only the host differs.
@@ -3497,6 +3808,9 @@ max@contoso.com,"Global, DevOps"</pre>
 
   // Shared by both hosts (CA groups ⑥ tab and the standalone tool tile).
   async function rmauClick(e) {
+    // The directory-search panel — shared with ⑦ Migrate, and reached from both
+    // hosts, so it is handled before anything host-specific.
+    if (await cgFindClick(e)) return true;
     // Select / deselect every SELECTABLE candidate. Role-assignable groups and
     // already-protected ones have disabled checkboxes, so they are not counted
     // and not toggled — an "all" that includes rows you cannot tick is a lie.
@@ -3513,7 +3827,7 @@ max@contoso.com,"Global, DevOps"</pre>
           const aus = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
           t.rmaus = aus.filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
         }
-        const cands = CaGroups.rmauCandidates(cgRes);
+        const cands = rmauCands();
         if (!isDemo) {
           say("Re-reading administrative unit membership…", 1, 2);
           try {
@@ -3539,9 +3853,9 @@ max@contoso.com,"Global, DevOps"</pre>
       const t = cgRmau;
       if (t) {
         const q = (t.q || "").trim().toLowerCase();
-        const pick = CaGroups.rmauCandidates(cgRes)
+        const pick = rmauCands()
           .filter((g) => !q || String(g.name || "").toLowerCase().includes(q))
-          .filter((g) => !t.status.get(g.id) && !g.roleAssignable && !g.unused);
+          .filter((g) => !t.status.get(g.id) && !g.roleAssignable && !cgAuIneligible(g) && !g.unused);
         const on = pick.filter((g) => t.sel.has(g.id)).length;
         if (on === pick.length) pick.forEach((g) => t.sel.delete(g.id));
         else pick.forEach((g) => t.sel.add(g.id));
@@ -3700,6 +4014,11 @@ max@contoso.com,"Global, DevOps"</pre>
       // Only role-assignable baseline groups are candidates; the rest are listed
       // as skipped so the wizard is honest about what it is not doing.
       const rows = (cgRes.rows || []).filter((r) => r.id || r.roleAssignable);
+      // Groups added by hand ride along and are re-checked from scratch, like
+      // any other candidate — a rescan is a fresh reading of the tenant, not a
+      // reason to forget what somebody put on the list.
+      const seenIds = new Set(rows.map((r) => r.id));
+      for (const m of cgManual.migrate.values()) if (!seenIds.has(m.id)) rows.push(m);
       const roles = new Map(), protectedIn = new Map();
       const cands = rows.filter((r) => r.id && r.roleAssignable);
       for (let i = 0; i < cands.length; i++) {
@@ -3772,12 +4091,22 @@ max@contoso.com,"Global, DevOps"</pre>
     const auOptions = [...t.aus.map((a) => `<option value="${esc(a.id)}"${t.auChoice === a.id ? " selected" : ""}>${esc(a.name)}</option>`),
       `<option value="new"${t.auChoice === "new" ? " selected" : ""}>➕ Create “${esc(RMAU_DEFAULT_NAME)}”</option>`].join("");
 
+    // A group somebody searched for says so, and carries its way back off the
+    // list — the scan did not put it there, so the scan cannot take it away.
+    const isManual = (x) => !!(x.manual || (x.row && x.row.manual));
+    const byHand = (x) => isManual(x)
+      ? ` <span class="tag" title="Not found by the scan — you searched the directory for it.">added by hand</span> <button class="btn sm" data-cgfinddrop="migrate|${esc(x.id)}" title="Take it off this list. Nothing in the tenant changes.">✕</button>`
+      : "";
+
     const rows = p.eligible.map((x) => `<div style="padding:8px 0;border-top:1px solid var(--border)">
         <label class="chk" style="margin:0"><input type="checkbox" data-cgmig="${esc(x.id)}"${sel.has(x.id) ? " checked" : ""}>
           <b>${esc(x.name)}</b></label>
-        <span class="tag">${x.nRef} polic${x.nRef === 1 ? "y" : "ies"}</span>${x.memberTotal != null ? ` <span class="tag">${x.memberTotal} member${x.memberTotal === 1 ? "" : "s"}</span>` : ""}
+        <span class="tag">${x.nRef} polic${x.nRef === 1 ? "y" : "ies"}</span>${x.memberTotal != null ? ` <span class="tag">${x.memberTotal} member${x.memberTotal === 1 ? "" : "s"}</span>` : ""}${byHand(x)}
         <ol class="mini muted" style="margin:6px 0 0 20px;padding:0">${x.steps.map((q) => `<li>${esc(q.text)}</li>`).join("")}</ol>
       </div>`).join("");
+
+    const findPanel = cgFindPanel("migrate", t.find, "Not on the list? Search the whole directory",
+      "The scan reads the groups the baseline and your policies know about. A role-assignable group of your own — one that predates all of this, or that no policy references — is reached by searching for it here. It is then checked exactly like a scanned one: directory roles it holds, members it would move, and whether it already sits in a restricted unit.");
 
     migBody().innerHTML = `
       <div class="cg-panel">
@@ -3794,6 +4123,7 @@ max@contoso.com,"Global, DevOps"</pre>
           <span class="mini muted">${nSel} of ${p.eligible.length} selected</span>
         </div>
         <div class="cg-pick">${rows}</div>
+        ${findPanel}
         <div class="cg-actionbar">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
           <label class="chk" style="margin:0"><input type="checkbox" id="cgMigToAu"${t.toAu !== false ? " checked" : ""}> Place the new groups in a restricted AU now</label>
@@ -3814,13 +4144,14 @@ max@contoso.com,"Global, DevOps"</pre>
         </div>
       </div>` : `<div class="cg-panel">
         <h4>NOTHING TO MIGRATE</h4>
-        <p class="mini" style="margin:0">No role-assignable baseline group is eligible.${p.skipped.length ? " See below for why." : ""}</p>
+        <p class="mini" style="margin:0 0 10px">No role-assignable baseline group is eligible.${p.skipped.length ? " See below for why." : ""} That is the answer for the groups the <b>scan</b> knows about — a role-assignable group of your own is still reachable by name.</p>
+        ${findPanel}
         <div class="row" style="justify-content:flex-start;margin-top:12px"><button class="btn" id="cgMigRescan">⟳ Rescan</button></div>
       </div>`}
 
       ${p.skipped.length ? `<div class="cg-panel">
         <h4>NOT MIGRATED (${p.skipped.length})</h4>
-        ${p.skipped.map((x) => `<div style="padding:6px 0;border-top:1px solid var(--border)"><span class="mini"><b>${esc(x.name)}</b> — ${esc(x.reason)}</span></div>`).join("")}
+        ${p.skipped.map((x) => `<div style="padding:6px 0;border-top:1px solid var(--border)"><span class="mini"><b>${esc(x.name)}</b> — ${esc(x.reason)}${byHand(x)}</span></div>`).join("")}
       </div>` : ""}`;
   }
 
@@ -4107,7 +4438,7 @@ max@contoso.com,"Global, DevOps"</pre>
         <div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-rmaurun>Try again</button></div>`;
       return;
     }
-    const cands = CaGroups.rmauCandidates(cgRes);
+    const cands = rmauCands();
     const st = { status: new Map(), rmaus: [], sel: new Set(), auChoice: "new", auName: RMAU_DEFAULT_NAME, admin: "", busy: false, results: null, au: null };
     try {
       if (isDemo) {
@@ -4137,7 +4468,13 @@ max@contoso.com,"Global, DevOps"</pre>
       // the membership (see the note rendered on the row).
       // `unused` groups are listed so their protection can be SEEN; nothing
       // references them, so protecting them is a decision, not a default.
-      cands.forEach((g) => { if (!st.status.get(g.id) && !g.roleAssignable && !g.dynamic && !g.unused) st.sel.add(g.id); });
+      // A group added by hand is pre-selected too, whatever references it: it is
+      // on this list because somebody put it there, and a rescan that silently
+      // unticks everything they added is the same loss as dropping the rows.
+      cands.forEach((g) => {
+        if (st.status.get(g.id) || g.roleAssignable || cgAuIneligible(g)) return;
+        if (g.manual || (!g.dynamic && !g.unused)) st.sel.add(g.id);
+      });
       // Deliberately NOT defaulted to st.rmaus[0]: that is Global on most
       // tenants, so an unrecognised group would be filed into the Global vault
       // by nothing more than list order. Unset means "skip these" until someone
@@ -4221,7 +4558,7 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
     const t = cgRmau;
-    const cands = CaGroups.rmauCandidates(cgRes);
+    const cands = rmauCands();
 
     if (t.results) {
       const ok = t.results.filter((x) => x.state === "added").length;
@@ -4270,9 +4607,18 @@ max@contoso.com,"Global, DevOps"</pre>
       // assigned at AU scope. The result is a group nobody can edit, which for a
       // break-glass exclusion group is the worst possible day to discover it.
       // So the checkbox is disabled rather than merely unticked.
-      const disabled = !!prot || !!g.roleAssignable || !!g.unused;
+      //
+      // `unused` used to disable it too, which contradicted the very sentence
+      // printed underneath the row — "tick it deliberately if you want it
+      // protected" — and made every hand-added group untickable, since a group
+      // no policy excludes is exactly what somebody searches for. It is kept
+      // out of the pre-selection and out of ☑ Select all, which is what that
+      // rule was for; ticking one by hand is now possible, as promised.
+      const ineligible = cgAuIneligible(g);
+      const disabled = !!prot || !!g.roleAssignable || !!ineligible;
       return `<tr>
-        <td><label class="chk" style="margin:0"><input type="checkbox" data-cgrmau="${esc(g.id)}"${t.sel.has(g.id) ? " checked" : ""}${disabled ? " disabled" : ""}> <b>${esc(g.name)}</b></label>
+        <td><label class="chk" style="margin:0"><input type="checkbox" data-cgrmau="${esc(g.id)}"${t.sel.has(g.id) ? " checked" : ""}${disabled ? " disabled" : ""}> <b>${esc(g.name)}</b></label>${g.manual ? ` <span class="tag" title="Not found by the scan — you searched the directory for it.">added by hand</span> <button class="btn sm" data-cgfinddrop="protect|${esc(g.id)}" title="Take it off this list. Nothing in the tenant changes.">✕</button>` : ""}
+          ${ineligible ? `<div class="mini" style="color:var(--off)"><b>cannot be protected this way</b> — ${esc(ineligible)}.</div>` : ""}
           ${/* The refusal used to end at the diagnosis, with ⑦ Migrate named
                only in the header prose above the table — the one place nobody
                reads while looking at a red row. The way out belongs ON the row
@@ -4286,7 +4632,7 @@ max@contoso.com,"Global, DevOps"</pre>
           ? (g.roleAssignable
             ? `<span style="color:var(--off)">🧊 <b>frozen</b> in ${esc(prot.auName)} — role-assignable AND restricted, so <b>nobody</b> can change its members. Remove it from the unit to restore Global / Privileged Role Administrator, then convert it with ⑦ Migrate.</span>`
             : `🔒 in <b>${esc(prot.auName)}</b>`)
-          : t.statusError ? '<span class="muted">unknown</span>'
+          : (t.statusError || g.statusUnknown) ? '<span class="muted">unknown</span>'
           : '<span style="color:var(--report)">unprotected</span>'}</td>
         <td class="mini">${prot || g.roleAssignable ? '<span class="muted">—</span>'
           : dest.source === "persona" ? `→ <b>${esc(dest.auName)}</b>${dest.by === "tenant" ? ' <span class="tag" title="This tenant states where this group belongs — its name carries no CA number. Change it in 🛡 Restricted AUs → 🏷 Group personas.">mapped here</span>' : ""}`
@@ -4333,21 +4679,29 @@ max@contoso.com,"Global, DevOps"</pre>
         <datalist id="cgRmauQList">${cands.map((g) => `<option value="${esc(g.name)}"></option>`).join("")}</datalist>
         ${q ? `<button class="btn sm" id="cgRmauQClear">✕ Clear</button><span class="mini muted">${shown.length} of ${cands.length}</span>` : ""}
       </div>
+      ${cgFindPanel("protect", t.find, "Not on the list? Search the whole directory", "The table holds what the policies point at. A group of your own — a break-glass group no policy references yet, an exclusion group named nothing like the baseline — is reached by searching for it here.")}
       <p class="mini muted" style="margin:0 0 8px">Pre-selected: the unprotected <b>assigned exclusion groups</b> — the ones whose membership is maintained by hand, which is exactly the membership this protection locks down.
         <b>Dynamic</b> groups are listed but not pre-selected: their members come and go with a membership rule, not by hand — the restriction still guards the group object (so changing the <b>rule</b> would also need an AU-scoped role), but the hand-managed exclusion groups are the priority.
-        <b>Role-assignable</b> groups cannot be added at all: a restricted AU blocks Global Administrator and Privileged Role Administrator, the only roles that can edit a role-assignable group's members, so a group with both protections has nobody who can change them. Convert them first with <b>⑦ Migrate</b>.</p>
+        <b>Role-assignable</b> groups cannot be added at all: a restricted AU blocks Global Administrator and Privileged Role Administrator, the only roles that can edit a role-assignable group's members, so a group with both protections has nobody who can change them. Convert them first with <b>⑦ Migrate</b>.
+        A group you <b>added by hand</b> is pre-selected whatever references it — it is on this list because you put it there — and stays across a rescan until you take it off with ✕.</p>
       ${(() => {
         // "All" means all SELECTABLE — a role-assignable group or one already
         // protected has a disabled checkbox, and counting those would show a
         // total the button can never reach.
         // Scoped to what is VISIBLE: with a search active, "all" meaning
         // "all 60, including the 54 you filtered out" is a trap.
-        const pick = shown.filter((g) => !t.status.get(g.id) && !g.roleAssignable && !g.unused);
+        const pick = shown.filter((g) => !t.status.get(g.id) && !g.roleAssignable && !cgAuIneligible(g) && !g.unused);
         if (pick.length < 2) return "";
         const on = pick.filter((g) => t.sel.has(g.id)).length;
+        // Three different populations, counted apart rather than lumped into
+        // one "cannot be added": what select-all covers, what it deliberately
+        // leaves for you to tick (nothing references them), and what the
+        // directory would refuse outright.
+        const blocked = cands.filter((g) => t.status.get(g.id) || g.roleAssignable || cgAuIneligible(g)).length;
+        const byHand = cands.length - pick.length - blocked;
         return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
           <button class="btn sm" id="cgRmauAll">${on === pick.length ? "☐ Deselect all" : "☑ Select all"}</button>
-          <span class="mini muted">${on} of ${pick.length} selectable group${pick.length === 1 ? "" : "s"} selected${cands.length - pick.length ? ` · ${cands.length - pick.length} cannot be added` : ""}</span>
+          <span class="mini muted">${on} of ${pick.length} referenced group${pick.length === 1 ? "" : "s"} selected${byHand > 0 ? ` · ${byHand} referenced by nothing — tick by hand` : ""}${blocked ? ` · ${blocked} cannot be added` : ""}</span>
         </div>`;
       })()}
       <div class="cg-tablewrap"><table class="cg-table">
@@ -4362,14 +4716,21 @@ max@contoso.com,"Global, DevOps"</pre>
     const t = cgRmau; if (!t || t.busy) return;
     if (!rmauBody().querySelector("#cgRmauAck")?.checked) { toast("Tick the <span>confirmation</span> first — this restricts who can manage these groups"); return; }
     t.admin = (rmauBody().querySelector("#cgRmauAdmin")?.value || "").trim();
-    const cands = CaGroups.rmauCandidates(cgRes);
+    const cands = rmauCands();
     // Guard the WRITE, not just the checkbox — a selection can survive a rescan,
     // and adding a role-assignable group to a restricted AU freezes its members
     // for everybody (GA/PRA are blocked by the AU; nobody else was ever allowed).
-    const picked = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id) && !g.roleAssignable);
+    // The same guard covers what the DIRECTORY refuses — a mail-enabled or
+    // on-premises group would fail at the write with a Graph error nobody can
+    // read; it is better refused here, by name, before the run starts.
+    const picked = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id) && !g.roleAssignable && !cgAuIneligible(g));
     const refused = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id) && g.roleAssignable);
+    const rejected = cands.filter((g) => t.sel.has(g.id) && !t.status.get(g.id) && !g.roleAssignable && cgAuIneligible(g));
     if (refused.length) {
       toast(`Skipped ${refused.length} role-assignable group${refused.length === 1 ? "" : "s"} — a restricted AU would leave nobody able to change their members.`);
+    }
+    if (rejected.length) {
+      toast(`Skipped ${rejected.length} group${rejected.length === 1 ? "" : "s"} the directory will not accept as an AU member — only cloud security groups can go in.`);
     }
     if (!picked.length) return;
     const scopes = [...AUTH_CONFIG.scopes, ...RMAU_WRITE, ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
@@ -5520,8 +5881,19 @@ max@contoso.com,"Global, DevOps"</pre>
   // Detail of one group row — the policies that use it and its members.
   function showGroupRow(name) {
     const r = cgRes.rows.find(x => x.name === name); if (!r) return;
+    // The policy names here were plain text, which made this overlay a dead end:
+    // it answers "where is this group used?" and then leaves you to go and find
+    // each of those policies by hand in 🗂 List Policies. They open the policy
+    // card now, the same `.pol-link` contract every other list in the app uses.
+    // A name with no matching loaded policy stays plain rather than pretending
+    // to be a link that does nothing.
     const list = (arr, how) => arr.length
-      ? `<h5 class="mini" style="margin:10px 0 4px">${how} (${arr.length})</h5><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${arr.map(p => `<li>${esc(p.name)}</li>`).join("")}</ul>` : "";
+      ? `<h5 class="mini" style="margin:10px 0 4px">${how} (${arr.length})</h5><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${arr.map((p) => {
+          const known = p.id && policies.some((x) => x.id === p.id);
+          return `<li>${known
+            ? `<span class="pol-link" data-polid="${esc(p.id)}" title="Open the policy card">${esc(p.name)}</span>`
+            : `${esc(p.name)} <span class="mini muted">(not in the loaded policy set)</span>`}</li>`;
+        }).join("")}</ul>` : "";
     $("depTitle").textContent = r.name;
     $("depBody").innerHTML = `
       <p class="mini">${r.id ? `Object ID <code>${esc(r.id)}</code>` : "Not present in this tenant"}
@@ -5554,6 +5926,11 @@ max@contoso.com,"Global, DevOps"</pre>
   }
   // the same per-group scan, from inside the group's detail overlay
   $("depBody").addEventListener("click", (e) => {
+    // A policy in the "Included in" / "Excluded from" lists opens its card.
+    // The group overlay closes first: two stacked modals is not a state this
+    // app has anywhere else, and the policy card is what you asked for.
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { $("depModal").classList.remove("open"); showDetail(pl.dataset.polid); return; }
     const b = e.target.closest("[data-cgone]");
     if (b) { scanOneGroup(b.dataset.cgone, b); return; }
     const a = e.target.closest("[data-cgact]");

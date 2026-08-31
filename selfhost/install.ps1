@@ -36,11 +36,23 @@ function Say($m)  { Write-Host "==> $m" -ForegroundColor Green }
 function Fail($m) { Write-Host "ERROR: $m" -ForegroundColor Red; exit 1 }
 
 # 1 — Docker present and running
+# Name the command, not a page to go and read. WSL 2 and its reboot are worth
+# warning about here rather than being discovered halfway through an install.
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-  Fail "Docker is not installed. Get Docker Desktop from https://www.docker.com/products/docker-desktop/ and run this script again."
+  Fail @"
+Docker is not installed.
+
+  winget install -e --id Docker.DockerDesktop
+
+  or download it: https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe   (x86_64)
+                  https://desktop.docker.com/win/main/arm64/Docker%20Desktop%20Installer.exe   (Arm64)
+
+  Docker Desktop uses WSL 2 and will install it if missing, which needs a REBOOT.
+  Afterwards, start Docker Desktop once and run this script again.
+"@
 }
 docker info *> $null
-if ($LASTEXITCODE -ne 0) { Fail "Docker is installed but not running. Start Docker Desktop and run this script again." }
+if ($LASTEXITCODE -ne 0) { Fail "Docker is installed but not running. Start Docker Desktop, wait for the whale icon to settle, and run this script again." }
 
 # 2 — the image
 Say "Pulling $Image ..."
