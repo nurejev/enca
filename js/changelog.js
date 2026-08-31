@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25241, date: "2026-08-31", title: "Self-hosting is in production",
+    items: [
+      { kind: "improved", tool: "Self-hosting", text: "Everything the self-hosting package is made of has gone to production as build 305, and the promotion queue is down to the two items that belong to the two beta-only tools. The image, the compose file, the install scripts, the Deploy to Azure template and SELF-HOSTING.md are on the production channel now, pointing at main and :latest there while this channel keeps pointing at beta and :beta - which is what queue item 92's carve-out existed to make sure of. The container's own app registration, the SELF-HOSTED ribbon and sign-in card, deployment branding with its size readout, the Content Security Policy fix for Azure Resource Manager, the passkey dynamic migration audit trail and the directory search in Conditional Access groups went with it." },
+      { kind: "fixed", tool: "Roadmap", text: "R06 says so on this channel too, which is the step that gets missed: each channel carries its own copy of the page, so a promotion that only updates production leaves the beta card claiming the work is beta-only. It now reads live · beta 25195 · production 305. S02 was corrected alongside it - it had said production 297 since it shipped, but carried no shipped build of its own, so it could never age out of Now into Shipped before." },
+    ],
+  },
+  {
     build: 25240, date: "2026-08-31", title: "The page goes back to its near-white",
     items: [
       { kind: "fixed", tool: "All tools", text: "The mint page background from build 25238 is withdrawn. The light theme's page colour goes back to the near-white it had before, and the white cards go back to sitting on it quietly. The mint did what it was asked to do - it gave the cards an edge - and the answer after looking at it across the app was that the cost was not worth the depth. One variable moves back; every surface, border and text colour is where it has been all along, and dark mode was never touched by either build." },
