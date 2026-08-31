@@ -1,0 +1,126 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "ENCA self-hosted (R06): Azure Container Apps running the published image with scale-to-zero, so an instance used by one team costs close to nothing while idle. After deployment, add the app's HTTPS URL (in the deployment outputs) as a SPA redirect URI on your Entra app registration - sign-in fails with AADSTS50011 until you do. See SELF-HOSTING.md."
+  },
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "defaultValue": "enca",
+      "minLength": 2,
+      "maxLength": 30,
+      "metadata": { "description": "Name for the container app; also prefixes the environment and log workspace." }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": { "description": "Azure region. Defaults to the resource group's region." }
+    },
+    "image": {
+      "type": "string",
+      "defaultValue": "ghcr.io/nurejev/enca:latest",
+      "metadata": { "description": "Container image. Defaults to the production channel - use ghcr.io/nurejev/enca:beta for the beta channel, or your own fork's image. Anonymous pull requires the GHCR package to be Public." }
+    },
+    "clientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "OPTIONAL but recommended: the Application (client) ID of YOUR OWN Entra app registration, from New-EncaAppRegistration.ps1. Leave blank to use the shared multi-tenant registration. Setting it is what makes this instance yours - own registration, own consent record, own audit trail." }
+    },
+    "tenantId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "OPTIONAL: your Directory (tenant) ID, for a SINGLE-TENANT registration (New-EncaAppRegistration.ps1 -SingleTenant). Leave blank for a multi-tenant one. Ignored unless clientId is also set." }
+    },
+    "branding": {
+      "type": "string",
+      "defaultValue": "",
+      "maxLength": 48000,
+      "metadata": { "description": "OPTIONAL: this deployment's look, as the JSON from the gear next to Sign out (Copy for container). Written to selfhost-branding.json so EVERY visitor gets it, not just the browser it was designed in. HARD SIZE LIMIT, and it is the kernel's: Linux refuses a single environment variable over 128 KB, and a container carrying one FAILS TO START - nothing runs, and the site is down until somebody removes the variable by hand. An embedded logo is what gets you there. Use brandingUrl for anything large." }
+    },
+    "brandingUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "OPTIONAL: https URL serving the same branding JSON, fetched once at container start. For a look too large for the branding parameter. Ignored when branding is set; a fetch that fails leaves the instance unbranded rather than stopping it." }
+    }
+  },
+  "variables": {
+    "envName": "[format('{0}-env', parameters('appName'))]",
+    "logsName": "[format('{0}-logs', parameters('appName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('logsName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": { "name": "PerGB2018" },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('envName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logsName'))]"
+      ],
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('logsName')), '2023-09-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('logsName')), '2023-09-01').primarySharedKey]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('appName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]"
+      ],
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 80,
+            "allowInsecure": false
+          }
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "enca",
+              "image": "[parameters('image')]",
+              "resources": { "cpu": "0.25", "memory": "0.5Gi" },
+              "env": [
+                { "name": "ENCA_CLIENT_ID", "value": "[parameters('clientId')]" },
+                { "name": "ENCA_TENANT_ID", "value": "[parameters('tenantId')]" },
+                { "name": "ENCA_BRANDING", "value": "[parameters('branding')]" },
+                { "name": "ENCA_BRANDING_URL", "value": "[parameters('brandingUrl')]" }
+              ]
+            }
+          ],
+          "scale": { "minReplicas": 0, "maxReplicas": 1 }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "appUrl": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', parameters('appName')), '2024-03-01').configuration.ingress.fqdn)]"
+    },
+    "nextStep": {
+      "type": "string",
+      "value": "[format('Add https://{0} as a SPA redirect URI on your Entra app registration (Authentication -> Single-page application), or sign-in fails with AADSTS50011. New-EncaAppRegistration.ps1 in the repo does this for you.', reference(resourceId('Microsoft.App/containerApps', parameters('appName')), '2024-03-01').configuration.ingress.fqdn)]"
+    }
+  }
+}

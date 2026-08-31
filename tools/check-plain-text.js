@@ -60,7 +60,7 @@ for (const rel of evaluate("js/changelog.js", "CHANGELOG") || []) {
 // js/promote.js — title/what/why and every line of the test checklist.
 const promote = evaluate("js/promote.js", "PROMOTE");
 for (const it of (promote && promote.items) || []) {
-  for (const k of ["title", "what", "why"]) check(`promote item ${it.n}.${k}`, it[k]);
+  for (const k of ["title", "what", "why", "carveout"]) if (it[k]) check(`promote item ${it.n}.${k}`, it[k]);
   (it.test || []).forEach((line, i) => check(`promote item ${it.n}.test[${i}]`, line));
 }
 for (const st of (promote && promote.staying) || []) {

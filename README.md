@@ -228,10 +228,10 @@ Full walkthrough, including keeping a pinned copy current:
 **You no longer need a fork to rebrand.** On any non-production host a **⚙ gear appears next to Sign out** with the branding settings — product and organisation names, logos, login text, light/dark colour palettes:
 
 - **Apply** keeps the look in this browser.
-- **Download selfhost-branding.json** exports it as a file. Serve that file next to `index.html` and **every visitor** to your instance gets the branding — and the red "BETA — not production" ribbon becomes a neutral "SELF-HOSTED" one.
+- **Download selfhost-branding.json** exports it as a file. Serve that file next to `index.html` (the compose file and install scripts mount `./selfhost-branding.json` automatically) and **every visitor** to your instance gets the branding — and the red "BETA — not production" ribbon becomes a neutral "SELF-HOSTED" one.
 - **Import from JSON** loads an existing file back into the form, so a look made elsewhere never has to be retyped.
 
-Chrome only, deliberately: exports (Word/PDF/Markdown) keep the neutral ENCA credit, and the canonical host is not configurable — a settings dialog must not be able to make a copy claim to be production.
+Chrome only, deliberately: exports (Word/PDF/Markdown) keep the neutral ENCA credit, and the canonical host is not configurable — a settings dialog must not be able to make a copy claim to be production. Details in **[SELF-HOSTING.md](SELF-HOSTING.md)**.
 
 ### Rebranding a fork
 

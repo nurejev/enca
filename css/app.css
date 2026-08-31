@@ -111,6 +111,15 @@ main{max-width:1180px;margin:0 auto;padding:28px 24px 80px}
 .login-err .diag{margin-top:8px;font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--muted);
   overflow-wrap:anywhere;user-select:all}
 .login-note code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:11px}
+/* "this is somebody's own copy" — same slate as the SELF-HOSTED ribbon, so the
+   two read as one statement rather than two unrelated notices. Deliberately
+   NOT the red of .login-err: a deployment an organisation stood up on purpose
+   is not an error, and colouring it like one teaches people to dismiss it. */
+.login-selfhost{margin-top:18px;text-align:left;border:1px solid var(--border);
+  border-left:3px solid #3b5a72;border-radius:10px;background:var(--soft);
+  padding:11px 13px;font-size:12px;line-height:1.6;color:var(--ink)}
+.login-selfhost code{background:transparent;padding:0;font-size:11.5px;
+  font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;user-select:all}
 .spinner{width:44px;height:44px;border:4px solid var(--soft);border-top-color:var(--accent2);border-radius:50%;margin:0 auto 18px;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -1357,6 +1366,16 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
   .cf-track{grid-area:track}
   .cf-drop{grid-area:drop;text-align:left}
 }
+/* Promotion queue: the per-item test checklist. Folded away by default — the
+   table is read to decide WHAT to promote, and the steps are read once that
+   decision is made. */
+.pq-test{margin-top:6px}
+.pq-test summary{cursor:pointer;color:var(--accent2);list-style:none}
+.pq-test summary::-webkit-details-marker{display:none}
+.pq-test summary::before{content:"\25b8 ";display:inline-block;transition:transform .15s}
+.pq-test[open] summary::before{transform:rotate(90deg)}
+.pq-steps{margin:6px 0 0;padding-left:20px;line-height:1.65}
+.pq-steps li{margin-bottom:5px}
 /* Shipped-before. Outside the timeline on purpose: these are delivered, and
    leaving them in the "Now" column makes a roadmap read as busier than it is. */
 .rm-shipped{margin-top:34px;padding-top:22px;border-top:1px solid var(--border)}

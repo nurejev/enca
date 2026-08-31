@@ -1,0 +1,36 @@
+# ======================================================================
+# ENCA self-hosted — docker compose example (R06).
+#
+#   docker compose up -d        → http://localhost:8080
+#
+# BEFORE SIGNING IN, read the redirect-URI section of SELF-HOSTING.md:
+# every host you serve ENCA from must be registered as a SPA redirect URI
+# on the app registration, and http://localhost:8080 is a host too. It is
+# the one step that cannot be automated, and skipping it is what produces
+# the AADSTS50011 sign-in error.
+# ======================================================================
+services:
+  enca:
+    image: ghcr.io/nurejev/enca:latest   # production channel; :beta for the beta channel
+    container_name: enca
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    # Point this instance at YOUR OWN app registration instead of the shared
+    # multi-tenant one - the client id New-EncaAppRegistration.ps1 printed.
+    # ENCA_TENANT_ID only for a single-tenant registration; omit it otherwise.
+    # Both are optional: with neither set the image behaves as it always did.
+    #
+    # ENCA_BRANDING is this deployment's look for EVERY visitor - the value the
+    # gear's "Copy for container" button produces. The volume mount below does
+    # the same thing from a file; use whichever suits. ENCA_BRANDING_URL is for
+    # a look too large for an environment variable.
+    environment:
+      ENCA_CLIENT_ID: "${ENCA_CLIENT_ID:-}"
+      ENCA_TENANT_ID: "${ENCA_TENANT_ID:-}"
+      ENCA_BRANDING: "${ENCA_BRANDING:-}"
+      ENCA_BRANDING_URL: "${ENCA_BRANDING_URL:-}"
+    # Optional: brand this deployment without forking. Export the file from
+    # the ⚙ branding settings (gear next to Sign out) and uncomment:
+    # volumes:
+    #   - ./selfhost-branding.json:/usr/share/nginx/html/selfhost-branding.json:ro

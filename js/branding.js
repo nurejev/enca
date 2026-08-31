@@ -42,6 +42,18 @@ const BRANDING = {
   // credit at the bottom of every Markdown export. No protocol.
   host: "enca.limon-it.nl",
 
+  // The publisher's OWN pre-production host. Everything that is neither `host`
+  // nor this is somebody else's copy, and the app says SELF-HOSTED there rather
+  // than BETA — a deployment an organisation stood up deliberately is not a
+  // test build, and calling it one teaches people to ignore the ribbon.
+  //
+  // Hostname only, no protocol and no path: the beta site is served from a
+  // project path under the Pages domain, and location.hostname is what the
+  // comparison has to work on. Like `host`, this is deliberately NOT reachable
+  // from selfhost-branding.json — a copy that could name itself the publisher's
+  // beta host could hide that it is a copy.
+  betaHost: "nurejev.github.io",
+
   // Assets (relative to index.html)
   // The ENCA mark — the app's own logo, not Limon-IT's. Built the same way as
   // the other Limon-IT product marks (see TUNO): TRANSPARENT, so it carries on

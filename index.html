@@ -6,31 +6,40 @@
 <!-- CSP via meta tag (GitHub Pages cannot set headers). Note: frame-ancestors
      is not enforceable from a meta tag. frame-src allows MSAL's hidden iframe
      for silent token renewal; img-src data:/blob: is needed for PNG/PDF export
-     and the tenant branding logo. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://limo.goatcounter.com https://enca.limon-it.nl; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+     and the tenant branding logo.
+
+     management.azure.com is the Azure Resource Manager. It was MISSING here
+     from the day js/groupuse.js first read Azure RBAC, so every ARM call the
+     app made was blocked by this policy — and because the Group Analyzer
+     reports an area it could not read rather than failing, the Azure area
+     came back empty and looked like a tenant with no role assignments. A
+     silent wrong answer, from a tool whose whole value is being right about
+     what it found. Widening connect-src is not something to do lightly; this
+     one names a host the app has always intended to reach. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=304"></script>
+<script src="js/popup-guard.js?v=305"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=304" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=304">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=305" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=305">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=304"></script>
+<script src="js/selfhost-boot.js?v=305"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=304"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=304"></script>
+<script src="js/counter.js?v=305"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=305"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=304" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=305" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -66,7 +75,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=304" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=305" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -78,8 +87,20 @@
            on, not something you dismiss. -->
       <div class="login-err" id="loginErr" style="display:none"></div>
       <p class="login-alt"><a href="#" id="noPopupLink">Pop-up not working? Sign in without one →</a></p>
+      <!-- Filled in by markSelfHostedLogin() in js/app.js, and ONLY on a host
+           that is neither BRANDING.host nor BRANDING.betaHost. The ribbon at
+           the top of the page is a glance; this is the same fact stated where
+           somebody is about to consent, naming the host it is served from and
+           the app registration that will receive the consent. -->
+      <div class="login-note login-selfhost" id="loginSelfHost" style="display:none"></div>
+      <!-- "Multi-tenant" was hard-coded, and on a single-tenant deployment it
+           contradicted the self-hosted notice directly above it. setAudience()
+           in js/app.js reads it from AUTH_CONFIG.authority on every host, so
+           the card cannot disagree with the registration it will actually
+           use. The static text is the multi-tenant case, which is what the
+           canonical site serves and what shows if the script never runs. -->
       <div class="login-note">
-        Multi-tenant · read-only Microsoft Graph permissions<br>
+        <span id="loginAudience">Multi-tenant</span> · read-only Microsoft Graph permissions<br>
         Runs entirely in your browser — no policy data leaves your session.
       </div>
       <div class="login-note"><a href="?demo=1">View a demo with sample policies →</a></div>
@@ -116,8 +137,8 @@
     <div class="tool-sec"><h3>⏳ Temporary tools</h3><p>Deadline-driven tools for a dated migration or retirement. Each one names the date it stops mattering — and leaves once that date has passed.</p></div>
     <div class="tools">
       <div class="tool" id="toolSmsVoice">
-        <div class="tool-ic">📵</div><h3>SMS &amp; voice retirement <span class="tag new">BETA</span></h3>
-        <p>Microsoft retires its SMS and voice MFA delivery on <b>1 February 2027</b> — and from <b>1 September 2026</b> everyone still enabled for them is auto-enabled for passkeys and nudged at sign-in. Who is still in the SMS/Voice policy scope, who actually has a phone method registered, and who would be <b>locked out</b> — with Markdown and CSV export. Also reads and, if you want, <b>pauses</b> Microsoft's September rollout — the Graph-only opt-out with no control in the portal. <span class="tag block">writes to tenant</span></p>
+        <div class="tool-ic">📵</div><h3>SMS &amp; voice retirement <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
+        <p>Microsoft retires its SMS and voice MFA delivery on <b>1 February 2027</b> — and from <b>1 September 2026</b> everyone still enabled for them is auto-enabled for passkeys and nudged at sign-in. Who is still in the SMS/Voice policy scope, who actually has a phone method registered, and who would be <b>locked out</b> — with Markdown and CSV export. Also reads and, if you want, <b>pauses</b> Microsoft's September rollout — the Graph-only opt-out with no control in the portal — and now says <b>who changed that setting and when</b>, from the directory audit log. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolMemberOf">
         <div class="tool-ic">🧷</div><h3>memberOf retirement <span class="tag new">BETA</span></h3>
@@ -1245,6 +1266,10 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R03</span> ⌨️ Command palette <span class="tag grant">live · build 267</span></h4>
             <p class="mini" style="margin:0">Past twenty-odd tools, a tile grid stops being the fastest way in. <b>Ctrl/Cmd&nbsp;+&nbsp;K</b> anywhere opens a search box: type a few letters and land in the tool, or type a CA number or policy name and land on the policy card. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bbc</code> finds Best-practice &amp; bypass checks.</p>
           </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R05</span> 📖 Baseline usage guide <span class="tag ok">in beta today</span></h4>
+            <p class="mini" style="margin:0">The toolset could build the baseline; it could not tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge lived in whoever has done it before, which is the least durable place to keep it. Now it is a tool: the deployment order as six steps, each with the <b>reason</b> it sits where it does — the persona model and its CA ranges, groups and restricted units before the policies that target them, named locations, authentication strengths and contexts before the policies that reference them, Terms of use (which has no create API) before import, policies imported Off, then Off → report-only → 🎚 forecast → enforced, Global last. 🔎 <b>Read the tenant</b> turns every step into a readiness check that names what is missing <i>before</i> the step is run instead of after. Graduates to production once the step texts have proven themselves against enough real deployments.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="268">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R09</span> 🔝 Flagged tiles first in a collapsed section <span class="tag grant">live · build 268 · 281</span></h4>
             <p class="mini" style="margin:0">A collapsed home section shows four tiles, and anything flagged <b>NEW</b>, <b>BETA</b> or <b>UPDATED</b> claims those slots ahead of the rest — but it claims them <i>in page order</i>, so a flagged tile that sits ninth is visible while still appearing after unflagged ones, and with five flagged tiles in a section one of them drops below the fold. Flagged tiles now lift to the <b>top</b> of the collapsed view, <b>newest first</b> — the ranking is read from the changelog, the build number of the newest entry naming that tool, so a tool changed in this build outranks a BETA tag that has been sitting there for weeks. Before that the tie was broken by page order, which buried the most recent change under the oldest badge. Expanding restores the normal order, because the grid's grouping is meaningful and shuffling it permanently would cost more than it gains.</p>
@@ -1263,7 +1288,7 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R04</span> 🧹 Retire role-assignable groups everywhere <span class="tag grant">live · build 287</span></h4>
             <p class="mini" style="margin:0">The baseline is moving off role-assignable groups: the flag was only ever used for a side effect — membership reachable by Global Administrator or Privileged Role Administrator only — and a restricted management administrative unit does that better, names <i>who</i> may manage the group, and can be undone. It also cannot be combined with one: a group carrying both has nobody who can change its members.
               <br><b>Done:</b> new groups are ordinary security groups (assigned or dynamic) with an optional restricted-AU placement at creation — <b>in production since build 254</b>, so the role-assignable checkbox and the ↻ Recreate-role-assignable action are gone from both channels; the ① Check drift flag is inverted, so a plain group is correct and a role-assignable one is what gets flagged; <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a> moves existing ones across; and the bundled group templates and the baseline catalogs no longer ask for the flag anywhere.
-              <br><b>The last gap, closed in build 287:</b> 📥 Import no longer walks past the groups it <b>reuses</b>. A created group gets a place in its persona vault; a reused one got neither that nor its nesting looked at, and naming that in beta 25129 only made the exposure visible — it still sent you to <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> and ⑧ Disable nesting to do anything about it. The preflight now offers both, <b>per group and ticked by hand</b>, and applies them after the policies import. Nothing is pre-ticked and membership is never touched: an existing group may hold members and sit somewhere on purpose, so the operator decides, not the importer.</p>
+              <br><b>The last gap, closed in beta 25149:</b> 📥 Import no longer walks past the groups it <b>reuses</b>. A created group gets a place in its persona vault; a reused one got neither that nor its nesting looked at, and naming that in beta 25129 only made the exposure visible — it still sent you to <a href="#" class="md-tool" data-tool="toolProtect">🔒 Protect exclusions</a> and ⑧ Disable nesting to do anything about it. The preflight now offers both, <b>per group and ticked by hand</b>, and applies them after the policies import. Nothing is pre-ticked and membership is never touched: an existing group may hold members and sit somewhere on purpose, so the operator decides, not the importer.</p>
             <p class="mini" style="margin:6px 0 0">Neither write is destructive, which is what makes offering them here defensible rather than reckless: Entra <i>refuses</i> the nesting change when a group already holds nested groups instead of forcing it, and administrative-unit membership can be undone. The one route that <b>is</b> destructive — recreating a group Entra refuses — stays in ⑧ Disable nesting behind its own typed confirmation, and converting a role-assignable group stays in <a href="#" class="md-tool" data-tool="toolCaGroups">⑦ Migrate</a>. One implementation each, as before.</p>
             <p class="mini" style="margin:6px 0 0"><b>What this still does not do, and cannot:</b> the flag only truly leaves a <i>tenant</i> once ⑦ Migrate has been run there. Nothing retires a group this app did not create, and every protection path goes on refusing a role-assignable group until it is converted. That is a fact about the tenant rather than a gap in the tools.</p>
             <p class="mini muted" style="margin:6px 0 0">Shipped across <b>beta 25128–25129 · production 285</b> — find the role-assignable groups a file would build on, and say what a reused group inherits — and <b>beta 25149 · production 287</b>, which acts on it.</p>
@@ -1286,7 +1311,7 @@
             <p class="mini" style="margin:0">Everything that routed a group to a vault read the <b>CA number in its name</b>. That worked for the baseline and for nothing else: a tenant's own exclusion group — <code>SEC-VIP-Exceptions</code>, <code>Contractors-NoMFA</code> — matched no persona, so ⑥ Protect skipped it unless a fallback unit was chosen by hand, ＋ Bulk add never offered it, and the break-glass case had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them the naming is wrong is not a feature.</p>
             <p class="mini" style="margin:6px 0 0">Now there is a <b>per-tenant mapping</b>: say once in 🛡 Restricted AUs → <b>🏷 Group personas</b> that <code>Contractors-NoMFA</code> belongs to Externals, and every tool routes it there afterwards. One function decides — <code>CaMap.codeOf</code>, this tenant's mapping first and the CA number second — and ⑥ Protect, ＋ Bulk add, the persona chips, 📥 Import, the 🛡 Markdown report and the restricted-unit pages in 📄 Create documentation all go through it, so none of them can hold a different opinion about where a group belongs.</p>
             <p class="mini" style="margin:6px 0 0"><b>The two things it must not do, built in rather than promised.</b> It does not <b>guess</b>: matching is the group's object id or its display name compared case-insensitively, and nothing is inferred from a prefix or a word — a mapping nobody stated is how a group ends up in the wrong vault silently, and a vault is an authorisation boundary, so the cost of a wrong guess is one persona's scoped administrator holding another's exclusions. And it does not <b>hide the unmapped</b>: 🔎 Find the unmapped groups lists every group the policies reference that nothing places, with a persona one click away, and ⑥ Protect says <i>unmapped</i> on the row rather than skipping it in silence.</p>
-            <p class="mini" style="margin:6px 0 0"><b>Held back from production 287</b>, while the seven items around it went: it is the only one of them that changes where a <b>write</b> puts a group object, and a persona vault is an authorisation boundary — file a group in the wrong one and that persona's scoped administrator can edit another persona's exclusions. An empty mapping leaves every existing routing decision byte-for-byte as it was, so the risk is entirely in what an operator states rather than in what the code assumes. It ships in <b>build 290</b>, one release behind its neighbours. Queue item 67.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Held back from production 287</b>, while the seven items around it went: it is the only one of them that changes where a <b>write</b> puts a group object, and a persona vault is an authorisation boundary — file a group in the wrong one and that persona's scoped administrator can edit another persona's exclusions. An empty mapping leaves every existing routing decision byte-for-byte as it was, so the risk is entirely in what an operator states rather than in what the code assumes. It reached <b>production 290</b>, one release behind its neighbours. Queue item 67.</p>
             <p class="mini" style="margin:6px 0 0"><b>Kept with the tenant, not in the code</b> — the browser's own storage under the tenant id, so it survives a release and never becomes our list of everybody's group names. Nothing is written to the directory and nothing leaves the machine, which also means it does not follow you to another browser: <b>⭳ Export / ⭱ Import</b> is the way round that, and it is why filing a group from the unmapped list records the <b>object id</b> as well as the name — an id survives a rename in Entra, a typed name does not.</p>
           </div>
           <div class="list-card rm-card" data-shipped="287">
@@ -1303,19 +1328,15 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> 📐 CIS Benchmark alignment <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
           </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R06</span> 🐳 Self-hosting with Docker <span class="tag ok">in beta today</span></h4>
+          <div class="list-card rm-card" data-shipped="305">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R06</span> 🐳 Self-hosting with Docker <span class="tag grant">live · build 305</span></h4>
             <p class="mini" style="margin:0">ENCA is static files and a browser — no server, no database, nothing stored anywhere. That makes it trivially self-hostable, and some tenants will require it: a security tool that reads Conditional Access is exactly the kind of thing an organisation wants served from its own infrastructure rather than from someone else's GitHub Pages, whatever the code does.</p>
             <p class="mini" style="margin:6px 0 0"><b>And with a host of your own, somewhere to keep things.</b> Today nothing survives the tab closing, by design — there is no server to keep it on, so a Drift snapshot is a file you download and a report is a file you save. A self-hosted instance changes what is possible: an optional <b>SQLite</b> store alongside the container could hold drift snapshots, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having had to keep track of a JSON file. Strictly opt-in and self-hosted only — the hosted site keeps storing nothing, because "nothing is kept anywhere" is a promise worth more than the convenience. Tokens would stay out of it regardless: they belong in the browser session and nowhere else.</p>
-            <p class="mini" style="margin:6px 0 0">The plan is a published image (nginx over the built files) plus a <code>docker compose</code> example, so <code>docker run</code> gives a working instance. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. The one thing that cannot be automated is the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, so the documentation has to lead with that rather than bury it, since it is the step that produces the confusing sign-in error when missed.</p>
+            <p class="mini" style="margin:6px 0 0"><b>First cut shipped:</b> a published image — <code>ghcr.io/nurejev/enca</code>, nginx over these files, built by CI from <code>main</code> (<code>:latest</code>) and the beta channel (<code>:beta</code>) — plus a <code>docker compose</code> example, <b>one-command install scripts for Mac and Windows</b> that check Docker, pull, run and open the browser, and a <b>Deploy to Azure button</b> that stands up an Azure Container App with scale-to-zero, so an idle instance costs close to nothing. SELF-HOSTING.md in the repo ties it together and leads with the one step nothing can automate: the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, and it is the step that produces the confusing sign-in error when missed. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. A self-hosted instance also gets its <b>own branding</b> without forking — the ⚙ gear next to Sign out — and its own roadmap: the <b>Self-hosted</b> section below, where the SQLite idea above now lives as <span class="rm-ref">S01</span>.</p>
           </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R05</span> 📖 Baseline usage guide <span class="tag ok">in beta today</span></h4>
-            <p class="mini" style="margin:0">The toolset could build the baseline; it could not tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge lived in whoever has done it before, which is the least durable place to keep it. Now it is a beta tool: the deployment order as six steps, each with the <b>reason</b> it sits where it does — the persona model and its CA ranges, groups and restricted units before the policies that target them, named locations, authentication strengths and contexts before the policies that reference them, Terms of use (which has no create API) before import, policies imported Off, then Off → report-only → 🎚 forecast → enforced, Global last. 🔎 <b>Read the tenant</b> turns every step into a readiness check that names what is missing <i>before</i> the step is run instead of after. It graduates once the step texts have proven themselves against enough real deployments.</p>
-          </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R36</span> <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Joey Verlinden baseline as a first-class baseline</a> <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Today <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Baseline (Joey Verlinden)</a> only compares: it tells you which of his 36 policies a tenant has and what differs. Everything else the bundled baseline gets — <b>group checks, group creation, persona checks, restricted-AU creation and placement</b> — stops at the CloudFellows catalog. The plan is parity: pick a baseline, and every tool downstream works against the one you picked.</p>
@@ -1336,18 +1357,18 @@
           </div>
         </div>
         <div class="rm-era future">
-          <h3>Self-hosted <span class="rm-when">for the instance you run yourself</span></h3>
+          <h3>Self-hosted <span class="rm-when">for the instance you run yourself — see SELF-HOSTING.md in the repo</span></h3>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">S01</span> 💾 Keep things between visits <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">This site stores nothing anywhere, by design, and keeps that promise. A host of your own changes what is possible: an optional <b>SQLite</b> store alongside the instance — a volume, nothing more — holding <b>Drift watch snapshots</b>, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having kept track of a JSON file. Strictly opt-in and self-hosted only; tokens stay out of it regardless — they belong in the browser session and nowhere else. Drift is the first customer: a snapshot that survives the tab closing is the difference between a drift <i>check</i> and a drift <i>watch</i>.</p>
+            <p class="mini" style="margin:0">The hosted site stores nothing anywhere, by design, and keeps that promise. A host of your own changes what is possible: an optional <b>SQLite</b> store alongside the container — a volume, nothing more — holding <b>Drift watch snapshots</b>, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having kept track of a JSON file. Strictly opt-in and self-hosted only; tokens stay out of it regardless — they belong in the browser session and nowhere else. Drift is the first customer: a snapshot that survives the tab closing is the difference between a drift <i>check</i> and a drift <i>watch</i>.</p>
           </div>
           <div class="list-card rm-card" data-shipped="297">
             <h4 style="margin:0 0 4px"><span class="rm-ref">S02</span> 🎨 Branding without a fork <span class="tag grant">live · build 297</span></h4>
-            <p class="mini" style="margin:0">The ⚙ gear next to Sign out, on any non-production host: product and organisation names, logos, login text and light/dark identity colours, through the same override mechanism the hosted per-audience looks used — chrome only, exports keep the neutral product credit. <b>Apply</b> keeps the look in this browser; <b>Download</b> produces <code>selfhost-branding.json</code>, <b>Import</b> reads one back into the form for review — so a look made elsewhere or handed over by a customer never has to be retyped — and serving that file next to index.html gives every visitor the branding, and softens the red BETA ribbon to a neutral SELF-HOSTED one, because a deliberately configured instance is not a test site. What the gear will never configure is the canonical host: that drives the production check and the export credit, and a settings dialog must not be able to make a copy claim to be production. Nothing here can appear on this site — the gear only exists where the host is not the canonical one.</p>
+            <p class="mini" style="margin:0">The ⚙ gear next to Sign out, on any non-production host: product and organisation names, logos, login text and light/dark identity colours, through the same override mechanism as the hosted per-audience looks — chrome only, exports keep the neutral product credit. <b>Apply</b> keeps the look in this browser; <b>Download</b> produces <code>selfhost-branding.json</code>, <b>Import</b> reads one back into the form for review — so a look made elsewhere or handed over by a customer never has to be retyped — and serving that file next to index.html (the compose file and install scripts mount it) gives every visitor the branding — and softens the red BETA ribbon to a neutral SELF-HOSTED one, because a deliberately configured instance is not a test site. What the gear will never configure is the canonical host: that drives the production check and the export credit, and a settings dialog must not be able to make a copy claim to be production.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">S03</span> 📦 Update channel choice <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Once there is a published image to follow, the choice of which build an instance tracks should be a stated, visible thing rather than whatever was pulled the day it was set up: the instance saying which channel it follows, guidance for unattended updates (a watchtower-style puller for those who want them, and the reasons a reviewed fork should not), and a pinned-digest example for the high-assurance case where even a moving tag is too much trust. Pairs with <span class="rm-ref">R15</span>, which is what tells a pinned copy it has fallen behind.</p>
+            <p class="mini" style="margin:0">The image ships as <code>:latest</code> (production) and <code>:beta</code> today, and the fork notice (<span class="rm-ref">R15</span>) says when you are behind — what is missing is making the choice a stated, visible thing: the instance saying which channel it follows, guidance for unattended updates (a watchtower-style puller for those who want them, and the reasons a reviewed fork should not), and a pinned-digest example for the high-assurance case where even <code>:latest</code> is too much trust.</p>
           </div>
         </div>
         <div class="rm-era future far">
@@ -1405,6 +1426,15 @@
             <p class="mini" style="margin:0">The newer tools already follow a pattern worth making a rule: the logic lives in its own file as pure functions over a plain data contract — no DOM, no globals, no Graph calls — and the app contributes only a thin wiring layer that fills the contract and renders the result. That split is why the Restricted-AUs checks, the guide and the device check can be tested with <code>node</code> alone, and it is exactly what makes a tool liftable: another application (a customer's own portal, a CLI in a pipeline, a scheduled report) reimplements the small wiring and takes the logic file as-is.</p>
             <p class="mini" style="margin:6px 0 0">This item makes that the standard for <b>every</b> tool: each one a logic module with a documented contract (what goes in, what comes out, which reads the host must supply), thin host wiring, and optional integrations behind adapters <b>outside the core contract</b>. A host may supply another tool's result or expose a hand-off, but it may omit every integration and the module must still work. Tests run the core with integrations absent and throwing: an integration failure may remove convenience, never break the main tool. Portability is the honest test of <span class="rm-ref">R32</span>.</p>
           </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R39</span> 🤖 A second opinion, without growing a backend <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Bring your own key, and let a model read a policy with you — starting with one <b>🤖 Second opinion</b> button on the expanded policy card, next to the per-policy 🧪 What-If flow, because that is already the corner where you interrogate a single policy. The name is the promise: <b>advisory, and labelled as such</b>. Later the same panel takes a <b>selection</b> — two or five policies you suspect are interfering, which is where conflict and shadowing analysis actually lives — and later still the whole set. One policy first is not timidity; it is the only scope where the answer can be checked against tools that already know the answer.</p>
+            <p class="mini" style="margin:6px 0 0"><b>No server, and it does not need one.</b> The obvious build is a small backend holding the key and forwarding the calls. ENCA is not going to grow one: everything here is static files in a browser, nothing stored anywhere, and that promise is worth more than any feature. The Anthropic API can be called <i>directly from the browser</i> — CORS is enabled for it, opted into with the <code>anthropic-dangerous-direct-browser-access</code> request header. The key is pasted per session and held <b>in memory</b>, never in <code>localStorage</code> where it would outlive the tab and sit in a profile backup; it goes to <code>api.anthropic.com</code> and nowhere else; the whole feature is <b>off</b> until somebody types one in. Tools that reach for a proxy here are solving a problem this architecture does not have.</p>
+            <p class="mini" style="margin:6px 0 0"><b>It reads the findings, not just the JSON — and it says where each line came from.</b> A policy alone is the one thing ENCA is already strongest at: 📘 MS Learn, 📐 CIS, ✅ CA validator and the dependency inspector all judge it deterministically, and a model paraphrasing them adds nothing but a chance to be subtly wrong. So it is handed what those tools found — 🔍 Gap analyse already tags every finding with a policy id, so the per-policy slice is free — and every line it produces must be one of two things: a <b>relayed</b> finding, linked back to the tool that made it and styled like ENCA's own, or <b>its own reading</b>, marked as opinion and never dressed up as a check.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Disagreement is the output, not a bug to hide.</b> When the model contradicts a deterministic result — “📐 CIS scores this a pass; I think the scope makes it ineffective because…” — that is shown, loudly. Either the model is wrong or a check has a blind spot, and both are worth knowing; neither survives being quietly resolved in favour of one side. And it <b>fails soft</b>, per <span class="rm-ref">R32</span>: it works with nothing but the policy, and states what it did <i>not</i> see — “🔍 Gap analyse had not run, so nothing about who bypasses this was in what I read” — which tells you the answer is thinner than it could be and exactly which button makes it better.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Redaction, and the sharp edge is not the one you would expect.</b> Replacing every name with a placeholder would destroy the most useful signal there is: <code>CA101-GRANT-Admins-AnyApp-MFA</code> <i>is</i> the stated intent, and intent-versus-implementation is precisely what a model is good at. So it is three tiers, not one switch. <b>Always replaced:</b> tenant name and domain, user UPNs, object GUIDs. <b>Kept:</b> the baseline convention — CA numbers, <code>CAB-SEC-*</code>, <code>CAD-SEC-*</code> — which is published documentation, not a secret, and carries the meaning. <b>Replaced, with the mapping held in the browser so a finding reads back to real names:</b> the tenant's own group and location names, <code>SEC-VIP-Exceptions</code> and the like, which are facts about that organisation. Conveniently that is a split ENCA can already evaluate, because it is the same convention-or-not question <span class="rm-ref">R28</span>'s group mapping answers.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Two things it will not do.</b> It will not generate PowerShell: ENCA ships scripts written and tested deliberately, and a model improvising one that writes to a tenant is exactly the wrong shape for a toolset whose pitch is that it cannot do much harm. And its output never reaches 📄 Create documentation alongside the deterministic findings — in one document a model's opinion and a CIS control result look equally authoritative, and they are not. The <code>connect-src</code> in the Content-Security-Policy has to name <code>api.anthropic.com</code>: a deliberate, reviewable one-line change, not something to slip in ahead of the rest.</p>
+          </div>
         </div>
         <div class="rm-more">→ and further, steered by what you ask for</div>
       </div>
@@ -1424,6 +1454,9 @@
       <p class="mini muted" style="margin:0 0 10px">A read-only toolset for your Microsoft Entra Conditional Access baseline. Sign in gives read-only Graph access; the four tools that can change your tenant are marked <span class="tag block">writes to tenant</span> and ask for extra permission only when you run them. Every write lands safely — imported policies come in <b>Off</b>, deletes need a typed confirmation.</p>
 
     <div class="help-toc" id="helpToc"></div>
+
+    <!-- Beta-channel only: what is here and not yet in production. Hidden by
+         default so it can never appear on enca.limon-it.nl. -->
 
     <section class="help-sec">
       <h4>🗂 List Policies</h4>
@@ -1702,7 +1735,7 @@
         <li><b>Export MD</b> — a gap report; <b>Refresh</b> re-compares in place; <b>Import baseline</b> hands the missing/outdated set to the Import tool.</li>
               <li><b>🧷 Update pre-requirements</b> — one click, before you change anything, for the three things you cannot capture afterwards. A <b>configuration snapshot</b> (JSON) is taken first, because it is the only one that can be diffed against a later read in 📉 Drift watch: it is what answers <i>what did this change?</i> Then a <b>full policy backup with every dependency resolved</b> — groups, named locations, authentication strengths and contexts, terms of use — since a policy backup without its dependencies restores to a policy pointing at ids the tenant may no longer have, which is not a backup. Then <b>documentation as Markdown</b>, for the change record and the reviewer.</li>
         <li><b>It takes every policy, not your current selection</b> — a pre-requirement that captured whatever happened to be ticked would be worse than none, because it would look complete. Each artefact is attempted independently, so one failing does not cost you the other two, and the run always ends in a report saying which of the three were captured. Anything that could not be read is <b>named</b>: an unreadable snapshot area, a dependency that failed to fetch. If any step failed the report says so and tells you not to start the update — a failed pre-requirement is not a formality, it is the copy you would have restored from.</li>
-      </ul>
+</ul>
       <p class="help-x">Read-only comparison. Only Import (below) writes.</p>
     </section>
 
@@ -2567,52 +2600,52 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=304"></script>
-<script src="js/selfhost.js?v=304"></script>
-<script src="js/version.js?v=304"></script>
-<script src="js/fork.js?v=304"></script>
-<script src="js/authConfig.js?v=304"></script>
-<script src="js/labels.js?v=304"></script>
-<script src="js/graph.js?v=304"></script>
-<script src="js/model.js?v=304"></script>
-<script src="js/render.js?v=304"></script>
-<script src="js/analyze.js?v=304"></script>
-<script src="js/whatif.js?v=304"></script>
-<script src="js/mslearn.js?v=304"></script>
-<script src="js/gapcheck.js?v=304"></script>
-<script src="js/exclusions.js?v=304"></script>
-<script src="js/validator.js?v=304"></script>
-<script src="js/whatifeval.js?v=304"></script>
-<script src="js/compare.js?v=304"></script>
-<script src="js/groupuse.js?v=304"></script>
-<script src="js/iso3166.js?v=304"></script>
-<script src="js/locations.js?v=304"></script>
-<script src="js/authcontexts.js?v=304"></script>
-<script src="js/authstrengths.js?v=304"></script>
-<script src="js/recycle.js?v=304"></script>
-<script src="js/rmau.js?v=304"></script>
-<script src="js/camap.js?v=304"></script>
-<script src="js/rmaudoc.js?v=304"></script>
-<script src="js/termsofuse.js?v=304"></script>
-<script src="js/audit.js?v=304"></script>
-<script src="js/drift.js?v=304"></script>
-<script src="js/userimpact.js?v=304"></script>
-<script src="js/smsvoice.js?v=304"></script>
-<script src="js/memberof.js?v=304"></script>
-<script src="js/devcheck.js?v=304"></script>
-<script src="js/licgap.js?v=304"></script>
-<script src="js/signins.js?v=304"></script>
-<script src="js/reportimpact.js?v=304"></script>
-<script src="js/changelog.js?v=304"></script>
-<script src="js/baselineData.js?v=304"></script>
-<script src="js/baselineJoeyData.js?v=304"></script>
-<script src="js/baseline.js?v=304"></script>
-<script src="js/groupTemplates.js?v=304"></script>
-<script src="js/assign.js?v=304"></script>
-<script src="js/cagroups.js?v=304"></script>
-<script src="js/import.js?v=304"></script>
-<script src="js/export.js?v=304"></script>
-<script src="js/demo.js?v=304"></script>
-<script src="js/app.js?v=304"></script>
+<script src="js/branding.js?v=305"></script>
+<script src="js/selfhost.js?v=305"></script>
+<script src="js/version.js?v=305"></script>
+<script src="js/fork.js?v=305"></script>
+<script src="js/authConfig.js?v=305"></script>
+<script src="js/labels.js?v=305"></script>
+<script src="js/graph.js?v=305"></script>
+<script src="js/model.js?v=305"></script>
+<script src="js/render.js?v=305"></script>
+<script src="js/analyze.js?v=305"></script>
+<script src="js/whatif.js?v=305"></script>
+<script src="js/mslearn.js?v=305"></script>
+<script src="js/gapcheck.js?v=305"></script>
+<script src="js/exclusions.js?v=305"></script>
+<script src="js/validator.js?v=305"></script>
+<script src="js/whatifeval.js?v=305"></script>
+<script src="js/compare.js?v=305"></script>
+<script src="js/groupuse.js?v=305"></script>
+<script src="js/iso3166.js?v=305"></script>
+<script src="js/locations.js?v=305"></script>
+<script src="js/authcontexts.js?v=305"></script>
+<script src="js/authstrengths.js?v=305"></script>
+<script src="js/recycle.js?v=305"></script>
+<script src="js/rmau.js?v=305"></script>
+<script src="js/camap.js?v=305"></script>
+<script src="js/rmaudoc.js?v=305"></script>
+<script src="js/termsofuse.js?v=305"></script>
+<script src="js/audit.js?v=305"></script>
+<script src="js/drift.js?v=305"></script>
+<script src="js/userimpact.js?v=305"></script>
+<script src="js/smsvoice.js?v=305"></script>
+<script src="js/memberof.js?v=305"></script>
+<script src="js/devcheck.js?v=305"></script>
+<script src="js/licgap.js?v=305"></script>
+<script src="js/signins.js?v=305"></script>
+<script src="js/reportimpact.js?v=305"></script>
+<script src="js/changelog.js?v=305"></script>
+<script src="js/baselineData.js?v=305"></script>
+<script src="js/baselineJoeyData.js?v=305"></script>
+<script src="js/baseline.js?v=305"></script>
+<script src="js/groupTemplates.js?v=305"></script>
+<script src="js/assign.js?v=305"></script>
+<script src="js/cagroups.js?v=305"></script>
+<script src="js/import.js?v=305"></script>
+<script src="js/export.js?v=305"></script>
+<script src="js/demo.js?v=305"></script>
+<script src="js/app.js?v=305"></script>
 </body>
 </html>

@@ -11,6 +11,12 @@
     previous name (-PreviousAppName), so the 2026 CA Doc -> ENCA rename UPDATES
     the existing registration instead of creating a second one. The AppId must
     not change: every tenant that already consented is bound to it.
+  - Name it what you like with -AppName. A self-hosted instance registers in
+    YOUR tenant, and the registration shows up in your Enterprise applications
+    list next to everything else you run, so "ENCA (Limon-IT)" is rarely the
+    name you want there. The name is the only handle the script has when
+    -AppObjectId is not given, so it is also what makes a re-run an UPDATE
+    rather than a second registration - see the warning it prints.
   - Idempotent: safe to run again (updates the existing app).
   - Grants admin consent in your own tenant (skip with -SkipAdminConsent).
   - Optionally restricts the app to named users/groups (-RequireAssignment):
@@ -35,6 +41,14 @@
   # Prints the clientId + authority to paste into js/authConfig.local.js.
   # Full walkthrough: SINGLE-TENANT.md
 
+.EXAMPLE
+  # The same, under your own name in your own Enterprise applications list.
+  ./New-EncaAppRegistration.ps1 -SingleTenant -AppName "Contoso CA Review" `
+    -SingleTenantRedirectUris "https://enca.contoso.example","http://localhost:8080"
+  # Re-run it with the SAME -AppName to update. A different name creates a
+  # SECOND registration - to rename an existing one, pass -AppObjectId with
+  # the new -AppName instead.
+
 .NOTES
   Requires: Microsoft.Graph.Applications module, and a role that can create
   app registrations + grant tenant-wide consent (e.g. Global Administrator or
@@ -42,10 +56,21 @@
 #>
 [CmdletBinding()]
 param(
+  # The registration's display name, and - unless -AppObjectId is given - the
+  # only thing the script looks it up by. Self-hosters SHOULD set this: the app
+  # lands in your own Enterprise applications list, where a vendor's name on
+  # your own registration is at best confusing. Under -SingleTenant the default
+  # shortens to plain "ENCA", since the Limon-IT suffix names a publisher who
+  # does not own the app you are creating.
   [string]$AppName = "ENCA (Limon-IT)",
   # The pre-rename display name. Only used to FIND the existing app when it has
   # not been renamed yet; tenants that already consented keep showing the old
   # name in their Enterprise applications list, which is expected.
+  #
+  # It is Limon-IT's own rename history, so it applies ONLY to the default
+  # -AppName. Searching for it after somebody passed a name of their own would
+  # mean a self-hoster who happens to have an app called "CA Documenter
+  # (Limon-IT)" silently gets that app renamed to theirs.
   [string]$PreviousAppName = "CA Documenter (Limon-IT)",
   # Preferred: target the app registration by its immutable Object ID
   # (display-name lookup can match the wrong app if names collide).
@@ -110,6 +135,12 @@ param(
 $ErrorActionPreference = "Stop"
 $GraphAppId = "00000003-0000-0000-c000-000000000000" # Microsoft Graph
 
+# Did the caller choose the name, or is this the canonical Limon-IT app? Asked
+# via PSBoundParameters rather than by comparing against the default string:
+# somebody passing -AppName "ENCA (Limon-IT)" explicitly means it, and a string
+# comparison cannot tell that from not passing it at all.
+$NamedByCaller = $PSBoundParameters.ContainsKey('AppName')
+
 #--- 1. Connect (reuse existing session when possible) -------------------
 $requiredScopes = @("Application.ReadWrite.All")
 if (-not $SkipAdminConsent) { $requiredScopes += "DelegatedPermissionGrant.ReadWrite.All" }
@@ -141,7 +172,8 @@ if ($SingleTenant) {
   # Your own tenant only. The redirect URIs must point at YOUR copy of the app;
   # the Limon-IT hosts are meaningless in a registration you own.
   $RedirectUris = $SingleTenantRedirectUris
-  if ($AppName -eq "ENCA (Limon-IT)") { $AppName = "ENCA" }
+  # Only the default shortens. A name the caller chose is left exactly alone.
+  if (-not $NamedByCaller) { $AppName = "ENCA" }
 }
 $audience = if ($SingleTenant) { "AzureADMyOrg" } else { "AzureADMultipleOrgs" }
 
@@ -156,8 +188,12 @@ $appParams = @{
 $app = if ($AppObjectId) {
   Get-MgApplication -ApplicationId $AppObjectId
 } else {
-  $matches2 = @(Get-MgApplication -Filter "displayName eq '$AppName'")
-  if (-not $matches2 -and $PreviousAppName) {
+  $safeName = $AppName.Replace("'", "''")
+  $matches2 = @(Get-MgApplication -Filter "displayName eq '$safeName'")
+  # The previous-name fallback is Limon-IT's rename history and belongs only to
+  # the canonical app. Running it for a caller-chosen name would rename somebody
+  # else's registration into theirs.
+  if (-not $matches2 -and $PreviousAppName -and -not $NamedByCaller) {
     $matches2 = @(Get-MgApplication -Filter "displayName eq '$PreviousAppName'")
     if ($matches2) { Write-Host "Found the app under its previous name '$PreviousAppName' - it will be renamed to '$AppName' (AppId is unchanged)." -ForegroundColor Yellow }
   }
@@ -171,6 +207,14 @@ if ($app) {
 } else {
   Write-Host "Creating app registration '$AppName'..." -ForegroundColor Green
   $app = New-MgApplication @appParams
+  # A NEW AppId means every consent recorded against the old one is orphaned,
+  # and the commonest way to get here by accident is a typo in -AppName on a
+  # re-run: the lookup misses, and the script dutifully creates a second app.
+  if ($NamedByCaller) {
+    Write-Host "  Note: re-run with EXACTLY -AppName '$AppName' to update this registration." -ForegroundColor Yellow
+    Write-Host "        A different name creates a SECOND app with a new client ID. To rename" -ForegroundColor Yellow
+    Write-Host "        this one later, pass -AppObjectId $($app.Id) with the new -AppName." -ForegroundColor Yellow
+  }
 }
 
 #--- 4. Ensure a service principal exists in this tenant ----------------
@@ -272,11 +316,30 @@ if (-not $SkipAdminConsent) {
 }
 
 #--- 6. Patch js/authConfig.js -------------------------------------------
-if (Test-Path $AuthConfigPath) {
+# ONLY for the shared multi-tenant registration, which is what that file is:
+# the canonical app's identity, tracked in git and served from the canonical
+# host. A -SingleTenant run creates an app for YOUR tenant, and writing its
+# client id in there replaced the canonical one in a working tree - one
+# `git commit -a` away from pointing the published site at a private tenant.
+# The single-tenant route has always had its own answer printed below
+# (js/authConfig.local.js, or ENCA_CLIENT_ID on the container), and neither
+# touches a file that upstream also changes.
+if ($SingleTenant) {
+  Write-Host "Left $AuthConfigPath untouched - a single-tenant client id does not belong in the shared config." -ForegroundColor Cyan
+} elseif (Test-Path $AuthConfigPath) {
   $cfg = Get-Content $AuthConfigPath -Raw
-  $cfg = $cfg -replace 'clientId:\s*"[^"]*"', "clientId: `"$($app.AppId)`""
-  Set-Content -Path $AuthConfigPath -Value $cfg -NoNewline
-  Write-Host "Patched clientId in $AuthConfigPath" -ForegroundColor Green
+  # Anchored to the start of a line and to two leading spaces: the file's header
+  # comment contains the example `//     clientId:  "<your Application (client)
+  # ID>",` and an unanchored pattern rewrote THAT too, quietly turning the
+  # documentation into a copy of somebody's tenant id.
+  $pattern = '(?m)^  clientId:\s*"[^"]*"'
+  if ($cfg -notmatch $pattern) {
+    Write-Host "Could not find the clientId assignment in $AuthConfigPath - left it alone. Set it by hand." -ForegroundColor Yellow
+  } else {
+    $cfg = $cfg -replace $pattern, "  clientId: `"$($app.AppId)`""
+    Set-Content -Path $AuthConfigPath -Value $cfg -NoNewline
+    Write-Host "Patched clientId in $AuthConfigPath" -ForegroundColor Green
+  }
 } else {
   Write-Host "authConfig.js not found at $AuthConfigPath - set clientId manually." -ForegroundColor Yellow
 }
@@ -309,6 +372,12 @@ if ($SingleTenant) {
   Write-Host ""
   Write-Host "  ...and reference it in index.html just before js/authConfig.js:" -ForegroundColor Cyan
   Write-Host "    <script src=`"js/authConfig.local.js`"></script>"
+  Write-Host ""
+  Write-Host "  RUNNING THE PUBLISHED CONTAINER INSTEAD? Nothing to edit - pass these:" -ForegroundColor Cyan
+  Write-Host "    docker run -e ENCA_CLIENT_ID=$($app.AppId) ``"
+  Write-Host "               -e ENCA_TENANT_ID=$tenantId ..."
+  Write-Host "    Azure Container Apps: the clientId and tenantId parameters on the"
+  Write-Host "    Deploy to Azure template do the same thing."
   Write-Host ""
   Write-Host "  Admin-consent URL (this tenant):" -ForegroundColor Cyan
   Write-Host "  https://login.microsoftonline.com/$tenantId/adminconsent?client_id=$($app.AppId)&redirect_uri=$([uri]::EscapeDataString($RedirectUris[0]))"

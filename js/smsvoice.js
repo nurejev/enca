@@ -71,6 +71,143 @@ const SmsVoice = (() => {
   };
   const optOutBody = (on) => ({ optOutSettings: { passkeyDynamicMigration: !!on } });
   const migrationWord = (v) => v === true ? "paused" : v === false ? "not paused" : "not read";
+  // In a HISTORY line the third state means something different from "not
+  // read": the property was absent from the policy at that moment. Same three
+  // values, different sentence, so it gets its own word rather than reusing a
+  // label that would claim the audit log failed.
+  const migrationValueWord = (v) => v === true ? "paused" : v === false ? "not paused" : "absent";
+
+  // ---- who changed it, and when: the directory audit log -------------------
+  // The panel answers WHAT this tenant's setting is. The question that follows
+  // it in every real conversation is "since when, and who did that?" — and
+  // because the property has no control in the Entra admin center, there is no
+  // change record anywhere a person can reach by clicking. The directory audit
+  // log has one: an edit to the authentication methods policy is logged like
+  // any other policy change, whoever made it and however they made it.
+  //
+  // Two caveats that must be PASSED ON rather than hidden, because both make
+  // an empty answer mean something other than "nobody changed it":
+  //   * retention is licence-bound — about 30 days on Entra ID P1/P2, 7 days
+  //     otherwise. "No record" means "not in the window", never "never".
+  //   * Entra does not reliably diff nested properties, so a record can prove
+  //     the policy was edited without proving WHICH field moved. Those records
+  //     are kept and labelled instead of dropped: a name and a timestamp is a
+  //     smaller answer than a transition, but it is still an answer.
+  const MIGRATION_AUDIT = {
+    scopes: ["AuditLog.Read.All"],
+    role: "Reports Reader",   // least-privileged built-in role that can read the audit log
+    days: 30,                 // the most any licence retains
+    // The date window plus the category every policy change lands in. Narrowing
+    // further server-side is not worth it: the activity name for this edit
+    // differs between the portal, Graph and PowerShell, and a filter that
+    // misses one of them would report "nobody changed it" about a change that
+    // is sitting right there in the log.
+    query(days) {
+      const since = new Date(Date.now() - (days || MIGRATION_AUDIT.days) * 864e5).toISOString();
+      const f = `activityDateTime ge ${since} and category eq 'Policy'`;
+      return `/auditLogs/directoryAudits?$filter=${encodeURIComponent(f)}&$orderby=activityDateTime desc&$top=999`;
+    },
+  };
+
+  // Audit values arrive as JSON strings, sometimes double-encoded, sometimes
+  // wrapped in a one-element array, and sometimes as the bare word "true".
+  function auDecode(v) {
+    if (v == null || v === "") return null;
+    let x = v;
+    for (let i = 0; i < 3; i++) {
+      if (typeof x !== "string") break;
+      const s = x.trim();
+      if (s === "true") return true;
+      if (s === "false") return false;
+      if (!(s.startsWith("{") || s.startsWith("[") || s.startsWith('"'))) break;
+      try { x = JSON.parse(s); } catch { break; }
+    }
+    if (Array.isArray(x) && x.length === 1 && x[0] && typeof x[0] === "object") return x[0];
+    return x;
+  }
+  // The flag can sit anywhere in a decoded payload: the whole policy object,
+  // just optOutSettings, or the bare boolean when the property is named on the
+  // modifiedProperty itself. undefined means "this payload does not carry it",
+  // which is not the same as null ("it carries it, and it was absent").
+  function findFlag(v, depth = 0) {
+    if (typeof v === "boolean") return depth ? v : undefined;
+    if (!v || typeof v !== "object" || depth > 6) return undefined;
+    if (Object.prototype.hasOwnProperty.call(v, "passkeyDynamicMigration")) {
+      const b = v.passkeyDynamicMigration;
+      return typeof b === "boolean" ? b : b === "true" ? true : b === "false" ? false : null;
+    }
+    for (const k of Object.keys(v)) {
+      const r = findFlag(v[k], depth + 1);
+      if (r !== undefined) return r;
+    }
+    return undefined;
+  }
+  const NAMED_RX = /passkeydynamicmigration/i;
+  const AUTH_POLICY_RX = /authentication ?methods ?policy|authenticationmethodspolicy/i;
+
+  function migrationActor(rec) {
+    const b = rec.initiatedBy || {};
+    if (b.user && (b.user.userPrincipalName || b.user.displayName || b.user.id))
+      return { kind: "user", name: b.user.displayName || b.user.userPrincipalName || b.user.id,
+        upn: b.user.userPrincipalName || "", ip: b.user.ipAddress || "" };
+    if (b.app && (b.app.displayName || b.app.appId))
+      return { kind: "app", name: b.app.displayName || b.app.appId, upn: "", ip: "" };
+    return { kind: "unknown", name: "(unknown)", upn: "", ip: "" };
+  }
+
+  // One audit record → one history row, or null when it has nothing to do with
+  // the authentication methods policy.
+  function migrationRecord(rec) {
+    const trs = rec.targetResources || [];
+    const props = trs.flatMap((t) => t.modifiedProperties || []);
+    const text = [rec.activityDisplayName || "",
+      ...trs.map((t) => `${t.displayName || ""} ${t.type || ""}`),
+      ...props.map((p) => p.displayName || "")].join(" ");
+    if (!NAMED_RX.test(text) && !AUTH_POLICY_RX.test(text)) return null;
+
+    let from, to;
+    for (const p of props) {
+      const named = NAMED_RX.test(String(p.displayName || ""));
+      const o = auDecode(p.oldValue), n = auDecode(p.newValue);
+      const f = named ? (typeof o === "boolean" ? o : o == null ? null : findFlag(o, 1)) : findFlag(o);
+      const t = named ? (typeof n === "boolean" ? n : n == null ? null : findFlag(n, 1)) : findFlag(n);
+      if (f !== undefined && from === undefined) from = f;
+      if (t !== undefined && to === undefined) to = t;
+    }
+    const seen = from !== undefined || to !== undefined;
+    const norm = (v) => (v === true || v === false) ? v : null;
+    return {
+      id: rec.id,
+      when: rec.activityDateTime,
+      activity: rec.activityDisplayName || "(policy change)",
+      result: rec.result || "",
+      service: rec.loggedByService || "",
+      actor: migrationActor(rec),
+      from: seen ? norm(from) : null,
+      to: seen ? norm(to) : null,
+      seen,                                       // the record carried the property at all
+      moved: seen && norm(from) !== norm(to),     // and it actually changed
+    };
+  }
+
+  // The whole answer, in the order the panel needs it: the property changes
+  // first, every other authentication methods policy edit behind them as the
+  // fallback, and a word for which of the two the caller is looking at — so
+  // the screen can say "nobody touched the property, but somebody edited the
+  // policy" instead of drawing the weaker answer as if it were the strong one.
+  function migrationHistory(records, days) {
+    const rows = (records || []).map(migrationRecord).filter(Boolean)
+      .sort((a, b) => String(b.when).localeCompare(String(a.when)));
+    const moved = rows.filter((r) => r.moved);
+    return {
+      days: days || MIGRATION_AUDIT.days,
+      rows, moved,
+      last: moved[0] || null,        // who changed the opt-out, when Entra diffed it
+      lastTouch: rows[0] || null,    // else: who last edited the policy at all
+      matched: moved.length ? "property" : rows.length ? "policy" : "none",
+    };
+  }
+  const migrationMove = (r) => `${migrationValueWord(r.from)} → ${migrationValueWord(r.to)}`;
 
   // ---- end passkey dynamic migration --------------------------------------
 
@@ -300,5 +437,6 @@ const SmsVoice = (() => {
   }
 
   return { DATES, daysUntil, parseScope, classify, phoneRole, analyze, toMd, toCsv, notifyEmail, stateWord, campaignWord, RISK_WORD, MD_ROW_CAP,
-    MIGRATION, readOptOut, optOutBody, migrationWord };
+    MIGRATION, readOptOut, optOutBody, migrationWord,
+    MIGRATION_AUDIT, migrationHistory, migrationRecord, migrationValueWord, migrationMove };
 })();

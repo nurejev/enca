@@ -43,6 +43,78 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   const ver = (b) => `v1.0.${b}`;
 
+  // ---- how THIS deployment updates -----------------------------------
+  // "docker pull" is the wrong instruction on a platform where there is no
+  // docker to run it on, and a generic list of every possibility is a thing
+  // people skim past. The hostname says which platform this is, so the
+  // window can lead with the command that actually applies here.
+  //
+  // Azure Container Apps is worth its own case for a reason beyond the CLI
+  // being different: it sets every container's image pull policy to `always`,
+  // so a container that STARTS pulls the tag fresh. Paired with the template's
+  // scale-to-zero, an idle instance therefore picks up a republished tag by
+  // itself on the next request — which is a real exception to "it does not
+  // update itself", and worth saying out loud rather than leaving somebody to
+  // discover their instance moved.
+  const IS_ACA = /\.azurecontainerapps\.io$/i.test(here);
+  const IMAGE = "ghcr.io/nurejev/enca:latest";
+
+  // A command block is only useful if it survives being pasted into the shell
+  // the reader actually has. Bash line continuations (\) and $(...) both fail
+  // in PowerShell - the first line runs alone and docker answers "invalid
+  // reference format", which names nothing a person can act on. So the blocks
+  // are written for the platform the browser is running on.
+  const IS_WINDOWS = /Windows/i.test((navigator.userAgentData && navigator.userAgentData.platform)
+    || navigator.platform || navigator.userAgent || "");
+  const UPDATE_STEPS = (() => {
+    const docker = {
+      title: "Docker or compose",
+      note: "pull the new image and recreate the container",
+      cmd: `docker pull ${IMAGE}\ndocker rm -f enca   # then the same docker run / compose up -d as before`,
+    };
+    const fork = {
+      title: "A reviewed fork",
+      note: "pull upstream in and re-review the diff, deliberately, by hand",
+      cmd: "git remote add upstream https://github.com/nurejev/enca.git   # once\n"
+         + "git fetch upstream\n"
+         + "git diff HEAD upstream/main   # the review is the point\n"
+         + "git merge upstream/main",
+    };
+    if (!IS_ACA) return [docker, fork];
+    // Container Apps sets every container's image pull policy to `always`, so
+    // ANY command that starts a fresh container re-pulls the tag: a restart,
+    // a deactivate/activate, a new revision, or a scale-to-zero cold start.
+    // Restarting is the lightest of those and leaves no revision clutter.
+    //
+    // NOT offered, deliberately: `az containerapp update --image <same tag>`.
+    // An unchanged image reference is not a revision-scope change, so it can
+    // create no revision and do nothing at all - a command that looks like it
+    // worked and did not is worse than no command.
+    const aca = IS_WINDOWS
+      ? { title: "Azure Container Apps — this deployment (PowerShell)",
+          note: "restart the active revision; it pulls the tag again on start",
+          cmd: "$APP = \"<app-name>\"; $RG = \"<resource-group>\"\n"
+             + "$rev = az containerapp show -n $APP -g $RG --query properties.latestRevisionName -o tsv\n"
+             + "az containerapp revision restart -n $APP -g $RG --revision $rev\n\n"
+             + "# Portal: Revisions and replicas -> the active revision -> Restart.\n"
+             + "# Heavier alternative, if you want a new revision to roll back to:\n"
+             + "#   az containerapp revision copy -n $APP -g $RG\n"
+             + "# Already scaled to zero? The next request cold-starts and pulls the\n"
+             + "# new image by itself - this is how you make that happen NOW." }
+      : { title: "Azure Container Apps — this deployment",
+          note: "restart the active revision; it pulls the tag again on start",
+          cmd: "APP=<app-name>; RG=<resource-group>\n"
+             + "az containerapp revision restart -n $APP -g $RG \\\n"
+             + "  --revision $(az containerapp show -n $APP -g $RG \\\n"
+             + "      --query properties.latestRevisionName -o tsv)\n\n"
+             + "# Portal: Revisions and replicas -> the active revision -> Restart.\n"
+             + "# Heavier alternative, if you want a new revision to roll back to:\n"
+             + "#   az containerapp revision copy -n $APP -g $RG\n"
+             + "# Already scaled to zero? The next request cold-starts and pulls the\n"
+             + "# new image by itself - this is how you make that happen NOW." };
+    return [aca, docker, fork];
+  })();
+
   // The titles of every release between here and upstream, newest first —
   // parsed from upstream's changelog.js text. The regex is pinned to the
   // one shape every release object opens with.
@@ -102,17 +174,39 @@
       <h3>🍴 ${esc(String(upBuild - APP_BUILD.build))} build${upBuild - APP_BUILD.build === 1 ? "" : "s"} between this copy and upstream</h3>
       <p class="mini">This deployment serves ${esc(ver(APP_BUILD.build))}; ${esc(UPSTREAM_HOST)} serves ${esc(ver(upBuild))}. Each line is one release's headline — the full detail is in 📋 What's new on the upstream site.</p>
       <ul style="list-style:none;margin:0 0 16px;padding:0;max-height:40vh;overflow:auto">${rows}</ul>
-      <p class="mini" style="margin:0 0 6px"><b>To update a Docker instance</b> — pull and recreate:</p>
-      <pre class="mini" style="background:var(--soft);padding:10px;border-radius:8px;overflow:auto">docker pull ghcr.io/nurejev/enca:latest
-docker rm -f enca   # then the same docker run / compose up -d as before</pre>
-      <p class="mini" style="margin:10px 0 6px"><b>To update a reviewed fork</b> — pull upstream in and re-review the diff, deliberately by hand:</p>
-      <pre class="mini" style="background:var(--soft);padding:10px;border-radius:8px;overflow:auto">git remote add upstream https://github.com/nurejev/enca.git   # once
-git fetch upstream
-git diff HEAD upstream/main   # the review is the point
-git merge upstream/main</pre>
+      <p class="mini" style="margin:0 0 10px;padding:9px 11px;background:var(--soft);border-left:3px solid var(--report);border-radius:8px">
+        <b>The app cannot update itself, and that is not an oversight.</b> ENCA is static files in a browser
+        with no server behind it — nothing here can restart a container, and anything that could would be a
+        control plane you would then have to trust. So this window hands you the command for your own
+        deployment instead.</p>
+      ${UPDATE_STEPS.map((s) => `
+        <p class="mini" style="margin:10px 0 6px"><b>${s.title}</b>${s.note ? ` — ${s.note}` : ""}</p>
+        <div style="position:relative">
+          <pre class="mini" data-copy style="background:var(--soft);padding:10px;padding-right:74px;border-radius:8px;overflow:auto;margin:0">${esc(s.cmd)}</pre>
+          <button class="btn" data-copybtn style="position:absolute;top:6px;right:6px;font-size:11px;padding:3px 9px">Copy</button>
+        </div>`).join("")}
       <div class="modal-foot"><button class="btn" id="forkModalClose">Close</button></div>
     </div>`;
     document.body.appendChild(bg);
+    // Copy the block this button sits on, and say so where the eye already is.
+    bg.querySelectorAll("[data-copybtn]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const pre = btn.parentNode.querySelector("[data-copy]");
+        try {
+          await navigator.clipboard.writeText(pre.textContent);
+          const was = btn.textContent;
+          btn.textContent = "Copied";
+          setTimeout(() => { btn.textContent = was; }, 1500);
+        } catch {
+          // http:// origin or a denied permission — select it so the keyboard
+          // still works, rather than a button that silently does nothing.
+          const r = document.createRange(); r.selectNodeContents(pre);
+          const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+          btn.textContent = "Press ⌘/Ctrl+C";
+          setTimeout(() => { btn.textContent = "Copy"; }, 2500);
+        }
+      });
+    });
     bg.querySelector("#forkModalClose").addEventListener("click", () => bg.classList.remove("open"));
     bg.addEventListener("click", (e) => { if (e.target === bg) bg.classList.remove("open"); });
   }
