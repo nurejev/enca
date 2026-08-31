@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25240, date: "2026-08-31", title: "The page goes back to its near-white",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The mint page background from build 25238 is withdrawn. The light theme's page colour goes back to the near-white it had before, and the white cards go back to sitting on it quietly. The mint did what it was asked to do - it gave the cards an edge - and the answer after looking at it across the app was that the cost was not worth the depth. One variable moves back; every surface, border and text colour is where it has been all along, and dark mode was never touched by either build." },
+      { kind: "improved", tool: "All tools", text: "Nothing else changes with it. The background was one token, which is why it was cheap to try and is cheap to take back - the reason it was worth trying on the beta channel rather than arguing about." },
+    ],
+  },
+  {
     build: 25239, date: "2026-08-31", title: "Groups the scan never knew about",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "⑥ Protect and ⑦ Migrate can now reach ANY group in the tenant, not only the ones the scan found. Both tabs listed exactly what they discovered — the groups the policies point at, and the role-assignable groups the baseline recognises — so a break-glass group no policy references yet, an exclusion group named nothing like the baseline, or a role-assignable group that predates all of this had no way in at all. There is now a search box under each list: type two characters, it reads the directory by display name, and every hit says what it is (role-assignable, dynamic, Microsoft 365, mail-enabled, on-premises, and how many policies reference it) before you add anything." },
