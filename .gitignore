@@ -22,3 +22,10 @@ js/authConfig.local.js
 
 # CloudFellows branding — offline only, same rule as above.
 /cloudfellows/
+
+# Terraform deployment of the self-hosting image — offline only. It names a
+# subscription, a service connection and an app registration, and it is not
+# an ENCA change: no changelog entry, no promotion-queue item, no build
+# number. It is its own git repo pushed to Azure Repos, so the nested .git
+# lives in here too. selfhost/azuredeploy.json stays the published route.
+/terraform/
