@@ -100,6 +100,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 122,
+      title: "📝 Deploy to Azure: what to put in the branding boxes",
+      tools: ["Self-hosting"],
+      builds: [25242],
+      risk: "low",
+      what: "The branding and brandingUrl parameter descriptions in selfhost/azuredeploy.json now lead with LEAVE EMPTY on a first deployment, explain that the look is designed in the app afterwards and written back by Save to this deployment, say what the boxes are actually for (a redeploy, or a matching instance for another team), and that it is one or the other rather than both.",
+      why: "Text in two ARM parameter descriptions - no template logic, no app code, nothing that can change what a deployment does. It fixes an ordering problem rather than a bug: the form asks for a branding JSON at the one moment nobody can have one, because designing it requires the instance the form is creating.",
+      carveout: "PORT CARVE-OUT for the file, unchanged from item 92's: selfhost/azuredeploy.json on beta defaults image to ghcr.io/nurejev/enca:beta and main's must say :latest. This item touches only the two description strings, so port those and leave the defaultValue alone - do not copy the file wholesale.",
+      test: [
+        "Open the Deploy to Azure button from SELF-HOSTING.md and hover the info icon on Branding and Branding Url: both must lead with LEAVE EMPTY on a first deployment. The portal truncates long descriptions in some views, so check the tooltip actually shows that opening phrase rather than starting mid-sentence.",
+        "Deploy with both blank: the instance comes up unbranded, which is the documented happy path.",
+        "Then sign in, design a look, and use Save to this deployment - confirming the sequence the descriptions now promise is the one that works.",
+        "Deploy a second instance with the branding parameter filled from that look: it comes up wearing it without anyone touching the gear.",
+        "The 48000 maxLength is unchanged - paste an oversized value and confirm ARM still refuses before creating anything.",
+      ],
+      files: ["selfhost/azuredeploy.json"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],

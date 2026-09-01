@@ -29,14 +29,21 @@
 // ======================================================================
 const CHANGELOG = [
   {
-    build: 25241, date: "2026-08-31", title: "Self-hosting is in production",
+    build: 25242, date: "2026-09-01", title: "The Deploy to Azure form says to leave the branding empty",
+    items: [
+      { kind: "fixed", tool: "Self-hosting", text: "Two boxes on the Deploy to Azure form asked for something nobody deploying for the first time can have. Branding and Branding Url described what they do without saying what to put in them, and the honest answer is nothing: the look is designed INSIDE the app, from the gear next to Sign out, which needs the instance to exist and you to be signed in. Somebody standing at that form has no branding JSON to paste and no way to get one yet. Both tooltips now open with LEAVE EMPTY on a first deployment and say what actually happens next - deploy, sign in, design, and let Save to this deployment write the setting for you." },
+      { kind: "improved", tool: "Self-hosting", text: "They also say what the boxes ARE for, which is the second deployment onward: redeploying an instance whose look you already have, or standing up a matching one for another team. And that it is one or the other, never both - branding wins over brandingUrl, so filling in both leaves the URL looking ignored for no reason a reader could work out." },
+    ],
+  },
+  {
+    build: 25241, date: "2026-09-01", title: "Self-hosting is in production",
     items: [
       { kind: "improved", tool: "Self-hosting", text: "Everything the self-hosting package is made of has gone to production as build 305, and the promotion queue is down to the two items that belong to the two beta-only tools. The image, the compose file, the install scripts, the Deploy to Azure template and SELF-HOSTING.md are on the production channel now, pointing at main and :latest there while this channel keeps pointing at beta and :beta - which is what queue item 92's carve-out existed to make sure of. The container's own app registration, the SELF-HOSTED ribbon and sign-in card, deployment branding with its size readout, the Content Security Policy fix for Azure Resource Manager, the passkey dynamic migration audit trail and the directory search in Conditional Access groups went with it." },
       { kind: "fixed", tool: "Roadmap", text: "R06 says so on this channel too, which is the step that gets missed: each channel carries its own copy of the page, so a promotion that only updates production leaves the beta card claiming the work is beta-only. It now reads live · beta 25195 · production 305. S02 was corrected alongside it - it had said production 297 since it shipped, but carried no shipped build of its own, so it could never age out of Now into Shipped before." },
     ],
   },
   {
-    build: 25240, date: "2026-08-31", title: "The page goes back to its near-white",
+    build: 25240, date: "2026-09-01", title: "The page goes back to its near-white",
     items: [
       { kind: "fixed", tool: "All tools", text: "The mint page background from build 25238 is withdrawn. The light theme's page colour goes back to the near-white it had before, and the white cards go back to sitting on it quietly. The mint did what it was asked to do - it gave the cards an edge - and the answer after looking at it across the app was that the cost was not worth the depth. One variable moves back; every surface, border and text colour is where it has been all along, and dark mode was never touched by either build." },
       { kind: "improved", tool: "All tools", text: "Nothing else changes with it. The background was one token, which is why it was cheap to try and is cheap to take back - the reason it was worth trying on the beta channel rather than arguing about." },
