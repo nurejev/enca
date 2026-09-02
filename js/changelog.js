@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25244, date: "2026-09-02", title: "The live baseline read decodes UTF-16 policy files",
+    items: [
+      { kind: "fixed", tool: "Baseline (Joey Verlinden)", text: "The first live read on the beta site reported “only 0 of 38 files were usable policies” and kept the snapshot — which is the fallback doing its job, but for the wrong reason. Every policy file in the repository is a Windows PowerShell export, written as UTF-16 LE with a byte-order mark; the reader decoded them as UTF-8 and got a string of NULs that no JSON parser accepts. It now reads the bytes, sniffs the byte-order mark (or the NUL pattern of a BOM-less UTF-16 file), decodes accordingly and strips the mark. Verified against all 38 files at the 2026.6.1 tag. The skip reason now carries the parser's own message, so the next such surprise names itself." },
+    ],
+  },
+  {
     build: 25243, date: "2026-09-02", title: "R36 — the Joey Verlinden baseline becomes a first-class baseline, and is read live from his repository",
     items: [
       { kind: "new", tool: "Baseline Policies", text: "An ACTIVE baseline per tenant. The summary card of either catalog now says which of the two baselines this tenant works against, and a ★ button switches it. Before this, every tool downstream of the comparison — group checks, group creation, persona vaults, exclusion restore — stopped at the CloudFellows catalog whatever the Baseline tool was showing. The choice is kept with the tenant in the browser, like the R28 group personas, and defaults to CloudFellows, so nothing changes for a tenant that never chooses. Looking at a comparison never changes it: looking at Joey's table must not change where a write puts a group." },

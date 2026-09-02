@@ -198,6 +198,25 @@ const BaselineLive = (() => {
     return r;
   }
 
+  // The policy files are PowerShell exports, and Windows PowerShell's
+  // Out-File writes UTF-16 LE with a byte-order mark — raw.githubusercontent
+  // even labels them "charset=utf-16". Response.text() decodes as UTF-8
+  // regardless and yields "\ufffd\ufffd{\0\r\0…", which is how build 25243's
+  // first live read reported 0 of 38 files as valid JSON. So: read the bytes,
+  // sniff the BOM, decode accordingly, and strip the mark.
+  function decode(buf) {
+    const b = new Uint8Array(buf);
+    let enc = "utf-8";
+    if (b.length >= 2 && b[0] === 0xFF && b[1] === 0xFE) enc = "utf-16le";
+    else if (b.length >= 2 && b[0] === 0xFE && b[1] === 0xFF) enc = "utf-16be";
+    // no BOM but every other byte is NUL in the first line: UTF-16 LE anyway
+    else if (b.length >= 8 && b[1] === 0 && b[3] === 0 && b[5] === 0 && b[7] === 0) enc = "utf-16le";
+    let txt;
+    try { txt = new TextDecoder(enc).decode(b); }
+    catch { txt = new TextDecoder("utf-8").decode(b); }
+    return txt.replace(/^\ufeff/, "");
+  }
+
   // Read the latest release and every policy file it ships. Resolves to the
   // catalog on success; throws on failure. Never touches the snapshot.
   async function read(onStatus) {
@@ -237,9 +256,9 @@ const BaselineLive = (() => {
       onStatus?.(`Reading policy files… ${n}/${files.length}`);
       const url = `${RAW}/${encodeURIComponent(tag)}/${bundled.configPath}/${encodeURIComponent(f.name)}`;
       try {
-        const txt = await (await get(url, "application/json")).text();
+        const txt = decode(await (await get(url, "application/json")).arrayBuffer());
         let raw;
-        try { raw = JSON.parse(txt); } catch { skipped.push(`${f.name}: not valid JSON`); continue; }
+        try { raw = JSON.parse(txt); } catch (e) { skipped.push(`${f.name}: not valid JSON (${String(e.message || e).slice(0, 60)})`); continue; }
         const why = reject(raw, txt.length);
         if (why) { skipped.push(`${f.name}: ${why}`); continue; }
         const row = summarize(raw, byName.get(norm(raw.displayName)) || null);
