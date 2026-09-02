@@ -65,9 +65,9 @@ const CaMap = (() => {
 
   const norm = (s) => String(s || "").trim().toLowerCase();
 
-  function read(tid) {
+  function read(tid, bl) {
     try {
-      const raw = localStorage.getItem(KEY(tid));
+      const raw = localStorage.getItem(KEY(tid, bl));
       if (!raw) return [];
       const o = JSON.parse(raw);
       return Array.isArray(o && o.entries) ? o.entries : [];
@@ -122,6 +122,16 @@ const CaMap = (() => {
   }
 
   const list = () => entries.slice().sort((a, b) => a.name.localeCompare(b.name));
+  // R36 — read ANOTHER baseline's drawer for this tenant without binding to
+  // it: the switch preview needs to say how many mappings wait on the other
+  // side. `codes` is that baseline's persona list, because sanitize() judges
+  // codes against the active one. Never writes.
+  function peek(bl, codes) {
+    if (tenantId == null) return [];
+    const ok = new Set((codes || []).map((a) => a.code));
+    return (read(tenantId, bl) || []).filter((e) => e && e.name && ok.has(String(e.code)))
+      .map((e) => ({ id: e.id ? String(e.id) : null, name: String(e.name).trim(), code: String(e.code), note: e.note ? String(e.note) : "" }));
+  }
   const count = () => entries.length;
   const isPersisted = () => persisted;
   const tenant = () => tenantId;
@@ -233,6 +243,6 @@ const CaMap = (() => {
     return L;
   }
 
-  return { SCHEMA, use, rebind, forget, list, count, isPersisted, tenant, entryFor, codeForGroup, codeOf,
+  return { SCHEMA, use, rebind, forget, list, peek, count, isPersisted, tenant, entryFor, codeForGroup, codeOf,
     set, remove, clear, toExport, fromExport, importAll, toMdSection, isCode, labelOf, codeList };
 })();

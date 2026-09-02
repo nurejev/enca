@@ -1043,6 +1043,11 @@ table.matrix tbody tr.hl-row > td.hl-col,
 .bl-source.bundled{background:var(--warn-bg2);border-color:var(--warn-bd)}
 .bl-activate.on{background:var(--ok-bg2);border-color:var(--ok-bd)}
 .bl-source>span,.bl-activate>span{flex:1;min-width:240px}
+.bl-preview{margin-top:12px;padding:12px 14px;border-radius:10px;border:1px solid var(--warn-bd);background:var(--warn-bg2)}
+.bl-prev-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.bl-prev-grid>div{padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border)}
+.bl-prev-grid b{display:block;margin-bottom:4px}
+.bl-prev-grid .mini b{display:inline}
 .bl-badge{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
   border-radius:8px;font-weight:700;font-size:13px}
 .bl-badge.ok{background:var(--ok-bg);color:var(--on)}

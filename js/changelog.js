@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25245, date: "2026-09-02", title: "Switching the active baseline shows a dry run first",
+    items: [
+      { kind: "improved", tool: "Baseline Policies", text: "The ★ button no longer switches on the click. It now reads this tenant's groups (both baselines' families) and administrative units and shows a DRY RUN of the switch: how many groups ① Check and ② Create would expect and how many of them exist, which persona vaults 🛡 Restricted AUs would expect and which are present or name-clashed, which groups would stop being routed (become unmapped), start being routed or change vault under ⑥ Protect and ＋ Bulk add — with names — and the conventions that move: the exclusion-group shape, the break-glass group, the fallback unit, the R28 mapping drawer. The ★ Switch button sits under that card, next to Keep. Neither step writes to the tenant, and the card says so in its first line." },
+      { kind: "improved", tool: "Restricted AUs", text: "🏷 Group personas can be peeked for the OTHER baseline without switching to it, which is how the dry run says how many mappings already wait on the other side." },
+    ],
+  },
+  {
     build: 25244, date: "2026-09-02", title: "The live baseline read decodes UTF-16 policy files",
     items: [
       { kind: "fixed", tool: "Baseline (Joey Verlinden)", text: "The first live read on the beta site reported “only 0 of 38 files were usable policies” and kept the snapshot — which is the fallback doing its job, but for the wrong reason. Every policy file in the repository is a Windows PowerShell export, written as UTF-16 LE with a byte-order mark; the reader decoded them as UTF-8 and got a string of NULs that no JSON parser accepts. It now reads the bytes, sniffs the byte-order mark (or the NUL pattern of a BOM-less UTF-16 file), decodes accordingly and strips the mark. Verified against all 38 files at the 2026.6.1 tag. The skip reason now carries the parser's own message, so the next such surprise names itself." },

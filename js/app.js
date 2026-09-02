@@ -6768,18 +6768,58 @@ max@contoso.com,"Global, DevOps"</pre>
   // R36 — make the catalog on screen the one every tool works against, and
   // read Joey's repository on request. Both live in the summary card.
   $("blHead").addEventListener("click", async (e) => {
+    // Preview first, switch second. The preview is a dry run over the tenant
+    // as read — what the tools would expect and where a write would go — so
+    // the switch button only appears under a card that has already said what
+    // it does. Nothing here writes to the tenant.
     const act = e.target.closest("[data-bl-activate]");
-    if (act) {
+    if (act) { e.preventDefault(); await blPreviewSwitch(act.dataset.blActivate); return; }
+    const sw = e.target.closest("[data-bl-switch]");
+    if (sw) {
       e.preventDefault();
-      if (Baseline.setActive(act.dataset.blActivate)) {
+      if (Baseline.setActive(sw.dataset.blSwitch)) {
         toast(`<span>${esc(Baseline.active().label)}</span> is now the active baseline for this tenant`);
         renderBaseline();
       }
       return;
     }
+    if (e.target.closest("[data-bl-cancel]")) { e.preventDefault(); renderBaseline(); return; }
     const f = e.target.closest("[data-bl-fetch]");
     if (f) { e.preventDefault(); await blLiveFetch(true); }
   });
+  // The facts the dry run needs, read once per preview: every group in
+  // BOTH baselines' families (so the routing diff can name what stops and
+  // what starts being routed), every administrative unit, and both R28
+  // drawers. Reads only.
+  async function blPreviewSwitch(toId) {
+    const box = $("blActivate"); if (!box) return;
+    box.innerHTML = `<span class="mini"><div class="spinner" style="width:14px;height:14px;display:inline-block;vertical-align:middle"></div> Reading this tenant's groups and administrative units to show what the switch would change…</span>`;
+    try {
+      const target = Baseline.withContract(Baseline.catalog(toId));
+      const facts = { groups: [], aus: [], mapFrom: CaMap.list(), mapTo: CaMap.peek(toId, target.personas || []) };
+      if (isDemo) {
+        facts.groups = Object.keys(DEMO_DATA.scopeGroups || {}).map((n) => ({ id: "g-" + n, displayName: n }));
+        facts.aus = [{ id: "au-GLO", displayName: "CAB-SEC-RMAU-GLO-Exclusions", isMemberManagementRestricted: true }];
+      } else {
+        const prefixes = [...new Set([...(Baseline.active().groupPrefixes || []), ...(target.groupPrefixes || [])])];
+        const seen = new Set();
+        for (const p of prefixes) {
+          try {
+            const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName&$top=999`);
+            for (const g of r) if (!seen.has(g.id)) { seen.add(g.id); facts.groups.push(g); }
+          } catch (err) { console.warn("switch preview: prefix", p, "failed:", err.message || err); }
+        }
+        try { facts.aus = ruList || await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted"); }
+        catch (err) { console.warn("switch preview: AU read failed:", err.message || err); facts.aus = []; }
+      }
+      const prev = Baseline.previewSwitch(toId, facts);
+      const again = $("blActivate"); if (!again) return;
+      again.innerHTML = prev ? Baseline.renderPreview(prev) : '<span class="mini">Already the active baseline.</span>';
+    } catch (err) {
+      const again = $("blActivate");
+      if (again) again.innerHTML = `<span class="mini" style="color:var(--off)">Could not read the tenant for the preview: ${esc(err.message || err)}</span> <button class="btn sm" data-bl-cancel="1">Back</button>`;
+    }
+  }
   // Read the repository once per session when Joey's catalog is looked at,
   // or when it is the active baseline — never silently more than that.
   let blLiveAsked = false;

@@ -426,15 +426,124 @@ const Baseline = (() => {
   }
 
   // R36 — is THIS the baseline the rest of the app works against? Viewing a
-  // comparison never changes that; the button does.
+  // comparison never changes that; the button does — and the button first
+  // shows what the switch would change (previewSwitch) before offering it.
   function activePanel(cat) {
     if (!cat) return "";
     const on = isActive(cat.id);
-    return `<div class="bl-activate ${on ? "on" : ""}">
+    return `<div class="bl-activate ${on ? "on" : ""}" id="blActivate">
       <span class="mini">${on
         ? `<b>★ Active baseline.</b> 👥 Conditional Access groups (① Check, ② Create), 🔒 Protect exclusions, 🛡 Restricted AUs (persona vaults, ＋ Bulk add, persona chips), the exclusion-restore action and 📖 Baseline guide all work against <b>${esc(cat.label)}</b> for this tenant.`
         : `Not the active baseline — the group checks, group creation, persona vaults and the exclusion-restore action currently work against <b>${esc(active().label)}</b>.`}</span>
-      ${on ? "" : `<button class="btn sm primary" data-bl-activate="${esc(cat.id)}">★ Make ${esc(cat.label)} the active baseline</button>`}
+      ${on ? "" : `<button class="btn sm" data-bl-activate="${esc(cat.id)}">🔍 Preview switching to ${esc(cat.label)}</button>`}
+    </div>`;
+  }
+
+  // ---- the switch preview: what changes, before it changes ------------
+  // A DRY RUN over the tenant as read, pure over its inputs. `facts` is what
+  // the host page collected — nothing here calls Graph:
+  //   facts.groups   [{ id, displayName }] — the groups in both baselines'
+  //                  families (both prefix scans), so the routing diff can
+  //                  say which groups stop being routed and which start
+  //   facts.aus      [{ displayName, isMemberManagementRestricted }]
+  //   facts.mapFrom  R28 entries in the CURRENT baseline's drawer
+  //   facts.mapTo    R28 entries already waiting in the TARGET's drawer
+  // Every list is bounded when rendered; every count is exact.
+  const normName = (s) => String(s || "").trim().toLowerCase();
+  function previewSwitch(toId, facts) {
+    const from = active(), to = withContract(catalog(toId));
+    if (!from || !to || from.id === to.id) return null;
+    const f = facts || {};
+    const groups = (f.groups || []).filter((g) => g && g.displayName);
+    const haveGroup = new Set(groups.map((g) => normName(g.displayName)));
+    const aus = (f.aus || []).filter((a) => a && a.displayName);
+    const auByName = new Map(aus.map((a) => [normName(a.displayName), a]));
+
+    // 1. groups the tools expect
+    const tplTo = to.templates(), tplFrom = from.templates();
+    const groupsTo = tplTo.map((t) => ({ name: t.displayName, exists: haveGroup.has(normName(t.displayName)) }));
+    // 2. persona vaults
+    const vaults = (to.personas || []).map((p) => {
+      const name = to.auName(p.code);
+      const hit = auByName.get(normName(name));
+      return { code: p.code, label: p.label, name, status: !hit ? "missing" : hit.isMemberManagementRestricted === true ? "present" : "unrestricted" };
+    });
+    const vaultsFrom = (from.personas || []).map((p) => from.auName(p.code));
+    // 3. routing: who decides where each group goes, before and after.
+    //    The tenant's hand mapping wins on both sides, as it does in CaMap.
+    const mapFrom = new Map((f.mapFrom || []).map((e) => [normName(e.name), e.code]));
+    const mapTo = new Map((f.mapTo || []).map((e) => [normName(e.name), e.code]));
+    const route = (g, cat, map) => {
+      const n = normName(g.displayName);
+      if (map.has(n)) return { code: map.get(n), by: "tenant" };
+      const c = cat.codeForGroup(g.displayName);
+      return c ? { code: c, by: "convention" } : { code: null, by: null };
+    };
+    const routing = { lost: [], gained: [], moved: [], same: 0, unmapped: 0 };
+    for (const g of groups) {
+      const a = route(g, from, mapFrom), b = route(g, to, mapTo);
+      const row = { name: g.displayName, fromCode: a.code, toCode: b.code, fromBy: a.by, toBy: b.by,
+        fromAu: a.code ? from.auName(a.code) : null, toAu: b.code ? to.auName(b.code) : null };
+      if (a.code && !b.code) routing.lost.push(row);
+      else if (!a.code && b.code) routing.gained.push(row);
+      else if (a.code && b.code && (a.code !== b.code || row.fromAu !== row.toAu)) routing.moved.push(row);
+      else if (a.code) routing.same++;
+      else routing.unmapped++;
+    }
+    const byName = (x, y) => x.name.localeCompare(y.name);
+    routing.lost.sort(byName); routing.gained.sort(byName); routing.moved.sort(byName);
+    return {
+      from: { id: from.id, label: from.label, icon: from.icon || "🧬", groups: tplFrom.length, vaults: vaultsFrom, defaultAu: from.defaultAuName, breakGlass: from.breakGlassGroup, mapCount: (f.mapFrom || []).length },
+      to: { id: to.id, label: to.label, icon: to.icon || "🧬", release: to.release, source: to.source, defaultAu: to.defaultAuName, breakGlass: to.breakGlassGroup, mapCount: (f.mapTo || []).length,
+        exclusionShape: to.id === "joey" ? "“<policy name> - Exclude”" : "CAB-SEC-U-CAnnn-Exclusion" },
+      groupsTo, groupsExist: groupsTo.filter((g) => g.exists).length,
+      vaults, routing,
+      scanned: groups.length, ausScanned: aus.length,
+    };
+  }
+
+  function renderPreview(p) {
+    if (!p) return "";
+    const few = (rows, f, n) => rows.slice(0, n || 6).map(f).join("") + (rows.length > (n || 6) ? `<div class="mini muted">… and ${rows.length - (n || 6)} more</div>` : "");
+    const gMissing = p.groupsTo.length - p.groupsExist;
+    const vMissing = p.vaults.filter((v) => v.status === "missing").length;
+    const vClash = p.vaults.filter((v) => v.status === "unrestricted");
+    const r = p.routing;
+    return `<div class="bl-preview">
+      <h4 style="margin:0 0 6px">🔍 DRY RUN — switching this tenant from ${esc(p.from.icon)} ${esc(p.from.label)} to ${esc(p.to.icon)} ${esc(p.to.label)}${p.to.release ? ` ${esc(p.to.release)}` : ""}${p.to.source === "live" ? " (live read)" : p.to.id === "joey" ? " (bundled snapshot)" : ""}</h4>
+      <p class="mini" style="margin:0 0 10px"><b>Nothing below has happened yet, and the switch itself writes nothing to the tenant.</b> No group or unit is created, renamed or moved; the comparison tables stay as they are. What changes is what the tools <i>expect</i> and where a later write would go. Switching back restores every value on the left.</p>
+      <div class="bl-prev-grid">
+        <div>
+          <b>👥 Groups ① Check / ② Create expect</b>
+          <div class="mini">${p.from.groups} groups → <b>${p.groupsTo.length}</b>. Of the ${p.groupsTo.length}, <b>${p.groupsExist} exist</b> in this tenant and <b>${gMissing}</b> would be offered by ② Create.</div>
+          ${few(p.groupsTo.filter((g) => !g.exists), (g) => `<div class="mini muted">＋ ${esc(g.name)}</div>`, 5)}
+        </div>
+        <div>
+          <b>🛡 Persona vaults 🛡 Restricted AUs expect</b>
+          <div class="mini">${p.from.vaults.length} units → <b>${p.vaults.length}</b>: ${p.vaults.length - vMissing - vClash.length} present, <b>${vMissing} missing</b>${vClash.length ? `, <span style="color:var(--off)">${vClash.length} name taken by a non-restricted unit</span>` : ""}.</div>
+          ${few(p.vaults, (v) => `<div class="mini muted">${v.status === "present" ? "✓" : v.status === "missing" ? "＋" : "⚠"} ${esc(v.name)} <span class="muted">(${esc(v.label)})</span></div>`, 8)}
+        </div>
+        <div>
+          <b>🔀 Routing — where ⑥ Protect and ＋ Bulk add would file the ${p.scanned} groups read</b>
+          <div class="mini">${r.same} unchanged · <b>${r.lost.length} stop being routed</b> (become unmapped) · <b>${r.gained.length} start being routed</b> · ${r.moved.length} change vault · ${r.unmapped} unmapped either way.</div>
+          ${few(r.lost, (x) => `<div class="mini muted">− ${esc(x.name)} <span class="muted">was → ${esc(x.fromAu)}${x.fromBy === "tenant" ? " (by your mapping)" : ""}</span></div>`, 4)}
+          ${few(r.gained, (x) => `<div class="mini muted">＋ ${esc(x.name)} <span class="muted">→ ${esc(x.toAu)}${x.toBy === "tenant" ? " (by your mapping)" : ""}</span></div>`, 4)}
+          ${few(r.moved, (x) => `<div class="mini muted">~ ${esc(x.name)} <span class="muted">${esc(x.fromAu)} → ${esc(x.toAu)}</span></div>`, 4)}
+        </div>
+        <div>
+          <b>📐 Conventions the tools apply</b>
+          <div class="mini">Exclusion group per policy (🗂 Assign action 8): <b>${esc(p.to.exclusionShape)}</b></div>
+          <div class="mini">Break-glass group (📘 MS Learn fix): ${esc(p.from.breakGlass)} → <b>${esc(p.to.breakGlass)}</b></div>
+          <div class="mini">Fallback unit ⑥ Protect offers to create: ${esc(p.from.defaultAu)} → <b>${esc(p.to.defaultAu)}</b></div>
+          <div class="mini">🏷 Group personas (R28): the ${p.from.mapCount} mapping${p.from.mapCount === 1 ? "" : "s"} for ${esc(p.from.label)} stay saved but out of view; ${p.to.mapCount ? `<b>${p.to.mapCount}</b> already waiting` : "none yet"} for ${esc(p.to.label)}.</div>
+          <div class="mini">📖 Baseline guide reads ${esc(p.to.label)}'s objects${p.to.id === "joey" ? "; its step prose stays written for CloudFellows and says so" : ""}.</div>
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-start;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn sm primary" data-bl-switch="${esc(p.to.id)}">★ Switch — make ${esc(p.to.label)} the active baseline</button>
+        <button class="btn sm" data-bl-cancel="1">Keep ${esc(p.from.label)}</button>
+        <span class="mini muted">Read ${p.scanned} groups and ${p.ausScanned} administrative units to write this; nothing was changed.</span>
+      </div>
     </div>`;
   }
 
@@ -587,5 +696,5 @@ const Baseline = (() => {
 
   return { catalogs, catalog, compare, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
     // R36
-    use, active, activeCatalogId, isActive, setActive, activeLine, activeChip, withContract, DEFAULT_ID };
+    use, active, activeCatalogId, isActive, setActive, activeLine, activeChip, withContract, previewSwitch, renderPreview, DEFAULT_ID };
 })();
