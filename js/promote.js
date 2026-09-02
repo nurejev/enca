@@ -100,6 +100,31 @@ const PROMOTE = {
 
   items: [
     {
+      n: 127,
+      title: "🧩 R36.1 — active baseline by match, shared E-Admins, import from the repository, 🔀 switch-baseline mode",
+      tools: ["Baseline Policies", "Baseline (Joey Verlinden)", "Import"],
+      builds: [25249],
+      risk: "high",
+      what: "Baseline.autoPick(vms) runs after every tenant load and live read: with no localStorage choice, the catalog with the most policies present by exact name (E-Admins excluded) becomes activeId for the session (never written; pin() writes it). compare() appends the CloudFellows E-Admins rows to a community catalog as shared rows (own section, counted in coverage, out of toImport). The summary chips are data-blf buttons. BaselineLive reads the git tree at the release tag, fetches Config/Groups and Config/NamedLocations too, keeps slimmed raw objects (schema 2 cache) and exposes bundle(); blImport on Joey hands that bundle to imLoaded with the gap ticked. Importer.plan matches unversioned names by name, guards same-number replacement with Baseline.mismatchReason, knows the agents persona; counterpartPlan() pairs each shipped group with the other baseline's name for it; app.js imCopyCounterparts copies members via moveGroupMembers before importPolicies runs in mode switch, and the report lists the copies.",
+      why: "High on two counts. The auto-pick changes WHERE WRITES GO for a tenant that never chose — the very thing R36 made an explicit click — on the strength of a name count; the guard is that a saved choice always wins, the pick is never persisted, and the card states the counts. And switch mode WRITES MEMBERSHIP: it adds the members of one group to another, including the break-glass accounts, before creating policies that exclude the new group. Copy not move, and the policies land Off, so nothing enforces on the new groups until switched On — but a wrong counterpart pairing would put the wrong people in an exclusion group. Graduates after a real switch on a tenant deployed on CloudFellows groups under Joey's names (the screenshot tenant), with the copied memberships checked in the portal group by group.",
+      test: [
+        "Sign in to a tenant with no saved baseline choice whose policies carry Joey's names (the 26/38 tenant): the sign-in toast must say it matches Joey Verlinden; 🧩 Baseline (Joey Verlinden) must show ★ Active baseline — by match with 26 of his own policies against 0 of CloudFellows', a 📌 Keep button and NO preview button; 🧬 Baseline Policies must say it is not active, by match, and offer 🔍 Preview switching to CloudFellows and 🧹 What CloudFellows left behind. 👥 Conditional Access groups must say Working against Joey Verlinden without anyone clicking ★.",
+        "Reload: the pick must be made again (nothing in localStorage under enca-baseline:<tenant id>). Click 📌 Keep: the key must appear and the card must lose the by-match wording. Switch to CloudFellows explicitly, reload: CloudFellows must stay active — a saved choice is never overridden by a match.",
+        "On a tenant deployed on CloudFellows (versioned CAB-SEC names) and on the demo: CloudFellows must stay active with no toast — the demo's three E-Admins policies must not tip it.",
+        "On Joey's table with the shared rows: a 🚨 E-Admins section of six with the shared tag must appear last, the summary must read incl. 6 E-Admins policies shared by every baseline, the six must no longer be in Not in baseline, and Import baseline (N) must count only his gap with +6 from the CloudFellows backup stated beside it. Export MD must carry the same wording.",
+        "Click ✗ 12 missing on the summary card: the table must show only missing rows and the chip row must highlight Missing; click it again: all rows. Open the tool on an active catalog with missing rows: it must open on Missing.",
+        "Click 📥 Import baseline on Joey's card with the repository readable: the Import modal must open without a file picker, the description must name the release and commit, the plan must list 38 policies with the 26 present as skip (already exists, by name), the 12 in the gap ticked and nothing else ticked, and the source panel on the T10 card must say Importable from this read: 38 policy files, 36 group files, 3 named locations.",
+        "In that modal 🔀 Switch baseline must be the selected mode (the tenant's policies exclude CAB-SEC groups), naming CloudFellows → Joey Verlinden and the first pairs; each ticked row must say assignment as shipped with its ← members of CAB-SEC-U-CAnnn-Exclusion line. Choose 🚀 Deployment groups and back: the hints must follow.",
+        "Run the switch import for ONE policy whose CAB-SEC counterpart group has members: the report must show the group created, the members copied with the count, the policy Off with the new group in its exclude, and the old CAB-SEC group untouched (same members) in the portal. CA-BreakGlassAccounts - Exclude must hold every member of CAB-SEC-U-BreakGlass afterwards.",
+        "Run it for a policy whose counterpart does not exist: the report must say does not exist in this tenant — nothing to copy, and the import must still succeed.",
+        "Then 🧹 What CloudFellows left behind: the copied-from CAB-SEC group must be listed as KEEP while the old policy still references it, and safe once that policy is deleted.",
+        "Block api.github.com and click 📥 Import baseline on Joey: the toast must say the read failed and name the repository URL, and the zip picker must open as before.",
+        "Import a CloudFellows backup zip on a tenant that is on Joey's groups: 🔀 must be offered as Joey Verlinden → CloudFellows with CAB-SEC names as the targets; on a tenant with no other baseline's groups it must be listed but not pre-selected.",
+        "Demo mode: load a zip through the picker, choose 🔀 and Import: the simulated report must show a Members copied across section with copied and does-not-exist rows, and no network call.",
+      ],
+      files: ["js/baseline.js", "js/baselineLive.js", "js/import.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 126,
       title: "📞 Teams devices — the shared-device group checked against the tenant's licences (T35)",
       tools: ["Teams devices", "Conditional Access groups"],

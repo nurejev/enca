@@ -1587,10 +1587,6 @@
       // wrong tenant would file groups into the wrong vaults.
       try { Baseline.use(account?.tenantId || tenantName); } catch (e) { console.warn("active baseline:", e); }
       try { CaMap.use(account?.tenantId || tenantName); } catch (e) { console.warn("group mapping:", e); }
-      // R36 — a tenant that chose Joey's baseline gets his repository read
-      // once per session, so the group checks work against the current
-      // release rather than the snapshot; the tool says which it used.
-      try { if (Baseline.activeCatalogId() === "joey") blLiveEnsure(); } catch {}
       // Audience branding by who signed in: an account whose UPN matches a
       // BRAND_OVERRIDES entry gets that look even without the front door.
       // (The list ships empty since 25196 — the machinery stays.)
@@ -1606,6 +1602,13 @@
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
+      // R36.1 — with no saved choice, the baseline this tenant matches best
+      // is the active one for the session (the card says so, and why).
+      try { blAutoPick(); } catch (e) { console.warn("baseline match:", e); }
+      // R36 — a tenant on Joey's baseline gets his repository read once per
+      // session, so the group checks work against the current release
+      // rather than the snapshot; the tool says which it used.
+      try { if (Baseline.activeCatalogId() === "joey") blLiveEnsure(); } catch {}
       $("tenantName").textContent = tenantName;
       // Baseline tenants (see BASELINE_TENANTS) get extended behaviour — say so
       // where the tenant identity lives, instead of it being a hidden mode.
@@ -1652,6 +1655,7 @@
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
     const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
     policies = DEMO_DATA.policies.map((r, i) => buildViewModel(r, resolve, i));
+    try { blAutoPick(); } catch (e) { console.warn("baseline match:", e); }
     policiesReadAt = Date.now();
     $("tenantName").textContent = tenantName;
     $("tenantUser").textContent = "demo@contoso.onmicrosoft.com";
@@ -2329,7 +2333,7 @@
   const imWidBlocked = (p) => p.wid && imLic.known && !imLic.licensed;
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
-    imBundle = null; imPlan = null; imAu = null; imRa = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
+    imBundle = null; imPlan = null; imAu = null; imRa = null; imSwitch = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -2341,8 +2345,36 @@
   const IM_PERSONA_LABEL = {
     global: "🌐 Global", admins: "🛡 Admins", internals: "👤 Internals", externals: "🤝 Externals",
     guestusers: "👥 Guest users", g_admins: "🔑 Guest admins", serviceaccounts: "⚙ Service accounts",
-    devops: "🧰 DevOps", factoryworkers: "🏭 Factory workers",
+    devops: "🧰 DevOps", factoryworkers: "🏭 Factory workers", agents: "🤖 Agents",
   };
+  // 🔀 switch baseline — which catalog the file belongs to, which one it
+  // replaces, and the group-for-group plan between them (pure; read once per
+  // loaded file). Null when the file matches no catalog or there is no other.
+  let imSwitch = null;   // { to, from, pairs:[{to,from,kind,…}] }
+  function imSwitchPlan(bundle) {
+    try {
+      const toId = Importer.catalogOfBundle(bundle);
+      if (!toId) return null;
+      const to = Baseline.withContract(Baseline.catalog(toId));
+      const from = Baseline.catalogs().map((c) => Baseline.withContract(c)).find((c) => c.id !== toId);
+      if (!to || !from) return null;
+      const pairs = Importer.counterpartPlan(bundle, to, from);
+      return pairs.length ? { to, from, pairs } : null;
+    } catch (e) { console.warn("switch plan:", e); return null; }
+  }
+  // Does this tenant look deployed on the OTHER baseline's groups? Read from
+  // the policies already in memory, so it costs nothing: any policy that
+  // excludes a group shaped like that baseline's exclusion group, or its
+  // break-glass group, is the tell.
+  function imLooksSwitch(sw) {
+    if (!sw) return false;
+    const bg = String(sw.from.breakGlassGroup || "").toLowerCase();
+    for (const p of policies) {
+      const names = [...((p.users && p.users.exc) || []), ...((p.users && p.users.inc) || [])].map((x) => String(x).replace(/\s*\(group\)$/, ""));
+      if (names.some((n) => sw.from.isExclusionGroup(n) || (bg && n.toLowerCase() === bg))) return true;
+    }
+    return false;
+  }
   const imPersonaKey = (p) => p.asIs ? "eadmins" : (p.persona || "other");
   const imPersonaLabel = (k) => k === "eadmins" ? "🚨 E-Admins" : (IM_PERSONA_LABEL[k] || "Other");
 
@@ -2699,13 +2731,18 @@
     </div>`;
   }
 
-  async function imLoaded(bundle, fileName) {
+  // opts.mode — the assignment mode to start on; opts.only — a Set of policy
+  // names to leave ticked (the gap the Baseline tool handed over), the rest
+  // unticked but still listed.
+  async function imLoaded(bundle, fileName, opts = {}) {
     imBundle = bundle; imFileName = fileName;
     // pass the tenant's raw policies (not just names) so "match & replace" can
     // read the current assignment and id of a policy it supersedes
     imPlan = Importer.plan(bundle, policies.map(p => p.raw));
+    imSwitch = imSwitchPlan(bundle);
+    imMode = opts.mode || (imSwitch && imLooksSwitch(imSwitch) ? "switch" : "deploy");
     const dep = ["groups", "namedLocations", "authStrengths", "authContexts", "termsOfUse"].map(k => `${bundle[k].length} ${k}`).join(", ");
-    $("imDesc").textContent = `${fileName}: ${bundle.policies.length} policies, dependencies: ${dep}.`;
+    $("imDesc").textContent = `${fileName}: ${bundle.policies.length} policies, dependencies: ${dep}.${bundle.depSkipped && bundle.depSkipped.length ? ` ${bundle.depSkipped.length} dependency file(s) could not be read.` : ""}`;
     // Only worth a Graph call when the file actually contains one.
     imLic = imPlan.some(p => p.wid)
       ? (isDemo ? { known: true, licensed: false, sku: null } : await Importer.workloadIdLicence())
@@ -2713,6 +2750,13 @@
     await imLoadAu();
     await imLoadRoleAssignable();
     imRenderList();
+    if (opts.only) {
+      imPlan.forEach((p, i) => {
+        const cb = document.querySelector(`[data-imp="${i}"]`);
+        if (cb && !cb.disabled) cb.checked = opts.only.has(p.name);
+      });
+      updateImGo();
+    }
     $("imPick").style.display = "none";
   }
 
@@ -2721,8 +2765,9 @@
   function imRenderList() {
     const importable = imPlan.filter(p => !p.exists && !imWidBlocked(p));
     const nUpg = imPlan.filter(p => p.upgrade).length;
-    const replace = imMode === "replace";
+    const replace = imMode === "replace", switching = imMode === "switch";
     const nWid = imPlan.filter(p => p.wid && !p.exists).length;
+    const sw = imSwitch;
 
     // Persona filter: how many importable policies each persona has, so you can
     // bring in just one persona's set from a whole-tenant backup.
@@ -2735,12 +2780,22 @@
     const rowHint = (p) => {
       if (p.exists) return esc(p.reason);
       if (imWidBlocked(p)) return `<span style="color:var(--off)">workload identity — this tenant has no Microsoft Entra Workload ID licence, so Graph will not create it</span>`;
+      if (switching && !p.asIs) {
+        const mine = sw ? sw.pairs.filter((x) => x.policy === p.name || x.kind !== "exclusion") : [];
+        const ex = mine.find((x) => x.kind === "exclusion");
+        return `🔀 assignment as shipped, on ${esc(sw ? sw.to.label : "the baseline")}'s groups${ex ? ` · <span style="color:var(--muted)">${esc(ex.to)} ← members of ${esc(ex.from)}</span>` : ""}${p.upgrade ? ` · supersedes ${esc(p.existing.label)}, switched Off` : ""}`;
+      }
       if (p.upgrade) return replace
-        ? `♻️ replaces the current v${esc(p.existing.ver)} — assignment + state kept (new exclusions merged), old policy switched Off`
-        : `→ ${esc(p.personaGroup || "")} · <span style="color:var(--muted)">current v${esc(p.existing.ver)} stays as-is</span>`;
+        ? `♻️ replaces the current ${esc(p.existing.label)} — assignment + state kept (new exclusions merged), old policy switched Off`
+        : `→ ${esc(p.personaGroup || "")} · <span style="color:var(--muted)">current ${esc(p.existing.label)} stays as-is</span>`;
       if (p.personaGroup) return `→ ${esc(p.personaGroup)}`;
       return esc(p.reason || "");
     };
+    const swOpt = sw
+      ? `<label class="im-mode-opt${switching ? " on" : ""}"><input type="radio" name="imMode" value="switch" ${switching ? "checked" : ""}>
+          <b>🔀 Switch baseline</b><span class="mini">${esc(sw.from.label)} → ${esc(sw.to.label)}: policies land with ${esc(sw.to.label)}'s own groups (created here), the members of the ${esc(sw.from.label)} counterparts are <b>copied</b> across — ${sw.pairs.length} group${sw.pairs.length === 1 ? "" : "s"}: ${esc(sw.pairs.slice(0, 2).map((x) => `${x.from} → ${x.to}`).join("; "))}${sw.pairs.length > 2 ? "; …" : ""} — and a superseded policy is switched Off. The old groups stay as the rollback and show in 🧹 What ${esc(sw.from.label)} left behind.</span></label>`
+      : `<label class="im-mode-opt" style="opacity:.6"><input type="radio" name="imMode" value="switch" disabled>
+          <b>🔀 Switch baseline</b><span class="mini">Not available for this file: it matches no other baseline's group naming, so there is nothing to carry members from.</span></label>`;
 
     $("imBody").innerHTML = `
       ${imRaPanel()}
@@ -2751,6 +2806,7 @@
           <b>🚀 Deployment groups</b><span class="mini">Includes remapped to the deploy persona group (CAD-SEC-U-DG-*) — staged, nothing existing is touched.</span></label>
         <label class="im-mode-opt${replace ? " on" : ""}"><input type="radio" name="imMode" value="replace" ${replace ? "checked" : ""}>
           <b>♻️ Match &amp; replace</b><span class="mini">A policy already in this tenant keeps its current assignment and state (plus any new exclusion groups this version adds); its old version is switched Off.${nUpg ? ` ${nUpg} match${nUpg === 1 ? "es" : "es"} here.` : " No matches in this file."}</span></label>
+        ${swOpt}
       </div>
       ${nWid && imLic.known && !imLic.licensed ? `<div class="danger-note" style="margin:10px 0">
         🔒 <b>${nWid} workload-identity ${nWid === 1 ? "policy is" : "policies are"} held back.</b> They target service principals, which needs the separately purchased
@@ -2911,6 +2967,34 @@
     imRenderList();
     toast(`${results.filter(r => r.ok).length}/${results.length} administrative unit(s) created${isDemo ? " (simulated)" : ""}`);
   }
+  // 🔀 switch baseline — carry the members of each counterpart group (the
+  // previous baseline's name for the same thing) into the group this import
+  // created or reused. A COPY, through the same helper ⑦ Migrate uses: the
+  // old group keeps its members as the rollback. Only groups the chosen
+  // policies reference (the scoped bundle) are touched; a counterpart that
+  // does not exist in the tenant is reported, not invented.
+  async function imCopyCounterparts(scoped, maps, onStatus) {
+    const out = [];
+    if (!imSwitch) return out;
+    const scopedByName = new Map(scoped.groups.map((g) => [String(g.displayName).toLowerCase(), g]));
+    for (const pair of imSwitch.pairs) {
+      const src = scopedByName.get(pair.to.toLowerCase());
+      if (!src) continue;                                   // not referenced by the chosen policies
+      const toId = maps.group[src.id];
+      if (!toId) { out.push({ ...pair, skipped: `${pair.to} was not created or found in this tenant, so there is nothing to copy into` }); continue; }
+      onStatus?.(`Reading ${pair.from}…`);
+      let fromGroup = null;
+      try { fromGroup = await Assign.findGroup(pair.from); }
+      catch (e) { out.push({ ...pair, error: `could not look up ${pair.from}: ${e.message || e}` }); continue; }
+      if (!fromGroup) { out.push({ ...pair, skipped: `${pair.from} does not exist in this tenant — nothing to copy` }); continue; }
+      if (fromGroup.id === toId) { out.push({ ...pair, skipped: "same group" }); continue; }
+      try {
+        const log = await moveGroupMembers(fromGroup.id, toId, (m) => onStatus?.(`${pair.to}: ${m}`));
+        out.push({ ...pair, moved: log.moved, total: log.total, failed: log.failed, skippedGroups: log.skippedGroups });
+      } catch (e) { out.push({ ...pair, error: e.message || String(e) }); }
+    }
+    return out;
+  }
   $("imZip").addEventListener("change", async (e) => {
     const f = e.target.files[0]; if (!f) return;
     try { await imLoaded(await Importer.readZip(f), f.name); }
@@ -2942,15 +3026,27 @@
       // Only build the dependencies the CHOSEN policies need — importing one
       // persona should not create every group in a whole-tenant backup.
       const scoped = Importer.scopeBundle(imBundle, chosen.map(p => p.raw));
-      // policies that will be replaced in place don't need a deploy group made
-      const matchedNames = imMode === "replace" ? chosen.filter(p => p.upgrade).map(p => p.name) : [];
+      // policies that will be replaced in place don't need a deploy group made;
+      // a baseline switch keeps every assignment as shipped, so none does
+      const matchedNames = imMode === "replace" ? chosen.filter(p => p.upgrade).map(p => p.name)
+        : imMode === "switch" ? chosen.map(p => p.name) : [];
+      const switching = imMode === "switch" && imSwitch;
+      if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
       if (isDemo) {
         chosen.forEach(p => { if (p.personaGroup && !matchedNames.includes(p.name)) maps.personaGroupIds[p.personaGroup] = "g-" + p.personaGroup; });
         res.results = chosen.map(p => {
           const matched = imMode === "replace" && p.upgrade;
-          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched ? null : p.personaGroup, matched, disabledOld: matched, oldName: matched ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : "disabled" };
+          const sup = (imMode === "replace" || imMode === "switch") && p.upgrade;
+          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching ? null : p.personaGroup, matched, switched: !!switching, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : "disabled" };
         });
         depLog.created = scoped.groups.map(g => "Group: " + g.displayName + " (assigned)");
+        if (switching) {
+          // the same three outcomes a real copy has, so the demo report is honest
+          const scopedNames = new Set(scoped.groups.map((g) => g.displayName.toLowerCase()));
+          depLog.copied = imSwitch.pairs.filter((x) => scopedNames.has(x.to.toLowerCase())).map((x, i) =>
+            i % 3 === 2 ? { ...x, skipped: `${x.from} does not exist in this tenant — nothing to copy` }
+            : { ...x, moved: 2 + i, total: 2 + i, failed: [], skippedGroups: [] });
+        }
         // Simulate the placement too, so the demo report shows the same three
         // outcomes as a real run rather than a tidier story than the truth.
         if (imAu && !imAu.error) {
@@ -2969,6 +3065,10 @@
       } else {
         const dep = await Importer.ensureDependencies(scoped, (m) => toast(esc(m)), { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
+        if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
+        // 🔀 the members come across BEFORE the policies land, so a policy
+        // that is switched On afterwards already excludes the right people.
+        if (switching) depLog.copied = await imCopyCounterparts(scoped, maps, (m) => toast(esc(m)));
         res = await Importer.importPolicies(chosen, maps, (m) => toast(esc(m)), { mode: imMode });
       }
       // R04: finish the job on the groups this import REUSED — but only if the
@@ -6731,6 +6831,21 @@ max@contoso.com,"Global, DevOps"</pre>
   // per policy with a status: that is a table, in both catalogs.
   // keepView: a refresh re-compares in place and must not throw away the filter,
   // search or collapsed sections the person was looking at.
+  // R36.1 — the session's active baseline, when the tenant never chose one,
+  // is the catalog it matches best. Decided once per tenant load (and again
+  // after a live read changes Joey's catalog); the T10 card says so. The
+  // toast fires only when the match overrides the default, because that is
+  // the one case where the tools now work against something other than
+  // what they did before.
+  function blAutoPick() {
+    const pick = Baseline.autoPick(policies);
+    if (pick) toast(`This tenant matches <span>${esc(Baseline.active().label)}</span> best — active for this session (🧬 Baseline Policies to keep or switch)`);
+    return pick;
+  }
+  // The tool opens on the gap: an active baseline with missing policies
+  // starts on the Missing filter, because "what is still to do" is the
+  // question the screen answers; one click on the chip widens it again.
+  const blDefaultFilter = (res, catId) => (res && res.counts.missing && Baseline.isActive(catId)) ? "missing" : "all";
   function openBaseline(catId, keepView) {
     show("screen-baseline");
     if (catId) blCat = catId;
@@ -6741,14 +6856,14 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     blResult = Baseline.compare(policies, blCat);
     if (!keepView) {
-      blFilter = "all"; blQuery = ""; blCollapsed.clear(); $("blSearch").value = "";
+      blFilter = blDefaultFilter(blResult, blCat); blQuery = ""; blCollapsed.clear(); $("blSearch").value = "";
     }
     renderBaseline();
     if (blCat === "joey") blLiveEnsure();
   }
   function renderBaseline() {
     if (!blResult) return;
-    $("blHead").innerHTML = Baseline.renderSummary(blResult);
+    $("blHead").innerHTML = Baseline.renderSummary(blResult, blFilter);
     $("blCatalog").innerHTML = Baseline.catalogs()
       .map((c) => `<button class="${c.id === blCat ? "active" : ""}" data-blcat="${esc(c.id)}">${c.icon || "🧬"} ${esc(c.label)}</button>`).join("");
     $("blChips").innerHTML = Baseline.chips(blResult, blFilter);
@@ -6763,7 +6878,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const b = e.target.closest("[data-blcat]"); if (!b || b.dataset.blcat === blCat) return;
     blCat = b.dataset.blcat;
     blResult = Baseline.compare(policies, blCat);
-    blFilter = "all"; blCollapsed.clear(); renderBaseline();
+    blFilter = blDefaultFilter(blResult, blCat); blCollapsed.clear(); renderBaseline();
     if (blCat === "joey") blLiveEnsure();
   });
   // R36 — make the catalog on screen the one every tool works against, and
@@ -6773,6 +6888,15 @@ max@contoso.com,"Global, DevOps"</pre>
     // as read — what the tools would expect and where a write would go — so
     // the switch button only appears under a card that has already said what
     // it does. Nothing here writes to the tenant.
+    // the count chips in the summary are the same filter as the chip row
+    const fc = e.target.closest("[data-blf]");
+    if (fc) { e.preventDefault(); blFilter = fc.dataset.blf; renderBaseline(); return; }
+    const pin = e.target.closest("[data-bl-pin]");
+    if (pin) {
+      e.preventDefault();
+      if (Baseline.pin(pin.dataset.blPin)) { toast(`<span>${esc(Baseline.active().label)}</span> is now this tenant's saved baseline`); renderBaseline(); }
+      return;
+    }
     const act = e.target.closest("[data-bl-activate]");
     if (act) { e.preventDefault(); await blPreviewSwitch(act.dataset.blActivate); return; }
     const sw = e.target.closest("[data-bl-switch]");
@@ -7005,6 +7129,9 @@ max@contoso.com,"Global, DevOps"</pre>
   // Whatever screen is open, a catalog that just changed source needs
   // re-comparing and the cached scans against it are stale.
   document.addEventListener("enca:baseline-live", () => {
+    // the match is re-decided on the fresh catalog (a release that renamed
+    // policies can move the coverage either way); a saved choice is untouched
+    try { Baseline.autoPick(policies); } catch {}
     if (blResult && blCat === "joey" && $("screen-baseline").classList.contains("active")) { blResult = Baseline.compare(policies, blCat); renderBaseline(); }
     if (Baseline.activeCatalogId() === "joey") baselineChanged();
   });
@@ -7070,17 +7197,44 @@ max@contoso.com,"Global, DevOps"</pre>
       btn.disabled = false; btn.textContent = "⟳ Refresh";
     }
   });
-  // hand off to the Import tool with the gap in hand
-  $("blImport").addEventListener("click", () => {
-    const n = blResult ? blResult.toImport.length : 0;
-    if (blResult && blResult.catalog.url) {
-      toast(`This baseline is published at <span>${esc(blResult.catalog.url)}</span> — download it there, then import`);
+  // hand off to the Import tool with the gap in hand. A catalog read live
+  // from its repository IS the backup — policy files, group files, named
+  // locations — so the import starts from that read with the gap ticked,
+  // and only a catalog without a repository (or a read that failed) asks
+  // for a zip.
+  $("blImport").addEventListener("click", async () => {
+    const res = blResult;
+    const n = res ? res.toImport.length : 0;
+    const gapNote = () => `Baseline ${res.catalog.label} ${res.catalog.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant`
+      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"} that only the CloudFellows backup ships` : "") + ". ";
+    if (res && res.catalog.id === "joey" && typeof BaselineLive !== "undefined" && !isDemo) {
+      const btn = $("blImport");
+      btn.disabled = true;
+      try {
+        let b = BaselineLive.bundle();
+        if (!b || !b.complete) {
+          toast("Reading the repository first…");
+          await blLiveFetch(true);
+          b = BaselineLive.bundle();
+        }
+        if (b && b.complete) {
+          $("toolImport").click();
+          $("imDesc").textContent = gapNote() + `Reading the repository at ${b.release}${b.commit ? ` (${String(b.commit).slice(0, 7)})` : ""}…`;
+          const only = new Set(res.toImport.map((r) => r.baseline.name));
+          await imLoaded(b, `${b.label} ${b.release} — read from the repository${b.commit ? ` at ${String(b.commit).slice(0, 7)}` : ""}`, { only });
+          $("imDesc").textContent = gapNote() + `The ${only.size} in the gap are ticked; the rest of the release is listed unticked. Pick an assignment mode — 🔀 Switch baseline carries the members of this tenant's existing groups across.`;
+          return;
+        }
+        toast(`Could not read the repository — <span>${esc(BaselineLive.status().error || "no usable read")}</span>. Download it at ${esc(res.catalog.url)} and import the folder instead.`);
+      } finally { btn.disabled = false; }
+    } else if (res && res.catalog.url) {
+      toast(`This baseline is published at <span>${esc(res.catalog.url)}</span> — download it there, then import`);
     }
     $("toolImport").click();
     if (n) {
-      $("imDesc").textContent = `Baseline ${blResult.catalog.label} ${blResult.catalog.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant. `
+      $("imDesc").textContent = gapNote()
         + "Select the baseline backup zip (or its extracted folder). Choose an assignment mode: deploy new policies onto this tenant's persona groups, "
-        + "or match & replace — an updated policy keeps the current one's assignment and its old version is switched Off.";
+        + "match & replace — an updated policy keeps the current one's assignment and its old version is switched Off — or switch baseline, which carries the members of the other baseline's groups across.";
     }
   });
 

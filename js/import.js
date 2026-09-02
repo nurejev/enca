@@ -100,6 +100,9 @@ const Importer = (() => {
   // persona from the policy name (token first, CA-number range as fallback)
   function personaOf(name) {
     const n = (name || "").toLowerCase();
+    // Agent identities (Joey's CA5xx block) have no deploy persona group: the
+    // include is agent-shaped and stays as shipped.
+    if (/-agents?-|agentid/.test(n)) return "agents";
     if (/g[_-]?admin|guestadmin/.test(n)) return "g_admins";
     if (/guest/.test(n)) return "guestusers";
     if (/factory|[-_]fw\b/.test(n)) return "factoryworkers";
@@ -254,18 +257,36 @@ const Importer = (() => {
   // `existing` may be a legacy array of display-name strings, or the tenant's
   // raw policy objects. The objects carry the id + assignments needed for the
   // "match & replace" mode (copy the current scoping, disable the old policy).
+  // A CA number is only an identity within ONE baseline (the Baseline tool's
+  // rule): CA000 is a global MFA policy in both catalogs, CA501 is a
+  // guest-admin policy in one and an agent policy in the other. So a
+  // same-number policy in the tenant is only "the same policy at another
+  // version" when its name does not contradict — otherwise it is a clash and
+  // the import deploys alongside rather than replacing it in place.
+  const contradicts = (a, b) => {
+    try { return typeof Baseline !== "undefined" && Baseline.mismatchReason ? !!Baseline.mismatchReason(a, b) : false; }
+    catch { return false; }
+  };
+  const cleanName = (s) => String(s || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim().toLowerCase();
+
   function plan(bundle, existing) {
     const ex = (existing || []).map((e) => {
       const name = typeof e === "string" ? e : (e && (e.displayName || e.name)) || "";
       const raw = typeof e === "string" ? null : (e && (e.raw || e));
       const { num, ver } = parseCaVersion(name);
       return { num, ver, name, raw, id: raw && raw.id };
-    }).filter((e) => e.num != null && e.ver);
+    }).filter((e) => e.num != null);
     return bundle.policies.map(raw => {
       const { num, ver } = parseCaVersion(raw.displayName);
       const sameNum = num != null ? ex.filter((e) => e.num === num) : [];
-      const exact = sameNum.find((e) => e.ver === ver);        // same CA number + same version
-      const other = sameNum.find((e) => e.ver !== ver);        // present, but a different version
+      // Versioned names: same CA number + same version is the same policy.
+      // A baseline that does not version its names (Joey's): same CA number
+      // + same name, staging prefix aside — being there is the whole test.
+      const exact = ver ? sameNum.find((e) => e.ver === ver)
+        : sameNum.find((e) => cleanName(e.name) === cleanName(raw.displayName));
+      // present, but at another version or under an older name of the SAME
+      // policy — never a number clash from the other baseline
+      const other = exact ? null : sameNum.find((e) => !contradicts(raw.displayName, e.name));
       const asIs = isEAdmins(raw.displayName);
       const exists = !!exact;
       // "upgrade": the tenant already has this CA number at another version, so
@@ -276,20 +297,88 @@ const Importer = (() => {
       // A ToU has no Graph create API, so a policy granting one needs a manual
       // step (create the ToU in the portal, re-import). Flag it up front.
       const needsTou = touReferences(raw);
+      const label = (e) => e.ver ? `v${e.ver}` : `"${e.name}"`;
       return {
         raw, name: raw.displayName, num, ver, asIs,
         // workload-identity policy (CA900 range): needs the Workload ID SKU
         wid: isWorkloadIdentity(raw),
-        persona, personaGroup: persona ? PERSONA_GROUPS[persona] : null,
+        persona, personaGroup: (persona && PERSONA_GROUPS[persona]) || null,
         exists, upgrade,
-        existing: upgrade ? { id: other.id, name: other.name, ver: other.ver, raw: other.raw } : null,
+        existing: upgrade ? { id: other.id, name: other.name, ver: other.ver, label: label(other), raw: other.raw } : null,
         needsTou,
-        reason: exists ? `already exists (CA${num} v${ver})`
-          : upgrade ? `already in tenant as v${other.ver}`
+        reason: exists ? `already exists (CA${String(num).padStart(3, "0")}${ver ? ` v${ver}` : ""})`
+          : upgrade ? `already in tenant as ${label(other)}`
           : asIs ? "E-Admins — imported as-is (state & assignments unchanged)"
+          : persona === "agents" ? "agent identities — include assignment kept as shipped"
           : !persona ? "no persona detected — include assignment kept as-is" : null,
       };
     });
+  }
+
+  // ---------- 🔀 switch baseline: which old group feeds which new one ----------
+  // The two catalogs name the same THING differently — the break-glass
+  // group, one exclusion group per policy, the persona include groups — so a
+  // switch is a rename with the members carried across. This is the plan
+  // for that, pure over the bundle and the two catalog contracts:
+  //   [{ to, from, kind: breakglass|exclusion|persona, policy?, srcId }]
+  // `to` is a group the bundle ships (so the import creates or reuses it),
+  // `from` is the name the OTHER baseline gives its counterpart. Whether
+  // `from` exists in the tenant is for the caller to read.
+  function counterpartPlan(bundle, toCat, fromCat) {
+    if (!bundle || !toCat || !fromCat || toCat.id === fromCat.id) return [];
+    const norm = (s) => String(s || "").trim().toLowerCase();
+    const out = [];
+    const add = (to, from, kind, extra) => {
+      if (!to || !from || norm(to) === norm(from)) return;
+      if (out.some((x) => norm(x.to) === norm(to))) return;
+      out.push({ to, from, kind, ...(extra || {}) });
+    };
+    const byNum = (cat, num) => (cat.policies || []).find((p) => p.num === num) || null;
+    // the catalog's own exclusion group for that number first; failing that,
+    // the convention's name for it (a tenant may have added one the catalog
+    // does not list — CA000 in the field) — whether it EXISTS is read later
+    const exclusionOf = (cat, num, name) => {
+      const p = byNum(cat, num);
+      const ex = cat.exclusionGroupFor ? cat.exclusionGroupFor(p ? p.name : name) : null;
+      if (ex && ex.name) return ex.name;
+      return cat.exclusionByNumber ? (cat.exclusionByNumber(num) || null) : null;
+    };
+    const personaFrom = new Map((fromCat.personaGroups || []).filter((p) => p.group).map((p) => [p.key, p.group]));
+    for (const g of bundle.groups || []) {
+      const name = g.displayName;
+      if (!name) continue;
+      // 1. break-glass
+      if (toCat.breakGlassGroup && norm(name) === norm(toCat.breakGlassGroup)) { add(name, fromCat.breakGlassGroup, "breakglass", { srcId: g.id }); continue; }
+      // 2. a policy's exclusion group — the same CA number in the other catalog
+      const pol = (bundle.policies || []).find((p) => {
+        const m = /\bCA(\d{3,4})\b/.exec(p.displayName || "");
+        if (!m) return false;
+        return norm(exclusionOf(toCat, parseInt(m[1], 10), p.displayName)) === norm(name);
+      });
+      if (pol) {
+        const num = parseInt(/\bCA(\d{3,4})\b/.exec(pol.displayName)[1], 10);
+        add(name, exclusionOf(fromCat, num, pol.displayName), "exclusion", { policy: pol.displayName, num, srcId: g.id });
+        continue;
+      }
+      // 3. a persona include group, matched on the persona key both catalogs use
+      const pg = (toCat.personaGroups || []).find((p) => p.group && norm(p.group) === norm(name));
+      if (pg && personaFrom.get(pg.key)) add(name, personaFrom.get(pg.key), "persona", { persona: pg.key, srcId: g.id, example: !!pg.example });
+    }
+    return out;
+  }
+
+  // Which catalog a bundle belongs to: the one whose policy names it carries
+  // most of. A backup zip does not say; the repository read does.
+  function catalogOfBundle(bundle) {
+    if (bundle && bundle.catalogId) return bundle.catalogId;
+    if (typeof Baseline === "undefined" || !Baseline.catalogs) return null;
+    const names = new Set((bundle?.policies || []).map((p) => cleanName(p.displayName)));
+    let best = null, bestHits = 0;
+    for (const c of Baseline.catalogs()) {
+      const hits = (c.policies || []).filter((p) => names.has(cleanName(p.name))).length;
+      if (hits > bestHits) { best = c.id; bestHits = hits; }
+    }
+    return best;
   }
 
   // ---------- housekeeping: policies left behind by a "match & replace" ----------
@@ -437,7 +526,7 @@ const Importer = (() => {
     }
 
     // persona groups needed by the policies themselves (not the replaced ones)
-    const personaNames = [...new Set(bundle.policies.filter(p => !matchedNames.has(p.displayName)).map(p => personaOf(p.displayName)).filter(Boolean).map(p => PERSONA_GROUPS[p]))];
+    const personaNames = [...new Set(bundle.policies.filter(p => !matchedNames.has(p.displayName)).map(p => personaOf(p.displayName)).filter(Boolean).map(p => PERSONA_GROUPS[p]).filter(Boolean))];
     maps.personaGroupIds = {};
     for (const gname of personaNames) {
       onStatus?.(`Persona group ${gname}…`);
@@ -596,7 +685,10 @@ const Importer = (() => {
     return removed;
   }
 
-  function buildPolicyPayload(raw, maps, personaGroupId, warnings, asIs = false, matchFrom = null) {
+  // keepAssignment: 🔀 switch baseline — the assignment as the baseline
+  // ships it (its own groups, remapped to the ones this import created),
+  // not the deploy persona group and not the replaced policy's scoping.
+  function buildPolicyPayload(raw, maps, personaGroupId, warnings, asIs = false, matchFrom = null, keepAssignment = false) {
     const ph = maps.ph || {};
     // resolve a value that may be a template placeholder, a known old id, or a literal
     const resolveRef = (v, kindMap) => {
@@ -651,10 +743,10 @@ const Importer = (() => {
         if (id && !u.excludeGroups.includes(id)) { u.excludeGroups.push(id); added++; }
       }
       if (added) warnings.push(`${raw.displayName}: kept the current assignment and merged ${added} new exclusion group(s) introduced by this baseline version.`);
-    } else if (asIs || isWorkloadIdentity(raw)) {
-      // as-is, or a workload-identity policy: keep the assignment exactly as it
-      // is. Injecting a persona group into a clientApplications-scoped policy
-      // makes Graph reject the create outright.
+    } else if (asIs || keepAssignment || isWorkloadIdentity(raw)) {
+      // as-is, a baseline switch, or a workload-identity policy: keep the
+      // assignment exactly as it is. Injecting a persona group into a
+      // clientApplications-scoped policy makes Graph reject the create outright.
       u.includeGroups = mapGroups(u.includeGroups);
       u.excludeGroups = mapGroups(u.excludeGroups);
       const ca = c.clientApplications;
@@ -734,16 +826,21 @@ const Importer = (() => {
   // opts.mode: "deploy" (default) → new/updated policies scoped to the deploy
   // persona group; "replace" → policies already in the tenant keep their current
   // assignment and the old version is switched Off.
+  // "switch" → 🔀 switch baseline: the policy lands with the baseline's own
+  // groups (created by ensureDependencies, members copied across by the
+  // caller), Off, and a same-policy-other-name it supersedes is switched Off
+  // like a replace.
   async function importPolicies(items, maps, onStatus, opts = {}) {
-    const replace = opts.mode === "replace";
+    const replace = opts.mode === "replace", switching = opts.mode === "switch";
     const results = [], warnings = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       onStatus?.(`Importing ${it.name} (${i + 1}/${items.length})…`);
       try {
-        const gid = it.personaGroup ? maps.personaGroupIds?.[it.personaGroup] : null;
+        const gid = it.personaGroup && !switching ? maps.personaGroupIds?.[it.personaGroup] : null;
         const matchFrom = replace && it.upgrade && it.existing ? it.existing.raw : null;
-        const payload = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom);
+        const supersedes = (replace || switching) && it.upgrade && it.existing && it.existing.id ? it.existing : null;
+        const payload = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom, switching);
         let dropped = [];
         try {
           await Graph.gpost("/identity/conditionalAccess/policies", payload, [...AUTH_CONFIG.scopes, ...WRITE]);
@@ -753,7 +850,7 @@ const Importer = (() => {
           // rethrows untouched.
           const refs = appRefs([it.raw]).filter((a) => maps.missingApps?.has(a));
           if (!/\(400\)|BadRequest/i.test(e1.message || "") || !refs.length) throw e1;
-          const retry = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom);
+          const retry = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom, switching);
           dropped = dropUnknownApps(retry, maps.missingApps);
           onStatus?.(`${it.name}: retrying without ${dropped.length} unknown app reference(s)…`);
           await Graph.gpost("/identity/conditionalAccess/policies", retry, [...AUTH_CONFIG.scopes, ...WRITE]);
@@ -765,17 +862,17 @@ const Importer = (() => {
         const newState = payload.state;
         let disabledOld = false;
         const oldName = it.existing?.name || null;
-        if (matchFrom && it.existing?.id) {
+        if (supersedes) {
           // switch the superseded policy Off; both land disabled, so the admin
           // reviews the new one and removes the old when satisfied.
           try {
-            await Graph.gpatch(`/identity/conditionalAccess/policies/${it.existing.id}`, { state: "disabled" }, [...AUTH_CONFIG.scopes, ...WRITE]);
+            await Graph.gpatch(`/identity/conditionalAccess/policies/${supersedes.id}`, { state: "disabled" }, [...AUTH_CONFIG.scopes, ...WRITE]);
             disabledOld = true;
           } catch (e) {
             warnings.push(`${it.name}: the new version was created, but disabling the current policy "${oldName}" failed — disable it manually: ${e.message}`);
           }
         }
-        results.push({ name: it.name, ok: true, persona: it.persona, personaGroup: matchFrom ? null : it.personaGroup, asIs: it.asIs, matched: !!matchFrom, disabledOld, oldName: matchFrom ? oldName : null, state: newState, dropped });
+        results.push({ name: it.name, ok: true, persona: it.persona, personaGroup: matchFrom || switching ? null : it.personaGroup, asIs: it.asIs, matched: !!matchFrom, switched: switching, disabledOld, oldName: supersedes ? oldName : null, state: newState, dropped });
       } catch (e) {
         console.error("Import failed:", it.name, e);
         // Graph answers most policy-shape problems with a bare 400, so add the
@@ -797,7 +894,7 @@ const Importer = (() => {
         // An "update" is create-new-version + switch-old-Off. When the create
         // fails, say so — otherwise a failed upgrade reads as if the existing
         // policy broke, when it is in fact untouched and still enforcing.
-        if (replace && it.upgrade && it.existing) {
+        if ((replace || switching) && it.upgrade && it.existing) {
           hint += ` · an update creates the new version first and only then switches the old one Off — creating the new version is what failed; the current policy "${it.existing.name || it.name}" is untouched and still active`;
         }
         results.push({ name: it.name, ok: false, error: (e.message || String(e)) + hint });
@@ -823,7 +920,9 @@ const Importer = (() => {
       `- **Tenant:** ${tenantName}`,
       `- **Date:** ${stamp}`,
       `- **Source:** ${fileName}`,
-      `- **Assignment mode:** ${mode === "replace" ? "Match & replace — existing policies keep their current assignment; the superseded version is switched Off" : "Deployment groups — includes remapped to the deploy persona group (CAD-SEC-U-DG-*)"}`,
+      `- **Assignment mode:** ${mode === "replace" ? "Match & replace — existing policies keep their current assignment; the superseded version is switched Off"
+        : mode === "switch" ? `Switch baseline — policies land with the baseline's own groups (created here), members copied across from the ${depLog.switchFrom ? depLog.switchFrom + " " : ""}counterpart groups; a superseded policy is switched Off`
+        : "Deployment groups — includes remapped to the deploy persona group (CAD-SEC-U-DG-*)"}`,
       `- **Policies imported:** ${results.filter(r => r.ok).length}${replaced.length ? " (new policies land Off; **replacements take over in the state of the policy they supersede**)" : " (all in state **Off/disabled**)"}`,
       ...(replaced.length ? [`- **Policies replaced (old version disabled):** ${replaced.filter(r => r.disabledOld).length} of ${replaced.length}`] : []),
       `- **Policies skipped (already exist):** ${skipped.length}`,
@@ -847,6 +946,18 @@ const Importer = (() => {
           ``,
         ] : []),
       ] : []),
+      ...((depLog.copied || []).length ? [
+        `### 🔀 Members copied across — ${depLog.switchFrom || "previous baseline"} → ${depLog.switchTo || "this baseline"}`,
+        ``,
+        `A switch is a rename with the members carried across: each group this baseline ships got the members of the group the previous baseline used for the same thing — the break-glass group, the exclusion group of the same CA number, the persona include group. It is a **copy**: the old group keeps its members as the rollback, and 🧹 What ${depLog.switchFrom || "the previous baseline"} left behind (🧬 Baseline Policies) lists it once nothing references it any more.`,
+        ``,
+        ...depLog.copied.map((c) => c.skipped
+          ? `- ⏭ **${c.to}** ← \`${c.from}\` — ${c.skipped}`
+          : c.error
+          ? `- ❌ **${c.to}** ← \`${c.from}\` — ${c.error}`
+          : `- 🔀 **${c.to}** ← \`${c.from}\` — ${c.moved} of ${c.total} member${c.total === 1 ? "" : "s"} copied${c.failed && c.failed.length ? `; **${c.failed.length} failed** (${c.failed.slice(0, 3).map((f) => f.name).join(", ")}${c.failed.length > 3 ? ", …" : ""})` : ""}${c.skippedGroups && c.skippedGroups.length ? `; ${c.skippedGroups.length} nested group${c.skippedGroups.length === 1 ? "" : "s"} not copied (${c.skippedGroups.slice(0, 3).join(", ")})` : ""}${c.example ? " — ⚠ the baseline ships this include group as an EXAMPLE; replace it with your own internals group" : ""}`),
+        ``,
+      ] : []),
       ...(((depLog.hardened || []).length || (depLog.hardenFailed || []).length) ? [
         `### Groups that already existed, and were finished here`,
         ``,
@@ -862,6 +973,8 @@ const Importer = (() => {
         ? `- ✅ **${r.name}** — **imported as-is** (E-Admins: state and assignments unchanged)`
         : r.matched
         ? `- ♻️ **${r.name}** — state **${stateLabel(r.state)}** (taken from the policy it replaces); **assignment copied from the current policy** (new exclusion groups from this version merged in)${r.disabledOld ? `; previous version **${r.oldName}** switched Off` : `; ⚠ could not disable previous version${r.oldName ? ` **${r.oldName}**` : ""}`}`
+        : r.switched
+        ? `- 🔀 **${r.name}** — state set to Off; assignment as the baseline ships it, on the groups created or reused here${r.oldName ? (r.disabledOld ? `; superseded **${r.oldName}** switched Off` : `; ⚠ could not disable superseded **${r.oldName}**`) : ""}`
         : `- ✅ **${r.name}** — state set to Off; include assignment → ${r.personaGroup ? `\`${r.personaGroup}\` (persona: ${r.persona})` : "kept as in source"}`)),
       ``,
       ...(skipped.length ? [`## Skipped (already exist by CA number + version)`, ``, ...skipped.map(p => `- ⏭ ${p.name} — ${p.reason}`), ``] : []),
@@ -910,5 +1023,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();

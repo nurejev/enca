@@ -637,6 +637,8 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .au-to{color:var(--on)}
 /* import assignment-mode chooser */
 .im-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 2px}
+/* the third mode (🔀 switch baseline) takes the full row: its text is the longest */
+.im-mode>.im-mode-opt:nth-child(3){grid-column:1 / -1}
 .im-mode-opt{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start;
   padding:10px 12px;border:1px solid var(--border);border-radius:10px;cursor:pointer;background:var(--surface)}
 .im-mode-opt input{grid-row:1 / span 2;align-self:center}
@@ -1048,6 +1050,10 @@ table.matrix tbody tr.hl-row > td.hl-col,
 .bl-chip.warn{background:var(--warn-bg);color:var(--warn-fg);border-color:var(--warn-bd)}
 .bl-chip.bad{background:var(--bad-bg);color:var(--off);border-color:var(--bad-bd)}
 .bl-chip.info{background:var(--soft);color:var(--muted)}
+/* the summary counts are filter buttons — same look, a hand cursor, and a ring when they are the filter */
+button.bl-chip{cursor:pointer;font-family:inherit}
+button.bl-chip:hover{filter:brightness(0.96)}
+button.bl-chip.active{box-shadow:0 0 0 2px currentColor inset}
 /* R36 — which baseline is active, and where Joey's catalog came from */
 .bl-active{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 10px;border-radius:999px;
   background:var(--soft);border:1px solid var(--border)}

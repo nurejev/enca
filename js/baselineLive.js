@@ -217,6 +217,45 @@ const BaselineLive = (() => {
     return txt.replace(/^\ufeff/, "");
   }
 
+  // ---- what the importer needs, kept alongside the catalog ----------------
+  // The repository is laid out exactly like an ENCA backup — a policy file per
+  // policy, Config/Groups with one JSON per group (ids the policies reference),
+  // Config/NamedLocations — which is what lets 📥 Import take it straight
+  // from the read instead of asking for a zip. The raw objects are kept, with
+  // the OData noise stripped (the links, the "#microsoft.graph.restore"
+  // action, the per-property type hints), so a policy export of 16 KB
+  // becomes ~5 KB in sessionStorage; the type discriminators a create needs
+  // ("@odata.type": "#microsoft.graph.countryNamedLocation") stay.
+  function slim(o) {
+    if (Array.isArray(o)) return o.map(slim);
+    if (o && typeof o === "object") {
+      const r = {};
+      for (const [k, v] of Object.entries(o)) {
+        if (k.startsWith("#")) continue;
+        if (k.includes("@odata") && !(k === "@odata.type" && typeof v === "string" && v.startsWith("#microsoft.graph."))) continue;
+        r[k] = slim(v);
+      }
+      return r;
+    }
+    return o;
+  }
+  // A group file carries 40 properties of one tenant's directory; the create
+  // needs six. mailNickname is deliberately dropped — the export holds a
+  // truncated GUID, and the create derives a readable one from the name.
+  const slimGroup = (g) => ({ id: g.id, displayName: g.displayName, description: g.description || null,
+    groupTypes: Array.isArray(g.groupTypes) ? g.groupTypes : [], membershipRule: g.membershipRule || null,
+    securityEnabled: g.securityEnabled !== false, mailEnabled: g.mailEnabled === true });
+
+  // A few files at a time: raw.githubusercontent is not the rate-limited
+  // API, but 80 sequential round trips is a long wait for a button.
+  async function pool(items, n, fn) {
+    let i = 0;
+    const workers = Array.from({ length: Math.min(n, items.length) }, async () => {
+      while (i < items.length) { const k = i++; await fn(items[k], k); }
+    });
+    await Promise.all(workers);
+  }
+
   // Read the latest release and every policy file it ships. Resolves to the
   // catalog on success; throws on failure. Never touches the snapshot.
   async function read(onStatus) {
@@ -228,12 +267,37 @@ const BaselineLive = (() => {
     if (!tag || !/^[\w.\-]{1,64}$/.test(tag)) throw new Error("the latest release has no usable tag name");
     const published = String(rel.published_at || rel.created_at || "").slice(0, 10);
 
-    onStatus?.(`Listing ${bundled.configPath} at ${tag}…`);
-    const listing = await (await get(`${API}/contents/${bundled.configPath}?ref=${encodeURIComponent(tag)}`)).json();
-    if (!Array.isArray(listing)) throw new Error(`${bundled.configPath} is not a folder at ${tag}`);
-    const files = listing.filter((f) => f && f.type === "file" && /\.json$/i.test(f.name || ""));
+    // One tree call lists the whole Config/ folder — policies, groups and
+    // named locations — where the contents listing costs one call per folder
+    // against a 60-an-hour budget. The contents listing stays as the
+    // fallback for the policies alone, so a tree that is refused or truncated
+    // still yields a catalog (and says the importer has no groups to go on).
+    const root = String(bundled.configPath || "").split("/")[0] || "Config";
+    const inFolder = (path, folder) => path.startsWith(folder + "/") && path.slice(folder.length + 1).indexOf("/") < 0 && /\.json$/i.test(path);
+    let files = [], groupFiles = [], locFiles = [], treeOk = false;
+    onStatus?.(`Listing ${root}/ at ${tag}…`);
+    try {
+      const tree = await (await get(`${API}/git/trees/${encodeURIComponent(tag)}?recursive=1`)).json();
+      if (Array.isArray(tree.tree) && !tree.truncated) {
+        const blobs = tree.tree.filter((t) => t && t.type === "blob" && typeof t.path === "string" && t.path.startsWith(root + "/"));
+        const entry = (t) => ({ name: t.path.split("/").pop(), path: t.path, size: t.size || 0 });
+        files = blobs.filter((t) => inFolder(t.path, bundled.configPath)).map(entry);
+        groupFiles = blobs.filter((t) => inFolder(t.path, `${root}/Groups`)).map(entry);
+        locFiles = blobs.filter((t) => inFolder(t.path, `${root}/NamedLocations`)).map(entry);
+        treeOk = files.length > 0;
+      }
+    } catch (e) { console.warn("baseline live: tree listing failed, falling back to contents:", e.message || e); }
+    if (!treeOk) {
+      onStatus?.(`Listing ${bundled.configPath} at ${tag}…`);
+      const listing = await (await get(`${API}/contents/${bundled.configPath}?ref=${encodeURIComponent(tag)}`)).json();
+      if (!Array.isArray(listing)) throw new Error(`${bundled.configPath} is not a folder at ${tag}`);
+      files = listing.filter((f) => f && f.type === "file" && /\.json$/i.test(f.name || "")).map((f) => ({ name: f.name, path: `${bundled.configPath}/${f.name}`, size: f.size || 0 }));
+      groupFiles = []; locFiles = [];
+    }
     if (!files.length) throw new Error(`no policy JSON files in ${bundled.configPath} at ${tag}`);
     if (files.length > MAX_FILES) throw new Error(`${files.length} files in ${bundled.configPath} — more than the ${MAX_FILES} this reader accepts`);
+    if (groupFiles.length > MAX_FILES) groupFiles = groupFiles.slice(0, MAX_FILES);
+    if (locFiles.length > MAX_FILES) locFiles = locFiles.slice(0, MAX_FILES);
 
     // The commit the tag points at is what "which commit did it read" means.
     // The contents listing does not carry it, so it is one more small call —
@@ -249,32 +313,64 @@ const BaselineLive = (() => {
     } catch { commit = ""; }
 
     const byName = new Map((bundled.policies || []).map((p) => [norm(p.name), p]));
-    const policies = [], skipped = [];
+    const rawUrl = (path) => `${RAW}/${encodeURIComponent(tag)}/${path.split("/").map(encodeURIComponent).join("/")}`;
+    const readJson = async (f) => {
+      const txt = decode(await (await get(rawUrl(f.path), "application/json")).arrayBuffer());
+      let raw;
+      try { raw = JSON.parse(txt); } catch (e) { throw new Error(`not valid JSON (${String(e.message || e).slice(0, 60)})`); }
+      return { raw, size: txt.length };
+    };
+    const policies = [], raws = [], skipped = [];
     let n = 0;
-    for (const f of files) {
-      n++;
-      onStatus?.(`Reading policy files… ${n}/${files.length}`);
-      const url = `${RAW}/${encodeURIComponent(tag)}/${bundled.configPath}/${encodeURIComponent(f.name)}`;
+    const slots = new Array(files.length);
+    await pool(files, 6, async (f, k) => {
+      onStatus?.(`Reading policy files… ${++n}/${files.length}`);
       try {
-        const txt = decode(await (await get(url, "application/json")).arrayBuffer());
-        let raw;
-        try { raw = JSON.parse(txt); } catch (e) { skipped.push(`${f.name}: not valid JSON (${String(e.message || e).slice(0, 60)})`); continue; }
-        const why = reject(raw, txt.length);
-        if (why) { skipped.push(`${f.name}: ${why}`); continue; }
+        const { raw, size } = await readJson(f);
+        const why = reject(raw, size);
+        if (why) { skipped.push(`${f.name}: ${why}`); return; }
         const row = summarize(raw, byName.get(norm(raw.displayName)) || null);
         row.file = f.name;
-        policies.push(row);
+        slots[k] = { row, raw: slim(raw) };
       } catch (e) { skipped.push(`${f.name}: ${e.message || e}`); }
-    }
+    });
+    for (const s of slots) if (s) { policies.push(s.row); raws.push(s.raw); }
     if (policies.length < MIN_VALID) {
       throw new Error(`only ${policies.length} of ${files.length} files were usable policies — treating the release as malformed and keeping the bundled snapshot${skipped.length ? ` (${skipped[0]}${skipped.length > 1 ? ", …" : ""})` : ""}`);
     }
     policies.sort((a, b) => (a.num ?? 9999) - (b.num ?? 9999) || a.name.localeCompare(b.name));
+    raws.sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
     // duplicate numbers in the repository are a finding, not a bug to hide
     const seen = new Map();
     for (const p of policies) { if (p.num != null) seen.set(p.num, (seen.get(p.num) || 0) + 1); }
     const dups = [...seen].filter(([, k]) => k > 1).map(([num]) => `CA${String(num).padStart(3, "0")}`);
-    return { tag, published, commit, policies, files: files.length, skipped, dups, htmlUrl: rel.html_url || "" };
+
+    // The importer's dependencies. A file that fails here costs that one
+    // object, never the read: the catalog is the policies, the rest is
+    // what makes them importable.
+    const groups = [], namedLocations = [], depSkipped = [];
+    let g = 0;
+    await pool(groupFiles, 6, async (f) => {
+      onStatus?.(`Reading group files… ${++g}/${groupFiles.length}`);
+      try {
+        const { raw } = await readJson(f);
+        if (!raw || typeof raw !== "object" || typeof raw.displayName !== "string" || !raw.id) throw new Error("not a group export");
+        groups.push(slimGroup(raw));
+      } catch (e) { depSkipped.push(`Groups/${f.name}: ${e.message || e}`); }
+    });
+    let l = 0;
+    await pool(locFiles, 4, async (f) => {
+      onStatus?.(`Reading named locations… ${++l}/${locFiles.length}`);
+      try {
+        const { raw } = await readJson(f);
+        if (!raw || typeof raw !== "object" || typeof raw.displayName !== "string" || !raw.id) throw new Error("not a named-location export");
+        namedLocations.push(slim(raw));
+      } catch (e) { depSkipped.push(`NamedLocations/${f.name}: ${e.message || e}`); }
+    });
+    groups.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    namedLocations.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    return { tag, published, commit, policies, files: files.length, skipped, dups, htmlUrl: rel.html_url || "",
+      raws, groups, namedLocations, depSkipped, treeOk };
   }
 
   function build(r) {
@@ -287,6 +383,14 @@ const BaselineLive = (() => {
       files: r.files, skipped: r.skipped || [], dups: r.dups || [],
       readAt: r.at || new Date().toISOString(),
       policies: r.policies.map((p) => ({ ...p })),
+      // what 📥 Import works from — the same shape a backup zip unpacks to
+      bundle: {
+        policies: (r.raws || []).map((p) => ({ ...p })),
+        groups: (r.groups || []).map((g) => ({ ...g })),
+        namedLocations: (r.namedLocations || []).map((x) => ({ ...x })),
+        authStrengths: [], authContexts: [], termsOfUse: [],
+        depSkipped: r.depSkipped || [], complete: !!r.treeOk,
+      },
     };
     // the live release may drop or rename groups the snapshot listed; the
     // named groups come from the contract, the exclusions from the policies
@@ -294,12 +398,16 @@ const BaselineLive = (() => {
   }
 
   // ---- cache ---------------------------------------------------------------
+  // schema 2: the raw policy, group and named-location objects ride along,
+  // so an import can start from a read taken earlier in the session. A
+  // schema-1 entry (rows only) is simply re-read.
+  const SCHEMA = 2;
   function load() {
     try {
       const raw = sessionStorage.getItem(KEY);
       if (!raw) return false;
       const o = JSON.parse(raw);
-      if (!o || o.schema !== 1 || !Array.isArray(o.policies) || o.policies.length < MIN_VALID) return false;
+      if (!o || o.schema !== SCHEMA || !Array.isArray(o.policies) || o.policies.length < MIN_VALID) return false;
       live = build(o);
       state = { status: "live", error: null, at: o.at, release: o.tag, commit: o.commit, count: o.policies.length, files: o.files, skipped: o.skipped || [] };
       return true;
@@ -307,9 +415,26 @@ const BaselineLive = (() => {
   }
   function save(r) {
     try {
-      sessionStorage.setItem(KEY, JSON.stringify({ schema: 1, tag: r.tag, published: r.published, commit: r.commit, files: r.files,
-        skipped: r.skipped, dups: r.dups, htmlUrl: r.htmlUrl, at: r.at, policies: r.policies }));
+      sessionStorage.setItem(KEY, JSON.stringify({ schema: SCHEMA, tag: r.tag, published: r.published, commit: r.commit, files: r.files,
+        skipped: r.skipped, dups: r.dups, htmlUrl: r.htmlUrl, at: r.at, policies: r.policies,
+        raws: r.raws, groups: r.groups, namedLocations: r.namedLocations, depSkipped: r.depSkipped, treeOk: r.treeOk }));
     } catch { /* storage refused — the read still lives for this page */ }
+  }
+
+  // The importable form of the live read, or null when there is none. The
+  // caller decides what to do about a bundle that has no groups (a tree
+  // listing that was refused): the policies still import, their group
+  // references cannot be resolved by id and are dropped with a warning each.
+  function bundle() {
+    if (!live || !live.bundle || !live.bundle.policies.length) return null;
+    return {
+      policies: live.bundle.policies.map((p) => JSON.parse(JSON.stringify(p))),
+      groups: live.bundle.groups.map((g) => ({ ...g })),
+      namedLocations: live.bundle.namedLocations.map((x) => JSON.parse(JSON.stringify(x))),
+      authStrengths: [], authContexts: [], termsOfUse: [],
+      depSkipped: live.bundle.depSkipped.slice(), complete: live.bundle.complete,
+      release: live.release, commit: live.commit, label: live.label, catalogId: live.id,
+    };
   }
 
   let inflight = null;
@@ -357,5 +482,5 @@ const BaselineLive = (() => {
   }
 
   load();
-  return { fetchLatest, catalog, status, sourceLine, summarize, reject, KEY, API, RAW, MIN_VALID, MAX_FILES };
+  return { fetchLatest, catalog, bundle, status, sourceLine, summarize, reject, slim, KEY, API, RAW, MIN_VALID, MAX_FILES };
 })();
