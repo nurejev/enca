@@ -77,12 +77,16 @@ const Assign = (() => {
       .sort((a, b) => (b.recommended - a.recommended) || a.name.localeCompare(b.name));
   }
 
-  // The baseline personas and the group that represents each. Lets the wizard
-  // offer "pick by persona" instead of hunting for the exact group name — and
-  // create it from a template if the tenant does not have it yet. Order matches
-  // the CA-number ranges the rest of the app groups by.
-  const PERSONAS = [
-    { key: "global", label: "🌐 Global", group: null },  // no single persona group; global policies use All-users − exclusions
+  // R36: the personas, the group each one is represented by, the predefined
+  // group list, the exclusion convention and the templates all come from the
+  // ACTIVE baseline (Baseline.active()) — the CloudFellows lists that used to
+  // live here are now that catalog's contract in js/baseline.js. The
+  // CloudFellows fallback below only matters when Baseline is not loaded.
+  const activeCat = () => {
+    try { return (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null; } catch { return null; }
+  };
+  const CF_PERSONAS = [
+    { key: "global", label: "🌐 Global", group: null },
     { key: "admins", label: "🛡 Admins", group: "CAB-SEC-U-Persona-Admins" },
     { key: "internals", label: "👤 Internals", group: "CAB-SEC-U-Persona-Internals" },
     { key: "externals", label: "🤝 Externals", group: "CAB-SEC-U-Persona-Externals" },
@@ -92,25 +96,16 @@ const Assign = (() => {
     { key: "devops", label: "🧰 DevOps", group: "CAB-SEC-U-Persona-DevOps" },
     { key: "breakglass", label: "🚨 Break-glass", group: "CAB-SEC-U-BreakGlass" },
   ];
+  const personas = () => { const c = activeCat(); return (c && c.personaGroups) || CF_PERSONAS; };
   // Only personas that map to a real group can be picked directly.
-  const personasWithGroup = () => PERSONAS.filter((p) => p.group);
+  const personasWithGroup = () => personas().filter((p) => p.group);
   const templateFor = (name) => templates().find((t) => t.displayName === name)
     || { displayName: name, mailNickname: name.replace(/[^A-Za-z0-9]/g, "") };
   // Which actions only ever remove — safe to run tenant-wide without the ALL
   // guard, like ADD-to-exclude, because they never rewrite what stays.
   const REMOVE_ACTIONS = new Set([5, 6]);
 
-  const PREDEFINED = [
-    // deploy / test
-    "CAD-SEC-U-DG-GLO", "CAD-SEC-U-DG-ADM", "CAD-SEC-U-DG-INT", "CAD-SEC-U-DG-EXT",
-    "CAD-SEC-U-DG-GUESTUSERS", "CAD-SEC-U-DG-GUESTAdmins", "CAD-SEC-U-DG-SA",
-    "CAD-SEC-U-DG-DevOps", "CAD-SEC-U-DG-FW",
-    // production
-    "CAB-SEC-U-BreakGlass", "Emergency_Access1", "Emergency_Access2",
-    "CAB-SEC-U-Persona-Admins", "CAB-SEC-U-Persona-GuestAdmins", "CAB-SEC-U-Persona-Guests",
-    "CAB-SEC-U-Persona-Internals", "CAB-SEC-U-Persona-Externals",
-    "CAB-SEC-U-Persona-Microsoft365ServiceAccounts", "CAB-SEC-U-Persona-DevOps",
-  ];
+  const predefined = () => { const c = activeCat(); return (c && c.predefined) || ["CAB-SEC-U-BreakGlass", "Emergency_Access1", "Emergency_Access2"]; };
 
   async function findGroup(name) {
     const flt = encodeURIComponent(`displayName eq '${name.replace(/'/g, "''")}'`);
@@ -144,7 +139,7 @@ const Assign = (() => {
   // Resolve the predefined groups that exist in this tenant.
   async function resolveGroups(onStatus) {
     const out = [];
-    for (const name of PREDEFINED) {
+    for (const name of predefined()) {
       onStatus?.(`Checking ${name}…`);
       try { const g = await findGroup(name); if (g) out.push(g); } catch {}
     }
@@ -158,35 +153,21 @@ const Assign = (() => {
   // group is left in the directory with nothing pointing at it. Nothing
   // notices, because an absent exclusion looks exactly like a policy that
   // never had one — until the day the exception it existed for is needed.
-  const CONV_RE = /^CAB-SEC-U-CA(\d+)-Exclusion$/i;
-  // The CA token as the policy NAME spells it, leading zeros intact: CA006
-  // and CA1009 are both real, and the group name has to match the tenant's
-  // spelling character for character or the lookup finds nothing.
-  const caToken = (policyName) => {
-    const m = String(policyName || "").match(/\bCA(\d{3,4})\b/);
-    return m ? m[1] : null;
-  };
-
-  // What group this policy should exclude, and on whose authority.
-  //   catalog — the baseline itself names one for this CA number. Definitive.
-  //   derived — the policy carries a CA number the catalog does not have (a
-  //             tenant's own numbering), so the convention is applied by
-  //             pattern. Offered, but labelled: it is an inference.
-  // null means there is nothing to restore, which is the right answer for a
-  // policy with no CA number AND for a catalog policy that legitimately has
-  // no exclusion group of its own — 14 of the 99 do not.
+  //
+  // What group this policy should exclude, and on whose authority — answered
+  // by the active baseline's contract (R36), because the two baselines name
+  // their exclusion groups differently: CAB-SEC-U-CA101-Exclusion by number,
+  // "<policy name> - Exclude" by name.
+  //   catalog — the baseline itself names one for this policy. Definitive.
+  //   derived — the policy follows the baseline's naming shape but the catalog
+  //             does not list it, so the convention is applied by pattern.
+  //             Offered, but labelled: it is an inference.
+  // null means there is nothing to restore.
   function conventionExclusionFor(policyName) {
-    const tok = caToken(policyName);
-    if (!tok) return null;
-    const cat = (typeof BASELINE !== "undefined" ? BASELINE.policies : [])
-      .find((p) => p.num === parseInt(tok, 10));
-    if (cat) {
-      const hit = (cat.exclude || [])
-        .map((x) => String(x).replace(/\s*\(group\)$/, ""))
-        .find((x) => CONV_RE.test(x));
-      return hit ? { name: hit, source: "catalog" } : null;
-    }
-    return { name: `CAB-SEC-U-CA${tok}-Exclusion`, source: "derived" };
+    const c = activeCat();
+    if (c && typeof c.exclusionGroupFor === "function") return c.exclusionGroupFor(policyName);
+    const m = String(policyName || "").match(/\bCA(\d{3,4})\b/);
+    return m ? { name: `CAB-SEC-U-CA${m[1]}-Exclusion`, source: "derived" } : null;
   }
 
   // One row per policy, so the panel can be read as a drift report rather
@@ -218,7 +199,8 @@ const Assign = (() => {
   // Every CAB-SEC group in one read. Resolving 99 names one at a time is 99
   // round trips for a question a single prefix filter answers.
   async function groupsByPrefix(prefix) {
-    const p = String(prefix || "CAB-SEC-").replace(/'/g, "''");
+    const c = activeCat();
+    const p = String(prefix || (c && c.groupFilterPrefix) || "CAB-SEC-").replace(/'/g, "''");
     const flt = encodeURIComponent(`startswith(displayName,'${p}')`);
     const found = await Graph.ggetAll(`/groups?$filter=${flt}&$select=id,displayName&$top=999`);
     return found.map((g) => ({ id: g.id, name: g.displayName }));
@@ -400,7 +382,11 @@ const Assign = (() => {
       nestingNote: createNote || null };
   }
 
-  function templates() { return typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []; }
+  function templates() {
+    const c = activeCat();
+    if (c && typeof c.templates === "function") return c.templates();
+    return typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : [];
+  }
 
   // Same semantics as the PowerShell script's action switch.
   function newUsersBlock(raw, action, groupIds, target) {
@@ -535,5 +521,5 @@ const Assign = (() => {
   }
 
   return { ACTIONS, ROLE_ACTIONS, actionsFor, ADMIN_ROLE_NAMES, roleTemplates, isAdminRole, NEEDS_GROUPS, REMOVE_ACTIONS, MAPPED_ACTIONS,
-    conventionExclusionFor, conventionPlan, planCounts, groupsByPrefix, applyMapped, PERSONAS, personasWithGroup, templateFor, PREDEFINED, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, confirmNesting, NEST_SCOPES, templates };
+    conventionExclusionFor, conventionPlan, planCounts, groupsByPrefix, applyMapped, get PERSONAS() { return personas(); }, personasWithGroup, templateFor, get PREDEFINED() { return predefined(); }, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, confirmNesting, NEST_SCOPES, templates };
 })();

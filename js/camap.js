@@ -42,9 +42,17 @@
 // ======================================================================
 const CaMap = (() => {
   const SCHEMA = "enca-group-personas/1";
-  const KEY = (tid) => `enca-camap:${tid || "unknown"}`;
+  // R36: the mapping is per tenant AND per baseline, because the persona
+  // codes differ between them (Joey Verlinden's has AGENTS and no EXT). The
+  // CloudFellows key is the original, unsuffixed one, so every mapping saved
+  // before R36 is still exactly where it was.
+  const baselineId = () => {
+    try { return (typeof Baseline !== "undefined" && Baseline.activeCatalogId) ? Baseline.activeCatalogId() : "limonit"; } catch { return "limonit"; }
+  };
+  const KEY = (tid, bl) => `enca-camap:${tid || "unknown"}${(bl || baselineId()) === "limonit" ? "" : `:${bl || baselineId()}`}`;
 
   let tenantId = null;
+  let boundTo = null;                     // the baseline id the entries were read for
   let entries = [];                       // [{ id, name, code, note }]
   // A browser that refuses storage (private mode, a locked-down profile) must
   // not break the tool — the mapping simply lives for the session. The tool
@@ -67,7 +75,9 @@ const CaMap = (() => {
   }
   function write() {
     try {
-      localStorage.setItem(KEY(tenantId), JSON.stringify({ schema: SCHEMA, tenant: tenantId, entries }));
+      // written under the baseline the entries were READ for, so a switch
+      // that races a save can never file one baseline's codes under the other
+      localStorage.setItem(KEY(tenantId, boundTo || undefined), JSON.stringify({ schema: SCHEMA, tenant: tenantId, baseline: boundTo || baselineId(), entries }));
       persisted = true;
     } catch { persisted = false; }
   }
@@ -76,13 +86,23 @@ const CaMap = (() => {
   // with the same id again is a no-op so a refresh does not drop unsaved work.
   function use(tid) {
     const id = String(tid || "");
-    if (tenantId === id) return;
+    if (tenantId === id && boundTo === baselineId()) return;
     tenantId = id;
+    boundTo = baselineId();
     entries = sanitize(read(id));
+  }
+  // R36: the active baseline changed — the drawer for the other baseline's
+  // codes is a different drawer. Nothing is lost: the previous one was
+  // written on every change and is read back when that baseline is active
+  // again.
+  function rebind() {
+    if (tenantId == null) return;
+    boundTo = baselineId();
+    entries = sanitize(read(tenantId));
   }
   // Demo mode gets its own drawer, so playing with the mapping in the demo
   // cannot land in a real tenant's saved state.
-  const forget = () => { tenantId = null; entries = []; };
+  const forget = () => { tenantId = null; boundTo = null; entries = []; };
 
   // Drop anything that is not a usable record rather than carrying it forward:
   // a stored code for a persona that no longer exists would route a group into
@@ -213,6 +233,6 @@ const CaMap = (() => {
     return L;
   }
 
-  return { SCHEMA, use, forget, list, count, isPersisted, tenant, entryFor, codeForGroup, codeOf,
+  return { SCHEMA, use, rebind, forget, list, count, isPersisted, tenant, entryFor, codeForGroup, codeOf,
     set, remove, clear, toExport, fromExport, importAll, toMdSection, isCode, labelOf, codeList };
 })();

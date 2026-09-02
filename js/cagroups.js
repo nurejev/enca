@@ -40,21 +40,38 @@ const CaGroups = (() => {
   // roles, guest types and "All users" are not.
   const GROUP_SUFFIX = /\s*\(group\)\s*$/i;
 
-  // Which catalogs' groups count as "expected" here. The Limon-IT catalog is
-  // this app's own baseline and always counts. A second catalog only counts if
-  // the tenant actually deploys it — otherwise every group of a baseline you
-  // never chose would be reported missing, which is noise, not a finding.
-  const JOEY_MIN_MATCH = 3;
-  function activeCatalogs(raws) {
-    const out = [];
-    if (typeof BASELINE !== "undefined") out.push(BASELINE);
-    if (typeof BASELINE_JOEY !== "undefined") {
-      const theirs = new Set((BASELINE_JOEY.policies || []).map((p) => String(p.name).toLowerCase()));
-      const hits = (raws || []).filter((p) => theirs.has(String(p.name || "")
-        .replace(/^\(?(NEW|UP)\)\s*/i, "").trim().toLowerCase())).length;
-      if (hits >= JOEY_MIN_MATCH) out.push(BASELINE_JOEY);
+  // R36: the groups a tenant is expected to have are the ACTIVE baseline's —
+  // Baseline.active() — and nothing else. It used to be the CloudFellows
+  // catalog always plus Joey's whenever three of his policy names were found,
+  // which made the missing list a union of two baselines nobody had chosen
+  // between. Now the choice is explicit (the Baseline tool's ★ button), and
+  // the summary only HINTS when the tenant looks like the other one.
+  const activeCat = () => {
+    try { return (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null; } catch { return null; }
+  };
+  function activeCatalogs() {
+    const c = activeCat();
+    if (c) return [c];
+    return typeof BASELINE !== "undefined" ? [BASELINE] : [];
+  }
+  // How many of a catalog's policy names this tenant actually carries — the
+  // signal that a tenant deploys a baseline other than the active one.
+  const OTHER_MIN_MATCH = 3;
+  function policyHits(cat, raws) {
+    const theirs = new Set((cat.policies || []).map((p) => String(p.name).toLowerCase()));
+    return (raws || []).filter((p) => theirs.has(String(p.name || p.displayName || "")
+      .replace(/^\(?(NEW|UP)\)\s*/i, "").trim().toLowerCase())).length;
+  }
+  // The other catalog this tenant looks deployed against, if any.
+  function otherBaseline(raws) {
+    if (typeof Baseline === "undefined" || !Baseline.catalogs) return null;
+    const act = activeCat();
+    for (const cat of Baseline.catalogs()) {
+      if (act && cat.id === act.id) continue;
+      const hits = policyHits(cat, raws);
+      if (hits >= OTHER_MIN_MATCH) return { catalog: cat, hits };
     }
-    return out;
+    return null;
   }
 
   function catalogGroupNames(raws) {
@@ -74,8 +91,10 @@ const CaGroups = (() => {
 
   function templateNames() {
     const m = new Map();
-    (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : [])
-      .forEach((t) => m.set(t.displayName, t));
+    const c = activeCat();
+    const list = c && typeof c.templates === "function" ? c.templates()
+      : (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []);
+    (list || []).forEach((t) => m.set(t.displayName, t));
     return m;
   }
 
@@ -230,6 +249,8 @@ const CaGroups = (() => {
     const expectedTotal = rows.filter((r) => r.status === "present" || r.status === "missing").length;
     return {
       rows, counts, expectedTotal, scope,
+      baseline: (activeCat() || {}).id || null,
+      other: otherBaseline(raws),
       present: counts.present || 0,
       coverage: expectedTotal ? Math.round(((counts.present || 0) / expectedTotal) * 100) : 100,
       scanned: new Date(),
@@ -659,7 +680,9 @@ const CaGroups = (() => {
         <h3>👥 Conditional Access groups — ${esc(tenant || "this tenant")}</h3>
         <p style="margin-bottom:10px">${onlyPolicies
           ? `Only the groups your Conditional Access policies actually reference. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody. Switch the scope to <b>Baseline + templates</b> to also check which expected groups are missing.`
-          : `The groups your Conditional Access baseline depends on: every group named in the bundled templates or in a baseline catalog, plus every group your own policies point at. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody.`}</p>
+          : `The groups your Conditional Access baseline depends on: every group the active baseline defines, plus every group your own policies point at. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody.`}</p>
+        ${typeof Baseline !== "undefined" && Baseline.activeChip ? `<p style="margin:0 0 8px">${Baseline.activeChip()}</p>` : ""}
+        ${res.other ? `<p class="mini" style="margin:0 0 8px;color:var(--report)">⚠ ${res.other.hits} of this tenant's policies carry names from the <b>${esc(res.other.catalog.label)}</b> baseline, which is not the active one — its groups are not expected here. <a href="#" data-open-baseline="${esc(res.other.catalog.id)}">Open that baseline</a> to make it active.</p>` : ""}
         <div class="bl-chips">${["missing", "dangling", "present", "extra"].map(chip).join("")}</div>
       </div>
       <div style="text-align:right;min-width:150px">
@@ -1145,7 +1168,7 @@ const CaGroups = (() => {
   }
 
   return {
-    STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate,
+    STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate, otherBaseline, activeCatalogs,
     renderSummary, chips, renderTable, renderMatrix, toMd, filtered,
     NESTING, NEST_WRITE_SCOPES, nestingState, nestingPlan, nestingReport, adminList,
     NESTING_GA, NEST_V1, nestingUnsupported, nestingSupported, noteNestingUnsupported, NESTING_UNSUPPORTED_TEXT,

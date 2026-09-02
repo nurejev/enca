@@ -119,7 +119,13 @@ const Rmau = (() => {
   // administrator for the DevOps exclusions cannot also edit the Admins ones.
   // The codes mirror the deployment groups the baseline already uses
   // (CAD-SEC-U-DG-<CODE>), so the two naming schemes stay legible together.
-  const BASELINE_AUS = [
+  //
+  // R36: this is the CLOUDFELLOWS list. BASELINE_AUS, auName() and
+  // codeForGroup() below now answer for whichever baseline is ACTIVE
+  // (Baseline.active()), and Joey Verlinden's catalog carries its own list
+  // and rules in js/baselineJoeyData.js. Nothing that reads BASELINE_AUS
+  // had to change — it just stopped being a constant.
+  const CLOUDFELLOWS_AUS = [
     { code: "GLO",         label: "Global",                  caRange: "CA000–CA099" },
     { code: "ADM",         label: "Admins",                  caRange: "CA100–CA199" },
     { code: "INT",         label: "Internals",               caRange: "CA200–CA299" },
@@ -164,7 +170,9 @@ const Rmau = (() => {
   // preferred spelling.
   const BREAKGLASS_NAME = /break[-_ ]?glass|emergency[-_ ]?access|^bg[-_]/i;
 
-  function codeForGroup(name) {
+  // The CloudFellows convention, by name. Kept as its own function because it
+  // is what the CloudFellows catalog's contract points at (js/baseline.js).
+  function conventionCode(name) {
     const n = String(name || "");
     // The CA NUMBER WINS. A group that carries one has been filed deliberately,
     // and a name that also happens to say "emergency" should not overrule it —
@@ -177,10 +185,26 @@ const Rmau = (() => {
     return null;
   }
 
+  // ---- R36: everything below answers for the ACTIVE baseline ------------
+  // Baseline.active() carries the contract; before it is loaded (script
+  // order) or when it is absent (a node test), the CloudFellows list stands.
+  const activeCat = () => {
+    try { return (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null; } catch { return null; }
+  };
+  const personaList = () => { const c = activeCat(); return (c && Array.isArray(c.personas) && c.personas.length) ? c.personas : CLOUDFELLOWS_AUS; };
+
+  function codeForGroup(name) {
+    const c = activeCat();
+    if (c && typeof c.codeForGroup === "function") return c.codeForGroup(name);
+    return conventionCode(name);
+  }
+
   // A catalog entry may carry its own `name` — break-glass does, because it
   // holds the emergency access group rather than a persona's exclusions.
   const auName = (code) => {
-    const e = BASELINE_AUS.find((a) => a.code === code);
+    const c = activeCat();
+    if (c && typeof c.auName === "function") return c.auName(code);
+    const e = CLOUDFELLOWS_AUS.find((a) => a.code === code);
     return (e && e.name) || `CAB-SEC-RMAU-${code}-Exclusions`;
   };
   const auDescription = (a) => a.description
@@ -191,7 +215,7 @@ const Rmau = (() => {
   // no CA number for codeForGroup to read.
   const codeForAu = (displayName) => {
     const n = String(displayName || "").toLowerCase();
-    const hit = BASELINE_AUS.find((a) => auName(a.code).toLowerCase() === n);
+    const hit = personaList().find((a) => auName(a.code).toLowerCase() === n);
     return hit ? hit.code : null;
   };
 
@@ -204,7 +228,7 @@ const Rmau = (() => {
   // as present, which would leave the persona unprotected while looking done.
   function baselineCheck(aus) {
     const byName = new Map((aus || []).map((a) => [String(a.displayName || "").toLowerCase(), a]));
-    const rows = BASELINE_AUS.map((a) => {
+    const rows = personaList().map((a) => {
       const name = auName(a.code);
       const hit = byName.get(name.toLowerCase());
       return {
@@ -281,5 +305,9 @@ const Rmau = (() => {
   }
 
   return { ROLE_TEMPLATES, isRestricted, memberType, caRefs, summarize, buildPayload, toMd,
-    BASELINE_AUS, auName, auDescription, baselineCheck, baselineReport, codeForGroup, codeForAu, BREAKGLASS_NAME };
+    // BASELINE_AUS is read, never assigned, by every consumer — so it can be
+    // a getter that follows the active baseline without any of them changing.
+    get BASELINE_AUS() { return personaList(); },
+    CLOUDFELLOWS_AUS, conventionCode,
+    auName, auDescription, baselineCheck, baselineReport, codeForGroup, codeForAu, BREAKGLASS_NAME };
 })();

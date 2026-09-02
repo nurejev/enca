@@ -17,12 +17,33 @@ const Guide = (() => {
   const lc = (s) => String(s || "").toLowerCase();
 
   // ---- catalog expectations -------------------------------------------
-  const expectedGroups = () => (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []).map((t) => t.displayName);
+  // R36: all read from the ACTIVE baseline (Baseline.active()), so the
+  // readiness checks count Joey Verlinden's groups, units and policies when
+  // his baseline is the one this tenant chose. The STEP PROSE below was
+  // written for the CloudFellows deployment and says so on screen when the
+  // other baseline is active — the order and the reasons still hold, the
+  // persona model and the ranges do not.
+  const activeCat = () => {
+    try { return (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null; } catch { return null; }
+  };
+  const activeId = () => (activeCat() || {}).id || "limonit";
+  const expectedGroups = () => {
+    const c = activeCat();
+    const list = c && typeof c.templates === "function" ? c.templates() : (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []);
+    return list.map((t) => t.displayName);
+  };
   const expectedAus = () => (typeof Rmau !== "undefined" ? Rmau.BASELINE_AUS : []).map((a) => Rmau.auName(a.code));
   const catalogByPersona = () => {
     const per = new Map();
-    const cat = (typeof BASELINE !== "undefined" ? BASELINE.policies : []) || [];
+    const c = activeCat();
+    const cat = (c ? c.policies : (typeof BASELINE !== "undefined" ? BASELINE.policies : [])) || [];
     for (const p of cat) {
+      if (p.persona) {   // a catalog that labels its own personas (Joey's)
+        const key = String(p.num == null ? 9999 : Math.floor(p.num / 100) * 100);
+        if (!per.has(key)) per.set(key, { label: p.persona, total: 0 });
+        per.get(key).total++;
+        continue;
+      }
       const g = Render.caGroup(p.name);
       if (!per.has(g.key)) per.set(g.key, { label: g.label, total: 0 });
       per.get(g.key).total++;
@@ -77,7 +98,7 @@ const Guide = (() => {
     // six CA numbers were absent (and an unrelated policy in the same persona
     // could even make the count look complete). The readiness check is useful
     // only when every gap names the exact policy that has to be imported.
-    const cmp = Baseline.compare(ctx.policies || [], "limonit");
+    const cmp = Baseline.compare(ctx.policies || [], activeId());
     const gaps = cmp.rows.filter((r) => r.baseline && (r.status === "missing" || r.status === "conflict"));
     const missing = gaps.map((r) => r.status === "conflict"
       ? `${r.baseline.name} — CA number clash with ${r.tenant.name}`
@@ -168,5 +189,5 @@ const Guide = (() => {
     return L.join("\n");
   }
 
-  return { STEPS, evaluate, toMd, expectedGroups, expectedAus };
+  return { STEPS, evaluate, toMd, expectedGroups, expectedAus, activeId };
 })();

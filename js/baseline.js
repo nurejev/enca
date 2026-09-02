@@ -19,30 +19,207 @@
 //   extra     numbered policy in the tenant that the baseline does not define
 // ======================================================================
 const Baseline = (() => {
+  // ====================================================================
+  // R36 — ONE BASELINE, EVERY TOOL. Two catalogs, one of them ACTIVE, and
+  // the active one is what ① Check, ② Create, ⑥ Protect, ＋ Bulk add, the
+  // persona vaults, the exclusion-restore action and 📖 the guide all work
+  // against. Before this, every one of those stopped at the CloudFellows
+  // catalog whatever the Baseline tool was showing.
+  //
+  // Each catalog answers the same questions through the same names — the
+  // CONTRACT — so a consumer never asks "which baseline is this" and then
+  // branches. The CloudFellows contract is assembled here from the modules
+  // that always held it (GROUP_TEMPLATES, Rmau's persona units, Assign's
+  // convention); Joey's is written on his catalog in js/baselineJoeyData.js,
+  // and the live-fetched copy of it (js/baselineLive.js) inherits it.
+  //
+  //   personas            [{ code, label, caRange, name?, description? }] — the vaults
+  //   auName(code)        the restricted unit for a persona
+  //   codeForGroup(name)  group name → persona code, or null (NEVER a guess)
+  //   personaOfPolicy(n)  policy name → persona code
+  //   exclusionGroupFor(policyName) → { name, source: catalog|derived } | null
+  //   isExclusionGroup(name)
+  //   templates()         the groups the baseline expects, creatable
+  //   personaGroups       [{ key, label, group }] for pick-by-persona
+  //   predefined          group names worth resolving up front
+  //   groupPrefixes       bounded startswith() scans
+  //   groupFilterPrefix   the one prefix the guide reads
+  //   defaultAuName       the fallback unit ⑥ Protect offers
+  //   breakGlassGroup
+  //
+  // WHICH ONE IS ACTIVE is a per-tenant choice, kept with the tenant like
+  // the R28 mapping (localStorage under the tenant id) — a baseline is a
+  // property of the deployment, not of the browser. It defaults to
+  // CloudFellows, which is what every tool did before, so nothing changes
+  // for a tenant that never chooses. Choosing is an explicit button in the
+  // Baseline tool, never a side effect of looking at a comparison: looking
+  // at Joey's table must not change where a WRITE puts a group.
+  // ====================================================================
+  const ACTIVE_KEY = (tid) => `enca-baseline:${tid || "unknown"}`;
+  const DEFAULT_ID = "limonit";
+  let tenantId = null;
+  let activeId = null;   // resolved lazily from storage on first ask
+
   // Catalogs the tool can compare against. BASELINE is the CloudFellows one
   // (bundled from its documentation); BASELINE_JOEY is the community baseline
-  // by Joey Verlinden. Both are bundled rather than fetched at runtime — the
-  // app's CSP only allows Graph, and a baseline should not change under you
-  // mid-session.
+  // by Joey Verlinden — the bundled snapshot, or the live read of his
+  // repository when this session has one (BaselineLive says which).
   function catalogs() {
     const out = [];
-    if (typeof BASELINE !== "undefined") {
+    if (typeof BASELINE !== "undefined") out.push(cloudFellows());
+    if (typeof BASELINE_JOEY !== "undefined") {
+      const live = typeof BaselineLive !== "undefined" ? BaselineLive.catalog() : null;
+      out.push(live || BASELINE_JOEY);
+    }
+    return out;
+  }
+  const catalog = (id) => catalogs().find((c) => c.id === id) || catalogs()[0];
+
+  // The CloudFellows catalog with its contract. Assembled per call — cheap,
+  // and it means the modules it leans on are read at call time rather than
+  // at load time, so script order in index.html stops mattering here.
+  const CF_CONV_RE = /^CAB-SEC-U-CA(\d+)-Exclusion$/i;
+  const CF_PERSONA_GROUPS = [
+    { key: "global", label: "🌐 Global", group: null },  // no single persona group; global policies use All-users − exclusions
+    { key: "admins", label: "🛡 Admins", group: "CAB-SEC-U-Persona-Admins" },
+    { key: "internals", label: "👤 Internals", group: "CAB-SEC-U-Persona-Internals" },
+    { key: "externals", label: "🤝 Externals", group: "CAB-SEC-U-Persona-Externals" },
+    { key: "guestusers", label: "👥 Guest users", group: "CAB-SEC-U-Persona-GuestUsers" },
+    { key: "guestadmins", label: "🔑 Guest admins", group: "CAB-SEC-U-Persona-GuestAdmins" },
+    { key: "serviceaccounts", label: "⚙ M365 service accounts", group: "CAB-SEC-U-Persona-Microsoft365ServiceAccounts" },
+    { key: "devops", label: "🧰 DevOps", group: "CAB-SEC-U-Persona-DevOps" },
+    { key: "breakglass", label: "🚨 Break-glass", group: "CAB-SEC-U-BreakGlass" },
+  ];
+  const CF_PREDEFINED = [
+    // deploy / test
+    "CAD-SEC-U-DG-GLO", "CAD-SEC-U-DG-ADM", "CAD-SEC-U-DG-INT", "CAD-SEC-U-DG-EXT",
+    "CAD-SEC-U-DG-GUESTUSERS", "CAD-SEC-U-DG-GUESTAdmins", "CAD-SEC-U-DG-SA",
+    "CAD-SEC-U-DG-DevOps", "CAD-SEC-U-DG-FW",
+    // production
+    "CAB-SEC-U-BreakGlass", "Emergency_Access1", "Emergency_Access2",
+    "CAB-SEC-U-Persona-Admins", "CAB-SEC-U-Persona-GuestAdmins", "CAB-SEC-U-Persona-Guests",
+    "CAB-SEC-U-Persona-Internals", "CAB-SEC-U-Persona-Externals",
+    "CAB-SEC-U-Persona-Microsoft365ServiceAccounts", "CAB-SEC-U-Persona-DevOps",
+  ];
+  function cloudFellows() {
+    const R = typeof Rmau !== "undefined" ? Rmau : null;
+    const personas = R && R.CLOUDFELLOWS_AUS ? R.CLOUDFELLOWS_AUS : [];
+    const cat = {
       // The id stays `limonit` on purpose. It is what saved state and Drift
       // watch snapshots key on, so renaming it would orphan every stored
       // comparison taken before the baseline was renamed to CloudFellows.
       // Display name everywhere, identifiers nowhere.
-      out.push({ id: "limonit", label: "CloudFellows", icon: "🧬",
-        // `revised` marks a re-cut of the same release (documented fixes folded
-        // back in) — worth showing, because a tenant on the older patch versions
-        // is not out of release, only out of revision.
-        release: BASELINE.release, line: BASELINE.line, author: "CloudFellows",
-        released: BASELINE.revised || null,
-        url: null, policies: BASELINE.policies });
-    }
-    if (typeof BASELINE_JOEY !== "undefined") out.push(BASELINE_JOEY);
-    return out;
+      id: "limonit", label: "CloudFellows", icon: "🧬", source: "bundled",
+      // `revised` marks a re-cut of the same release (documented fixes folded
+      // back in) — worth showing, because a tenant on the older patch versions
+      // is not out of release, only out of revision.
+      release: BASELINE.release, line: BASELINE.line, author: "CloudFellows",
+      released: BASELINE.revised || null,
+      url: null, policies: BASELINE.policies,
+      breakGlassGroup: "CAB-SEC-U-BreakGlass",
+      groupPrefixes: ["CAB-SEC", "CAD-SEC"],
+      groupFilterPrefix: "CAB-SEC-",
+      defaultAuName: "CAB-SEC-RMAU-CA-Exclusions",
+      personas,
+      personaGroups: CF_PERSONA_GROUPS,
+      predefined: CF_PREDEFINED,
+      auName: (code) => { const e = personas.find((a) => a.code === code); return (e && e.name) || `CAB-SEC-RMAU-${code}-Exclusions`; },
+      codeForGroup: (name) => (R && R.conventionCode ? R.conventionCode(name) : null),
+      personaOfPolicy: (name) => (R && R.conventionCode ? R.conventionCode(name) : null),
+      isExclusionGroup: (name) => CF_CONV_RE.test(String(name || "").trim()),
+      // The CA token as the policy NAME spells it, leading zeros intact: CA006
+      // and CA1009 are both real, and the group name has to match the tenant's
+      // spelling character for character or the lookup finds nothing.
+      //   catalog — the baseline itself names one for this CA number. Definitive.
+      //   derived — the policy carries a CA number the catalog does not have (a
+      //             tenant's own numbering), so the convention is applied by
+      //             pattern. Offered, but labelled: it is an inference.
+      // null means there is nothing to restore, which is the right answer for a
+      // policy with no CA number AND for a catalog policy that legitimately has
+      // no exclusion group of its own — 14 of the 99 do not.
+      exclusionGroupFor: (policyName) => {
+        const m = String(policyName || "").match(/\bCA(\d{3,4})\b/);
+        if (!m) return null;
+        const p = BASELINE.policies.find((x) => x.num === parseInt(m[1], 10));
+        if (p) {
+          const hit = (p.exclude || []).map((x) => String(x).replace(/\s*\(group\)$/, "")).find((x) => CF_CONV_RE.test(x));
+          return hit ? { name: hit, source: "catalog" } : null;
+        }
+        return { name: `CAB-SEC-U-CA${m[1]}-Exclusion`, source: "derived" };
+      },
+      templates: () => (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []),
+    };
+    return cat;
   }
-  const catalog = (id) => catalogs().find((c) => c.id === id) || catalogs()[0];
+
+  // Joey's contract functions take the catalog first (so the live copy shares
+  // them); the consumer-facing shape is the same as CloudFellows'. This wraps
+  // whichever catalog is handed in so callers never see the difference.
+  function withContract(cat) {
+    if (!cat) return null;
+    if (cat.id === "limonit") return cat;
+    const J = cat;
+    return {
+      ...cat,
+      auName: (code) => J.auName(J, code),
+      codeForGroup: (name) => J.codeForGroup(J, name),
+      personaOfPolicy: (name) => J.personaOfPolicy(J, name),
+      exclusionGroupFor: (name) => J.exclusionGroupFor(J, name),
+      isExclusionGroup: (name) => J.isExclusionGroup(name),
+      templates: () => J.templates(J),
+    };
+  }
+
+  // ---- which baseline is active ------------------------------------------
+  function use(tid) {
+    const id = String(tid || "");
+    if (tenantId === id) return;
+    tenantId = id;
+    activeId = null;
+  }
+  function readActive() {
+    try {
+      const v = localStorage.getItem(ACTIVE_KEY(tenantId));
+      return v && catalogs().some((c) => c.id === v) ? v : DEFAULT_ID;
+    } catch { return DEFAULT_ID; }
+  }
+  function activeCatalogId() {
+    if (activeId == null) activeId = readActive();
+    return activeId;
+  }
+  // The active catalog WITH its contract. Every downstream consumer goes
+  // through here and nowhere else.
+  const active = () => withContract(catalog(activeCatalogId()));
+  const isActive = (id) => activeCatalogId() === id;
+  // Returns true when it changed. Fires "enca:baseline" so the screens that
+  // cache a scan against the old baseline can throw it away.
+  function setActive(id) {
+    if (!catalogs().some((c) => c.id === id)) return false;
+    if (activeCatalogId() === id) return false;
+    activeId = id;
+    try { localStorage.setItem(ACTIVE_KEY(tenantId), id); } catch { /* session only */ }
+    // R28's mapping is per tenant AND per baseline (the persona codes differ),
+    // so it has to re-read for the new one.
+    try { if (typeof CaMap !== "undefined" && CaMap.rebind) CaMap.rebind(); } catch { /* not loaded */ }
+    try { document.dispatchEvent(new CustomEvent("enca:baseline", { detail: { id } })); } catch { /* no DOM */ }
+    return true;
+  }
+  // A short line for the tools that act on the active baseline, so no screen
+  // ever leaves "which baseline?" to be inferred. `switchAttr` is the data
+  // attribute the host page listens on to open the Baseline tool.
+  function activeLine() {
+    const c = active();
+    if (!c) return "";
+    const src = c.id === "joey" && typeof BaselineLive !== "undefined"
+      ? (c.source === "live" ? `live from the repository, release ${c.release}${c.commit ? ` at ${String(c.commit).slice(0, 7)}` : ""}` : `bundled snapshot ${c.release}`)
+      : `${c.release}${c.line ? ` (${c.line})` : ""}`;
+    return `${c.icon || "🧬"} ${c.label} — ${src}`;
+  }
+  function activeChip() {
+    const c = active();
+    if (!c) return "";
+    return `<span class="bl-active mini" title="The baseline every group check, group creation, persona vault and exclusion-restore action works against for this tenant. Change it in the Baseline tool.">Working against <b>${esc(activeLine())}</b> · <a href="#" data-open-baseline="${esc(c.id)}">change</a></span>`;
+  }
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 
@@ -223,6 +400,41 @@ const Baseline = (() => {
         <div class="mini">${res.toImport.length} would be imported or updated</div>
         ${res.catalog.note ? `<div class="mini" style="max-width:280px;margin-top:6px">${esc(res.catalog.note)}</div>` : ""}
       </div>
+    </div>
+    ${sourcePanel(res.catalog)}
+    ${activePanel(res.catalog)}`;
+  }
+
+  // R36 — where this catalog came from, said outright. Only Joey's catalog
+  // has two possible sources; the CloudFellows one is always the bundled
+  // transcription and says nothing here.
+  function sourcePanel(cat) {
+    if (!cat || cat.id !== "joey" || typeof BaselineLive === "undefined") return "";
+    const st = BaselineLive.status();
+    const line = BaselineLive.sourceLine(cat);
+    const busy = st.status === "fetching";
+    const extra = [];
+    if (cat.source === "live" && (cat.dups || []).length) extra.push(`⚠ ${cat.dups.length === 1 ? "One CA number is" : `${cat.dups.length} CA numbers are`} used by more than one file in the repository at this release (${cat.dups.join(", ")}) — both are listed, and both exclusion groups are expected, because that is what the repository ships.`);
+    if (cat.source === "live" && (cat.skipped || []).length) extra.push(`${cat.skipped.length} file${cat.skipped.length === 1 ? " was" : "s were"} skipped as not a policy: ${cat.skipped.slice(0, 3).join("; ")}${cat.skipped.length > 3 ? "; …" : ""}`);
+    if (cat.source === "live" && st.error) extra.push(`The last refresh failed (${st.error}) — this is the read that succeeded earlier in the session.`);
+    return `<div class="bl-source ${cat.source === "live" ? "live" : "bundled"}">
+      <span class="mini"><b>${cat.source === "live" ? "📡" : "📦"} ${esc(line)}</b>${cat.source === "live" && cat.liveUrl ? ` · <a href="${esc(cat.liveUrl)}" target="_blank" rel="noopener noreferrer">release notes</a>` : ""}</span>
+      <button class="btn sm" data-bl-fetch="1"${busy ? " disabled" : ""}>${busy ? "⟳ Reading…" : cat.source === "live" ? "⟳ Read again" : "📡 Read the latest release"}</button>
+      ${extra.map((t) => `<div class="mini muted" style="flex-basis:100%">${esc(t)}</div>`).join("")}
+      <div class="mini muted" style="flex-basis:100%">The repository is read over GitHub's public API (unauthenticated, rate-limited) and every file is checked before it is believed; a read that fails leaves the bundled snapshot in place and says so here. Nothing from the repository is executed.</div>
+    </div>`;
+  }
+
+  // R36 — is THIS the baseline the rest of the app works against? Viewing a
+  // comparison never changes that; the button does.
+  function activePanel(cat) {
+    if (!cat) return "";
+    const on = isActive(cat.id);
+    return `<div class="bl-activate ${on ? "on" : ""}">
+      <span class="mini">${on
+        ? `<b>★ Active baseline.</b> 👥 Conditional Access groups (① Check, ② Create), 🔒 Protect exclusions, 🛡 Restricted AUs (persona vaults, ＋ Bulk add, persona chips), the exclusion-restore action and 📖 Baseline guide all work against <b>${esc(cat.label)}</b> for this tenant.`
+        : `Not the active baseline — the group checks, group creation, persona vaults and the exclusion-restore action currently work against <b>${esc(active().label)}</b>.`}</span>
+      ${on ? "" : `<button class="btn sm primary" data-bl-activate="${esc(cat.id)}">★ Make ${esc(cat.label)} the active baseline</button>`}
     </div>`;
   }
 
@@ -320,7 +532,7 @@ const Baseline = (() => {
       </tr>`;
     }
     return `<div class="list-card"><table class="plist bl-table">
-      <thead><tr><th style="width:44px"></th><th style="width:78px">CA</th><th>Baseline policy (${esc(BASELINE.release)})</th><th>In this tenant</th><th style="width:150px">Version</th><th style="width:280px">Changes</th></tr></thead>
+      <thead><tr><th style="width:44px"></th><th style="width:78px">CA</th><th>Baseline policy (${esc(res.catalog.release)})</th><th>In this tenant</th><th style="width:150px">Version</th><th style="width:280px">Changes</th></tr></thead>
       <tbody>${body}</tbody></table></div>`;
   }
 
@@ -373,5 +585,7 @@ const Baseline = (() => {
     return L.join("\n");
   }
 
-  return { catalogs, catalog, compare, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion };
+  return { catalogs, catalog, compare, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
+    // R36
+    use, active, activeCatalogId, isActive, setActive, activeLine, activeChip, withContract, DEFAULT_ID };
 })();

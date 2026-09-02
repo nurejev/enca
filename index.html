@@ -15,31 +15,38 @@
      came back empty and looked like a tenant with no role assignments. A
      silent wrong answer, from a tool whose whole value is being right about
      what it found. Widening connect-src is not something to do lightly; this
-     one names a host the app has always intended to reach. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+     one names a host the app has always intended to reach.
+
+     api.github.com and raw.githubusercontent.com (build 25243, roadmap R36):
+     js/baselineLive.js reads the Conditional Access Baseline by Joey
+     Verlinden from his repository — two API calls for the latest release and
+     its file listing, then the policy JSONs from raw. Read-only, unauthenticated,
+     one read per session, and the bundled snapshot stays as the fallback. No
+     other file talks to either host. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25242"></script>
+<script src="js/popup-guard.js?v=25243"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25242" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25242">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25243" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25243">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25242"></script>
+<script src="js/selfhost-boot.js?v=25243"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25242"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25242"></script>
+<script src="js/counter.js?v=25243"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25243"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25242" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25243" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -75,7 +82,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25242" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25243" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -227,11 +234,11 @@
       </div>
       <div class="tool" id="toolBaseline">
         <div class="tool-ic">🧬</div><h3>Baseline Policies <span class="tag upd">UPDATED</span></h3>
-        <p>Match this tenant against the CloudFellows R26.6 (v3.x) baseline: which baseline policies are present, outdated or missing — then import the gap.</p>
+        <p>Match this tenant against the CloudFellows R26.6 (v3.x) baseline: which baseline policies are present, outdated or missing — then import the gap. The ★ active baseline for this tenant — what every group and vault tool works against — is chosen here.</p>
       </div>
       <div class="tool" id="toolBaselineJoey">
         <div class="tool-ic">🧩</div><h3>Baseline (Joey Verlinden) <span class="tag upd">UPDATED</span></h3>
-        <p>Match this tenant against the community Conditional Access Baseline by Joey Verlinden (2026.6.1) — same table, different catalog.</p>
+        <p>Match this tenant against the community Conditional Access Baseline by Joey Verlinden — read <b>live from his repository</b> (latest release, with the commit it read), the bundled 2026.6.1 snapshot as the fallback. Make it the <b>★ active baseline</b> and the group checks, group creation, persona vaults and exclusion restore all work against it.</p>
       </div>
       <div class="tool" id="toolMsLearn">
         <div class="tool-ic">📘</div><h3>MS Learn checks</h3>
@@ -246,7 +253,7 @@
     <div class="tools">
       <div class="tool" id="toolCaGroups">
         <div class="tool-ic">👥</div><h3>Conditional Access groups <span class="tag upd">UPDATED</span></h3>
-        <p>Check the baseline groups against this tenant, create the missing ones, analyze their members in a matrix, and assign them to policies. <span class="tag block">writes to tenant</span></p>
+        <p>Check the active baseline's groups against this tenant — CloudFellows or Joey Verlinden, your choice — create the missing ones, analyze their members in a matrix, and assign them to policies. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolProtect">
         <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag upd">UPDATED</span></h3>
@@ -274,7 +281,7 @@
       </div>
       <div class="tool" id="toolRmau">
         <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag upd">UPDATED</span></h3>
-        <p>Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
+        <p>Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. One vault per persona of the active baseline (CloudFellows or Joey Verlinden). List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
       </div>
       <div class="tool" id="toolState">
         <div class="tool-ic">🎚</div><h3>Set Policy state</h3>
@@ -1361,6 +1368,12 @@
             <p class="mini" style="margin:6px 0 0"><b>Never reused</b> — not when a tool is retired, not when it is folded into another, because a recycled number makes every older note about it wrong, which is the exact failure the number exists to prevent. A new tool takes the next free number (34 next) in the same commit that adds its tile, alongside the changelog entry and the promotion-queue row.</p>
             <p class="mini" style="margin:6px 0 0"><b>Three things are deliberately not numbered:</b> ❓ Help, 📋 What's new and 🗺 Roadmap. They are the app describing itself rather than tools that read a tenant, report on it or write to it — which is also why they carry no version. They go by name, and that is written down so nobody later "fixes" the gap by numbering them and shifting everything.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25243">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R36</span> <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Joey Verlinden baseline as a first-class baseline</a> <span class="tag grant">live · beta 25243</span></h4>
+            <p class="mini" style="margin:0">Until beta 25243, <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Baseline (Joey Verlinden)</a> only compared: it told you which of his 36 policies a tenant had and what differed, while <b>group checks, group creation, persona checks, restricted-AU creation and placement</b> all stopped at the CloudFellows catalog. Now there is an <b>★ active baseline</b> per tenant — chosen by a button in the Baseline tool, never by merely looking at a comparison — and every tool downstream works against the one you picked: ① Check and ② Create build his “&lt;policy name&gt; - Exclude” groups, 🛡 Restricted AUs offers his personas as vaults, ⑥ Protect and ＋ Bulk add route his groups into them, the exclusion-restore action names his groups, and the guide's readiness checks count his objects. Each of those screens says which baseline it is working against.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Read live.</b> The catalog is now fetched from <a href="https://github.com/j0eyv/ConditionalAccessBaseline" target="_blank" rel="noopener noreferrer">github.com/j0eyv/ConditionalAccessBaseline</a> once per session — the latest release, its <code>Config/ConditionalAccess</code> listing and every policy JSON — and the summary card says which release and commit it read. The hand-checked snapshot (2026.6.1 at <code>38469a4</code>) stays as the fallback, and the first live read already showed why: the repository ships 38 files at that tag where the snapshot lists 36.</p>
+            <p class="mini" style="margin:6px 0 0"><b>The three things that made it more than plumbing, and how each landed.</b> His exclusion groups are named after the <b>policy</b>, not the CA number, so the routing rule for his baseline is an <b>exact match</b> against a policy name the catalog knows — the shape <span class="rm-ref">R28</span> established: one function deciding, an exact match, the unmapped left visible. His <b>personas</b> (Global / Admins / Internals / ServiceAccounts / Guests / Agents) are a separate vault list under his prefix — <code>CA-RMAU-&lt;Persona&gt;-Exclusions</code>, ENCA's convention because his baseline defines no units — sharing a code with a CloudFellows persona only where it means the same thing, so the R28 mapping is kept per baseline. And the <b>live fetch is a trust boundary</b>: unauthenticated GitHub is rate-limited and a release can be malformed, so every file is validated before it is believed, a read that fails leaves the snapshot in place and states the reason on the card, and the two new hosts are the only widening of the content-security policy, written down beside it.</p>
+          </div>
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
@@ -1377,12 +1390,6 @@
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R36</span> <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Joey Verlinden baseline as a first-class baseline</a> <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Today <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Baseline (Joey Verlinden)</a> only compares: it tells you which of his 36 policies a tenant has and what differs. Everything else the bundled baseline gets — <b>group checks, group creation, persona checks, restricted-AU creation and placement</b> — stops at the CloudFellows catalog. The plan is parity: pick a baseline, and every tool downstream works against the one you picked.</p>
-            <p class="mini" style="margin:6px 0 0">Plus <b>fetch the latest release</b> from <a href="https://github.com/j0eyv/ConditionalAccessBaseline" target="_blank" rel="noopener noreferrer">github.com/j0eyv/ConditionalAccessBaseline</a> rather than shipping a transcription. The catalog here is a hand-checked snapshot pinned at commit <code>38469a4</code>, release 2026.6.1 — accurate the day it was written and stale the day he pushes. Reading <code>Config/ConditionalAccess</code> live means the tool tracks his repo instead of our copy of it, and can say which commit it read.</p>
-            <p class="mini" style="margin:6px 0 0"><b>Three things make this more than plumbing.</b> His <b>exclusion groups are named after the policy</b> — “&lt;policy name&gt; - Exclude” — not by CA number, and every routing decision in ⑥ Protect, ＋ Bulk add and the RMAU baseline reads a CA number out of a group name. That machinery needs a per-baseline naming contract — <span class="rm-ref">R28</span> now solves the tenant half of it with a per-tenant mapping, and the same shape (one function deciding, an exact match, the unmapped left visible) is what a per-baseline contract has to take. His <b>personas differ</b> — Global / Admins / Internals / ServiceAccounts / Guests / Agents — and do not map onto our CA ranges at all (his CA300 block is service accounts, not externals), so the persona vaults are per-baseline too, not a rename of ours. And a <b>live fetch is a trust boundary</b>: unauthenticated GitHub is rate-limited, a repo can move or a release can be malformed, so the bundled snapshot has to stay as the fallback and the tool must say which of the two it is using rather than failing quietly to the old one.</p>
-          </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R12</span> ↩️ Undo for writes <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Every write tool already produces a change report of exactly what it did. Make it replayable in reverse: one action that puts back the state before the run, with the same typed-confirmation discipline as the original write. It lowers the cost of every write tool already shipped, and it is the natural safety net under <i>Editable Conditional Access policies</i> further down this map.</p>
@@ -1772,7 +1779,7 @@
       <ul>
         <li><b>Status filters</b> — <b>Missing</b> (not in tenant), <b>Outdated</b> (older version present), <b>Up to date</b>, <b>Not in baseline</b> (in tenant but not the catalog).</li>
         <li><b>One table, both catalogs</b> — a baseline comparison is a row per policy with a status, so that is what it renders, whichever catalog you pick. The Cards view was removed in beta 25157: the same screen answered the same question two different ways depending on which catalog you had clicked, which made the two baselines impossible to read side by side. Search and collapsible persona sections work as before.</li>
-        <li><b>Catalog switch</b> — CloudFellows R26.6 or the community Joey Verlinden catalog.</li>
+        <li><b>Catalog switch</b> — CloudFellows R26.6 or the community Joey Verlinden catalog. Switching what you LOOK at does not switch what the tools work against; the ★ button on the summary card does (R36, see the next section).</li>
         <li><b>Export MD</b> — a gap report; <b>Refresh</b> re-compares in place; <b>Import baseline</b> hands the missing/outdated set to the Import tool.</li>
               <li><b>🧷 Update pre-requirements</b> — one click, before you change anything, for the three things you cannot capture afterwards. A <b>configuration snapshot</b> (JSON) is taken first, because it is the only one that can be diffed against a later read in 📉 Drift watch: it is what answers <i>what did this change?</i> Then a <b>full policy backup with every dependency resolved</b> — groups, named locations, authentication strengths and contexts, terms of use — since a policy backup without its dependencies restores to a policy pointing at ids the tenant may no longer have, which is not a backup. Then <b>documentation as Markdown</b>, for the change record and the reviewer.</li>
         <li><b>It takes every policy, not your current selection</b> — a pre-requirement that captured whatever happened to be ticked would be worse than none, because it would look complete. Each artefact is attempted independently, so one failing does not cost you the other two, and the run always ends in a report saying which of the three were captured. Anything that could not be read is <b>named</b>: an unreadable snapshot area, a dependency that failed to fetch. If any step failed the report says so and tells you not to start the update — a failed pre-requirement is not a formality, it is the copy you would have restored from.</li>
@@ -1782,8 +1789,14 @@
 
     <section class="help-sec">
       <h4>🧩 Baseline (Joey Verlinden)</h4>
-      <p>The same comparison view against the community Conditional Access Baseline by Joey Verlinden — a different catalog, the same table.</p>
-      <p class="help-x">Read-only.</p>
+      <p>The same comparison view against the community Conditional Access Baseline by Joey Verlinden — a different catalog, the same table. Since beta 25243 (roadmap R36) it is a <b>first-class baseline</b>: not only compared against, but the one every downstream tool can work against.</p>
+      <ul>
+        <li><b>★ Active baseline</b> — the summary card says which of the two baselines this tenant works against, and the button switches it. The choice is kept per tenant in the browser (like the R28 group personas), defaults to CloudFellows, and is <b>never</b> changed by merely looking at a comparison — looking at Joey's table must not change where a write puts a group.</li>
+        <li><b>What follows the choice</b> — 👥 Conditional Access groups ① Check and ② Create (his “&lt;policy name&gt; - Exclude” groups plus CA-BreakGlassAccounts - Exclude and CA-ServiceAccounts, as templates), 🔒 Protect exclusions and 🛡 Restricted AUs (his personas as vaults: CA-RMAU-Global / Admins / Internals / ServiceAccounts / Guests / Agents-Exclusions and CA-RMAU-BreakGlass — ENCA's convention under his prefix, because his baseline defines no administrative units), ＋ Bulk add and the persona chips, the exclusion-restore action in 🗂 Assign, the persona picker, the 📘 MS Learn break-glass fix, and 📖 Baseline guide's readiness checks. Each of those screens carries a <i>Working against …</i> chip with a link back here.</li>
+        <li><b>The naming contract</b> — his groups carry the policy NAME, not a CA number, so a group is routed to a persona by an <b>exact, case-insensitive match</b> against a policy name the catalog knows, and nothing else. A group that matches nothing stays visible as unmapped, and the tenant's own mapping (🏷 Group personas, which is kept per baseline) can place it. His personas do not map onto the CloudFellows CA ranges — his CA300 block is service accounts — so the vaults are his, not a rename of ours.</li>
+        <li><b>📡 Live from the repository</b> — the catalog is read from <a href="https://github.com/j0eyv/ConditionalAccessBaseline" target="_blank" rel="noopener noreferrer">github.com/j0eyv/ConditionalAccessBaseline</a> once per session: the latest release, its file listing and every policy JSON in Config/ConditionalAccess, and the card says which release and commit it read. The bundled snapshot (2026.6.1 at 38469a4) is the fallback: a read that fails — GitHub's unauthenticated rate limit, a moved folder, a malformed release — leaves it in place and <b>says so</b> on the card rather than falling back quietly. Every file is validated before it is believed, nothing from it is executed, and a CA number used by more than one file in the repository is shown as such rather than silently de-duplicated.</li>
+      </ul>
+      <p class="help-x">Read-only itself; the writes it steers are the other tools', with their own confirmations.</p>
     </section>
 
     <section class="help-sec">
@@ -2666,56 +2679,57 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25242"></script>
-<script src="js/selfhost.js?v=25242"></script>
-<script src="js/version.js?v=25242"></script>
-<script src="js/fork.js?v=25242"></script>
-<script src="js/promote.js?v=25242"></script>
-<script src="js/authConfig.js?v=25242"></script>
-<script src="js/labels.js?v=25242"></script>
-<script src="js/graph.js?v=25242"></script>
-<script src="js/model.js?v=25242"></script>
-<script src="js/render.js?v=25242"></script>
-<script src="js/analyze.js?v=25242"></script>
-<script src="js/whatif.js?v=25242"></script>
-<script src="js/mslearn.js?v=25242"></script>
-<script src="js/gapcheck.js?v=25242"></script>
-<script src="js/cisdata.js?v=25242"></script>
-<script src="js/cischeck.js?v=25242"></script>
-<script src="js/exclusions.js?v=25242"></script>
-<script src="js/validator.js?v=25242"></script>
-<script src="js/whatifeval.js?v=25242"></script>
-<script src="js/compare.js?v=25242"></script>
-<script src="js/groupuse.js?v=25242"></script>
-<script src="js/iso3166.js?v=25242"></script>
-<script src="js/locations.js?v=25242"></script>
-<script src="js/authcontexts.js?v=25242"></script>
-<script src="js/authstrengths.js?v=25242"></script>
-<script src="js/recycle.js?v=25242"></script>
-<script src="js/rmau.js?v=25242"></script>
-<script src="js/camap.js?v=25242"></script>
-<script src="js/rmaudoc.js?v=25242"></script>
-<script src="js/termsofuse.js?v=25242"></script>
-<script src="js/audit.js?v=25242"></script>
-<script src="js/drift.js?v=25242"></script>
-<script src="js/guide.js?v=25242"></script>
-<script src="js/userimpact.js?v=25242"></script>
-<script src="js/smsvoice.js?v=25242"></script>
-<script src="js/memberof.js?v=25242"></script>
-<script src="js/devcheck.js?v=25242"></script>
-<script src="js/licgap.js?v=25242"></script>
-<script src="js/signins.js?v=25242"></script>
-<script src="js/reportimpact.js?v=25242"></script>
-<script src="js/changelog.js?v=25242"></script>
-<script src="js/baselineData.js?v=25242"></script>
-<script src="js/baselineJoeyData.js?v=25242"></script>
-<script src="js/baseline.js?v=25242"></script>
-<script src="js/groupTemplates.js?v=25242"></script>
-<script src="js/assign.js?v=25242"></script>
-<script src="js/cagroups.js?v=25242"></script>
-<script src="js/import.js?v=25242"></script>
-<script src="js/export.js?v=25242"></script>
-<script src="js/demo.js?v=25242"></script>
-<script src="js/app.js?v=25242"></script>
+<script src="js/branding.js?v=25243"></script>
+<script src="js/selfhost.js?v=25243"></script>
+<script src="js/version.js?v=25243"></script>
+<script src="js/fork.js?v=25243"></script>
+<script src="js/promote.js?v=25243"></script>
+<script src="js/authConfig.js?v=25243"></script>
+<script src="js/labels.js?v=25243"></script>
+<script src="js/graph.js?v=25243"></script>
+<script src="js/model.js?v=25243"></script>
+<script src="js/render.js?v=25243"></script>
+<script src="js/analyze.js?v=25243"></script>
+<script src="js/whatif.js?v=25243"></script>
+<script src="js/mslearn.js?v=25243"></script>
+<script src="js/gapcheck.js?v=25243"></script>
+<script src="js/cisdata.js?v=25243"></script>
+<script src="js/cischeck.js?v=25243"></script>
+<script src="js/exclusions.js?v=25243"></script>
+<script src="js/validator.js?v=25243"></script>
+<script src="js/whatifeval.js?v=25243"></script>
+<script src="js/compare.js?v=25243"></script>
+<script src="js/groupuse.js?v=25243"></script>
+<script src="js/iso3166.js?v=25243"></script>
+<script src="js/locations.js?v=25243"></script>
+<script src="js/authcontexts.js?v=25243"></script>
+<script src="js/authstrengths.js?v=25243"></script>
+<script src="js/recycle.js?v=25243"></script>
+<script src="js/rmau.js?v=25243"></script>
+<script src="js/camap.js?v=25243"></script>
+<script src="js/rmaudoc.js?v=25243"></script>
+<script src="js/termsofuse.js?v=25243"></script>
+<script src="js/audit.js?v=25243"></script>
+<script src="js/drift.js?v=25243"></script>
+<script src="js/guide.js?v=25243"></script>
+<script src="js/userimpact.js?v=25243"></script>
+<script src="js/smsvoice.js?v=25243"></script>
+<script src="js/memberof.js?v=25243"></script>
+<script src="js/devcheck.js?v=25243"></script>
+<script src="js/licgap.js?v=25243"></script>
+<script src="js/signins.js?v=25243"></script>
+<script src="js/reportimpact.js?v=25243"></script>
+<script src="js/changelog.js?v=25243"></script>
+<script src="js/baselineData.js?v=25243"></script>
+<script src="js/baselineJoeyData.js?v=25243"></script>
+<script src="js/baselineLive.js?v=25243"></script>
+<script src="js/baseline.js?v=25243"></script>
+<script src="js/groupTemplates.js?v=25243"></script>
+<script src="js/assign.js?v=25243"></script>
+<script src="js/cagroups.js?v=25243"></script>
+<script src="js/import.js?v=25243"></script>
+<script src="js/export.js?v=25243"></script>
+<script src="js/demo.js?v=25243"></script>
+<script src="js/app.js?v=25243"></script>
 </body>
 </html>

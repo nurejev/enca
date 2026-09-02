@@ -487,7 +487,7 @@ const Importer = (() => {
         // Reported, never swallowed: the group exists and the policy will use
         // it either way, so this failure is invisible unless it is said.
         log.placeFailed.push({ name: raw.displayName, code, error: e.message || String(e) });
-        log.warnings.push(`${raw.displayName} was created but NOT added to CAB-SEC-RMAU-${code}-Exclusions: ${e.message || e} — the group is live and unprotected.`);
+        log.warnings.push(`${raw.displayName} was created but NOT added to ${Rmau.auName(code)}: ${e.message || e} — the group is live and unprotected.`);
       }
     }
 
@@ -838,8 +838,8 @@ const Importer = (() => {
         ``,
         `A group created by this import is added to its persona's restricted management administrative unit, so only an administrator scoped to that unit can change its members. This section covers the groups **created here**; one that already existed is placed only if it was ticked in the preflight, and is listed separately below.`,
         ``,
-        ...(depLog.placed || []).map(x => `- 🛡 **${x.name}** → \`CAB-SEC-RMAU-${x.code}-Exclusions\``),
-        ...(depLog.placeFailed || []).map(x => `- ❌ **${x.name}** → \`CAB-SEC-RMAU-${x.code}-Exclusions\` — ${x.error}. **The group exists and is in use, but is not protected.**`),
+        ...(depLog.placed || []).map(x => `- 🛡 **${x.name}** → \`${Rmau.auName(x.code)}\``),
+        ...(depLog.placeFailed || []).map(x => `- ❌ **${x.name}** → \`${Rmau.auName(x.code)}\` — ${x.error}. **The group exists and is in use, but is not protected.**`),
         ...(depLog.unplaced || []).map(x => `- ⚠ **${x.name}** — not placed: ${x.why}`),
         ``,
         ...((depLog.unplaced || []).length ? [

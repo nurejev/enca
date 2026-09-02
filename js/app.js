@@ -1585,7 +1585,12 @@
       // and nowhere else: keyed on the tenant id rather than the name, because
       // two customers can share a display name and a mapping landing in the
       // wrong tenant would file groups into the wrong vaults.
+      try { Baseline.use(account?.tenantId || tenantName); } catch (e) { console.warn("active baseline:", e); }
       try { CaMap.use(account?.tenantId || tenantName); } catch (e) { console.warn("group mapping:", e); }
+      // R36 — a tenant that chose Joey's baseline gets his repository read
+      // once per session, so the group checks work against the current
+      // release rather than the snapshot; the tool says which it used.
+      try { if (Baseline.activeCatalogId() === "joey") blLiveEnsure(); } catch {}
       // Audience branding by who signed in: an account whose UPN matches a
       // BRAND_OVERRIDES entry gets that look even without the front door.
       // (The list ships empty since 25196 — the machinery stays.)
@@ -1642,6 +1647,7 @@
     isDemo = true; anReport = null; anCov = null;
     // The demo gets its own drawer for the group → persona mapping, so playing
     // with it here can never land in a real tenant's saved state.
+    try { Baseline.use("demo"); } catch {}
     try { CaMap.use("demo"); } catch { /* storage refused; in-memory is fine */ }
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
     const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
@@ -3051,9 +3057,11 @@
     // persona groups and the Emergency_Access pair — the ones a reviewer looks
     // for first — never appeared, and demo mode read as though the baseline had
     // forgotten them. Named groups first, then a spread of exclusions.
-    const all = (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []);
-    const named = all.filter((t) => !/-(Exclusion|Inclusion)$/.test(t.displayName));
-    const excl = all.filter((t) => /-(Exclusion|Inclusion)$/.test(t.displayName));
+    // R36: the active baseline's templates, so the demo follows the choice
+    const all = [...CaGroups.templateNames().values()];
+    const isExcl = (n) => /-(Exclusion|Inclusion)$/.test(n) || /\s-\sExclude$/i.test(n);
+    const named = all.filter((t) => !isExcl(t.displayName));
+    const excl = all.filter((t) => isExcl(t.displayName));
     // one exclusion per persona band (CA0xx global, CA1xx admins, CA2xx …) so the
     // demo shows the numbering scheme rather than twenty consecutive neighbours
     const band = new Set();
@@ -3074,7 +3082,7 @@
     }));
     const counts = rows.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
     const expectedTotal = rows.length;
-    return { rows, counts, expectedTotal, present: counts.present || 0,
+    return { rows, counts, expectedTotal, present: counts.present || 0, baseline: Baseline.activeCatalogId(), other: null,
       coverage: Math.round(((counts.present || 0) / expectedTotal) * 100), scanned: new Date() };
   }
 
@@ -3487,7 +3495,10 @@ max@contoso.com,"Global, DevOps"</pre>
   // AU can change members. Graph: POST /administrativeUnits with
   // isMemberManagementRestricted:true (immutable), then members/$ref.
   const RMAU_WRITE = ["AdministrativeUnit.ReadWrite.All"];
-  const RMAU_DEFAULT_NAME = "CAB-SEC-RMAU-CA-Exclusions";
+  // R36: the fallback unit's name follows the active baseline's convention.
+  // Read at use, never at load — a function, called at every site below.
+  const RMAU_DEFAULT_NAME_CF = "CAB-SEC-RMAU-CA-Exclusions";
+  const RMAU_DEFAULT_NAME = () => { try { return Baseline.active().defaultAuName || RMAU_DEFAULT_NAME_CF; } catch { return RMAU_DEFAULT_NAME_CF; } };
   const GROUPS_ADMIN_TEMPLATE = "fdd7a751-b60b-444a-984c-02652fe8fa1c"; // Groups Administrator
 
   // ---- ⑥ Protect and ⑦ Migrate: groups added by hand ----------------------
@@ -4051,7 +4062,7 @@ max@contoso.com,"Global, DevOps"</pre>
           .filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
       }
       const auChoice = aus.length ? aus[0].id : "new";
-      const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME;
+      const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME();
       cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null,
         plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA }) };
     } catch (e) {
@@ -4089,7 +4100,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const sel = t.sel || new Set(p.eligible.map((x) => x.id));
     const nSel = p.eligible.filter((x) => sel.has(x.id)).length;
     const auOptions = [...t.aus.map((a) => `<option value="${esc(a.id)}"${t.auChoice === a.id ? " selected" : ""}>${esc(a.name)}</option>`),
-      `<option value="new"${t.auChoice === "new" ? " selected" : ""}>➕ Create “${esc(RMAU_DEFAULT_NAME)}”</option>`].join("");
+      `<option value="new"${t.auChoice === "new" ? " selected" : ""}>➕ Create “${esc(RMAU_DEFAULT_NAME())}”</option>`].join("");
 
     // A group somebody searched for says so, and carries its way back off the
     // list — the scan did not put it there, so the scan cannot take it away.
@@ -4185,7 +4196,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "cgMigAu") {
       cgMig.auChoice = e.target.value;
       const hit = cgMig.aus.find((a) => a.id === e.target.value);
-      cgMig.auName = hit ? hit.name : RMAU_DEFAULT_NAME;
+      cgMig.auName = hit ? hit.name : RMAU_DEFAULT_NAME();
       return;
     }
     if (e.target.id === "cgMigNest") { cgMig.nesting = e.target.checked; return; }
@@ -4284,7 +4295,7 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       if (toAu && !auId && !isDemo) {
         const au = await Graph.gpost("/administrativeUnits", {
-          displayName: RMAU_DEFAULT_NAME,
+          displayName: RMAU_DEFAULT_NAME(),
           description: "Restricted management administrative unit protecting Conditional Access exclusion groups. Membership changes require a role scoped to this administrative unit.",
           isMemberManagementRestricted: true,
         }, scopes);
@@ -4439,7 +4450,7 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
     const cands = rmauCands();
-    const st = { status: new Map(), rmaus: [], sel: new Set(), auChoice: "new", auName: RMAU_DEFAULT_NAME, admin: "", busy: false, results: null, au: null };
+    const st = { status: new Map(), rmaus: [], sel: new Set(), auChoice: "new", auName: RMAU_DEFAULT_NAME(), admin: "", busy: false, results: null, au: null };
     try {
       if (isDemo) {
         st.rmaus = [];
@@ -4535,7 +4546,7 @@ max@contoso.com,"Global, DevOps"</pre>
       // would be worse than saying nothing: it is a silent demotion.
       return { auId: null, auName: Rmau.auName(code), code, source: "missing", by };
     }
-    if (t.auChoice === "new") return { auId: null, auName: (t.auName || RMAU_DEFAULT_NAME), code: null, source: "fallbackNew" };
+    if (t.auChoice === "new") return { auId: null, auName: (t.auName || RMAU_DEFAULT_NAME()), code: null, source: "fallbackNew" };
     if (t.auChoice) {
       const hit = (t.rmaus || []).find((a) => a.id === t.auChoice);
       if (hit) return { auId: hit.id, auName: hit.name, code: null, source: "fallback" };
@@ -4761,7 +4772,7 @@ max@contoso.com,"Global, DevOps"</pre>
       let fallback = null;
       const needFallback = doable.some((x) => x.dest.source === "fallbackNew");
       if (needFallback) {
-        const name = (rmauBody().querySelector("#cgRmauName")?.value || RMAU_DEFAULT_NAME).trim() || RMAU_DEFAULT_NAME;
+        const name = (rmauBody().querySelector("#cgRmauName")?.value || RMAU_DEFAULT_NAME()).trim() || RMAU_DEFAULT_NAME();
         if (isDemo) fallback = { id: "au-demo", name, created: true };
         else {
           const made = await Graph.gpost("/administrativeUnits", {
@@ -5479,7 +5490,7 @@ max@contoso.com,"Global, DevOps"</pre>
       } catch (e) { cgmRmauList = []; console.warn("RMAU list failed:", e.message); }
     }
     sel.innerHTML = [...cgmRmauList.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`),
-      `<option value="new">➕ Create “${esc(RMAU_DEFAULT_NAME)}”</option>`].join("");
+      `<option value="new">➕ Create “${esc(RMAU_DEFAULT_NAME())}”</option>`].join("");
   }
 
   async function cgManualCreate(btn) {
@@ -5510,7 +5521,7 @@ max@contoso.com,"Global, DevOps"</pre>
           let auId = $("cgmRmauPick")?.value;
           if (auId === "new" && !isDemo) {
             const au = await Graph.gpost("/administrativeUnits", {
-              displayName: RMAU_DEFAULT_NAME,
+              displayName: RMAU_DEFAULT_NAME(),
               description: "Restricted management administrative unit protecting Conditional Access exclusion groups. Membership changes require a role scoped to this administrative unit.",
               isMemberManagementRestricted: true,
             }, [...AUTH_CONFIG.scopes, "AdministrativeUnit.ReadWrite.All"]);
@@ -6086,11 +6097,12 @@ max@contoso.com,"Global, DevOps"</pre>
     if (isDemo) {
       groups = Object.keys(DEMO_DATA.scopeGroups || {}).map((n) => ({ id: "g-" + n, name: n }));
     } else {
-      // One prefix read for every CAB-SEC group in the tenant. If it fails the
-      // plan still builds — every row simply reports the group as absent,
-      // which is visibly wrong rather than quietly wrong.
-      try { groups = await Assign.groupsByPrefix("CAB-SEC-"); }
-      catch (e) { console.warn("restore: CAB-SEC group read failed", e); }
+      // One prefix read for every baseline group in the tenant (the active
+      // baseline's prefix — CAB-SEC- or CA). If it fails the plan still builds
+      // — every row simply reports the group as absent, which is visibly wrong
+      // rather than quietly wrong.
+      try { groups = await Assign.groupsByPrefix(); }
+      catch (e) { console.warn("restore: baseline group read failed", e); }
     }
     asPlan = Assign.conventionPlan(asPolicies, groups).map((r) => ({ ...r, checked: r.state === "missing" }));
   }
@@ -6118,7 +6130,7 @@ max@contoso.com,"Global, DevOps"</pre>
     };
     const idx = new Map(asPlan.map((r, i) => [r, i]));
     return `<h4 class="mini" style="margin-bottom:6px">CONVENTION EXCLUSIONS — ${total} POLIC${total === 1 ? "Y" : "IES"} IN SCOPE</h4>
-      <p class="mini muted" style="margin-bottom:8px">Each policy gets <b>its own</b> exclusion group — CA200 gets CAB-SEC-U-CA200-Exclusion, CA201 gets CA201-Exclusion — so this is a mapping rather than one group applied to everything. Nothing is replaced: the group is <b>added</b> to whatever the policy already excludes, and a policy that already has it is left alone.</p>
+      <p class="mini muted" style="margin-bottom:8px">Each policy gets <b>its own</b> exclusion group — ${Baseline.activeCatalogId() === "joey" ? "“&lt;policy name&gt; - Exclude”, named after the policy" : "CA200 gets CAB-SEC-U-CA200-Exclusion, CA201 gets CA201-Exclusion"} (the ${esc(Baseline.active().label)} convention) — so this is a mapping rather than one group applied to everything. Nothing is replaced: the group is <b>added</b> to whatever the policy already excludes, and a policy that already has it is left alone.</p>
       <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 10px;flex-wrap:wrap">
         <span class="tag ok">✅ ${c.present || 0} already correct</span>
         <span class="tag new">⚠️ ${missing.length} missing the reference</span>
@@ -6214,7 +6226,7 @@ max@contoso.com,"Global, DevOps"</pre>
       const mode = `restore:${asScope}:${asPolicies.length}`;
       if (asGroupsMode !== mode) { asPlan = []; asGroupsMode = mode; }
       if (!asPlan.length) {
-        b.innerHTML = '<p class="mini">Reading the CAB-SEC groups and working out which policies have lost their exclusion reference…</p>';
+        b.innerHTML = '<p class="mini">Reading the baseline groups and working out which policies have lost their exclusion reference…</p>';
         await asBuildPlan();
       }
       b.innerHTML = asRestorePanel();
@@ -6246,7 +6258,7 @@ max@contoso.com,"Global, DevOps"</pre>
       // the target list is marked so it is obvious it is covered.
       const personaChips = Assign.personasWithGroup().map(p => {
         const on = asGroups.some(g => g.name === p.group && g.checked);
-        return `<button class="btn sm persona-chip ${on ? "on" : ""}" data-asPersona="${esc(p.group)}" title="${esc(p.group)}">${esc(p.label)}${on ? " ✓" : ""}</button>`;
+        return `<button class="btn sm persona-chip ${on ? "on" : ""}" data-asPersona="${esc(p.group)}" title="${esc(p.group)}${p.example ? " — the baseline ships this name as an EXAMPLE include group; your tenant probably uses its own" : ""}">${esc(p.label)}${p.example ? " (example)" : ""}${on ? " ✓" : ""}</button>`;
       }).join("");
       b.innerHTML = `<h4 class="mini" style="margin-bottom:8px">BY PERSONA</h4>
         <p class="mini muted" style="margin-bottom:6px">Add the group for a persona — created from its baseline template if it is missing.</p>
@@ -6731,6 +6743,7 @@ max@contoso.com,"Global, DevOps"</pre>
       blFilter = "all"; blQuery = ""; blCollapsed.clear(); $("blSearch").value = "";
     }
     renderBaseline();
+    if (blCat === "joey") blLiveEnsure();
   }
   function renderBaseline() {
     if (!blResult) return;
@@ -6750,6 +6763,67 @@ max@contoso.com,"Global, DevOps"</pre>
     blCat = b.dataset.blcat;
     blResult = Baseline.compare(policies, blCat);
     blFilter = "all"; blCollapsed.clear(); renderBaseline();
+    if (blCat === "joey") blLiveEnsure();
+  });
+  // R36 — make the catalog on screen the one every tool works against, and
+  // read Joey's repository on request. Both live in the summary card.
+  $("blHead").addEventListener("click", async (e) => {
+    const act = e.target.closest("[data-bl-activate]");
+    if (act) {
+      e.preventDefault();
+      if (Baseline.setActive(act.dataset.blActivate)) {
+        toast(`<span>${esc(Baseline.active().label)}</span> is now the active baseline for this tenant`);
+        renderBaseline();
+      }
+      return;
+    }
+    const f = e.target.closest("[data-bl-fetch]");
+    if (f) { e.preventDefault(); await blLiveFetch(true); }
+  });
+  // Read the repository once per session when Joey's catalog is looked at,
+  // or when it is the active baseline — never silently more than that.
+  let blLiveAsked = false;
+  function blLiveEnsure() {
+    if (typeof BaselineLive === "undefined" || blLiveAsked || isDemo) return;
+    const st = BaselineLive.status();
+    if (st.status === "live" || st.status === "fetching") return;
+    blLiveAsked = true;
+    blLiveFetch(false);
+  }
+  async function blLiveFetch(force) {
+    if (typeof BaselineLive === "undefined") return;
+    // the summary re-renders through the enca:baseline-live event below;
+    // the progress line lives in the source panel's button label
+    const prog = (m) => { const b = $("blHead").querySelector("[data-bl-fetch]"); if (b) { b.disabled = true; b.textContent = `⟳ ${m}`; } };
+    const st = await BaselineLive.fetchLatest({ force: !!force, onStatus: prog });
+    if (st.status === "live" && !st.error) toast(`Read release <span>${esc(st.release)}</span> from the repository — ${st.count} policies`);
+    else if (st.error) toast(`Live read failed: <span>${esc(st.error)}</span> — the bundled snapshot stays in use`);
+  }
+  // Whatever screen is open, a catalog that just changed source needs
+  // re-comparing and the cached scans against it are stale.
+  document.addEventListener("enca:baseline-live", () => {
+    if (blResult && blCat === "joey" && $("screen-baseline").classList.contains("active")) { blResult = Baseline.compare(policies, blCat); renderBaseline(); }
+    if (Baseline.activeCatalogId() === "joey") baselineChanged();
+  });
+  // R36 — the active baseline changed: every cached scan that was taken
+  // against the old one is thrown away, so the next open re-reads.
+  function baselineChanged() {
+    cgRes = null;
+    try { ruPg.clear(); } catch {}
+    try { caMapCache.clear(); } catch {}
+    try { ruBulk = null; } catch {}
+    try { if (ruBase) { ruBase.sel = null; ruBase.results = null; ruBase.log = null; } } catch {}
+    try { if ($("screen-rmau").classList.contains("active") && ruList) renderRmau(); } catch {}
+    try { if ($("screen-cagroups").classList.contains("active")) openCaGroups(); } catch {}
+  }
+  document.addEventListener("enca:baseline", baselineChanged);
+  // "change" links on the tools that act on the active baseline
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("[data-open-baseline]"); if (!a) return;
+    e.preventDefault();
+    const id = a.dataset.openBaseline || Baseline.activeCatalogId();
+    crumb(id === "joey" ? "🧩 Baseline (Joey Verlinden)" : "🧬 Baseline Policies");
+    openBaseline(id);
   });
   $("blChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-blf]"); if (!b) return;
@@ -6801,7 +6875,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     $("toolImport").click();
     if (n) {
-      $("imDesc").textContent = `Baseline ${BASELINE.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant. `
+      $("imDesc").textContent = `Baseline ${blResult.catalog.label} ${blResult.catalog.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant. `
         + "Select the baseline backup zip (or its extracted folder). Choose an assignment mode: deploy new policies onto this tenant's persona groups, "
         + "or match & replace — an updated policy keeps the current one's assignment and its old version is switched Off.";
     }
@@ -7686,7 +7760,10 @@ max@contoso.com,"Global, DevOps"</pre>
 
     return `<div class="cg-panel" id="ruBasePanel">
       <h4>BASELINE — ONE RESTRICTED AU PER PERSONA</h4>
-      <p class="mini" style="margin:0 0 8px">The baseline expects a restricted management administrative unit per persona, so a scoped administrator for one persona's exclusion groups cannot edit another's. Names mirror the deployment groups (<code>CAD-SEC-U-DG-&lt;CODE&gt;</code>).</p>
+      <p class="mini" style="margin:0 0 8px">One restricted management administrative unit per persona, so a scoped administrator for one persona's exclusion groups cannot edit another's. ${Baseline.activeCatalogId() === "joey"
+        ? `The Joey Verlinden baseline defines no administrative units — the per-persona vault is ENCA's hardening on top of it, named <code>CA-RMAU-&lt;Persona&gt;-Exclusions</code> under his prefix, one per persona he defines (Global, Admins, Internals, Service accounts, Guests, Agents) plus break-glass.`
+        : `Names mirror the deployment groups (<code>CAD-SEC-U-DG-&lt;CODE&gt;</code>).`}</p>
+      <p style="margin:0 0 8px">${Baseline.activeChip()}</p>
       <p class="mini" style="margin:0 0 8px"><b>${c.present.length} present</b> · ${c.missing.length} missing${c.unrestricted.length ? ` · <span style="color:var(--off)">${c.unrestricted.length} name clash</span>` : ""}</p>
       <div class="cg-pick">${rows}</div>
       ${c.missing.length ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
@@ -8378,7 +8455,9 @@ max@contoso.com,"Global, DevOps"</pre>
   // tenants actually give those groups. Graph cannot match a displayName by
   // pattern without $search, so the shortlist is a few startswith reads and the
   // real filter happens on the results.
-  const RU_BULK_PREFIXES = ["CAB-SEC", "CAD-SEC"];
+  // R36: the family is the active baseline's (CAB-SEC / CAD-SEC, or CA for
+  // Joey Verlinden's), read at scan time.
+  const ruBulkPrefixes = () => { try { return Baseline.active().groupPrefixes || ["CAB-SEC", "CAD-SEC"]; } catch { return ["CAB-SEC", "CAD-SEC"]; } };
   const RU_BULK_EXTRA = { BreakGlass: ["Emergency", "BreakGlass", "Break-Glass", "BG-"] };
 
   // R28 — the groups THIS TENANT mapped to a persona, read as real group
@@ -8455,7 +8534,7 @@ max@contoso.com,"Global, DevOps"</pre>
         ].filter((g) => CaMap.codeOf(g) === code);
       } else {
         const seen = new Set();
-        for (const p of [...RU_BULK_PREFIXES, ...(RU_BULK_EXTRA[code] || [])]) {
+        for (const p of [...ruBulkPrefixes(), ...(RU_BULK_EXTRA[code] || [])]) {
           try {
             const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
             for (const g of r) if (!seen.has(g.id) && CaMap.codeOf(g) === code) { seen.add(g.id); entry.groups.push(g); }
@@ -8482,13 +8561,15 @@ max@contoso.com,"Global, DevOps"</pre>
       if (!code) throw new Error("this administrative unit is not one of the baseline persona units, so there is no persona to gather groups for");
       let groups = [];
       if (isDemo) {
-        groups = [{ id: "d1", displayName: "CAB-SEC-U-CA101-Exclusion" }, { id: "d2", displayName: "CAB-SEC-U-CA102-Exclusion" }];
+        groups = Baseline.activeCatalogId() === "joey"
+          ? [{ id: "d1", displayName: "CA101-Admins-IdentityProtection-AnyApp-AnyPlatform-MFA - Exclude" }, { id: "d2", displayName: "CA102-Admins-IdentityProtection-AllApps-AnyPlatform-SigninFrequency - Exclude" }]
+          : [{ id: "d1", displayName: "CAB-SEC-U-CA101-Exclusion" }, { id: "d2", displayName: "CAB-SEC-U-CA102-Exclusion" }];
       } else {
         // Bounded on purpose: the baseline family, not every group in the
         // tenant. A displayName cannot be matched by pattern in Graph, so the
         // CA-number filter happens here.
         const seen = new Set();
-        for (const p of [...RU_BULK_PREFIXES, ...(RU_BULK_EXTRA[code] || [])]) {
+        for (const p of [...ruBulkPrefixes(), ...(RU_BULK_EXTRA[code] || [])]) {
           // One prefix failing must not cost the others — a tenant with an odd
           // group estate should still get the ones that did come back.
           try {
@@ -9670,7 +9751,7 @@ max@contoso.com,"Global, DevOps"</pre>
       return [];
     }
     if (key === "groups")
-      return (await Graph.ggetAll("/groups?$filter=startswith(displayName,'CAB-SEC-')&$select=displayName&$top=999")).map((g) => g.displayName);
+      return (await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${String((Baseline.active() || {}).groupFilterPrefix || "CAB-SEC-").replace(/'/g, "''")}')&$select=displayName&$top=999`)).map((g) => g.displayName);
     if (key === "aus")
       return Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
     if (key === "locations")
@@ -9743,7 +9824,9 @@ max@contoso.com,"Global, DevOps"</pre>
   function renderGuide() {
     $("ugHead").innerHTML = `<h3>📖 Baseline usage guide <span class="tag new">BETA</span></h3>
       <p style="margin-bottom:4px">The deployment order with the <b>reason</b> for each step, not just the sequence — and, once the tenant has been read, a readiness check per step that says what is missing <b>before</b> you run it instead of after.</p>
-      <p class="mini muted" style="margin:0">Reads only — nothing is written. Every step links the tool that does the work. The guide ends where <a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> begins.</p>`;
+      <p class="mini muted" style="margin:0">Reads only — nothing is written. Every step links the tool that does the work. The guide ends where <a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> begins.</p>
+      <p style="margin:8px 0 0">${Baseline.activeChip()}</p>
+      ${Guide.activeId() === "joey" ? `<p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ The step texts were written for the CloudFellows deployment. The <b>readiness checks</b> read the active baseline — Joey Verlinden's groups, his persona units and his policies — but his persona model is Global / Admins / Internals / Service accounts / Guests / Agents, and his CA300 block is service accounts, not externals. Read the ranges in step 1 as his catalog lists them, not as the prose describes them.</p>` : ""}`;
     if (ugBusy) return;   // the run panel owns ugBody until the read finishes
 
     if (!ugRes) {

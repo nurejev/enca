@@ -100,6 +100,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 123,
+      title: "🧩 R36 — Joey Verlinden baseline as a first-class baseline, read live",
+      tools: ["Baseline Policies", "Baseline (Joey Verlinden)", "Conditional Access groups", "Protect exclusions", "Restricted AUs", "List Policies", "Baseline guide", "MS Learn checks"],
+      builds: [25243],
+      risk: "medium",
+      what: "One ACTIVE baseline per tenant (chosen by a ★ button in the Baseline tool, kept in localStorage under the tenant id, default CloudFellows), and every downstream consumer reads it through Baseline.active(): group templates, persona vaults, the group-to-persona rule, the exclusion-restore convention, the bounded prefix scans, the fallback unit name and the break-glass name. Joey's catalog carries its own contract (js/baselineJoeyData.js) and js/baselineLive.js reads his repository once per session with the bundled snapshot as a stated fallback; connect-src gains api.github.com and raw.githubusercontent.com. Rmau.BASELINE_AUS became a getter; CaMap keys its storage per baseline (the CloudFellows key is unchanged).",
+      why: "Medium because it changes where WRITES go when a tenant switches baselines: ② Create builds different groups, the persona panel creates different units, ⑥ Protect files groups into different vaults. All of that is gated on an explicit ★ click that defaults to the old behaviour, and the CloudFellows path is the same functions returning the same values — but the getter and the per-baseline mapping key are new plumbing under every existing call site. Graduates once a tenant has actually switched to Joey's baseline, created his groups and units, placed them, and switched back without the CloudFellows mapping or scans being disturbed.",
+      test: [
+        "Sign in to any tenant, open 🧬 Baseline Policies: the summary card must show the ★ Active baseline panel saying CloudFellows is active. Open 🧩 Baseline (Joey Verlinden): its card must say it is NOT the active one and offer the ★ button; the source panel must read the repository within a few seconds and turn green with the release, a 7-character commit and a policy count (38 at 2026.6.1). The table header must say the catalog's release, not R26.6.",
+        "Block api.github.com (or go offline) and reload: the Joey card must say BUNDLED SNAPSHOT with the failure reason on the card, and the comparison must still render from the snapshot — never an empty table.",
+        "With CloudFellows still active, open 👥 Conditional Access groups in Baseline + templates scope and note the expected count and the missing list. Click the ★ button on Joey's card, reopen the groups tool: the chip must say Working against Joey Verlinden, the expected set must be his 38 (or the live count) “- Exclude”, break-glass and CA-ServiceAccounts names, and ② Create must offer them as creatable — no “no template” warning for them.",
+        "Create one of his exclusion groups. Open 🛡 Restricted AUs: the baseline panel must list CA-RMAU-Global … CA-RMAU-BreakGlass (seven) and say the units are ENCA's convention. Create the matching persona unit, then run ⑥ Protect on the group you created: it must route to that unit by the persona rule (source shown as convention), not to the fallback.",
+        "Rename that group by one character and rescan: it must show as UNMAPPED, not routed anywhere — the exact-match rule. Map it by hand in 🏷 Group personas; it must route again. Then switch back to CloudFellows: the CloudFellows mapping you had before must be exactly as it was, and the Joey mapping must be gone from view (not deleted — switch to Joey again and it is back).",
+        "Under Joey's baseline open 🗂 List Policies → 👥 Assign → action 8 on a policy that carries one of his names: the row must name “<policy name> - Exclude” with the catalog label; a CAB-SEC policy name under his baseline must be derived or none, never CAB-SEC-U-CAnnn-Exclusion.",
+        "Under CloudFellows active, repeat one group check, one ⑥ Protect routing and one action-8 plan and confirm every value is identical to before this build — the CloudFellows path must not have moved.",
+        "Demo mode: switch baselines and open the groups tool and Restricted AUs — both must render his names without a real tenant; ＋ Bulk add on a demo unit must list his two demo groups.",
+      ],
+      files: ["js/baseline.js", "js/baselineJoeyData.js", "js/baselineLive.js", "js/rmau.js", "js/camap.js", "js/cagroups.js", "js/assign.js", "js/guide.js", "js/mslearn.js", "js/import.js", "js/rmaudoc.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 122,
       title: "📝 Deploy to Azure: what to put in the branding boxes",
       tools: ["Self-hosting"],
