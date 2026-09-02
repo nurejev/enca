@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25253, date: "2026-09-02", title: "The baseline card says what its numbers mean",
+    items: [
+      { kind: "improved", tool: "Baseline Policies", text: "The summary reads its own numbers out, for THIS tenant: how many of the catalog's own policies are here (and, apart from that, how many of the E-Admins every baseline expects), what missing means, that a NUMBER CLASH is a CA number taken by a different policy — naming whose, by its naming — which counts as absent and is deployed alongside rather than replaced, and that NOT IN BASELINE is the tenant's numbered policies this catalog does not define, with a note that they are the other baseline's and nothing is wrong with them. Every count chip carries the same meaning as a tooltip, and the right-hand column splits the import count into missing, outdated and beside-a-clash." },
+      { kind: "improved", tool: "Baseline Policies", text: "The CloudFellows card also says by match when nothing is saved — 89 under CloudFellows names and 28 under Joey Verlinden names, so CloudFellows stays active — with 📌 Keep, instead of a bare Active baseline that left a tenant holding both baselines to guess why. A saved choice reads saved for this tenant; the non-active card says which of the two it is and that the preview below is the way across." },
+      { kind: "fixed", tool: "Baseline Policies", text: "On a tenant holding both baselines, a CA number both catalogs use was matched to whichever policy sorted first — the CloudFellows CA000 passed as Joey Verlinden's CA000, Joey's CA1xx admin policies passed as CloudFellows' at an unknown version (26 of them), and the match score for the active baseline was read off the wrong rows. The policy carrying the catalog's exact name now wins a shared number, and a catalog that does not version its names counts only the exact name as present; a same-number policy under another name is a clash with the reason stated." },
+    ],
+  },
+  {
     build: 25252, date: "2026-09-02", title: "Teams devices: a rollback file before every write",
     items: [
       { kind: "improved", tool: "Teams devices", text: "Write downloads a rollback file BEFORE it touches the tenant: the group as it is now — membership rule, processing state, group types, and for an assigned group its members, because the write converts it to dynamic and Entra will not give those members back — together with the exact PATCH and the PowerShell line that restore it. After the write a Roll back button restores the previous state in the same session; the file covers the day after. Create records the delete that undoes it." },

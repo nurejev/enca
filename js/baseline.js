@@ -224,16 +224,18 @@ const Baseline = (() => {
       // which baseline a tenant is deployed on: 24 of Joey's names read as
       // "unversioned" CloudFellows matches. E-Admins are left out of both
       // sides, being every baseline's.
-      const clean = (s) => String(s || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim().toLowerCase();
       const scores = catalogs().map((c) => {
         const r = compare(vms, c.id);
         const own = r.rows.filter((x) => x.baseline && x.tenant && !x.shared && personaKey(x.baseline.name) !== "eadmin"
-          && (["ok", "outdated", "ahead"].includes(x.status) || clean(x.tenant.name) === clean(x.baseline.name))).length;
+          && (["ok", "outdated", "ahead"].includes(x.status) || exactName(x.tenant.name, x.baseline.name))).length;
         return { id: c.id, label: c.label, icon: c.icon || "🧬", coverage: r.coverage, covered: r.covered, total: r.baselineTotal, own };
       });
       const def = scores.find((s) => s.id === DEFAULT_ID) || scores[0];
       const best = scores.slice().sort((a, b) => b.own - a.own || b.coverage - a.coverage || (a.id === DEFAULT_ID ? -1 : b.id === DEFAULT_ID ? 1 : 0))[0];
-      if (best && best.id !== def.id && best.own > 0 && best.own > def.own) autoPicked = { id: best.id, scores };
+      // Recorded whichever way it went, so the card can say WHY the default
+      // is active ("89 under CloudFellows names, 28 under Joey's") rather
+      // than leaving a tenant that holds both to guess.
+      autoPicked = { id: best && best.id !== def.id && best.own > 0 && best.own > def.own ? best.id : def.id, scores };
     }
     activeId = readActive();
     if (activeId !== before) {
@@ -345,18 +347,23 @@ const Baseline = (() => {
     return null;
   }
 
+  // `desc` is what the chip's tooltip and the summary's reading line say —
+  // the one-word label on its own ("Number clash", "Not in baseline") has
+  // been read three different ways by three people.
   const STATUS = {
-    ok: { icon: "✓", label: "Up to date", cls: "ok", order: 3 },
-    outdated: { icon: "⬆", label: "Outdated", cls: "warn", order: 1 },
-    ahead: { icon: "⬇", label: "Newer than baseline", cls: "info", order: 4 },
-    present: { icon: "✓", label: "Present", cls: "ok", order: 2 },
-    unversioned: { icon: "?", label: "Version unknown", cls: "info", order: 5 },
-    missing: { icon: "✗", label: "Missing", cls: "bad", order: 0 },
-    conflict: { icon: "⚠", label: "Number clash", cls: "warn", order: 0.5 },
-    extra: { icon: "＋", label: "Not in baseline", cls: "info", order: 6 },
+    ok: { icon: "✓", label: "Up to date", cls: "ok", order: 3, desc: "in this tenant at the baseline's version" },
+    outdated: { icon: "⬆", label: "Outdated", cls: "warn", order: 1, desc: "in this tenant, but at an older version than the baseline" },
+    ahead: { icon: "⬇", label: "Newer than baseline", cls: "info", order: 4, desc: "in this tenant at a newer version than the baseline lists" },
+    present: { icon: "✓", label: "Present", cls: "ok", order: 2, desc: "in this tenant under this baseline's name (this baseline does not version its names)" },
+    unversioned: { icon: "?", label: "Version unknown", cls: "info", order: 5, desc: "in this tenant, but one side carries no version to compare" },
+    missing: { icon: "✗", label: "Missing", cls: "bad", order: 0, desc: "no policy with this CA number in this tenant" },
+    conflict: { icon: "⚠", label: "Number clash", cls: "warn", order: 0.5, desc: "the CA number is taken by a DIFFERENT policy (another baseline's naming) — counts as absent; an import deploys this one alongside, never over it" },
+    extra: { icon: "＋", label: "Not in baseline", cls: "info", order: 6, desc: "numbered policies in this tenant that this catalog does not define — usually the other baseline's" },
   };
 
   const caNum = (name) => { const m = /CA(\d{3,4})/i.exec(name || ""); return m ? +m[1] : null; };
+  const cleanName = (s) => String(s || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim().toLowerCase();
+  const exactName = (a, b) => (cleanName(a) === cleanName(b) ? 1 : 0);
   const version = (name) => { const m = /v\s?(\d+\.\d+(?:\.\d+)?)\s*$/i.exec((name || "").trim()); return m ? m[1] : null; };
 
   // -1 a<b, 0 equal, 1 a>b — segment-wise, so 1.0.10 > 1.0.9
@@ -426,14 +433,22 @@ const Baseline = (() => {
           const c = cmpVersion(tv, b.version);
           status = c === 0 ? "ok" : c < 0 ? "outdated" : "ahead";
         } else if (!b.version) {
-          // this baseline does not version its policy names — being there is
-          // the whole test, so do not report it as "version unknown"
+          // this baseline does not version its policy names — the NAME is the
+          // identity, so only the exact name (staging prefix aside) counts as
+          // present. A same-number policy with another name is a clash, not
+          // an unversioned match: on a tenant holding both baselines, three
+          // CloudFellows policies used to pass as Joey's this way.
+          if (!exactName(p.name, b.name)) return { p, tv, status: "conflict", why: "the name differs from the catalog's, and this baseline does not version its names — the name is the identity" };
           status = "present";
         } else {
           status = "unversioned";
         }
         return { p, tv, status };
-      }).sort((a, b2) => STATUS[b2.status].order - STATUS[a.status].order);
+      // a policy carrying the catalog's exact name wins over a same-number
+      // neighbour the lenient matcher also accepts (a tenant holding both
+      // baselines has CloudFellows' CA000 next to Joey's CA000), then the
+      // best status
+      }).sort((a, b2) => (exactName(b2.p.name, b.name) - exactName(a.p.name, b.name)) || (STATUS[b2.status].order - STATUS[a.status].order));
       const best = scored[0];
       // every candidate contradicted the baseline → the policy is really absent
       rows.push({
@@ -472,23 +487,71 @@ const Baseline = (() => {
   // `filter` is the table's current status filter: the count chips ARE the
   // filter buttons (click one to see those rows, click again for all), so
   // the number you read is the number you can open.
+  // The numbers, read out. Every count on the card is followed by what it
+  // means for THIS tenant, and the two counts that name another baseline
+  // (a clash, a not-in-baseline row) say which one, because a tenant that
+  // holds both baselines reads "59 not in baseline" as 59 problems.
+  function reading(res) {
+    const c = res.counts, n = (k) => c[k] || 0;
+    const cat = res.catalog;
+    const others = catalogs().filter((x) => x.id !== cat.id);
+    // how many of the tenant's out-of-catalog / clashing policies belong to another catalog
+    const belongsTo = (vm) => {
+      const num = caNum(vm.name);
+      for (const o of others) {
+        const p = (o.policies || []).find((x) => x.num === num);
+        if (p && !mismatchReason(p.name, vm.name)) return o.label;
+      }
+      return null;
+    };
+    const tally = (rows) => {
+      const m = new Map();
+      rows.forEach((r) => { const l = r.tenant ? belongsTo(r.tenant) : null; if (l) m.set(l, (m.get(l) || 0) + 1); });
+      return [...m].map(([l, k]) => `${k} ${l}`).join(", ");
+    };
+    const own = res.rows.filter((r) => r.baseline && r.tenant && r.status !== "conflict" && !r.shared).length;
+    const ownTotal = res.baselineTotal - (res.shared || 0);
+    const sharedOk = res.rows.filter((r) => r.shared && r.tenant && r.status !== "conflict").length;
+    const parts = [];
+    parts.push(`<b>${own} of ${esc(cat.label)}${/s$/i.test(cat.label) ? "'" : "'s"} ${ownTotal} policies are in this tenant</b>${res.shared ? `, plus ${sharedOk} of the ${res.shared} 🚨 E-Admins policies every baseline expects` : ""}.`);
+    if (n("missing")) parts.push(`<b>${n("missing")} missing</b> — no policy with that CA number here${res.toImportShared && res.toImportShared.length ? ` (${res.toImportShared.length} of them E-Admins, which only the CloudFellows backup ships)` : ""}.`);
+    if (n("outdated")) parts.push(`<b>${n("outdated")} outdated</b> — deployed at an older version than the baseline.`);
+    if (n("conflict")) {
+      const who = tally(res.rows.filter((r) => r.status === "conflict"));
+      parts.push(`<b>${n("conflict")} number clash</b> — the CA number is taken by a different policy${who ? ` (${esc(who)}, by its naming)` : ""}, so it counts as absent; an import deploys ${esc(cat.label)}'s alongside and never replaces the other.`);
+    }
+    if (n("ahead")) parts.push(`${n("ahead")} newer than the baseline lists.`);
+    if (n("unversioned")) parts.push(`${n("unversioned")} with a version on one side only.`);
+    if (n("extra")) {
+      const who = tally(res.rows.filter((r) => r.status === "extra"));
+      parts.push(`<b>${n("extra")} not in this baseline</b> — numbered policies this catalog does not define${who ? `: ${esc(who)}` : ""}${who ? " (nothing wrong with them — they are the other baseline's)" : ""}.`);
+    }
+    return parts.join(" ");
+  }
+
   function renderSummary(res, filter) {
-    const chip = (k) => res.counts[k] ? `<button type="button" class="bl-chip ${STATUS[k].cls}${filter === k ? " active" : ""}" data-blf="${filter === k ? "all" : k}" title="${filter === k ? "Show all rows" : `Show only the ${esc(STATUS[k].label.toLowerCase())} rows`}">${STATUS[k].icon} ${res.counts[k]} ${esc(STATUS[k].label.toLowerCase())}</button>` : "";
+    const chip = (k) => res.counts[k] ? `<button type="button" class="bl-chip ${STATUS[k].cls}${filter === k ? " active" : ""}" data-blf="${filter === k ? "all" : k}" title="${esc(STATUS[k].desc)}. ${filter === k ? "Click to show all rows again" : "Click to show only these rows"}.">${STATUS[k].icon} ${res.counts[k]} ${esc(STATUS[k].label.toLowerCase())}</button>` : "";
     const order = ["missing", "conflict", "outdated", "ok", "present", "ahead", "unversioned", "extra"];
+    const gap = [];
+    const g = (k) => res.toImport.filter((r) => r.status === k).length;
+    if (g("missing")) gap.push(`${g("missing")} missing`);
+    if (g("outdated")) gap.push(`${g("outdated")} outdated`);
+    if (g("conflict")) gap.push(`${g("conflict")} beside a clash`);
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
         <h3>${esc(res.catalog.icon || "🧬")} ${esc(res.catalog.label)} baseline — ${esc(res.catalog.release)}${res.catalog.line ? ` (${esc(res.catalog.line)})` : ""}${!res.catalog.url && res.catalog.released ? ` <span class="mini muted">rev ${esc(res.catalog.released)}</span>` : ""}</h3>
-        <p style="margin-bottom:10px">Your tenant matched against the ${esc(res.catalog.author || res.catalog.label)} Conditional Access baseline, policy by policy on the CA number.
-          ${res.catalog.url ? `Source: <a href="${esc(res.catalog.url)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.url)}</a>${res.catalog.released ? ` · released ${esc(res.catalog.released)}` : ""}. ` : ""}
-          ${res.catalog.importerUrl ? `Deploy it with the author's importer at <a href="${esc(res.catalog.importerUrl)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.importerUrl)}</a>. ` : ""}
-          Version differences are compared per segment, so an older deployment shows as <b>outdated</b> rather than present.</p>
+        <p style="margin-bottom:6px">${reading(res)}</p>
+        <p class="mini muted" style="margin-bottom:10px">Matched policy by policy on the CA number, versions compared per segment.
+          ${res.catalog.url ? `Source: <a href="${esc(res.catalog.url)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.url)}</a>${res.catalog.released ? ` · released ${esc(res.catalog.released)}` : ""}.` : ""}
+          ${res.catalog.importerUrl ? `The author's own importer: <a href="${esc(res.catalog.importerUrl)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.importerUrl)}</a>.` : ""}
+          Click a count to filter the table; hover it for what it means.</p>
         <div style="display:flex;gap:6px;flex-wrap:wrap">${order.map(chip).join("")}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${res.coverage}%<span class="mini" style="font-weight:400"> coverage</span></div>
-        <div class="mini">${res.covered} of ${res.baselineTotal} baseline policies present</div>
-        ${res.shared ? `<div class="mini" title="Emergency access is expected whichever baseline a tenant deploys; only the CloudFellows catalog writes these policies out, so they are listed under every catalog.">incl. ${res.shared} 🚨 E-Admins policies shared by every baseline</div>` : ""}
-        <div class="mini">${res.toImport.length} would be imported or updated${res.toImportShared && res.toImportShared.length ? ` · +${res.toImportShared.length} E-Admins from the CloudFellows backup` : ""}</div>
+        <div class="mini">${res.covered} of ${res.baselineTotal} expected policies present</div>
+        ${res.shared ? `<div class="mini" title="Emergency access is expected whichever baseline a tenant deploys; only the CloudFellows catalog writes these policies out, so they are listed under every catalog.">${res.baselineTotal - res.shared} of ${esc(res.catalog.label)} + ${res.shared} 🚨 E-Admins every baseline expects</div>` : ""}
+        <div class="mini"><b>${res.toImport.length}</b> to import${gap.length ? ` (${gap.join(" + ")})` : ""}${res.toImportShared && res.toImportShared.length ? ` · +${res.toImportShared.length} E-Admins from the CloudFellows backup` : ""}</div>
         ${res.catalog.note ? `<div class="mini" style="max-width:280px;margin-top:6px">${esc(res.catalog.note)}</div>` : ""}
       </div>
     </div>
@@ -531,15 +594,17 @@ const Baseline = (() => {
     const auto = on && isAutoPicked(cat.id);
     const tools = `👥 Conditional Access groups (① Check, ② Create), 🔒 Protect exclusions, 🛡 Restricted AUs (persona vaults, ＋ Bulk add, persona chips), the exclusion-restore action and 📖 Baseline guide all work against <b>${esc(cat.label)}</b> for this tenant.`;
     let line;
+    const held = (s) => s.map((x) => `<b>${x.own}</b> under ${esc(x.label)} names`).join(" and ");
     if (auto) {
-      const s = autoPicked.scores, me = s.find((x) => x.id === cat.id), others = s.filter((x) => x.id !== cat.id);
-      const poss = (s) => esc(s) + (/s$/i.test(s) ? "'" : "'s");
-      line = `<b>★ Active baseline — by match.</b> Nothing was chosen for this tenant, and it holds ${me.own} of ${poss(cat.label)} own policies by name against ${others.map((o) => `${o.own} of ${poss(o.label)}`).join(", ")}, so ${esc(cat.label)} is active for this session. ${tools} Not saved: the next read decides again unless you keep it.`;
+      const s = autoPicked.scores.slice().sort((a, b) => b.own - a.own);
+      const me = s.find((x) => x.id === cat.id), tie = s.filter((x) => x.id !== cat.id).every((x) => x.own >= me.own);
+      line = `<b>★ Active baseline — by match, nothing saved yet.</b> Nobody has chosen a baseline for this tenant. It holds ${held(s)}, so ${tie ? `${esc(cat.label)} stays active as the default` : `${esc(cat.label)} is active for this session`}. ${tools} Click 📌 Keep to save that; a saved choice is never re-decided.`;
     } else if (on) {
-      line = `<b>★ Active baseline.</b> ${tools}`;
+      line = `<b>★ Active baseline — saved for this tenant.</b> ${tools}`;
     } else {
       const cur = active();
-      line = `Not the active baseline — the group checks, group creation, persona vaults and the exclusion-restore action currently work against <b>${esc(cur.label)}</b>${isAutoPicked(cur.id) ? " (by match — this tenant holds more of its policies)" : ""}.`;
+      const why = isAutoPicked(cur.id) && autoPicked.scores ? ` — by match, nothing saved: this tenant holds ${held(autoPicked.scores.slice().sort((a, b) => b.own - a.own))}` : " — the saved choice for this tenant";
+      line = `<b>Not the active baseline.</b> The group checks, group creation, persona vaults and the exclusion-restore action work against <b>${esc(cur.label)}</b>${why}. To work against ${esc(cat.label)} instead, preview the switch below.`;
     }
     return `<div class="bl-activate ${on ? "on" : ""}" id="blActivate">
       <span class="mini">${line}</span>
@@ -663,7 +728,7 @@ const Baseline = (() => {
       ["missing", "conflict", "outdated", "ok", "present", "ahead", "unversioned", "extra"]
         .filter((k) => res.counts[k])
         .map((k) => [k, `${STATUS[k].icon} ${STATUS[k].label} (${res.counts[k]})`]));
-    return items.map(([k, l]) => `<button class="fchip ${active === k ? "active" : ""}" data-blf="${k}">${esc(l)}</button>`).join("");
+    return items.map(([k, l]) => `<button class="fchip ${active === k ? "active" : ""}" data-blf="${k}"${STATUS[k] ? ` title="${esc(STATUS[k].desc)}"` : ""}>${esc(l)}</button>`).join("");
   }
 
   // ---- what changed between the tenant's policy and the baseline version ----

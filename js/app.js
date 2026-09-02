@@ -6839,7 +6839,7 @@ max@contoso.com,"Global, DevOps"</pre>
   // what they did before.
   function blAutoPick() {
     const pick = Baseline.autoPick(policies);
-    if (pick) toast(`This tenant matches <span>${esc(Baseline.active().label)}</span> best — active for this session (🧬 Baseline Policies to keep or switch)`);
+    if (pick && pick.id !== Baseline.DEFAULT_ID) toast(`This tenant matches <span>${esc(Baseline.active().label)}</span> best — active for this session (🧬 Baseline Policies to keep or switch)`);
     return pick;
   }
   // The tool opens on the gap: an active baseline with missing policies
