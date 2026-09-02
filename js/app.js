@@ -17280,6 +17280,29 @@ max@contoso.com,"Global, DevOps"</pre>
 
   // ---- the write: replace a group's rule, or create the group ----
   let tdWriteTarget = null;   // { mode: "update"|"create", id, name, oldRule }
+  let tdLastWrite = null;     // the last write of this session, with its `before` — what ⎌ Roll back restores
+  async function tdRollback() {
+    const w = tdLastWrite; if (!w || !w.before) { toast("Nothing to roll back in this session — use the downloaded file."); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...TD_WRITE])) return;
+    const out = $("tdWriteResult");
+    try {
+      const wasDynamic = (w.before.groupTypes || []).includes("DynamicMembership");
+      const body = wasDynamic
+        ? { membershipRule: w.before.membershipRule || "", membershipRuleProcessingState: w.before.membershipRuleProcessingState || "On" }
+        : { groupTypes: [], membershipRuleProcessingState: "Paused" };
+      if (!isDemo) await Graph.gpatch(`/groups/${w.id}`, body, [...AUTH_CONFIG.scopes, ...TD_WRITE]);
+      else await new Promise((r) => setTimeout(r, 300));
+      out.innerHTML = `<p class="mini">⎌ Rolled back: <b>${esc(w.name)}</b> ${wasDynamic ? "carries its previous rule again" : "is an assigned group again — check its members against the rollback file; the conversion keeps whoever was in it at this moment"}.</p>`;
+      toast(`Rule on ${esc(w.name)} <span>rolled back</span>`);
+      if (isDemo && tdCtx) {
+        const g = tdCtx.groups.find((x) => x.id === w.id);
+        if (g) { g.membershipRule = w.before.membershipRule || ""; g.dynamic = wasDynamic; g.ruleState = wasDynamic ? (w.before.membershipRuleProcessingState || "On") : ""; }
+        tdRes = TeamsDev.analyze(tdCtx);
+      } else tdRes = null;
+      tdLastWrite = null;
+      renderTeamsDev();
+    } catch (e) { out.innerHTML = `<p class="mini" style="color:var(--off)">❌ Roll back failed: ${esc(e.message || e)} — the downloaded file has the PATCH to run by hand.</p>`; }
+  }
   function tdOpenWrite(mode, gid) {
     if (!tdRes) return;
     const g = gid ? tdRes.groups.find((x) => x.id === gid) : null;
@@ -17291,7 +17314,7 @@ max@contoso.com,"Global, DevOps"</pre>
     $("tdWriteNew").value = tdRes.rule;
     $("tdWriteNote").innerHTML = mode === "create"
       ? `A new <b>dynamic security group</b> named <code>${esc(TeamsDev.CANONICAL)}</code> with this rule. It starts empty and fills as Entra evaluates the rule (minutes to an hour). It is <b>not</b> excluded from any policy yet — do that next in 📘 MS Learn checks, or the group changes nothing.`
-      : `Entra re-evaluates the whole group after the write. Accounts the old rule matched and the new one does not <b>leave</b> the group and lose every exclusion that rides on it; accounts the new rule matches <b>join</b> it. ${tdRes.preview && tdRes.preview.count != null ? `The preview says <b>${tdRes.preview.count.toLocaleString()}</b> accounts match today${tdWriteTarget.members != null ? ` against <b>${tdWriteTarget.members.toLocaleString()}</b> members now` : ""}.` : "The match count could not be previewed."} ${g && g.refs.length ? `<b>${g.refs.length}</b> active polic${g.refs.length === 1 ? "y references" : "ies reference"} this group.` : ""}`;
+      : `<b>Rollback first:</b> before anything is written, a JSON file with the group as it is now — this rule, its processing state${g && !g.dynamic ? ", and its members (the write converts an assigned group to dynamic)" : ""} — and the exact PATCH that restores it is downloaded; a ⎌ Roll back button appears after the write for this session. Entra re-evaluates the whole group after the write. Accounts the old rule matched and the new one does not <b>leave</b> the group and lose every exclusion that rides on it; accounts the new rule matches <b>join</b> it. ${tdRes.preview && tdRes.preview.count != null ? `The preview says <b>${tdRes.preview.count.toLocaleString()}</b> accounts match today${tdWriteTarget.members != null ? ` against <b>${tdWriteTarget.members.toLocaleString()}</b> members now` : ""}.` : "The match count could not be previewed."} ${g && g.refs.length ? `<b>${g.refs.length}</b> active polic${g.refs.length === 1 ? "y references" : "ies reference"} this group.` : ""}`;
     $("tdWriteOk").checked = false;
     $("tdWriteGo").disabled = true;
     $("tdWriteResult").style.display = "none";
@@ -17305,8 +17328,45 @@ max@contoso.com,"Global, DevOps"</pre>
     if (rule.length > TeamsDev.RULE_MAX) { toast(`The rule is ${rule.length} characters — Microsoft's limit is ${TeamsDev.RULE_MAX}.`); return; }
     if (!await preConsent([...AUTH_CONFIG.scopes, ...TD_WRITE])) return;
     $("tdWriteGo").disabled = true;
-    const out = $("tdWriteResult"); out.style.display = ""; out.innerHTML = '<p class="mini muted">Writing…</p>';
+    const out = $("tdWriteResult"); out.style.display = ""; out.innerHTML = '<p class="mini muted">Writing the rollback file…</p>';
     try {
+      // ROLLBACK FIRST. The old rule lived only in this dialog; once the
+      // PATCH lands it is gone from the tenant. So before anything is
+      // written: the group as it is now — rule, processing state, group
+      // types, and for an assigned group its members (the write converts it
+      // to dynamic, and Entra will not give those members back) — goes to a
+      // JSON file with the exact PATCH that restores it. Kept in memory too,
+      // for the ⎌ Roll back button after the write.
+      const g = w.id ? (tdCtx && tdCtx.groups.find((x) => x.id === w.id)) : null;
+      let members = null;
+      if (w.mode !== "create" && g && !g.dynamic && !isDemo) {
+        try {
+          members = [];
+          let next = `/groups/${w.id}/members?$select=id,displayName,userPrincipalName&$top=999`, pages = 0;
+          while (next && pages < 5) { const j = await Graph.gget(next); for (const m of j.value || []) members.push({ id: m.id, upn: m.userPrincipalName || "", name: m.displayName || "" }); next = j["@odata.nextLink"] || null; pages++; }
+          if (next) members.push({ id: "…", upn: "", name: `(capped — more members not listed; group had ${w.members ?? "?"} at read time)` });
+        } catch (e) { members = [{ id: "", upn: "", name: `members could not be read: ${e.message || e}` }]; }
+      }
+      const before = w.mode === "create" ? null : {
+        membershipRule: w.oldRule || null,
+        membershipRuleProcessingState: g && g.ruleState ? g.ruleState : (g && g.dynamic ? "On" : null),
+        groupTypes: g && g.dynamic ? ["DynamicMembership"] : [],
+        members,
+      };
+      const restore = w.mode === "create"
+        ? { note: "The write CREATES a group. Rollback is deleting it (it goes to the recycle bin for 30 days).", method: "DELETE", url: `https://graph.microsoft.com/v1.0/groups/<id from result>`, powershell: "Remove-MgGroup -GroupId <id from result>" }
+        : g && g.dynamic
+          ? { note: "PATCH the old rule back. Entra re-evaluates the membership in the background.", method: "PATCH", url: `https://graph.microsoft.com/v1.0/groups/${w.id}`, body: { membershipRule: w.oldRule, membershipRuleProcessingState: before.membershipRuleProcessingState || "On" },
+              powershell: `Update-MgGroup -GroupId ${w.id} -MembershipRule ${JSON.stringify(w.oldRule || "")} -MembershipRuleProcessingState ${before.membershipRuleProcessingState || "On"}` }
+          : { note: "The group was ASSIGNED. Rollback is converting it back (groupTypes empty, processing Paused) and re-adding the members listed above — the conversion keeps whoever is in the group at that moment, so do it before the dynamic rule has emptied it, or re-add from the list.", method: "PATCH", url: `https://graph.microsoft.com/v1.0/groups/${w.id}`, body: { groupTypes: [], membershipRuleProcessingState: "Paused" },
+              powershell: `Update-MgGroup -GroupId ${w.id} -GroupTypes @() -MembershipRuleProcessingState Paused` };
+      const record = { tool: "ENCA Teams devices", build: (typeof APP_BUILD !== "undefined" && APP_BUILD.label) || "", when: new Date().toISOString(),
+        tenant: tenantName || "", tenantId: Graph.account?.tenantId || "", by: Graph.account?.username || "",
+        action: w.mode === "create" ? "create group" : "replace membershipRule",
+        group: { id: w.id, displayName: w.name }, before, after: { membershipRule: rule, membershipRuleProcessingState: "On", groupTypes: ["DynamicMembership"] }, restore };
+      tdLastWrite = { ...w, before, when: record.when };
+      downloadText(`CA-TeamsDevices-rollback-${String(w.name).replace(/[^\w-]+/g, "-")}`, "json", "application/json", JSON.stringify(record, null, 2));
+      out.innerHTML = '<p class="mini muted">Rollback file downloaded — writing…</p>';
       if (w.mode === "create") {
         let made;
         if (isDemo) { await new Promise((r) => setTimeout(r, 400)); made = { id: "g-demo-new", created: true }; }
@@ -17318,7 +17378,8 @@ max@contoso.com,"Global, DevOps"</pre>
       } else {
         if (!isDemo) await Graph.gpatch(`/groups/${w.id}`, { groupTypes: ["DynamicMembership"], membershipRule: rule, membershipRuleProcessingState: "On" }, [...AUTH_CONFIG.scopes, ...TD_WRITE]);
         else await new Promise((r) => setTimeout(r, 400));
-        out.innerHTML = `<p class="mini">✅ The rule on <b>${esc(w.name)}</b> is replaced and processing is On. Entra re-evaluates the membership in the background — the member count catches up over the next minutes.</p>`;
+        out.innerHTML = `<p class="mini">✅ The rule on <b>${esc(w.name)}</b> is replaced and processing is On. Entra re-evaluates the membership in the background — the member count catches up over the next minutes.</p>
+          <p class="mini muted" style="margin:6px 0 0">📄 The rollback file is in your downloads: the rule as it was${before && before.members ? `, the ${before.members.length} members the assigned group had` : ""}, and the PATCH that restores it. <button class="btn" data-tdrollback style="margin-left:6px;padding:3px 10px;font-size:12px">⎌ Roll back now</button></p>`;
         toast(`Rule on ${esc(w.name)} <span>replaced</span>`);
       }
       if (isDemo && tdCtx) {
@@ -17357,6 +17418,7 @@ max@contoso.com,"Global, DevOps"</pre>
   });
   $("tdWriteOk").addEventListener("change", () => { $("tdWriteGo").disabled = !$("tdWriteOk").checked; });
   $("tdWriteCancel").addEventListener("click", () => $("tdWriteModal").classList.remove("open"));
+  $("tdWriteResult").addEventListener("click", (e) => { if (e.target.closest("[data-tdrollback]")) tdRollback(); });
   $("tdWriteGo").addEventListener("click", tdWriteGo);
   $("tdMd").addEventListener("click", () => {
     if (!tdRes) { toast("Run the check first — the report is the result."); return; }

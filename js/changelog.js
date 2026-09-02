@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25252, date: "2026-09-02", title: "Teams devices: a rollback file before every write",
+    items: [
+      { kind: "improved", tool: "Teams devices", text: "Write downloads a rollback file BEFORE it touches the tenant: the group as it is now — membership rule, processing state, group types, and for an assigned group its members, because the write converts it to dynamic and Entra will not give those members back — together with the exact PATCH and the PowerShell line that restore it. After the write a Roll back button restores the previous state in the same session; the file covers the day after. Create records the delete that undoes it." },
+      { kind: "fixed", tool: "Teams devices", text: "The user-suite markers prefer the SharePoint plans whenever the tenant's suites carry them, and derive a plan only for a suite those do not cover. The greedy pick could choose one plan that sits in every suite, and a plan like that can be one admins switch off per user — a person with it disabled would then read as a device and land in the group." },
+    ],
+  },
+  {
     build: 25251, date: "2026-09-02", title: "Teams devices: the people with a device licence are a list, not a line",
     items: [
       { kind: "improved", tool: "Teams devices", text: "The accounts the rule keeps out because they hold a device licence AND a user suite are now a table under the rule — account, UPN, every licence on the account with the device SKU marked, enabled or disabled — up to 100 rows, and the same table in the Markdown export. Before, they were a run-on line of four names that wrapped mid-address. Each row is a decision: move the Rooms or Shared Space licence to the device's own account, or accept that the device signs in as that person and gets that person's MFA." },

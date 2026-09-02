@@ -206,8 +206,13 @@ const TeamsDev = (() => {
     const devicePlanIds = new Set(planMap.keys());
     const suites = rows.filter((r) => !isDevice(r) && SUITE_SKUS.test(r.part));
     for (const r of suites) r.suite = true;
-    const markers = [];
-    let uncovered = suites.filter((r) => r.plans.some((p) => !devicePlanIds.has(p.id)));
+    // Static SharePoint markers first, whenever the tenant's suites carry
+    // them: a plan every user actually keeps enabled. A derived marker that
+    // happens to sit in every suite could be one admins switch off per user
+    // (a Copilot-style plan), and a person with it disabled would then read
+    // as a device. Derived markers only cover what the static ones cannot.
+    const markers = Object.keys(SUITE_MARKERS).filter((id) => suites.some((r) => r.plans.some((p) => p.id === id)) && !devicePlanIds.has(id));
+    let uncovered = suites.filter((r) => r.plans.some((p) => !devicePlanIds.has(p.id)) && !r.plans.some((p) => markers.includes(p.id)));
     const uncoverable = suites.filter((r) => !r.plans.some((p) => !devicePlanIds.has(p.id))).map((r) => r.part);
     while (uncovered.length) {
       const score = new Map();
