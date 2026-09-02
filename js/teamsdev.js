@@ -39,6 +39,19 @@
 // rule covers it: that SKU's accounts need a name-prefix clause (the tool
 // can add one) or an assigned group.
 //
+// AND NOT A PERSON. A device match alone is not enough: a person whose own
+// account was handed a Shared Space or Rooms licence (a DECT handset licensed
+// on the user rather than on a device account) matches every device plan and
+// would land in the exclusion group — an MFA bypass for a human. So the rule
+// has a second half: NOT holding any plan that marks a USER SUITE (E1, E3,
+// E5, F1, F3, A3, A5, Business). Those marker plans are derived the same way
+// in reverse — plans the tenant's user suites carry that NO device SKU
+// carries, the smallest set that covers every suite — with the SharePoint
+// plans as the static fallback, because no device SKU has ever carried
+// SharePoint. Such accounts are counted and named separately: they are a
+// licensing problem (device licence on a person) that the rule keeps out of
+// the group but cannot fix.
+//
 // Teams Phone Standard is deliberately NOT a device licence here. It is a
 // per-user add-on that real people hold, its only plan is MCOEV, and a rule
 // that matched it would exclude those people from MFA. It is listed under
@@ -109,6 +122,17 @@ const TeamsDev = (() => {
     { re: /BUSINESS_VOICE/i, label: "Business Voice — per user" },
     { re: /^Teams_Premium/i, label: "Teams Premium — per user" },
   ];
+  // User SUITES — the licences that mean "this is a person". An account
+  // holding one of these together with a device licence is a person with a
+  // device licence, not a device, and the rule keeps it out.
+  const SUITE_SKUS = /^(SPE_E[35]|SPE_F1|M365_F1|SPE_E5_|ENTERPRISEPACK|ENTERPRISEPREMIUM|ENTERPRISEWITHSCAL|STANDARDPACK|STANDARDWOFFPACK|DESKLESSPACK|DESKLESSWOFFPACK|SPB$|O365_BUSINESS|SMB_BUSINESS|M365EDU_A[35]|ENTERPRISEPACKPLUS|Microsoft_365_E[35]|Microsoft_365_F[13]|Microsoft_365_Business|Office_365_E[135]|Microsoft_365_Copilot_Business|DEVELOPERPACK)/i;
+  // Plans that mark a user suite and have never been in a device SKU — the
+  // static fallback for the NOT half of the rule when the SKUs cannot be read.
+  const SUITE_MARKERS = {
+    "5dbe027f-2339-4123-9542-606e4d348a72": { name: "SHAREPOINTENTERPRISE", label: "SharePoint Plan 2 — E3, E5, A3, A5" },
+    "c7699d2e-19aa-44de-8edf-1736da088ca1": { name: "SHAREPOINTSTANDARD", label: "SharePoint Plan 1 — E1, Business Basic / Standard / Premium" },
+    "902b47e5-dcb2-4fdc-858b-c63a90a2bdb9": { name: "SHAREPOINTDESKLESS", label: "SharePoint Kiosk — F1, F3" },
+  };
   const KIND_LABEL = { rooms: "Teams Rooms", shared: "Teams Shared Space / common-area devices", resourceAccount: "Teams Phone resource accounts (auto attendants, call queues)" };
   const GUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
   const CANONICAL = "CAB-SEC-U-TeamsSharedDevices";
@@ -121,12 +145,21 @@ const TeamsDev = (() => {
 
   const clause = (id) => `(user.assignedPlans -any (assignedPlan.servicePlanId -eq "${id}" -and assignedPlan.capabilityStatus -eq "Enabled"))`;
   const prefixClause = (p) => `(user.userPrincipalName -startsWith "${String(p).replace(/"/g, "")}")`;
-  // The rule text. Plans first, in a stable order, then any UPN prefixes.
-  function buildRule(planIds, prefixes) {
+  // "holds NONE of these plans enabled" — Microsoft's own -all shape for a
+  // negative (groups-dynamic-membership, example 3). Status is part of it so
+  // a plan lingering as Deleted after a licence was removed does not keep an
+  // account out of the group.
+  const notClause = (ids) => ids.length
+    ? `(user.assignedPlans -all (${ids.map((id) => `(assignedPlan.servicePlanId -ne "${id}" -or assignedPlan.capabilityStatus -ne "Enabled")`).join(" -and ")}))`
+    : "";
+  // The rule text: (device plans -or UPN prefixes) -and not a user suite.
+  function buildRule(planIds, prefixes, markers) {
     const parts = [...new Set(planIds || [])].map(clause).concat((prefixes || []).map((p) => String(p).trim()).filter(Boolean).map(prefixClause));
-    return parts.join(" -or ");
+    if (!parts.length) return "";
+    const not = notClause([...new Set(markers || [])]);
+    return not ? `(${parts.join(" -or ")}) -and ${not}` : parts.join(" -or ");
   }
-  const catalogRule = () => buildRule(Object.keys(CATALOG));
+  const catalogRule = () => buildRule(Object.keys(CATALOG), [], Object.keys(SUITE_MARKERS));
   const RULE_MAX = 3072;   // Microsoft's limit on the body of a membership rule
 
   const skuKind = (part) => {
@@ -166,14 +199,42 @@ const TeamsDev = (() => {
       r.isolatable = r.isolating.length > 0;
     }
     const devicePlans = [...planMap.values()].sort((a, b) => a.name.localeCompare(b.name));
-    return { rows, devicePlans, userPlans };
+    // The NOT half: plans that mark a user suite. Candidates are every plan
+    // a suite SKU carries that no device SKU carries; the smallest set that
+    // covers every suite is chosen greedily, static markers first so the
+    // answer is stable across tenants that own the same suites.
+    const devicePlanIds = new Set(planMap.keys());
+    const suites = rows.filter((r) => !isDevice(r) && SUITE_SKUS.test(r.part));
+    for (const r of suites) r.suite = true;
+    const markers = [];
+    let uncovered = suites.filter((r) => r.plans.some((p) => !devicePlanIds.has(p.id)));
+    const uncoverable = suites.filter((r) => !r.plans.some((p) => !devicePlanIds.has(p.id))).map((r) => r.part);
+    while (uncovered.length) {
+      const score = new Map();
+      for (const r of uncovered) for (const p of r.plans) if (!devicePlanIds.has(p.id)) score.set(p.id, (score.get(p.id) || 0) + 1);
+      const best = [...score.entries()].sort((x, y) => y[1] - x[1] || (SUITE_MARKERS[y[0]] ? 1 : 0) - (SUITE_MARKERS[x[0]] ? 1 : 0) || x[0].localeCompare(y[0]))[0][0];
+      markers.push(best);
+      uncovered = uncovered.filter((r) => !r.plans.some((p) => p.id === best));
+    }
+    const markerInfo = markers.map((id) => {
+      const nm = (SUITE_MARKERS[id] || {}).name || (rows.flatMap((r) => r.plans).find((p) => p.id === id) || {}).name || id;
+      return { id, name: nm, label: (SUITE_MARKERS[id] || {}).label || `marks ${suites.filter((r) => r.plans.some((p) => p.id === id)).map((r) => r.part).join(", ")}`, suites: suites.filter((r) => r.plans.some((p) => p.id === id)).map((r) => r.part) };
+    });
+    return { rows, devicePlans, userPlans, suites, markers, markerInfo, uncoverable };
   }
 
   // Every plan GUID a rule names, split into what it means.
   function rulePlans(rule) {
-    const ids = [...new Set((String(rule || "").match(GUID_RE) || []).map((g) => g.toLowerCase()))];
+    const txt = String(rule || "");
+    const pick = (re) => [...new Set([...txt.matchAll(re)].map((m) => m[1].toLowerCase()))];
+    // Plans the rule REQUIRES (-eq) versus plans it keeps OUT (-ne). A GUID
+    // with neither operator (an -in list, say) counts as required.
+    const excludes = pick(/servicePlanId\s+-ne\s+"([0-9a-f-]{36})"/gi);
+    const eqs = pick(/servicePlanId\s+-eq\s+"([0-9a-f-]{36})"/gi);
+    const all = [...new Set((txt.match(GUID_RE) || []).map((g) => g.toLowerCase()))];
+    const ids = all.filter((id) => eqs.includes(id) || !excludes.includes(id));
     return {
-      ids,
+      ids, excludes,
       known: ids.filter((id) => CATALOG[id]),
       traps: ids.filter((id) => TRAPS[id]),
       unknown: ids.filter((id) => !CATALOG[id] && !TRAPS[id]),
@@ -233,7 +294,12 @@ const TeamsDev = (() => {
     const ruleSource = skusRead && deviceSkus.length ? "tenant" : skusRead ? "catalog-no-device-skus" : "catalog";
     const planIds = ruleSource === "tenant" ? tenantUnique : Object.keys(CATALOG);
     const prefixes = (ctx.prefixes || []).map((p) => String(p).trim()).filter(Boolean);
-    const rule = buildRule(planIds, prefixes);
+    // The NOT half: tenant-derived when suites were read, the static
+    // SharePoint markers otherwise (and when the tenant has no suite at all,
+    // so the first E5 bought is kept out from day one).
+    const markers = ruleSource === "tenant" && cls.markers.length ? cls.markers : Object.keys(SUITE_MARKERS);
+    const markerInfo = ruleSource === "tenant" && cls.markers.length ? cls.markerInfo : Object.entries(SUITE_MARKERS).map(([id, m]) => ({ id, name: m.name, label: m.label, suites: [] }));
+    const rule = buildRule(planIds, prefixes, markers);
     const notIsolatable = deviceSkus.filter((r) => r.isolatable === false);
     const deviceAccounts = deviceSkus.reduce((n, r) => n + (r.consumed || 0), 0);
 
@@ -244,14 +310,22 @@ const TeamsDev = (() => {
       const alias = isAlias(g.displayName);
       const have = new Set(rp.ids);
       const missing = planIds.filter((id) => !have.has(id));
+      const missingMarkers = markers.filter((id) => !rp.excludes.includes(id));
       const missingPrefixes = prefixes.filter((p) => !rp.prefixes.map((x) => x.toLowerCase()).includes(p.toLowerCase()));
       const extra = rp.known.filter((id) => !planIds.includes(id));   // in the catalog, not unique HERE — harmless, kept
       let verdict, why;
       if (!g.dynamic) { verdict = "assigned"; why = "an assigned group — nothing keeps it current; members are added by hand, so a new phone or room is unprotected until somebody remembers"; }
       else if (rp.traps.length) { verdict = "trap"; why = `the rule names ${rp.traps.length === 1 ? "a plan" : "plans"} that real users hold too (${rp.traps.map((id) => TRAPS[id].split(" — ")[0]).join(", ")}) — this group contains PEOPLE, and every policy excluding it excludes them from MFA`; }
       else if (!rp.usesPlans && !rp.prefixes.length) { verdict = "other"; why = "a dynamic rule that does not look at service plans or UPN prefixes — read it by hand before trusting it as the device group"; }
-      else if (!missing.length && !missingPrefixes.length) { verdict = "current"; why = "names every plan that isolates a device account in this tenant"; }
-      else { verdict = "update"; why = `misses ${missing.length ? `${missing.length} of ${planIds.length} device plan${planIds.length === 1 ? "" : "s"}` : ""}${missing.length && missingPrefixes.length ? " and " : ""}${missingPrefixes.length ? `${missingPrefixes.length} UPN prefix${missingPrefixes.length === 1 ? "" : "es"}` : ""} — the accounts those licences sit on are NOT in the group today`; }
+      else if (!missing.length && !missingPrefixes.length && !missingMarkers.length) { verdict = "current"; why = "names every plan that isolates a device account in this tenant and keeps user-suite holders out"; }
+      else {
+        verdict = "update";
+        const bits = [];
+        if (missing.length) bits.push(`misses ${missing.length} of ${planIds.length} device plan${planIds.length === 1 ? "" : "s"} — the accounts those licences sit on are NOT in the group today`);
+        if (missingPrefixes.length) bits.push(`misses ${missingPrefixes.length} UPN prefix${missingPrefixes.length === 1 ? "" : "es"}`);
+        if (missingMarkers.length) bits.push(`does not keep out user-suite holders (no -ne on ${missingMarkers.map((id) => ((SUITE_MARKERS[id] || {}).name) || (markerInfo.find((m) => m.id === id) || {}).name || id).join(", ")}) — a person whose own account holds a device licence lands in the group`);
+        why = bits.join("; ");
+      }
       const refs = (ctx.policies || []).filter((p) => p.state !== "disabled").map((p) => {
         const u = ((p.conditions || {}).users) || {};
         const how = (u.excludeGroups || []).includes(g.id) ? "excluded" : (u.includeGroups || []).includes(g.id) ? "included" : null;
@@ -259,7 +333,7 @@ const TeamsDev = (() => {
       }).filter(Boolean);
       return { id: g.id, name: g.displayName || g.id, alias, canonical: String(g.displayName || "").toLowerCase() === CANONICAL.toLowerCase(),
         dynamic: !!g.dynamic, ruleState: g.ruleState || "", rule: g.membershipRule || "", memberCount: g.memberCount ?? null,
-        plans: rp, missing, missingPrefixes, extra, verdict, why, refs, description: g.description || "" };
+        plans: rp, missing, missingPrefixes, missingMarkers, extra, verdict, why, refs, description: g.description || "" };
     }).filter((g) => g.alias || g.plans.known.length || g.plans.traps.length || NAME_HINT.test(g.name))
       .sort((a, b) => (b.canonical - a.canonical) || (b.alias - a.alias) || (b.refs.length - a.refs.length) || a.name.localeCompare(b.name));
 
@@ -277,8 +351,11 @@ const TeamsDev = (() => {
       caBreaksOn: ca.filter((r) => r.verdict === "breaks" && r.enforced).length,
       caExcluded: ca.filter((r) => r.excludesTarget).length,
       previewCount: ctx.preview ? ctx.preview.count : null,
+      peopleCount: ctx.people ? ctx.people.count : null,
+      markerCount: markers.length, suites: cls.suites.length,
     };
     return { skusRead, ruleSource, skuRows: cls.rows, deviceSkus, phoneUserSkus, devicePlans: cls.devicePlans, planIds, prefixes,
+      markers, markerInfo, suiteSkus: cls.suites, uncoverable: cls.uncoverable || [], people: ctx.people || null,
       rule, ruleLen: rule.length, ruleTooLong: rule.length > RULE_MAX, notIsolatable, groups, target, ca, summary,
       groupsPartial: !!ctx.groupsPartial, preview: ctx.preview || null, totalDynamic: ctx.totalDynamic ?? null };
   }
@@ -295,8 +372,12 @@ const TeamsDev = (() => {
       "", "## Recommended membership rule", "",
       `Source: ${res.ruleSource === "tenant" ? "the plans unique to this tenant's device SKUs" : "the bundled catalog"} · ${s.planCount} plan${s.planCount === 1 ? "" : "s"}${res.prefixes.length ? ` · UPN prefixes ${res.prefixes.join(", ")}` : ""} · ${res.ruleLen} characters${res.ruleTooLong ? " — OVER Microsoft's 3072 limit" : ""}`, "",
       "```", res.rule, "```", "",
+      "Device plans (the account must hold one):", "",
       ...res.planIds.map((id) => `- \`${id}\` ${(CATALOG[id] || {}).name || (res.devicePlans.find((p) => p.id === id) || {}).name || ""} — ${(CATALOG[id] || {}).label || "not in the bundled catalog: unique to a device SKU in this tenant"}`),
+      "", "User-suite markers (the account must hold NONE of them — a person with a device licence stays out):", "",
+      ...res.markerInfo.map((m) => `- \`${m.id}\` ${m.name} — ${m.label}`),
       s.previewCount != null ? `\nThe rule matches **${s.previewCount.toLocaleString()}** account${s.previewCount === 1 ? "" : "s"} in this tenant today.` : "",
+      s.peopleCount != null ? `\n**${s.peopleCount.toLocaleString()}** account${s.peopleCount === 1 ? "" : "s"} hold a device licence AND a user suite — people with a device licence on their own account. The rule keeps them out of the group; the licence belongs on a device account.${res.people && res.people.sample.length ? " First: " + res.people.sample.map((u) => u.upn || u.name).join(", ") : ""}` : "",
       "", "## Groups", ""];
     if (!res.groups.length) L.push("No group in this tenant looks like the Teams shared-device group.");
     for (const g of res.groups) {
@@ -319,6 +400,6 @@ const TeamsDev = (() => {
     return L.join("\n");
   }
 
-  return { CATALOG, TRAPS, DEVICE_SKUS, USER_SKUS, KIND_LABEL, CANONICAL, ALIASES, RULE_MAX, UNSUPPORTED,
-    buildRule, catalogRule, clause, prefixClause, skuKind, classifySkus, rulePlans, isAlias, caRows, analyze, toMd };
+  return { CATALOG, TRAPS, DEVICE_SKUS, USER_SKUS, SUITE_SKUS, SUITE_MARKERS, KIND_LABEL, CANONICAL, ALIASES, RULE_MAX, UNSUPPORTED,
+    buildRule, catalogRule, clause, prefixClause, notClause, skuKind, classifySkus, rulePlans, isAlias, caRows, analyze, toMd };
 })();

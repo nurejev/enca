@@ -16964,7 +16964,9 @@ max@contoso.com,"Global, DevOps"</pre>
     return {
       skus: [
         { skuId: "sku-e5", skuPartNumber: "SPE_E5", capabilityStatus: "Enabled", prepaidUnits: { enabled: 1200 }, consumedUnits: 1143,
-          servicePlans: [...common, P("3e26ee1f-8a5f-4d52-aee2-b81ce45c8f40", "MCOMEETADV"), P("efb87545-963c-4e0d-99df-69c6916d9eb0", "EXCHANGE_S_ENTERPRISE"), P("eec0eb4f-6444-4f95-aba0-50c24d67f998", "AAD_PREMIUM_P2")] },
+          servicePlans: [...common, P("3e26ee1f-8a5f-4d52-aee2-b81ce45c8f40", "MCOMEETADV"), P("efb87545-963c-4e0d-99df-69c6916d9eb0", "EXCHANGE_S_ENTERPRISE"), P("eec0eb4f-6444-4f95-aba0-50c24d67f998", "AAD_PREMIUM_P2"), P("5dbe027f-2339-4123-9542-606e4d348a72", "SHAREPOINTENTERPRISE")] },
+        { skuId: "sku-f3", skuPartNumber: "SPE_F1", capabilityStatus: "Enabled", prepaidUnits: { enabled: 400 }, consumedUnits: 362,
+          servicePlans: [P("57ff2da0-773e-42df-b2af-ffb7a2317929", "TEAMS1"), P("c1ec4a95-1f05-45b3-a911-aa3fa01094f5", "INTUNE_A"), P("41781fb2-bc02-4b7c-bd55-b576c07bb09d", "AAD_PREMIUM"), P("902b47e5-dcb2-4fdc-858b-c63a90a2bdb9", "SHAREPOINTDESKLESS"), P("4a82b400-a79f-41a4-b4e2-e94f5787b113", "EXCHANGE_S_DESKLESS")] },
         { skuId: "sku-mtr", skuPartNumber: "Microsoft_Teams_Rooms_Pro", capabilityStatus: "Enabled", prepaidUnits: { enabled: 157 }, consumedUnits: 157,
           servicePlans: [...common, P("3e26ee1f-8a5f-4d52-aee2-b81ce45c8f40", "MCOMEETADV"), P("4a51bca5-1eff-43f5-878c-177680f191af", "WHITEBOARD_PLAN3"),
             P("8081ca9c-188c-4b49-a8e5-c23b5e9463a8", "Teams_Room_Basic"), P("ec17f317-f4bc-451e-b2da-0167e5c260f9", "Teams_Room_Pro"), P("0374d34c-6be4-4dbb-b3f0-26105db0b28a", "Teams_Rooms_Pro"), P("ecc74eae-eeb7-4ad5-9c88-e8b2bfca75b8", "MTRProManagement")] },
@@ -16984,10 +16986,14 @@ max@contoso.com,"Global, DevOps"</pre>
         { id: "g-mtr-static", displayName: "MTR-Rooms-Amsterdam", dynamic: false, ruleState: "", memberCount: 12, description: "Hand-maintained list of the Amsterdam rooms", membershipRule: "" },
       ],
       names: {}, groupsPartial: false, totalDynamic: 42,
-      preview: { count: 812, capped: true, sample: [
+      preview: { count: 790, capped: true, sample: [
         { id: "r1", name: "MTR Boardroom 4.01", upn: "mtr-boardroom-401@contoso.com", enabled: true },
         { id: "r2", name: "CAP Lobby phone", upn: "cap-lobby-01@contoso.com", enabled: true },
         { id: "r3", name: "AA Main reception", upn: "aa-reception@contoso.com", enabled: false },
+      ] },
+      people: { count: 22, capped: false, sample: [
+        { id: "p1", name: "Eva Employee", upn: "eva@contoso.com", enabled: true },
+        { id: "p2", name: "Milan Medewerker", upn: "milan@contoso.com", enabled: true },
       ] },
     };
   }
@@ -16995,10 +17001,15 @@ max@contoso.com,"Global, DevOps"</pre>
   // The recommended rule as an OData filter, so the tenant can say how many
   // accounts it matches TODAY — before anything is written. GUIDs unquoted:
   // servicePlanId is Edm.Guid. Prefixes ride along as startswith().
-  function tdPreviewFilter(planIds, prefixes) {
+  function tdPreviewFilter(planIds, prefixes, markers, people) {
     const parts = planIds.map((id) => `assignedPlans/any(a:a/servicePlanId eq ${id} and a/capabilityStatus eq 'Enabled')`)
       .concat(prefixes.map((p) => `startswith(userPrincipalName,'${String(p).replace(/'/g, "''")}')`));
-    return parts.join(" or ");
+    const dev = `(${parts.join(" or ")})`;
+    if (!(markers || []).length) return dev;
+    const suite = markers.map((id) => `assignedPlans/any(a:a/servicePlanId eq ${id} and a/capabilityStatus eq 'Enabled')`);
+    // people = device match AND a suite (what the rule keeps out); otherwise
+    // the rule itself: device match AND NOT any suite marker.
+    return people ? `${dev} and (${suite.join(" or ")})` : `${dev} and ${suite.map((c) => `not(${c})`).join(" and ")}`;
   }
 
   async function tdRun() {
@@ -17063,14 +17074,21 @@ max@contoso.com,"Global, DevOps"</pre>
         // Preview: how many accounts the recommended rule matches today, and
         // a sample of them. A refused query is a null preview, not zero.
         if (first.planIds.length || first.prefixes.length) {
-          txt("🔎 Previewing the recommended rule…");
-          try {
-            const f = tdPreviewFilter(first.planIds, first.prefixes);
+          const q = async (f) => {
             const j = await Graph.gget(`/users?$count=true&$top=${TD_SAMPLE}&$select=id,displayName,userPrincipalName,accountEnabled&$orderby=displayName&$filter=${encodeURIComponent(f)}`);
             const c = j["@odata.count"];
-            ctx.preview = { count: typeof c === "number" ? c : null, capped: !!j["@odata.nextLink"],
+            return { count: typeof c === "number" ? c : null, capped: !!j["@odata.nextLink"],
               sample: (j.value || []).map((u) => ({ id: u.id, name: u.displayName, upn: u.userPrincipalName, enabled: u.accountEnabled !== false })) };
-          } catch (e) { console.warn("Teams devices: preview refused —", e.message); ctx.preview = null; }
+          };
+          txt("🔎 Previewing the recommended rule…");
+          try { ctx.preview = await q(tdPreviewFilter(first.planIds, first.prefixes, first.markers, false)); }
+          catch (e) { console.warn("Teams devices: preview refused —", e.message); ctx.preview = null; }
+          // The accounts the NOT half keeps out: a device licence on a
+          // person's own account. Counted and named so the licensing
+          // problem is visible — the rule cannot fix it, only avoid it.
+          txt("🧑 People holding a device licence…");
+          try { ctx.people = await q(tdPreviewFilter(first.planIds, first.prefixes, first.markers, true)); }
+          catch (e) { console.warn("Teams devices: people query refused —", e.message); ctx.people = null; }
         }
       }
       ctx.policies = policies.map((p) => p.raw);
@@ -17100,7 +17118,7 @@ max@contoso.com,"Global, DevOps"</pre>
   function renderTeamsDev() {
     $("tdHead").innerHTML = `<h3>📞 Teams devices <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
       <p style="margin-bottom:4px">Every baseline exclusion for Teams Rooms, panels, common-area phones and call-queue accounts rides on <b>one dynamic group</b> — <code>${esc(TeamsDev.CANONICAL)}</code> — and that group is only as good as its membership rule. The rule shipped so far names three <b>Teams Rooms</b> service plans and nothing else: a tenant with hundreds of common-area phones on <b>Teams Shared Space</b> (Teams Shared Devices until April 2026) and a hundred auto-attendant <b>resource accounts</b> has none of them in the group, so sign-in frequency, MFA, device-code blocks and risk policies hit devices that cannot answer them.</p>
-      <p style="margin-bottom:4px">A rule cannot say “every Teams SKU”: dynamic membership sees <b>service plans</b>, not licences, and a device SKU is mostly plans every E5 user also holds — naming <code>MCOEV</code> (Teams Phone) would put your whole E5 population in the exclusion group. So this tool reads the tenant's <b>subscribed SKUs</b>, keeps the plans that exist <b>only</b> in device licences, builds the rule from those, previews how many accounts it matches today, and replaces the rule on the group after you confirm. <b>Teams Phone Standard</b> stays out on purpose: people hold it.</p>
+      <p style="margin-bottom:4px">A rule cannot say “every Teams SKU”: dynamic membership sees <b>service plans</b>, not licences, and a device SKU is mostly plans every E5 user also holds — naming <code>MCOEV</code> (Teams Phone) would put your whole E5 population in the exclusion group. So this tool reads the tenant's <b>subscribed SKUs</b>, keeps the plans that exist <b>only</b> in device licences, builds the rule from those <b>and</b> a NOT half — an account that also holds a user suite (E1/E3/E5, F1/F3, A3/A5, Business) is a person and stays out, whatever device licence sits on it — previews how many accounts it matches today, names the people holding a device licence on their own account, and replaces the rule on the group after you confirm. <b>Teams Phone Standard</b> stays out on purpose: people hold it.</p>
       <p class="mini muted" style="margin:0">Sources: <a href="https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies" target="_blank" rel="noopener">supported Conditional Access policies for Teams devices</a> · <a href="https://learn.microsoft.com/microsoftteams/rooms/conditional-access-and-compliance-for-devices" target="_blank" rel="noopener">Teams Rooms CA best practices</a> · <a href="https://learn.microsoft.com/entra/identity/users/licensing-service-plan-reference" target="_blank" rel="noopener">service plan reference</a> · <a href="https://learn.microsoft.com/microsoftteams/teams-add-on-licensing/teams-shared-device-license" target="_blank" rel="noopener">Teams Shared Space licensing</a> · <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-membership#rules-with-complex-expressions" target="_blank" rel="noopener">assignedPlans rules</a></p>`;
     $("tdRun").style.display = tdRes && !tdBusy ? "" : "none";
     if (tdBusy) return;
@@ -17162,10 +17180,15 @@ max@contoso.com,"Global, DevOps"</pre>
     const ruleCard = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
       <p class="mini" style="margin:0 0 6px"><b>RECOMMENDED RULE</b> — ${r.ruleSource === "tenant" ? `the <b>${s.planCount}</b> plan${s.planCount === 1 ? "" : "s"} unique to this tenant's device SKUs` : r.ruleSource === "catalog-no-device-skus" ? `this tenant has no device SKU, so the <b>${s.planCount}</b> catalog plans (harmless today, ready for the first Teams Room)` : `the bundled catalog's <b>${s.planCount}</b> plans (SKUs not read)`}${r.prefixes.length ? ` + UPN prefix${r.prefixes.length === 1 ? "" : "es"} <code>${r.prefixes.map(esc).join("</code>, <code>")}</code>` : ""} · ${r.ruleLen} of ${TeamsDev.RULE_MAX} characters${r.ruleTooLong ? ' <b style="color:var(--off)">— OVER the limit, remove prefixes</b>' : ""}</p>
       <pre style="white-space:pre-wrap;word-break:break-word;margin:0 0 8px;font-size:12px">${esc(r.rule || "(nothing to match — no device plan and no prefix)")}</pre>
+      <p class="mini" style="margin:0 0 2px"><b>Must hold one of</b> — the device plans</p>
       <ul class="mini" style="margin:0 0 8px;padding-left:18px">${r.planIds.map((id) => `<li><code>${esc(tdPlanName(id))}</code> <span class="muted">${esc(id)}</span> — ${esc(tdPlanLabel(id))}</li>`).join("")}</ul>
+      <p class="mini" style="margin:0 0 2px"><b>Must hold none of</b> — the user-suite markers${r.ruleSource === "tenant" && r.suiteSkus.length ? ` (the smallest set that covers the ${r.suiteSkus.length} user suite${r.suiteSkus.length === 1 ? "" : "s"} this tenant owns: ${r.suiteSkus.map((x) => esc(x.part)).join(", ")})` : " (static: the SharePoint plans, which no device SKU has ever carried)"}. An account holding E1/E3/E5, F1/F3, A3/A5 or a Business suite is a <b>person</b> and stays out, whatever device licence it also holds.</p>
+      <ul class="mini" style="margin:0 0 8px;padding-left:18px">${r.markerInfo.map((m) => `<li><code>${esc(m.name)}</code> <span class="muted">${esc(m.id)}</span> — ${esc(m.label)}</li>`).join("")}</ul>
+      ${r.uncoverable.length ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">⚠ ${r.uncoverable.map(esc).join(", ")} carr${r.uncoverable.length === 1 ? "ies" : "y"} no plan a device SKU lacks, so the rule cannot tell its holders from devices.</p>` : ""}
       ${r.preview ? `<p class="mini" style="margin:0 0 4px">🔎 Matches <b>${cnt(r.preview.count)}</b> account${r.preview.count === 1 ? "" : "s"} in this tenant today${r.preview.sample.length ? ` — first ${r.preview.sample.length}${r.preview.capped ? " by name" : ""}:` : "."}</p>
         ${r.preview.sample.length ? `<p class="mini muted" style="margin:0 0 8px">${r.preview.sample.map((u) => `${esc(u.name || u.upn)}${u.enabled ? "" : ' <span style="color:var(--off)">(disabled)</span>'}`).join(" · ")}</p>` : ""}`
         : `<p class="mini muted" style="margin:0 0 8px">The match count could not be previewed (the directory refused the plan filter) — the rule is still valid; Entra evaluates it after the write.</p>`}
+      ${r.people ? (r.people.count ? `<p class="mini" style="margin:0 0 8px"><span class="tag new">⚠ ${cnt(r.people.count)} ${r.people.count === 1 ? "person holds" : "people hold"} a device licence on their own account</span> ${r.people.count === 1 ? "That account matches" : "Those accounts match"} a device plan AND a user suite — the rule keeps them <b>out</b> of the group (they keep MFA), but a Rooms or Shared Space licence belongs on a device account, not on a person. ${r.people.sample.length ? `First ${r.people.sample.length}: ${r.people.sample.map((u) => `${esc(u.name || u.upn)} <span class="muted">${esc(u.upn || "")}</span>`).join(" · ")}` : ""}</p>` : `<p class="mini muted" style="margin:0 0 8px">✅ No account holds both a device licence and a user suite.</p>`) : ""}
       ${r.notIsolatable.length ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">⚠ ${r.notIsolatable.map((x) => `<b>${esc(x.part)}</b> (${cnt(x.consumed)} assigned)`).join(", ")} cannot be caught by any service plan in this tenant. Type the UPN prefix those accounts share in the box above and rescan, or keep them in an assigned group that the same policies also exclude.</p>` : ""}
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         ${t && t.verdict !== "current" ? `<button class="btn primary" data-tdwrite="${esc(t.id)}">✏️ Replace the rule on ${esc(t.name)}</button>` : ""}
@@ -17192,6 +17215,8 @@ max@contoso.com,"Global, DevOps"</pre>
             ${g.plans.traps.length ? `<b style="color:var(--off)">Plans real users hold</b> ${g.plans.traps.map((id) => `<code title="${esc(id)}">${esc(TeamsDev.TRAPS[id])}</code>`).join(" ")}<br>` : ""}
             ${g.plans.unknown.length ? `<b>Plans this tool does not know</b> ${g.plans.unknown.map((id) => `<code>${esc(id)}</code>`).join(" ")} — check them against the <a href="https://learn.microsoft.com/entra/identity/users/licensing-service-plan-reference" target="_blank" rel="noopener">reference</a><br>` : ""}
             ${g.missing.length ? `<b>Missing</b> ${g.missing.map((id) => `<code title="${esc(id)}">${esc(tdPlanName(id))}</code>`).join(" ")}<br>` : ""}
+            ${g.plans.excludes.length ? `<b>Keeps out</b> ${g.plans.excludes.map((id) => `<code title="${esc(id)}">${esc(((TeamsDev.SUITE_MARKERS[id] || {}).name) || ((r.markerInfo.find((m) => m.id === id) || {}).name) || id)}</code>`).join(" ")}<br>` : ""}
+            ${g.missingMarkers && g.missingMarkers.length ? `<b style="color:var(--off)">Does not keep out</b> ${g.missingMarkers.map((id) => `<code title="${esc(id)}">${esc(((TeamsDev.SUITE_MARKERS[id] || {}).name) || ((r.markerInfo.find((m) => m.id === id) || {}).name) || id)}</code>`).join(" ")} — user-suite holders can land in the group<br>` : ""}
             ${g.refs.length ? `<b>Conditional Access</b><ul style="margin:2px 0 0;padding-left:18px">${g.refs.map((p) => `<li>${p.how === "excluded" ? '<b style="color:var(--off)">EXCLUDED from</b>' : "included in"} ${esc(p.name)} <span class="muted">(${esc(p.state)})</span></li>`).join("")}</ul>` : ""}
           </div>` : ""}
         </td>
