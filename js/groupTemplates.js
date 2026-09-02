@@ -13,6 +13,13 @@
 //
 // Templates marked "dynamic" are created dynamic with their membership rule
 // intact; for those the rule is the point.
+//
+// The TeamsSharedDevices rule names the service plans Microsoft lists ONLY in
+// device SKUs (the same catalog as js/teamsdev.js — keep the two in step).
+// Until build 25248 it named three Teams ROOMS plans and nothing else, so a
+// tenant on Teams Shared Space phones or Phone resource accounts had those
+// accounts outside the group. The 📞 Teams devices tool derives the exact set
+// for a tenant from its subscribed SKUs and rewrites the rule on the group.
 // ======================================================================
 const GROUP_TEMPLATES = [
   {
@@ -22,10 +29,10 @@ const GROUP_TEMPLATES = [
   },
   {
     "displayName": "CAB-SEC-U-TeamsSharedDevices",
-    "description": "Teams shared / meeting-room resource accounts excluded from Global session-lifetime and risk policies they cannot satisfy (R26.6). Dynamic membership: resource accounts assigned a Teams Rooms Basic, Pro or Premium SKU.",
+    "description": "Teams Rooms, panels, common-area phones and Teams Phone resource accounts — excluded from Conditional Access controls these devices cannot satisfy (R26.6). Dynamic membership on the service plans that exist ONLY in device licences: Teams Rooms Basic/Pro/Standard/Premium, Teams Shared Space (Specialty devices), Teams Phone Resource Account. Check and update the rule against this tenant with the Teams devices tool.",
     "mailNickname": "CABSECUTeamsSharedDevices",
     "dynamic": true,
-    "membershipRule": "(user.assignedPlans -any (assignedPlan.servicePlanId -eq \"8081ca9c-188c-4b49-a8e5-c23b5e9463a8\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"ec17f317-f4bc-451e-b2da-0167e5c260f9\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"92c6b761-01de-457a-9dd9-793a975238f7\" -and assignedPlan.capabilityStatus -eq \"Enabled\"))"
+    "membershipRule": "(user.assignedPlans -any (assignedPlan.servicePlanId -eq \"8081ca9c-188c-4b49-a8e5-c23b5e9463a8\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"ec17f317-f4bc-451e-b2da-0167e5c260f9\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"c8529366-cffd-4415-ab8f-be0144a33ab1\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"0374d34c-6be4-4dbb-b3f0-26105db0b28a\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"ecc74eae-eeb7-4ad5-9c88-e8b2bfca75b8\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"92c6b761-01de-457a-9dd9-793a975238f7\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"79d69417-9e27-4a13-b7a5-80c513145533\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"bdaa59a3-74fd-4137-981a-31d4f84eb8a0\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"f47330e9-c134-43b3-9993-e7f004506889\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"0628a73f-3b4a-4989-bd7b-0f8823144313\" -and assignedPlan.capabilityStatus -eq \"Enabled\")) -or (user.assignedPlans -any (assignedPlan.servicePlanId -eq \"cfce7ae3-4b41-4438-999c-c0e91f3b7fb9\" -and assignedPlan.capabilityStatus -eq \"Enabled\"))"
   },
   {
     "displayName": "CAB-SEC-U-CA001-Exclusion",

@@ -103,7 +103,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -1918,6 +1918,7 @@
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolDevCheck", "🖥 Device reality check"],
     ["toolLicGap", "🎫 Licence gap"],
+    ["toolTeamsDev", "📞 Teams devices"],
     ["toolBaseline", "🧬 Baseline Policies"],
     ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
     ["toolMsLearn", "📘 MS Learn checks"],
@@ -16782,6 +16783,379 @@ max@contoso.com,"Global, DevOps"</pre>
     downloadText("CA-MemberOfRetirement", "csv", "text/csv", MemberOf.toCsv(moRes));
   });
 
+  // ---------- Teams devices (T35) ----------
+  // The analysis lives in js/teamsdev.js. This wiring reads the tenant's
+  // subscribed SKUs, its dynamic groups (plus the shared-device group by
+  // name when it is assigned), counts the candidates' members, previews how
+  // many accounts the recommended rule would match today, and — behind a
+  // confirmation — writes the rule onto the group or creates the group.
+  let tdRes = null, tdBusy = false, tdCtx = null, tdOpen = new Set(), tdShowSkus = false;
+  const tdProg = makeProgress("td");
+  const TD_GROUP_PAGES = 20;   // ~20k dynamic groups
+  const TD_WRITE = ["Group.ReadWrite.All"];
+  const TD_SAMPLE = 25;
+
+  const tdPrefixes = () => String($("tdPrefix").value || "").split(/[,\s;]+/).map((s) => s.trim()).filter(Boolean);
+
+  // Demo: the reference tenant this tool was built against — Rooms Pro,
+  // Shared Space, Phone resource accounts, Phone Standard on real people —
+  // with the group carrying the old three-plan rule so the update path shows.
+  function tdDemoCtx() {
+    const P = (id, name) => ({ servicePlanId: id, servicePlanName: name });
+    const common = [P("4828c8ec-dc2e-4779-b502-87ac9ce28ab7", "MCOEV"), P("57ff2da0-773e-42df-b2af-ffb7a2317929", "TEAMS1"),
+      P("0feaeb32-d00e-4d66-bd5a-43b5b83db82c", "MCOSTANDARD"), P("c1ec4a95-1f05-45b3-a911-aa3fa01094f5", "INTUNE_A"), P("41781fb2-bc02-4b7c-bd55-b576c07bb09d", "AAD_PREMIUM")];
+    const raws = policies.map((p) => p.raw);
+    const withExc = raws.find((p) => p.state === "enabled" && ((p.conditions || {}).users || {}).excludeGroups && p.conditions.users.excludeGroups.length);
+    const gid = withExc ? withExc.conditions.users.excludeGroups[0] : "g-CAB-SEC-U-TeamsSharedDevices";
+    return {
+      skus: [
+        { skuId: "sku-e5", skuPartNumber: "SPE_E5", capabilityStatus: "Enabled", prepaidUnits: { enabled: 1200 }, consumedUnits: 1143,
+          servicePlans: [...common, P("3e26ee1f-8a5f-4d52-aee2-b81ce45c8f40", "MCOMEETADV"), P("efb87545-963c-4e0d-99df-69c6916d9eb0", "EXCHANGE_S_ENTERPRISE"), P("eec0eb4f-6444-4f95-aba0-50c24d67f998", "AAD_PREMIUM_P2")] },
+        { skuId: "sku-mtr", skuPartNumber: "Microsoft_Teams_Rooms_Pro", capabilityStatus: "Enabled", prepaidUnits: { enabled: 157 }, consumedUnits: 157,
+          servicePlans: [...common, P("3e26ee1f-8a5f-4d52-aee2-b81ce45c8f40", "MCOMEETADV"), P("4a51bca5-1eff-43f5-878c-177680f191af", "WHITEBOARD_PLAN3"),
+            P("8081ca9c-188c-4b49-a8e5-c23b5e9463a8", "Teams_Room_Basic"), P("ec17f317-f4bc-451e-b2da-0167e5c260f9", "Teams_Room_Pro"), P("0374d34c-6be4-4dbb-b3f0-26105db0b28a", "Teams_Rooms_Pro"), P("ecc74eae-eeb7-4ad5-9c88-e8b2bfca75b8", "MTRProManagement")] },
+        { skuId: "sku-cap", skuPartNumber: "MCOCAP", capabilityStatus: "Enabled", prepaidUnits: { enabled: 518 }, consumedUnits: 517,
+          servicePlans: [...common, P("efb87545-963c-4e0d-99df-69c6916d9eb0", "EXCHANGE_S_ENTERPRISE"), P("cfce7ae3-4b41-4438-999c-c0e91f3b7fb9", "SPECIALTY_DEVICES")] },
+        { skuId: "sku-ra", skuPartNumber: "PHONESYSTEM_VIRTUALUSER", capabilityStatus: "Enabled", prepaidUnits: { enabled: 138 }, consumedUnits: 138,
+          servicePlans: [P("f47330e9-c134-43b3-9993-e7f004506889", "MCOEV_VIRTUALUSER")] },
+        { skuId: "sku-phone", skuPartNumber: "MCOEV", capabilityStatus: "Enabled", prepaidUnits: { enabled: 13 }, consumedUnits: 5,
+          servicePlans: [P("4828c8ec-dc2e-4779-b502-87ac9ce28ab7", "MCOEV")] },
+      ],
+      groups: [
+        { id: gid, displayName: "CAB-SEC-U-TeamsSharedDevices", dynamic: true, ruleState: "On", memberCount: 157,
+          description: "Teams shared / meeting-room resource accounts excluded from Global session-lifetime and risk policies they cannot satisfy (R26.6).",
+          membershipRule: TeamsDev.buildRule(["8081ca9c-188c-4b49-a8e5-c23b5e9463a8", "ec17f317-f4bc-451e-b2da-0167e5c260f9", "92c6b761-01de-457a-9dd9-793a975238f7"]) },
+        { id: "g-teams-phone-users", displayName: "Teams Phone users (dynamic)", dynamic: true, ruleState: "On", memberCount: 1148, description: "",
+          membershipRule: TeamsDev.buildRule(["4828c8ec-dc2e-4779-b502-87ac9ce28ab7"]) },
+        { id: "g-mtr-static", displayName: "MTR-Rooms-Amsterdam", dynamic: false, ruleState: "", memberCount: 12, description: "Hand-maintained list of the Amsterdam rooms", membershipRule: "" },
+      ],
+      names: {}, groupsPartial: false, totalDynamic: 42,
+      preview: { count: 812, capped: true, sample: [
+        { id: "r1", name: "MTR Boardroom 4.01", upn: "mtr-boardroom-401@contoso.com", enabled: true },
+        { id: "r2", name: "CAP Lobby phone", upn: "cap-lobby-01@contoso.com", enabled: true },
+        { id: "r3", name: "AA Main reception", upn: "aa-reception@contoso.com", enabled: false },
+      ] },
+    };
+  }
+
+  // The recommended rule as an OData filter, so the tenant can say how many
+  // accounts it matches TODAY — before anything is written. GUIDs unquoted:
+  // servicePlanId is Edm.Guid. Prefixes ride along as startswith().
+  function tdPreviewFilter(planIds, prefixes) {
+    const parts = planIds.map((id) => `assignedPlans/any(a:a/servicePlanId eq ${id} and a/capabilityStatus eq 'Enabled')`)
+      .concat(prefixes.map((p) => `startswith(userPrincipalName,'${String(p).replace(/'/g, "''")}')`));
+    return parts.join(" or ");
+  }
+
+  async function tdRun() {
+    if (tdBusy) return;
+    tdBusy = true;
+    $("tdRun").style.display = "none";
+    tdProg.start(0, "groups", "page");
+    $("tdBody").innerHTML = tdProg.panel("Reading this tenant's licences and dynamic groups…",
+      "Subscribed SKUs first — the device licences and every plan they carry — then the dynamic groups, the shared-device group by name, the member count of each candidate, and a preview of how many accounts the recommended rule would match today. Reads only until you confirm a write.");
+    try {
+      let ctx;
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 500));
+        ctx = tdDemoCtx();
+        ctx.prefixes = tdPrefixes();
+      } else {
+        const txt = (m) => { const t = $("tdPgTxt"); if (t) t.textContent = m; };
+        ctx = { skus: null, groups: [], names: {}, groupsPartial: false, totalDynamic: null, prefixes: tdPrefixes(), preview: null,
+          policies: policies.map((p) => p.raw) };
+        txt("🎫 Subscribed SKUs…");
+        // A failed SKU read must surface as "not read" — the catalog then
+        // supplies the rule, and the result says so.
+        try { ctx.skus = await Graph.ggetAll("/subscribedSkus"); } catch { ctx.skus = null; }
+
+        // Dynamic groups. The $filter keeps this off every static group in
+        // the tenant; the shared-device group is fetched by NAME afterwards
+        // so an assigned one is still found and reported as assigned.
+        const sel = "$select=id,displayName,membershipRule,membershipRuleProcessingState,groupTypes,description";
+        const raw = [];
+        let next = `/groups?$filter=groupTypes/any(c:c eq 'DynamicMembership')&${sel}&$top=999`, pages = 0;
+        while (next && pages < TD_GROUP_PAGES) {
+          const j = await Graph.gget(next);
+          for (const g of j.value || []) raw.push(g);
+          next = j["@odata.nextLink"] || null;
+          tdProg.tick(raw.length, ++pages);
+        }
+        ctx.groupsPartial = !!next;
+        ctx.totalDynamic = raw.length;
+        const seen = new Set(raw.map((g) => g.id));
+        txt("👥 The shared-device group by name…");
+        try {
+          const names = TeamsDev.ALIASES.map((n) => `'${n.replace(/'/g, "''")}'`).join(",");
+          const j = await Graph.gget(`/groups?$filter=${encodeURIComponent(`displayName in (${names})`)}&${sel}&$top=50`);
+          for (const g of j.value || []) if (!seen.has(g.id)) { raw.push(g); seen.add(g.id); }
+        } catch { /* the dynamic read already covers a dynamic one */ }
+        ctx.groups = raw.map((g) => ({ id: g.id, displayName: g.displayName || g.id, membershipRule: g.membershipRule || "",
+          ruleState: g.membershipRuleProcessingState || "", dynamic: (g.groupTypes || []).includes("DynamicMembership") || !!g.membershipRule,
+          description: g.description || "", memberCount: null }));
+
+        // Member counts, only for the groups the analysis will show.
+        const first = TeamsDev.analyze(ctx);
+        const cands = first.groups.map((g) => g.id);
+        if (cands.length) {
+          txt(`🔢 Member counts for ${cands.length} group${cands.length === 1 ? "" : "s"}…`);
+          const res = await Graph.gbatch(cands.map((id, i) => ({ id: i, url: `/groups/${id}/members/$count` }))).catch(() => ({}));
+          cands.forEach((id, i) => {
+            const v = res[i]; const g = ctx.groups.find((x) => x.id === id);
+            if (g && v && v.body != null) g.memberCount = Number(v.body);
+          });
+        }
+
+        // Preview: how many accounts the recommended rule matches today, and
+        // a sample of them. A refused query is a null preview, not zero.
+        if (first.planIds.length || first.prefixes.length) {
+          txt("🔎 Previewing the recommended rule…");
+          try {
+            const f = tdPreviewFilter(first.planIds, first.prefixes);
+            const j = await Graph.gget(`/users?$count=true&$top=${TD_SAMPLE}&$select=id,displayName,userPrincipalName,accountEnabled&$orderby=displayName&$filter=${encodeURIComponent(f)}`);
+            const c = j["@odata.count"];
+            ctx.preview = { count: typeof c === "number" ? c : null, capped: !!j["@odata.nextLink"],
+              sample: (j.value || []).map((u) => ({ id: u.id, name: u.displayName, upn: u.userPrincipalName, enabled: u.accountEnabled !== false })) };
+          } catch (e) { console.warn("Teams devices: preview refused —", e.message); ctx.preview = null; }
+        }
+      }
+      ctx.policies = policies.map((p) => p.raw);
+      tdCtx = ctx;
+      tdRes = TeamsDev.analyze(ctx);
+    } catch (e) {
+      console.error(e);
+      $("tdBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-tdrun>▶ Try again</button></div></div>`;
+      tdBusy = false;
+      return;
+    }
+    tdBusy = false;
+    renderTeamsDev();
+  }
+
+  const TD_VERDICT = {
+    current: { cls: "ok", icon: "✅", word: "current" },
+    update: { cls: "new", icon: "⚠", word: "update the rule" },
+    trap: { cls: "block", icon: "⛔", word: "matches PEOPLE" },
+    assigned: { cls: "", icon: "✋", word: "assigned group" },
+    other: { cls: "", icon: "❔", word: "read by hand" },
+  };
+  const tdChip = (k) => `<span class="tag ${TD_VERDICT[k].cls}">${TD_VERDICT[k].icon} ${TD_VERDICT[k].word}</span>`;
+  const tdPlanName = (id) => (TeamsDev.CATALOG[id] || {}).name || ((tdRes && tdRes.devicePlans.find((p) => p.id === id)) || {}).name || id;
+  const tdPlanLabel = (id) => (TeamsDev.CATALOG[id] || {}).label || "unique to a device SKU in this tenant";
+
+  function renderTeamsDev() {
+    $("tdHead").innerHTML = `<h3>📞 Teams devices <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+      <p style="margin-bottom:4px">Every baseline exclusion for Teams Rooms, panels, common-area phones and call-queue accounts rides on <b>one dynamic group</b> — <code>${esc(TeamsDev.CANONICAL)}</code> — and that group is only as good as its membership rule. The rule shipped so far names three <b>Teams Rooms</b> service plans and nothing else: a tenant with hundreds of common-area phones on <b>Teams Shared Space</b> (Teams Shared Devices until April 2026) and a hundred auto-attendant <b>resource accounts</b> has none of them in the group, so sign-in frequency, MFA, device-code blocks and risk policies hit devices that cannot answer them.</p>
+      <p style="margin-bottom:4px">A rule cannot say “every Teams SKU”: dynamic membership sees <b>service plans</b>, not licences, and a device SKU is mostly plans every E5 user also holds — naming <code>MCOEV</code> (Teams Phone) would put your whole E5 population in the exclusion group. So this tool reads the tenant's <b>subscribed SKUs</b>, keeps the plans that exist <b>only</b> in device licences, builds the rule from those, previews how many accounts it matches today, and replaces the rule on the group after you confirm. <b>Teams Phone Standard</b> stays out on purpose: people hold it.</p>
+      <p class="mini muted" style="margin:0">Sources: <a href="https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies" target="_blank" rel="noopener">supported Conditional Access policies for Teams devices</a> · <a href="https://learn.microsoft.com/microsoftteams/rooms/conditional-access-and-compliance-for-devices" target="_blank" rel="noopener">Teams Rooms CA best practices</a> · <a href="https://learn.microsoft.com/entra/identity/users/licensing-service-plan-reference" target="_blank" rel="noopener">service plan reference</a> · <a href="https://learn.microsoft.com/microsoftteams/teams-add-on-licensing/teams-shared-device-license" target="_blank" rel="noopener">Teams Shared Space licensing</a> · <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-membership#rules-with-complex-expressions" target="_blank" rel="noopener">assignedPlans rules</a></p>`;
+    $("tdRun").style.display = tdRes && !tdBusy ? "" : "none";
+    if (tdBusy) return;
+
+    if (!tdRes) {
+      $("tdBody").innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-tdrun>▶ Check the tenant</button>
+        <p class="mini muted">Reads the subscribed SKUs, the dynamic groups and the shared-device group by name, counts their members and previews the recommended rule — all covered by the permissions you already granted. Nothing is written until you confirm a rule on a named group. UPN prefixes typed above (for accounts a plan cannot isolate, e.g. <code>mtr-</code>, <code>cap-</code>) are added to the rule as <code>-startsWith</code> clauses.</p>
+      </div>`;
+      return;
+    }
+
+    const r = tdRes, s = r.summary;
+    const t = r.target;
+    const cnt = (n) => n == null ? "—" : Number(n).toLocaleString();
+
+    // ---- verdict ----
+    let verdict;
+    if (!t) verdict = `<span class="tag block">⛔ no shared-device group</span> No group in this tenant is named <code>${esc(TeamsDev.CANONICAL)}</code> (or an accepted alias) and no dynamic group names a Teams device plan${r.groups.length ? ` — the ${r.groups.length} candidate${r.groups.length === 1 ? "" : "s"} below ${r.groups.length === 1 ? "is" : "are"} something else` : ""}. Every All-users policy reaches the ${cnt(s.deviceAccounts)} device licence${s.deviceAccounts === 1 ? "" : "s"} this tenant has assigned.`;
+    else if (t.verdict === "current") verdict = `<span class="tag ok">✅ up to date</span> <b>${esc(t.name)}</b> names every plan that isolates a device account in this tenant${t.memberCount != null ? ` and holds <b>${cnt(t.memberCount)}</b> members` : ""}${s.previewCount != null ? ` — the recommended rule matches <b>${cnt(s.previewCount)}</b> accounts today` : ""}.`;
+    else if (t.verdict === "update") verdict = `<span class="tag new">⚠ the rule is behind the licences</span> <b>${esc(t.name)}</b> ${esc(t.why)}.${t.memberCount != null ? ` It holds <b>${cnt(t.memberCount)}</b> members today` : ""}${s.previewCount != null ? `${t.memberCount != null ? ";" : ""} the recommended rule matches <b>${cnt(s.previewCount)}</b> account${s.previewCount === 1 ? "" : "s"}` : ""}${t.memberCount != null && s.previewCount != null && s.previewCount > t.memberCount ? ` — roughly <b>${cnt(s.previewCount - t.memberCount)}</b> device accounts are outside the group and inside every policy that excludes it` : ""}.`;
+    else if (t.verdict === "trap") verdict = `<span class="tag block">⛔ the group contains people</span> <b>${esc(t.name)}</b> ${esc(t.why)}. Replace the rule before anything else.`;
+    else if (t.verdict === "assigned") verdict = `<span class="tag new">✋ assigned, not dynamic</span> <b>${esc(t.name)}</b> is hand-maintained${t.memberCount != null ? ` with <b>${cnt(t.memberCount)}</b> members` : ""} while the tenant has <b>${cnt(s.deviceAccounts)}</b> device licences assigned. The recommended rule below can be written onto it, which converts it to dynamic membership.`;
+    else verdict = `<span class="tag">❔ read by hand</span> <b>${esc(t.name)}</b> ${esc(t.why)}.`;
+
+    const notes = [
+      r.skusRead ? `${r.skuRows.length} subscribed SKU${r.skuRows.length === 1 ? "" : "s"} read · <b>${s.deviceSkus}</b> device SKU${s.deviceSkus === 1 ? "" : "s"} · <b>${cnt(s.deviceAccounts)}</b> device licences assigned` : '<span style="color:var(--off)">subscribed SKUs NOT read — the rule comes from the bundled catalog, not from this tenant</span>',
+      `${cnt(r.totalDynamic)} dynamic group${r.totalDynamic === 1 ? "" : "s"} read${r.groupsPartial ? ' <span style="color:var(--off)">(capped — partial)</span>' : ""}`,
+      s.notIsolatable ? `<b style="color:var(--off)">${s.notIsolatable} device SKU${s.notIsolatable === 1 ? "" : "s"} cannot be isolated by service plan</b>` : "",
+      r.phoneUserSkus.length ? `${r.phoneUserSkus.length} per-user phone licence${r.phoneUserSkus.length === 1 ? "" : "s"} deliberately left out` : "",
+    ].filter(Boolean);
+
+    const head = `<div class="list-card" style="padding:14px 16px">
+      <p class="mini" style="margin:0">${verdict}</p>
+      ${t && s.caBreaks ? `<p class="mini" style="margin:8px 0 0"><span class="tag ${s.caBreaksOn ? "block" : "new"}">${s.caBreaksOn ? "⛔" : "⚠"} ${s.caBreaks} polic${s.caBreaks === 1 ? "y" : "ies"} reach the device accounts with a control they cannot satisfy</span> ${s.caBreaksOn ? `<b>${s.caBreaksOn}</b> enforced. ` : ""}Fix those with the one-click exclusions in <a href="#" class="md-tool" data-tool="toolMsLearn">📘 MS Learn checks</a> — the table at the bottom names them.</p>` : ""}
+      <p class="mini muted" style="margin:10px 0 0">${notes.join(" · ")}</p>
+    </div>`;
+
+    // ---- licences ----
+    const skuRow = (x) => `<tr style="border-top:1px solid var(--line)">
+      <td style="padding:4px 8px"><b>${esc(x.part)}</b><br><span class="muted">${esc(x.label || (x.kind === "other" ? "" : x.kind))}</span></td>
+      <td style="padding:4px 8px">${esc(TeamsDev.KIND_LABEL[x.kind] || (x.kind === "phoneUser" ? "user licence" : "—"))}</td>
+      <td style="padding:4px 8px">${cnt(x.consumed)} / ${cnt(x.enabled)}${/enabled/i.test(x.status) ? "" : ` <span class="muted">(${esc(x.status)})</span>`}</td>
+      <td style="padding:4px 8px">${x.kind === "phoneUser" ? '<span class="tag">people — left out</span>'
+        : x.isolatable ? x.isolating.map((id) => `<code title="${esc(id)}">${esc(tdPlanName(id))}</code>`).join(" ")
+        : '<b style="color:var(--off)">not isolatable</b><br><span class="mini muted">every plan it carries is also in a user SKU — add a UPN prefix above, or manage these accounts in an assigned group</span>'}</td>
+    </tr>`;
+    const shownSkus = tdShowSkus ? r.skuRows : r.skuRows.filter((x) => x.kind !== "other");
+    const lic = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <p class="mini" style="margin:0 0 6px"><b>LICENCES</b> — what this tenant owns, and which plan isolates each device population</p>
+      ${r.skusRead ? `<div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">SKU</th><th style="padding:4px 8px">Population</th><th style="padding:4px 8px" title="consumedUnits / prepaidUnits.enabled — assigned out of owned">Assigned</th><th style="padding:4px 8px" title="Service plans this SKU carries that NO non-device subscription in this tenant carries — the only plans a rule can use">Isolated by</th></tr></thead>
+        <tbody>${shownSkus.map(skuRow).join("") || `<tr><td colspan="4" style="padding:6px 8px" class="muted">No Teams device or phone SKU in this tenant.</td></tr>`}</tbody></table></div>
+        <p class="mini muted" style="margin:6px 0 0"><button class="btn" data-tdskus style="padding:3px 10px;font-size:12px">${tdShowSkus ? "Hide" : "Show"} the ${r.skuRows.filter((x) => x.kind === "other").length} other subscriptions</button> — those decide which plans are NOT unique: a plan any of them carries is a plan the rule must not name.</p>`
+        : `<p class="mini" style="margin:0;color:var(--off)">The subscribed SKUs could not be read, so nothing here is known about this tenant's licences. The rule below is the bundled catalog — every plan Microsoft lists only in device SKUs — which is right for most tenants and cannot see a plan Microsoft added since.</p>`}
+    </div>`;
+
+    // ---- recommended rule ----
+    const ruleCard = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <p class="mini" style="margin:0 0 6px"><b>RECOMMENDED RULE</b> — ${r.ruleSource === "tenant" ? `the <b>${s.planCount}</b> plan${s.planCount === 1 ? "" : "s"} unique to this tenant's device SKUs` : r.ruleSource === "catalog-no-device-skus" ? `this tenant has no device SKU, so the <b>${s.planCount}</b> catalog plans (harmless today, ready for the first Teams Room)` : `the bundled catalog's <b>${s.planCount}</b> plans (SKUs not read)`}${r.prefixes.length ? ` + UPN prefix${r.prefixes.length === 1 ? "" : "es"} <code>${r.prefixes.map(esc).join("</code>, <code>")}</code>` : ""} · ${r.ruleLen} of ${TeamsDev.RULE_MAX} characters${r.ruleTooLong ? ' <b style="color:var(--off)">— OVER the limit, remove prefixes</b>' : ""}</p>
+      <pre style="white-space:pre-wrap;word-break:break-word;margin:0 0 8px;font-size:12px">${esc(r.rule || "(nothing to match — no device plan and no prefix)")}</pre>
+      <ul class="mini" style="margin:0 0 8px;padding-left:18px">${r.planIds.map((id) => `<li><code>${esc(tdPlanName(id))}</code> <span class="muted">${esc(id)}</span> — ${esc(tdPlanLabel(id))}</li>`).join("")}</ul>
+      ${r.preview ? `<p class="mini" style="margin:0 0 4px">🔎 Matches <b>${cnt(r.preview.count)}</b> account${r.preview.count === 1 ? "" : "s"} in this tenant today${r.preview.sample.length ? ` — first ${r.preview.sample.length}${r.preview.capped ? " by name" : ""}:` : "."}</p>
+        ${r.preview.sample.length ? `<p class="mini muted" style="margin:0 0 8px">${r.preview.sample.map((u) => `${esc(u.name || u.upn)}${u.enabled ? "" : ' <span style="color:var(--off)">(disabled)</span>'}`).join(" · ")}</p>` : ""}`
+        : `<p class="mini muted" style="margin:0 0 8px">The match count could not be previewed (the directory refused the plan filter) — the rule is still valid; Entra evaluates it after the write.</p>`}
+      ${r.notIsolatable.length ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">⚠ ${r.notIsolatable.map((x) => `<b>${esc(x.part)}</b> (${cnt(x.consumed)} assigned)`).join(", ")} cannot be caught by any service plan in this tenant. Type the UPN prefix those accounts share in the box above and rescan, or keep them in an assigned group that the same policies also exclude.</p>` : ""}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        ${t && t.verdict !== "current" ? `<button class="btn primary" data-tdwrite="${esc(t.id)}">✏️ Replace the rule on ${esc(t.name)}</button>` : ""}
+        ${t && t.verdict === "current" ? `<span class="tag ok">✅ ${esc(t.name)} already carries this rule</span>` : ""}
+        ${!t ? `<button class="btn primary" data-tdcreate>＋ Create ${esc(TeamsDev.CANONICAL)} with this rule</button>` : ""}
+        <button class="btn" data-tdcopy>📋 Copy the rule</button>
+      </div>
+    </div>`;
+
+    // ---- groups ----
+    const gRow = (g) => {
+      const open = tdOpen.has(g.id);
+      return `<tr style="border-top:1px solid var(--line)">
+        <td style="padding:4px 8px"><b>${esc(g.name)}</b>${g.canonical ? ' <span class="tag ok">canonical</span>' : g.alias ? ' <span class="tag">alias</span>' : ""}${t && t.id === g.id ? ' <span class="tag grant">target</span>' : ""}<br><span class="muted">${esc(g.id)}</span></td>
+        <td style="padding:4px 8px">${g.dynamic ? `dynamic${g.ruleState ? ` · ${/paused/i.test(g.ruleState) ? `<b style="color:var(--off)">${esc(g.ruleState)}</b>` : esc(g.ruleState)}` : ""}` : "assigned"}</td>
+        <td style="padding:4px 8px">${cnt(g.memberCount)}</td>
+        <td style="padding:4px 8px">${g.refs.length ? `${g.refs.length}${g.refs.filter((x) => x.how === "excluded").length ? ` <span class="muted">(${g.refs.filter((x) => x.how === "excluded").length} exclude)</span>` : ""}` : "—"}</td>
+        <td style="padding:4px 8px">${tdChip(g.verdict)}<br><span class="mini muted">${esc(g.why)}</span>
+          <br><button class="btn" data-tdrule="${esc(g.id)}" style="margin-top:6px;padding:3px 10px;font-size:12px">${open ? "▾" : "▸"} the rule${g.refs.length ? " and its policies" : ""}</button>
+          ${g.verdict !== "current" && g.dynamic && t && t.id !== g.id && (g.plans.known.length || g.plans.traps.length) ? ` <button class="btn" data-tdwrite="${esc(g.id)}" style="margin-top:6px;padding:3px 10px;font-size:12px">✏️ write the recommended rule here instead</button>` : ""}
+          ${open ? `<div class="mini" style="margin-top:6px">
+            ${g.rule ? `<pre style="white-space:pre-wrap;word-break:break-word;margin:0 0 6px">${esc(g.rule)}</pre>` : '<p class="muted" style="margin:0 0 6px">No membership rule — members are assigned by hand.</p>'}
+            ${g.plans.known.length ? `<b>Device plans named</b> ${g.plans.known.map((id) => `<code title="${esc(id)}">${esc(tdPlanName(id))}</code>`).join(" ")}<br>` : ""}
+            ${g.plans.traps.length ? `<b style="color:var(--off)">Plans real users hold</b> ${g.plans.traps.map((id) => `<code title="${esc(id)}">${esc(TeamsDev.TRAPS[id])}</code>`).join(" ")}<br>` : ""}
+            ${g.plans.unknown.length ? `<b>Plans this tool does not know</b> ${g.plans.unknown.map((id) => `<code>${esc(id)}</code>`).join(" ")} — check them against the <a href="https://learn.microsoft.com/entra/identity/users/licensing-service-plan-reference" target="_blank" rel="noopener">reference</a><br>` : ""}
+            ${g.missing.length ? `<b>Missing</b> ${g.missing.map((id) => `<code title="${esc(id)}">${esc(tdPlanName(id))}</code>`).join(" ")}<br>` : ""}
+            ${g.refs.length ? `<b>Conditional Access</b><ul style="margin:2px 0 0;padding-left:18px">${g.refs.map((p) => `<li>${p.how === "excluded" ? '<b style="color:var(--off)">EXCLUDED from</b>' : "included in"} ${esc(p.name)} <span class="muted">(${esc(p.state)})</span></li>`).join("")}</ul>` : ""}
+          </div>` : ""}
+        </td>
+      </tr>`;
+    };
+    const groups = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <p class="mini" style="margin:0 0 6px"><b>GROUPS</b> — every group that looks like a Teams device group, and what its rule actually matches</p>
+      ${r.groups.length ? `<div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">Group</th><th style="padding:4px 8px">Membership</th><th style="padding:4px 8px">Members</th><th style="padding:4px 8px">CA policies</th><th style="padding:4px 8px">Verdict</th></tr></thead>
+        <tbody>${r.groups.map(gRow).join("")}</tbody></table></div>`
+        : `<p class="mini muted" style="margin:0">No dynamic group names a Teams device plan and nothing is called ${esc(TeamsDev.CANONICAL)} or an alias. Create the group above, then exclude it from the global policies with 📘 MS Learn checks.</p>`}
+    </div>`;
+
+    // ---- CA reach ----
+    const shown = r.ca.filter((x) => x.verdict !== "out of scope");
+    const caRow = (x) => `<tr style="border-top:1px solid var(--line)">
+      <td style="padding:4px 8px"><b class="pol-link" data-polid="${esc(x.id)}" title="Open the policy card">${esc(x.name)}</b></td>
+      <td style="padding:4px 8px">${x.state}</td>
+      <td style="padding:4px 8px">${x.excludesTarget ? '<span class="tag ok">excluded</span>' : x.reaches ? `<span class="tag ${x.unsupported.length ? (x.enforced ? "block" : "new") : ""}">${x.all ? "All users" : "includes the group"}</span>` : "—"}</td>
+      <td style="padding:4px 8px">${x.unsupported.length ? `<ul style="margin:0;padding-left:16px">${x.unsupported.map((u) => `<li>${esc(u)}</li>`).join("")}</ul>` : x.block && x.reaches ? '<span class="muted">block — make sure the devices’ locations and platforms are what this policy allows</span>' : '<span class="muted">nothing a device cannot satisfy</span>'}</td>
+    </tr>`;
+    const ca = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <p class="mini" style="margin:0 0 6px"><b>CONDITIONAL ACCESS REACH</b> — ${t ? `which active policies reach the accounts in <b>${esc(t.name)}</b>, and which carry a control from Microsoft's not-supported list` : "no target group, so every All-users policy reaches the device accounts"}</p>
+      ${shown.length ? `<div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">Policy</th><th style="padding:4px 8px">State</th><th style="padding:4px 8px" title="Excluded: the group is in the policy's exclusions. All users / includes the group: the policy applies to the device accounts">Devices</th><th style="padding:4px 8px" title="From Microsoft's supported-policies table for Teams Rooms on Windows and Android, Teams phones and panels">Controls Teams devices cannot satisfy</th></tr></thead>
+        <tbody>${shown.map(caRow).join("")}</tbody></table></div>
+        <p class="mini muted" style="margin:8px 0 0">A device that meets a policy's conditions still has to sign in <b>somewhere</b>: the right shape is one dedicated policy for the group — compliant device and a trusted location, no MFA, no sign-in frequency — with the group excluded from everything else. 📘 MS Learn checks adds the exclusions one click at a time.</p>`
+        : '<p class="mini muted" style="margin:0">No active policy applies to the device accounts.</p>'}
+    </div>`;
+
+    $("tdBody").innerHTML = head + lic + ruleCard + groups + ca;
+  }
+
+  // ---- the write: replace a group's rule, or create the group ----
+  let tdWriteTarget = null;   // { mode: "update"|"create", id, name, oldRule }
+  function tdOpenWrite(mode, gid) {
+    if (!tdRes) return;
+    const g = gid ? tdRes.groups.find((x) => x.id === gid) : null;
+    if (mode === "update" && !g) return;
+    tdWriteTarget = { mode, id: g ? g.id : null, name: g ? g.name : TeamsDev.CANONICAL, oldRule: g ? g.rule : "", dynamic: g ? g.dynamic : true, members: g ? g.memberCount : null };
+    $("tdWriteTitle").textContent = mode === "create" ? `＋ Create ${TeamsDev.CANONICAL}` : `✏️ Replace the rule on ${tdWriteTarget.name}`;
+    $("tdWriteTenant").textContent = tenantName || "this tenant";
+    $("tdWriteOld").textContent = tdWriteTarget.oldRule || (g && !g.dynamic ? "(assigned group — no rule; writing one converts it to dynamic membership)" : "(none)");
+    $("tdWriteNew").value = tdRes.rule;
+    $("tdWriteNote").innerHTML = mode === "create"
+      ? `A new <b>dynamic security group</b> named <code>${esc(TeamsDev.CANONICAL)}</code> with this rule. It starts empty and fills as Entra evaluates the rule (minutes to an hour). It is <b>not</b> excluded from any policy yet — do that next in 📘 MS Learn checks, or the group changes nothing.`
+      : `Entra re-evaluates the whole group after the write. Accounts the old rule matched and the new one does not <b>leave</b> the group and lose every exclusion that rides on it; accounts the new rule matches <b>join</b> it. ${tdRes.preview && tdRes.preview.count != null ? `The preview says <b>${tdRes.preview.count.toLocaleString()}</b> accounts match today${tdWriteTarget.members != null ? ` against <b>${tdWriteTarget.members.toLocaleString()}</b> members now` : ""}.` : "The match count could not be previewed."} ${g && g.refs.length ? `<b>${g.refs.length}</b> active polic${g.refs.length === 1 ? "y references" : "ies reference"} this group.` : ""}`;
+    $("tdWriteOk").checked = false;
+    $("tdWriteGo").disabled = true;
+    $("tdWriteResult").style.display = "none";
+    $("tdWriteResult").innerHTML = "";
+    $("tdWriteModal").classList.add("open");
+  }
+  async function tdWriteGo() {
+    const w = tdWriteTarget; if (!w) return;
+    const rule = String($("tdWriteNew").value || "").trim();
+    if (!rule) { toast("The rule is empty — nothing written."); return; }
+    if (rule.length > TeamsDev.RULE_MAX) { toast(`The rule is ${rule.length} characters — Microsoft's limit is ${TeamsDev.RULE_MAX}.`); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...TD_WRITE])) return;
+    $("tdWriteGo").disabled = true;
+    const out = $("tdWriteResult"); out.style.display = ""; out.innerHTML = '<p class="mini muted">Writing…</p>';
+    try {
+      if (w.mode === "create") {
+        let made;
+        if (isDemo) { await new Promise((r) => setTimeout(r, 400)); made = { id: "g-demo-new", created: true }; }
+        else made = await Assign.createGroup({ displayName: TeamsDev.CANONICAL, mailNickname: "CABSECUTeamsSharedDevices",
+          description: "Teams Rooms, panels, common-area phones and Teams Phone resource accounts — excluded from Conditional Access controls these devices cannot satisfy. Dynamic membership on the service plans unique to device licences; rule maintained by ENCA's Teams devices tool.",
+          dynamic: true, membershipRule: rule, roleAssignable: false }, { mustCreate: false });
+        out.innerHTML = `<p class="mini">✅ ${made.created === false ? "A group with that name already existed and was reused" : "Created"} — <code>${esc(made.id)}</code>. ${made.created === false ? "Its rule was NOT changed; rescan and use Replace instead." : "Now exclude it from the global policies in 📘 MS Learn checks."}</p>`;
+        toast(`${esc(TeamsDev.CANONICAL)} <span>${made.created === false ? "already existed" : "created"}</span>`);
+      } else {
+        if (!isDemo) await Graph.gpatch(`/groups/${w.id}`, { groupTypes: ["DynamicMembership"], membershipRule: rule, membershipRuleProcessingState: "On" }, [...AUTH_CONFIG.scopes, ...TD_WRITE]);
+        else await new Promise((r) => setTimeout(r, 400));
+        out.innerHTML = `<p class="mini">✅ The rule on <b>${esc(w.name)}</b> is replaced and processing is On. Entra re-evaluates the membership in the background — the member count catches up over the next minutes.</p>`;
+        toast(`Rule on ${esc(w.name)} <span>replaced</span>`);
+      }
+      if (isDemo && tdCtx) {
+        const g = tdCtx.groups.find((x) => x.id === w.id);
+        if (g) { g.membershipRule = rule; g.dynamic = true; g.ruleState = "On"; }
+        else if (w.mode === "create") tdCtx.groups.push({ id: "g-demo-new", displayName: TeamsDev.CANONICAL, dynamic: true, ruleState: "On", memberCount: 0, description: "", membershipRule: rule });
+        tdRes = TeamsDev.analyze(tdCtx);
+        renderTeamsDev();
+      } else {
+        tdRes = null;   // the tenant changed — the next render offers a fresh read
+        renderTeamsDev();
+      }
+    } catch (e) {
+      out.innerHTML = `<p class="mini" style="color:var(--off)">❌ ${esc(e.message || e)}</p>`;
+      $("tdWriteGo").disabled = !$("tdWriteOk").checked;
+    }
+  }
+
+  function openTeamsDev() { crumb("📞 Teams devices"); show("screen-teamsdev"); renderTeamsDev(); }
+  $("toolTeamsDev").addEventListener("click", openTeamsDev);
+  $("tdRun").addEventListener("click", tdRun);
+  $("tdPrefix").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); tdRun(); } });
+  $("tdBody").addEventListener("click", async (e) => {
+    if (e.target.closest("[data-tdrun]")) { tdRun(); return; }
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    if (e.target.closest("[data-tdskus]")) { tdShowSkus = !tdShowSkus; renderTeamsDev(); return; }
+    const rule = e.target.closest("[data-tdrule]");
+    if (rule) { const id = rule.dataset.tdrule; tdOpen.has(id) ? tdOpen.delete(id) : tdOpen.add(id); renderTeamsDev(); return; }
+    const w = e.target.closest("[data-tdwrite]");
+    if (w) { tdOpenWrite("update", w.dataset.tdwrite); return; }
+    if (e.target.closest("[data-tdcreate]")) { tdOpenWrite("create", null); return; }
+    if (e.target.closest("[data-tdcopy]")) {
+      try { await navigator.clipboard.writeText(tdRes ? tdRes.rule : ""); toast("Rule <span>copied</span>"); } catch { toast("Could not copy — select the rule text and copy it by hand."); }
+    }
+  });
+  $("tdWriteOk").addEventListener("change", () => { $("tdWriteGo").disabled = !$("tdWriteOk").checked; });
+  $("tdWriteCancel").addEventListener("click", () => $("tdWriteModal").classList.remove("open"));
+  $("tdWriteGo").addEventListener("click", tdWriteGo);
+  $("tdMd").addEventListener("click", () => {
+    if (!tdRes) { toast("Run the check first — the report is the result."); return; }
+    showReport("📞 Teams devices", "CA-TeamsDevices", TeamsDev.toMd(tdRes, { tenantName }));
+  });
+
   // ---------- boot ----------
   // Keep the user informed during a throttle back-off instead of looking hung.
   buildToolNav();
@@ -16796,7 +17170,7 @@ max@contoso.com,"Global, DevOps"</pre>
     siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
     drHead: "toolDrift", ugHead: "toolGuide", dvHead: "toolDevCheck", lgHead: "toolLicGap",
-    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf",
+    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

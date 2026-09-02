@@ -87,6 +87,18 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .btn:disabled{opacity:.45;cursor:not-allowed}
 
 main{max-width:1180px;margin:0 auto;padding:28px 24px 80px}
+/* ---- the footer stays at the bottom ----
+   On a short page (sign-in, a tool before its first run, an empty result)
+   the bar used to float mid-page with bare background under it. body is now
+   at least the viewport tall and the footer is sticky with top:100vh: sticky
+   cannot leave its containing block, so the bar is pinned to the bottom edge
+   of body — the bottom of the window — until the content is taller than the
+   window, after which it follows the content exactly as before. Nothing
+   else changes: body stays block layout (a flex column would drop main's
+   auto-margin centring and the with-side margin-left calc), the sidebar and
+   every modal are fixed and unaffected. */
+body{min-height:100vh}
+footer{position:sticky;top:100vh}
 
 /* ---------- login / loading ---------- */
 #screen-login,#screen-loading{align-items:center;justify-content:center;min-height:calc(100vh - 160px)}
@@ -339,6 +351,8 @@ table.plist tr:hover td{background:var(--hover)}
 .scope-note b{color:var(--warn-fg)}
 input.txt{width:100%;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;letter-spacing:.06em}
 input.txt:focus{outline:none;border-color:var(--off)}
+textarea.txt{width:100%;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:10px;padding:9px 12px;font-size:13px;resize:vertical}
+textarea.txt:focus{outline:none;border-color:var(--off)}
 input[type=checkbox]{width:16px;height:16px;accent-color:var(--green)}
 .excl-note{color:var(--off)}
 

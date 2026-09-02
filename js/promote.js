@@ -100,6 +100,28 @@ const PROMOTE = {
 
   items: [
     {
+      n: 126,
+      title: "📞 Teams devices — the shared-device group checked against the tenant's licences (T35)",
+      tools: ["Teams devices", "Conditional Access groups"],
+      builds: [25248],
+      risk: "high",
+      what: "New tool. Reads subscribedSkus, recognises the Teams device SKUs by part number (Microsoft_Teams_Rooms_*, MEETING_ROOM*, MTR_PREM, MCOCAP / Shared Space, PHONESYSTEM_VIRTUALUSER) and keeps the service plans NO other subscription in the tenant carries — those are the only plans a dynamic rule can use without matching people. Builds the rule, previews the match count with a Graph $count query using the same filter, grades every candidate group (canonical name, aliases, any dynamic rule naming a Teams plan, anything called Teams / shared / rooms) and shows which active policies reach the device accounts with an unsupported control. Replace writes membershipRule + processing On onto the group (an assigned group becomes dynamic); Create makes CAB-SEC-U-TeamsSharedDevices via Assign.createGroup. The bundled template rule in js/groupTemplates.js now carries the full catalog. Optional UPN prefixes become -startsWith clauses for a SKU no plan isolates.",
+      why: "High because the rule it ships fixes a real production gap — a reference tenant has 517 Shared Space phones and 138 Phone resource accounts outside the exclusion group, all hit by sign-in frequency and device-code blocks — and because the write changes who is in a group that seven global policies exclude. Wrong plan set means either devices still outside the group (nothing worse than today) or PEOPLE inside it (an MFA bypass); the tenant-derived set and the trap list exist to make the second impossible, and the preview shows the match count before the write.",
+      test: [
+        "On a tenant with Teams Rooms Pro, Teams Shared Space (MCOCAP) and Teams Phone Resource Account SKUs: open 📞 Teams devices → Check the tenant. The LICENCES table must list the three as device SKUs with their assigned counts, name the isolating plan per SKU (Teams_Room_*, SPECIALTY_DEVICES, MCOEV_VIRTUALUSER), and list Teams Phone Standard (MCOEV) as people — left out. No E3/E5 plan may appear under Isolated by.",
+        "The RECOMMENDED RULE preview count must be close to the sum of the device SKUs' assigned counts (an account holding two device licences counts once). If the preview says the filter was refused, the rule must still render and the write must still be offered.",
+        "The GROUPS table must show CAB-SEC-U-TeamsSharedDevices as target with verdict update the rule when it still carries the three-plan rule, naming the missing plans; a dynamic group whose rule names MCOEV must show matches PEOPLE; an assigned MTR group must show assigned.",
+        "Click Replace the rule: the dialog must show the old rule and the new rule; the Write button must stay disabled until the checkbox is ticked. Write, then check the group in Entra: membershipRule replaced, processing state On, and within the hour the member count must rise to roughly the preview count. Members that were in the group before (the rooms) must still be in it.",
+        "Rescan after the write: the target must read current and the head line up to date.",
+        "On a tenant WITHOUT the group: Create must make CAB-SEC-U-TeamsSharedDevices as a dynamic security group with the rule and say it is excluded from nothing yet; 📘 MS Learn checks must then offer the exclusion fixes for it.",
+        "Type mtr- in the prefix box and rescan: the rule must gain a -startsWith clause, the preview must grow accordingly, and the character count must stay under 3,072.",
+        "Deny the Group.ReadWrite.All prompt on Write: nothing may be written and the dialog must stay open with no success line.",
+        "Demo mode (?demo=1): the tool must render the reference-tenant licences, the three groups with their verdicts and a preview of 812, and Replace must flip the target to current without a network call.",
+        "Layout: open the sign-in screen and a tool before its first run in a tall window — the footer must sit on the bottom edge. Open 📘 Baseline guide — the page must scroll normally and the footer follow the content. Check with the sidebar shown, collapsed and hidden.",
+      ],
+      files: ["js/teamsdev.js", "js/app.js", "js/groupTemplates.js", "index.html", "css/app.css", "js/version.js"],
+    },
+    {
       n: 125,
       title: "🎨 Three text boxes get the app's input class",
       tools: ["Conditional Access groups", "Restricted AUs", "Authentication strengths"],
