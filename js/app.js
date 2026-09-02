@@ -5734,9 +5734,9 @@ max@contoso.com,"Global, DevOps"</pre>
     const addBar = `<div class="cg-panel">
         <h4>ADD A MEMBER <span class="tag new">NEW</span></h4>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input id="cgAddUser" list="cgUserSug" placeholder="User — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px">
+          <input id="cgAddUser" class="txt" list="cgUserSug" placeholder="User — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px;letter-spacing:normal;font-weight:400">
           <span class="mini muted">to</span>
-          <input id="cgAddGroup" list="cgGroupSug" placeholder="Group" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px" value="${esc(cgAddGroup || "")}">
+          <input id="cgAddGroup" class="txt" list="cgGroupSug" placeholder="Group" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px;letter-spacing:normal;font-weight:400" value="${esc(cgAddGroup || "")}">
           <button class="btn primary" id="cgAddGo">＋ Add</button>
         </div>
         <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. ${m.cols.length === 1
@@ -8500,7 +8500,7 @@ max@contoso.com,"Global, DevOps"</pre>
       ${rows || '<p class="mini muted" style="margin:0 0 8px">Nothing mapped yet.</p>'}
 
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px">
-        <input id="ruMapName" list="ruGroupSug" placeholder="Group display name — exactly as it is in Entra" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px">
+        <input id="ruMapName" class="txt" list="ruGroupSug" placeholder="Group display name — exactly as it is in Entra" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px;letter-spacing:normal;font-weight:400">
         <select id="ruMapCode" class="btn" style="cursor:pointer">${codeOpts(ruMap.addCode)}</select>
         <button class="btn sm primary" id="ruMapAdd">＋ Map it</button>
       </div>
@@ -12701,7 +12701,7 @@ max@contoso.com,"Global, DevOps"</pre>
       ${Object.entries(AuthStrengths.PROVIDER_AAGUIDS).map(([k, v]) =>
         `<label class="chk" style="display:inline-block;margin:2px 14px 2px 0"><input type="checkbox" data-asprov="${k}" ${provChecked(k) ? "checked" : ""}> ${esc(v.label)}</label>`).join("")}
       <div style="margin:4px 0 2px">${asAdvA.map((a) => `<span class="tag" title="${esc(AuthStrengths.AAGUID_NAME[a] || "custom AAGUID")}">${esc(AuthStrengths.AAGUID_NAME[a] || a)} <a href="#" data-asaagrm="${esc(a)}" style="text-decoration:none">✕</a></span>`).join(" ") || '<span class="mini muted">No restriction — any passkey satisfies it.</span>'}</div>
-      <div style="display:flex;gap:6px;margin:4px 0 10px"><input id="asAdvGuid" placeholder="Add AAGUID, e.g. 90a3ccdf-635c-4729-a248-9b709135078f" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-asaagadd>+ Add</button></div>
+      <div style="display:flex;gap:6px;margin:4px 0 10px"><input id="asAdvGuid" class="txt" placeholder="Add AAGUID, e.g. 90a3ccdf-635c-4729-a248-9b709135078f" spellcheck="false" autocomplete="off" style="flex:1;letter-spacing:normal;font-weight:400"><button class="btn sm" data-asaagadd>+ Add</button></div>
       <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin:6px 0 2px">Certificate-based authentication — issuer and OID restrictions</div>
       <p class="mini muted" style="margin:0 0 4px">The certificate must carry at least one listed issuer SKI <i>and</i> (when both are set) one listed policy OID. Graph allows at most 5 of each. Applies to the selected certificate combination(s):</p>
       <label class="chk" style="display:inline-block;margin:2px 14px 2px 0"><input type="checkbox" data-asx509="x509CertificateSingleFactor" ${applies && applies.includes("x509CertificateSingleFactor") ? "checked" : ""}> Certificate (single-factor)</label>

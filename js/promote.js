@@ -100,6 +100,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 125,
+      title: "🎨 Three text boxes get the app's input class",
+      tools: ["Conditional Access groups", "Restricted AUs", "Authentication strengths"],
+      builds: [25247],
+      risk: "low",
+      what: "class=txt (plus the letter-spacing/weight reset the other free-text boxes carry) on cgAddUser, cgAddGroup, ruMapName and asAdvGuid — four inputs that rendered as unstyled browser defaults.",
+      why: "Markup only, no behaviour: the ids, datalists and handlers are untouched. Graduates on sight.",
+      test: [
+        "👥 Conditional Access groups → ③ Members: the User and Group boxes under ADD A MEMBER must look like every other text box (rounded border, padding, orange focus ring) and the datalist suggestions must still appear after two letters.",
+        "🛡 Restricted AUs → 🏷 Group personas: the group-name box likewise, with the baseline names still suggested.",
+        "💪 Authentication strengths → advanced: the AAGUID box likewise, and + Add still adds.",
+      ],
+      files: ["js/app.js"],
+    },
+    {
       n: 124,
       title: "🧹 Baseline leftovers — delete what the previous baseline left behind",
       tools: ["Baseline Policies"],

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25247, date: "2026-09-02", title: "Three text boxes get the app's input styling",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "The two boxes under ADD A MEMBER in ③ Members (user, and the group to add them to) rendered as bare browser inputs — no rounded border, no padding, no focus colour — because they were missing the app's input class. Same fix for the group-name box under 🏷 Group personas in 🛡 Restricted AUs and the AAGUID box in 💪 Authentication strengths." },
+    ],
+  },
+  {
     build: 25246, date: "2026-09-02", title: "What the previous baseline left behind — a cleanup that deletes only what has stopped doing anything",
     items: [
       { kind: "new", tool: "Baseline Policies", text: "🧹 What <baseline> left behind. Switching the active baseline writes nothing, so the old baseline's exclusion groups, persona units and numbered policies were all still in the tenant afterwards, and nothing said so. The non-active catalog's card now has a second button that reads them — its groups by exact template name or exclusion-group shape, its persona units by name, its policies by the comparison matcher (a policy whose CA number both catalogs share counts as the old baseline's only when its name is closer to that catalog) — and lists them in three sections with a verdict each." },
