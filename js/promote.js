@@ -100,6 +100,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 124,
+      title: "🧹 Baseline leftovers — delete what the previous baseline left behind",
+      tools: ["Baseline Policies"],
+      builds: [25246],
+      risk: "high",
+      what: "js/baselineCleanup.js (pure scan + report) and a modal in the Baseline tool: reads the non-active baseline's groups (member counts one call each), its persona units (members and scoped admins) and its policies, classifies each as safe or refused with a reason, and deletes the ticked safe rows behind a typed DELETE — administrative units, then groups, then Conditional Access policies — with a change report. Refused rows cannot be ticked. Break-glass is never offered.",
+      why: "High because it DELETES three kinds of object, one of them Conditional Access policies, and the safety of the whole thing rests on the classifier being right: a group counted as unreferenced that a policy does reference, a unit counted as empty that guards something, a policy counted as Off that is not. The rules are narrow on purpose and the tests below exercise each refusal. Graduates after a real switch-and-cleanup on a tenant where the old baseline had been deployed and protected, with the change report checked line by line against the portal, and after one run where a refused row was verified to be genuinely in use.",
+      test: [
+        "With Joey Verlinden active on a tenant that had the CloudFellows baseline deployed, open 🧬 Baseline Policies and click 🧹 What CloudFellows left behind. The modal must list its persona units, its CAB-SEC groups and its numbered policies, each with a verdict. Compare three refused rows against the portal: the referenced group must really be in a policy's include or exclude, the guarding unit must really contain that group, the On policy must really be On.",
+        "CAB-SEC-U-BreakGlass and Emergency_Access1/2 must appear as KEEP with the break-glass reason, whatever their membership — including when empty.",
+        "Tick nothing and type DELETE: the button must stay disabled. Tick a refused row: it must not tick (the box is disabled). Select all safe must tick exactly the rows whose verdict says safe.",
+        "Delete one empty, unreferenced, unprotected group: it must go, the row must read deleted, the report must say so, and the CA groups tool re-scanned afterwards must no longer list it.",
+        "Delete a unit that holds only safe groups together with those groups: the unit must be deleted first (the report is in run order), then the groups — without a 403 on the groups, which would mean the order was wrong.",
+        "Delete an Off policy that matched only the old catalog: it must go, and ♻️ Recently deleted must show it restorable for 30 days.",
+        "Switch back to CloudFellows and run 🧹 What Joey Verlinden left behind: a tenant that never deployed his baseline must show the nothing-left message with the counts of what was read, never an empty table.",
+        "Deny the permission prompt on Delete: nothing may be deleted and the modal must stay as it was.",
+      ],
+      files: ["js/baselineCleanup.js", "js/baseline.js", "js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 123,
       title: "🧩 R36 — Joey Verlinden baseline as a first-class baseline, read live",
       tools: ["Baseline Policies", "Baseline (Joey Verlinden)", "Conditional Access groups", "Protect exclusions", "Restricted AUs", "List Policies", "Baseline guide", "MS Learn checks"],

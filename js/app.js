@@ -6784,9 +6784,171 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
     if (e.target.closest("[data-bl-cancel]")) { e.preventDefault(); renderBaseline(); return; }
+    const cl = e.target.closest("[data-bl-cleanup]");
+    if (cl) { e.preventDefault(); await blCleanupOpen(cl.dataset.blCleanup); }
     const f = e.target.closest("[data-bl-fetch]");
     if (f) { e.preventDefault(); await blLiveFetch(true); }
   });
+  // ---- 🧹 leftovers of the baseline that is NOT active ------------------
+  // Read the old baseline's groups, units and policies, classify them
+  // (BaselineCleanup.scan — pure), show them in a modal where only the safe
+  // rows can be ticked, and delete behind a typed DELETE, units first.
+  let blCl = null;   // { oldId, plan, rows:[...all rows with .checked], results, busy }
+  const BL_CL_SCOPES = { au: RMAU_WRITE, group: MEMBER_MOVE_SCOPES, policy: ["Policy.ReadWrite.ConditionalAccess"] };
+  async function blCleanupOpen(oldId) {
+    const oldCat = Baseline.withContract(Baseline.catalog(oldId));
+    const curCat = Baseline.active();
+    if (!oldCat || !curCat || oldCat.id === curCat.id) return;
+    blCl = { oldId, plan: null, rows: [], results: null, busy: true };
+    $("blClTitle").textContent = `🧹 What ${oldCat.label} left behind`;
+    $("blClSub").innerHTML = `Reading this tenant's ${esc(oldCat.label)} groups, restricted units and policies…`;
+    $("blClBody").innerHTML = '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="blClStatus">Reading…</p></div>';
+    $("blClOk").value = ""; $("blClGo").disabled = true;
+    $("blClModal").classList.add("open");
+    const status = (m) => { const el = $("blClStatus"); if (el) el.textContent = m; };
+    try {
+      const facts = { groups: [], aus: [], policies, protection: new Map() };
+      if (isDemo) {
+        facts.groups = Object.keys(DEMO_DATA.scopeGroups || {}).map((n, i) => ({ id: "g-" + n, displayName: n, memberCount: (DEMO_DATA.scopeGroups[n] || []).length }));
+        facts.aus = [{ id: "au-GLO", displayName: "CAB-SEC-RMAU-GLO-Exclusions", isMemberManagementRestricted: true, members: [], scopedAdmins: 1 }];
+      } else {
+        const seen = new Set();
+        for (const p of oldCat.groupPrefixes || []) {
+          status(`Reading groups starting with ${p}…`);
+          try {
+            const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes&$top=999`);
+            for (const g of r) if (!seen.has(g.id)) { seen.add(g.id); facts.groups.push(g); }
+          } catch (err) { console.warn("leftovers: prefix", p, "failed:", err.message || err); }
+        }
+        // only the OLD baseline's groups get a member count — one call each,
+        // so it is not spent on the whole prefix family
+        const mine = facts.groups.filter((g) => BaselineCleanup.belongsTo(oldCat, g.displayName) && !BaselineCleanup.belongsTo(curCat, g.displayName));
+        let n = 0;
+        for (const g of mine) {
+          status(`Counting members… ${++n}/${mine.length}`);
+          try {
+            const r = await Graph.gget(`/groups/${g.id}/members?$select=id&$top=1&$count=true`);
+            g.memberCount = typeof r["@odata.count"] === "number" ? r["@odata.count"] : (Array.isArray(r.value) ? r.value.length : null);
+          } catch { g.memberCount = null; }
+        }
+        status("Reading administrative units…");
+        try {
+          const aus = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted&$expand=members($select=id)");
+          for (const a of aus) {
+            if (a.isMemberManagementRestricted === true) for (const m of a.members || []) facts.protection.set(m.id, { auId: a.id, auName: a.displayName });
+          }
+          facts.aus = aus;
+          const want = new Set([...(oldCat.personas || []).map((x) => oldCat.auName(x.code)), oldCat.defaultAuName].filter(Boolean).map((x) => x.toLowerCase()));
+          for (const a of aus) {
+            if (!want.has(String(a.displayName || "").toLowerCase())) continue;
+            try { a.scopedAdmins = (await Graph.ggetAll(`/administrativeUnits/${a.id}/scopedRoleMembers`)).length; } catch { a.scopedAdmins = null; }
+          }
+        } catch (err) { console.warn("leftovers: AU read failed:", err.message || err); }
+      }
+      blCl.plan = BaselineCleanup.scan(oldCat, curCat, facts);
+      blCl.rows = [...blCl.plan.aus, ...blCl.plan.groups, ...blCl.plan.policies].map((r) => ({ ...r, checked: false }));
+    } catch (err) {
+      $("blClBody").innerHTML = `<p class="mini" style="color:var(--off)">Could not read the tenant: ${esc(err.message || err)}</p>`;
+      blCl.busy = false;
+      return;
+    }
+    blCl.busy = false;
+    renderBlCleanup();
+  }
+  function renderBlCleanup() {
+    const t = blCl; if (!t || !t.plan) return;
+    const p = t.plan;
+    const oldLabel = esc(p.old.label), curLabel = esc(p.cur.label);
+    $("blClSub").innerHTML = `Switching to <b>${curLabel}</b> wrote nothing, so what <b>${oldLabel}</b> had created is still here: <b>${p.aus.length}</b> restricted unit${p.aus.length === 1 ? "" : "s"}, <b>${p.groups.length}</b> group${p.groups.length === 1 ? "" : "s"}, <b>${p.policies.length}</b> polic${p.policies.length === 1 ? "y" : "ies"} that match ${oldLabel} and not ${curLabel}. <b>${p.safe} of ${p.total}</b> have stopped doing anything and can be deleted here; the rest say why not. Units go first, then groups, then policies.`;
+    if (!p.total) {
+      $("blClBody").innerHTML = `<p class="mini" style="padding:16px">Nothing of ${oldLabel} is left in this tenant — no group its templates name or its rule places, none of its persona units, no policy that matches only its catalog. (${p.scannedGroups} groups and ${p.scannedAus} administrative units were read.)</p>`;
+      $("blClGo").disabled = true;
+      return;
+    }
+    const safe = t.rows.filter((r) => r.safe);
+    const allOn = safe.length > 0 && safe.every((r) => r.checked);
+    const ticked = t.rows.filter((r) => r.checked).length;
+    const section = (title, rows, cols) => rows.length ? `<h4 class="mini" style="margin:12px 0 6px">${title} (${rows.length})</h4>
+      <div class="gu-tw"><table class="plist"><thead><tr><th></th>${cols.map((c) => `<th>${c}</th>`).join("")}<th>Verdict</th></tr></thead><tbody>${rows.map((r) => {
+        const i = t.rows.indexOf(r);
+        const res = t.results && t.results.find((x) => x.id === r.id);
+        const verdict = res ? (res.ok ? '<span class="tag ok">deleted</span>' : `<span class="tag block">failed</span> <span class="mini">${esc(res.error)}</span>`)
+          : r.safe ? '<span class="tag ok">safe to delete</span>' : `<span class="tag block">keep</span><div class="mini">${r.why.map(esc).join("<br>")}</div>`;
+        return `<tr><td><input type="checkbox" data-blcl="${i}" ${r.checked ? "checked" : ""} ${r.safe && !res ? "" : "disabled"}></td>${cellsFor(r)}<td class="mini">${verdict}</td></tr>`;
+      }).join("")}</tbody></table></div>` : "";
+    const cellsFor = (r) => r.kind === "au"
+      ? `<td><b>${esc(r.name)}</b><div class="mini muted">${r.restricted ? "restricted" : "NOT restricted"}</div></td><td class="mini">${r.memberCount} member${r.memberCount === 1 ? "" : "s"}${r.foreign ? ` · ${r.foreign} not ${oldLabel}` : ""}${r.guarding ? ` · ${r.guarding} still in use` : ""}</td><td class="mini">${r.scopedAdmins == null ? "—" : r.scopedAdmins}</td>`
+      : r.kind === "group"
+      ? `<td><b>${esc(r.name)}</b>${r.roleAssignable ? ' <span class="tag block">role-assignable</span>' : ""}${r.dynamic ? ' <span class="tag">dynamic</span>' : ""}</td><td class="mini">${r.members == null ? "—" : r.members}</td><td class="mini">${r.refs.length ? `<span style="color:var(--off)">${r.refs.length}</span> · ${esc(r.refs.slice(0, 2).map((x) => x.name).join(", "))}${r.refs.length > 2 ? " …" : ""}` : '<span class="muted">none</span>'}</td><td class="mini">${r.inAu ? esc(r.inAu.auName) : '<span class="muted">—</span>'}</td>`
+      : `<td><b>${esc(r.name)}</b></td><td class="mini">${esc(r.state)}</td>`;
+    $("blClBody").innerHTML = `<div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 4px;flex-wrap:wrap">
+        <button class="btn sm" id="blClAll" ${safe.length && !t.results ? "" : "disabled"}>${allOn ? "☐ Deselect all" : `☑ Select all ${safe.length} safe`}</button>
+        <span class="mini muted"><b>${ticked}</b> of ${p.total} ticked · ${p.total - safe.length} refused and not tickable</span>
+      </div>
+      ${section("🛡 Restricted units", p.aus.map((r) => t.rows.find((x) => x.id === r.id)), ["Unit", "Members", "Scoped admins"])}
+      ${section("👥 Groups", p.groups.map((r) => t.rows.find((x) => x.id === r.id)), ["Group", "Members", "Referenced by", "In unit"])}
+      ${section("📋 Policies", p.policies.map((r) => t.rows.find((x) => x.id === r.id)), ["Policy", "State"])}
+      <p class="mini muted" style="margin-top:10px">A refused row is not a suggestion to tick it anyway: a referenced group is a policy that would point at nothing, a guarding unit is a vault that would open, a policy that is On is a control that is still enforcing. Each says which tool deals with it. Nothing is written until DELETE is typed.</p>`;
+    blClSyncGo();
+  }
+  function blClSyncGo() {
+    const typed = ($("blClOk").value || "").trim().toUpperCase() === "DELETE";
+    $("blClGo").disabled = !typed || !blCl || blCl.busy || !blCl.rows.some((r) => r.checked && r.safe);
+  }
+  $("blClBody").addEventListener("change", (e) => {
+    const cb = e.target.closest("[data-blcl]"); if (!cb || !blCl) return;
+    const r = blCl.rows[+cb.dataset.blcl]; if (!r || !r.safe) { cb.checked = false; return; }
+    r.checked = cb.checked; blClSyncGo();
+    const n = blCl.rows.filter((x) => x.checked).length;
+    const bar = $("blClBody").querySelector(".mini.muted b"); if (bar) bar.textContent = n;
+  });
+  $("blClBody").addEventListener("click", (e) => {
+    if (e.target.id !== "blClAll" || !blCl) return;
+    const safe = blCl.rows.filter((r) => r.safe);
+    const allOn = safe.length > 0 && safe.every((r) => r.checked);
+    safe.forEach((r) => { r.checked = !allOn; });
+    renderBlCleanup();
+  });
+  $("blClOk").addEventListener("input", blClSyncGo);
+  $("blClCancel").addEventListener("click", () => $("blClModal").classList.remove("open"));
+  $("blClMd").addEventListener("click", () => {
+    if (!blCl || !blCl.plan) return;
+    showReport("🧹 Baseline leftovers", "CA-Baseline-Leftovers", BaselineCleanup.toMd(blCl.plan, blCl.results, { tenant: tenantName, build: APP_BUILD.label }));
+  });
+  $("blClGo").addEventListener("click", async () => {
+    const t = blCl; if (!t || t.busy) return;
+    const picked = BaselineCleanup.runOrder(t.rows.filter((r) => r.checked && r.safe));
+    if (!picked.length) return;
+    const kinds = [...new Set(picked.map((r) => r.kind))];
+    const scopes = [...new Set([...AUTH_CONFIG.scopes, ...kinds.flatMap((k) => BL_CL_SCOPES[k])])];
+    if (!await preConsent(scopes)) return;
+    t.busy = true; $("blClGo").disabled = true;
+    const results = [];
+    for (let i = 0; i < picked.length; i++) {
+      const r = picked[i];
+      toast(`Deleting ${i + 1}/${picked.length}: <span>${esc(r.name)}</span>`);
+      try {
+        if (!isDemo) {
+          if (r.kind === "au") await Graph.gdelete(`/administrativeUnits/${r.id}`, scopes);
+          else if (r.kind === "group") await Graph.gdelete(`/groups/${r.id}`, scopes);
+          else await Graph.gdelete(`/identity/conditionalAccess/policies/${r.id}`, scopes);
+        }
+        results.push({ id: r.id, kind: r.kind, name: r.name, ok: true });
+      } catch (err) {
+        results.push({ id: r.id, kind: r.kind, name: r.name, ok: false, error: err.message || String(err) });
+      }
+    }
+    t.results = results; t.busy = false;
+    t.rows.forEach((r) => { r.checked = false; });
+    $("blClOk").value = "";
+    const okN = results.filter((r) => r.ok).length;
+    toast(`${okN}/${results.length} deleted${isDemo ? " (simulated)" : ""}${okN < results.length ? " — see the rows for what failed" : ""}`);
+    renderBlCleanup();
+    showReport("🧹 Baseline leftovers — change report", "CA-Baseline-Leftovers", BaselineCleanup.toMd(t.plan, results, { tenant: tenantName, build: APP_BUILD.label }));
+    // the policies list and the group scans are stale now
+    if (okN && !isDemo) { cgRes = null; try { await loadFromGraph(true); openBaseline(blCat, true); } catch (err) { console.warn("reload after leftovers:", err); } }
+  });
+
   // The facts the dry run needs, read once per preview: every group in
   // BOTH baselines' families (so the routing diff can name what stops and
   // what starts being routed), every administrative unit, and both R28

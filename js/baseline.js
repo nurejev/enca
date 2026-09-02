@@ -435,7 +435,8 @@ const Baseline = (() => {
       <span class="mini">${on
         ? `<b>★ Active baseline.</b> 👥 Conditional Access groups (① Check, ② Create), 🔒 Protect exclusions, 🛡 Restricted AUs (persona vaults, ＋ Bulk add, persona chips), the exclusion-restore action and 📖 Baseline guide all work against <b>${esc(cat.label)}</b> for this tenant.`
         : `Not the active baseline — the group checks, group creation, persona vaults and the exclusion-restore action currently work against <b>${esc(active().label)}</b>.`}</span>
-      ${on ? "" : `<button class="btn sm" data-bl-activate="${esc(cat.id)}">🔍 Preview switching to ${esc(cat.label)}</button>`}
+      ${on ? "" : `<button class="btn sm" data-bl-activate="${esc(cat.id)}">🔍 Preview switching to ${esc(cat.label)}</button>
+      <button class="btn sm" data-bl-cleanup="${esc(cat.id)}" title="Switching writes nothing, so whatever this baseline created is still in the tenant. Read it, and delete only what has stopped doing anything.">🧹 What ${esc(cat.label)} left behind</button>`}
     </div>`;
   }
 

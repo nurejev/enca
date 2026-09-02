@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25246, date: "2026-09-02", title: "What the previous baseline left behind — a cleanup that deletes only what has stopped doing anything",
+    items: [
+      { kind: "new", tool: "Baseline Policies", text: "🧹 What <baseline> left behind. Switching the active baseline writes nothing, so the old baseline's exclusion groups, persona units and numbered policies were all still in the tenant afterwards, and nothing said so. The non-active catalog's card now has a second button that reads them — its groups by exact template name or exclusion-group shape, its persona units by name, its policies by the comparison matcher (a policy whose CA number both catalogs share counts as the old baseline's only when its name is closer to that catalog) — and lists them in three sections with a verdict each." },
+      { kind: "new", tool: "Baseline Policies", text: "The verdicts. A GROUP is safe to delete only when no policy of any kind references it, it has no members and it does not sit in a restricted unit that stays. A UNIT is safe only when every member is an old-baseline group that is itself safe — a unit still protecting a group in use would open a vault the moment it went. A POLICY is safe only when it is Off. Everything else is listed with the reason and cannot be ticked, not even deliberately: a referenced group is a policy that would point at nothing, and that is not a judgement call. Break-glass groups are never offered, whatever their state. Deletion runs behind a typed DELETE, units first, then groups, then policies, asks for the permissions the ticked kinds need on the click, writes a change report and re-reads the tenant." },
+    ],
+  },
+  {
     build: 25245, date: "2026-09-02", title: "Switching the active baseline shows a dry run first",
     items: [
       { kind: "improved", tool: "Baseline Policies", text: "The ★ button no longer switches on the click. It now reads this tenant's groups (both baselines' families) and administrative units and shows a DRY RUN of the switch: how many groups ① Check and ② Create would expect and how many of them exist, which persona vaults 🛡 Restricted AUs would expect and which are present or name-clashed, which groups would stop being routed (become unmapped), start being routed or change vault under ⑥ Protect and ＋ Bulk add — with names — and the conventions that move: the exclusion-group shape, the break-glass group, the fallback unit, the R28 mapping drawer. The ★ Switch button sits under that card, next to Keep. Neither step writes to the tenant, and the card says so in its first line." },
