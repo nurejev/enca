@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25251, date: "2026-09-02", title: "Teams devices: the people with a device licence are a list, not a line",
+    items: [
+      { kind: "improved", tool: "Teams devices", text: "The accounts the rule keeps out because they hold a device licence AND a user suite are now a table under the rule — account, UPN, every licence on the account with the device SKU marked, enabled or disabled — up to 100 rows, and the same table in the Markdown export. Before, they were a run-on line of four names that wrapped mid-address. Each row is a decision: move the Rooms or Shared Space licence to the device's own account, or accept that the device signs in as that person and gets that person's MFA." },
+    ],
+  },
+  {
     build: 25250, date: "2026-09-02", title: "Teams devices: a person with a device licence is still a person",
     items: [
       { kind: "improved", tool: "Teams devices", text: "The recommended rule gets a second half. A device match alone was not enough: a DECT handset or a Shared Space licence assigned to somebody's own account matches every device plan and would have put that person in the exclusion group, out of MFA. The rule now also requires that the account holds NONE of the plans that mark a user suite — E1/E3/E5, F1/F3, A3/A5, Business — using Microsoft's -all / -ne shape with the plan's status, so a licence removed last week does not keep a device out. The markers come from the tenant's own SKUs (the smallest set of plans that covers every user suite it owns, none of which any device SKU carries), with the SharePoint plans as the static fallback. The preview applies the same NOT, the people it keeps out are counted and named under the rule (a device licence on a person's account is a licensing problem to fix, not a device), and a group whose rule lacks the NOT half reads as update the rule and says which marker is missing. The bundled template rule carries the NOT half too." },

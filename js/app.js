@@ -16948,6 +16948,7 @@ max@contoso.com,"Global, DevOps"</pre>
   const TD_GROUP_PAGES = 20;   // ~20k dynamic groups
   const TD_WRITE = ["Group.ReadWrite.All"];
   const TD_SAMPLE = 25;
+  const TD_PEOPLE = 100;   // people with a device licence on their own account — a list to act on, so wider than the sample
 
   const tdPrefixes = () => String($("tdPrefix").value || "").split(/[,\s;]+/).map((s) => s.trim()).filter(Boolean);
 
@@ -16992,8 +16993,9 @@ max@contoso.com,"Global, DevOps"</pre>
         { id: "r3", name: "AA Main reception", upn: "aa-reception@contoso.com", enabled: false },
       ] },
       people: { count: 22, capped: false, sample: [
-        { id: "p1", name: "Eva Employee", upn: "eva@contoso.com", enabled: true },
-        { id: "p2", name: "Milan Medewerker", upn: "milan@contoso.com", enabled: true },
+        { id: "p1", name: "Eva Employee", upn: "eva@contoso.com", enabled: true, skus: ["sku-e5", "sku-cap"] },
+        { id: "p2", name: "Milan Medewerker", upn: "milan@contoso.com", enabled: true, skus: ["sku-f3", "sku-cap", "sku-phone"] },
+        { id: "p3", name: "Jos Janssen DECT", upn: "jos.janssen@contoso.com", enabled: false, skus: ["sku-e5", "sku-mtr"] },
       ] },
     };
   }
@@ -17074,20 +17076,21 @@ max@contoso.com,"Global, DevOps"</pre>
         // Preview: how many accounts the recommended rule matches today, and
         // a sample of them. A refused query is a null preview, not zero.
         if (first.planIds.length || first.prefixes.length) {
-          const q = async (f) => {
-            const j = await Graph.gget(`/users?$count=true&$top=${TD_SAMPLE}&$select=id,displayName,userPrincipalName,accountEnabled&$orderby=displayName&$filter=${encodeURIComponent(f)}`);
+          const q = async (f, top) => {
+            const j = await Graph.gget(`/users?$count=true&$top=${top}&$select=id,displayName,userPrincipalName,accountEnabled,assignedLicenses&$orderby=displayName&$filter=${encodeURIComponent(f)}`);
             const c = j["@odata.count"];
             return { count: typeof c === "number" ? c : null, capped: !!j["@odata.nextLink"],
-              sample: (j.value || []).map((u) => ({ id: u.id, name: u.displayName, upn: u.userPrincipalName, enabled: u.accountEnabled !== false })) };
+              sample: (j.value || []).map((u) => ({ id: u.id, name: u.displayName, upn: u.userPrincipalName, enabled: u.accountEnabled !== false,
+                skus: (u.assignedLicenses || []).map((l) => l.skuId) })) };
           };
           txt("🔎 Previewing the recommended rule…");
-          try { ctx.preview = await q(tdPreviewFilter(first.planIds, first.prefixes, first.markers, false)); }
+          try { ctx.preview = await q(tdPreviewFilter(first.planIds, first.prefixes, first.markers, false), TD_SAMPLE); }
           catch (e) { console.warn("Teams devices: preview refused —", e.message); ctx.preview = null; }
           // The accounts the NOT half keeps out: a device licence on a
           // person's own account. Counted and named so the licensing
           // problem is visible — the rule cannot fix it, only avoid it.
           txt("🧑 People holding a device licence…");
-          try { ctx.people = await q(tdPreviewFilter(first.planIds, first.prefixes, first.markers, true)); }
+          try { ctx.people = await q(tdPreviewFilter(first.planIds, first.prefixes, first.markers, true), TD_PEOPLE); }
           catch (e) { console.warn("Teams devices: people query refused —", e.message); ctx.people = null; }
         }
       }
@@ -17114,6 +17117,20 @@ max@contoso.com,"Global, DevOps"</pre>
   const tdChip = (k) => `<span class="tag ${TD_VERDICT[k].cls}">${TD_VERDICT[k].icon} ${TD_VERDICT[k].word}</span>`;
   const tdPlanName = (id) => (TeamsDev.CATALOG[id] || {}).name || ((tdRes && tdRes.devicePlans.find((p) => p.id === id)) || {}).name || id;
   const tdPlanLabel = (id) => (TeamsDev.CATALOG[id] || {}).label || "unique to a device SKU in this tenant";
+
+  // The licences on one account as chips: device SKUs bold, user suites
+  // plain, anything else muted — so a row says at a glance WHY it is a
+  // person with a device licence.
+  function tdSkuChips(skuIds) {
+    if (!tdRes || !(skuIds || []).length) return '<span class="muted">—</span>';
+    return skuIds.map((id) => {
+      const row = tdRes.skuRows.find((x) => x.skuId === id);
+      const part = row ? row.part : id;
+      const dev = row && (row.kind === "rooms" || row.kind === "shared" || row.kind === "resourceAccount");
+      const suite = row && row.suite;
+      return dev ? `<code title="device licence">${esc(part)}</code>` : suite ? `<span class="tag" title="user suite">${esc(part)}</span>` : `<span class="muted" title="other licence">${esc(part)}</span>`;
+    }).join(" ");
+  }
 
   function renderTeamsDev() {
     $("tdHead").innerHTML = `<h3>📞 Teams devices <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
@@ -17188,7 +17205,18 @@ max@contoso.com,"Global, DevOps"</pre>
       ${r.preview ? `<p class="mini" style="margin:0 0 4px">🔎 Matches <b>${cnt(r.preview.count)}</b> account${r.preview.count === 1 ? "" : "s"} in this tenant today${r.preview.sample.length ? ` — first ${r.preview.sample.length}${r.preview.capped ? " by name" : ""}:` : "."}</p>
         ${r.preview.sample.length ? `<p class="mini muted" style="margin:0 0 8px">${r.preview.sample.map((u) => `${esc(u.name || u.upn)}${u.enabled ? "" : ' <span style="color:var(--off)">(disabled)</span>'}`).join(" · ")}</p>` : ""}`
         : `<p class="mini muted" style="margin:0 0 8px">The match count could not be previewed (the directory refused the plan filter) — the rule is still valid; Entra evaluates it after the write.</p>`}
-      ${r.people ? (r.people.count ? `<p class="mini" style="margin:0 0 8px"><span class="tag new">⚠ ${cnt(r.people.count)} ${r.people.count === 1 ? "person holds" : "people hold"} a device licence on their own account</span> ${r.people.count === 1 ? "That account matches" : "Those accounts match"} a device plan AND a user suite — the rule keeps them <b>out</b> of the group (they keep MFA), but a Rooms or Shared Space licence belongs on a device account, not on a person. ${r.people.sample.length ? `First ${r.people.sample.length}: ${r.people.sample.map((u) => `${esc(u.name || u.upn)} <span class="muted">${esc(u.upn || "")}</span>`).join(" · ")}` : ""}</p>` : `<p class="mini muted" style="margin:0 0 8px">✅ No account holds both a device licence and a user suite.</p>`) : ""}
+      ${r.people ? (r.people.count ? `<div style="margin:0 0 10px">
+        <p class="mini" style="margin:0 0 6px"><span class="tag new">⚠ ${cnt(r.people.count)} ${r.people.count === 1 ? "person holds" : "people hold"} a device licence on their own account</span> ${r.people.count === 1 ? "This account matches" : "These accounts match"} a device plan AND a user suite. The rule keeps them <b>out</b> of the group, so they keep MFA — but a Rooms or Shared Space licence belongs on a device account, not on a person: move the licence to the device's own account, or accept that this device signs in as a user.</p>
+        ${r.people.sample.length ? `<div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
+          <thead><tr style="text-align:left"><th style="padding:4px 8px">Account</th><th style="padding:4px 8px">UPN</th><th style="padding:4px 8px" title="The licences on this account, from assignedLicenses — device SKUs in bold">Licences</th><th style="padding:4px 8px">State</th></tr></thead>
+          <tbody>${r.people.sample.map((u) => `<tr style="border-top:1px solid var(--line)">
+            <td style="padding:4px 8px"><b>${esc(u.name || "")}</b></td>
+            <td style="padding:4px 8px"><span class="muted">${esc(u.upn || "")}</span></td>
+            <td style="padding:4px 8px">${tdSkuChips(u.skus)}</td>
+            <td style="padding:4px 8px">${u.enabled ? "enabled" : '<span style="color:var(--off)">disabled</span>'}</td>
+          </tr>`).join("")}</tbody></table></div>
+          ${r.people.capped ? `<p class="mini muted" style="margin:6px 0 0">First ${r.people.sample.length} of ${cnt(r.people.count)} by name — the full list is the same filter in the portal (device plan AND suite plan).</p>` : ""}` : ""}
+      </div>` : `<p class="mini muted" style="margin:0 0 8px">✅ No account holds both a device licence and a user suite.</p>`) : ""}
       ${r.notIsolatable.length ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">⚠ ${r.notIsolatable.map((x) => `<b>${esc(x.part)}</b> (${cnt(x.consumed)} assigned)`).join(", ")} cannot be caught by any service plan in this tenant. Type the UPN prefix those accounts share in the box above and rescan, or keep them in an assigned group that the same policies also exclude.</p>` : ""}
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         ${t && t.verdict !== "current" ? `<button class="btn primary" data-tdwrite="${esc(t.id)}">✏️ Replace the rule on ${esc(t.name)}</button>` : ""}

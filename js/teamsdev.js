@@ -377,7 +377,10 @@ const TeamsDev = (() => {
       "", "User-suite markers (the account must hold NONE of them — a person with a device licence stays out):", "",
       ...res.markerInfo.map((m) => `- \`${m.id}\` ${m.name} — ${m.label}`),
       s.previewCount != null ? `\nThe rule matches **${s.previewCount.toLocaleString()}** account${s.previewCount === 1 ? "" : "s"} in this tenant today.` : "",
-      s.peopleCount != null ? `\n**${s.peopleCount.toLocaleString()}** account${s.peopleCount === 1 ? "" : "s"} hold a device licence AND a user suite — people with a device licence on their own account. The rule keeps them out of the group; the licence belongs on a device account.${res.people && res.people.sample.length ? " First: " + res.people.sample.map((u) => u.upn || u.name).join(", ") : ""}` : "",
+      ...(s.peopleCount != null ? [`\n**${s.peopleCount.toLocaleString()}** account${s.peopleCount === 1 ? "" : "s"} hold a device licence AND a user suite — people with a device licence on their own account. The rule keeps them out of the group; the licence belongs on a device account.`, "",
+        ...(res.people && res.people.sample.length ? ["| Account | UPN | Licences | State |", "|---|---|---|---|",
+          ...res.people.sample.map((u) => `| ${u.name || ""} | ${u.upn || ""} | ${(u.skus || []).map((id) => { const r = res.skuRows.find((x) => x.skuId === id); return r ? r.part : id; }).join(", ")} | ${u.enabled ? "enabled" : "disabled"} |`),
+          ...(res.people.capped ? [`\nFirst ${res.people.sample.length} of ${s.peopleCount.toLocaleString()}.`] : [])] : [])] : []),
       "", "## Groups", ""];
     if (!res.groups.length) L.push("No group in this tenant looks like the Teams shared-device group.");
     for (const g of res.groups) {
