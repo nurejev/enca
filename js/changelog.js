@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25254, date: "2026-09-02", title: "Teams devices: a tile-length description",
+    items: [
+      { kind: "fixed", tool: "Teams devices", text: "The home tile carried the whole design note — twice the height of every tile beside it. It now asks the one question the tool answers (is the shared-device exclusion group catching every Teams Room, Shared Space phone and Phone resource account, and nobody else?) and says what it does about it; the detail lives in Help and the changelog." },
+    ],
+  },
+  {
     build: 25253, date: "2026-09-02", title: "The baseline card says what its numbers mean",
     items: [
       { kind: "improved", tool: "Baseline Policies", text: "The summary reads its own numbers out, for THIS tenant: how many of the catalog's own policies are here (and, apart from that, how many of the E-Admins every baseline expects), what missing means, that a NUMBER CLASH is a CA number taken by a different policy — naming whose, by its naming — which counts as absent and is deployed alongside rather than replaced, and that NOT IN BASELINE is the tenant's numbered policies this catalog does not define, with a note that they are the other baseline's and nothing is wrong with them. Every count chip carries the same meaning as a tooltip, and the right-hand column splits the import count into missing, outdated and beside-a-clash." },
