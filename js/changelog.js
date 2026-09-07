@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25255, date: "2026-09-07", title: "R36 and Teams devices are in production",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Promotion-queue items 122 to 127 have gone to production as build 306: the Deploy to Azure branding descriptions, R36 and R36.1 (the Joey Verlinden baseline as a first-class baseline read live, the active baseline per tenant chosen by match, shared E-Admins, import from the repository and the switch-baseline mode), the baseline-leftovers cleanup, the three text boxes with the app's input class, and Teams devices (T35, still BETA there too). The queue is back to the two items that belong to beta-only tools - the CIS Help section and the Baseline usage guide - and productionBuild moves to v1.0.306." },
+      { kind: "fixed", tool: "Roadmap", text: "R36's card on this channel now says live · beta 25253 · production 306, the step of a promotion that each channel's own copy of the page makes easy to miss. Without it the card keeps claiming the work is beta-only while the queue, correctly, shows no gap." },
+    ],
+  },
+  {
     build: 25254, date: "2026-09-02", title: "Teams devices: a tile-length description",
     items: [
       { kind: "fixed", tool: "Teams devices", text: "The home tile carried the whole design note — twice the height of every tile beside it. It now asks the one question the tool answers (is the shared-device exclusion group catching every Teams Room, Shared Space phone and Phone resource account, and nobody else?) and says what it does about it; the detail lives in Help and the changelog." },
