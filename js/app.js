@@ -103,7 +103,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -1468,6 +1468,7 @@
       // and nowhere else: keyed on the tenant id rather than the name, because
       // two customers can share a display name and a mapping landing in the
       // wrong tenant would file groups into the wrong vaults.
+      try { Baseline.use(account?.tenantId || tenantName); } catch (e) { console.warn("active baseline:", e); }
       try { CaMap.use(account?.tenantId || tenantName); } catch (e) { console.warn("group mapping:", e); }
       // Audience branding by who signed in: an account whose UPN matches a
       // BRAND_OVERRIDES entry gets that look even without the front door.
@@ -1484,6 +1485,13 @@
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
+      // R36.1 — with no saved choice, the baseline this tenant matches best
+      // is the active one for the session (the card says so, and why).
+      try { blAutoPick(); } catch (e) { console.warn("baseline match:", e); }
+      // R36 — a tenant on Joey's baseline gets his repository read once per
+      // session, so the group checks work against the current release
+      // rather than the snapshot; the tool says which it used.
+      try { if (Baseline.activeCatalogId() === "joey") blLiveEnsure(); } catch {}
       $("tenantName").textContent = tenantName;
       // Baseline tenants (see BASELINE_TENANTS) get extended behaviour — say so
       // where the tenant identity lives, instead of it being a hidden mode.
@@ -1525,10 +1533,12 @@
     isDemo = true; anReport = null; anCov = null;
     // The demo gets its own drawer for the group → persona mapping, so playing
     // with it here can never land in a real tenant's saved state.
+    try { Baseline.use("demo"); } catch {}
     try { CaMap.use("demo"); } catch { /* storage refused; in-memory is fine */ }
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
     const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
     policies = DEMO_DATA.policies.map((r, i) => buildViewModel(r, resolve, i));
+    try { blAutoPick(); } catch (e) { console.warn("baseline match:", e); }
     policiesReadAt = Date.now();
     $("tenantName").textContent = tenantName;
     $("tenantUser").textContent = "demo@contoso.onmicrosoft.com";
@@ -1795,6 +1805,7 @@
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolDevCheck", "🖥 Device reality check"],
     ["toolLicGap", "🎫 Licence gap"],
+    ["toolTeamsDev", "📞 Teams devices"],
     ["toolBaseline", "🧬 Baseline Policies"],
     ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
     ["toolMsLearn", "📘 MS Learn checks"],
@@ -2202,7 +2213,7 @@
   const imWidBlocked = (p) => p.wid && imLic.known && !imLic.licensed;
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
-    imBundle = null; imPlan = null; imAu = null; imRa = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
+    imBundle = null; imPlan = null; imAu = null; imRa = null; imSwitch = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -2214,8 +2225,36 @@
   const IM_PERSONA_LABEL = {
     global: "🌐 Global", admins: "🛡 Admins", internals: "👤 Internals", externals: "🤝 Externals",
     guestusers: "👥 Guest users", g_admins: "🔑 Guest admins", serviceaccounts: "⚙ Service accounts",
-    devops: "🧰 DevOps", factoryworkers: "🏭 Factory workers",
+    devops: "🧰 DevOps", factoryworkers: "🏭 Factory workers", agents: "🤖 Agents",
   };
+  // 🔀 switch baseline — which catalog the file belongs to, which one it
+  // replaces, and the group-for-group plan between them (pure; read once per
+  // loaded file). Null when the file matches no catalog or there is no other.
+  let imSwitch = null;   // { to, from, pairs:[{to,from,kind,…}] }
+  function imSwitchPlan(bundle) {
+    try {
+      const toId = Importer.catalogOfBundle(bundle);
+      if (!toId) return null;
+      const to = Baseline.withContract(Baseline.catalog(toId));
+      const from = Baseline.catalogs().map((c) => Baseline.withContract(c)).find((c) => c.id !== toId);
+      if (!to || !from) return null;
+      const pairs = Importer.counterpartPlan(bundle, to, from);
+      return pairs.length ? { to, from, pairs } : null;
+    } catch (e) { console.warn("switch plan:", e); return null; }
+  }
+  // Does this tenant look deployed on the OTHER baseline's groups? Read from
+  // the policies already in memory, so it costs nothing: any policy that
+  // excludes a group shaped like that baseline's exclusion group, or its
+  // break-glass group, is the tell.
+  function imLooksSwitch(sw) {
+    if (!sw) return false;
+    const bg = String(sw.from.breakGlassGroup || "").toLowerCase();
+    for (const p of policies) {
+      const names = [...((p.users && p.users.exc) || []), ...((p.users && p.users.inc) || [])].map((x) => String(x).replace(/\s*\(group\)$/, ""));
+      if (names.some((n) => sw.from.isExclusionGroup(n) || (bg && n.toLowerCase() === bg))) return true;
+    }
+    return false;
+  }
   const imPersonaKey = (p) => p.asIs ? "eadmins" : (p.persona || "other");
   const imPersonaLabel = (k) => k === "eadmins" ? "🚨 E-Admins" : (IM_PERSONA_LABEL[k] || "Other");
 
@@ -2572,13 +2611,18 @@
     </div>`;
   }
 
-  async function imLoaded(bundle, fileName) {
+  // opts.mode — the assignment mode to start on; opts.only — a Set of policy
+  // names to leave ticked (the gap the Baseline tool handed over), the rest
+  // unticked but still listed.
+  async function imLoaded(bundle, fileName, opts = {}) {
     imBundle = bundle; imFileName = fileName;
     // pass the tenant's raw policies (not just names) so "match & replace" can
     // read the current assignment and id of a policy it supersedes
     imPlan = Importer.plan(bundle, policies.map(p => p.raw));
+    imSwitch = imSwitchPlan(bundle);
+    imMode = opts.mode || (imSwitch && imLooksSwitch(imSwitch) ? "switch" : "deploy");
     const dep = ["groups", "namedLocations", "authStrengths", "authContexts", "termsOfUse"].map(k => `${bundle[k].length} ${k}`).join(", ");
-    $("imDesc").textContent = `${fileName}: ${bundle.policies.length} policies, dependencies: ${dep}.`;
+    $("imDesc").textContent = `${fileName}: ${bundle.policies.length} policies, dependencies: ${dep}.${bundle.depSkipped && bundle.depSkipped.length ? ` ${bundle.depSkipped.length} dependency file(s) could not be read.` : ""}`;
     // Only worth a Graph call when the file actually contains one.
     imLic = imPlan.some(p => p.wid)
       ? (isDemo ? { known: true, licensed: false, sku: null } : await Importer.workloadIdLicence())
@@ -2586,6 +2630,13 @@
     await imLoadAu();
     await imLoadRoleAssignable();
     imRenderList();
+    if (opts.only) {
+      imPlan.forEach((p, i) => {
+        const cb = document.querySelector(`[data-imp="${i}"]`);
+        if (cb && !cb.disabled) cb.checked = opts.only.has(p.name);
+      });
+      updateImGo();
+    }
     $("imPick").style.display = "none";
   }
 
@@ -2594,8 +2645,9 @@
   function imRenderList() {
     const importable = imPlan.filter(p => !p.exists && !imWidBlocked(p));
     const nUpg = imPlan.filter(p => p.upgrade).length;
-    const replace = imMode === "replace";
+    const replace = imMode === "replace", switching = imMode === "switch";
     const nWid = imPlan.filter(p => p.wid && !p.exists).length;
+    const sw = imSwitch;
 
     // Persona filter: how many importable policies each persona has, so you can
     // bring in just one persona's set from a whole-tenant backup.
@@ -2608,12 +2660,22 @@
     const rowHint = (p) => {
       if (p.exists) return esc(p.reason);
       if (imWidBlocked(p)) return `<span style="color:var(--off)">workload identity — this tenant has no Microsoft Entra Workload ID licence, so Graph will not create it</span>`;
+      if (switching && !p.asIs) {
+        const mine = sw ? sw.pairs.filter((x) => x.policy === p.name || x.kind !== "exclusion") : [];
+        const ex = mine.find((x) => x.kind === "exclusion");
+        return `🔀 assignment as shipped, on ${esc(sw ? sw.to.label : "the baseline")}'s groups${ex ? ` · <span style="color:var(--muted)">${esc(ex.to)} ← members of ${esc(ex.from)}</span>` : ""}${p.upgrade ? ` · supersedes ${esc(p.existing.label)}, switched Off` : ""}`;
+      }
       if (p.upgrade) return replace
-        ? `♻️ replaces the current v${esc(p.existing.ver)} — assignment + state kept (new exclusions merged), old policy switched Off`
-        : `→ ${esc(p.personaGroup || "")} · <span style="color:var(--muted)">current v${esc(p.existing.ver)} stays as-is</span>`;
+        ? `♻️ replaces the current ${esc(p.existing.label)} — assignment + state kept (new exclusions merged), old policy switched Off`
+        : `→ ${esc(p.personaGroup || "")} · <span style="color:var(--muted)">current ${esc(p.existing.label)} stays as-is</span>`;
       if (p.personaGroup) return `→ ${esc(p.personaGroup)}`;
       return esc(p.reason || "");
     };
+    const swOpt = sw
+      ? `<label class="im-mode-opt${switching ? " on" : ""}"><input type="radio" name="imMode" value="switch" ${switching ? "checked" : ""}>
+          <b>🔀 Switch baseline</b><span class="mini">${esc(sw.from.label)} → ${esc(sw.to.label)}: policies land with ${esc(sw.to.label)}'s own groups (created here), the members of the ${esc(sw.from.label)} counterparts are <b>copied</b> across — ${sw.pairs.length} group${sw.pairs.length === 1 ? "" : "s"}: ${esc(sw.pairs.slice(0, 2).map((x) => `${x.from} → ${x.to}`).join("; "))}${sw.pairs.length > 2 ? "; …" : ""} — and a superseded policy is switched Off. The old groups stay as the rollback and show in 🧹 What ${esc(sw.from.label)} left behind.</span></label>`
+      : `<label class="im-mode-opt" style="opacity:.6"><input type="radio" name="imMode" value="switch" disabled>
+          <b>🔀 Switch baseline</b><span class="mini">Not available for this file: it matches no other baseline's group naming, so there is nothing to carry members from.</span></label>`;
 
     $("imBody").innerHTML = `
       ${imRaPanel()}
@@ -2624,6 +2686,7 @@
           <b>🚀 Deployment groups</b><span class="mini">Includes remapped to the deploy persona group (CAD-SEC-U-DG-*) — staged, nothing existing is touched.</span></label>
         <label class="im-mode-opt${replace ? " on" : ""}"><input type="radio" name="imMode" value="replace" ${replace ? "checked" : ""}>
           <b>♻️ Match &amp; replace</b><span class="mini">A policy already in this tenant keeps its current assignment and state (plus any new exclusion groups this version adds); its old version is switched Off.${nUpg ? ` ${nUpg} match${nUpg === 1 ? "es" : "es"} here.` : " No matches in this file."}</span></label>
+        ${swOpt}
       </div>
       ${nWid && imLic.known && !imLic.licensed ? `<div class="danger-note" style="margin:10px 0">
         🔒 <b>${nWid} workload-identity ${nWid === 1 ? "policy is" : "policies are"} held back.</b> They target service principals, which needs the separately purchased
@@ -2784,6 +2847,34 @@
     imRenderList();
     toast(`${results.filter(r => r.ok).length}/${results.length} administrative unit(s) created${isDemo ? " (simulated)" : ""}`);
   }
+  // 🔀 switch baseline — carry the members of each counterpart group (the
+  // previous baseline's name for the same thing) into the group this import
+  // created or reused. A COPY, through the same helper ⑦ Migrate uses: the
+  // old group keeps its members as the rollback. Only groups the chosen
+  // policies reference (the scoped bundle) are touched; a counterpart that
+  // does not exist in the tenant is reported, not invented.
+  async function imCopyCounterparts(scoped, maps, onStatus) {
+    const out = [];
+    if (!imSwitch) return out;
+    const scopedByName = new Map(scoped.groups.map((g) => [String(g.displayName).toLowerCase(), g]));
+    for (const pair of imSwitch.pairs) {
+      const src = scopedByName.get(pair.to.toLowerCase());
+      if (!src) continue;                                   // not referenced by the chosen policies
+      const toId = maps.group[src.id];
+      if (!toId) { out.push({ ...pair, skipped: `${pair.to} was not created or found in this tenant, so there is nothing to copy into` }); continue; }
+      onStatus?.(`Reading ${pair.from}…`);
+      let fromGroup = null;
+      try { fromGroup = await Assign.findGroup(pair.from); }
+      catch (e) { out.push({ ...pair, error: `could not look up ${pair.from}: ${e.message || e}` }); continue; }
+      if (!fromGroup) { out.push({ ...pair, skipped: `${pair.from} does not exist in this tenant — nothing to copy` }); continue; }
+      if (fromGroup.id === toId) { out.push({ ...pair, skipped: "same group" }); continue; }
+      try {
+        const log = await moveGroupMembers(fromGroup.id, toId, (m) => onStatus?.(`${pair.to}: ${m}`));
+        out.push({ ...pair, moved: log.moved, total: log.total, failed: log.failed, skippedGroups: log.skippedGroups });
+      } catch (e) { out.push({ ...pair, error: e.message || String(e) }); }
+    }
+    return out;
+  }
   $("imZip").addEventListener("change", async (e) => {
     const f = e.target.files[0]; if (!f) return;
     try { await imLoaded(await Importer.readZip(f), f.name); }
@@ -2815,15 +2906,27 @@
       // Only build the dependencies the CHOSEN policies need — importing one
       // persona should not create every group in a whole-tenant backup.
       const scoped = Importer.scopeBundle(imBundle, chosen.map(p => p.raw));
-      // policies that will be replaced in place don't need a deploy group made
-      const matchedNames = imMode === "replace" ? chosen.filter(p => p.upgrade).map(p => p.name) : [];
+      // policies that will be replaced in place don't need a deploy group made;
+      // a baseline switch keeps every assignment as shipped, so none does
+      const matchedNames = imMode === "replace" ? chosen.filter(p => p.upgrade).map(p => p.name)
+        : imMode === "switch" ? chosen.map(p => p.name) : [];
+      const switching = imMode === "switch" && imSwitch;
+      if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
       if (isDemo) {
         chosen.forEach(p => { if (p.personaGroup && !matchedNames.includes(p.name)) maps.personaGroupIds[p.personaGroup] = "g-" + p.personaGroup; });
         res.results = chosen.map(p => {
           const matched = imMode === "replace" && p.upgrade;
-          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched ? null : p.personaGroup, matched, disabledOld: matched, oldName: matched ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : "disabled" };
+          const sup = (imMode === "replace" || imMode === "switch") && p.upgrade;
+          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching ? null : p.personaGroup, matched, switched: !!switching, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : "disabled" };
         });
         depLog.created = scoped.groups.map(g => "Group: " + g.displayName + " (assigned)");
+        if (switching) {
+          // the same three outcomes a real copy has, so the demo report is honest
+          const scopedNames = new Set(scoped.groups.map((g) => g.displayName.toLowerCase()));
+          depLog.copied = imSwitch.pairs.filter((x) => scopedNames.has(x.to.toLowerCase())).map((x, i) =>
+            i % 3 === 2 ? { ...x, skipped: `${x.from} does not exist in this tenant — nothing to copy` }
+            : { ...x, moved: 2 + i, total: 2 + i, failed: [], skippedGroups: [] });
+        }
         // Simulate the placement too, so the demo report shows the same three
         // outcomes as a real run rather than a tidier story than the truth.
         if (imAu && !imAu.error) {
@@ -2842,6 +2945,10 @@
       } else {
         const dep = await Importer.ensureDependencies(scoped, (m) => toast(esc(m)), { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
+        if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
+        // 🔀 the members come across BEFORE the policies land, so a policy
+        // that is switched On afterwards already excludes the right people.
+        if (switching) depLog.copied = await imCopyCounterparts(scoped, maps, (m) => toast(esc(m)));
         res = await Importer.importPolicies(chosen, maps, (m) => toast(esc(m)), { mode: imMode });
       }
       // R04: finish the job on the groups this import REUSED — but only if the
@@ -2931,9 +3038,11 @@
     // persona groups and the Emergency_Access pair — the ones a reviewer looks
     // for first — never appeared, and demo mode read as though the baseline had
     // forgotten them. Named groups first, then a spread of exclusions.
-    const all = (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []);
-    const named = all.filter((t) => !/-(Exclusion|Inclusion)$/.test(t.displayName));
-    const excl = all.filter((t) => /-(Exclusion|Inclusion)$/.test(t.displayName));
+    // R36: the active baseline's templates, so the demo follows the choice
+    const all = [...CaGroups.templateNames().values()];
+    const isExcl = (n) => /-(Exclusion|Inclusion)$/.test(n) || /\s-\sExclude$/i.test(n);
+    const named = all.filter((t) => !isExcl(t.displayName));
+    const excl = all.filter((t) => isExcl(t.displayName));
     // one exclusion per persona band (CA0xx global, CA1xx admins, CA2xx …) so the
     // demo shows the numbering scheme rather than twenty consecutive neighbours
     const band = new Set();
@@ -2954,7 +3063,7 @@
     }));
     const counts = rows.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
     const expectedTotal = rows.length;
-    return { rows, counts, expectedTotal, present: counts.present || 0,
+    return { rows, counts, expectedTotal, present: counts.present || 0, baseline: Baseline.activeCatalogId(), other: null,
       coverage: Math.round(((counts.present || 0) / expectedTotal) * 100), scanned: new Date() };
   }
 
@@ -3367,7 +3476,10 @@ max@contoso.com,"Global, DevOps"</pre>
   // AU can change members. Graph: POST /administrativeUnits with
   // isMemberManagementRestricted:true (immutable), then members/$ref.
   const RMAU_WRITE = ["AdministrativeUnit.ReadWrite.All"];
-  const RMAU_DEFAULT_NAME = "CAB-SEC-RMAU-CA-Exclusions";
+  // R36: the fallback unit's name follows the active baseline's convention.
+  // Read at use, never at load — a function, called at every site below.
+  const RMAU_DEFAULT_NAME_CF = "CAB-SEC-RMAU-CA-Exclusions";
+  const RMAU_DEFAULT_NAME = () => { try { return Baseline.active().defaultAuName || RMAU_DEFAULT_NAME_CF; } catch { return RMAU_DEFAULT_NAME_CF; } };
   const GROUPS_ADMIN_TEMPLATE = "fdd7a751-b60b-444a-984c-02652fe8fa1c"; // Groups Administrator
 
   // ---- ⑥ Protect and ⑦ Migrate: groups added by hand ----------------------
@@ -3931,7 +4043,7 @@ max@contoso.com,"Global, DevOps"</pre>
           .filter((a) => a.isMemberManagementRestricted === true).map((a) => ({ id: a.id, name: a.displayName }));
       }
       const auChoice = aus.length ? aus[0].id : "new";
-      const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME;
+      const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME();
       cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null,
         plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA }) };
     } catch (e) {
@@ -3969,7 +4081,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const sel = t.sel || new Set(p.eligible.map((x) => x.id));
     const nSel = p.eligible.filter((x) => sel.has(x.id)).length;
     const auOptions = [...t.aus.map((a) => `<option value="${esc(a.id)}"${t.auChoice === a.id ? " selected" : ""}>${esc(a.name)}</option>`),
-      `<option value="new"${t.auChoice === "new" ? " selected" : ""}>➕ Create “${esc(RMAU_DEFAULT_NAME)}”</option>`].join("");
+      `<option value="new"${t.auChoice === "new" ? " selected" : ""}>➕ Create “${esc(RMAU_DEFAULT_NAME())}”</option>`].join("");
 
     // A group somebody searched for says so, and carries its way back off the
     // list — the scan did not put it there, so the scan cannot take it away.
@@ -4065,7 +4177,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "cgMigAu") {
       cgMig.auChoice = e.target.value;
       const hit = cgMig.aus.find((a) => a.id === e.target.value);
-      cgMig.auName = hit ? hit.name : RMAU_DEFAULT_NAME;
+      cgMig.auName = hit ? hit.name : RMAU_DEFAULT_NAME();
       return;
     }
     if (e.target.id === "cgMigNest") { cgMig.nesting = e.target.checked; return; }
@@ -4164,7 +4276,7 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       if (toAu && !auId && !isDemo) {
         const au = await Graph.gpost("/administrativeUnits", {
-          displayName: RMAU_DEFAULT_NAME,
+          displayName: RMAU_DEFAULT_NAME(),
           description: "Restricted management administrative unit protecting Conditional Access exclusion groups. Membership changes require a role scoped to this administrative unit.",
           isMemberManagementRestricted: true,
         }, scopes);
@@ -4319,7 +4431,7 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
     const cands = rmauCands();
-    const st = { status: new Map(), rmaus: [], sel: new Set(), auChoice: "new", auName: RMAU_DEFAULT_NAME, admin: "", busy: false, results: null, au: null };
+    const st = { status: new Map(), rmaus: [], sel: new Set(), auChoice: "new", auName: RMAU_DEFAULT_NAME(), admin: "", busy: false, results: null, au: null };
     try {
       if (isDemo) {
         st.rmaus = [];
@@ -4415,7 +4527,7 @@ max@contoso.com,"Global, DevOps"</pre>
       // would be worse than saying nothing: it is a silent demotion.
       return { auId: null, auName: Rmau.auName(code), code, source: "missing", by };
     }
-    if (t.auChoice === "new") return { auId: null, auName: (t.auName || RMAU_DEFAULT_NAME), code: null, source: "fallbackNew" };
+    if (t.auChoice === "new") return { auId: null, auName: (t.auName || RMAU_DEFAULT_NAME()), code: null, source: "fallbackNew" };
     if (t.auChoice) {
       const hit = (t.rmaus || []).find((a) => a.id === t.auChoice);
       if (hit) return { auId: hit.id, auName: hit.name, code: null, source: "fallback" };
@@ -4641,7 +4753,7 @@ max@contoso.com,"Global, DevOps"</pre>
       let fallback = null;
       const needFallback = doable.some((x) => x.dest.source === "fallbackNew");
       if (needFallback) {
-        const name = (rmauBody().querySelector("#cgRmauName")?.value || RMAU_DEFAULT_NAME).trim() || RMAU_DEFAULT_NAME;
+        const name = (rmauBody().querySelector("#cgRmauName")?.value || RMAU_DEFAULT_NAME()).trim() || RMAU_DEFAULT_NAME();
         if (isDemo) fallback = { id: "au-demo", name, created: true };
         else {
           const made = await Graph.gpost("/administrativeUnits", {
@@ -5359,7 +5471,7 @@ max@contoso.com,"Global, DevOps"</pre>
       } catch (e) { cgmRmauList = []; console.warn("RMAU list failed:", e.message); }
     }
     sel.innerHTML = [...cgmRmauList.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`),
-      `<option value="new">➕ Create “${esc(RMAU_DEFAULT_NAME)}”</option>`].join("");
+      `<option value="new">➕ Create “${esc(RMAU_DEFAULT_NAME())}”</option>`].join("");
   }
 
   async function cgManualCreate(btn) {
@@ -5390,7 +5502,7 @@ max@contoso.com,"Global, DevOps"</pre>
           let auId = $("cgmRmauPick")?.value;
           if (auId === "new" && !isDemo) {
             const au = await Graph.gpost("/administrativeUnits", {
-              displayName: RMAU_DEFAULT_NAME,
+              displayName: RMAU_DEFAULT_NAME(),
               description: "Restricted management administrative unit protecting Conditional Access exclusion groups. Membership changes require a role scoped to this administrative unit.",
               isMemberManagementRestricted: true,
             }, [...AUTH_CONFIG.scopes, "AdministrativeUnit.ReadWrite.All"]);
@@ -5603,9 +5715,9 @@ max@contoso.com,"Global, DevOps"</pre>
     const addBar = `<div class="cg-panel">
         <h4>ADD A MEMBER <span class="tag new">NEW</span></h4>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input id="cgAddUser" list="cgUserSug" placeholder="User — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px">
+          <input id="cgAddUser" class="txt" list="cgUserSug" placeholder="User — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px;letter-spacing:normal;font-weight:400">
           <span class="mini muted">to</span>
-          <input id="cgAddGroup" list="cgGroupSug" placeholder="Group" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px" value="${esc(cgAddGroup || "")}">
+          <input id="cgAddGroup" class="txt" list="cgGroupSug" placeholder="Group" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px;letter-spacing:normal;font-weight:400" value="${esc(cgAddGroup || "")}">
           <button class="btn primary" id="cgAddGo">＋ Add</button>
         </div>
         <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. ${m.cols.length === 1
@@ -5966,11 +6078,12 @@ max@contoso.com,"Global, DevOps"</pre>
     if (isDemo) {
       groups = Object.keys(DEMO_DATA.scopeGroups || {}).map((n) => ({ id: "g-" + n, name: n }));
     } else {
-      // One prefix read for every CAB-SEC group in the tenant. If it fails the
-      // plan still builds — every row simply reports the group as absent,
-      // which is visibly wrong rather than quietly wrong.
-      try { groups = await Assign.groupsByPrefix("CAB-SEC-"); }
-      catch (e) { console.warn("restore: CAB-SEC group read failed", e); }
+      // One prefix read for every baseline group in the tenant (the active
+      // baseline's prefix — CAB-SEC- or CA). If it fails the plan still builds
+      // — every row simply reports the group as absent, which is visibly wrong
+      // rather than quietly wrong.
+      try { groups = await Assign.groupsByPrefix(); }
+      catch (e) { console.warn("restore: baseline group read failed", e); }
     }
     asPlan = Assign.conventionPlan(asPolicies, groups).map((r) => ({ ...r, checked: r.state === "missing" }));
   }
@@ -5998,7 +6111,7 @@ max@contoso.com,"Global, DevOps"</pre>
     };
     const idx = new Map(asPlan.map((r, i) => [r, i]));
     return `<h4 class="mini" style="margin-bottom:6px">CONVENTION EXCLUSIONS — ${total} POLIC${total === 1 ? "Y" : "IES"} IN SCOPE</h4>
-      <p class="mini muted" style="margin-bottom:8px">Each policy gets <b>its own</b> exclusion group — CA200 gets CAB-SEC-U-CA200-Exclusion, CA201 gets CA201-Exclusion — so this is a mapping rather than one group applied to everything. Nothing is replaced: the group is <b>added</b> to whatever the policy already excludes, and a policy that already has it is left alone.</p>
+      <p class="mini muted" style="margin-bottom:8px">Each policy gets <b>its own</b> exclusion group — ${Baseline.activeCatalogId() === "joey" ? "“&lt;policy name&gt; - Exclude”, named after the policy" : "CA200 gets CAB-SEC-U-CA200-Exclusion, CA201 gets CA201-Exclusion"} (the ${esc(Baseline.active().label)} convention) — so this is a mapping rather than one group applied to everything. Nothing is replaced: the group is <b>added</b> to whatever the policy already excludes, and a policy that already has it is left alone.</p>
       <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 10px;flex-wrap:wrap">
         <span class="tag ok">✅ ${c.present || 0} already correct</span>
         <span class="tag new">⚠️ ${missing.length} missing the reference</span>
@@ -6094,7 +6207,7 @@ max@contoso.com,"Global, DevOps"</pre>
       const mode = `restore:${asScope}:${asPolicies.length}`;
       if (asGroupsMode !== mode) { asPlan = []; asGroupsMode = mode; }
       if (!asPlan.length) {
-        b.innerHTML = '<p class="mini">Reading the CAB-SEC groups and working out which policies have lost their exclusion reference…</p>';
+        b.innerHTML = '<p class="mini">Reading the baseline groups and working out which policies have lost their exclusion reference…</p>';
         await asBuildPlan();
       }
       b.innerHTML = asRestorePanel();
@@ -6126,7 +6239,7 @@ max@contoso.com,"Global, DevOps"</pre>
       // the target list is marked so it is obvious it is covered.
       const personaChips = Assign.personasWithGroup().map(p => {
         const on = asGroups.some(g => g.name === p.group && g.checked);
-        return `<button class="btn sm persona-chip ${on ? "on" : ""}" data-asPersona="${esc(p.group)}" title="${esc(p.group)}">${esc(p.label)}${on ? " ✓" : ""}</button>`;
+        return `<button class="btn sm persona-chip ${on ? "on" : ""}" data-asPersona="${esc(p.group)}" title="${esc(p.group)}${p.example ? " — the baseline ships this name as an EXAMPLE include group; your tenant probably uses its own" : ""}">${esc(p.label)}${p.example ? " (example)" : ""}${on ? " ✓" : ""}</button>`;
       }).join("");
       b.innerHTML = `<h4 class="mini" style="margin-bottom:8px">BY PERSONA</h4>
         <p class="mini muted" style="margin-bottom:6px">Add the group for a persona — created from its baseline template if it is missing.</p>
@@ -6598,6 +6711,21 @@ max@contoso.com,"Global, DevOps"</pre>
   // per policy with a status: that is a table, in both catalogs.
   // keepView: a refresh re-compares in place and must not throw away the filter,
   // search or collapsed sections the person was looking at.
+  // R36.1 — the session's active baseline, when the tenant never chose one,
+  // is the catalog it matches best. Decided once per tenant load (and again
+  // after a live read changes Joey's catalog); the T10 card says so. The
+  // toast fires only when the match overrides the default, because that is
+  // the one case where the tools now work against something other than
+  // what they did before.
+  function blAutoPick() {
+    const pick = Baseline.autoPick(policies);
+    if (pick && pick.id !== Baseline.DEFAULT_ID) toast(`This tenant matches <span>${esc(Baseline.active().label)}</span> best — active for this session (🧬 Baseline Policies to keep or switch)`);
+    return pick;
+  }
+  // The tool opens on the gap: an active baseline with missing policies
+  // starts on the Missing filter, because "what is still to do" is the
+  // question the screen answers; one click on the chip widens it again.
+  const blDefaultFilter = (res, catId) => (res && res.counts.missing && Baseline.isActive(catId)) ? "missing" : "all";
   function openBaseline(catId, keepView) {
     show("screen-baseline");
     if (catId) blCat = catId;
@@ -6608,13 +6736,14 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     blResult = Baseline.compare(policies, blCat);
     if (!keepView) {
-      blFilter = "all"; blQuery = ""; blCollapsed.clear(); $("blSearch").value = "";
+      blFilter = blDefaultFilter(blResult, blCat); blQuery = ""; blCollapsed.clear(); $("blSearch").value = "";
     }
     renderBaseline();
+    if (blCat === "joey") blLiveEnsure();
   }
   function renderBaseline() {
     if (!blResult) return;
-    $("blHead").innerHTML = Baseline.renderSummary(blResult);
+    $("blHead").innerHTML = Baseline.renderSummary(blResult, blFilter);
     $("blCatalog").innerHTML = Baseline.catalogs()
       .map((c) => `<button class="${c.id === blCat ? "active" : ""}" data-blcat="${esc(c.id)}">${c.icon || "🧬"} ${esc(c.label)}</button>`).join("");
     $("blChips").innerHTML = Baseline.chips(blResult, blFilter);
@@ -6629,7 +6758,282 @@ max@contoso.com,"Global, DevOps"</pre>
     const b = e.target.closest("[data-blcat]"); if (!b || b.dataset.blcat === blCat) return;
     blCat = b.dataset.blcat;
     blResult = Baseline.compare(policies, blCat);
-    blFilter = "all"; blCollapsed.clear(); renderBaseline();
+    blFilter = blDefaultFilter(blResult, blCat); blCollapsed.clear(); renderBaseline();
+    if (blCat === "joey") blLiveEnsure();
+  });
+  // R36 — make the catalog on screen the one every tool works against, and
+  // read Joey's repository on request. Both live in the summary card.
+  $("blHead").addEventListener("click", async (e) => {
+    // Preview first, switch second. The preview is a dry run over the tenant
+    // as read — what the tools would expect and where a write would go — so
+    // the switch button only appears under a card that has already said what
+    // it does. Nothing here writes to the tenant.
+    // the count chips in the summary are the same filter as the chip row
+    const fc = e.target.closest("[data-blf]");
+    if (fc) { e.preventDefault(); blFilter = fc.dataset.blf; renderBaseline(); return; }
+    const pin = e.target.closest("[data-bl-pin]");
+    if (pin) {
+      e.preventDefault();
+      if (Baseline.pin(pin.dataset.blPin)) { toast(`<span>${esc(Baseline.active().label)}</span> is now this tenant's saved baseline`); renderBaseline(); }
+      return;
+    }
+    const act = e.target.closest("[data-bl-activate]");
+    if (act) { e.preventDefault(); await blPreviewSwitch(act.dataset.blActivate); return; }
+    const sw = e.target.closest("[data-bl-switch]");
+    if (sw) {
+      e.preventDefault();
+      if (Baseline.setActive(sw.dataset.blSwitch)) {
+        toast(`<span>${esc(Baseline.active().label)}</span> is now the active baseline for this tenant`);
+        renderBaseline();
+      }
+      return;
+    }
+    if (e.target.closest("[data-bl-cancel]")) { e.preventDefault(); renderBaseline(); return; }
+    const cl = e.target.closest("[data-bl-cleanup]");
+    if (cl) { e.preventDefault(); await blCleanupOpen(cl.dataset.blCleanup); }
+    const f = e.target.closest("[data-bl-fetch]");
+    if (f) { e.preventDefault(); await blLiveFetch(true); }
+  });
+  // ---- 🧹 leftovers of the baseline that is NOT active ------------------
+  // Read the old baseline's groups, units and policies, classify them
+  // (BaselineCleanup.scan — pure), show them in a modal where only the safe
+  // rows can be ticked, and delete behind a typed DELETE, units first.
+  let blCl = null;   // { oldId, plan, rows:[...all rows with .checked], results, busy }
+  const BL_CL_SCOPES = { au: RMAU_WRITE, group: MEMBER_MOVE_SCOPES, policy: ["Policy.ReadWrite.ConditionalAccess"] };
+  async function blCleanupOpen(oldId) {
+    const oldCat = Baseline.withContract(Baseline.catalog(oldId));
+    const curCat = Baseline.active();
+    if (!oldCat || !curCat || oldCat.id === curCat.id) return;
+    blCl = { oldId, plan: null, rows: [], results: null, busy: true };
+    $("blClTitle").textContent = `🧹 What ${oldCat.label} left behind`;
+    $("blClSub").innerHTML = `Reading this tenant's ${esc(oldCat.label)} groups, restricted units and policies…`;
+    $("blClBody").innerHTML = '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="blClStatus">Reading…</p></div>';
+    $("blClOk").value = ""; $("blClGo").disabled = true;
+    $("blClModal").classList.add("open");
+    const status = (m) => { const el = $("blClStatus"); if (el) el.textContent = m; };
+    try {
+      const facts = { groups: [], aus: [], policies, protection: new Map() };
+      if (isDemo) {
+        facts.groups = Object.keys(DEMO_DATA.scopeGroups || {}).map((n, i) => ({ id: "g-" + n, displayName: n, memberCount: (DEMO_DATA.scopeGroups[n] || []).length }));
+        facts.aus = [{ id: "au-GLO", displayName: "CAB-SEC-RMAU-GLO-Exclusions", isMemberManagementRestricted: true, members: [], scopedAdmins: 1 }];
+      } else {
+        const seen = new Set();
+        for (const p of oldCat.groupPrefixes || []) {
+          status(`Reading groups starting with ${p}…`);
+          try {
+            const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes&$top=999`);
+            for (const g of r) if (!seen.has(g.id)) { seen.add(g.id); facts.groups.push(g); }
+          } catch (err) { console.warn("leftovers: prefix", p, "failed:", err.message || err); }
+        }
+        // only the OLD baseline's groups get a member count — one call each,
+        // so it is not spent on the whole prefix family
+        const mine = facts.groups.filter((g) => BaselineCleanup.belongsTo(oldCat, g.displayName) && !BaselineCleanup.belongsTo(curCat, g.displayName));
+        let n = 0;
+        for (const g of mine) {
+          status(`Counting members… ${++n}/${mine.length}`);
+          try {
+            const r = await Graph.gget(`/groups/${g.id}/members?$select=id&$top=1&$count=true`);
+            g.memberCount = typeof r["@odata.count"] === "number" ? r["@odata.count"] : (Array.isArray(r.value) ? r.value.length : null);
+          } catch { g.memberCount = null; }
+        }
+        status("Reading administrative units…");
+        try {
+          const aus = await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted&$expand=members($select=id)");
+          for (const a of aus) {
+            if (a.isMemberManagementRestricted === true) for (const m of a.members || []) facts.protection.set(m.id, { auId: a.id, auName: a.displayName });
+          }
+          facts.aus = aus;
+          const want = new Set([...(oldCat.personas || []).map((x) => oldCat.auName(x.code)), oldCat.defaultAuName].filter(Boolean).map((x) => x.toLowerCase()));
+          for (const a of aus) {
+            if (!want.has(String(a.displayName || "").toLowerCase())) continue;
+            try { a.scopedAdmins = (await Graph.ggetAll(`/administrativeUnits/${a.id}/scopedRoleMembers`)).length; } catch { a.scopedAdmins = null; }
+          }
+        } catch (err) { console.warn("leftovers: AU read failed:", err.message || err); }
+      }
+      blCl.plan = BaselineCleanup.scan(oldCat, curCat, facts);
+      blCl.rows = [...blCl.plan.aus, ...blCl.plan.groups, ...blCl.plan.policies].map((r) => ({ ...r, checked: false }));
+    } catch (err) {
+      $("blClBody").innerHTML = `<p class="mini" style="color:var(--off)">Could not read the tenant: ${esc(err.message || err)}</p>`;
+      blCl.busy = false;
+      return;
+    }
+    blCl.busy = false;
+    renderBlCleanup();
+  }
+  function renderBlCleanup() {
+    const t = blCl; if (!t || !t.plan) return;
+    const p = t.plan;
+    const oldLabel = esc(p.old.label), curLabel = esc(p.cur.label);
+    $("blClSub").innerHTML = `Switching to <b>${curLabel}</b> wrote nothing, so what <b>${oldLabel}</b> had created is still here: <b>${p.aus.length}</b> restricted unit${p.aus.length === 1 ? "" : "s"}, <b>${p.groups.length}</b> group${p.groups.length === 1 ? "" : "s"}, <b>${p.policies.length}</b> polic${p.policies.length === 1 ? "y" : "ies"} that match ${oldLabel} and not ${curLabel}. <b>${p.safe} of ${p.total}</b> have stopped doing anything and can be deleted here; the rest say why not. Units go first, then groups, then policies.`;
+    if (!p.total) {
+      $("blClBody").innerHTML = `<p class="mini" style="padding:16px">Nothing of ${oldLabel} is left in this tenant — no group its templates name or its rule places, none of its persona units, no policy that matches only its catalog. (${p.scannedGroups} groups and ${p.scannedAus} administrative units were read.)</p>`;
+      $("blClGo").disabled = true;
+      return;
+    }
+    const safe = t.rows.filter((r) => r.safe);
+    const allOn = safe.length > 0 && safe.every((r) => r.checked);
+    const ticked = t.rows.filter((r) => r.checked).length;
+    const section = (title, rows, cols) => rows.length ? `<h4 class="mini" style="margin:12px 0 6px">${title} (${rows.length})</h4>
+      <div class="gu-tw"><table class="plist"><thead><tr><th></th>${cols.map((c) => `<th>${c}</th>`).join("")}<th>Verdict</th></tr></thead><tbody>${rows.map((r) => {
+        const i = t.rows.indexOf(r);
+        const res = t.results && t.results.find((x) => x.id === r.id);
+        const verdict = res ? (res.ok ? '<span class="tag ok">deleted</span>' : `<span class="tag block">failed</span> <span class="mini">${esc(res.error)}</span>`)
+          : r.safe ? '<span class="tag ok">safe to delete</span>' : `<span class="tag block">keep</span><div class="mini">${r.why.map(esc).join("<br>")}</div>`;
+        return `<tr><td><input type="checkbox" data-blcl="${i}" ${r.checked ? "checked" : ""} ${r.safe && !res ? "" : "disabled"}></td>${cellsFor(r)}<td class="mini">${verdict}</td></tr>`;
+      }).join("")}</tbody></table></div>` : "";
+    const cellsFor = (r) => r.kind === "au"
+      ? `<td><b>${esc(r.name)}</b><div class="mini muted">${r.restricted ? "restricted" : "NOT restricted"}</div></td><td class="mini">${r.memberCount} member${r.memberCount === 1 ? "" : "s"}${r.foreign ? ` · ${r.foreign} not ${oldLabel}` : ""}${r.guarding ? ` · ${r.guarding} still in use` : ""}</td><td class="mini">${r.scopedAdmins == null ? "—" : r.scopedAdmins}</td>`
+      : r.kind === "group"
+      ? `<td><b>${esc(r.name)}</b>${r.roleAssignable ? ' <span class="tag block">role-assignable</span>' : ""}${r.dynamic ? ' <span class="tag">dynamic</span>' : ""}</td><td class="mini">${r.members == null ? "—" : r.members}</td><td class="mini">${r.refs.length ? `<span style="color:var(--off)">${r.refs.length}</span> · ${esc(r.refs.slice(0, 2).map((x) => x.name).join(", "))}${r.refs.length > 2 ? " …" : ""}` : '<span class="muted">none</span>'}</td><td class="mini">${r.inAu ? esc(r.inAu.auName) : '<span class="muted">—</span>'}</td>`
+      : `<td><b>${esc(r.name)}</b></td><td class="mini">${esc(r.state)}</td>`;
+    $("blClBody").innerHTML = `<div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 4px;flex-wrap:wrap">
+        <button class="btn sm" id="blClAll" ${safe.length && !t.results ? "" : "disabled"}>${allOn ? "☐ Deselect all" : `☑ Select all ${safe.length} safe`}</button>
+        <span class="mini muted"><b>${ticked}</b> of ${p.total} ticked · ${p.total - safe.length} refused and not tickable</span>
+      </div>
+      ${section("🛡 Restricted units", p.aus.map((r) => t.rows.find((x) => x.id === r.id)), ["Unit", "Members", "Scoped admins"])}
+      ${section("👥 Groups", p.groups.map((r) => t.rows.find((x) => x.id === r.id)), ["Group", "Members", "Referenced by", "In unit"])}
+      ${section("📋 Policies", p.policies.map((r) => t.rows.find((x) => x.id === r.id)), ["Policy", "State"])}
+      <p class="mini muted" style="margin-top:10px">A refused row is not a suggestion to tick it anyway: a referenced group is a policy that would point at nothing, a guarding unit is a vault that would open, a policy that is On is a control that is still enforcing. Each says which tool deals with it. Nothing is written until DELETE is typed.</p>`;
+    blClSyncGo();
+  }
+  function blClSyncGo() {
+    const typed = ($("blClOk").value || "").trim().toUpperCase() === "DELETE";
+    $("blClGo").disabled = !typed || !blCl || blCl.busy || !blCl.rows.some((r) => r.checked && r.safe);
+  }
+  $("blClBody").addEventListener("change", (e) => {
+    const cb = e.target.closest("[data-blcl]"); if (!cb || !blCl) return;
+    const r = blCl.rows[+cb.dataset.blcl]; if (!r || !r.safe) { cb.checked = false; return; }
+    r.checked = cb.checked; blClSyncGo();
+    const n = blCl.rows.filter((x) => x.checked).length;
+    const bar = $("blClBody").querySelector(".mini.muted b"); if (bar) bar.textContent = n;
+  });
+  $("blClBody").addEventListener("click", (e) => {
+    if (e.target.id !== "blClAll" || !blCl) return;
+    const safe = blCl.rows.filter((r) => r.safe);
+    const allOn = safe.length > 0 && safe.every((r) => r.checked);
+    safe.forEach((r) => { r.checked = !allOn; });
+    renderBlCleanup();
+  });
+  $("blClOk").addEventListener("input", blClSyncGo);
+  $("blClCancel").addEventListener("click", () => $("blClModal").classList.remove("open"));
+  $("blClMd").addEventListener("click", () => {
+    if (!blCl || !blCl.plan) return;
+    showReport("🧹 Baseline leftovers", "CA-Baseline-Leftovers", BaselineCleanup.toMd(blCl.plan, blCl.results, { tenant: tenantName, build: APP_BUILD.label }));
+  });
+  $("blClGo").addEventListener("click", async () => {
+    const t = blCl; if (!t || t.busy) return;
+    const picked = BaselineCleanup.runOrder(t.rows.filter((r) => r.checked && r.safe));
+    if (!picked.length) return;
+    const kinds = [...new Set(picked.map((r) => r.kind))];
+    const scopes = [...new Set([...AUTH_CONFIG.scopes, ...kinds.flatMap((k) => BL_CL_SCOPES[k])])];
+    if (!await preConsent(scopes)) return;
+    t.busy = true; $("blClGo").disabled = true;
+    const results = [];
+    for (let i = 0; i < picked.length; i++) {
+      const r = picked[i];
+      toast(`Deleting ${i + 1}/${picked.length}: <span>${esc(r.name)}</span>`);
+      try {
+        if (!isDemo) {
+          if (r.kind === "au") await Graph.gdelete(`/administrativeUnits/${r.id}`, scopes);
+          else if (r.kind === "group") await Graph.gdelete(`/groups/${r.id}`, scopes);
+          else await Graph.gdelete(`/identity/conditionalAccess/policies/${r.id}`, scopes);
+        }
+        results.push({ id: r.id, kind: r.kind, name: r.name, ok: true });
+      } catch (err) {
+        results.push({ id: r.id, kind: r.kind, name: r.name, ok: false, error: err.message || String(err) });
+      }
+    }
+    t.results = results; t.busy = false;
+    t.rows.forEach((r) => { r.checked = false; });
+    $("blClOk").value = "";
+    const okN = results.filter((r) => r.ok).length;
+    toast(`${okN}/${results.length} deleted${isDemo ? " (simulated)" : ""}${okN < results.length ? " — see the rows for what failed" : ""}`);
+    renderBlCleanup();
+    showReport("🧹 Baseline leftovers — change report", "CA-Baseline-Leftovers", BaselineCleanup.toMd(t.plan, results, { tenant: tenantName, build: APP_BUILD.label }));
+    // the policies list and the group scans are stale now
+    if (okN && !isDemo) { cgRes = null; try { await loadFromGraph(true); openBaseline(blCat, true); } catch (err) { console.warn("reload after leftovers:", err); } }
+  });
+
+  // The facts the dry run needs, read once per preview: every group in
+  // BOTH baselines' families (so the routing diff can name what stops and
+  // what starts being routed), every administrative unit, and both R28
+  // drawers. Reads only.
+  async function blPreviewSwitch(toId) {
+    const box = $("blActivate"); if (!box) return;
+    box.innerHTML = `<span class="mini"><div class="spinner" style="width:14px;height:14px;display:inline-block;vertical-align:middle"></div> Reading this tenant's groups and administrative units to show what the switch would change…</span>`;
+    try {
+      const target = Baseline.withContract(Baseline.catalog(toId));
+      const facts = { groups: [], aus: [], mapFrom: CaMap.list(), mapTo: CaMap.peek(toId, target.personas || []) };
+      if (isDemo) {
+        facts.groups = Object.keys(DEMO_DATA.scopeGroups || {}).map((n) => ({ id: "g-" + n, displayName: n }));
+        facts.aus = [{ id: "au-GLO", displayName: "CAB-SEC-RMAU-GLO-Exclusions", isMemberManagementRestricted: true }];
+      } else {
+        const prefixes = [...new Set([...(Baseline.active().groupPrefixes || []), ...(target.groupPrefixes || [])])];
+        const seen = new Set();
+        for (const p of prefixes) {
+          try {
+            const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName&$top=999`);
+            for (const g of r) if (!seen.has(g.id)) { seen.add(g.id); facts.groups.push(g); }
+          } catch (err) { console.warn("switch preview: prefix", p, "failed:", err.message || err); }
+        }
+        try { facts.aus = ruList || await Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted"); }
+        catch (err) { console.warn("switch preview: AU read failed:", err.message || err); facts.aus = []; }
+      }
+      const prev = Baseline.previewSwitch(toId, facts);
+      const again = $("blActivate"); if (!again) return;
+      again.innerHTML = prev ? Baseline.renderPreview(prev) : '<span class="mini">Already the active baseline.</span>';
+    } catch (err) {
+      const again = $("blActivate");
+      if (again) again.innerHTML = `<span class="mini" style="color:var(--off)">Could not read the tenant for the preview: ${esc(err.message || err)}</span> <button class="btn sm" data-bl-cancel="1">Back</button>`;
+    }
+  }
+  // Read the repository once per session when Joey's catalog is looked at,
+  // or when it is the active baseline — never silently more than that.
+  let blLiveAsked = false;
+  function blLiveEnsure() {
+    if (typeof BaselineLive === "undefined" || blLiveAsked || isDemo) return;
+    const st = BaselineLive.status();
+    if (st.status === "live" || st.status === "fetching") return;
+    blLiveAsked = true;
+    blLiveFetch(false);
+  }
+  async function blLiveFetch(force) {
+    if (typeof BaselineLive === "undefined") return;
+    // the summary re-renders through the enca:baseline-live event below;
+    // the progress line lives in the source panel's button label
+    const prog = (m) => { const b = $("blHead").querySelector("[data-bl-fetch]"); if (b) { b.disabled = true; b.textContent = `⟳ ${m}`; } };
+    const st = await BaselineLive.fetchLatest({ force: !!force, onStatus: prog });
+    if (st.status === "live" && !st.error) toast(`Read release <span>${esc(st.release)}</span> from the repository — ${st.count} policies`);
+    else if (st.error) toast(`Live read failed: <span>${esc(st.error)}</span> — the bundled snapshot stays in use`);
+  }
+  // Whatever screen is open, a catalog that just changed source needs
+  // re-comparing and the cached scans against it are stale.
+  document.addEventListener("enca:baseline-live", () => {
+    // the match is re-decided on the fresh catalog (a release that renamed
+    // policies can move the coverage either way); a saved choice is untouched
+    try { Baseline.autoPick(policies); } catch {}
+    if (blResult && blCat === "joey" && $("screen-baseline").classList.contains("active")) { blResult = Baseline.compare(policies, blCat); renderBaseline(); }
+    if (Baseline.activeCatalogId() === "joey") baselineChanged();
+  });
+  // R36 — the active baseline changed: every cached scan that was taken
+  // against the old one is thrown away, so the next open re-reads.
+  function baselineChanged() {
+    cgRes = null;
+    try { ruPg.clear(); } catch {}
+    try { caMapCache.clear(); } catch {}
+    try { ruBulk = null; } catch {}
+    try { if (ruBase) { ruBase.sel = null; ruBase.results = null; ruBase.log = null; } } catch {}
+    try { if ($("screen-rmau").classList.contains("active") && ruList) renderRmau(); } catch {}
+    try { if ($("screen-cagroups").classList.contains("active")) openCaGroups(); } catch {}
+  }
+  document.addEventListener("enca:baseline", baselineChanged);
+  // "change" links on the tools that act on the active baseline
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("[data-open-baseline]"); if (!a) return;
+    e.preventDefault();
+    const id = a.dataset.openBaseline || Baseline.activeCatalogId();
+    crumb(id === "joey" ? "🧩 Baseline (Joey Verlinden)" : "🧬 Baseline Policies");
+    openBaseline(id);
   });
   $("blChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-blf]"); if (!b) return;
@@ -6673,17 +7077,44 @@ max@contoso.com,"Global, DevOps"</pre>
       btn.disabled = false; btn.textContent = "⟳ Refresh";
     }
   });
-  // hand off to the Import tool with the gap in hand
-  $("blImport").addEventListener("click", () => {
-    const n = blResult ? blResult.toImport.length : 0;
-    if (blResult && blResult.catalog.url) {
-      toast(`This baseline is published at <span>${esc(blResult.catalog.url)}</span> — download it there, then import`);
+  // hand off to the Import tool with the gap in hand. A catalog read live
+  // from its repository IS the backup — policy files, group files, named
+  // locations — so the import starts from that read with the gap ticked,
+  // and only a catalog without a repository (or a read that failed) asks
+  // for a zip.
+  $("blImport").addEventListener("click", async () => {
+    const res = blResult;
+    const n = res ? res.toImport.length : 0;
+    const gapNote = () => `Baseline ${res.catalog.label} ${res.catalog.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant`
+      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"} that only the CloudFellows backup ships` : "") + ". ";
+    if (res && res.catalog.id === "joey" && typeof BaselineLive !== "undefined" && !isDemo) {
+      const btn = $("blImport");
+      btn.disabled = true;
+      try {
+        let b = BaselineLive.bundle();
+        if (!b || !b.complete) {
+          toast("Reading the repository first…");
+          await blLiveFetch(true);
+          b = BaselineLive.bundle();
+        }
+        if (b && b.complete) {
+          $("toolImport").click();
+          $("imDesc").textContent = gapNote() + `Reading the repository at ${b.release}${b.commit ? ` (${String(b.commit).slice(0, 7)})` : ""}…`;
+          const only = new Set(res.toImport.map((r) => r.baseline.name));
+          await imLoaded(b, `${b.label} ${b.release} — read from the repository${b.commit ? ` at ${String(b.commit).slice(0, 7)}` : ""}`, { only });
+          $("imDesc").textContent = gapNote() + `The ${only.size} in the gap are ticked; the rest of the release is listed unticked. Pick an assignment mode — 🔀 Switch baseline carries the members of this tenant's existing groups across.`;
+          return;
+        }
+        toast(`Could not read the repository — <span>${esc(BaselineLive.status().error || "no usable read")}</span>. Download it at ${esc(res.catalog.url)} and import the folder instead.`);
+      } finally { btn.disabled = false; }
+    } else if (res && res.catalog.url) {
+      toast(`This baseline is published at <span>${esc(res.catalog.url)}</span> — download it there, then import`);
     }
     $("toolImport").click();
     if (n) {
-      $("imDesc").textContent = `Baseline ${BASELINE.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant. `
+      $("imDesc").textContent = gapNote()
         + "Select the baseline backup zip (or its extracted folder). Choose an assignment mode: deploy new policies onto this tenant's persona groups, "
-        + "or match & replace — an updated policy keeps the current one's assignment and its old version is switched Off.";
+        + "match & replace — an updated policy keeps the current one's assignment and its old version is switched Off — or switch baseline, which carries the members of the other baseline's groups across.";
     }
   });
 
@@ -7566,7 +7997,10 @@ max@contoso.com,"Global, DevOps"</pre>
 
     return `<div class="cg-panel" id="ruBasePanel">
       <h4>BASELINE — ONE RESTRICTED AU PER PERSONA</h4>
-      <p class="mini" style="margin:0 0 8px">The baseline expects a restricted management administrative unit per persona, so a scoped administrator for one persona's exclusion groups cannot edit another's. Names mirror the deployment groups (<code>CAD-SEC-U-DG-&lt;CODE&gt;</code>).</p>
+      <p class="mini" style="margin:0 0 8px">One restricted management administrative unit per persona, so a scoped administrator for one persona's exclusion groups cannot edit another's. ${Baseline.activeCatalogId() === "joey"
+        ? `The Joey Verlinden baseline defines no administrative units — the per-persona vault is ENCA's hardening on top of it, named <code>CA-RMAU-&lt;Persona&gt;-Exclusions</code> under his prefix, one per persona he defines (Global, Admins, Internals, Service accounts, Guests, Agents) plus break-glass.`
+        : `Names mirror the deployment groups (<code>CAD-SEC-U-DG-&lt;CODE&gt;</code>).`}</p>
+      <p style="margin:0 0 8px">${Baseline.activeChip()}</p>
       <p class="mini" style="margin:0 0 8px"><b>${c.present.length} present</b> · ${c.missing.length} missing${c.unrestricted.length ? ` · <span style="color:var(--off)">${c.unrestricted.length} name clash</span>` : ""}</p>
       <div class="cg-pick">${rows}</div>
       ${c.missing.length ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
@@ -8101,7 +8535,7 @@ max@contoso.com,"Global, DevOps"</pre>
       ${rows || '<p class="mini muted" style="margin:0 0 8px">Nothing mapped yet.</p>'}
 
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px">
-        <input id="ruMapName" list="ruGroupSug" placeholder="Group display name — exactly as it is in Entra" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px">
+        <input id="ruMapName" class="txt" list="ruGroupSug" placeholder="Group display name — exactly as it is in Entra" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px;letter-spacing:normal;font-weight:400">
         <select id="ruMapCode" class="btn" style="cursor:pointer">${codeOpts(ruMap.addCode)}</select>
         <button class="btn sm primary" id="ruMapAdd">＋ Map it</button>
       </div>
@@ -8258,7 +8692,9 @@ max@contoso.com,"Global, DevOps"</pre>
   // tenants actually give those groups. Graph cannot match a displayName by
   // pattern without $search, so the shortlist is a few startswith reads and the
   // real filter happens on the results.
-  const RU_BULK_PREFIXES = ["CAB-SEC", "CAD-SEC"];
+  // R36: the family is the active baseline's (CAB-SEC / CAD-SEC, or CA for
+  // Joey Verlinden's), read at scan time.
+  const ruBulkPrefixes = () => { try { return Baseline.active().groupPrefixes || ["CAB-SEC", "CAD-SEC"]; } catch { return ["CAB-SEC", "CAD-SEC"]; } };
   const RU_BULK_EXTRA = { BreakGlass: ["Emergency", "BreakGlass", "Break-Glass", "BG-"] };
 
   // R28 — the groups THIS TENANT mapped to a persona, read as real group
@@ -8335,7 +8771,7 @@ max@contoso.com,"Global, DevOps"</pre>
         ].filter((g) => CaMap.codeOf(g) === code);
       } else {
         const seen = new Set();
-        for (const p of [...RU_BULK_PREFIXES, ...(RU_BULK_EXTRA[code] || [])]) {
+        for (const p of [...ruBulkPrefixes(), ...(RU_BULK_EXTRA[code] || [])]) {
           try {
             const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
             for (const g of r) if (!seen.has(g.id) && CaMap.codeOf(g) === code) { seen.add(g.id); entry.groups.push(g); }
@@ -8362,13 +8798,15 @@ max@contoso.com,"Global, DevOps"</pre>
       if (!code) throw new Error("this administrative unit is not one of the baseline persona units, so there is no persona to gather groups for");
       let groups = [];
       if (isDemo) {
-        groups = [{ id: "d1", displayName: "CAB-SEC-U-CA101-Exclusion" }, { id: "d2", displayName: "CAB-SEC-U-CA102-Exclusion" }];
+        groups = Baseline.activeCatalogId() === "joey"
+          ? [{ id: "d1", displayName: "CA101-Admins-IdentityProtection-AnyApp-AnyPlatform-MFA - Exclude" }, { id: "d2", displayName: "CA102-Admins-IdentityProtection-AllApps-AnyPlatform-SigninFrequency - Exclude" }]
+          : [{ id: "d1", displayName: "CAB-SEC-U-CA101-Exclusion" }, { id: "d2", displayName: "CAB-SEC-U-CA102-Exclusion" }];
       } else {
         // Bounded on purpose: the baseline family, not every group in the
         // tenant. A displayName cannot be matched by pattern in Graph, so the
         // CA-number filter happens here.
         const seen = new Set();
-        for (const p of [...RU_BULK_PREFIXES, ...(RU_BULK_EXTRA[code] || [])]) {
+        for (const p of [...ruBulkPrefixes(), ...(RU_BULK_EXTRA[code] || [])]) {
           // One prefix failing must not cost the others — a tenant with an odd
           // group estate should still get the ones that did come back.
           try {
@@ -12136,7 +12574,7 @@ max@contoso.com,"Global, DevOps"</pre>
       ${Object.entries(AuthStrengths.PROVIDER_AAGUIDS).map(([k, v]) =>
         `<label class="chk" style="display:inline-block;margin:2px 14px 2px 0"><input type="checkbox" data-asprov="${k}" ${provChecked(k) ? "checked" : ""}> ${esc(v.label)}</label>`).join("")}
       <div style="margin:4px 0 2px">${asAdvA.map((a) => `<span class="tag" title="${esc(AuthStrengths.AAGUID_NAME[a] || "custom AAGUID")}">${esc(AuthStrengths.AAGUID_NAME[a] || a)} <a href="#" data-asaagrm="${esc(a)}" style="text-decoration:none">✕</a></span>`).join(" ") || '<span class="mini muted">No restriction — any passkey satisfies it.</span>'}</div>
-      <div style="display:flex;gap:6px;margin:4px 0 10px"><input id="asAdvGuid" placeholder="Add AAGUID, e.g. 90a3ccdf-635c-4729-a248-9b709135078f" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-asaagadd>+ Add</button></div>
+      <div style="display:flex;gap:6px;margin:4px 0 10px"><input id="asAdvGuid" class="txt" placeholder="Add AAGUID, e.g. 90a3ccdf-635c-4729-a248-9b709135078f" spellcheck="false" autocomplete="off" style="flex:1;letter-spacing:normal;font-weight:400"><button class="btn sm" data-asaagadd>+ Add</button></div>
       <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin:6px 0 2px">Certificate-based authentication — issuer and OID restrictions</div>
       <p class="mini muted" style="margin:0 0 4px">The certificate must carry at least one listed issuer SKI <i>and</i> (when both are set) one listed policy OID. Graph allows at most 5 of each. Applies to the selected certificate combination(s):</p>
       <label class="chk" style="display:inline-block;margin:2px 14px 2px 0"><input type="checkbox" data-asx509="x509CertificateSingleFactor" ${applies && applies.includes("x509CertificateSingleFactor") ? "checked" : ""}> Certificate (single-factor)</label>
@@ -16110,6 +16548,494 @@ max@contoso.com,"Global, DevOps"</pre>
     downloadText("CA-MemberOfRetirement", "csv", "text/csv", MemberOf.toCsv(moRes));
   });
 
+  // ---------- Teams devices (T35) ----------
+  // The analysis lives in js/teamsdev.js. This wiring reads the tenant's
+  // subscribed SKUs, its dynamic groups (plus the shared-device group by
+  // name when it is assigned), counts the candidates' members, previews how
+  // many accounts the recommended rule would match today, and — behind a
+  // confirmation — writes the rule onto the group or creates the group.
+  let tdRes = null, tdBusy = false, tdCtx = null, tdOpen = new Set(), tdShowSkus = false;
+  const tdProg = makeProgress("td");
+  const TD_GROUP_PAGES = 20;   // ~20k dynamic groups
+  const TD_WRITE = ["Group.ReadWrite.All"];
+  const TD_SAMPLE = 25;
+  const TD_PEOPLE = 100;   // people with a device licence on their own account — a list to act on, so wider than the sample
+
+  const tdPrefixes = () => String($("tdPrefix").value || "").split(/[,\s;]+/).map((s) => s.trim()).filter(Boolean);
+
+  // Demo: the reference tenant this tool was built against — Rooms Pro,
+  // Shared Space, Phone resource accounts, Phone Standard on real people —
+  // with the group carrying the old three-plan rule so the update path shows.
+  function tdDemoCtx() {
+    const P = (id, name) => ({ servicePlanId: id, servicePlanName: name });
+    const common = [P("4828c8ec-dc2e-4779-b502-87ac9ce28ab7", "MCOEV"), P("57ff2da0-773e-42df-b2af-ffb7a2317929", "TEAMS1"),
+      P("0feaeb32-d00e-4d66-bd5a-43b5b83db82c", "MCOSTANDARD"), P("c1ec4a95-1f05-45b3-a911-aa3fa01094f5", "INTUNE_A"), P("41781fb2-bc02-4b7c-bd55-b576c07bb09d", "AAD_PREMIUM")];
+    const raws = policies.map((p) => p.raw);
+    const withExc = raws.find((p) => p.state === "enabled" && ((p.conditions || {}).users || {}).excludeGroups && p.conditions.users.excludeGroups.length);
+    const gid = withExc ? withExc.conditions.users.excludeGroups[0] : "g-CAB-SEC-U-TeamsSharedDevices";
+    return {
+      skus: [
+        { skuId: "sku-e5", skuPartNumber: "SPE_E5", capabilityStatus: "Enabled", prepaidUnits: { enabled: 1200 }, consumedUnits: 1143,
+          servicePlans: [...common, P("3e26ee1f-8a5f-4d52-aee2-b81ce45c8f40", "MCOMEETADV"), P("efb87545-963c-4e0d-99df-69c6916d9eb0", "EXCHANGE_S_ENTERPRISE"), P("eec0eb4f-6444-4f95-aba0-50c24d67f998", "AAD_PREMIUM_P2"), P("5dbe027f-2339-4123-9542-606e4d348a72", "SHAREPOINTENTERPRISE")] },
+        { skuId: "sku-f3", skuPartNumber: "SPE_F1", capabilityStatus: "Enabled", prepaidUnits: { enabled: 400 }, consumedUnits: 362,
+          servicePlans: [P("57ff2da0-773e-42df-b2af-ffb7a2317929", "TEAMS1"), P("c1ec4a95-1f05-45b3-a911-aa3fa01094f5", "INTUNE_A"), P("41781fb2-bc02-4b7c-bd55-b576c07bb09d", "AAD_PREMIUM"), P("902b47e5-dcb2-4fdc-858b-c63a90a2bdb9", "SHAREPOINTDESKLESS"), P("4a82b400-a79f-41a4-b4e2-e94f5787b113", "EXCHANGE_S_DESKLESS")] },
+        { skuId: "sku-mtr", skuPartNumber: "Microsoft_Teams_Rooms_Pro", capabilityStatus: "Enabled", prepaidUnits: { enabled: 157 }, consumedUnits: 157,
+          servicePlans: [...common, P("3e26ee1f-8a5f-4d52-aee2-b81ce45c8f40", "MCOMEETADV"), P("4a51bca5-1eff-43f5-878c-177680f191af", "WHITEBOARD_PLAN3"),
+            P("8081ca9c-188c-4b49-a8e5-c23b5e9463a8", "Teams_Room_Basic"), P("ec17f317-f4bc-451e-b2da-0167e5c260f9", "Teams_Room_Pro"), P("0374d34c-6be4-4dbb-b3f0-26105db0b28a", "Teams_Rooms_Pro"), P("ecc74eae-eeb7-4ad5-9c88-e8b2bfca75b8", "MTRProManagement")] },
+        { skuId: "sku-cap", skuPartNumber: "MCOCAP", capabilityStatus: "Enabled", prepaidUnits: { enabled: 518 }, consumedUnits: 517,
+          servicePlans: [...common, P("efb87545-963c-4e0d-99df-69c6916d9eb0", "EXCHANGE_S_ENTERPRISE"), P("cfce7ae3-4b41-4438-999c-c0e91f3b7fb9", "SPECIALTY_DEVICES")] },
+        { skuId: "sku-ra", skuPartNumber: "PHONESYSTEM_VIRTUALUSER", capabilityStatus: "Enabled", prepaidUnits: { enabled: 138 }, consumedUnits: 138,
+          servicePlans: [P("f47330e9-c134-43b3-9993-e7f004506889", "MCOEV_VIRTUALUSER")] },
+        { skuId: "sku-phone", skuPartNumber: "MCOEV", capabilityStatus: "Enabled", prepaidUnits: { enabled: 13 }, consumedUnits: 5,
+          servicePlans: [P("4828c8ec-dc2e-4779-b502-87ac9ce28ab7", "MCOEV")] },
+      ],
+      groups: [
+        { id: gid, displayName: "CAB-SEC-U-TeamsSharedDevices", dynamic: true, ruleState: "On", memberCount: 157,
+          description: "Teams shared / meeting-room resource accounts excluded from Global session-lifetime and risk policies they cannot satisfy (R26.6).",
+          membershipRule: TeamsDev.buildRule(["8081ca9c-188c-4b49-a8e5-c23b5e9463a8", "ec17f317-f4bc-451e-b2da-0167e5c260f9", "92c6b761-01de-457a-9dd9-793a975238f7"]) },
+        { id: "g-teams-phone-users", displayName: "Teams Phone users (dynamic)", dynamic: true, ruleState: "On", memberCount: 1148, description: "",
+          membershipRule: TeamsDev.buildRule(["4828c8ec-dc2e-4779-b502-87ac9ce28ab7"]) },
+        { id: "g-mtr-static", displayName: "MTR-Rooms-Amsterdam", dynamic: false, ruleState: "", memberCount: 12, description: "Hand-maintained list of the Amsterdam rooms", membershipRule: "" },
+      ],
+      names: {}, groupsPartial: false, totalDynamic: 42,
+      preview: { count: 790, capped: true, sample: [
+        { id: "r1", name: "MTR Boardroom 4.01", upn: "mtr-boardroom-401@contoso.com", enabled: true },
+        { id: "r2", name: "CAP Lobby phone", upn: "cap-lobby-01@contoso.com", enabled: true },
+        { id: "r3", name: "AA Main reception", upn: "aa-reception@contoso.com", enabled: false },
+      ] },
+      people: { count: 22, capped: false, sample: [
+        { id: "p1", name: "Eva Employee", upn: "eva@contoso.com", enabled: true, skus: ["sku-e5", "sku-cap"] },
+        { id: "p2", name: "Milan Medewerker", upn: "milan@contoso.com", enabled: true, skus: ["sku-f3", "sku-cap", "sku-phone"] },
+        { id: "p3", name: "Jos Janssen DECT", upn: "jos.janssen@contoso.com", enabled: false, skus: ["sku-e5", "sku-mtr"] },
+      ] },
+    };
+  }
+
+  // The recommended rule as an OData filter, so the tenant can say how many
+  // accounts it matches TODAY — before anything is written. GUIDs unquoted:
+  // servicePlanId is Edm.Guid. Prefixes ride along as startswith().
+  function tdPreviewFilter(planIds, prefixes, markers, people) {
+    const parts = planIds.map((id) => `assignedPlans/any(a:a/servicePlanId eq ${id} and a/capabilityStatus eq 'Enabled')`)
+      .concat(prefixes.map((p) => `startswith(userPrincipalName,'${String(p).replace(/'/g, "''")}')`));
+    const dev = `(${parts.join(" or ")})`;
+    if (!(markers || []).length) return dev;
+    const suite = markers.map((id) => `assignedPlans/any(a:a/servicePlanId eq ${id} and a/capabilityStatus eq 'Enabled')`);
+    // people = device match AND a suite (what the rule keeps out); otherwise
+    // the rule itself: device match AND NOT any suite marker.
+    return people ? `${dev} and (${suite.join(" or ")})` : `${dev} and ${suite.map((c) => `not(${c})`).join(" and ")}`;
+  }
+
+  async function tdRun() {
+    if (tdBusy) return;
+    tdBusy = true;
+    $("tdRun").style.display = "none";
+    tdProg.start(0, "groups", "page");
+    $("tdBody").innerHTML = tdProg.panel("Reading this tenant's licences and dynamic groups…",
+      "Subscribed SKUs first — the device licences and every plan they carry — then the dynamic groups, the shared-device group by name, the member count of each candidate, and a preview of how many accounts the recommended rule would match today. Reads only until you confirm a write.");
+    try {
+      let ctx;
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 500));
+        ctx = tdDemoCtx();
+        ctx.prefixes = tdPrefixes();
+      } else {
+        const txt = (m) => { const t = $("tdPgTxt"); if (t) t.textContent = m; };
+        ctx = { skus: null, groups: [], names: {}, groupsPartial: false, totalDynamic: null, prefixes: tdPrefixes(), preview: null,
+          policies: policies.map((p) => p.raw) };
+        txt("🎫 Subscribed SKUs…");
+        // A failed SKU read must surface as "not read" — the catalog then
+        // supplies the rule, and the result says so.
+        try { ctx.skus = await Graph.ggetAll("/subscribedSkus"); } catch { ctx.skus = null; }
+
+        // Dynamic groups. The $filter keeps this off every static group in
+        // the tenant; the shared-device group is fetched by NAME afterwards
+        // so an assigned one is still found and reported as assigned.
+        const sel = "$select=id,displayName,membershipRule,membershipRuleProcessingState,groupTypes,description";
+        const raw = [];
+        let next = `/groups?$filter=groupTypes/any(c:c eq 'DynamicMembership')&${sel}&$top=999`, pages = 0;
+        while (next && pages < TD_GROUP_PAGES) {
+          const j = await Graph.gget(next);
+          for (const g of j.value || []) raw.push(g);
+          next = j["@odata.nextLink"] || null;
+          tdProg.tick(raw.length, ++pages);
+        }
+        ctx.groupsPartial = !!next;
+        ctx.totalDynamic = raw.length;
+        const seen = new Set(raw.map((g) => g.id));
+        txt("👥 The shared-device group by name…");
+        try {
+          const names = TeamsDev.ALIASES.map((n) => `'${n.replace(/'/g, "''")}'`).join(",");
+          const j = await Graph.gget(`/groups?$filter=${encodeURIComponent(`displayName in (${names})`)}&${sel}&$top=50`);
+          for (const g of j.value || []) if (!seen.has(g.id)) { raw.push(g); seen.add(g.id); }
+        } catch { /* the dynamic read already covers a dynamic one */ }
+        ctx.groups = raw.map((g) => ({ id: g.id, displayName: g.displayName || g.id, membershipRule: g.membershipRule || "",
+          ruleState: g.membershipRuleProcessingState || "", dynamic: (g.groupTypes || []).includes("DynamicMembership") || !!g.membershipRule,
+          description: g.description || "", memberCount: null }));
+
+        // Member counts, only for the groups the analysis will show.
+        const first = TeamsDev.analyze(ctx);
+        const cands = first.groups.map((g) => g.id);
+        if (cands.length) {
+          txt(`🔢 Member counts for ${cands.length} group${cands.length === 1 ? "" : "s"}…`);
+          const res = await Graph.gbatch(cands.map((id, i) => ({ id: i, url: `/groups/${id}/members/$count` }))).catch(() => ({}));
+          cands.forEach((id, i) => {
+            const v = res[i]; const g = ctx.groups.find((x) => x.id === id);
+            if (g && v && v.body != null) g.memberCount = Number(v.body);
+          });
+        }
+
+        // Preview: how many accounts the recommended rule matches today, and
+        // a sample of them. A refused query is a null preview, not zero.
+        if (first.planIds.length || first.prefixes.length) {
+          const q = async (f, top) => {
+            const j = await Graph.gget(`/users?$count=true&$top=${top}&$select=id,displayName,userPrincipalName,accountEnabled,assignedLicenses&$orderby=displayName&$filter=${encodeURIComponent(f)}`);
+            const c = j["@odata.count"];
+            return { count: typeof c === "number" ? c : null, capped: !!j["@odata.nextLink"],
+              sample: (j.value || []).map((u) => ({ id: u.id, name: u.displayName, upn: u.userPrincipalName, enabled: u.accountEnabled !== false,
+                skus: (u.assignedLicenses || []).map((l) => l.skuId) })) };
+          };
+          txt("🔎 Previewing the recommended rule…");
+          try { ctx.preview = await q(tdPreviewFilter(first.planIds, first.prefixes, first.markers, false), TD_SAMPLE); }
+          catch (e) { console.warn("Teams devices: preview refused —", e.message); ctx.preview = null; }
+          // The accounts the NOT half keeps out: a device licence on a
+          // person's own account. Counted and named so the licensing
+          // problem is visible — the rule cannot fix it, only avoid it.
+          txt("🧑 People holding a device licence…");
+          try { ctx.people = await q(tdPreviewFilter(first.planIds, first.prefixes, first.markers, true), TD_PEOPLE); }
+          catch (e) { console.warn("Teams devices: people query refused —", e.message); ctx.people = null; }
+        }
+      }
+      ctx.policies = policies.map((p) => p.raw);
+      tdCtx = ctx;
+      tdRes = TeamsDev.analyze(ctx);
+    } catch (e) {
+      console.error(e);
+      $("tdBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-tdrun>▶ Try again</button></div></div>`;
+      tdBusy = false;
+      return;
+    }
+    tdBusy = false;
+    renderTeamsDev();
+  }
+
+  const TD_VERDICT = {
+    current: { cls: "ok", icon: "✅", word: "current" },
+    update: { cls: "new", icon: "⚠", word: "update the rule" },
+    trap: { cls: "block", icon: "⛔", word: "matches PEOPLE" },
+    assigned: { cls: "", icon: "✋", word: "assigned group" },
+    other: { cls: "", icon: "❔", word: "read by hand" },
+  };
+  const tdChip = (k) => `<span class="tag ${TD_VERDICT[k].cls}">${TD_VERDICT[k].icon} ${TD_VERDICT[k].word}</span>`;
+  const tdPlanName = (id) => (TeamsDev.CATALOG[id] || {}).name || ((tdRes && tdRes.devicePlans.find((p) => p.id === id)) || {}).name || id;
+  const tdPlanLabel = (id) => (TeamsDev.CATALOG[id] || {}).label || "unique to a device SKU in this tenant";
+
+  // The licences on one account as chips: device SKUs bold, user suites
+  // plain, anything else muted — so a row says at a glance WHY it is a
+  // person with a device licence.
+  function tdSkuChips(skuIds) {
+    if (!tdRes || !(skuIds || []).length) return '<span class="muted">—</span>';
+    return skuIds.map((id) => {
+      const row = tdRes.skuRows.find((x) => x.skuId === id);
+      const part = row ? row.part : id;
+      const dev = row && (row.kind === "rooms" || row.kind === "shared" || row.kind === "resourceAccount");
+      const suite = row && row.suite;
+      return dev ? `<code title="device licence">${esc(part)}</code>` : suite ? `<span class="tag" title="user suite">${esc(part)}</span>` : `<span class="muted" title="other licence">${esc(part)}</span>`;
+    }).join(" ");
+  }
+
+  function renderTeamsDev() {
+    $("tdHead").innerHTML = `<h3>📞 Teams devices <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+      <p style="margin-bottom:4px">Every baseline exclusion for Teams Rooms, panels, common-area phones and call-queue accounts rides on <b>one dynamic group</b> — <code>${esc(TeamsDev.CANONICAL)}</code> — and that group is only as good as its membership rule. The rule shipped so far names three <b>Teams Rooms</b> service plans and nothing else: a tenant with hundreds of common-area phones on <b>Teams Shared Space</b> (Teams Shared Devices until April 2026) and a hundred auto-attendant <b>resource accounts</b> has none of them in the group, so sign-in frequency, MFA, device-code blocks and risk policies hit devices that cannot answer them.</p>
+      <p style="margin-bottom:4px">A rule cannot say “every Teams SKU”: dynamic membership sees <b>service plans</b>, not licences, and a device SKU is mostly plans every E5 user also holds — naming <code>MCOEV</code> (Teams Phone) would put your whole E5 population in the exclusion group. So this tool reads the tenant's <b>subscribed SKUs</b>, keeps the plans that exist <b>only</b> in device licences, builds the rule from those <b>and</b> a NOT half — an account that also holds a user suite (E1/E3/E5, F1/F3, A3/A5, Business) is a person and stays out, whatever device licence sits on it — previews how many accounts it matches today, names the people holding a device licence on their own account, and replaces the rule on the group after you confirm. <b>Teams Phone Standard</b> stays out on purpose: people hold it.</p>
+      <p class="mini muted" style="margin:0">Sources: <a href="https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies" target="_blank" rel="noopener">supported Conditional Access policies for Teams devices</a> · <a href="https://learn.microsoft.com/microsoftteams/rooms/conditional-access-and-compliance-for-devices" target="_blank" rel="noopener">Teams Rooms CA best practices</a> · <a href="https://learn.microsoft.com/entra/identity/users/licensing-service-plan-reference" target="_blank" rel="noopener">service plan reference</a> · <a href="https://learn.microsoft.com/microsoftteams/teams-add-on-licensing/teams-shared-device-license" target="_blank" rel="noopener">Teams Shared Space licensing</a> · <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-membership#rules-with-complex-expressions" target="_blank" rel="noopener">assignedPlans rules</a></p>`;
+    $("tdRun").style.display = tdRes && !tdBusy ? "" : "none";
+    if (tdBusy) return;
+
+    if (!tdRes) {
+      $("tdBody").innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-tdrun>▶ Check the tenant</button>
+        <p class="mini muted">Reads the subscribed SKUs, the dynamic groups and the shared-device group by name, counts their members and previews the recommended rule — all covered by the permissions you already granted. Nothing is written until you confirm a rule on a named group. UPN prefixes typed above (for accounts a plan cannot isolate, e.g. <code>mtr-</code>, <code>cap-</code>) are added to the rule as <code>-startsWith</code> clauses.</p>
+      </div>`;
+      return;
+    }
+
+    const r = tdRes, s = r.summary;
+    const t = r.target;
+    const cnt = (n) => n == null ? "—" : Number(n).toLocaleString();
+
+    // ---- verdict ----
+    let verdict;
+    if (!t) verdict = `<span class="tag block">⛔ no shared-device group</span> No group in this tenant is named <code>${esc(TeamsDev.CANONICAL)}</code> (or an accepted alias) and no dynamic group names a Teams device plan${r.groups.length ? ` — the ${r.groups.length} candidate${r.groups.length === 1 ? "" : "s"} below ${r.groups.length === 1 ? "is" : "are"} something else` : ""}. Every All-users policy reaches the ${cnt(s.deviceAccounts)} device licence${s.deviceAccounts === 1 ? "" : "s"} this tenant has assigned.`;
+    else if (t.verdict === "current") verdict = `<span class="tag ok">✅ up to date</span> <b>${esc(t.name)}</b> names every plan that isolates a device account in this tenant${t.memberCount != null ? ` and holds <b>${cnt(t.memberCount)}</b> members` : ""}${s.previewCount != null ? ` — the recommended rule matches <b>${cnt(s.previewCount)}</b> accounts today` : ""}.`;
+    else if (t.verdict === "update") verdict = `<span class="tag new">⚠ the rule is behind the licences</span> <b>${esc(t.name)}</b> ${esc(t.why)}.${t.memberCount != null ? ` It holds <b>${cnt(t.memberCount)}</b> members today` : ""}${s.previewCount != null ? `${t.memberCount != null ? ";" : ""} the recommended rule matches <b>${cnt(s.previewCount)}</b> account${s.previewCount === 1 ? "" : "s"}` : ""}${t.memberCount != null && s.previewCount != null && s.previewCount > t.memberCount ? ` — roughly <b>${cnt(s.previewCount - t.memberCount)}</b> device accounts are outside the group and inside every policy that excludes it` : ""}.`;
+    else if (t.verdict === "trap") verdict = `<span class="tag block">⛔ the group contains people</span> <b>${esc(t.name)}</b> ${esc(t.why)}. Replace the rule before anything else.`;
+    else if (t.verdict === "assigned") verdict = `<span class="tag new">✋ assigned, not dynamic</span> <b>${esc(t.name)}</b> is hand-maintained${t.memberCount != null ? ` with <b>${cnt(t.memberCount)}</b> members` : ""} while the tenant has <b>${cnt(s.deviceAccounts)}</b> device licences assigned. The recommended rule below can be written onto it, which converts it to dynamic membership.`;
+    else verdict = `<span class="tag">❔ read by hand</span> <b>${esc(t.name)}</b> ${esc(t.why)}.`;
+
+    const notes = [
+      r.skusRead ? `${r.skuRows.length} subscribed SKU${r.skuRows.length === 1 ? "" : "s"} read · <b>${s.deviceSkus}</b> device SKU${s.deviceSkus === 1 ? "" : "s"} · <b>${cnt(s.deviceAccounts)}</b> device licences assigned` : '<span style="color:var(--off)">subscribed SKUs NOT read — the rule comes from the bundled catalog, not from this tenant</span>',
+      `${cnt(r.totalDynamic)} dynamic group${r.totalDynamic === 1 ? "" : "s"} read${r.groupsPartial ? ' <span style="color:var(--off)">(capped — partial)</span>' : ""}`,
+      s.notIsolatable ? `<b style="color:var(--off)">${s.notIsolatable} device SKU${s.notIsolatable === 1 ? "" : "s"} cannot be isolated by service plan</b>` : "",
+      r.phoneUserSkus.length ? `${r.phoneUserSkus.length} per-user phone licence${r.phoneUserSkus.length === 1 ? "" : "s"} deliberately left out` : "",
+    ].filter(Boolean);
+
+    const head = `<div class="list-card" style="padding:14px 16px">
+      <p class="mini" style="margin:0">${verdict}</p>
+      ${t && s.caBreaks ? `<p class="mini" style="margin:8px 0 0"><span class="tag ${s.caBreaksOn ? "block" : "new"}">${s.caBreaksOn ? "⛔" : "⚠"} ${s.caBreaks} polic${s.caBreaks === 1 ? "y" : "ies"} reach the device accounts with a control they cannot satisfy</span> ${s.caBreaksOn ? `<b>${s.caBreaksOn}</b> enforced. ` : ""}Fix those with the one-click exclusions in <a href="#" class="md-tool" data-tool="toolMsLearn">📘 MS Learn checks</a> — the table at the bottom names them.</p>` : ""}
+      <p class="mini muted" style="margin:10px 0 0">${notes.join(" · ")}</p>
+    </div>`;
+
+    // ---- licences ----
+    const skuRow = (x) => `<tr style="border-top:1px solid var(--line)">
+      <td style="padding:4px 8px"><b>${esc(x.part)}</b><br><span class="muted">${esc(x.label || (x.kind === "other" ? "" : x.kind))}</span></td>
+      <td style="padding:4px 8px">${esc(TeamsDev.KIND_LABEL[x.kind] || (x.kind === "phoneUser" ? "user licence" : "—"))}</td>
+      <td style="padding:4px 8px">${cnt(x.consumed)} / ${cnt(x.enabled)}${/enabled/i.test(x.status) ? "" : ` <span class="muted">(${esc(x.status)})</span>`}</td>
+      <td style="padding:4px 8px">${x.kind === "phoneUser" ? '<span class="tag">people — left out</span>'
+        : x.isolatable ? x.isolating.map((id) => `<code title="${esc(id)}">${esc(tdPlanName(id))}</code>`).join(" ")
+        : '<b style="color:var(--off)">not isolatable</b><br><span class="mini muted">every plan it carries is also in a user SKU — add a UPN prefix above, or manage these accounts in an assigned group</span>'}</td>
+    </tr>`;
+    const shownSkus = tdShowSkus ? r.skuRows : r.skuRows.filter((x) => x.kind !== "other");
+    const lic = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <p class="mini" style="margin:0 0 6px"><b>LICENCES</b> — what this tenant owns, and which plan isolates each device population</p>
+      ${r.skusRead ? `<div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">SKU</th><th style="padding:4px 8px">Population</th><th style="padding:4px 8px" title="consumedUnits / prepaidUnits.enabled — assigned out of owned">Assigned</th><th style="padding:4px 8px" title="Service plans this SKU carries that NO non-device subscription in this tenant carries — the only plans a rule can use">Isolated by</th></tr></thead>
+        <tbody>${shownSkus.map(skuRow).join("") || `<tr><td colspan="4" style="padding:6px 8px" class="muted">No Teams device or phone SKU in this tenant.</td></tr>`}</tbody></table></div>
+        <p class="mini muted" style="margin:6px 0 0"><button class="btn" data-tdskus style="padding:3px 10px;font-size:12px">${tdShowSkus ? "Hide" : "Show"} the ${r.skuRows.filter((x) => x.kind === "other").length} other subscriptions</button> — those decide which plans are NOT unique: a plan any of them carries is a plan the rule must not name.</p>`
+        : `<p class="mini" style="margin:0;color:var(--off)">The subscribed SKUs could not be read, so nothing here is known about this tenant's licences. The rule below is the bundled catalog — every plan Microsoft lists only in device SKUs — which is right for most tenants and cannot see a plan Microsoft added since.</p>`}
+    </div>`;
+
+    // ---- recommended rule ----
+    const ruleCard = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <p class="mini" style="margin:0 0 6px"><b>RECOMMENDED RULE</b> — ${r.ruleSource === "tenant" ? `the <b>${s.planCount}</b> plan${s.planCount === 1 ? "" : "s"} unique to this tenant's device SKUs` : r.ruleSource === "catalog-no-device-skus" ? `this tenant has no device SKU, so the <b>${s.planCount}</b> catalog plans (harmless today, ready for the first Teams Room)` : `the bundled catalog's <b>${s.planCount}</b> plans (SKUs not read)`}${r.prefixes.length ? ` + UPN prefix${r.prefixes.length === 1 ? "" : "es"} <code>${r.prefixes.map(esc).join("</code>, <code>")}</code>` : ""} · ${r.ruleLen} of ${TeamsDev.RULE_MAX} characters${r.ruleTooLong ? ' <b style="color:var(--off)">— OVER the limit, remove prefixes</b>' : ""}</p>
+      <pre style="white-space:pre-wrap;word-break:break-word;margin:0 0 8px;font-size:12px">${esc(r.rule || "(nothing to match — no device plan and no prefix)")}</pre>
+      <p class="mini" style="margin:0 0 2px"><b>Must hold one of</b> — the device plans</p>
+      <ul class="mini" style="margin:0 0 8px;padding-left:18px">${r.planIds.map((id) => `<li><code>${esc(tdPlanName(id))}</code> <span class="muted">${esc(id)}</span> — ${esc(tdPlanLabel(id))}</li>`).join("")}</ul>
+      <p class="mini" style="margin:0 0 2px"><b>Must hold none of</b> — the user-suite markers${r.ruleSource === "tenant" && r.suiteSkus.length ? ` (the smallest set that covers the ${r.suiteSkus.length} user suite${r.suiteSkus.length === 1 ? "" : "s"} this tenant owns: ${r.suiteSkus.map((x) => esc(x.part)).join(", ")})` : " (static: the SharePoint plans, which no device SKU has ever carried)"}. An account holding E1/E3/E5, F1/F3, A3/A5 or a Business suite is a <b>person</b> and stays out, whatever device licence it also holds.</p>
+      <ul class="mini" style="margin:0 0 8px;padding-left:18px">${r.markerInfo.map((m) => `<li><code>${esc(m.name)}</code> <span class="muted">${esc(m.id)}</span> — ${esc(m.label)}</li>`).join("")}</ul>
+      ${r.uncoverable.length ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">⚠ ${r.uncoverable.map(esc).join(", ")} carr${r.uncoverable.length === 1 ? "ies" : "y"} no plan a device SKU lacks, so the rule cannot tell its holders from devices.</p>` : ""}
+      ${r.preview ? `<p class="mini" style="margin:0 0 4px">🔎 Matches <b>${cnt(r.preview.count)}</b> account${r.preview.count === 1 ? "" : "s"} in this tenant today${r.preview.sample.length ? ` — first ${r.preview.sample.length}${r.preview.capped ? " by name" : ""}:` : "."}</p>
+        ${r.preview.sample.length ? `<p class="mini muted" style="margin:0 0 8px">${r.preview.sample.map((u) => `${esc(u.name || u.upn)}${u.enabled ? "" : ' <span style="color:var(--off)">(disabled)</span>'}`).join(" · ")}</p>` : ""}`
+        : `<p class="mini muted" style="margin:0 0 8px">The match count could not be previewed (the directory refused the plan filter) — the rule is still valid; Entra evaluates it after the write.</p>`}
+      ${r.people ? (r.people.count ? `<div style="margin:0 0 10px">
+        <p class="mini" style="margin:0 0 6px"><span class="tag new">⚠ ${cnt(r.people.count)} ${r.people.count === 1 ? "person holds" : "people hold"} a device licence on their own account</span> ${r.people.count === 1 ? "This account matches" : "These accounts match"} a device plan AND a user suite. The rule keeps them <b>out</b> of the group, so they keep MFA — but a Rooms or Shared Space licence belongs on a device account, not on a person: move the licence to the device's own account, or accept that this device signs in as a user.</p>
+        ${r.people.sample.length ? `<div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
+          <thead><tr style="text-align:left"><th style="padding:4px 8px">Account</th><th style="padding:4px 8px">UPN</th><th style="padding:4px 8px" title="The licences on this account, from assignedLicenses — device SKUs in bold">Licences</th><th style="padding:4px 8px">State</th></tr></thead>
+          <tbody>${r.people.sample.map((u) => `<tr style="border-top:1px solid var(--line)">
+            <td style="padding:4px 8px"><b>${esc(u.name || "")}</b></td>
+            <td style="padding:4px 8px"><span class="muted">${esc(u.upn || "")}</span></td>
+            <td style="padding:4px 8px">${tdSkuChips(u.skus)}</td>
+            <td style="padding:4px 8px">${u.enabled ? "enabled" : '<span style="color:var(--off)">disabled</span>'}</td>
+          </tr>`).join("")}</tbody></table></div>
+          ${r.people.capped ? `<p class="mini muted" style="margin:6px 0 0">First ${r.people.sample.length} of ${cnt(r.people.count)} by name — the full list is the same filter in the portal (device plan AND suite plan).</p>` : ""}` : ""}
+      </div>` : `<p class="mini muted" style="margin:0 0 8px">✅ No account holds both a device licence and a user suite.</p>`) : ""}
+      ${r.notIsolatable.length ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">⚠ ${r.notIsolatable.map((x) => `<b>${esc(x.part)}</b> (${cnt(x.consumed)} assigned)`).join(", ")} cannot be caught by any service plan in this tenant. Type the UPN prefix those accounts share in the box above and rescan, or keep them in an assigned group that the same policies also exclude.</p>` : ""}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        ${t && t.verdict !== "current" ? `<button class="btn primary" data-tdwrite="${esc(t.id)}">✏️ Replace the rule on ${esc(t.name)}</button>` : ""}
+        ${t && t.verdict === "current" ? `<span class="tag ok">✅ ${esc(t.name)} already carries this rule</span>` : ""}
+        ${!t ? `<button class="btn primary" data-tdcreate>＋ Create ${esc(TeamsDev.CANONICAL)} with this rule</button>` : ""}
+        <button class="btn" data-tdcopy>📋 Copy the rule</button>
+      </div>
+    </div>`;
+
+    // ---- groups ----
+    const gRow = (g) => {
+      const open = tdOpen.has(g.id);
+      return `<tr style="border-top:1px solid var(--line)">
+        <td style="padding:4px 8px"><b>${esc(g.name)}</b>${g.canonical ? ' <span class="tag ok">canonical</span>' : g.alias ? ' <span class="tag">alias</span>' : ""}${t && t.id === g.id ? ' <span class="tag grant">target</span>' : ""}<br><span class="muted">${esc(g.id)}</span></td>
+        <td style="padding:4px 8px">${g.dynamic ? `dynamic${g.ruleState ? ` · ${/paused/i.test(g.ruleState) ? `<b style="color:var(--off)">${esc(g.ruleState)}</b>` : esc(g.ruleState)}` : ""}` : "assigned"}</td>
+        <td style="padding:4px 8px">${cnt(g.memberCount)}</td>
+        <td style="padding:4px 8px">${g.refs.length ? `${g.refs.length}${g.refs.filter((x) => x.how === "excluded").length ? ` <span class="muted">(${g.refs.filter((x) => x.how === "excluded").length} exclude)</span>` : ""}` : "—"}</td>
+        <td style="padding:4px 8px">${tdChip(g.verdict)}<br><span class="mini muted">${esc(g.why)}</span>
+          <br><button class="btn" data-tdrule="${esc(g.id)}" style="margin-top:6px;padding:3px 10px;font-size:12px">${open ? "▾" : "▸"} the rule${g.refs.length ? " and its policies" : ""}</button>
+          ${g.verdict !== "current" && g.dynamic && t && t.id !== g.id && (g.plans.known.length || g.plans.traps.length) ? ` <button class="btn" data-tdwrite="${esc(g.id)}" style="margin-top:6px;padding:3px 10px;font-size:12px">✏️ write the recommended rule here instead</button>` : ""}
+          ${open ? `<div class="mini" style="margin-top:6px">
+            ${g.rule ? `<pre style="white-space:pre-wrap;word-break:break-word;margin:0 0 6px">${esc(g.rule)}</pre>` : '<p class="muted" style="margin:0 0 6px">No membership rule — members are assigned by hand.</p>'}
+            ${g.plans.known.length ? `<b>Device plans named</b> ${g.plans.known.map((id) => `<code title="${esc(id)}">${esc(tdPlanName(id))}</code>`).join(" ")}<br>` : ""}
+            ${g.plans.traps.length ? `<b style="color:var(--off)">Plans real users hold</b> ${g.plans.traps.map((id) => `<code title="${esc(id)}">${esc(TeamsDev.TRAPS[id])}</code>`).join(" ")}<br>` : ""}
+            ${g.plans.unknown.length ? `<b>Plans this tool does not know</b> ${g.plans.unknown.map((id) => `<code>${esc(id)}</code>`).join(" ")} — check them against the <a href="https://learn.microsoft.com/entra/identity/users/licensing-service-plan-reference" target="_blank" rel="noopener">reference</a><br>` : ""}
+            ${g.missing.length ? `<b>Missing</b> ${g.missing.map((id) => `<code title="${esc(id)}">${esc(tdPlanName(id))}</code>`).join(" ")}<br>` : ""}
+            ${g.plans.excludes.length ? `<b>Keeps out</b> ${g.plans.excludes.map((id) => `<code title="${esc(id)}">${esc(((TeamsDev.SUITE_MARKERS[id] || {}).name) || ((r.markerInfo.find((m) => m.id === id) || {}).name) || id)}</code>`).join(" ")}<br>` : ""}
+            ${g.missingMarkers && g.missingMarkers.length ? `<b style="color:var(--off)">Does not keep out</b> ${g.missingMarkers.map((id) => `<code title="${esc(id)}">${esc(((TeamsDev.SUITE_MARKERS[id] || {}).name) || ((r.markerInfo.find((m) => m.id === id) || {}).name) || id)}</code>`).join(" ")} — user-suite holders can land in the group<br>` : ""}
+            ${g.refs.length ? `<b>Conditional Access</b><ul style="margin:2px 0 0;padding-left:18px">${g.refs.map((p) => `<li>${p.how === "excluded" ? '<b style="color:var(--off)">EXCLUDED from</b>' : "included in"} ${esc(p.name)} <span class="muted">(${esc(p.state)})</span></li>`).join("")}</ul>` : ""}
+          </div>` : ""}
+        </td>
+      </tr>`;
+    };
+    const groups = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <p class="mini" style="margin:0 0 6px"><b>GROUPS</b> — every group that looks like a Teams device group, and what its rule actually matches</p>
+      ${r.groups.length ? `<div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">Group</th><th style="padding:4px 8px">Membership</th><th style="padding:4px 8px">Members</th><th style="padding:4px 8px">CA policies</th><th style="padding:4px 8px">Verdict</th></tr></thead>
+        <tbody>${r.groups.map(gRow).join("")}</tbody></table></div>`
+        : `<p class="mini muted" style="margin:0">No dynamic group names a Teams device plan and nothing is called ${esc(TeamsDev.CANONICAL)} or an alias. Create the group above, then exclude it from the global policies with 📘 MS Learn checks.</p>`}
+    </div>`;
+
+    // ---- CA reach ----
+    const shown = r.ca.filter((x) => x.verdict !== "out of scope");
+    const caRow = (x) => `<tr style="border-top:1px solid var(--line)">
+      <td style="padding:4px 8px"><b class="pol-link" data-polid="${esc(x.id)}" title="Open the policy card">${esc(x.name)}</b></td>
+      <td style="padding:4px 8px">${x.state}</td>
+      <td style="padding:4px 8px">${x.excludesTarget ? '<span class="tag ok">excluded</span>' : x.reaches ? `<span class="tag ${x.unsupported.length ? (x.enforced ? "block" : "new") : ""}">${x.all ? "All users" : "includes the group"}</span>` : "—"}</td>
+      <td style="padding:4px 8px">${x.unsupported.length ? `<ul style="margin:0;padding-left:16px">${x.unsupported.map((u) => `<li>${esc(u)}</li>`).join("")}</ul>` : x.block && x.reaches ? '<span class="muted">block — make sure the devices’ locations and platforms are what this policy allows</span>' : '<span class="muted">nothing a device cannot satisfy</span>'}</td>
+    </tr>`;
+    const ca = `<div class="list-card" style="padding:14px 16px;margin-top:12px">
+      <p class="mini" style="margin:0 0 6px"><b>CONDITIONAL ACCESS REACH</b> — ${t ? `which active policies reach the accounts in <b>${esc(t.name)}</b>, and which carry a control from Microsoft's not-supported list` : "no target group, so every All-users policy reaches the device accounts"}</p>
+      ${shown.length ? `<div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">Policy</th><th style="padding:4px 8px">State</th><th style="padding:4px 8px" title="Excluded: the group is in the policy's exclusions. All users / includes the group: the policy applies to the device accounts">Devices</th><th style="padding:4px 8px" title="From Microsoft's supported-policies table for Teams Rooms on Windows and Android, Teams phones and panels">Controls Teams devices cannot satisfy</th></tr></thead>
+        <tbody>${shown.map(caRow).join("")}</tbody></table></div>
+        <p class="mini muted" style="margin:8px 0 0">A device that meets a policy's conditions still has to sign in <b>somewhere</b>: the right shape is one dedicated policy for the group — compliant device and a trusted location, no MFA, no sign-in frequency — with the group excluded from everything else. 📘 MS Learn checks adds the exclusions one click at a time.</p>`
+        : '<p class="mini muted" style="margin:0">No active policy applies to the device accounts.</p>'}
+    </div>`;
+
+    $("tdBody").innerHTML = head + lic + ruleCard + groups + ca;
+  }
+
+  // ---- the write: replace a group's rule, or create the group ----
+  let tdWriteTarget = null;   // { mode: "update"|"create", id, name, oldRule }
+  let tdLastWrite = null;     // the last write of this session, with its `before` — what ⎌ Roll back restores
+  async function tdRollback() {
+    const w = tdLastWrite; if (!w || !w.before) { toast("Nothing to roll back in this session — use the downloaded file."); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...TD_WRITE])) return;
+    const out = $("tdWriteResult");
+    try {
+      const wasDynamic = (w.before.groupTypes || []).includes("DynamicMembership");
+      const body = wasDynamic
+        ? { membershipRule: w.before.membershipRule || "", membershipRuleProcessingState: w.before.membershipRuleProcessingState || "On" }
+        : { groupTypes: [], membershipRuleProcessingState: "Paused" };
+      if (!isDemo) await Graph.gpatch(`/groups/${w.id}`, body, [...AUTH_CONFIG.scopes, ...TD_WRITE]);
+      else await new Promise((r) => setTimeout(r, 300));
+      out.innerHTML = `<p class="mini">⎌ Rolled back: <b>${esc(w.name)}</b> ${wasDynamic ? "carries its previous rule again" : "is an assigned group again — check its members against the rollback file; the conversion keeps whoever was in it at this moment"}.</p>`;
+      toast(`Rule on ${esc(w.name)} <span>rolled back</span>`);
+      if (isDemo && tdCtx) {
+        const g = tdCtx.groups.find((x) => x.id === w.id);
+        if (g) { g.membershipRule = w.before.membershipRule || ""; g.dynamic = wasDynamic; g.ruleState = wasDynamic ? (w.before.membershipRuleProcessingState || "On") : ""; }
+        tdRes = TeamsDev.analyze(tdCtx);
+      } else tdRes = null;
+      tdLastWrite = null;
+      renderTeamsDev();
+    } catch (e) { out.innerHTML = `<p class="mini" style="color:var(--off)">❌ Roll back failed: ${esc(e.message || e)} — the downloaded file has the PATCH to run by hand.</p>`; }
+  }
+  function tdOpenWrite(mode, gid) {
+    if (!tdRes) return;
+    const g = gid ? tdRes.groups.find((x) => x.id === gid) : null;
+    if (mode === "update" && !g) return;
+    tdWriteTarget = { mode, id: g ? g.id : null, name: g ? g.name : TeamsDev.CANONICAL, oldRule: g ? g.rule : "", dynamic: g ? g.dynamic : true, members: g ? g.memberCount : null };
+    $("tdWriteTitle").textContent = mode === "create" ? `＋ Create ${TeamsDev.CANONICAL}` : `✏️ Replace the rule on ${tdWriteTarget.name}`;
+    $("tdWriteTenant").textContent = tenantName || "this tenant";
+    $("tdWriteOld").textContent = tdWriteTarget.oldRule || (g && !g.dynamic ? "(assigned group — no rule; writing one converts it to dynamic membership)" : "(none)");
+    $("tdWriteNew").value = tdRes.rule;
+    $("tdWriteNote").innerHTML = mode === "create"
+      ? `A new <b>dynamic security group</b> named <code>${esc(TeamsDev.CANONICAL)}</code> with this rule. It starts empty and fills as Entra evaluates the rule (minutes to an hour). It is <b>not</b> excluded from any policy yet — do that next in 📘 MS Learn checks, or the group changes nothing.`
+      : `<b>Rollback first:</b> before anything is written, a JSON file with the group as it is now — this rule, its processing state${g && !g.dynamic ? ", and its members (the write converts an assigned group to dynamic)" : ""} — and the exact PATCH that restores it is downloaded; a ⎌ Roll back button appears after the write for this session. Entra re-evaluates the whole group after the write. Accounts the old rule matched and the new one does not <b>leave</b> the group and lose every exclusion that rides on it; accounts the new rule matches <b>join</b> it. ${tdRes.preview && tdRes.preview.count != null ? `The preview says <b>${tdRes.preview.count.toLocaleString()}</b> accounts match today${tdWriteTarget.members != null ? ` against <b>${tdWriteTarget.members.toLocaleString()}</b> members now` : ""}.` : "The match count could not be previewed."} ${g && g.refs.length ? `<b>${g.refs.length}</b> active polic${g.refs.length === 1 ? "y references" : "ies reference"} this group.` : ""}`;
+    $("tdWriteOk").checked = false;
+    $("tdWriteGo").disabled = true;
+    $("tdWriteResult").style.display = "none";
+    $("tdWriteResult").innerHTML = "";
+    $("tdWriteModal").classList.add("open");
+  }
+  async function tdWriteGo() {
+    const w = tdWriteTarget; if (!w) return;
+    const rule = String($("tdWriteNew").value || "").trim();
+    if (!rule) { toast("The rule is empty — nothing written."); return; }
+    if (rule.length > TeamsDev.RULE_MAX) { toast(`The rule is ${rule.length} characters — Microsoft's limit is ${TeamsDev.RULE_MAX}.`); return; }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...TD_WRITE])) return;
+    $("tdWriteGo").disabled = true;
+    const out = $("tdWriteResult"); out.style.display = ""; out.innerHTML = '<p class="mini muted">Writing the rollback file…</p>';
+    try {
+      // ROLLBACK FIRST. The old rule lived only in this dialog; once the
+      // PATCH lands it is gone from the tenant. So before anything is
+      // written: the group as it is now — rule, processing state, group
+      // types, and for an assigned group its members (the write converts it
+      // to dynamic, and Entra will not give those members back) — goes to a
+      // JSON file with the exact PATCH that restores it. Kept in memory too,
+      // for the ⎌ Roll back button after the write.
+      const g = w.id ? (tdCtx && tdCtx.groups.find((x) => x.id === w.id)) : null;
+      let members = null;
+      if (w.mode !== "create" && g && !g.dynamic && !isDemo) {
+        try {
+          members = [];
+          let next = `/groups/${w.id}/members?$select=id,displayName,userPrincipalName&$top=999`, pages = 0;
+          while (next && pages < 5) { const j = await Graph.gget(next); for (const m of j.value || []) members.push({ id: m.id, upn: m.userPrincipalName || "", name: m.displayName || "" }); next = j["@odata.nextLink"] || null; pages++; }
+          if (next) members.push({ id: "…", upn: "", name: `(capped — more members not listed; group had ${w.members ?? "?"} at read time)` });
+        } catch (e) { members = [{ id: "", upn: "", name: `members could not be read: ${e.message || e}` }]; }
+      }
+      const before = w.mode === "create" ? null : {
+        membershipRule: w.oldRule || null,
+        membershipRuleProcessingState: g && g.ruleState ? g.ruleState : (g && g.dynamic ? "On" : null),
+        groupTypes: g && g.dynamic ? ["DynamicMembership"] : [],
+        members,
+      };
+      const restore = w.mode === "create"
+        ? { note: "The write CREATES a group. Rollback is deleting it (it goes to the recycle bin for 30 days).", method: "DELETE", url: `https://graph.microsoft.com/v1.0/groups/<id from result>`, powershell: "Remove-MgGroup -GroupId <id from result>" }
+        : g && g.dynamic
+          ? { note: "PATCH the old rule back. Entra re-evaluates the membership in the background.", method: "PATCH", url: `https://graph.microsoft.com/v1.0/groups/${w.id}`, body: { membershipRule: w.oldRule, membershipRuleProcessingState: before.membershipRuleProcessingState || "On" },
+              powershell: `Update-MgGroup -GroupId ${w.id} -MembershipRule ${JSON.stringify(w.oldRule || "")} -MembershipRuleProcessingState ${before.membershipRuleProcessingState || "On"}` }
+          : { note: "The group was ASSIGNED. Rollback is converting it back (groupTypes empty, processing Paused) and re-adding the members listed above — the conversion keeps whoever is in the group at that moment, so do it before the dynamic rule has emptied it, or re-add from the list.", method: "PATCH", url: `https://graph.microsoft.com/v1.0/groups/${w.id}`, body: { groupTypes: [], membershipRuleProcessingState: "Paused" },
+              powershell: `Update-MgGroup -GroupId ${w.id} -GroupTypes @() -MembershipRuleProcessingState Paused` };
+      const record = { tool: "ENCA Teams devices", build: (typeof APP_BUILD !== "undefined" && APP_BUILD.label) || "", when: new Date().toISOString(),
+        tenant: tenantName || "", tenantId: Graph.account?.tenantId || "", by: Graph.account?.username || "",
+        action: w.mode === "create" ? "create group" : "replace membershipRule",
+        group: { id: w.id, displayName: w.name }, before, after: { membershipRule: rule, membershipRuleProcessingState: "On", groupTypes: ["DynamicMembership"] }, restore };
+      tdLastWrite = { ...w, before, when: record.when };
+      downloadText(`CA-TeamsDevices-rollback-${String(w.name).replace(/[^\w-]+/g, "-")}`, "json", "application/json", JSON.stringify(record, null, 2));
+      out.innerHTML = '<p class="mini muted">Rollback file downloaded — writing…</p>';
+      if (w.mode === "create") {
+        let made;
+        if (isDemo) { await new Promise((r) => setTimeout(r, 400)); made = { id: "g-demo-new", created: true }; }
+        else made = await Assign.createGroup({ displayName: TeamsDev.CANONICAL, mailNickname: "CABSECUTeamsSharedDevices",
+          description: "Teams Rooms, panels, common-area phones and Teams Phone resource accounts — excluded from Conditional Access controls these devices cannot satisfy. Dynamic membership on the service plans unique to device licences; rule maintained by ENCA's Teams devices tool.",
+          dynamic: true, membershipRule: rule, roleAssignable: false }, { mustCreate: false });
+        out.innerHTML = `<p class="mini">✅ ${made.created === false ? "A group with that name already existed and was reused" : "Created"} — <code>${esc(made.id)}</code>. ${made.created === false ? "Its rule was NOT changed; rescan and use Replace instead." : "Now exclude it from the global policies in 📘 MS Learn checks."}</p>`;
+        toast(`${esc(TeamsDev.CANONICAL)} <span>${made.created === false ? "already existed" : "created"}</span>`);
+      } else {
+        if (!isDemo) await Graph.gpatch(`/groups/${w.id}`, { groupTypes: ["DynamicMembership"], membershipRule: rule, membershipRuleProcessingState: "On" }, [...AUTH_CONFIG.scopes, ...TD_WRITE]);
+        else await new Promise((r) => setTimeout(r, 400));
+        out.innerHTML = `<p class="mini">✅ The rule on <b>${esc(w.name)}</b> is replaced and processing is On. Entra re-evaluates the membership in the background — the member count catches up over the next minutes.</p>
+          <p class="mini muted" style="margin:6px 0 0">📄 The rollback file is in your downloads: the rule as it was${before && before.members ? `, the ${before.members.length} members the assigned group had` : ""}, and the PATCH that restores it. <button class="btn" data-tdrollback style="margin-left:6px;padding:3px 10px;font-size:12px">⎌ Roll back now</button></p>`;
+        toast(`Rule on ${esc(w.name)} <span>replaced</span>`);
+      }
+      if (isDemo && tdCtx) {
+        const g = tdCtx.groups.find((x) => x.id === w.id);
+        if (g) { g.membershipRule = rule; g.dynamic = true; g.ruleState = "On"; }
+        else if (w.mode === "create") tdCtx.groups.push({ id: "g-demo-new", displayName: TeamsDev.CANONICAL, dynamic: true, ruleState: "On", memberCount: 0, description: "", membershipRule: rule });
+        tdRes = TeamsDev.analyze(tdCtx);
+        renderTeamsDev();
+      } else {
+        tdRes = null;   // the tenant changed — the next render offers a fresh read
+        renderTeamsDev();
+      }
+    } catch (e) {
+      out.innerHTML = `<p class="mini" style="color:var(--off)">❌ ${esc(e.message || e)}</p>`;
+      $("tdWriteGo").disabled = !$("tdWriteOk").checked;
+    }
+  }
+
+  function openTeamsDev() { crumb("📞 Teams devices"); show("screen-teamsdev"); renderTeamsDev(); }
+  $("toolTeamsDev").addEventListener("click", openTeamsDev);
+  $("tdRun").addEventListener("click", tdRun);
+  $("tdPrefix").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); tdRun(); } });
+  $("tdBody").addEventListener("click", async (e) => {
+    if (e.target.closest("[data-tdrun]")) { tdRun(); return; }
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    if (e.target.closest("[data-tdskus]")) { tdShowSkus = !tdShowSkus; renderTeamsDev(); return; }
+    const rule = e.target.closest("[data-tdrule]");
+    if (rule) { const id = rule.dataset.tdrule; tdOpen.has(id) ? tdOpen.delete(id) : tdOpen.add(id); renderTeamsDev(); return; }
+    const w = e.target.closest("[data-tdwrite]");
+    if (w) { tdOpenWrite("update", w.dataset.tdwrite); return; }
+    if (e.target.closest("[data-tdcreate]")) { tdOpenWrite("create", null); return; }
+    if (e.target.closest("[data-tdcopy]")) {
+      try { await navigator.clipboard.writeText(tdRes ? tdRes.rule : ""); toast("Rule <span>copied</span>"); } catch { toast("Could not copy — select the rule text and copy it by hand."); }
+    }
+  });
+  $("tdWriteOk").addEventListener("change", () => { $("tdWriteGo").disabled = !$("tdWriteOk").checked; });
+  $("tdWriteCancel").addEventListener("click", () => $("tdWriteModal").classList.remove("open"));
+  $("tdWriteResult").addEventListener("click", (e) => { if (e.target.closest("[data-tdrollback]")) tdRollback(); });
+  $("tdWriteGo").addEventListener("click", tdWriteGo);
+  $("tdMd").addEventListener("click", () => {
+    if (!tdRes) { toast("Run the check first — the report is the result."); return; }
+    showReport("📞 Teams devices", "CA-TeamsDevices", TeamsDev.toMd(tdRes, { tenantName }));
+  });
+
   // ---------- boot ----------
   // Keep the user informed during a throttle back-off instead of looking hung.
   buildToolNav();
@@ -16124,7 +17050,7 @@ max@contoso.com,"Global, DevOps"</pre>
     siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
     drHead: "toolDrift", dvHead: "toolDevCheck", lgHead: "toolLicGap",
-    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf",
+    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

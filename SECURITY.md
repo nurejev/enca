@@ -15,9 +15,14 @@ this file next to it.)*
 
 ENCA is a **static, single-page web application**: HTML, CSS and plain
 JavaScript served from GitHub Pages. There is **no backend, no database, no
-proxy and no server-side code**. The browser talks to exactly two parties:
-`login.microsoftonline.com` to sign in and `graph.microsoft.com` to read and
-(only when an admin explicitly uses a write tool) change the tenant. Policy
+proxy and no server-side code**. The browser talks to two parties for the
+tenant: `login.microsoftonline.com` to sign in and `graph.microsoft.com` to
+read and (only when an admin explicitly uses a write tool) change the tenant.
+One read-only exception, added in R36: the 🧩 Baseline (Joey Verlinden) tool
+reads that community baseline's policy files from `api.github.com` and
+`raw.githubusercontent.com` — public, unauthenticated, once per session, no
+tenant data in the request, every file validated before it is believed, and
+the bundled snapshot as the fallback when the read fails. Policy
 data, sign-in logs, group memberships — everything the tool reads — exists
 **only in the browser tab** and is gone when the tab closes. Nothing is
 stored, proxied, cached or logged anywhere else, and the operator has no
@@ -89,7 +94,8 @@ service.
 - A **Content-Security-Policy** (meta tag; GitHub Pages cannot send headers)
   restricts scripts to same-origin — no inline scripts, no third-party script
   origins — and network calls to `graph.microsoft.com`,
-  `login.microsoftonline.com` and the count endpoint. This is the primary
+  `login.microsoftonline.com`, the count endpoint, and (for the live baseline
+  read only) `api.github.com` and `raw.githubusercontent.com`. This is the primary
   defence against script injection: even a successfully injected `<script>`
   from another origin will not execute.
 - **Every JavaScript library is self-hosted** in `vendor/` (MSAL, jsPDF,

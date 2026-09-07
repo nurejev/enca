@@ -36,12 +36,12 @@
       "type": "string",
       "defaultValue": "",
       "maxLength": 48000,
-      "metadata": { "description": "OPTIONAL: this deployment's look, as the JSON from the gear next to Sign out (Copy for container). Written to selfhost-branding.json so EVERY visitor gets it, not just the browser it was designed in. HARD SIZE LIMIT, and it is the kernel's: Linux refuses a single environment variable over 128 KB, and a container carrying one FAILS TO START - nothing runs, and the site is down until somebody removes the variable by hand. An embedded logo is what gets you there. Use brandingUrl for anything large." }
+      "metadata": { "description": "LEAVE EMPTY on a first deployment. You design the look inside the app - the gear next to Sign out, once the instance exists and you have signed in - and its 'Save to this deployment' button then writes this setting for you. Fill this in only when you ALREADY have a look: redeploying, or standing up a matching instance for another team. Paste the JSON from the gear's Download or Copy for container. HARD SIZE LIMIT and it is the kernel's: Linux refuses a single environment variable over 128 KB, and a container carrying one FAILS TO START - nothing runs, and the site is down until somebody removes the variable by hand. An embedded logo is what gets you there, so use brandingUrl for anything with one." }
     },
     "brandingUrl": {
       "type": "string",
       "defaultValue": "",
-      "metadata": { "description": "OPTIONAL: https URL serving the same branding JSON, fetched once at container start. For a look too large for the branding parameter. Ignored when branding is set; a fetch that fails leaves the instance unbranded rather than stopping it." }
+      "metadata": { "description": "LEAVE EMPTY on a first deployment - same as branding above. This is the route for a look that carries a logo: an https URL serving the branding JSON, fetched once at every container start, with no size limit. Set this OR branding, never both - branding wins and this would look ignored. A fetch that fails leaves the instance unbranded rather than stopping it, because a logo nobody can reach is a cosmetic problem and refusing to serve the tool over it would be an outage." }
     }
   },
   "variables": {

@@ -153,11 +153,163 @@ const BASELINE_JOEY = {
   ],
 };
 
+// ======================================================================
+// R36 — THE CONTRACT. Everything below is what makes this a first-class
+// baseline rather than a comparison table: the answers every downstream
+// tool needs (which groups to expect, which persona a group belongs to,
+// which restricted unit that persona's vault is) stated for THIS baseline.
+// Each function takes the catalog as its first argument on purpose — the
+// live-fetched catalog (js/baselineLive.js) is a spread of this object with
+// a fresh `policies` list, and it inherits the rules unchanged.
+//
+// Personas. Joey's are Global / Admins / Internals / ServiceAccounts /
+// GuestUsers / Agents. Where a persona means the same thing as a CloudFellows
+// one it carries the SAME code (GLO, ADM, INT, SA, GUESTUSERS, BreakGlass),
+// so a tenant's stated group → persona mapping (R28) reads the same in both
+// worlds; AGENTS is his alone. There is no Externals, no Guest admins, no
+// DevOps, no Workload identities and no Factory workers here, and inventing
+// them would be inventing a baseline.
+//
+// Restricted units. His baseline defines no administrative units — the
+// per-persona vault is ENCA's own hardening on top of it — so the names are
+// ENCA's convention under his prefix: CA-RMAU-<Persona>-Exclusions, and
+// CA-RMAU-BreakGlass for the emergency-access group, mirroring the shape the
+// CloudFellows units take (CAB-SEC-RMAU-<CODE>-Exclusions).
+//
+// Naming. Exclusion groups are named after the POLICY, not the CA number:
+// "<policy name> - Exclude". So the routing rule is an EXACT match against a
+// policy name this catalog knows, case-insensitive, and nothing else — no
+// number parsed out of the middle of a name, no prefix guess. A group that
+// matches nothing stays visible as unmapped (R28's second rule), and the
+// tenant's own mapping can place it.
+// ======================================================================
+BASELINE_JOEY.icon = "🧩";
+BASELINE_JOEY.source = "bundled";
+// The bounded prefix scans (＋ Bulk add, persona chips, the guide's group
+// read). Every group this baseline names starts with "CA" — CA000…CA505 for
+// the exclusions, CA- for break-glass and service accounts.
+BASELINE_JOEY.groupPrefixes = ["CA"];
+BASELINE_JOEY.groupFilterPrefix = "CA";
+BASELINE_JOEY.defaultAuName = "CA-RMAU-CA-Exclusions";
+BASELINE_JOEY.personas = [
+  { code: "GLO",        token: "Global",          emoji: "🌐", label: "Global",           caRange: "CA000–CA099", name: "CA-RMAU-Global-Exclusions" },
+  { code: "ADM",        token: "Admins",          emoji: "🛡", label: "Admins",           caRange: "CA100–CA199", name: "CA-RMAU-Admins-Exclusions" },
+  { code: "INT",        token: "Internals",       emoji: "👤", label: "Internals",        caRange: "CA200–CA299", name: "CA-RMAU-Internals-Exclusions" },
+  { code: "SA",         token: "ServiceAccounts", emoji: "⚙",  label: "Service accounts", caRange: "CA300–CA399", name: "CA-RMAU-ServiceAccounts-Exclusions" },
+  { code: "GUESTUSERS", token: "GuestUsers",      emoji: "🙋", label: "Guests",           caRange: "CA400–CA499", name: "CA-RMAU-Guests-Exclusions" },
+  { code: "AGENTS",     token: "Agents",          emoji: "🤖", label: "Agents",           caRange: "CA500–CA599", name: "CA-RMAU-Agents-Exclusions" },
+  { code: "BreakGlass", token: null,              emoji: "🚨", label: "Break-glass",      caRange: "",            name: "CA-RMAU-BreakGlass",
+    description: "Restricted management administrative unit for the break-glass emergency access group (CA-BreakGlassAccounts - Exclude), which is excluded from every policy in the Conditional Access Baseline by Joey Verlinden. Membership changes require a role scoped to this administrative unit — keep the list of scoped administrators shorter than for any other unit." },
+];
+// The persona groups the wizard can pick by persona. His baseline has two
+// real ones — the service-accounts group and the break-glass group. The
+// internals include group ships as an EXAMPLE (APP_Microsoft365_E5) that a
+// tenant is expected to replace with its own, so it is offered but labelled.
+BASELINE_JOEY.personaGroups = [
+  { key: "global", label: "🌐 Global", group: null },
+  { key: "internals", label: "👤 Internals", group: "APP_Microsoft365_E5", example: true },
+  { key: "serviceaccounts", label: "⚙ Service accounts", group: "CA-ServiceAccounts" },
+  { key: "breakglass", label: "🚨 Break-glass", group: "CA-BreakGlassAccounts - Exclude" },
+];
+BASELINE_JOEY.predefined = ["CA-BreakGlassAccounts - Exclude", "CA-ServiceAccounts", "APP_Microsoft365_E5"];
+// The groups the baseline names that are not one policy's exclusion group.
+// APP_Microsoft365_E5 is deliberately NOT here: it is the example include
+// group, and expecting every tenant to have a group by that name would report
+// a missing group nobody should create.
+BASELINE_JOEY.groups = ["CA-BreakGlassAccounts - Exclude", "CA-ServiceAccounts", "one <policy name> - Exclude group per policy"];
+BASELINE_JOEY.EXCLUDE_SUFFIX = " - Exclude";
+
+(function joeyContract(J) {
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  const personaByToken = (cat, tok) => (cat.personas || []).find((p) => p.token && p.token.toLowerCase() === String(tok || "").toLowerCase()) || null;
+  const personaByCode = (cat, code) => (cat.personas || []).find((p) => p.code === code) || null;
+
+  // "CA204-Internals-…" — the persona is the SECOND segment of the name, and
+  // that is the authority: his CA300 block is service accounts, and a range
+  // table would file it under Externals. The number is only a fallback for a
+  // name that lost its persona segment.
+  J.personaOfPolicy = function (cat, name) {
+    const m = /^CA(\d{3,4})-([A-Za-z]+)/.exec(String(name || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim());
+    if (!m) return null;
+    const p = personaByToken(cat, m[2]);
+    if (p) return p.code;
+    const base = Math.floor(+m[1] / 100) * 100;
+    const byRange = (cat.personas || []).find((x) => x.caRange && +(/CA(\d+)/.exec(x.caRange) || [])[1] === base);
+    return byRange ? byRange.code : null;
+  };
+  J.personaLabel = function (cat, code) {
+    const p = personaByCode(cat, code);
+    return p ? `${p.emoji ? p.emoji + " " : ""}${p.label}` : (code || "Other");
+  };
+  J.exclusionName = (name) => `${String(name || "").trim()}${J.EXCLUDE_SUFFIX}`;
+  J.isExclusionGroup = (name) => /\s-\sExclude$/i.test(String(name || "").trim());
+
+  // Group name → persona code. EXACT, case-insensitive, against the names
+  // this catalog defines. Returns null for everything else.
+  J.codeForGroup = function (cat, name) {
+    const n = norm(name);
+    if (!n) return null;
+    if (n === norm(cat.breakGlassGroup)) return "BreakGlass";
+    if (n === "ca-serviceaccounts") return "SA";
+    for (const p of cat.policies || []) {
+      if (n === norm(J.exclusionName(p.name))) return J.personaOfPolicy(cat, p.name);
+    }
+    return null;
+  };
+
+  // What a policy should exclude, and on whose authority — the same two
+  // answers Assign.conventionExclusionFor gives for CloudFellows.
+  J.exclusionGroupFor = function (cat, policyName) {
+    const clean = String(policyName || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim();
+    if (!clean) return null;
+    const hit = (cat.policies || []).find((p) => norm(p.name) === norm(clean));
+    if (hit) return { name: J.exclusionName(hit.name), source: "catalog" };
+    // A policy shaped like his (CAnnn-Persona-…) that this release does not
+    // list — an older release's name, or the tenant's own numbering under his
+    // convention. The rule still applies; the answer is labelled as inferred.
+    if (J.personaOfPolicy(cat, clean)) return { name: J.exclusionName(clean), source: "derived" };
+    return null;
+  };
+
+  // Group templates, derived from the policy list so the live catalog gets
+  // fresh ones for free: one exclusion group per policy, plus the two named
+  // groups. Plain security groups — nothing here is dynamic.
+  const nick = (s) => String(s || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 60) || "CAGroup";
+  J.templates = function (cat) {
+    const out = [];
+    const seen = new Set();
+    const add = (displayName, description, extra) => {
+      const k = norm(displayName);
+      if (seen.has(k)) return;
+      seen.add(k);
+      out.push({ displayName, description, mailNickname: nick(displayName), ...(extra || {}) });
+    };
+    add(cat.breakGlassGroup, "Break-glass (emergency access) accounts — excluded from every policy in the Conditional Access Baseline by Joey Verlinden. Keep it to the emergency accounts only.", { persona: "BreakGlass" });
+    add("CA-ServiceAccounts", "Service accounts targeted by the CA300 block of the Conditional Access Baseline by Joey Verlinden (CA300 MFA, CA301 trusted locations).", { persona: "SA" });
+    for (const p of cat.policies || []) {
+      add(J.exclusionName(p.name), `Exclusion group for ${p.name} (Conditional Access Baseline by Joey Verlinden${cat.release ? ` ${cat.release}` : ""}). Members are exempt from that one policy.`,
+        { persona: J.personaOfPolicy(cat, p.name), policy: p.name });
+    }
+    return out;
+  };
+  J.auName = function (cat, code) {
+    const p = personaByCode(cat, code);
+    return (p && p.name) || `CA-RMAU-${code}-Exclusions`;
+  };
+})(BASELINE_JOEY);
+
 // Every policy carries its own exclusion group, named after the policy.
-BASELINE_JOEY.policies.forEach((p) => {
-  p.exclude = [`${p.name} - Exclude (group)`, `${BASELINE_JOEY.breakGlassGroup} (group)`];
-  p.include = [p.persona.replace(/^\S+\s*/, "")];
-  p.docUrl = p.learn || `${BASELINE_JOEY.url}#${p.name.toLowerCase().replace(/[^a-z0-9]+/g, "")}`;
-  // the exact policy JSON at the pinned commit
-  p.fileUrl = `${BASELINE_JOEY.url}/blob/${BASELINE_JOEY.commit}/${BASELINE_JOEY.configPath}/${encodeURIComponent(p.name)}.json`;
-});
+// decorate() is exported so the live catalog can run the same pass over the
+// policies it read from the repository.
+BASELINE_JOEY.decorate = function (cat) {
+  (cat.policies || []).forEach((p) => {
+    if (!p.persona) p.persona = BASELINE_JOEY.personaLabel(cat, BASELINE_JOEY.personaOfPolicy(cat, p.name));
+    p.exclude = [`${BASELINE_JOEY.exclusionName(p.name)} (group)`, `${cat.breakGlassGroup} (group)`];
+    p.include = [p.persona.replace(/^\S+\s*/, "")];
+    p.docUrl = p.learn || `${cat.url}#${p.name.toLowerCase().replace(/[^a-z0-9]+/g, "")}`;
+    // the exact policy JSON at the commit this catalog was read from
+    p.fileUrl = `${cat.url}/blob/${cat.commit}/${cat.configPath}/${encodeURIComponent(p.name)}.json`;
+  });
+  return cat;
+};
+BASELINE_JOEY.decorate(BASELINE_JOEY);

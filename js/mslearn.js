@@ -27,8 +27,12 @@ const MSLearn = (() => {
   // handed in through ctx; when a group does not exist, the fix declines.
   // The first entry is canonical: it is what gets created when the tenant has
   // none of them. The rest are accepted aliases.
-  const CONVENTION = {
-    breakGlass: ["CAB-SEC-U-BreakGlass"],
+  // R36: the canonical break-glass name is the ACTIVE baseline's
+  // (CAB-SEC-U-BreakGlass, or CA-BreakGlassAccounts - Exclude for Joey
+  // Verlinden's); the other stays as an accepted alias, because a tenant that
+  // switched baselines still has the group it made under the previous name.
+  const CONVENTION_STATIC = {
+    breakGlass: ["CAB-SEC-U-BreakGlass", "CA-BreakGlassAccounts - Exclude"],
     // CAB-SEC-U-TeamsSharedDevices is canonical because it is the name this app
     // already ships: it is the displayName in js/groupTemplates.js and the one
     // every exclusion in the R26.6 catalog (CA000, CA004, CA007, CA008, CA014,
@@ -39,6 +43,15 @@ const MSLearn = (() => {
                     "CAB-SEC-U-Persona-SharedDevices", "CAB-SEC-U-TeamsDevices",
                     "CAB-SEC-U-Persona-Microsoft365ServiceAccounts"],
   };
+  const CONVENTION = new Proxy(CONVENTION_STATIC, {
+    get(t, k) {
+      if (k !== "breakGlass") return t[k];
+      let bg = null;
+      try { bg = (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active().breakGlassGroup : null; } catch { bg = null; }
+      if (!bg) return t.breakGlass;
+      return [bg, ...t.breakGlass.filter((n) => n.toLowerCase() !== bg.toLowerCase())];
+    },
+  });
   const GROUP_PURPOSE = {
     sharedDevices: "Teams Rooms, Teams panels, Teams phones and Surface Hub resource accounts — excluded from controls these devices cannot satisfy",
     breakGlass: "Emergency access (break-glass) accounts — excluded from every Conditional Access policy",

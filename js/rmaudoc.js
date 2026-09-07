@@ -42,7 +42,8 @@ const RmauDoc = (() => {
   }
 
   function baselineName(entry) {
-    return clean(entry.name) || `CAB-SEC-RMAU-${entry.code}-Exclusions`;
+    if (clean(entry.name)) return clean(entry.name);
+    try { return Rmau.auName(entry.code); } catch { return `CAB-SEC-RMAU-${entry.code}-Exclusions`; }
   }
 
   function personaFor(au, baselineAUs) {
