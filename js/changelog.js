@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25256, date: "2026-09-07", title: "R06 is out of beta, and the roadmap now says so",
+    items: [
+      { kind: "fixed", tool: "Roadmap", text: "R06 Self-hosting with Docker sat under In beta today while its own chip read live · beta 25195 · production 305 - the card's text was corrected when item 92 went to production, but the card itself was never moved, so the heading over it kept saying not yet in production. It now sits in Now, next to R15, which shipped in the same beta build. In beta today is back to the one thing that is beta-only: R01 CIS Benchmark." },
+    ],
+  },
+  {
     build: 25255, date: "2026-09-07", title: "R36 and Teams devices are in production",
     items: [
       { kind: "improved", tool: "All tools", text: "Promotion-queue items 122 to 127 have gone to production as build 306: the Deploy to Azure branding descriptions, R36 and R36.1 (the Joey Verlinden baseline as a first-class baseline read live, the active baseline per tenant chosen by match, shared E-Admins, import from the repository and the switch-baseline mode), the baseline-leftovers cleanup, the three text boxes with the app's input class, and Teams devices (T35, still BETA there too). The queue is back to the two items that belong to beta-only tools - the CIS Help section and the Baseline usage guide - and productionBuild moves to v1.0.306." },
