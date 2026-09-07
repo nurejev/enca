@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 307, date: "2026-09-07", title: "R06 is out of beta, and the roadmap now says so",
+    items: [
+      { kind: "fixed", tool: "Roadmap", text: "R06 Self-hosting with Docker sat under In beta today while its own chip read live · build 305 - the card's text was corrected when self-hosting shipped in 305, but the card itself was never moved, so the heading over it kept saying not yet in production. It now sits in Now, next to R15. In beta today is back to the one thing that is beta-only: R01 CIS Benchmark." },
+    ],
+  },
+  {
     build: 306, date: "2026-09-07", title: "The Joey Verlinden baseline becomes a first-class baseline, and Teams devices checked against what the tenant licenses",
     items: [
       { kind: "new", tool: "Baseline Policies", text: "An ACTIVE baseline per tenant. The summary card of either catalog now says which of the two baselines this tenant works against, and a ★ button switches it. Before this, every tool downstream of the comparison — group checks, group creation, persona vaults, exclusion restore — stopped at the CloudFellows catalog whatever the Baseline tool was showing. The choice is kept with the tenant in the browser, like the R28 group personas, and defaults to CloudFellows, so nothing changes for a tenant that never chooses. Looking at a comparison never changes it: looking at Joey's table must not change where a write puts a group." },
