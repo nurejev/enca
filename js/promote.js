@@ -96,7 +96,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.306",
+  productionBuild: "v1.0.307",
 
   items: [
     {

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25257, date: "2026-09-07", title: "Production is 307",
+    items: [
+      { kind: "fixed", tool: "Roadmap", text: "The R06 card move went to production as build 307 - a documentation-only release, nothing else in it - and productionBuild in the promotion queue moves to v1.0.307 to match." },
+    ],
+  },
+  {
     build: 25256, date: "2026-09-07", title: "R06 is out of beta, and the roadmap now says so",
     items: [
       { kind: "fixed", tool: "Roadmap", text: "R06 Self-hosting with Docker sat under In beta today while its own chip read live · beta 25195 · production 305 - the card's text was corrected when item 92 went to production, but the card itself was never moved, so the heading over it kept saying not yet in production. It now sits in Now, next to R15, which shipped in the same beta build. In beta today is back to the one thing that is beta-only: R01 CIS Benchmark." },
