@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25260, date: "2026-09-08", title: "Production is 308, and the promotion queue can batch",
+    items: [
+      { kind: "improved", tool: "Help", text: "Waiting for production groups items that belong together - a tool and its Help section, a feature and the fixes it grew on beta - under one group row. The group's tick takes every member; each member keeps its own tick, so one can be held back from the batch without losing the batch (the R28 case, where 67 stayed behind while 61-66, 68 and 69 went). A group that goes out incomplete is named in the exported order, member by member, so a deliberate hold-back reads as one and not as an item somebody forgot. Groups are declared in js/promote.js: a group id on each member and one title and reason in PROMOTE.groups." },
+      { kind: "fixed", tool: "Roadmap", text: "The initials-only header (item 128, builds 25258 and 25259) went to production as build 308, and productionBuild in the promotion queue moves to v1.0.308 to match." },
+    ],
+  },
+  {
     build: 25259, date: "2026-09-08", title: "The header keeps only your initials",
     items: [
       { kind: "improved", tool: "All tools", text: "The account button is now the initials circle alone - the tenant name and the signed-in account moved into its menu, under Tenant and Signed in as, so the top right of every tool is the theme toggle and one small button. The Branding settings dialog (the former gear button beside it) is a row in the same menu, above Sign out. Nothing was taken away, it is one click further in; hovering the initials still shows tenant and account as a tooltip." },

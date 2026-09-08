@@ -76,6 +76,18 @@
 // "push number 3 to main". Numbers are NOT reused after an item ships;
 // the next new item takes the next free number.
 //
+// `group` — OPTIONAL. Items that BELONG TOGETHER for promotion without being
+// one change: a tool and the Help section written for it, a feature and the
+// three follow-up fixes it grew on beta, the R28 run of 61-69. Give each of
+// them the same group id and describe the group once in PROMOTE.groups below.
+// The queue then renders them as ONE block with one tick — ticking the group
+// ticks every member — and every member keeps its own tick, so one can be
+// held back from the batch (R28 held 67) without losing the batch. A NUMBER
+// says "never apart"; a GROUP says "usually together, and here is the list
+// so nobody has to reconstruct it". The exported order names a group that
+// goes out incomplete, member by member, so a deliberate hold-back reads as
+// one rather than as an item somebody forgot to tick.
+//
 // WHAT DOES NOT BELONG HERE. Roadmap cards, changelog entries and this file
 // itself are documentation, not promotable changes: they describe the work
 // rather than being it, and a row saying "one roadmap card" buries the rows
@@ -96,28 +108,15 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.307",
+  productionBuild: "v1.0.308",
+
+  // Named batches — see `group` in the header. Empty is fine: a group exists
+  // only while two or more queued items share its id, and it is deleted when
+  // the last of them ships.
+  groups: {
+  },
 
   items: [
-    {
-      n: 128,
-      title: "Header: initials-only account menu, Tools and gear buttons gone",
-      tools: ["All tools"],
-      builds: [25258, 25259],
-      risk: "low",
-      what: "The header's right side is the theme toggle and one initials button. Its menu shows the tenant and the signed-in account (display name + UPN) and holds Copy tenant ID, Branding settings (the former gear button - js/selfhost.js now wires the menu row instead of injecting a button) and Sign out. The header's Tools home button is removed - the tab bar's home icon does the same thing. README, SELF-HOSTING.md and Help say Branding settings is in the account menu.",
-      why: "Pure header chrome, no Graph calls and no data path. The behavioural changes are that Sign out and the branding dialog are one click further away and the tenant name is no longer permanently on screen; graduates once the menu has been used on a real tenant, in the demo, and on a self-hosted build where the branding row must open the same dialog the gear did.",
-      test: [
-        "Sign in to any tenant: the header's right side is the theme toggle and a small ring with your initials - no Tools button, no tenant text, no gear. Hover the initials: the tooltip reads tenant name over UPN. The tab bar's home icon and the logo both return to the tools grid.",
-        "Click the initials: a menu opens under the button's right edge reading TENANT + tenant name, SIGNED IN AS + display name and UPN, then Copy tenant ID, Branding settings, a rule, Sign out. Esc and a click elsewhere close it.",
-        "Copy tenant ID puts the tenant GUID on the clipboard and toasts it. Branding settings opens the same dialog the gear opened (Apply / Download / Import, and Save to this deployment on an Azure Container Apps host).",
-        "Sign out from the menu: back to the sign-in screen, initials button gone, tab bar gone.",
-        "Demo (?demo=1): DM initials; the menu reads the demo tenant, Demo Mode / demo@contoso.onmicrosoft.com, no Copy tenant ID row (there is no GUID), Branding settings still present.",
-        "A baseline tenant: the baseline-tenant chip shows left of the initials.",
-        "Narrow window (under 680px): the header stays one row (the initials button is small enough), and the menu shrinks to fit the viewport rather than overflowing it.",
-      ],
-      files: ["index.html", "css/app.css", "js/app.js", "js/selfhost.js"],
-    },
     {
       n: 34,
       title: "CIS Benchmark Help section",
@@ -203,11 +202,24 @@ PROMOTE.buildOrder = function (pickedNs, appBuild) {
   L.push("the production commit — the queue's own rule. Items promote together");
   L.push("where their builds interleave; the session decides the cut.");
   L.push("");
+  // Groups: a batch that goes out whole is one line; a batch that goes out
+  // incomplete names what is held back, so the session knows it is a
+  // decision and does not "helpfully" port the rest.
+  const gids = [...new Set(items.map((i) => i.group).filter(Boolean))];
+  for (const gid of gids) {
+    const g = (PROMOTE.groups || {})[gid] || { title: gid };
+    const members = (PROMOTE.items || []).filter((i) => i.group === gid).map((i) => i.n).sort((a, b) => a - b);
+    const going = members.filter((n) => ns.includes(n));
+    const held = members.filter((n) => !ns.includes(n));
+    L.push(`GROUP ${gid} — ${g.title}: ${held.length ? `INCOMPLETE — promoting ${going.join(", ")}; held back ${held.join(", ")} (deliberate; do not port them)` : `whole (${going.join(", ")})`}`);
+  }
+  if (gids.length) L.push("");
   for (const it of items) {
     L.push(`## Item ${it.n} — ${it.title}`);
     L.push(`- tools: ${(it.tools || []).join(", ")}`);
     L.push(`- beta builds: ${(it.builds || []).join(", ")}`);
     L.push(`- risk: ${it.risk}`);
+    if (it.group) L.push(`- group: ${it.group}`);
     L.push(`- files: ${(it.files || []).join(", ")}`);
     // A carve-out is the one thing in this file that is an instruction rather
     // than a fact: the item does NOT port verbatim, and the port is wrong if

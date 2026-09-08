@@ -683,31 +683,26 @@
         return new Set(kept);
       })();
 
-      el.innerHTML = `
-        <h4>🚚 Waiting for production <span class="tag new">BETA CHANNEL</span></h4>
-        <p>Production is <b>${esc2(PROMOTE.productionBuild)}</b>; this site is <b>${esc2(APP_BUILD.label)}</b>.
-          <b>This is the gap, and only the gap</b> — what exists here and not there. Nothing that has already
-          shipped appears below; for that, read <b>📋 What's new</b>. Each row is one promotable <b>change to the
-          tools</b> with a <b>stable number</b>, so <i>“push number 3 to main”</i> means exactly one thing.
-          Roadmap cards, changelog entries and this table itself are not listed: they describe the work rather
-          than being it, and they travel with whatever promotion happens next.</p>
-        <p class="mini muted" style="margin:-6px 0 10px"><b>Every row carries a test checklist.</b> <i>Why</i> says what the
-          risk is and what would have to be true for the item to graduate; it does not say how to find out. The steps
-          under <b>How to test it</b> do — each one names the tenant state it needs and the outcome you should see, so a
-          step can fail rather than be nodded through. Where a check needs a tenant nobody has to hand, the step says
-          so: knowing which check was skipped is worth more than a list that pretends all of them were run.</p>
-        ${items.length ? `<div class="tb-actions" style="margin:0 0 8px">
-          <span class="mini" id="pqPickCount"><b>${picked.size}</b> of ${items.length} ticked for promotion</span>
-          <button class="btn sm" id="pqExport" ${picked.size ? "" : "disabled"}>⭳ Export promotion order</button>
-          <button class="btn sm" id="pqClear" ${picked.size ? "" : "disabled"}>Clear ticks</button>
-          <span class="mini muted">tick what you have verified, export, and hand the file to the working session — it is the order, not the verification</span>
-        </div>` : ""}
-        <div class="cg-tablewrap"><table class="cg-table">
-          <thead><tr><th style="width:34px" title="Tick to include in the promotion order"></th><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:120px">Beta builds</th></tr></thead>
-          <tbody>${items.map((it) => {
+      // Blocks in number order: an ungrouped item is a block of one; items
+      // sharing a `group` id form one block, placed where its lowest number
+      // falls. A group named on only one queued item is no group — the item
+      // renders plain and the id is ignored until a second member exists.
+      const gcount = {};
+      items.forEach((i) => { if (i.group) gcount[i.group] = (gcount[i.group] || 0) + 1; });
+      const blocks = [];
+      const seen = new Set();
+      for (const it of items) {
+        if (it.group && gcount[it.group] > 1) {
+          if (seen.has(it.group)) continue;
+          seen.add(it.group);
+          const g = Object.assign({ id: it.group, title: it.group }, (PROMOTE.groups || {})[it.group] || {});
+          blocks.push({ group: g, items: items.filter((i) => i.group === it.group) });
+        } else blocks.push({ items: [it] });
+      }
+      const rowFor = (it, inGroup) => {
             const r = RISK[it.risk] || RISK.low;
-            return `<tr>
-              <td><input type="checkbox" data-pqpick="${it.n}" ${picked.has(it.n) ? "checked" : ""} title="Include item ${it.n} in the promotion order"></td>
+            return `<tr${inGroup ? ` class="pq-member" data-pqof="${esc2(it.group)}"` : ""}>
+              <td><input type="checkbox" data-pqpick="${it.n}" ${picked.has(it.n) ? "checked" : ""} title="${inGroup ? `Untick to hold item ${it.n} back from its group` : `Include item ${it.n} in the promotion order`}"></td>
               <td><b style="font-size:15px">${it.n}</b></td>
               <td><b>${esc2(it.title)}</b>
                 <div class="mini muted">${(it.tools || []).join(" · ")}</div>
@@ -721,6 +716,46 @@
               <td><span class="tag ${r.cls}">${r.label}</span><div class="mini muted" style="margin-top:4px">${r.note}</div></td>
               <td class="mini">${(it.builds || []).join(", ")}</td>
             </tr>`;
+      };
+      el.innerHTML = `
+        <h4>🚚 Waiting for production <span class="tag new">BETA CHANNEL</span></h4>
+        <p>Production is <b>${esc2(PROMOTE.productionBuild)}</b>; this site is <b>${esc2(APP_BUILD.label)}</b>.
+          <b>This is the gap, and only the gap</b> — what exists here and not there. Nothing that has already
+          shipped appears below; for that, read <b>📋 What's new</b>. Each row is one promotable <b>change to the
+          tools</b> with a <b>stable number</b>, so <i>“push number 3 to main”</i> means exactly one thing.
+          Roadmap cards, changelog entries and this table itself are not listed: they describe the work rather
+          than being it, and they travel with whatever promotion happens next. Items that belong together — a tool
+          and its Help section, a feature and the fixes it grew — sit under one <b>group</b> row: its tick takes
+          them all, and each member keeps its own tick so one can be held back without losing the batch.</p>
+        <p class="mini muted" style="margin:-6px 0 10px"><b>Every row carries a test checklist.</b> <i>Why</i> says what the
+          risk is and what would have to be true for the item to graduate; it does not say how to find out. The steps
+          under <b>How to test it</b> do — each one names the tenant state it needs and the outcome you should see, so a
+          step can fail rather than be nodded through. Where a check needs a tenant nobody has to hand, the step says
+          so: knowing which check was skipped is worth more than a list that pretends all of them were run.</p>
+        ${items.length ? `<div class="tb-actions" style="margin:0 0 8px">
+          <span class="mini" id="pqPickCount"><b>${picked.size}</b> of ${items.length} ticked for promotion</span>
+          <button class="btn sm" id="pqExport" ${picked.size ? "" : "disabled"}>⭳ Export promotion order</button>
+          <button class="btn sm" id="pqClear" ${picked.size ? "" : "disabled"}>Clear ticks</button>
+          <span class="mini muted">tick what you have verified, export, and hand the file to the working session — it is the order, not the verification</span>
+        </div>` : ""}
+        <div class="cg-tablewrap"><table class="cg-table">
+          <thead><tr><th style="width:34px" title="Tick to include in the promotion order"></th><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:120px">Beta builds</th></tr></thead>
+          <tbody>${blocks.map((bl) => {
+            if (bl.group) {
+              // One block per group: a header row whose tick promotes every
+              // member, then the members with their own ticks so one can be
+              // held back from the batch. 25260, on Mihai's ask.
+              const g = bl.group, ns = bl.items.map((i) => i.n);
+              const on = ns.filter((n) => picked.has(n)).length;
+              return `<tr class="pq-group">
+                <td><input type="checkbox" data-pqgroup="${esc2(g.id)}" ${on === ns.length ? "checked" : ""} title="Tick to include all ${ns.length} items of this group in the promotion order"></td>
+                <td><b style="font-size:15px">⋮</b></td>
+                <td colspan="3"><b>${esc2(g.title)}</b> <span class="tag">group · ${ns.length} items</span>
+                  <div class="mini muted" style="margin-top:2px">Items ${ns.join(", ")} — the tick takes them all; untick one below to hold it back from the batch. <span data-pqgroupstate="${esc2(g.id)}"></span></div>
+                  ${g.why ? `<div class="mini" style="margin-top:4px;color:var(--report)"><b>Why together:</b> ${esc2(g.why)}</div>` : ""}</td>
+              </tr>` + bl.items.map((it) => rowFor(it, true)).join("");
+            }
+            return rowFor(bl.items[0], false);
           }).join("")}</tbody></table></div>
         ${(PROMOTE.staying || []).length ? `
           <h4 style="margin-top:18px">Staying on this channel</h4>
@@ -738,12 +773,40 @@
         if (ex) ex.disabled = !ns.length;
         if (cl) cl.disabled = !ns.length;
       };
+      // A group's tick reflects its members: checked when all are ticked,
+      // indeterminate when some are, and the state line says how many.
+      const syncGroups = () => {
+        const ns = new Set(readPicks());
+        el.querySelectorAll("[data-pqgroup]").forEach((gcb) => {
+          const gid = gcb.dataset.pqgroup;
+          const members = [...el.querySelectorAll(`tr[data-pqof="${gid}"] [data-pqpick]`)].map((cb) => Number(cb.dataset.pqpick));
+          const on = members.filter((n) => ns.has(n)).length;
+          gcb.checked = on === members.length && members.length > 0;
+          gcb.indeterminate = on > 0 && on < members.length;
+          const st = el.querySelector(`[data-pqgroupstate="${gid}"]`);
+          if (st) st.textContent = on === members.length ? "Whole group ticked." : on ? `${on} of ${members.length} ticked — the order will name the ones held back.` : "";
+        });
+      };
+      syncGroups();
       el.querySelectorAll("[data-pqpick]").forEach((cb) => cb.addEventListener("change", () => {
         const n = Number(cb.dataset.pqpick);
         const ns = new Set(readPicks());
         cb.checked ? ns.add(n) : ns.delete(n);
         writePicks([...ns]);
-        syncBar();
+        syncBar(); syncGroups();
+      }));
+      el.querySelectorAll("[data-pqgroup]").forEach((gcb) => gcb.addEventListener("change", () => {
+        // From indeterminate a click lands on checked, which is the right
+        // reading: "take the whole group" is the common case.
+        const gid = gcb.dataset.pqgroup;
+        const ns = new Set(readPicks());
+        el.querySelectorAll(`tr[data-pqof="${gid}"] [data-pqpick]`).forEach((cb) => {
+          const n = Number(cb.dataset.pqpick);
+          cb.checked = gcb.checked;
+          gcb.checked ? ns.add(n) : ns.delete(n);
+        });
+        writePicks([...ns]);
+        syncBar(); syncGroups();
       }));
       const exBtn = el.querySelector("#pqExport");
       if (exBtn) exBtn.addEventListener("click", () => {
@@ -760,7 +823,7 @@
       if (clBtn) clBtn.addEventListener("click", () => {
         writePicks([]);
         el.querySelectorAll("[data-pqpick]").forEach((cb) => { cb.checked = false; });
-        syncBar();
+        syncBar(); syncGroups();
       });
     } catch (e) { console.warn("promotion queue not rendered:", e.message); }
   })();
