@@ -81,6 +81,70 @@ const Signins = (() => {
     return `/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since} and (${codes})`)}&$orderby=createdDateTime desc&$top=999`;
   }
 
+  // ---- Defender advanced hunting as a second source --------------------
+  // EntraIdSignInEvents (AADSignInEventsBeta until 19 October 2026) holds
+  // the same sign-ins as the Graph list PLUS the non-interactive ones —
+  // token refreshes and background client sign-ins the Graph list ENCA reads
+  // never shows — with no 10,000 cap and 30 days of retention. Needs Entra
+  // ID P2 for the table to be populated at all, and ThreatHunting.Read.All.
+  //
+  // The rows are shaped into the SAME record the Graph list returns, so
+  // parse / build / ReportImpact never learn which source fed them. One
+  // day per query keeps every result under the 50 MB response cap; a day
+  // that hits the row cap is reported as capped, never silently trimmed.
+  const HUNT_COLS = "Timestamp, Application, ApplicationId, LogonType, ErrorCode, CorrelationId, SessionId, AccountDisplayName, AccountObjectId, AccountUpn, ResourceDisplayName, ResourceId, OSPlatform, DeviceTrustType, IsManaged, IsCompliant, RiskLevelDuringSignIn, ClientAppUsed, Browser, ConditionalAccessPolicies, ConditionalAccessStatus, IPAddress, Country, City, RequestId, ReportId";
+  const HUNT_CAP = 20000;
+  function huntingQuery({ days, dayIdx, table, interactiveOnly, userId }) {
+    const T = table || "EntraIdSignInEvents";
+    const win = days >= 1 && dayIdx != null
+      ? `| where Timestamp between (ago(${dayIdx + 1}d) .. ago(${dayIdx}d))`
+      : `| where Timestamp > ago(${Math.max(1, Math.round((days || 7) * 24))}h)`;
+    return `${T}
+${win}
+${interactiveOnly ? '| where LogonType !has "non"' : ""}
+${userId ? `| where AccountObjectId == "${String(userId).replace(/"/g, "")}"` : ""}
+| project ${HUNT_COLS}
+| order by Timestamp desc
+| take ${HUNT_CAP}`;
+  }
+  const RISK_N = { 0: "none", 1: "none", 10: "low", 50: "medium", 100: "high" };
+  const CA_STATUS_N = { 0: "success", 1: "failure", 2: "notApplied" };
+  const RESULT_N = { 0: "success", 1: "failure", 2: "notApplied", 3: "notEnabled", 4: "unknown", 5: "unknownFutureValue", 6: "reportOnlySuccess", 7: "reportOnlyFailure", 8: "reportOnlyNotApplied", 9: "reportOnlyInterrupted" };
+  const pick = (o, ...ks) => { for (const k of ks) { if (o && o[k] != null) return o[k]; } return undefined; };
+  function fromHunting(rows) {
+    return (rows || []).map((r) => {
+      let pols = [];
+      try { const v = typeof r.ConditionalAccessPolicies === "string" ? JSON.parse(r.ConditionalAccessPolicies || "[]") : (r.ConditionalAccessPolicies || []); pols = Array.isArray(v) ? v : []; } catch { pols = []; }
+      const status = r.ConditionalAccessStatus;
+      const caStatus = typeof status === "number" || /^\d+$/.test(String(status)) ? (CA_STATUS_N[Number(status)] || "") : String(status || "").replace(/^policies applied$/i, "success").replace(/^policies not applied$/i, "notApplied");
+      const interactive = !/non/i.test(String(r.LogonType || ""));
+      const trust = { workplace: "Workplace", azuread: "AzureAd", serverad: "ServerAd" }[String(r.DeviceTrustType || "").toLowerCase()] || (r.DeviceTrustType || "");
+      const risk = typeof r.RiskLevelDuringSignIn === "number" ? (RISK_N[r.RiskLevelDuringSignIn] || "none") : String(r.RiskLevelDuringSignIn || "none").toLowerCase();
+      return {
+        id: r.RequestId || r.ReportId || r.CorrelationId || "",
+        createdDateTime: r.Timestamp, correlationId: r.CorrelationId || "", sessionId: r.SessionId || "",
+        userDisplayName: r.AccountDisplayName || "", userPrincipalName: r.AccountUpn || "", userId: r.AccountObjectId || "",
+        appDisplayName: r.Application || "", appId: r.ApplicationId || "", resourceDisplayName: r.ResourceDisplayName || "", resourceId: r.ResourceId || "",
+        ipAddress: r.IPAddress || "", location: { city: r.City || "", countryOrRegion: r.Country || "" },
+        clientAppUsed: r.ClientAppUsed || "",
+        deviceDetail: { operatingSystem: r.OSPlatform || "", browser: r.Browser || "", isCompliant: Number(r.IsCompliant) === 1 || r.IsCompliant === true, isManaged: Number(r.IsManaged) === 1 || r.IsManaged === true, trustType: trust },
+        status: { errorCode: Number(r.ErrorCode) || 0, failureReason: "" },
+        conditionalAccessStatus: caStatus, riskLevelDuringSignIn: risk,
+        signInEventTypes: [interactive ? "interactiveUser" : "nonInteractiveUser"], interactive,
+        appliedConditionalAccessPolicies: pols.map((p) => ({
+          id: pick(p, "id", "Id", "policyId", "PolicyId") || "",
+          displayName: pick(p, "displayName", "DisplayName", "name", "Name") || "",
+          result: (() => { const v = pick(p, "result", "Result"); return typeof v === "number" ? (RESULT_N[v] || String(v)) : String(v || ""); })(),
+          enforcedGrantControls: pick(p, "enforcedGrantControls", "EnforcedGrantControls") || [],
+          enforcedSessionControls: pick(p, "enforcedSessionControls", "EnforcedSessionControls") || [],
+        })),
+        source: "hunting",
+      };
+    });
+  }
+  // interactive unless the record says otherwise (the Graph list ENCA reads is interactive-only)
+  const isInteractive = (rec) => rec.interactive != null ? !!rec.interactive : !((rec.signInEventTypes || []).some((t) => /noninteractive/i.test(String(t))));
+
   const shapePol = (p) => ({
     id: p.id || "",
     name: p.displayName || p.id || "(unnamed policy)",
@@ -139,6 +203,7 @@ const Signins = (() => {
       caStatus: rec.conditionalAccessStatus || "",
       signInRisk: rec.riskLevelDuringSignIn || "",
       interrupted: fails.some((p) => p.result === "interrupted"),
+      interactive: isInteractive(rec),
       policies: fails,
     };
   }
@@ -147,6 +212,8 @@ const Signins = (() => {
   function build(records, mode) {
     const rows = (records || []).map((r) => parse(r, mode)).filter(Boolean)
       .sort((a, b) => String(b.when).localeCompare(String(a.when)));
+    const nonInteractive = rows.filter((r) => !r.interactive).length;
+    const recNonInteractive = (records || []).filter((r) => !isInteractive(r)).length;
     const byPolicy = new Map();
     for (const r of rows) {
       for (const p of r.policies) {
@@ -182,6 +249,7 @@ const Signins = (() => {
       rows,
       total: rows.length,
       interrupted: rows.filter((r) => r.interrupted).length,
+      nonInteractive, recTotal: (records || []).length, recNonInteractive,
       policies,
       users: Object.entries(by((r) => r.upn || r.user)).sort((a, b) => b[1] - a[1]),
       apps: Object.entries(by((r) => r.app)).sort((a, b) => b[1] - a[1]),
@@ -214,5 +282,5 @@ const Signins = (() => {
     return L.join("\r\n");
   }
 
-  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, failuresOf, parse, build, toCsv };
+  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv };
 })();

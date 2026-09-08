@@ -1678,6 +1678,7 @@
       // where the tenant identity lives, instead of it being a hidden mode.
       $("baselineBadge").style.display = isBaselineTenant() ? "inline-block" : "none";
       tenantId = account?.tenantId || "";
+      loadLogSource();
       setAccountBox(account?.username || "", account?.name || "");
       showSideNav();
       selected = new Set();
@@ -1721,6 +1722,7 @@
     policiesReadAt = Date.now();
     $("tenantName").textContent = tenantName;
     tenantId = "";
+    loadLogSource();
     setAccountBox("demo@contoso.onmicrosoft.com", "Demo Mode");
     showSideNav();
     refreshViews();
@@ -11374,17 +11376,110 @@ This is a directory write. Nothing else changes.`)) return;
   // The cap travels with the records. A truncated window is a different fact
   // from a complete one, and a tool that inherited the rows without inheriting
   // "this was cut short" would overstate what it knows.
-  let logCache = null;   // { days, records, capped, at }
+  let logCache = null;   // { days, source, records, capped, at }
   const LOG_CACHE_MAX_AGE = 10 * 60 * 1000;   // beyond this, offer it but say so
 
+  // ---------- the sign-in SOURCE ----------
+  // Two ways to read the same sign-ins:
+  //   entra    the Graph sign-in list — interactive only, capped at SI_MAX,
+  //            AuditLog.Read.All. The default, and the only one on a tenant
+  //            without Defender.
+  //   hunt     Defender advanced hunting (EntraIdSignInEvents) — the same
+  //            interactive sign-ins, no cap, 30 days, ThreatHunting.Read.All.
+  //   huntall  hunting including NON-INTERACTIVE sign-ins: token refreshes
+  //            and background client sign-ins, which the Graph list never
+  //            returns — where sign-in-frequency re-prompts, legacy-protocol
+  //            blocks of service accounts and token-protection failures live.
+  // Chosen once per tenant, kept in the browser; the four tools that read
+  // sign-ins (🚦, 🎚, 🕵, 🌊) carry the same segment and share the window.
+  const LOG_SOURCES = [
+    ["entra", "Entra sign-in log", `interactive · cap ${SI_MAX.toLocaleString()} · AuditLog.Read.All`],
+    ["hunt", "Defender hunting", "interactive · 30 days · no cap · ThreatHunting.Read.All"],
+    ["huntall", "Hunting + non-interactive", "token refreshes and background sign-ins too"],
+  ];
+  const LOG_SRC_KEY = () => `enca-logsource:${tenantId || "demo"}`;
+  let logSource = "entra";
+  function loadLogSource() { try { const v = localStorage.getItem(LOG_SRC_KEY()); logSource = LOG_SOURCES.some(([k]) => k === v) ? v : "entra"; } catch { logSource = "entra"; } }
+  const logSourceLabel = () => (LOG_SOURCES.find(([k]) => k === logSource) || LOG_SOURCES[0])[1];
+  function logSourceSeg() {
+    return `<div class="seg logsrc-seg" title="Where the sign-ins are read from — shared by 🚦 Sign-in failures, 🎚 Report-only impact, 🕵 Who is Anna to CA and 🌊 Who is the wave to CA">${LOG_SOURCES.map(([k, l, t]) => `<button class="${logSource === k ? "active" : ""}" data-logsrc="${k}" title="${esc(t)}">${esc(l)}</button>`).join("")}</div>`;
+  }
+  // Put the segment into a toolbar once; re-paint the active button after a change.
+  function mountLogSourceSeg(toolbarId, beforeSel) {
+    const tb = $(toolbarId); if (!tb) return;
+    let seg = tb.querySelector(".logsrc-seg");
+    if (!seg) {
+      const wrap = document.createElement("div"); wrap.innerHTML = logSourceSeg(); seg = wrap.firstChild;
+      const before = beforeSel ? tb.querySelector(beforeSel) : null;
+      before ? tb.insertBefore(seg, before) : tb.appendChild(seg);
+    }
+    [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.logsrc === logSource));
+  }
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-logsrc]"); if (!b) return;
+    const v = b.dataset.logsrc; if (v === logSource) return;
+    logSource = v;
+    try { localStorage.setItem(LOG_SRC_KEY(), v); } catch {}
+    document.querySelectorAll(".logsrc-seg").forEach((seg) => [...seg.children].forEach((x) => x.classList.toggle("active", x.dataset.logsrc === v)));
+    logCache = null;
+    toast(`Sign-ins now read from <span>${esc(logSourceLabel())}</span>`);
+    // the tool that is open re-reads with the new source; the others re-read when opened
+    if (typeof siRes !== "undefined" && siRes && $("screen-signins").classList.contains("active")) runSignins(true);
+    else if (typeof riRes !== "undefined" && riRes && $("screen-impact").classList.contains("active")) runImpact(true);
+    else if (typeof woRes !== "undefined" && woRes && $("screen-whois").classList.contains("active")) runWhoIs(true);
+    else if (typeof wvRes !== "undefined" && wvRes && $("screen-wave").classList.contains("active")) runWave(true);
+  });
+
+  // the demo honours the source too: the hunting-with-non-interactive choice
+  // adds the token-refresh sign-ins the Graph list would never return
+  const demoSignIns = () => ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || []).concat(logSource === "huntall" ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.demoNonInteractive) || []) : []);
   function logCacheAge() { return logCache ? Date.now() - logCache.at : Infinity; }
-  function logCacheUsable(days) { return !!logCache && logCache.days === days; }
+  function logCacheUsable(days) { return !!logCache && logCache.days === days && logCache.source === logSource; }
+
+  // Hunting read: one query per day (each under the 50 MB response cap), the
+  // table name falling back to the pre-October-2026 one, a day that hits the
+  // row cap marked as capped. Sub-day windows are a single query.
+  const HUNT_SCOPES = ["ThreatHunting.Read.All"];
+  let huntTable = "EntraIdSignInEvents";
+  async function huntRun(query, days) {
+    const body = { Query: query, Timespan: `P${Math.max(1, Math.ceil(days))}D` };
+    try { const j = await Graph.gpost("/security/runHuntingQuery", body, [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]); return (j && j.results) || []; }
+    catch (e) {
+      if (huntTable === "EntraIdSignInEvents" && /EntraIdSignInEvents|semantic|not found|failed to resolve/i.test(e.message || "")) {
+        huntTable = "AADSignInEventsBeta";
+        const j = await Graph.gpost("/security/runHuntingQuery", { ...body, Query: query.replace(/^EntraIdSignInEvents/, "AADSignInEventsBeta") }, [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]);
+        return (j && j.results) || [];
+      }
+      throw e;
+    }
+  }
+  async function readSignInsHunting(days, prog, opts = {}) {
+    const interactiveOnly = logSource !== "huntall";
+    const slices = days >= 1 ? Math.round(days) : 1;
+    prog.start(slices, "sign-ins", "day");
+    let out = [], capped = false;
+    for (let i = 0; i < slices; i++) {
+      const q = Signins.huntingQuery({ days, dayIdx: days >= 1 ? i : null, table: huntTable, interactiveOnly, userId: opts.userId });
+      const rows = await huntRun(q, days);
+      if (rows.length >= Signins.HUNT_CAP) capped = true;
+      out = out.concat(Signins.fromHunting(rows));
+      prog.tick(out.length, i + 1);
+    }
+    return { records: out, capped };
+  }
 
   // force: a Rescan means the reader wants the tenant re-read, not our copy.
   async function readSignInWindow(days, prog, force) {
     if (!force && logCacheUsable(days)) return { ...logCache, reused: true };
-    const records = await prog.fetchAll(ReportImpact.query(days), SI_MAX, "sign-ins");
-    logCache = { days, records, capped: !!prog.st.capped, at: Date.now() };
+    let records, capped;
+    if (logSource === "entra") {
+      records = await prog.fetchAll(ReportImpact.query(days), SI_MAX, "sign-ins");
+      capped = !!prog.st.capped;
+    } else {
+      if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the source back to the Entra sign-in log, or grant it");
+      ({ records, capped } = await readSignInsHunting(days, prog));
+    }
+    logCache = { days, source: logSource, records, capped, at: Date.now() };
     return { ...logCache, reused: false };
   }
   const logAgeLabel = () => {
@@ -11449,6 +11544,7 @@ This is a directory write. Nothing else changes.`)) return;
   function openSignins() {
     crumb("🚦 Sign-in failures");
     show("screen-signins");
+    mountLogSourceSeg("siToolbar", "#siModeSeg");
     $("siRescan").style.display = siRes && !siBusy ? "" : "none";
     if (siBusy) { $("siBody").innerHTML = siBusyPanel(); return; }
     if (siRes) { renderSignins(); return; }
@@ -11482,11 +11578,14 @@ This is a directory write. Nothing else changes.`)) return;
     try {
       let records, reused = false;
       if (isDemo) {
-        records = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [];
-      } else if (siMode === "reportonly") {
-        // Same window, same query as 🎚 Report-only impact.
+        records = demoSignIns();
+      } else if (siMode === "reportonly" || logSource !== "entra") {
+        // Same window, same query as 🎚 Report-only impact. Hunting has no
+        // server-side CA filter, so enforced mode reads the window too and
+        // keeps the failures and interrupts here.
         const w = await readSignInWindow(siDays, siProg, force);
         records = w.records; siCapped = w.capped; reused = w.reused;
+        if (siMode !== "reportonly") records = records.filter((r) => r.conditionalAccessStatus === "failure" || Signins.isInterrupt(r));
       } else {
         records = await siProg.fetchAll(Signins.query(siDays, siMode), SI_MAX, "sign-ins");
         siCapped = siProg.st.capped;
@@ -11611,18 +11710,21 @@ This is a directory write. Nothing else changes.`)) return;
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.total}<span class="mini" style="font-weight:400"> sign-ins</span></div>
         <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}${r.interrupted ? ` · ${r.interrupted} interrupted` : ""}</div>
-        ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated at ${SI_MAX.toLocaleString()} sign-ins</div>` : ""}
+        <div class="mini muted">source: ${esc(logSourceLabel())}${r.nonInteractive ? ` · <button class="fchip ${siFilter === "kind:int" ? "active" : ""}" data-sif="kind:int" style="padding:1px 8px;font-size:11px">${r.total - r.nonInteractive} interactive</button> <button class="fchip ${siFilter === "kind:non" ? "active" : ""}" data-sif="kind:non" style="padding:1px 8px;font-size:11px">${r.nonInteractive} non-interactive</button>` : ""}</div>
+        ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated${logSource === "entra" ? ` at ${SI_MAX.toLocaleString()} sign-ins` : " — a day hit the hunting row cap"}</div>` : ""}
       </div></div>`;
 
     const chips = [["all", `All (${r.total})`],
       ...(siMode !== "reportonly" && r.interrupted
         ? [["blk", `Blocked (${r.total - r.interrupted})`], ["int", `Interrupted (${r.interrupted})`]] : []),
+      ...(r.nonInteractive ? [["kind:int", `Interactive (${r.total - r.nonInteractive})`], ["kind:non", `Non-interactive (${r.nonInteractive})`]] : []),
       ...r.policies.slice(0, 8).map((p) => [p.key, `${p.name.length > 34 ? p.name.slice(0, 32) + "…" : p.name} (${p.count})`])];
     $("siChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${siFilter === k ? "active" : ""}" data-sif="${esc(k)}">${esc(l)}</button>`).join("");
 
     const q = siQuery.toLowerCase();
     const match = (x) => (siFilter === "all"
         || (siFilter === "int" ? x.interrupted : siFilter === "blk" ? !x.interrupted
+          : siFilter === "kind:int" ? x.interactive : siFilter === "kind:non" ? !x.interactive
           : x.policies.some((p) => (p.id || p.name) === siFilter)))
       && (!q || `${x.user} ${x.upn} ${x.app} ${x.ip} ${x.country} ${x.city} ${x.client} ${x.os} ${x.policies.map((p) => p.name).join(" ")}`.toLowerCase().includes(q));
     const rows = r.rows.filter(match);
@@ -11634,7 +11736,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (siView === "policies") {
       const pols = r.policies
         .map((p) => ({ ...p, rows: p.rows.filter(match) }))
-        .filter((p) => p.rows.length && (siFilter === "all" || siFilter === "int" || siFilter === "blk" || p.key === siFilter));
+        .filter((p) => p.rows.length && (siFilter === "all" || siFilter === "int" || siFilter === "blk" || siFilter.startsWith("kind:") || p.key === siFilter));
       $("siBody").innerHTML = `<div class="list-card si-stickyhost"><table class="plist au-sum">
         <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
         <tbody>${pols.map((p) => {
@@ -11644,7 +11746,7 @@ This is a directory write. Nothing else changes.`)) return;
             <ul class="wi-list">${p.rows.slice(0, 40).map((x) => `<li>
               <div class="wi-pn">${esc(x.user)}${x.upn && x.upn !== x.user ? ` <span class="mini muted">(${esc(x.upn)})</span>` : ""} → <b>${esc(x.app)}</b>
                 <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪 Replay</button></div>
-              <div class="wi-why">${x.interrupted ? "interrupted · " : ""}${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
+              <div class="wi-why">${x.interrupted ? "interrupted · " : ""}${x.interactive ? "" : "non-interactive · "}${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
             </li>`).join("")}</ul>
             ${p.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${p.rows.length} — switch to Sign-ins and search to see the rest.</p>` : ""}
           </td></tr>` : "";
@@ -11739,6 +11841,7 @@ This is a directory write. Nothing else changes.`)) return;
   function openImpact() {
     crumb("🎚 Report-only impact");
     show("screen-impact");
+    mountLogSourceSeg("riToolbar", "#riViewSeg");
     $("riRescan").style.display = riRes && !riBusy ? "" : "none";
     if (riBusy) { $("riBody").innerHTML = riBusyPanel(); return; }
     if (riRes) { renderImpact(); return; }
@@ -11763,7 +11866,7 @@ This is a directory write. Nothing else changes.`)) return;
     try {
       let records, reused = false;
       if (isDemo) {
-        records = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [];
+        records = demoSignIns();
       } else {
         const w = await readSignInWindow(riDays, riProg, force);
         records = w.records; riCapped = w.capped; reused = w.reused;
@@ -11804,7 +11907,7 @@ This is a directory write. Nothing else changes.`)) return;
         <h3>🎚 Report-only impact</h3>
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         ${riReused ? `<p class="mini muted" style="margin:0 0 4px">↺ Reused the sign-in window <b>🚦 Sign-in failures</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}
-        <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read${riCapped ? `, <span style="color:var(--off)">truncated at ${SI_MAX.toLocaleString()}</span>` : ""}.</p>
+        <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read from <b>${esc(logSourceLabel())}</b>${riCapped ? `, <span style="color:var(--off)">truncated${logSource === "entra" ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.policies.length}<span class="mini" style="font-weight:400"> report-only polic${r.policies.length === 1 ? "y" : "ies"}</span></div>
@@ -13967,6 +14070,7 @@ This is a directory write. Nothing else changes.`)) return;
   function openWhoIs() {
     crumb("🕵 Who is Anna to CA");
     show("screen-whois");
+    mountLogSourceSeg("woToolbar", "#woRun");
     $("woHead").innerHTML = `<h3>🕵 Who is Anna to CA <span class="tag new">BETA</span></h3>
       <p style="margin-bottom:6px">One user, the whole Conditional Access picture: which <b>deployment group</b> she sits in and how she got there, every policy that <b>reaches</b> her (or misses her, and why), what the <b>sign-in log</b> says actually happened to her, and what happens to her the day <b>report-only</b> goes live.</p>
       <p class="mini muted" style="margin:0">Memberships and policies come from what ENCA already holds. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Registered MFA methods are an optional extra read. Read-only.</p>`;
@@ -14092,9 +14196,14 @@ This is a directory write. Nothing else changes.`)) return;
   // in memory and was not capped, else one server-filtered read.
   async function woSignIns(u, force) {
     woLogSkipped = "";
-    if (isDemo) return ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || []).filter((r) => r.userId === u.id);
+    if (isDemo) return (demoSignIns()).filter((r) => r.userId === u.id);
     if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { woLogSkipped = "AuditLog.Read.All was not granted"; return null; }
     if (!force && logCacheUsable(woDays) && !logCache.capped) return logCache.records.filter((r) => r.userId === u.id);
+    if (logSource !== "entra") {
+      if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) { woLogSkipped = "ThreatHunting.Read.All was not granted"; return null; }
+      try { const h = await readSignInsHunting(woDays, woProg, { userId: u.id }); if (h.capped) woLogSkipped = "a day hit the hunting row cap"; return h.records; }
+      catch (e) { console.warn("whois: hunting read failed", e.message); woLogSkipped = `could not run the hunting query (${e.message || e})`; return null; }
+    }
     const since = new Date(Date.now() - woDays * 86400000).toISOString();
     const url = `/auditLogs/signIns?$filter=${encodeURIComponent(`userId eq '${u.id}' and createdDateTime ge ${since}`)}&$orderby=createdDateTime desc&$top=999`;
     try { return await woProg.fetchAll(url, 5000, "sign-ins"); }
@@ -14197,6 +14306,7 @@ This is a directory write. Nothing else changes.`)) return;
   async function openWave() {
     crumb("🌊 Who is the wave to CA");
     show("screen-wave");
+    mountLogSourceSeg("wvToolbar2", "#wvRun");
     $("wvHead").innerHTML = wvHeadHtml();
     if (!policies.length) { $("wvBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
     if (wvBusy) { $("wvBody").innerHTML = wvProg.panel("Reading the wave…"); return; }
@@ -14355,7 +14465,7 @@ This is a directory write. Nothing else changes.`)) return;
       }
       // sign-ins: the shared window, filtered to the members
       let records = null; wvLogSkipped = "";
-      if (isDemo) records = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [];
+      if (isDemo) records = demoSignIns();
       else if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) wvLogSkipped = "AuditLog.Read.All was not granted";
       else {
         $("wvBody").innerHTML = wvProg.panel("Reading the sign-in window…", "Shared with 🚦 Sign-in failures and 🎚 Report-only impact — read once, reused by all three.");
@@ -14451,7 +14561,7 @@ This is a directory write. Nothing else changes.`)) return;
       const notes = [];
       if (isDemo) {
         events = SessionCtl.parseEvents((typeof DEMO_DATA !== "undefined" && DEMO_DATA.sessionEvents) || []);
-        records = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [];
+        records = demoSignIns();
       } else {
         if (!await preConsent([...AUTH_CONFIG.scopes, ...SC_HUNT])) { scBusy = false; openSessionCtl(); return; }
         try { const h = await scHunt(scDays); events = SessionCtl.parseEvents(h.rows); fallback = h.fallback; }
@@ -14489,6 +14599,9 @@ This is a directory write. Nothing else changes.`)) return;
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const f = e.target.closest("[data-sc-filter]"); if (f) { scFilter = f.dataset.scFilter; renderSessionCtl(); return; }
     const pf = e.target.closest("[data-sc-pfilter]"); if (pf) { scPfilter = pf.dataset.scPfilter; renderSessionCtl(); return; }
+    // tiles and the counts under them: a part before the tile it sits in
+    const ef = e.target.closest("[data-sc-ef]"); if (ef) { scFilter = ef.dataset.scEf; renderSessionCtl(); const t = $("scEvents"); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    const tp = e.target.closest("[data-sc-pf]"); if (tp) { scPfilter = tp.dataset.scPf; renderSessionCtl(); const t = $("scPolicies"); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     const o = e.target.closest("[data-sc-open]"); if (o) { e.preventDefault(); $("woUser").value = o.dataset.scOpen; $("toolWhoIs").click(); runWhoIs(); }
   });
   $("scMd").addEventListener("click", () => { const R = scRes; if (!R) return; showReport("🛂 Session controls", "CA-SessionControls", SessionCtl.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(scDays) })); });

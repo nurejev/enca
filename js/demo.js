@@ -418,6 +418,27 @@ const DEMO_DATA = {
     },
   ],
 
+  // ---- a NON-INTERACTIVE sign-in (a token refresh the Graph list never
+  // returns) — what the Defender hunting source adds ----
+  demoNonInteractive: [
+    {
+      id: "si-12", createdDateTime: "2026-07-21T03:14:09Z",
+      userDisplayName: "Eva Employee", userPrincipalName: "eva@contoso.com", userId: "u-emp1",
+      appDisplayName: "Microsoft Office", appId: "d3590ed6-52b3-4102-aeff-aad2292ab01c",
+      resourceDisplayName: "Office 365 Exchange Online",
+      ipAddress: "203.0.113.24", location: { city: "Amsterdam", countryOrRegion: "NL" },
+      clientAppUsed: "Mobile Apps and Desktop clients",
+      deviceDetail: { operatingSystem: "iOS", browser: "", isCompliant: false, isManaged: false, trustType: "" },
+      status: { errorCode: 50074, failureReason: "Strong Authentication is required." },
+      conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      signInEventTypes: ["nonInteractiveUser"],
+      appliedConditionalAccessPolicies: [
+        { id: "d1", displayName: "Require MFA for all admins", result: "notApplied", enforcedGrantControls: [], enforcedSessionControls: [] },
+        { id: "d6", displayName: "Unmanaged devices — limited web session", result: "success", enforcedGrantControls: ["Mfa"], enforcedSessionControls: ["SignInFrequency"] },
+      ],
+    },
+  ],
+
   // ---- 🛂 Session controls: Defender advanced hunting rows (CloudAppEvents,
   // session-control audit source) as runHuntingQuery returns them ----
   sessionEvents: [

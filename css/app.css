@@ -1733,3 +1733,14 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wv-member{color:inherit;text-decoration:none;border-bottom:1px dotted var(--faint)}
 .wv-member:hover{color:var(--accent2)}
 #wvPicker .fchip{display:inline-flex;align-items:center;gap:6px}
+
+/* sign-in source segment (🚦 🎚 🕵 🌊) */
+.logsrc-seg button{font-size:12px;padding:0 12px}
+
+/* clickable verdict tiles (🛂) — the tile is a button, the parts under it too */
+button.wo-tile{text-align:left;font:inherit;color:inherit;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+button.wo-tile:hover{border-color:var(--accent2)}
+button.wo-tile.on{box-shadow:inset 0 0 0 2px var(--accent2)}
+.wo-sub{border:0;background:none;padding:0;font:inherit;font-size:12px;color:var(--muted);cursor:pointer;border-bottom:1px dotted var(--faint)}
+.wo-sub:hover{color:var(--accent2)}
+.wo-sub.on{color:var(--ink);font-weight:600;border-bottom-color:var(--accent2)}

@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25265"></script>
+<script src="js/popup-guard.js?v=25266"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25265" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25265">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25266" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25266">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25265"></script>
+<script src="js/selfhost-boot.js?v=25266"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25265"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25265"></script>
+<script src="js/counter.js?v=25266"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25266"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25265" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25266" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25265" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25266" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -253,7 +253,7 @@
         <p>Which sign-ins Conditional Access failed <b>or interrupted</b> and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. Enforced and report-only, with CSV export and a one-click replay in What-If.</p>
       </div>
       <div class="tool" id="toolImpact">
-        <div class="tool-ic">🎚</div><h3>Report-only impact</h3>
+        <div class="tool-ic">🎚</div><h3>Report-only impact <span class="tag upd">UPDATED</span></h3>
         <p>What happens the day a report-only policy goes live — per policy: who would be denied, who just gets an extra prompt, who passes unchanged; per user: the combined effect of everything in report-only. The evidence for the go-live decision, from the sign-in log.</p>
       </div>
     </div>
@@ -976,7 +976,7 @@
     <div class="toolbar" id="wvToolbar" style="margin-top:14px">
       <div class="chip-filter" id="wvPicker" style="align-items:center"></div>
     </div>
-    <div class="toolbar" style="margin-top:8px">
+    <div class="toolbar" id="wvToolbar2" style="margin-top:8px">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="wvTerm" list="wvTermList" placeholder="…or any group — name or object ID, Enter to read" autocomplete="off" spellcheck="false">
@@ -1897,6 +1897,7 @@
     <section class="help-sec">
       <h4>🚦 Sign-in failures</h4>
       <p>Which sign-ins Conditional Access failed and which policy did it — read from the Entra sign-in log, grouped per policy.</p>
+      <p><b>Sign-in source.</b> 🚦, 🎚 Report-only impact, 🕵 Who is Anna to CA and 🌊 Who is the wave to CA share one segment that says where sign-ins are read from: the <b>Entra sign-in log</b> (interactive only, capped at 10,000, <code>AuditLog.Read.All</code>), <b>Defender hunting</b> (the same interactive sign-ins from <code>EntraIdSignInEvents</code> through advanced hunting on Microsoft Graph — <code>ThreatHunting.Read.All</code>, no cap, 30 days) or <b>Hunting + non-interactive</b>, which adds the token refreshes and background client sign-ins the Graph list never returns — where sign-in-frequency re-prompts, legacy-protocol blocks of service accounts and token-protection failures live. Chosen once per tenant; one cached window per source. Hunting needs Entra ID P2 for the table to be populated and a Defender role with hunting access. With non-interactive rows in the result, the interactive / non-interactive counts are chips that filter the list.</p>
       <ul>
         <li><b>Enforced</b> — sign-ins with <code>conditionalAccessStatus = failure</code>: a policy's controls were not satisfied and the sign-in was blocked or interrupted. Filtered by Graph, so the read is cheap. An abandoned MFA prompt lands here too — a failure is a prompt to look, not proof the policy is wrong.</li>
         <li><b>Report-only</b> — sign-ins a report-only policy <i>would have failed</i>. These sign-ins complete, so Graph cannot pre-filter them: the whole window is read and filtered in the browser, capped at 10&#8239;000 sign-ins. This is the number to check before flipping a policy from report-only to On.</li>
@@ -2897,62 +2898,62 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25265"></script>
-<script src="js/selfhost.js?v=25265"></script>
-<script src="js/version.js?v=25265"></script>
-<script src="js/fork.js?v=25265"></script>
-<script src="js/promote.js?v=25265"></script>
-<script src="js/authConfig.js?v=25265"></script>
-<script src="js/labels.js?v=25265"></script>
-<script src="js/graph.js?v=25265"></script>
-<script src="js/model.js?v=25265"></script>
-<script src="js/render.js?v=25265"></script>
-<script src="js/analyze.js?v=25265"></script>
-<script src="js/whatif.js?v=25265"></script>
-<script src="js/mslearn.js?v=25265"></script>
-<script src="js/gapcheck.js?v=25265"></script>
-<script src="js/cisdata.js?v=25265"></script>
-<script src="js/cischeck.js?v=25265"></script>
-<script src="js/exclusions.js?v=25265"></script>
-<script src="js/validator.js?v=25265"></script>
-<script src="js/whatifeval.js?v=25265"></script>
-<script src="js/compare.js?v=25265"></script>
-<script src="js/whois.js?v=25265"></script>
-<script src="js/wave.js?v=25265"></script>
-<script src="js/sessionctl.js?v=25265"></script>
-<script src="js/groupuse.js?v=25265"></script>
-<script src="js/iso3166.js?v=25265"></script>
-<script src="js/locations.js?v=25265"></script>
-<script src="js/authcontexts.js?v=25265"></script>
-<script src="js/authstrengths.js?v=25265"></script>
-<script src="js/recycle.js?v=25265"></script>
-<script src="js/rmau.js?v=25265"></script>
-<script src="js/camap.js?v=25265"></script>
-<script src="js/rmaudoc.js?v=25265"></script>
-<script src="js/termsofuse.js?v=25265"></script>
-<script src="js/audit.js?v=25265"></script>
-<script src="js/drift.js?v=25265"></script>
-<script src="js/guide.js?v=25265"></script>
-<script src="js/userimpact.js?v=25265"></script>
-<script src="js/smsvoice.js?v=25265"></script>
-<script src="js/memberof.js?v=25265"></script>
-<script src="js/devcheck.js?v=25265"></script>
-<script src="js/licgap.js?v=25265"></script>
-<script src="js/teamsdev.js?v=25265"></script>
-<script src="js/signins.js?v=25265"></script>
-<script src="js/reportimpact.js?v=25265"></script>
-<script src="js/changelog.js?v=25265"></script>
-<script src="js/baselineData.js?v=25265"></script>
-<script src="js/baselineJoeyData.js?v=25265"></script>
-<script src="js/baselineLive.js?v=25265"></script>
-<script src="js/baseline.js?v=25265"></script>
-<script src="js/baselineCleanup.js?v=25265"></script>
-<script src="js/groupTemplates.js?v=25265"></script>
-<script src="js/assign.js?v=25265"></script>
-<script src="js/cagroups.js?v=25265"></script>
-<script src="js/import.js?v=25265"></script>
-<script src="js/export.js?v=25265"></script>
-<script src="js/demo.js?v=25265"></script>
-<script src="js/app.js?v=25265"></script>
+<script src="js/branding.js?v=25266"></script>
+<script src="js/selfhost.js?v=25266"></script>
+<script src="js/version.js?v=25266"></script>
+<script src="js/fork.js?v=25266"></script>
+<script src="js/promote.js?v=25266"></script>
+<script src="js/authConfig.js?v=25266"></script>
+<script src="js/labels.js?v=25266"></script>
+<script src="js/graph.js?v=25266"></script>
+<script src="js/model.js?v=25266"></script>
+<script src="js/render.js?v=25266"></script>
+<script src="js/analyze.js?v=25266"></script>
+<script src="js/whatif.js?v=25266"></script>
+<script src="js/mslearn.js?v=25266"></script>
+<script src="js/gapcheck.js?v=25266"></script>
+<script src="js/cisdata.js?v=25266"></script>
+<script src="js/cischeck.js?v=25266"></script>
+<script src="js/exclusions.js?v=25266"></script>
+<script src="js/validator.js?v=25266"></script>
+<script src="js/whatifeval.js?v=25266"></script>
+<script src="js/compare.js?v=25266"></script>
+<script src="js/whois.js?v=25266"></script>
+<script src="js/wave.js?v=25266"></script>
+<script src="js/sessionctl.js?v=25266"></script>
+<script src="js/groupuse.js?v=25266"></script>
+<script src="js/iso3166.js?v=25266"></script>
+<script src="js/locations.js?v=25266"></script>
+<script src="js/authcontexts.js?v=25266"></script>
+<script src="js/authstrengths.js?v=25266"></script>
+<script src="js/recycle.js?v=25266"></script>
+<script src="js/rmau.js?v=25266"></script>
+<script src="js/camap.js?v=25266"></script>
+<script src="js/rmaudoc.js?v=25266"></script>
+<script src="js/termsofuse.js?v=25266"></script>
+<script src="js/audit.js?v=25266"></script>
+<script src="js/drift.js?v=25266"></script>
+<script src="js/guide.js?v=25266"></script>
+<script src="js/userimpact.js?v=25266"></script>
+<script src="js/smsvoice.js?v=25266"></script>
+<script src="js/memberof.js?v=25266"></script>
+<script src="js/devcheck.js?v=25266"></script>
+<script src="js/licgap.js?v=25266"></script>
+<script src="js/teamsdev.js?v=25266"></script>
+<script src="js/signins.js?v=25266"></script>
+<script src="js/reportimpact.js?v=25266"></script>
+<script src="js/changelog.js?v=25266"></script>
+<script src="js/baselineData.js?v=25266"></script>
+<script src="js/baselineJoeyData.js?v=25266"></script>
+<script src="js/baselineLive.js?v=25266"></script>
+<script src="js/baseline.js?v=25266"></script>
+<script src="js/baselineCleanup.js?v=25266"></script>
+<script src="js/groupTemplates.js?v=25266"></script>
+<script src="js/assign.js?v=25266"></script>
+<script src="js/cagroups.js?v=25266"></script>
+<script src="js/import.js?v=25266"></script>
+<script src="js/export.js?v=25266"></script>
+<script src="js/demo.js?v=25266"></script>
+<script src="js/app.js?v=25266"></script>
 </body>
 </html>

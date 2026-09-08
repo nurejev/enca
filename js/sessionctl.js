@@ -220,17 +220,20 @@ const SessionCtl = (() => {
     if (res.schemaFallback) notes.push("The hunting schema had no AuditSource column, so session-control events were picked by their wording — counts may include activities Defender logged through an app connector rather than a session.");
     if (res.capped) notes.push("The sign-in window was capped, so some routing sign-ins are missing and more activities than usual show as unmatched.");
     if (!res.routesRead) notes.push("The sign-in log was not read: activities are shown, but which CA policy routed each session cannot be said.");
+    // Every tile is a filter: the number sets the table it counts, the parts
+    // under it narrow further. sc-pf = policy filter, sc-ef = event filter.
+    const sub = (kind, val, label, on) => `<button class="wo-sub${on ? " on" : ""}" data-${kind}="${val}">${label}</button>`;
     const tiles = `<div class="list-card wo-card"><div class="wo-verdicts">
-      <div class="wo-vt"><span class="k">Policies with a session control</span><span class="v">${t.policies}</span><span class="s">${t.appcontrol} App Control · ${t.other} other session controls</span></div>
-      <div class="wo-vt ${t.routed ? "ok" : ""}"><span class="k">Sessions routed to Defender · ${esc(rangeLabel)}</span><span class="v">${t.routed == null ? '<span class="muted">—</span>' : t.routed}</span><span class="s">${t.routed == null ? "sign-in log not read" : `by ${t.routers} polic${t.routers === 1 ? "y" : "ies"} · ${t.routedUsers} users · ${t.routedApps} apps`}</span></div>
-      <div class="wo-vt ${t.blocked ? "bad" : "ok"}"><span class="k">Downloads / activities blocked</span><span class="v">${t.blocked}</span><span class="s">${t.blockedUsers} user${t.blockedUsers === 1 ? "" : "s"} · ${t.events} Defender events read</span></div>
-      <div class="wo-vt ${t.protect + t.stepup ? "warn" : ""}"><span class="k">Other actions</span><span class="v">${t.protect + t.stepup + t.audit}</span><span class="s">${t.protect} protected · ${t.stepup} step-ups · ${t.audit} audited · ${t.login} logins</span></div>
+      <button class="wo-vt wo-tile${pfilter === "all" ? " on" : ""}" data-sc-pf="all" title="Show every policy with a session control"><span class="k">Policies with a session control</span><span class="v">${t.policies}</span><span class="s">${sub("sc-pf", "appcontrol", `${t.appcontrol} App Control`, pfilter === "appcontrol")} · ${sub("sc-pf", "session", `${t.other} other session controls`, pfilter === "session")}</span></button>
+      <button class="wo-vt wo-tile ${t.routed ? "ok" : ""}${pfilter === "routed" ? " on" : ""}" data-sc-pf="routed" title="Show the policies that routed a session"><span class="k">Sessions routed to Defender · ${esc(rangeLabel)}</span><span class="v">${t.routed == null ? '<span class="muted">—</span>' : t.routed}</span><span class="s">${t.routed == null ? "sign-in log not read" : `by ${t.routers} polic${t.routers === 1 ? "y" : "ies"} · ${t.routedUsers} users · ${t.routedApps} apps · ${sub("sc-ef", "login", `${t.login} logins logged`, filter === "login")}`}</span></button>
+      <button class="wo-vt wo-tile ${t.blocked ? "bad" : "ok"}${filter === "block" ? " on" : ""}" data-sc-ef="block" title="Show the blocked activities"><span class="k">Downloads / activities blocked</span><span class="v">${t.blocked}</span><span class="s">${t.blockedUsers} user${t.blockedUsers === 1 ? "" : "s"} · ${sub("sc-ef", "all", `${t.events} Defender events read`, filter === "all")}</span></button>
+      <button class="wo-vt wo-tile ${t.protect + t.stepup ? "warn" : ""}${filter === "acted" ? " on" : ""}" data-sc-ef="acted" title="Show everything Defender acted on"><span class="k">Other actions</span><span class="v">${t.protect + t.stepup + t.audit}</span><span class="s">${sub("sc-ef", "protect", `${t.protect} protected`, filter === "protect")} · ${sub("sc-ef", "stepup", `${t.stepup} step-ups`, filter === "stepup")} · ${sub("sc-ef", "audit", `${t.audit} audited`, filter === "audit")} · ${sub("sc-ef", "unmatched", `${res.unmatched} unmatched`, filter === "unmatched")}</span></button>
     </div></div>`;
 
     // policies
-    const pchips = [["appcontrol", `App Control ${pill(t.appcontrol, "green")}`], ["session", `Other session controls ${pill(t.other, "zero")}`], ["all", `All ${pill(t.policies, "zero")}`]].map(([k, l]) => `<button class="fchip${pfilter === k ? " active" : ""}" data-sc-pfilter="${k}">${l}</button>`).join("");
-    const prows = res.rows.filter((r) => pfilter === "all" || r.kind === pfilter);
-    const ptable = `<div class="list-card wo-card">
+    const pchips = [["appcontrol", `App Control ${pill(t.appcontrol, "green")}`], ["routed", `Routed a session ${pill(res.rows.filter((r) => r.routed > 0).length, "green")}`], ["session", `Other session controls ${pill(t.other, "zero")}`], ["all", `All ${pill(t.policies, "zero")}`]].map(([k, l]) => `<button class="fchip${pfilter === k ? " active" : ""}" data-sc-pfilter="${k}">${l}</button>`).join("");
+    const prows = res.rows.filter((r) => pfilter === "all" || (pfilter === "routed" ? r.routed > 0 : r.kind === pfilter));
+    const ptable = `<div class="list-card wo-card" id="scPolicies">
       <h3 class="wo-h">📋 Conditional Access policies with a session control — and what Defender did behind them</h3>
       <div class="chip-filter" style="margin:8px 0 10px">${pchips}</div>
       <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Policy</th><th>State</th><th>Session control</th><th>Routed · ${esc(rangeLabel)}</th><th>Defender actions</th><th>Defender policies matched</th><th>Verdict</th></tr></thead><tbody>
@@ -252,7 +255,7 @@ const SessionCtl = (() => {
     const inQ = (e) => !q || [e.name, e.upn, e.app, e.file, e.policy, e.actionType, e.route && e.route.policyName].some((x) => lc(x).includes(q));
     const shown = res.events.filter((e) => inFilter(e) && inQ(e));
     const maxRows = opts.maxRows || 100;
-    const etable = `<div class="list-card wo-card">
+    const etable = `<div class="list-card wo-card" id="scEvents">
       <h3 class="wo-h">🚫 What Defender did · ${esc(rangeLabel)} ${pill(t.blocked, "red")} ${pill(t.protect + t.stepup, "amber")}</h3>
       <div class="chip-filter" style="margin:8px 0 10px">${kinds}</div>
       <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>When</th><th>User</th><th>App · object</th><th>Action</th><th>Defender policy</th><th>Routed by</th></tr></thead><tbody>
