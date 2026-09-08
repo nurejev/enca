@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.308",
+  productionBuild: "v1.0.309",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -117,64 +117,6 @@ const PROMOTE = {
   },
 
   items: [
-    {
-      n: 131,
-      title: "👥 CA groups: remove a member (T12 4.7)",
-      tools: ["Conditional Access groups"],
-      builds: [25263],
-      risk: "medium",
-      what: "③ Members gains the mirror of ＋ Add: a − Remove button in the ADD OR REMOVE A MEMBER bar and an × on every ● in the matrix on hover. Confirms first with what the group is used for (exclusion → the user is back inside N policies; include → out of scope of N), refuses dynamic groups and users not read as members, re-reads the group afterwards. One DELETE on /groups/{id}/members/{user}/$ref with Group.ReadWrite.All.",
-      why: "A write, and the first one in the matrix that can lock somebody out — removing a break-glass account from CAB-SEC-U-BreakGlass is exactly one click away, which is why the confirmation names the consequence rather than asking “are you sure”. Graduates once the confirmation text has been read on a real exclusion group and a real include group and judged sufficient.",
-      test: [
-        "Load ③ Members for CAB-SEC-U-BreakGlass and one CAB-SEC-U-CAxxx-Exclusion group. Hover a ● in the matrix: an × must appear only on cells of ASSIGNED groups — a dynamic group's ● must not offer it, and its title must say rule-managed.",
-        "Click the × for a member of the exclusion group: the confirm must name the user, the group, and say it is an EXCLUSION group for N policies and that the user will be INSIDE them again. Cancel: nothing changes, no request is sent.",
-        "Confirm the same removal on a test user: the member disappears from the matrix, the success line names the policies the user is inside again, and after the re-read the row still lacks the user. Check the group in the Entra portal: the user is gone.",
-        "Type a UPN that is NOT a member of the picked group and press − Remove: it must refuse with “not a member … nothing to remove” and send no request.",
-        "Pick a dynamic group in the group box and press − Remove: it must refuse and say the rule decides. Decline Group.ReadWrite.All when asked: no request is sent and the bar keeps its message.",
-        "?demo=1: remove a demo member from a loaded group — the matrix updates locally and no Graph call is made.",
-      ],
-      files: ["js/app.js", "js/cagroups.js", "css/app.css", "index.html", "js/version.js"],
-    },
-    {
-      n: 130,
-      title: "🌊 Who is the wave to CA (T37)",
-      tools: ["Who is the wave to CA"],
-      builds: [25262],
-      risk: "medium",
-      what: "New beta-only tool: the T36 picture for a whole deployment group — picker with member counts, go-live readiness per report-only policy (locked out / prompted / unchanged / silent → Not yet / Friction only / Ready / No data), policies and how they target the wave, excluded-member counts, members with how they got in and flags (bypass, two waves, blocked, lockout, no P1, disabled), each a click into T36. New js/wave.js plus tile, screen, Help section, wiring and CSS; T36's stage tile links to it.",
-      why: "Composes the same modules as T36 for N members, so the risk is scale and joins: the referenced-group reads are capped at 999 members each and the wave at 500, the report-only per-user rows join back on UPN, and the readiness verdict is only as good as the window. Graduates once a real wave's readiness table has matched 🎚 Report-only impact per policy and the member flags have matched T36 for a handful of members. Travels with item 129 (it calls WhoIs.stateFor and opens T36).",
-      test: [
-        "On a baseline tenant, open the tool: every CAD-SEC-U-DG-* group the tenant has must be a picker chip with its transitive member count; a group the tenant does not have must be greyed with —. Pick DG-INT: the member count in the header must equal the chip.",
-        "For a wave with a nested child group: members that came through it must read “via <child>”, direct members “direct”, and the How-the-wave-is-built card must list the child with the same count. A dynamic child must show its rule.",
-        "Compare the readiness row of one report-only policy with 🎚 Report-only impact for the same policy and window: the locked-out names here must be exactly that policy's would-deny users who are members of the wave. Nothing more, nothing less.",
-        "Click three member names — one with a bypass flag, one in two waves, one quiet — and confirm 🕵 Who is Anna to CA opens on each with the same verdicts (exclusion callout, stage tile, forecast tile).",
-        "A member in CAB-SEC-U-CAxxx-Exclusion while CAxxx is On must carry the bypass flag and the policy row must count them under Excluded members with the group named; switch the policy to report-only and rescan: the flag must become a plain “excluded” chip.",
-        "Decline AuditLog.Read.All: the readiness card must say it needs the sign-in log, the member table must render without log columns filled, and nothing must throw. With a window that hit the 10,000 cap, the note above the result must say so.",
-        "On a tenant with the Joey Verlinden baseline active: the picker must say the baseline has no deployment groups and offer his persona groups; typing a CA-… - Exclude group by name must work.",
-        "?demo=1: pick Internals (persona) — Eva and Milan as members, CA200-CA20x targeting via direct include, the staged MFA policy in the readiness card, and Eva's name opening T36.",
-      ],
-      files: ["js/wave.js", "js/whois.js", "js/app.js", "index.html", "css/app.css", "js/version.js"],
-    },
-    {
-      n: 129,
-      title: "🕵 Who is Anna to CA (T36)",
-      tools: ["Who is Anna to CA"],
-      builds: [25261],
-      risk: "medium",
-      what: "New beta-only tool: one user, the whole Conditional Access picture on one screen — deployment stage (which CAD-SEC-U-DG-* groups, direct or nested via which parent), every policy and via what it reaches or excludes her, the sign-ins Conditional Access stopped for her, and her report-only forecast (locked out / prompts / no change / no data). Standing bypasses named. Reads only; the sign-in half is a per-user server-filtered read, or the shared window when complete. New js/whois.js plus tile, screen, Help section, wiring and CSS.",
-      why: "Composes ⚖ Compare users, 🚦 Sign-in failures and 🎚 Report-only impact for one user rather than inventing new reads, so the risk is in the COMPOSITION: the include reason, the nested-via path and the per-user report-only row are new code paths. Graduates once the ladder and the policy table have matched ⚖ Compare and 🎚 Report-only impact on a few real users, including one in an exclusion group and one not in any wave.",
-      test: [
-        "On a baseline tenant, read a user who is in CAD-SEC-U-DG-INT through a nested group: the ladder must show DG-INT as In · nested via <that parent>, and DG-GLO likewise; a deploy group the tenant does not have must read “Not in this tenant”, not “Not in”.",
-        "Read a user who is a direct member of a CAB-SEC-U-CAxxx-Exclusion group while that policy is On: the exclusion rung must be red, the policy row must read EXCLUDED with the group named, and a “Standing bypass” callout must appear. Switch the policy to report-only and rescan: the callout must go.",
-        "For the same user, open ⚖ Compare users with that user and a colleague: every ✓ / ✗ / · in Compare's assignment column for the user must agree with the Reaches her / Excluded / Not targeted chips here. Any disagreement is a bug in this tool, not in Compare.",
-        "Read a user with at least one sign-in an enforced policy blocked in the last 7 days: the blocked count in the tile, the policy row's Log column and the sign-ins table must agree with 🚦 Sign-in failures filtered to that UPN, and 🧪 Replay must open What-If prefilled with the app, platform, client and IP of that sign-in.",
-        "With a report-only policy that would deny the user: the forecast tile must say Locked out and name the policy; the same user's row in 🎚 Report-only impact → Per user must show the same policy with the same failure count. A report-only policy that reaches her but evaluated no sign-in must render as “no data”, never as no change.",
-        "Read a user in NO deploy group: the stage tile must say “Not in a wave” and the callout must offer 👥 Conditional Access groups. On a tenant with the Joey Verlinden baseline active, the ladder must say the baseline has no deployment groups and show the persona groups instead.",
-        "Decline AuditLog.Read.All when it is asked for: the memberships and policy table must still render, and the sign-in half must say why it was skipped. Press the MFA methods “read” button and decline: the chip must stay “not read”.",
-        "?demo=1: read eva@contoso.com — DG-GLO and DG-INT In, one report-only forecast from the demo sign-ins, and the policy names open the policy card.",
-      ],
-      files: ["js/whois.js", "js/app.js", "index.html", "css/app.css", "js/demo.js", "js/version.js"],
-    },
     {
       n: 34,
       title: "CIS Benchmark Help section",

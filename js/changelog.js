@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25264, date: "2026-09-08", title: "Production is 309",
+    items: [
+      { kind: "fixed", tool: "Help", text: "Items 129, 130 and 131 — 🕵 Who is Anna to CA, 🌊 Who is the wave to CA and the − Remove in 👥 CA groups ③ Members — went to production as build 309. They leave the promotion queue, productionBuild moves to v1.0.309, and the two new tiles drop their only-here chip on both channels; BETA stays on both until they have proven themselves on real tenants." },
+    ],
+  },
+  {
     build: 25263, date: "2026-09-08", title: "CA groups can remove a member",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "③ Members can REMOVE a member as well as add one: a − Remove button next to ＋ Add, and an × on every ● in the matrix when you hover it. Both ask first, and the question says what the group is used for — taking someone out of an EXCLUSION group puts them back inside the policy, taking them out of an include group takes them out of its scope — with the number of policies either way; the success line names the policies the user is inside again. Dynamic groups are not offered, since the rule decides their membership, and a user not read as a member is refused rather than deleted blind. The group is re-read afterwards so the matrix shows the result. Needs Group.ReadWrite.All, asked on the click." },
