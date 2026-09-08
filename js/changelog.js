@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25273, date: "2026-09-08", title: "Conditional Access groups: one read, then everything is a row",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "The seven tabs — each starting its own scan, with “who is in CA011-Exclusion” three clicks and a 708 × 123 matrix away — are replaced as the way in by one LIST of groups and a DETAIL DRAWER that follows the row you click. The list carries status, members (count, direct vs nested, read on demand), the policies that use the group with their state, and its protection, with filter chips for needs attention, missing, gone, empty, not protected, role-assignable, nested and not in the baseline; search matches members too. Tick rows for the actions bar: read members, compare selected (the old matrix, only for what you ticked), assign, protect, migrate, import CSV, create the missing ones — each opens the engine screen with the selection carried across and a ← Groups button back. Each row offers what applies to it: Create on a missing group, Restore on a dangling reference, the wave on a deploy group. The drawer: Members as a tree (direct members, then each nested group with its own members; add inline; × removes from the group the member actually sits in, asking first), Policies with state, Protection with the button that fixes it, History from the directory audit log. Nothing scans twice. R48." },
+    ],
+  },
+  {
     build: 25272, date: "2026-09-08", title: "The roadmap catches up, and the two temporary tools get their Help",
     items: [
       { kind: "improved", tool: "Roadmap", text: "Eight cards that were missing. In Now: R40 Who is Anna to CA, R41 Who is the wave to CA and R42 remove a member from a group — all in production since 309. In beta today: R43 Session controls, R44 the sign-in source switch and R45 the nesting view of the members matrix. Next: R46 Workload identity Conditional Access and R47 the Defender half of Device reality check, both designed and not yet built. R05 Baseline usage guide moves from Now to In beta today, where a beta-only tool belongs." },

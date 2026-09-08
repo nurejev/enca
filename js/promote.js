@@ -118,6 +118,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 136,
+      title: "👥 CA groups 5.0: one list + drawer instead of seven tabs (T12, R48)",
+      tools: ["Conditional Access groups"],
+      builds: [25273],
+      risk: "medium",
+      what: "New js/groupsview.js (list, chips, bulk bar, drawer renderers) and a groups landing view in app.js: cgTab = groups by default, the tab strip hidden, engine screens reached from row / bulk actions with the selection carried across (cgGoTab, cgRmauPre / cgMigPre applied after their scans) and a ← Groups bar back. Drawer: members tree with add (existing cgAddMember via hidden group input) and remove (existing cgRemoveMember; new cgRemoveFromChild for nested groups), policies, protection, history (directoryAudits filtered on the group id). Tile blurb, Help and roadmap R48 rewritten.",
+      why: "Every engine is unchanged, so the risk is in the routing and the reads: a bulk action that lands on the wrong screen, a pre-selection that does not stick, a member read that repeats. Graduates once one real tenant has been worked from the list end to end — create, protect, migrate, compare — without touching the old tabs, and the nested-remove confirm has been read on a real nested group.",
+      test: [
+        "Open 👥 on a real tenant: the list must appear after ONE scan (watch the network: no second scan when clicking rows, chips or tabs in the drawer). Status, used-by and protection columns must agree with the old ① Check table (still reachable: tick nothing, ⋯ → it opens the row popup).",
+        "Click a row: its members must be read once and the drawer must show direct members first, then each nested group with ▸; expanding a nested group must list its members with × on each. Click the row again or another row: no re-read of a group already read.",
+        "Drawer Members: add a user — the tree must update and only that group is re-read. × on a DIRECT member must confirm with the exclusion / include wording; × on a NESTED member must confirm naming the nested group and what else it feeds, and remove from the nested group (check in the portal).",
+        "Tick two groups → ⊞ Compare selected: the matrix must show exactly those two columns, with nesting view available, and ← Groups must return to the list with the ticks kept.",
+        "Tick an unprotected exclusion group → 🔒 Protect in RMAU…: after ▶ Scan, exactly that group must be ticked (not the default set). Same for a role-assignable group → 🧹 Migrate.",
+        "Missing filter → ＋ Create on a row: ② Create must open. Dangling filter → 🔁 Restore: the assign wizard must open with the restore action available. Deploy group → 🌊: Who is the wave to CA must open on that group.",
+        "Drawer History → Read: the last 30 days of member adds / removes for that group must list who did it; decline AuditLog.Read.All: the tab must say so.",
+        "?demo=1: list of 24 rows, chips with counts, a present row opens a drawer with a member tree, policies tab shows CA001 On for CA002-Exclusion, compare / rmau / create routes and ← Groups come back with the ticks kept.",
+      ],
+      files: ["js/groupsview.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 135,
       title: "🔍 Gap analyse: T03 chip, no Back button (1.9.1)",
       tools: ["Gap analyse"],

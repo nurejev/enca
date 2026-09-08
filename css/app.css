@@ -1758,3 +1758,39 @@ button.wo-tile.on{box-shadow:inset 0 0 0 2px var(--accent2)}
 .cg-nestrow{border:0;background:none;padding:2px 0;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;text-align:left}
 .cg-nestrow:hover b{color:var(--accent2)}
 .cg-nestlist{list-style:none;margin:4px 0 6px 22px;padding:0;font-size:12.5px;display:grid;gap:2px}
+
+/* ---------- 👥 CA groups 5.0: list + drawer ---------- */
+.cgg-wrap{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr);gap:14px;align-items:start;margin-top:10px}
+@media (max-width:980px){.cgg-wrap{grid-template-columns:1fr}}
+.cgg-list{padding:0}
+.cgg-tbl td{vertical-align:middle;padding:8px 10px}
+.cgg-tbl th{padding:8px 10px}
+.cgg-row{cursor:pointer}
+.cgg-row.open td{background:var(--ok-bg2)}
+.cgg-row.sel td{box-shadow:inset 3px 0 0 var(--accent2)}
+.cgg-chk{width:14px;height:14px;cursor:pointer}
+.cgg-acts{white-space:nowrap;text-align:right}
+.cgg-drawer{position:sticky;top:calc(var(--sticky-nav,106px) + 64px);padding:16px 18px;overflow:visible;max-height:calc(100vh - 190px);overflow-y:auto}
+.cgg-drawer.cgg-empty{padding:26px 18px;text-align:center}
+.cgg-drhead{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
+.cgg-dtabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:10px 0 12px}
+.cgg-dtabs button{border:0;background:none;padding:8px 10px;font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer}
+.cgg-dtabs button.on{color:var(--green);border-bottom-color:var(--green)}
+.cgg-add{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.cgg-add .txt{flex:1;letter-spacing:normal;font-weight:400}
+.cgg-tree{list-style:none;padding:0;margin:0;font-size:13px}
+.cgg-tree li{padding:6px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.cgg-tree li:first-child{border-top:0}
+.cgg-tree li.c{padding-left:22px;position:relative}
+.cgg-tree li.c::before{content:"└";position:absolute;left:8px;color:var(--faint)}
+.cgg-tree li.g{background:var(--soft2);margin:0 -6px;padding:6px;border-radius:8px}
+.cgg-nest{border:0;background:none;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;padding:0}
+.cgg-x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 6px;line-height:1}
+.cgg-x:hover{color:var(--off)}
+.cgg-bulk{position:sticky;bottom:12px;z-index:30;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--green);color:#fff;border-radius:12px;padding:10px 14px;margin-top:12px;box-shadow:var(--shadow)}
+.cgg-bulk .btn{background:rgba(255,255,255,.14);border-color:transparent;color:#fff;padding:5px 12px;min-height:0;font-size:12.5px}
+.cgg-bulk .btn:hover{background:rgba(255,255,255,.26)}
+.cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
+:root[data-theme="dark"] .cgg-bulk{color:var(--green-deep)}
+:root[data-theme="dark"] .cgg-bulk .btn{color:var(--green-deep);background:rgba(0,0,0,.12)}
+.cgg-back{display:flex;gap:10px;align-items:center;margin:8px 0 10px}

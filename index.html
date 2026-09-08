@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25272"></script>
+<script src="js/popup-guard.js?v=25273"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25272" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25272">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25273" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25273">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25272"></script>
+<script src="js/selfhost-boot.js?v=25273"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25272"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25272"></script>
+<script src="js/counter.js?v=25273"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25273"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25272" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25273" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25272" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25273" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -284,7 +284,7 @@
     <div class="tools">
       <div class="tool" id="toolCaGroups">
         <div class="tool-ic">👥</div><h3>Conditional Access groups <span class="tag upd">UPDATED</span></h3>
-        <p>Check the active baseline's groups against this tenant — CloudFellows or Joey Verlinden, your choice — create the missing ones, analyze their members in a matrix, and assign them to policies. <span class="tag block">writes to tenant</span></p>
+        <p>One read, then everything is a row: every group the baseline expects or a policy references, with its status, members (direct and nested), the policies that use it and its protection — and a detail panel for the one you click: members as a tree with add and remove, policies, protection, history. Create, assign, protect, migrate, import and compare from the rows you tick. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolProtect">
         <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag upd">UPDATED</span></h3>
@@ -623,7 +623,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="cgSearch" placeholder="Search group name, object ID or member…">
       </div>
-      <div class="seg" id="cgTabs">
+      <div class="seg" id="cgTabs" style="display:none">
         <button class="active" data-cgtab="check">① Check</button>
         <button data-cgtab="create">② Create</button>
         <button data-cgtab="members">③ Members</button>
@@ -1539,6 +1539,10 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R45</span> <a href="#" class="md-tool" data-tool="toolCaGroups">👥 Show nesting in the members matrix</a> <span class="tag grant">live · beta 25267</span></h4>
             <p class="mini" style="margin:0">Every member read also reads the group's direct list and its nested member groups, so the matrix can say <b>how</b> as well as who: ● direct, ◐ through a nested group with the child named, a Nested groups panel with each child's members, hide-empty-groups, and ◐ cells that are not removable because the membership lives in the child. On the same build the matrix finally got the grid every other matrix has — it had been bare rows since build 97.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25273">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R48</span> <a href="#" class="md-tool" data-tool="toolCaGroups">👥 Conditional Access groups as one list</a> <span class="tag grant">live · beta 25273</span></h4>
+            <p class="mini" style="margin:0">Seven tabs that each started their own scan become <b>one read, then everything is a row</b>: a list of every group with its status, members, policies and protection, filter chips for what needs attention, an actions bar for the rows you tick, and a detail drawer that follows the row you click — members as a tree with add and remove (nested groups included), policies, protection, history. The engines underneath are unchanged; the list routes into them with the selection carried across.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -2034,7 +2038,13 @@
 
     <section class="help-sec">
       <h4>👥 Conditional Access groups <span class="tag block">writes to tenant</span></h4>
-      <p>The group side of the baseline, in one tool.</p>
+      <p>The group side of the baseline, in one tool. <b>One read, then everything is a row.</b> On open the tool reads the tenant once — the groups your policies reference (or, with the scope switched, everything the ★ active baseline expects), their policies, protection and role-assignable state — and shows them as a <b>list</b>. Members and nesting are read per group when you first look at it, kept for the session, and a write re-reads only the group it touched.</p>
+      <ul>
+        <li><b>The list</b> — group, status (present / missing / referenced but gone), members (count, direct vs nested, or a read button), the policies that use it with their state, protection (which restricted unit, or not protected). Filter chips: needs attention, missing, gone, empty, not protected, role-assignable, has nested groups, not in the baseline; the search matches group names, object IDs and members. Sorted attention first. Each row offers what applies to it — ＋ Create on a missing group, 🔁 Restore on a dangling reference, 🌊 on a deploy group, ⋯ for everything else.</li>
+        <li><b>The actions bar</b> — tick rows and act on them: read members, ⊞ compare selected (the members × groups matrix, only for what you ticked, with the nesting view), assign to policies, protect in a restricted unit, migrate off role-assignable, import members from CSV, create the missing ones. Each opens the engine screen for that action with your selection carried across and a ← Groups button back.</li>
+        <li><b>The detail drawer</b> — click a row. <b>Members</b>: direct members first, then each nested group with its own members underneath; add inline; × removes from the group the member actually sits in — a member under a nested group is removed from that nested group, and the confirmation names what else that group feeds. <b>Policies</b>: include / exclude with state, names open the policy card. <b>Protection</b>: the unit it is in, or why it is not protected and the button that fixes it. <b>History</b>: the group's last 30 days from the directory audit log — who added or removed whom.</li>
+      </ul>
+      <p class="help-x" style="margin-bottom:10px">Below: the engine screens the list routes into. They are the same flows as before, one step shorter because the groups arrive pre-selected.</p>
       <ul>
         <li><b>Check</b> — baseline groups vs this tenant: present, missing, or drifted. <b>Create</b> a single missing group per row (the TeamsSharedDevices group is created as a <b>dynamic</b> group with the Teams-Rooms membership rule). A group that IS still role-assignable is flagged the other way round now — that flag is retired, so a plain group is correct and a role-assignable one is what needs attention, with a button into <b>⑦ Migrate</b> to convert it and place it in a restricted administrative unit. Everything created here is a plain security group with <b>nesting disabled</b>.</li>
         <li><b>⟳ Make dynamic</b> — appears when the template defines a membership rule but the tenant group is <b>assigned</b>. A plain security group is converted <b>in place</b>: same id, so every policy, app and role assignment that points at it is untouched. A <b>role-assignable</b> group cannot be dynamic at all — Entra makes the two mutually exclusive and <code>isAssignableToRole</code> is immutable — so it is replaced instead: the old group is renamed <code>-static-YYYYMMDD</code> and kept as your rollback, a dynamic group is created under the original name, added to the include/exclude of every policy that referenced the old one, and only then is the old one removed from those policies (so nothing is uncovered mid-flight). The replacement is <b>not role-assignable</b> — don’t convert a group that carries a directory role or PIM assignment. In both cases members who don’t match the rule stop being members.</li>
@@ -2954,62 +2964,63 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25272"></script>
-<script src="js/selfhost.js?v=25272"></script>
-<script src="js/version.js?v=25272"></script>
-<script src="js/fork.js?v=25272"></script>
-<script src="js/promote.js?v=25272"></script>
-<script src="js/authConfig.js?v=25272"></script>
-<script src="js/labels.js?v=25272"></script>
-<script src="js/graph.js?v=25272"></script>
-<script src="js/model.js?v=25272"></script>
-<script src="js/render.js?v=25272"></script>
-<script src="js/analyze.js?v=25272"></script>
-<script src="js/whatif.js?v=25272"></script>
-<script src="js/mslearn.js?v=25272"></script>
-<script src="js/gapcheck.js?v=25272"></script>
-<script src="js/cisdata.js?v=25272"></script>
-<script src="js/cischeck.js?v=25272"></script>
-<script src="js/exclusions.js?v=25272"></script>
-<script src="js/validator.js?v=25272"></script>
-<script src="js/whatifeval.js?v=25272"></script>
-<script src="js/compare.js?v=25272"></script>
-<script src="js/whois.js?v=25272"></script>
-<script src="js/wave.js?v=25272"></script>
-<script src="js/sessionctl.js?v=25272"></script>
-<script src="js/groupuse.js?v=25272"></script>
-<script src="js/iso3166.js?v=25272"></script>
-<script src="js/locations.js?v=25272"></script>
-<script src="js/authcontexts.js?v=25272"></script>
-<script src="js/authstrengths.js?v=25272"></script>
-<script src="js/recycle.js?v=25272"></script>
-<script src="js/rmau.js?v=25272"></script>
-<script src="js/camap.js?v=25272"></script>
-<script src="js/rmaudoc.js?v=25272"></script>
-<script src="js/termsofuse.js?v=25272"></script>
-<script src="js/audit.js?v=25272"></script>
-<script src="js/drift.js?v=25272"></script>
-<script src="js/guide.js?v=25272"></script>
-<script src="js/userimpact.js?v=25272"></script>
-<script src="js/smsvoice.js?v=25272"></script>
-<script src="js/memberof.js?v=25272"></script>
-<script src="js/devcheck.js?v=25272"></script>
-<script src="js/licgap.js?v=25272"></script>
-<script src="js/teamsdev.js?v=25272"></script>
-<script src="js/signins.js?v=25272"></script>
-<script src="js/reportimpact.js?v=25272"></script>
-<script src="js/changelog.js?v=25272"></script>
-<script src="js/baselineData.js?v=25272"></script>
-<script src="js/baselineJoeyData.js?v=25272"></script>
-<script src="js/baselineLive.js?v=25272"></script>
-<script src="js/baseline.js?v=25272"></script>
-<script src="js/baselineCleanup.js?v=25272"></script>
-<script src="js/groupTemplates.js?v=25272"></script>
-<script src="js/assign.js?v=25272"></script>
-<script src="js/cagroups.js?v=25272"></script>
-<script src="js/import.js?v=25272"></script>
-<script src="js/export.js?v=25272"></script>
-<script src="js/demo.js?v=25272"></script>
-<script src="js/app.js?v=25272"></script>
+<script src="js/branding.js?v=25273"></script>
+<script src="js/selfhost.js?v=25273"></script>
+<script src="js/version.js?v=25273"></script>
+<script src="js/fork.js?v=25273"></script>
+<script src="js/promote.js?v=25273"></script>
+<script src="js/authConfig.js?v=25273"></script>
+<script src="js/labels.js?v=25273"></script>
+<script src="js/graph.js?v=25273"></script>
+<script src="js/model.js?v=25273"></script>
+<script src="js/render.js?v=25273"></script>
+<script src="js/analyze.js?v=25273"></script>
+<script src="js/whatif.js?v=25273"></script>
+<script src="js/mslearn.js?v=25273"></script>
+<script src="js/gapcheck.js?v=25273"></script>
+<script src="js/cisdata.js?v=25273"></script>
+<script src="js/cischeck.js?v=25273"></script>
+<script src="js/exclusions.js?v=25273"></script>
+<script src="js/validator.js?v=25273"></script>
+<script src="js/whatifeval.js?v=25273"></script>
+<script src="js/compare.js?v=25273"></script>
+<script src="js/whois.js?v=25273"></script>
+<script src="js/wave.js?v=25273"></script>
+<script src="js/sessionctl.js?v=25273"></script>
+<script src="js/groupuse.js?v=25273"></script>
+<script src="js/iso3166.js?v=25273"></script>
+<script src="js/locations.js?v=25273"></script>
+<script src="js/authcontexts.js?v=25273"></script>
+<script src="js/authstrengths.js?v=25273"></script>
+<script src="js/recycle.js?v=25273"></script>
+<script src="js/rmau.js?v=25273"></script>
+<script src="js/camap.js?v=25273"></script>
+<script src="js/rmaudoc.js?v=25273"></script>
+<script src="js/termsofuse.js?v=25273"></script>
+<script src="js/audit.js?v=25273"></script>
+<script src="js/drift.js?v=25273"></script>
+<script src="js/guide.js?v=25273"></script>
+<script src="js/userimpact.js?v=25273"></script>
+<script src="js/smsvoice.js?v=25273"></script>
+<script src="js/memberof.js?v=25273"></script>
+<script src="js/devcheck.js?v=25273"></script>
+<script src="js/licgap.js?v=25273"></script>
+<script src="js/teamsdev.js?v=25273"></script>
+<script src="js/signins.js?v=25273"></script>
+<script src="js/reportimpact.js?v=25273"></script>
+<script src="js/changelog.js?v=25273"></script>
+<script src="js/baselineData.js?v=25273"></script>
+<script src="js/baselineJoeyData.js?v=25273"></script>
+<script src="js/baselineLive.js?v=25273"></script>
+<script src="js/baseline.js?v=25273"></script>
+<script src="js/baselineCleanup.js?v=25273"></script>
+<script src="js/groupTemplates.js?v=25273"></script>
+<script src="js/assign.js?v=25273"></script>
+<script src="js/cagroups.js?v=25273"></script>
+<script src="js/groupsview.js?v=25273"></script>
+<script src="js/import.js?v=25273"></script>
+<script src="js/export.js?v=25273"></script>
+<script src="js/demo.js?v=25273"></script>
+<script src="js/app.js?v=25273"></script>
 </body>
 </html>

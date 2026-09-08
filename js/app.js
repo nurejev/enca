@@ -3168,7 +3168,15 @@
   // null again if the read fails — the Check tab shows "—" rather than
   // claiming nothing is protected.
   let cgProt = null;
-  let cgRes = null, cgTab = "check", cgFilter = "all", cgQuery = "", cgBusy = false, cgStop = false;
+  let cgRes = null, cgTab = "groups", cgFilter = "all", cgQuery = "", cgBusy = false, cgStop = false;
+  // ---- T12 5.0: the list + drawer shell (js/groupsview.js) ----
+  // The seven tabs stay as the engines' own screens, reached from the list's
+  // row and bulk actions with the selection carried across; nothing here
+  // scans twice. cgTab === "groups" is the landing view.
+  const cgSel = new Set();          // ticked group names
+  let cgOpen = null, cgDrTab = "members", cgGFilter = "all", cgHist = null, cgHistBusy = false;
+  const cgNestOpenDr = new Set();
+  let cgRmauPre = null, cgMigPre = null;   // names to pre-tick once ⑥ / ⑦ have scanned
   // Default scope: only the groups the tenant's CA policies actually reference.
   // "all" additionally expects every template / baseline group (finds missing).
   let cgScope = "policies";
@@ -3188,7 +3196,7 @@
     // the in-tool refresh calls that also come through here are unaffected.
     crumb("👥 Conditional Access groups");
     show("screen-cagroups");
-    if (!keepTab) { cgTab = "check"; cgFilter = "all"; cgQuery = ""; $("cgSearch").value = ""; }
+    if (!keepTab) { cgTab = "groups"; cgFilter = "all"; cgQuery = ""; $("cgSearch").value = ""; }
     if (!cgRes) {
       $("cgHead").innerHTML = '<p class="mini">Scanning groups…</p>';
       $("cgChips").innerHTML = ""; $("cgBody").innerHTML = "";
@@ -3256,13 +3264,26 @@
     $("cgHead").innerHTML = CaGroups.renderSummary(cgRes, tenantName);
     [...document.querySelectorAll("#cgTabs button")].forEach(b =>
       b.classList.toggle("active", b.dataset.cgtab === cgTab));
-    $("cgChips").innerHTML = cgTab === "check" ? CaGroups.chips(cgRes, cgFilter) : "";
-    $("cgChips").style.display = cgTab === "check" ? "flex" : "none";
+    $("cgChips").innerHTML = cgTab === "check" ? CaGroups.chips(cgRes, cgFilter) : cgTab === "groups" ? GroupsView.chips(cgModel(), cgGFilter) : "";
+    $("cgChips").style.display = cgTab === "check" || cgTab === "groups" ? "flex" : "none";
     $("cgFull").style.display = cgTab === "members" ? "inline-flex" : "none";
-    $("cgArchived").style.display = cgTab === "check" ? "inline-flex" : "none";
+    $("cgArchived").style.display = cgTab === "check" || cgTab === "groups" ? "inline-flex" : "none";
     $("cgSearch").placeholder = cgTab === "members"
-      ? "Search member name or UPN…" : "Search group name or object ID…";
+      ? "Search member name or UPN…" : cgTab === "groups" ? "Search group, object ID or member…" : "Search group name or object ID…";
     $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" || cgTab === "csv" || cgTab === "rmau" || cgTab === "migrate" ? "none" : "";
+
+    if (cgTab === "groups") {
+      $("cgBody").innerHTML = GroupsView.render(cgModel(), { filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg });
+      if (cgRes.rows.some((r) => r.id && r.nesting === undefined)) {
+        loadNestingStates(cgRes.rows).then(() => { if (cgTab === "groups") renderCaGroups(); }).catch((e) => console.warn("nesting state read failed:", e.message));
+      }
+      return;
+    }
+    // an engine screen: say where you are and how to get back to the list
+    const LABEL = { check: "① Check", create: "② Create", members: "③ Members / Compare", assign: "④ Assign", csv: "⑤ Import members", rmau: "⑥ Protect", migrate: "⑦ Migrate" };
+    const back = `<div class="cgg-back"><button class="btn sm" data-cgg-back>← Groups</button><span class="mini muted">${esc(LABEL[cgTab] || cgTab)}</span></div>`;
+    const paint = () => { if ($("cgBody").firstElementChild && !$("cgBody").querySelector(".cgg-back")) $("cgBody").insertAdjacentHTML("afterbegin", back); };
+    (window.requestAnimationFrame || setTimeout)(paint); setTimeout(paint, 0);
 
     if (cgTab === "check") {
       $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery, cgProt);
@@ -4230,6 +4251,7 @@ max@contoso.com,"Global, DevOps"</pre>
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME();
       cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null,
         plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA }) };
+      if (cgMigPre && cgMigPre.length) { cgMig.sel = new Set(cgMigPre.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); cgMigPre = null; }
     } catch (e) {
       console.error("Migrate scan failed:", e);
       cgMigBusy = false;
@@ -4656,6 +4678,8 @@ max@contoso.com,"Global, DevOps"</pre>
         if (st.status.get(g.id) || g.roleAssignable || cgAuIneligible(g)) return;
         if (g.manual || (!g.dynamic && !g.unused)) st.sel.add(g.id);
       });
+      // carried over from the groups list: tick exactly those, not the default set
+      if (cgRmauPre && cgRmauPre.length) { st.sel = new Set(cgRmauPre.filter((id) => st.status.has(id) && !st.status.get(id))); cgRmauPre = null; }
       // Deliberately NOT defaulted to st.rmaus[0]: that is Global on most
       // tenants, so an unrecognised group would be filed into the Global vault
       // by nothing more than list order. Unset means "skip these" until someone
@@ -5856,11 +5880,11 @@ max@contoso.com,"Global, DevOps"</pre>
       row.memberTotal = (row.memberTotal || 0) + 1;
       say(`✓ <b>${esc(fresh.name)}</b> added to <b>${esc(gName)}</b>.`);
       if (uBox) uBox.value = "";
-      renderCgMembers();
+      cgRerenderMembers();
       if (!isDemo) {
         try {
           await CaGroups.loadMembers([row], {});
-          renderCgMembers();
+          cgRerenderMembers();
         } catch { /* the optimistic row stands */ }
       }
     } catch (e) {
@@ -5909,9 +5933,9 @@ This is a directory write. Nothing else changes.`)) return;
       row.memberTotal = Math.max(0, (row.memberTotal || 1) - 1);
       say(`✓ <b>${esc(member.name)}</b> removed from <b>${esc(gName)}</b>.${excBy.length ? ` <span style="color:var(--report)">Now inside ${excBy.map((p) => esc(p.seq || p.name)).join(", ")} again.</span>` : ""}`);
       const uBox = $("cgAddUser"); if (uBox && !byId) uBox.value = "";
-      renderCgMembers();
+      cgRerenderMembers();
       if (!isDemo) {
-        try { await CaGroups.loadMembers([row], {}); renderCgMembers(); } catch { /* the optimistic row stands */ }
+        try { await CaGroups.loadMembers([row], {}); cgRerenderMembers(); } catch { /* the optimistic row stands */ }
       }
     } catch (e) {
       say(`Remove failed: ${esc(e.message || e)}`, true);
@@ -6187,6 +6211,129 @@ This is a directory write. Nothing else changes.`)) return;
     $("depModal").classList.add("open");
   }
   // the same per-group scan, from inside the group's detail overlay
+  // ---- T12 5.0 list + drawer: model, reads, clicks ----
+  function cgModel() {
+    const byId = new Map((policies || []).map((p) => [p.id, p]));
+    const cat = (typeof Baseline !== "undefined" && Baseline.active) ? (() => { try { return Baseline.active(); } catch { return null; } })() : null;
+    return { rows: cgRes.rows, ctx: { prot: cgProt, cat, stateOf: (id) => ((byId.get(id) || {}).raw || {}).state || "", seqOf: (id) => (byId.get(id) || {}).seq || "", nameOf: (id) => (byId.get(id) || {}).name || "" } };
+  }
+  // read members (+ nesting) of some rows, headless; demo rows get the demo shape
+  async function cgReadRows(rows) {
+    const todo = rows.filter((r) => r.id);
+    if (!todo.length) return;
+    if (isDemo) {
+      todo.forEach((r, i) => { const n = (r.name.length + i) % 4; r.memberTotal = n; r.members = Array.from({ length: n }, (_, k) => ({ id: `u${k}-${r.id}`, name: `Demo user ${k + 1}`, upn: `demo${k + 1}@contoso.com`, disabled: k === 2 })); r.memberError = null; cgDemoNesting(r); });
+      return;
+    }
+    await CaGroups.loadMembers(todo, {});
+  }
+  const cgRerenderMembers = () => { if (cgTab === "groups") renderCaGroups(); else renderCgMembers(); };
+  async function cgOpenRow(name) {
+    cgOpen = name; cgDrTab = cgDrTab || "members"; cgAddMsg = null;
+    const r = cgRes.rows.find((x) => x.name === name);
+    renderCaGroups();
+    if (r && r.id && r.members == null) { await cgReadRows([r]); if (cgOpen === name) renderCaGroups(); }
+  }
+  // remove a user from a NESTED group shown under the open row — the write
+  // goes to the child, and the confirmation says what else that child feeds
+  async function cgRemoveFromChild(parent, childId, childName, userId) {
+    const ch = (parent.children || []).find((c) => c.id === childId); if (!ch) return;
+    const m = (ch.members || []).find((x) => x.id === userId); if (!m) return;
+    const feeds = cgRes.rows.filter((r) => (r.children || []).some((c) => c.id === childId)).map((r) => r.name);
+    if (!confirm(`Remove ${m.name} (${m.upn || ""}) from ${childName}?\n\n${childName} is a nested group inside ${feeds.join(", ") || parent.name}. Taking ${m.name} out of it takes them out of ${feeds.length > 1 ? "all of those" : "that group"} as well.\n\nThis is a directory write. Nothing else changes.`)) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
+    try {
+      if (!isDemo) await Graph.gdelete(`/groups/${childId}/members/${userId}/$ref`, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+      ch.members = ch.members.filter((x) => x.id !== userId); ch.memberTotal = Math.max(0, ch.memberTotal - 1);
+      parent.members = (parent.members || []).filter((x) => x.id !== userId || x.direct); parent.memberTotal = Math.max(0, (parent.memberTotal || 1) - 1);
+      cgAddMsg = { html: `✓ <b>${esc(m.name)}</b> removed from <b>${esc(childName)}</b>.`, bad: false };
+      renderCaGroups();
+      if (!isDemo) { try { await CaGroups.loadMembers([parent], {}); renderCaGroups(); } catch {} }
+    } catch (e) { cgAddMsg = { html: `Remove failed: ${esc(e.message || e)}`, bad: true }; renderCaGroups(); }
+  }
+  async function cgReadHistory(r) {
+    cgHistBusy = true; renderCaGroups();
+    try {
+      if (isDemo) { cgHist = { id: r.id, rows: [{ activity: "Add member to group", target: "Demo user 1", when: "2026-07-21 09:12", by: "alex.admin@contoso.com", result: "success" }] }; }
+      else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { cgHist = { id: r.id, error: "AuditLog.Read.All was not granted" }; }
+        else {
+          const j = await Graph.gget(`/auditLogs/directoryAudits?$filter=${encodeURIComponent(`targetResources/any(t:t/id eq '${r.id}')`)}&$orderby=activityDateTime desc&$top=50`);
+          cgHist = { id: r.id, rows: ((j && j.value) || []).map((x) => {
+            const by = (x.initiatedBy || {}); const who = (by.user && (by.user.userPrincipalName || by.user.displayName)) || (by.app && by.app.displayName) || "(unknown)";
+            const user = (x.targetResources || []).find((t) => /user/i.test(t.type || "") && t.id !== r.id);
+            return { activity: x.activityDisplayName || "", when: new Date(x.activityDateTime).toLocaleString(), by: who, result: x.result || "", target: user ? (user.userPrincipalName || user.displayName || "") : "" };
+          }) };
+        }
+      }
+    } catch (e) { cgHist = { id: r.id, error: `Could not read the audit log: ${e.message || e}` }; }
+    cgHistBusy = false; renderCaGroups();
+  }
+  function cgGoTab(tab, names) {
+    cgTab = tab; cgQuery = ""; $("cgSearch").value = "";
+    const rows = (names || []).map((n) => cgRes.rows.find((x) => x.name === n)).filter(Boolean);
+    if (tab === "members") { cgMemberSel.clear(); names.forEach((n) => cgMemberSel.add(n)); cgMemberPick = false; }
+    if (tab === "rmau") { const ids = rows.filter((r) => r.id).map((r) => r.id); if (cgRmau && cgRmau.status) { cgRmau.sel = new Set(ids.filter((id) => cgRmau.status.has(id))); if (rows.length === 1) cgRmau.q = rows[0].name; } else cgRmauPre = ids; }
+    if (tab === "migrate") { const ids = rows.filter((r) => r.id).map((r) => r.id); if (cgMig && cgMig.plan) cgMig.sel = new Set(ids.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); else cgMigPre = ids; }
+    renderCaGroups();
+    if (tab === "members" && rows.some((r) => r.id && r.members == null)) startMemberScan();
+  }
+  $("cgBody").addEventListener("click", async (e) => {
+    if (cgTab !== "groups") { const bk = e.target.closest("[data-cgg-back]"); if (bk) { cgTab = "groups"; renderCaGroups(); } return; }
+    const t = e.target;
+    const pl = t.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    if (t.closest("[data-cgg-close]")) { cgOpen = null; renderCaGroups(); return; }
+    const dt = t.closest("[data-cgg-dtab]"); if (dt) { cgDrTab = dt.dataset.cggDtab; renderCaGroups(); return; }
+    const ne = t.closest("[data-cgg-nest]"); if (ne) { const k = ne.dataset.cggNest; cgNestOpenDr.has(k) ? cgNestOpenDr.delete(k) : cgNestOpenDr.add(k); renderCaGroups(); return; }
+    const rd = t.closest("[data-cgg-read]"); if (rd) { const r = cgRes.rows.find((x) => x.name === rd.dataset.cggRead); if (r) { rd.disabled = true; rd.textContent = "…"; await cgReadRows([r]); renderCaGroups(); } return; }
+    const hi = t.closest("[data-cgg-hist]"); if (hi) { const r = cgRes.rows.find((x) => x.name === hi.dataset.cggHist); if (r) cgReadHistory(r); return; }
+    const rm = t.closest("[data-cgg-rm]");
+    if (rm) {
+      const r = cgRes.rows.find((x) => x.name === cgOpen); if (!r) return;
+      if (rm.dataset.cggRmgid && rm.dataset.cggRmgid !== r.id) { await cgRemoveFromChild(r, rm.dataset.cggRmgid, rm.dataset.cggRmgroup, rm.dataset.cggRm); return; }
+      await cgRemoveMember(rm.dataset.cggRm, r.name, true); return;
+    }
+    const bulk = t.closest("[data-cgg-bulk]");
+    if (bulk) {
+      const names = [...cgSel], rows = names.map((n) => cgRes.rows.find((x) => x.name === n)).filter(Boolean);
+      switch (bulk.dataset.cggBulk) {
+        case "clear": cgSel.clear(); renderCaGroups(); return;
+        case "read": bulk.disabled = true; bulk.textContent = "Reading…"; await cgReadRows(rows.filter((r) => r.members == null)); renderCaGroups(); return;
+        case "compare": cgGoTab("members", names); return;
+        case "assign": openAssign(selected.size ? "selection" : "all"); toast(`The wizard scopes by policy — pick <span>${names.length === 1 ? esc(names[0]) : names.length + " groups"}</span> in its group step`); return;
+        case "rmau": cgGoTab("rmau", names); return;
+        case "migrate": cgGoTab("migrate", names); return;
+        case "csv": cgGoTab("csv", names); return;
+        case "create": cgGoTab("create", names); return;
+      }
+    }
+    const act = t.closest("[data-cgg-act]");
+    if (act) {
+      const name = act.dataset.cggName, r = cgRes.rows.find((x) => x.name === name);
+      switch (act.dataset.cggAct) {
+        case "create": cgGoTab("create", [name]); return;
+        case "restore": openAssign(selected.size ? "selection" : "all"); toast("Use the <span>RESTORE each policy's own exclusion group</span> action in the wizard"); return;
+        case "wave": { const i = $("wvTerm"); if (i) i.value = name; wvPick = null; $("toolWave").click(); setTimeout(() => runWave(), 50); return; }
+        case "analyzer": { const i = $("guTerm"); if (i) i.value = name; $("toolGroupUse").click(); return; }
+        case "assign": openAssign(selected.size ? "selection" : "all"); return;
+        case "rmau": cgGoTab("rmau", [name]); return;
+        case "migrate": cgGoTab("migrate", [name]); return;
+        case "menu": showGroupRow(name); return;
+      }
+      return;
+    }
+    const row = t.closest("[data-cgg-row]");
+    if (row && !t.closest("input,button,a")) { cgOpenRow(row.dataset.cggRow); }
+  });
+  $("cgBody").addEventListener("change", (e) => {
+    if (cgTab !== "groups") return;
+    const all = e.target.closest("[data-cgg-selall]");
+    if (all) { const names = [...$("cgBody").querySelectorAll("[data-cgg-row]")].map((r) => r.dataset.cggRow); all.checked ? names.forEach((n) => cgSel.add(n)) : names.forEach((n) => cgSel.delete(n)); renderCaGroups(); return; }
+    const one = e.target.closest("[data-cgg-sel]");
+    if (one) { one.checked ? cgSel.add(one.dataset.cggSel) : cgSel.delete(one.dataset.cggSel); renderCaGroups(); }
+  });
+  $("cgChips").addEventListener("click", (e) => { const b = e.target.closest("[data-cgg-filter]"); if (!b) return; cgGFilter = b.dataset.cggFilter; renderCaGroups(); });
+
   $("depBody").addEventListener("click", (e) => {
     // A policy in the "Included in" / "Excluded from" lists opens its card.
     // The group overlay closes first: two stacked modals is not a state this
