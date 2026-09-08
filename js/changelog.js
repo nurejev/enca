@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25276, date: "2026-09-08", title: "Conditional Access groups: the actions bar in dark mode",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "The actions bar in dark mode was pale green with white text — unreadable. It now takes the deep green surface with a light border and light text, in both the chosen and the system dark theme." },
+    ],
+  },
+  {
     build: 25275, date: "2026-09-08", title: "Conditional Access groups 5.1: nesting in sight, All groups scope, the bar on click",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "Every scan now reads each group's nested groups (direct group members, one batch), so the ↪ Has nested groups chip is always there with a count before any member is read, the members column and the drawer name the nested groups, and a nested group inside an exclusion or break-glass group is Needs attention — whoever manages the nested group decides who bypasses the policy. That is the answer to 'what about nesting after a migration': Entra refuses groups inside a role-assignable group, the plain group that replaces it accepts them, disableNesting on the new group is offered but not generally available, so the list keeps it visible instead." },

@@ -1791,6 +1791,16 @@ button.wo-tile.on{box-shadow:inset 0 0 0 2px var(--accent2)}
 .cgg-bulk .btn{background:rgba(255,255,255,.14);border-color:transparent;color:#fff;padding:5px 12px;min-height:0;font-size:12.5px}
 .cgg-bulk .btn:hover{background:rgba(255,255,255,.26)}
 .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
-:root[data-theme="dark"] .cgg-bulk{color:var(--green-deep)}
-:root[data-theme="dark"] .cgg-bulk .btn{color:var(--green-deep);background:rgba(0,0,0,.12)}
+/* dark: --green is the pale accent there, so the bar takes the deep
+   green surface with a light border and light text, like a card */
+:root[data-theme="dark"] .cgg-bulk{background:#1e4729;color:var(--ink);border:1px solid #3c6b48}
+:root[data-theme="dark"] .cgg-bulk .btn{color:var(--ink);background:rgba(255,255,255,.1)}
+:root[data-theme="dark"] .cgg-bulk .btn:hover{background:rgba(255,255,255,.2)}
+:root[data-theme="dark"] .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk{background:#1e4729;color:var(--ink);border:1px solid #3c6b48}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn{color:var(--ink);background:rgba(255,255,255,.1)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn:hover{background:rgba(255,255,255,.2)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
+}
 .cgg-back{display:flex;gap:10px;align-items:center;margin:8px 0 10px}
