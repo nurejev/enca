@@ -118,7 +118,7 @@ The template's `image` parameter defaults to the channel this branch publishes �
 
 A self-hosted instance can wear your organisation's identity without forking — the same mechanism as the per-audience looks on the hosted site:
 
-1. On any non-production host, a **⚙ gear appears next to the account button**. It opens the branding settings: product and organisation names, logos, login text, and light/dark colour palettes.
+1. Click your initials (top right) and choose **Branding settings** from the account menu. It opens the branding settings: product and organisation names, logos, login text, and light/dark colour palettes.
 2. **Apply in this browser** previews and keeps the look locally (per browser).
 3. **Import from JSON** loads an existing `selfhost-branding.json` into the form for review — a look made on another machine, or handed to you as a file, never has to be retyped.
 4. **Download selfhost-branding.json** exports the same settings as a file. Serve it at the site root — the compose file and install scripts mount `./selfhost-branding.json` automatically — and **every visitor** to your instance gets the branding.
@@ -133,9 +133,9 @@ A self-hosted instance can wear your organisation's identity without forking —
 
    > **Size limit, and it is a hard one.** Linux refuses a single environment variable over **128 KB** and hands the whole environment to `exec()`, so a container carrying one bigger than that **fails to start at all** — not nginx, not the entrypoint, nothing — with `argument list too long` in the log. Since the app is served *by* that container, you then have to remove the variable from the portal or the CLI to get it back. An embedded PNG logo is almost always what crosses the line. ENCA refuses to hand you a value over 48 KB for this reason; for anything larger, serve the same JSON at a URL and set **`ENCA_BRANDING_URL`**, which the container fetches at start with no size limit. A fetch that fails leaves the instance unbranded rather than refusing to serve.
 
-   On an Azure Container Apps host the gear also offers **☁ Save to this deployment**, which writes `ENCA_BRANDING` onto the container app for you using your own Azure rights — no copying, no portal. It applies the same 48 KB refusal.
+   On an Azure Container Apps host the dialog also offers **☁ Save to this deployment**, which writes `ENCA_BRANDING` onto the container app for you using your own Azure rights — no copying, no portal. It applies the same 48 KB refusal.
 
-Branding saved with **Apply in this browser** stays in that browser. Only the file and the environment variable reach other people — that distinction is deliberate, and it is why the gear has three buttons rather than one.
+Branding saved with **Apply in this browser** stays in that browser. Only the file and the environment variable reach other people — that distinction is deliberate, and it is why the dialog has three buttons rather than one.
 
 Exports (Word/PDF/Markdown) keep the neutral ENCA credit by design, exactly like the hosted per-audience looks. For a full rebrand including export credits, fork and edit `js/branding.js` — its header comment is the guide.
 

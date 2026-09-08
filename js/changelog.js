@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25259, date: "2026-09-08", title: "The header keeps only your initials",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The account button is now the initials circle alone - the tenant name and the signed-in account moved into its menu, under Tenant and Signed in as, so the top right of every tool is the theme toggle and one small button. The Branding settings dialog (the former gear button beside it) is a row in the same menu, above Sign out. Nothing was taken away, it is one click further in; hovering the initials still shows tenant and account as a tooltip." },
+    ],
+  },
+  {
     build: 25258, date: "2026-09-08", title: "A tidier header: one account button",
     items: [
       { kind: "improved", tool: "All tools", text: "The tenant name, the signed-in account and the initials are now one account button at the top right. Sign out lives in its menu, together with Copy tenant ID - the menu also shows the display name of who is signed in, which the header never had room for. The header's own Tools button is gone: the tab bar under it carries the same home icon, so the two sat one above the other doing one job. The logo still returns to the tools overview." },

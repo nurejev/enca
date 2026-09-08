@@ -15164,16 +15164,16 @@ max@contoso.com,"Global, DevOps"</pre>
     catch (err) { console.error(err); showSignInError(err); }
   });
 
-  // ---------- account button + menu (build 25258) ----------
-  // The header's tenant name, signed-in user and initials are ONE button; its
-  // menu holds Sign out and Copy tenant ID. $("tenantName") is set by the
-  // caller (it is also the demo's display name); this fills the rest.
+  // ---------- account button + menu (build 25258, initials-only 25259) ----------
+  // The header carries only the initials circle; its menu shows the tenant and
+  // the signed-in user and holds Copy tenant ID, Branding settings (the former
+  // ⚙ gear — js/selfhost.js owns the dialog) and Sign out. $("tenantName") is
+  // set by the caller (it is also the demo's display name); this fills the rest.
   function setAccountBox(upn, displayName) {
     const initials = (displayName || upn || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
     $("tenantUser").textContent = upn;
     $("avatar").textContent = initials;
     $("acctMenuName").textContent = displayName || upn || "";
-    $("acctMenuUser").textContent = displayName ? upn : "";
     $("copyTenantBtn").style.display = tenantId ? "" : "none";
     $("acctBtn").title = `${$("tenantName").textContent}\n${upn}`;
     $("tenantBox").style.display = "flex";
@@ -15200,6 +15200,9 @@ max@contoso.com,"Global, DevOps"</pre>
   function acctMenuAway(e) { if (!$("acctMenu").contains(e.target) && !$("acctBtn").contains(e.target)) closeAcctMenu(); }
   function acctMenuKey(e) { if (e.key === "Escape") { closeAcctMenu(); $("acctBtn").focus(); } }
   $("acctBtn").addEventListener("click", () => { $("acctMenu").hidden ? openAcctMenu() : closeAcctMenu(); });
+  // Any row closes the menu — including Branding settings, whose handler
+  // lives in js/selfhost.js and knows nothing about the menu.
+  $("acctMenu").addEventListener("click", (e) => { if (e.target.closest("button[role=menuitem]")) closeAcctMenu(); });
   $("copyTenantBtn").addEventListener("click", async () => {
     closeAcctMenu();
     if (!tenantId) return;
