@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25271, date: "2026-09-08", title: "The hunting sign-in source survives a large tenant",
+    items: [
+      { kind: "fixed", tool: "Sign-in failures", text: "On a large tenant the Defender hunting source failed with “Query execution has exceeded the allowed result size”: a day of sign-ins, each carrying its ConditionalAccessPolicies JSON, is more than one hunting response may return. The window is now read in explicit datetime slices — a day at first — and a slice that fails on size, or comes back at the row cap, is halved and both halves read, down to 15 minutes; only a 15-minute slice that still hits the cap is reported as capped. The progress line says how many slices were halved. 🎚 Report-only impact, 🕵 Who is Anna to CA and 🌊 Who is the wave to CA share the read and the fix." },
+    ],
+  },
+  {
     build: 25270, date: "2026-09-08", title: "CA groups matrix gets its grid; Gap analyse gets its number",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "The ③ Members matrix finally has the grid every other matrix has. Since build 97 it was written with class names no stylesheet defined, so it rendered as bare rows — no card, no sticky header, no sticky first column — which the nesting view made impossible to ignore. It now uses the shared grid of 🔍 Gap analyse and 🚪 Exclusion analyzer: vertical group headers with the member count in the tooltip, a sticky Member column, scrolling inside its own box." },

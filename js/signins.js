@@ -94,18 +94,18 @@ const Signins = (() => {
   // that hits the row cap is reported as capped, never silently trimmed.
   const HUNT_COLS = "Timestamp, Application, ApplicationId, LogonType, ErrorCode, CorrelationId, SessionId, AccountDisplayName, AccountObjectId, AccountUpn, ResourceDisplayName, ResourceId, OSPlatform, DeviceTrustType, IsManaged, IsCompliant, RiskLevelDuringSignIn, ClientAppUsed, Browser, ConditionalAccessPolicies, ConditionalAccessStatus, IPAddress, Country, City, RequestId, ReportId";
   const HUNT_CAP = 20000;
-  function huntingQuery({ days, dayIdx, table, interactiveOnly, userId }) {
+  // from / to: ISO instants for one slice. The caller slices the window —
+  // a day at first, halving on "result size exceeded" — so the query only
+  // ever names an explicit range.
+  function huntingQuery({ from, to, table, interactiveOnly, userId, cap }) {
     const T = table || "EntraIdSignInEvents";
-    const win = days >= 1 && dayIdx != null
-      ? `| where Timestamp between (ago(${dayIdx + 1}d) .. ago(${dayIdx}d))`
-      : `| where Timestamp > ago(${Math.max(1, Math.round((days || 7) * 24))}h)`;
     return `${T}
-${win}
+| where Timestamp between (datetime(${from}) .. datetime(${to}))
 ${interactiveOnly ? '| where LogonType !has "non"' : ""}
 ${userId ? `| where AccountObjectId == "${String(userId).replace(/"/g, "")}"` : ""}
 | project ${HUNT_COLS}
 | order by Timestamp desc
-| take ${HUNT_CAP}`;
+| take ${cap || HUNT_CAP}`;
   }
   const RISK_N = { 0: "none", 1: "none", 10: "low", 50: "medium", 100: "high" };
   const CA_STATUS_N = { 0: "success", 1: "failure", 2: "notApplied" };

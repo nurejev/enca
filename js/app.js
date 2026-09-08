@@ -11486,19 +11486,43 @@ This is a directory write. Nothing else changes.`)) return;
       throw e;
     }
   }
+  // Adaptive slicing. A large tenant's day of sign-ins — each row carrying
+  // the ConditionalAccessPolicies JSON — blows past hunting's response cap
+  // ("Query execution has exceeded the allowed result size"). The window is
+  // read a day at a time; a slice that fails on size is halved and both
+  // halves read, down to 15 minutes. A slice that returns the row cap is
+  // halved too, so no slice ever silently drops rows; only a 15-minute slice
+  // that still hits the cap is reported as capped.
+  const HUNT_MIN_SLICE_MS = 15 * 60 * 1000;
+  const isSizeError = (e) => /exceeded the allowed result size|result size|too large|ResultSize/i.test((e && e.message) || "");
   async function readSignInsHunting(days, prog, opts = {}) {
     const interactiveOnly = logSource !== "huntall";
-    const slices = days >= 1 ? Math.round(days) : 1;
-    prog.start(slices, "sign-ins", "day");
-    let out = [], capped = false;
-    for (let i = 0; i < slices; i++) {
-      const q = Signins.huntingQuery({ days, dayIdx: days >= 1 ? i : null, table: huntTable, interactiveOnly, userId: opts.userId });
-      const rows = await huntRun(q, days);
-      if (rows.length >= Signins.HUNT_CAP) capped = true;
+    const now = Date.now(), start = now - days * 86400000;
+    const dayMs = 86400000;
+    const slices = [];
+    for (let t = start; t < now; t += dayMs) slices.push([t, Math.min(t + dayMs, now)]);
+    prog.start(slices.length, "sign-ins", "day");
+    let out = [], capped = false, splits = 0;
+    const readSlice = async (from, to) => {
+      const q = Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId });
+      let rows;
+      try { rows = await huntRun(q, days); }
+      catch (e) {
+        if (isSizeError(e) && to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
+        throw e;
+      }
+      if (rows.length >= Signins.HUNT_CAP) {
+        if (to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
+        capped = true;
+      }
       out = out.concat(Signins.fromHunting(rows));
+      if (splits) prog.st.label = `sign-ins (${splits} slice${splits === 1 ? "" : "s"} halved for size)`;
+    };
+    for (let i = 0; i < slices.length; i++) {
+      await readSlice(slices[i][0], slices[i][1]);
       prog.tick(out.length, i + 1);
     }
-    return { records: out, capped };
+    return { records: out, capped, splits };
   }
 
   // force: a Rescan means the reader wants the tenant re-read, not our copy.
