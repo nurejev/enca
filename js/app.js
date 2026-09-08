@@ -10,6 +10,7 @@
   let policiesReadAt = null;
   let tenantName = "";
   let tenantDomain = "";
+  let tenantId = "";        // for the account menu's Copy tenant ID; "" in the demo
   // Baseline tenants deploy the persona policies Off first; there the Gap and
   // MS Learn checks review only the persona baseline policies (always Off),
   // and skip non-persona policies.
@@ -1613,10 +1614,8 @@
       // Baseline tenants (see BASELINE_TENANTS) get extended behaviour — say so
       // where the tenant identity lives, instead of it being a hidden mode.
       $("baselineBadge").style.display = isBaselineTenant() ? "inline-block" : "none";
-      $("tenantUser").textContent = account?.username || "";
-      $("avatar").textContent = (account?.name || account?.username || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
-      $("tenantBox").style.display = "flex";
-    $("homeBtn").style.display = "inline-flex";
+      tenantId = account?.tenantId || "";
+      setAccountBox(account?.username || "", account?.name || "");
       showSideNav();
       selected = new Set();
       policiesReadAt = Date.now();
@@ -1658,10 +1657,8 @@
     try { blAutoPick(); } catch (e) { console.warn("baseline match:", e); }
     policiesReadAt = Date.now();
     $("tenantName").textContent = tenantName;
-    $("tenantUser").textContent = "demo@contoso.onmicrosoft.com";
-    $("avatar").textContent = "DM";
-    $("tenantBox").style.display = "flex";
-    $("homeBtn").style.display = "inline-flex";
+    tenantId = "";
+    setAccountBox("demo@contoso.onmicrosoft.com", "Demo Mode");
     showSideNav();
     refreshViews();
     renderPermissions();
@@ -2140,7 +2137,6 @@
     $("sideNav").classList.remove("peek");
   });
 
-  $("homeBtn").addEventListener("click", () => { crumb(""); show("screen-home"); });
   // logo returns to the tools overview when signed in (does nothing on login)
   $("logoHome").addEventListener("click", () => { if (policies.length) { crumb(""); show("screen-home"); } });
   // Keep the view (cards / list / matrix) the user last chose — reopening the
@@ -15168,9 +15164,52 @@ max@contoso.com,"Global, DevOps"</pre>
     catch (err) { console.error(err); showSignInError(err); }
   });
 
+  // ---------- account button + menu (build 25258) ----------
+  // The header's tenant name, signed-in user and initials are ONE button; its
+  // menu holds Sign out and Copy tenant ID. $("tenantName") is set by the
+  // caller (it is also the demo's display name); this fills the rest.
+  function setAccountBox(upn, displayName) {
+    const initials = (displayName || upn || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
+    $("tenantUser").textContent = upn;
+    $("avatar").textContent = initials;
+    $("acctMenuName").textContent = displayName || upn || "";
+    $("acctMenuUser").textContent = displayName ? upn : "";
+    $("copyTenantBtn").style.display = tenantId ? "" : "none";
+    $("acctBtn").title = `${$("tenantName").textContent}\n${upn}`;
+    $("tenantBox").style.display = "flex";
+    closeAcctMenu();
+  }
+  function openAcctMenu() {
+    const m = $("acctMenu"), b = $("acctBtn");
+    m.hidden = false; b.setAttribute("aria-expanded", "true");
+    // Anchored under the button's right edge; fixed so it clears the sticky
+    // header and the tab bar under it.
+    const r = b.getBoundingClientRect();
+    m.style.top = `${r.bottom + 6}px`;
+    m.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+    setTimeout(() => document.addEventListener("click", acctMenuAway), 0);
+    document.addEventListener("keydown", acctMenuKey);
+  }
+  function closeAcctMenu() {
+    const m = $("acctMenu"), b = $("acctBtn");
+    if (!m || m.hidden) return;
+    m.hidden = true; b.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", acctMenuAway);
+    document.removeEventListener("keydown", acctMenuKey);
+  }
+  function acctMenuAway(e) { if (!$("acctMenu").contains(e.target) && !$("acctBtn").contains(e.target)) closeAcctMenu(); }
+  function acctMenuKey(e) { if (e.key === "Escape") { closeAcctMenu(); $("acctBtn").focus(); } }
+  $("acctBtn").addEventListener("click", () => { $("acctMenu").hidden ? openAcctMenu() : closeAcctMenu(); });
+  $("copyTenantBtn").addEventListener("click", async () => {
+    closeAcctMenu();
+    if (!tenantId) return;
+    try { await navigator.clipboard.writeText(tenantId); toast(`Tenant ID copied: <code>${esc(tenantId)}</code>`); }
+    catch { toast(`Tenant ID: <code>${esc(tenantId)}</code>`); }
+  });
+
   $("signOutBtn").addEventListener("click", () => {
+    closeAcctMenu();
     $("tenantBox").style.display = "none";
-    $("homeBtn").style.display = "none";
     $("toolNav").style.display = "none";
     hideSideNav();
     policies = []; selected.clear();

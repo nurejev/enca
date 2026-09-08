@@ -52,8 +52,6 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .toolnav-btn.home.active{background:var(--green);border-color:var(--green);color:#fff}
 :root[data-theme="dark"] .toolnav-btn.home.active{color:var(--green-deep)}
 /* header "Tools" button — same house, sized to sit next to the label */
-.btn.home-btn{display:inline-flex;align-items:center;gap:7px}
-.btn.home-btn svg{width:16px;height:16px;flex:none}
 .toolnav-btn.add{font-size:15px;padding:5px 11px;color:var(--green)}
 /* an open tab = label + close, sharing a pill */
 .toolnav-tab{flex:none;display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--soft)}
@@ -77,7 +75,24 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .toolnav-menu button.open{color:var(--muted)}
 .spacer{flex:1}
 .tenant{display:none;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
-.avatar{width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex:none}
+/* account button — tenant + user + initials as one control (build 25258);
+   Sign out and Copy tenant ID live in its menu */
+.acct{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--border);background:var(--surface);
+  color:var(--ink);padding:4px 8px 4px 14px;border-radius:10px;cursor:pointer;text-align:left;font:inherit;transition:.15s;max-width:420px}
+.acct:hover,.acct[aria-expanded="true"]{border-color:var(--accent2)}
+.acct-txt{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.acct-txt>*{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-name{font-weight:600;font-size:13px;color:var(--ink)}
+.acct-chev{width:16px;height:16px;flex:none;color:var(--muted)}
+.acct-menu{position:fixed;z-index:410;background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:var(--shadow);padding:6px;width:280px}
+.acct-menu-head{display:flex;flex-direction:column;gap:2px;padding:8px 10px 10px;border-bottom:1px solid var(--border);margin-bottom:4px;min-width:0}
+.acct-menu-head b{font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-menu-head .mini{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-menu button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);
+  font:inherit;font-size:13px;padding:8px 10px;border-radius:8px;cursor:pointer}
+.acct-menu button:hover{background:var(--soft)}
 .btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);padding:8px 16px;border-radius:10px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:8px;transition:.15s}
 .btn:hover{border-color:var(--accent2)}
 .btn.primary{background:var(--green);color:#fff;border-color:var(--green)}

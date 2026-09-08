@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25258, date: "2026-09-08", title: "A tidier header: one account button",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The tenant name, the signed-in account and the initials are now one account button at the top right. Sign out lives in its menu, together with Copy tenant ID - the menu also shows the display name of who is signed in, which the header never had room for. The header's own Tools button is gone: the tab bar under it carries the same home icon, so the two sat one above the other doing one job. The logo still returns to the tools overview." },
+    ],
+  },
+  {
     build: 25257, date: "2026-09-07", title: "Production is 307",
     items: [
       { kind: "fixed", tool: "Roadmap", text: "The R06 card move went to production as build 307 - a documentation-only release, nothing else in it - and productionBuild in the promotion queue moves to v1.0.307 to match." },

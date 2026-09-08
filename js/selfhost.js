@@ -1,5 +1,5 @@
 // ======================================================================
-// Self-host branding (R06 / S02) — the ⚙ gear next to Sign out.
+// Self-host branding (R06 / S02) — the ⚙ gear next to the account button.
 //
 // A self-hosted instance can wear its organisation's identity WITHOUT
 // forking, through the same mechanism as the per-audience looks in
@@ -619,7 +619,8 @@
   }
 
   function addGear() {
-    const out = document.getElementById("signOutBtn");
+    // Sits after the account button (Sign out moved into its menu, 25258).
+    const out = document.getElementById("acctBtn") || document.getElementById("signOutBtn");
     if (!out || document.getElementById("selfhostGearBtn")) return;
     const b = document.createElement("button");
     b.className = "btn";

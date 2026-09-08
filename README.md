@@ -225,7 +225,7 @@ Full walkthrough, including keeping a pinned copy current:
 
 ## Rebranding
 
-**You no longer need a fork to rebrand.** On any non-production host a **⚙ gear appears next to Sign out** with the branding settings — product and organisation names, logos, login text, light/dark colour palettes:
+**You no longer need a fork to rebrand.** On any non-production host a **⚙ gear appears next to the account button** with the branding settings — product and organisation names, logos, login text, light/dark colour palettes:
 
 - **Apply** keeps the look in this browser.
 - **Download selfhost-branding.json** exports it as a file. Serve that file next to `index.html` (the compose file and install scripts mount `./selfhost-branding.json` automatically) and **every visitor** to your instance gets the branding — and the red "BETA — not production" ribbon becomes a neutral "SELF-HOSTED" one.

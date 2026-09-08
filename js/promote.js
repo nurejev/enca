@@ -100,6 +100,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 128,
+      title: "Header: one account button, Tools button gone",
+      tools: ["All tools"],
+      builds: [25258],
+      risk: "low",
+      what: "Tenant name + signed-in UPN + initials merged into one account button whose menu holds Sign out and Copy tenant ID (plus the signed-in display name). The header's Tools home button is removed - the tab bar's home icon does the same thing. The self-host branding gear now anchors after the account button instead of after Sign out.",
+      why: "Pure header chrome, no Graph calls and no data path. The one behavioural change is that Sign out is a click further away; graduates once the menu has been used on a real tenant and on the demo, and the gear still appears on a self-hosted build.",
+      test: [
+        "Sign in to any tenant: the header shows ONE outlined button with tenant name over UPN and the initials circle; no Tools button left of the theme toggle; the tab bar's home icon still returns to the tools grid, and so does the logo.",
+        "Click the account button: a menu opens under its right edge with the display name and UPN, Copy tenant ID and Sign out. Esc and a click elsewhere close it. Copy tenant ID puts the tenant GUID on the clipboard and toasts it.",
+        "Sign out from the menu: back to the sign-in screen, header tenant box gone, tab bar gone.",
+        "Demo (?demo=1): the button reads the demo tenant, DM initials; the menu shows Demo Mode and no Copy tenant ID row (there is no tenant GUID to copy).",
+        "Self-hosted or ?selfhost branding: the gear button still renders, to the right of the account button.",
+        "A baseline tenant: the baseline-tenant chip still shows, now beside the account button.",
+        "Narrow window (under 680px): the account button wraps to its own row and long tenant names ellipsise instead of pushing the page wide.",
+      ],
+      files: ["index.html", "css/app.css", "js/app.js", "js/selfhost.js"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],

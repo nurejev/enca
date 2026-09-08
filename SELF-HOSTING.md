@@ -118,7 +118,7 @@ The template's `image` parameter defaults to the channel this branch publishes �
 
 A self-hosted instance can wear your organisation's identity without forking — the same mechanism as the per-audience looks on the hosted site:
 
-1. On any non-production host, a **⚙ gear appears next to Sign out**. It opens the branding settings: product and organisation names, logos, login text, and light/dark colour palettes.
+1. On any non-production host, a **⚙ gear appears next to the account button**. It opens the branding settings: product and organisation names, logos, login text, and light/dark colour palettes.
 2. **Apply in this browser** previews and keeps the look locally (per browser).
 3. **Import from JSON** loads an existing `selfhost-branding.json` into the form for review — a look made on another machine, or handed to you as a file, never has to be retyped.
 4. **Download selfhost-branding.json** exports the same settings as a file. Serve it at the site root — the compose file and install scripts mount `./selfhost-branding.json` automatically — and **every visitor** to your instance gets the branding.
