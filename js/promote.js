@@ -118,6 +118,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 130,
+      title: "🌊 Who is the wave to CA (T37)",
+      tools: ["Who is the wave to CA"],
+      builds: [25262],
+      risk: "medium",
+      what: "New beta-only tool: the T36 picture for a whole deployment group — picker with member counts, go-live readiness per report-only policy (locked out / prompted / unchanged / silent → Not yet / Friction only / Ready / No data), policies and how they target the wave, excluded-member counts, members with how they got in and flags (bypass, two waves, blocked, lockout, no P1, disabled), each a click into T36. New js/wave.js plus tile, screen, Help section, wiring and CSS; T36's stage tile links to it.",
+      why: "Composes the same modules as T36 for N members, so the risk is scale and joins: the referenced-group reads are capped at 999 members each and the wave at 500, the report-only per-user rows join back on UPN, and the readiness verdict is only as good as the window. Graduates once a real wave's readiness table has matched 🎚 Report-only impact per policy and the member flags have matched T36 for a handful of members. Travels with item 129 (it calls WhoIs.stateFor and opens T36).",
+      test: [
+        "On a baseline tenant, open the tool: every CAD-SEC-U-DG-* group the tenant has must be a picker chip with its transitive member count; a group the tenant does not have must be greyed with —. Pick DG-INT: the member count in the header must equal the chip.",
+        "For a wave with a nested child group: members that came through it must read “via <child>”, direct members “direct”, and the How-the-wave-is-built card must list the child with the same count. A dynamic child must show its rule.",
+        "Compare the readiness row of one report-only policy with 🎚 Report-only impact for the same policy and window: the locked-out names here must be exactly that policy's would-deny users who are members of the wave. Nothing more, nothing less.",
+        "Click three member names — one with a bypass flag, one in two waves, one quiet — and confirm 🕵 Who is Anna to CA opens on each with the same verdicts (exclusion callout, stage tile, forecast tile).",
+        "A member in CAB-SEC-U-CAxxx-Exclusion while CAxxx is On must carry the bypass flag and the policy row must count them under Excluded members with the group named; switch the policy to report-only and rescan: the flag must become a plain “excluded” chip.",
+        "Decline AuditLog.Read.All: the readiness card must say it needs the sign-in log, the member table must render without log columns filled, and nothing must throw. With a window that hit the 10,000 cap, the note above the result must say so.",
+        "On a tenant with the Joey Verlinden baseline active: the picker must say the baseline has no deployment groups and offer his persona groups; typing a CA-… - Exclude group by name must work.",
+        "?demo=1: pick Internals (persona) — Eva and Milan as members, CA200-CA20x targeting via direct include, the staged MFA policy in the readiness card, and Eva's name opening T36.",
+      ],
+      files: ["js/wave.js", "js/whois.js", "js/app.js", "index.html", "css/app.css", "js/version.js"],
+    },
+    {
       n: 129,
       title: "🕵 Who is Anna to CA (T36)",
       tools: ["Who is Anna to CA"],

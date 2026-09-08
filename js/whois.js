@@ -273,7 +273,7 @@ const WhoIs = (() => {
 
     const stage = res.stage;
     const stageTile = stage.kind === "deploy"
-      ? `<div class="wo-vt ok"><span class="k">Deployment stage</span><span class="v">${esc(stage.groups.map((g) => g.name.replace(/^.*-DG-/i, "")).join(" + "))}</span><span class="s">${esc(stage.groups.map((g) => `${g.name} · ${g.how}`).join(" · "))}</span></div>`
+      ? `<div class="wo-vt ok"><span class="k">Deployment stage</span><span class="v">${esc(stage.groups.map((g) => g.name.replace(/^.*-DG-/i, "")).join(" + "))}</span><span class="s">${esc(stage.groups.map((g) => `${g.name} · ${g.how}`).join(" · "))} · <a href="#" class="md-tool" data-tool="toolWave">🌊 the wave</a></span></div>`
       : stage.kind === "persona"
         ? `<div class="wo-vt"><span class="k">Persona group</span><span class="v">${esc(stage.groups.map((g) => (g.label || g.name).replace(/^\S+\s/, "")).join(" + "))}</span><span class="s">${esc(stage.groups.map((g) => `${g.name} · ${g.how}`).join(" · "))}</span></div>`
         : `<div class="wo-vt ${res.ladder.hasDg ? "warn" : ""}"><span class="k">Deployment stage</span><span class="v">${res.ladder.hasDg ? "Not in a wave" : "No waves"}</span><span class="s">${res.ladder.hasDg ? "in none of the deploy groups — only what targets All users reaches her" : "the active baseline has no deployment groups"}</span></div>`;
