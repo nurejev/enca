@@ -118,6 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 137,
+      title: "🚪 Exclusion analyzer: nesting in sight (T09 1.7, R49)",
+      tools: ["Exclusion analyzer"],
+      builds: [25281],
+      risk: "low",
+      what: "js/exclusions.js: readNesting(groups) after the transitive read — one $batch of /groups/{id}/members (direct users + groups, split on @odata.type), one of the nested groups' transitiveMembers/user (first 40) — sets members[].direct / via, group.nested / directCount / nestedCount. effectiveUsers reasons carry nested + through; risk() adds the nested-groups flag (High when directCount === 0); rowSub / matrix cell (↪, class nest) / summary tag / CSV / MD carry it; app.js openExMembers sorts direct first and names the path. Demo: last member of a 2+ group comes through SG-Demo-*.",
+      why: "Read-only and additive: a failed nesting read leaves the old result exactly as it was (caught, warned). The one judgement call is the High level for an exclusion group with no direct members — that is the case Mihai could not see and asked for, so it should stay loud.",
+      test: [
+        "Real tenant with a nested exclusion group (CAB-SEC-U-CA005-Exclusion: 0 direct, 136 through 9 nested groups): the head must show the ↪ tag with the group and user counts; the matrix row must read '136 members · ↪ all through 9 nested groups'; clicking it must list the nested groups by name and every member with the group they came through.",
+        "Effective users: a user from that group must show ↪ (not ◐) in the CA015 column, tooltip 'excluded via CAB-SEC-U-CA005-Exclusion ↪ <nested group> — through nesting only'.",
+        "Risk review: CA015 must carry a High flag 'Exclusion group fed entirely by nested groups: CAB-SEC-U-CA005-Exclusion' naming the nine groups; a policy whose excluded group mixes direct and nested members must carry Medium instead.",
+        "Export CSV and MD: the how column reads 'via <group> > <nested>' / 'via <group> ↪ <nested>'.",
+        "?demo=1: head tag '1 excluded group with nested groups · 1 user through nesting', HR-Department row '2 members · ↪ 1 through 1 nested group', Milan shows ↪ in Effective users, Risk review Medium on the policy excluding HR-Department.",
+      ],
+      files: ["js/exclusions.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 136,
       title: "👥 CA groups 5.0: one list + drawer instead of seven tabs (T12, R48)",
       tools: ["Conditional Access groups"],

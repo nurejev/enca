@@ -7730,12 +7730,18 @@ This is a directory write. Nothing else changes.`)) return;
     exMemCur = ent;
     const shown = ent.members || [], total = ent.memberTotal;
     $("exMemTitle").textContent = `👥 ${ent.name}`;
+    const nested = ent.nested && ent.nested.length ? ent.nested : null;
     $("exMemSub").innerHTML = `${total == null ? shown.length : total} member${(total ?? shown.length) === 1 ? "" : "s"}`
       + (total != null && total > shown.length ? ` — showing the first ${shown.length}` : "")
+      + (nested ? ` · <b>${ent.directCount} direct · ${ent.nestedCount} through ${nested.length} nested group${nested.length === 1 ? "" : "s"}</b>` : "")
       + ` · excluded from ${ent.policyIds.size} polic${ent.policyIds.size === 1 ? "y" : "ies"}`;
-    $("exMemBody").innerHTML = shown.length
-      ? `<table class="plist"><tbody>${shown.map((m) => `<tr><td>${esc(m.name)}<div class="mini muted">${esc(m.upn || "")}</div></td></tr>`).join("")}</tbody></table>`
-      : '<p class="mini">No members resolved for this group.</p>';
+    // direct members first, then the ones who arrive through a nested group,
+    // each with the group they came through — that is the gap to see
+    const sorted = shown.slice().sort((x, y) => ((y.direct === false ? 0 : 1) - (x.direct === false ? 0 : 1)) || x.name.localeCompare(y.name));
+    $("exMemBody").innerHTML = (nested ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">↪ Nested groups: ${nested.map((n) => `<b>${esc(n.name)}</b>${n.dynamic ? " (dynamic)" : ""}`).join(", ")} — whoever manages these decides who is in ${esc(ent.name)}.</p>` : "")
+      + (shown.length
+        ? `<table class="plist"><tbody>${sorted.map((m) => `<tr><td>${esc(m.name)}<div class="mini muted">${esc(m.upn || "")}</div></td><td class="mini" style="text-align:right;white-space:nowrap">${m.direct === false ? `<span style="color:var(--off)">↪ ${esc((m.via || []).join(" / ") || "nested")}</span>` : m.direct === true ? '<span class="muted">direct</span>' : ""}</td></tr>`).join("")}</tbody></table>`
+        : '<p class="mini">No members resolved for this group.</p>');
     $("exMemModal").classList.add("open");
   }
   $("exMemClose").addEventListener("click", () => $("exMemModal").classList.remove("open"));
@@ -7743,8 +7749,8 @@ This is a directory write. Nothing else changes.`)) return;
   $("exMemCsv").addEventListener("click", () => {
     if (!exMemCur) return;
     const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const rows = [[q("Group"), q("Member"), q("UPN")].join(","),
-      ...(exMemCur.members || []).map((m) => [q(exMemCur.name), q(m.name), q(m.upn)].join(","))];
+    const rows = [[q("Group"), q("Member"), q("UPN"), q("How")].join(","),
+      ...(exMemCur.members || []).map((m) => [q(exMemCur.name), q(m.name), q(m.upn), q(m.direct === false ? `nested: ${(m.via || []).join(" + ") || "nested group"}` : m.direct === true ? "direct" : "")].join(","))];
     downloadText(`Members-${exMemCur.name}`.replace(/[^\w.-]+/g, "-"), "csv", "text/csv", rows.join("\n"));
     toast("Member list <span>downloaded</span>");
   });

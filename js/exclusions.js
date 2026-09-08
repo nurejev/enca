@@ -89,6 +89,14 @@ const Exclusions = (() => {
         const users = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.analyzeUsers) || [];
         e.members = ids.map((id) => { const u = users.find((x) => x.id === id); return { id, name: u?.displayName || id, upn: u?.userPrincipalName || "" }; });
         e.memberTotal = e.members.length;
+        // demo nesting: the last member of a group with 2+ members comes in
+        // through a nested group, so the ↪ marks have something to show
+        if (e.members.length >= 2) {
+          const last = e.members[e.members.length - 1], child = `SG-Demo-${((e.name || "").match(/CA\d+/) || ["team"])[0]}`;
+          e.nested = [{ id: `g-nest-${e.id}`, name: child, dynamic: false, memberIds: new Set([last.id]) }];
+          e.members.forEach((m) => { m.direct = m.id !== last.id; m.via = m.id === last.id ? [child] : []; });
+        } else { e.nested = []; e.members.forEach((m) => { m.direct = true; m.via = []; }); }
+        e.directCount = e.members.filter((m) => m.direct).length; e.nestedCount = e.members.length - e.directCount;
       });
       return model;
     }
@@ -156,8 +164,45 @@ const Exclusions = (() => {
         g.members = []; g.memberTotal = null;
       }
     }
+    // Nesting — HOW each member got in. One $batch over the excluded groups'
+    // direct members (users and groups), then one over the nested groups'
+    // transitive users (first 40 nested groups), so a member can be marked
+    // direct or "through <nested group>". An exclusion group whose members
+    // all arrive through nesting is a pointer to groups managed elsewhere —
+    // that is the gap the risk review flags.
+    try { await readNesting(groups, onStatus); }
+    catch (e) { console.warn("Exclusions: nesting read failed", e.message); }
     model.entities.forEach((e) => { e.name = e.name || e.id; });
     return model;
+  }
+
+  const NEST_CAP = 40;
+  async function readNesting(groups, onStatus) {
+    const gs = groups.filter((g) => g.members && g.members.length);
+    if (!gs.length) return;
+    onStatus?.("Reading nesting…");
+    const direct = await Graph.gbatch(gs.map((g, i) => ({ id: i, url: `/groups/${g.id}/members?$select=id,displayName,groupTypes&$top=999` })));
+    const nestedAll = [];
+    gs.forEach((g, i) => {
+      const v = direct[i], rows = (v && v.body && v.body.value) || null;
+      if (!rows) { g.nested = null; return; }
+      const dIds = new Set(rows.filter((m) => !/group$/i.test(m["@odata.type"] || "")).map((m) => m.id));
+      g.nested = rows.filter((m) => /group$/i.test(m["@odata.type"] || "")).map((m) => ({ id: m.id, name: m.displayName || m.id, dynamic: (m.groupTypes || []).includes("DynamicMembership"), memberIds: null }));
+      g.members.forEach((m) => { m.direct = dIds.has(m.id); m.via = []; });
+      g.directCount = g.members.filter((m) => m.direct).length;
+      g.nestedCount = g.members.length - g.directCount;
+      g.nested.forEach((n) => nestedAll.push({ g, n }));
+    });
+    const todo = nestedAll.slice(0, NEST_CAP);
+    if (todo.length) {
+      const res = await Graph.gbatch(todo.map((x, i) => ({ id: i, url: `/groups/${x.n.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999` })));
+      todo.forEach((x, i) => {
+        const v = res[i], rows = (v && v.body && v.body.value) || null;
+        if (!rows) return;
+        x.n.memberIds = new Set(rows.map((u) => u.id));
+        x.g.members.forEach((m) => { if (!m.direct && x.n.memberIds.has(m.id)) m.via.push(x.n.name); });
+      });
+    }
   }
 
   // ---- 3. effective per-user exclusions (direct + via group) ----
@@ -183,7 +228,7 @@ const Exclusions = (() => {
       } else if (e.kind === "group" && e.members) {
         for (const m of e.members) {
           const u = touch(m.id, m.name, m.upn);
-          e.policyIds.forEach((pid) => addReason(u, pid, { via: "group", group: e.name }));
+          e.policyIds.forEach((pid) => addReason(u, pid, { via: "group", group: e.name, nested: m.direct === false, through: m.via || [] }));
         }
       }
     }
@@ -250,6 +295,21 @@ const Exclusions = (() => {
           + " — stale exclusions mean offboarding isn't clearing them.");
       }
 
+      // Nested groups inside an exclusion group: whoever manages the nested
+      // group decides who bypasses this policy. High when EVERY member of an
+      // excluded group arrives that way — the exclusion group is then only a
+      // pointer to groups managed elsewhere.
+      const nestedGroups = (x.groups || []).map((id) => ent("group", id)).filter((e) => e && e.nested && e.nested.length);
+      if (nestedGroups.length) {
+        const allNested = nestedGroups.filter((e) => e.members && e.members.length && e.directCount === 0);
+        const detail = nestedGroups.map((e) => `${e.name}: ${e.nested.length} nested group${e.nested.length === 1 ? "" : "s"} (${e.nested.map((n) => n.name).join(", ")}) — ${e.nestedCount} of ${e.memberTotal} member${e.memberTotal === 1 ? "" : "s"} come through them`).join(" · ");
+        add(allNested.length ? "high" : "medium",
+          allNested.length
+            ? `Exclusion group${allNested.length === 1 ? "" : "s"} fed entirely by nested groups: ${allNested.map((e) => e.name).join(", ")}`
+            : `Nested groups inside ${nestedGroups.length === 1 ? "an excluded group" : `${nestedGroups.length} excluded groups`}`,
+          detail + ". Whoever can change the nested groups' membership widens this exclusion without touching the exclusion group — protect the nested groups the same way, or replace them with direct members.");
+      }
+
       // Medium — an exclusion list that has grown
       if ((x.groups || []).length > maxGroups) add("medium", `${x.groups.length} group exclusions`,
         "Review each for relevance; consider restructuring who the policy includes instead.");
@@ -280,7 +340,9 @@ const Exclusions = (() => {
     const withExc = model.policies.filter((p) => p.exclusionCount > 0).length;
     const counts = {};
     model.entities.forEach((e) => { counts[e.kind] = (counts[e.kind] || 0) + 1; });
-    return { policies: model.policies.length, policiesWithExclusions: withExc, entities: model.entities.length, users: users.length, counts };
+    const nestedGroups = model.entities.filter((e) => e.kind === "group" && e.nested && e.nested.length);
+    const nestedUsers = new Set(); nestedGroups.forEach((e) => e.members.forEach((m) => { if (m.direct === false) nestedUsers.add(m.id); }));
+    return { policies: model.policies.length, policiesWithExclusions: withExc, entities: model.entities.length, users: users.length, counts, nestedGroups: nestedGroups.length, nestedUsers: nestedUsers.size, allNested: nestedGroups.filter((e) => e.directCount === 0).length };
   }
 
   // ---- rendering ----
@@ -293,7 +355,7 @@ const Exclusions = (() => {
       <div style="flex:1;min-width:260px">
         <h3>🚪 CA Exclusion analyzer</h3>
         <p style="margin-bottom:8px">Every exclusion configured across your Conditional Access policies — users, groups (with their members), directory roles, guest types, applications, named locations and device platforms — mapped against the policies that exclude them.</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${kinds || '<span class="mini">No exclusions found.</span>'}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${kinds || '<span class="mini">No exclusions found.</span>'}${s.nestedGroups ? ` <span class="tag block" title="Members who come into an exclusion group through a group nested inside it">↪ ${s.nestedGroups} excluded group${s.nestedGroups === 1 ? "" : "s"} with nested groups · ${s.nestedUsers} user${s.nestedUsers === 1 ? "" : "s"} through nesting${s.allNested ? ` · ${s.allNested} fed entirely by nesting` : ""}</span>` : ""}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${s.entities}<span class="mini" style="font-weight:400"> exclusions</span></div>
@@ -323,8 +385,11 @@ const Exclusions = (() => {
       || b.items.length - a.items.length || String(a.name).localeCompare(String(b.name)));
   }
 
+  const nestSub = (e) => (e.nested && e.nested.length
+    ? ` · ↪ ${e.nestedCount === e.memberTotal ? "all" : e.nestedCount} through ${e.nested.length} nested group${e.nested.length === 1 ? "" : "s"}`
+    : "");
   const rowSub = (e) => (e.kind === "group"
-    ? (e.memberTotal == null ? "members unknown" : `${e.memberTotal} member${e.memberTotal === 1 ? "" : "s"}`)
+    ? (e.memberTotal == null ? "members unknown" : `${e.memberTotal} member${e.memberTotal === 1 ? "" : "s"}${nestSub(e)}`)
     : e.upn || (e.id !== e.name ? e.id : ""));
 
   // Focus banner — shown above a matrix when a row and/or column is pinned, so
@@ -419,7 +484,8 @@ const Exclusions = (() => {
           items.sort((a, b) => String(a.name).localeCompare(String(b.name)));
           const chips = items.map((e) => {
             const sub = rowSub(e);
-            return `<span class="ex-ent" title="${esc(e.id)}${sub ? " · " + esc(sub) : ""}">${esc(e.name)}${e.kind === "group" && e.memberTotal != null ? `<i>${e.memberTotal}</i>` : ""}</span>`;
+            const nest = e.kind === "group" && e.nested && e.nested.length ? `<em class="ex-nest" title="${esc(e.nestedCount)} of ${esc(e.memberTotal)} members come through ${esc(e.nested.map((n) => n.name).join(", "))}">↪${e.nestedCount === e.memberTotal ? " all" : ` ${e.nestedCount}`}</em>` : "";
+            return `<span class="ex-ent${e.kind === "group" && e.nested && e.nested.length && e.directCount === 0 ? " allnested" : ""}" title="${esc(e.id)}${sub ? " · " + esc(sub) : ""}">${esc(e.name)}${e.kind === "group" && e.memberTotal != null ? `<i>${e.memberTotal}</i>` : ""}${nest}</span>`;
           }).join("");
           return `<div class="ex-kind"><div class="ex-kind-h">${KIND[k].icon} ${esc(KIND[k].label)}${items.length === 1 ? "" : "s"} <b>${items.length}</b></div><div class="ex-chips">${chips}</div></div>`;
         }).join("");
@@ -464,9 +530,10 @@ const Exclusions = (() => {
         const r = u.byPolicy.get(p.id);
         if (!r) return `<td class="cellv"><span class="cell na">·</span></td>`;
         const direct = r.some((x) => x.via === "direct");
-        const groups = [...new Set(r.filter((x) => x.via === "group").map((x) => x.group))];
-        const tip = direct ? "excluded directly" : `excluded via ${groups.join(", ")}`;
-        return `<td class="cellv no" title="${esc(u.name)}: ${esc(tip)}"><span class="cell ${direct ? "no" : "ro"}">${direct ? "✗" : "◐"}</span></td>`;
+        const groups = [...new Set(r.filter((x) => x.via === "group").map((x) => x.group + (x.nested ? ` ↪ ${x.through.length ? x.through.join(" / ") : "a nested group"}` : "")))];
+        const nestedOnly = !direct && r.every((x) => x.nested);
+        const tip = direct ? "excluded directly" : `excluded via ${groups.join(", ")}${nestedOnly ? " — through nesting only" : ""}`;
+        return `<td class="cellv no" title="${esc(u.name)}: ${esc(tip)}"><span class="cell ${direct ? "no" : nestedOnly ? "ro nest" : "ro"}">${direct ? "✗" : nestedOnly ? "↪" : "◐"}</span></td>`;
       }).join("") + "</tr>").join("");
     return { html: `${banner}<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`, pages, page };
   }
@@ -511,7 +578,7 @@ const Exclusions = (() => {
       lines.push([q(u.name), q(u.upn), ...pols.map((p) => {
         const r = u.byPolicy.get(p.id);
         if (!r) return q("");
-        return q(r.some((x) => x.via === "direct") ? "direct" : `via ${[...new Set(r.filter((x) => x.via === "group").map((x) => x.group))].join(" / ")}`);
+        return q(r.some((x) => x.via === "direct") ? "direct" : `via ${[...new Set(r.filter((x) => x.via === "group").map((x) => x.group + (x.nested ? ` > ${x.through.join("+") || "nested"}` : "")))].join(" / ")}`);
       })].join(","));
     });
     return lines.join("\n");
@@ -622,7 +689,7 @@ const Exclusions = (() => {
           if (!r) continue;
           const how = r.some((x) => x.via === "direct")
             ? "direct"
-            : `via ${[...new Set(r.filter((x) => x.via === "group").map((x) => x.group))].map(mdEsc).join(" / ")}`;
+            : `via ${[...new Set(r.filter((x) => x.via === "group").map((x) => x.group + (x.nested ? ` ↪ ${x.through.join(" + ") || "nested"}` : "")))].map(mdEsc).join(" / ")}`;
           parts.push(`${mdEsc(p.name)} (${how})`);
         }
         L.push(`| ${mdEsc(u.name)} | ${mdEsc(u.upn)} | ${parts.length} | ${parts.join("<br>") || "—"} |`);

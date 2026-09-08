@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25281, date: "2026-09-08", title: "Exclusion analyzer: nesting in sight",
+    items: [
+      { kind: "new", tool: "Exclusion analyzer", text: "Every excluded group was already expanded to its transitive members, so users who arrive through a nested group were counted — but not shown as such: an exclusion group with 0 direct members and 136 through nesting read as 136 excluded users. The scan now also reads each excluded group's direct members and its nested groups' members (two batches), so the matrix row says ↪ all through 9 nested groups, the member list names the nested group each member came through (direct first), the effective-users matrix shows ↪ for a user excluded through nesting only, the head counts users through nesting, and the risk review flags it — Medium for nested groups inside an excluded group, High when an exclusion group is fed entirely by nested groups, because whoever manages those groups decides who bypasses the policy. CSV and Markdown carry the path. R49." },
+    ],
+  },
+  {
     build: 25280, date: "2026-09-08", title: "Conditional Access groups: the empty dialog on open",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "The dialog and sheet containers are flex boxes, and display:flex beat the hidden attribute — so an empty dialog covered the list the moment the tool opened. hidden wins now." },

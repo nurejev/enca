@@ -1841,3 +1841,8 @@ body.cgg-modal-open{overflow:hidden}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
 }
 .cgg-back{display:flex;gap:10px;align-items:center;margin:8px 0 10px}
+
+/* 🚪 Exclusions: nesting marks */
+.ex-ent .ex-nest{font-style:normal;font-weight:700;color:var(--off);margin-left:5px;font-size:11px}
+.ex-ent.allnested{border-color:var(--off)}
+.mtable .cell.ro.nest{color:var(--off)}
