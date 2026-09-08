@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25271"></script>
+<script src="js/popup-guard.js?v=25272"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25271" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25271">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25272" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25272">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25271"></script>
+<script src="js/selfhost-boot.js?v=25272"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25271"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25271"></script>
+<script src="js/counter.js?v=25272"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25272"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25271" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25272" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25271" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25272" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1385,6 +1385,18 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+          <div class="list-card rm-card" data-shipped="25261">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R40</span> <a href="#" class="md-tool" data-tool="toolWhoIs">🕵 Who is Anna to CA</a> <span class="tag grant">live · beta 25261 · production 309</span></h4>
+            <p class="mini" style="margin:0">One user, the whole Conditional Access picture on one screen — the answer to <i>why can't Anna sign in</i> and <i>is Anna in the wave yet</i>, which used to take four tools. Her <b>deployment stage</b> (which of the baseline's <code>CAD-SEC-U-DG-*</code> groups, and how: direct or nested via which parent), every policy that <b>reaches</b> her and via what — or excludes her and by what — the sign-ins Conditional Access actually <b>stopped</b> for her, and what happens to her the day <b>report-only</b> goes live. A standing bypass through an exclusion group is named as such. Same include/exclude resolution as ⚖ Compare users, so the two cannot disagree.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25262">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R41</span> <a href="#" class="md-tool" data-tool="toolWave">🌊 Who is the wave to CA</a> <span class="tag grant">live · beta 25262 · production 309</span></h4>
+            <p class="mini" style="margin:0">The same picture for a whole <b>deployment group</b>. The question before a report-only policy is switched On is <i>can this wave take it</i> — and the answer existed per policy (🎚) or per user (🕵), never per wave. Pick a deploy or persona group and get, per report-only policy that targets it, a <b>go-live readiness</b> verdict: locked out (named), prompted, unchanged, silent — with silent counted as no data, never as safety. Plus who is in the wave and how they got in, the policies that target it, and the members that need a look, each a click into 🕵.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25263">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R42</span> <a href="#" class="md-tool" data-tool="toolCaGroups">👥 Remove a member from a group, where you see it</a> <span class="tag grant">live · beta 25263 · production 309</span></h4>
+            <p class="mini" style="margin:0">③ Members could add but not remove. Now a <b>− Remove</b> button next to ＋ Add, and an × on every ● in the matrix — both ask first, and the question says what the group is used for: taking someone out of an <b>exclusion</b> group puts them back inside the policy. Dynamic groups are not offered; a user not read as a member is refused rather than deleted blind.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="25195">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R15</span> 🍴 Fork detection and update-from-upstream <span class="tag grant">live · beta 25195 · production 298</span></h4>
             <p class="mini" style="margin:0">A high-assurance tenant is encouraged to fork, review and serve its own pinned copy — and the moment it does, it stops hearing about fixes. <b>Now shipped:</b> the app notices it is running as a fork (its origin is not the canonical host and the build it carries is older than upstream), says so plainly in a strip under the header, and shows what has changed since the pinned build — the What's-new headline of every build between here and there — with the commands to update a Docker instance and to pull <code>main</code> in and re-review the diff. The point is not auto-updating, which would defeat the reason for forking; it is making <b>“you are 14 builds behind, and here is what those builds changed”</b> impossible to miss. If upstream cannot be read — offline, air-gapped, a hardened CSP — it says nothing rather than something wrong. Pairs with <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a> and the security document's fork-review-pin guidance.</p>
@@ -1446,11 +1458,7 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R03</span> ⌨️ Command palette <span class="tag grant">live · build 267</span></h4>
             <p class="mini" style="margin:0">Past twenty-odd tools, a tile grid stops being the fastest way in. <b>Ctrl/Cmd&nbsp;+&nbsp;K</b> anywhere opens a search box: type a few letters and land in the tool, or type a CA number or policy name and land on the policy card. Matching takes initials as well as substrings, so <code>gap</code> finds Gap analyse and <code>bbc</code> finds Best-practice &amp; bypass checks.</p>
           </div>
-          <div class="list-card rm-card" data-shipped="25063">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R05</span> <a href="#" class="md-tool" data-tool="toolGuide">📖 Baseline usage guide</a> <span class="tag grant">live · beta 25063</span></h4>
-            <p class="mini" style="margin:0">The toolset could build the baseline; it could not tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge lived in whoever has done it before, which is the least durable place to keep it. Now it is a tool: the deployment order as six steps, each with the <b>reason</b> it sits where it does — the persona model and its CA ranges, groups and restricted units before the policies that target them, named locations, authentication strengths and contexts before the policies that reference them, Terms of use (which has no create API) before import, policies imported Off, then Off → report-only → 🎚 forecast → enforced, Global last. 🔎 <b>Read the tenant</b> turns every step into a readiness check that names what is missing <i>before</i> the step is run instead of after. Graduates to production once the step texts have proven themselves against enough real deployments.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25059">
+                    <div class="list-card rm-card" data-shipped="25059">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R09</span> 🔝 Flagged tiles first in a collapsed section <span class="tag grant">live · beta 25059 · production 268 &amp; 281</span></h4>
             <p class="mini" style="margin:0">A collapsed home section shows four tiles, and anything flagged <b>NEW</b>, <b>BETA</b> or <b>UPDATED</b> claims those slots ahead of the rest — but it claims them <i>in page order</i>, so a flagged tile that sits ninth is visible while still appearing after unflagged ones, and with five flagged tiles in a section one of them drops below the fold. Flagged tiles now lift to the <b>top</b> of the collapsed view, <b>newest first</b> — the ranking is read from the changelog, the build number of the newest entry naming that tool, so a tool changed in this build outranks a BETA tag that has been sitting there for weeks. Before that the tie was broken by page order, which buried the most recent change under the oldest badge. Expanding restores the normal order, because the grid's grouping is meaningful and shuffling it permanently would cost more than it gains.</p>
           </div>
@@ -1515,6 +1523,22 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25063">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R05</span> <a href="#" class="md-tool" data-tool="toolGuide">📖 Baseline usage guide</a> <span class="tag grant">live · beta 25063</span></h4>
+            <p class="mini" style="margin:0">The toolset could build the baseline; it could not tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge lived in whoever has done it before, which is the least durable place to keep it. Now it is a tool: the deployment order as six steps, each with the <b>reason</b> it sits where it does — the persona model and its CA ranges, groups and restricted units before the policies that target them, named locations, authentication strengths and contexts before the policies that reference them, Terms of use (which has no create API) before import, policies imported Off, then Off → report-only → 🎚 forecast → enforced, Global last. 🔎 <b>Read the tenant</b> turns every step into a readiness check that names what is missing <i>before</i> the step is run instead of after. Graduates to production once the step texts have proven themselves against enough real deployments.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25265">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R43</span> <a href="#" class="md-tool" data-tool="toolSessionCtl">🛂 Session controls</a> <span class="tag grant">live · beta 25265</span></h4>
+            <p class="mini" style="margin:0">What a session control actually <b>did</b>. The sign-in log stops at “App Control applied”; the blocked download, the protected file and the step-up are written by Defender for Cloud Apps. Read through Defender advanced hunting on Microsoft Graph (<code>ThreatHunting.Read.All</code> — no second portal, no API token) and joined back to the Conditional Access policy that routed the session. Says when a policy routes but never acts (<i>Monitor only</i>) and when a Defender policy has no router. The activity schema is undocumented and read tolerantly; a schema panel lists what the tenant's events actually carry, which is what graduates it.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25266">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R44</span> <a href="#" class="md-tool" data-tool="toolSignins">🔭 Sign-in source: Entra log, Defender hunting, or hunting with non-interactive</a> <span class="tag grant">live · beta 25266</span></h4>
+            <p class="mini" style="margin:0">One segment shared by 🚦, 🎚, 🕵 and 🌊. The Graph sign-in list is interactive only and capped at 10,000; Defender hunting has the same sign-ins with no cap and 30 days — and, on the third setting, the <b>non-interactive</b> ones the Graph list never returns: token refreshes and background client sign-ins, where sign-in-frequency re-prompts at night, legacy-protocol blocks of service accounts and token-protection failures live. Read in explicit datetime slices that halve themselves on a large tenant. Needs Entra ID P2 for the hunting table to be populated.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25267">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R45</span> <a href="#" class="md-tool" data-tool="toolCaGroups">👥 Show nesting in the members matrix</a> <span class="tag grant">live · beta 25267</span></h4>
+            <p class="mini" style="margin:0">Every member read also reads the group's direct list and its nested member groups, so the matrix can say <b>how</b> as well as who: ● direct, ◐ through a nested group with the child named, a Nested groups panel with each child's members, hide-empty-groups, and ◐ cells that are not removable because the membership lives in the child. On the same build the matrix finally got the grid every other matrix has — it had been bare rows since build 97.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -1529,6 +1553,14 @@
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R16</span> 🔓 Revoke permissions when done <span class="tag ok">partially done</span></h4>
             <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses. <b>First step shipped:</b> the Permissions panel's <i>🔒 How to revoke</i> guide documents the three revocation routes with ready-to-run PowerShell and their consequences — what remains is doing it in one click, which needs careful design (see the guide for why the app deliberately holds no revoke rights itself).</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R46</span> 🤖 Workload identity Conditional Access <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Do the service-principal policies ever fire? Conditional Access for workload identities has its own sign-in log (<code>AADSpnSignInEventsBeta</code> in Defender hunting) and nothing in ENCA reads it. The plan: the WorkloadIDs policies next to that log — which principals each targets, which of those actually sign in, what was blocked, the report-only forecast per policy, and the principals signing in from outside every named location that no policy can reach because they are managed identities or multi-tenant apps. Same hunting scope as R44; needs Workload Identities Premium for the policies to apply at all.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R47</span> 🖥 Device reality check — the Defender half <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">🖥 checks the Intune half: is the scope of a compliant-device policy actually assigned a compliance policy. The Defender half is the fleet as Defender for Endpoint sees it (<code>DeviceInfo</code>): join type, sensor health, onboarding, exposure — held against every compliant / hybrid-device policy. The findings only the fleet side can give: devices that can never be compliant because they are not joined, a hybrid-join grant that permanently excludes cloud-native laptops, and “compliant” devices with high exposure. A second tab on the existing tool.</p>
           </div>
         </div>
         <div class="rm-era future">
@@ -2142,6 +2174,26 @@
         <li><b>📄 Export MD</b> — licences, rule, groups and reach as Markdown for the change record.</li>
       </ul>
       <p class="help-x">Reads are covered by the baseline <code>Directory.Read.All</code>. The write asks for <code>Group.ReadWrite.All</code> once, on the click, and needs a role that can edit the group (Groups Administrator, or the restricted unit's scoped role when the group is protected). Entra re-evaluates a changed rule in the background: accounts the old rule matched and the new one does not leave the group and lose its exclusions; new matches join. The catalog reflects Microsoft's licensing reference as read on 2 September 2026 — the tenant's own SKUs are always preferred over it.</p>
+    </section>
+    <section class="help-sec">
+      <h4>📵 SMS &amp; voice retirement <span class="tag new">BETA</span></h4>
+      <p>A <b>temporary</b> tool. Microsoft retires its own SMS and voice MFA delivery on <b>1 February 2027</b>; from 1 September 2026 users still enabled for SMS or voice are auto-enabled for passkeys and nudged at sign-in, and after the retirement a user whose <b>only</b> MFA method is a phone number gets a blocking passkey-registration prompt with no opt-out. This tool reads the sms and voice authentication-method configurations (state, registration campaign, include and exclude targets), expands the scope to the actual users, and joins the registration-details report so every user carries a verdict.</p>
+      <ul>
+        <li><b>Verdicts</b> — phone as the only MFA method (locked out after the retirement), phone plus another method (migrate), phishing-resistant already registered (ready), in scope with no phone method (clean). A <b>Phone role</b> column says whether the phone is the user's only method, their default, or a backup.</li>
+        <li><b>Passkey dynamic migration</b> — the Graph-only opt-out from Microsoft's 1 September 2026 rollout, which has no control in the Entra admin center: 🔎 Check reads it, one button pauses or resumes it behind an acknowledgement that names what it does not do (the 2027 retirement does not move), and 🕓 Who changed this? reads the audit log for the person and time behind the current value. This is the tool's only write.</li>
+        <li><b>Countdown, chips, exports</b> — both dates, per-verdict filter chips, a capped on-screen table, Markdown report and full CSV.</li>
+      </ul>
+      <p class="help-x">Reads only, except the one opt-out toggle (<code>Policy.ReadWrite.AuthenticationMethod</code>, Authentication Policy Administrator, asked on the click). The registration report needs <code>AuditLog.Read.All</code>, asked once; a refusal degrades the run to scope-only. Lives in the Temporary tools section and is removed once the retirement has passed.</p>
+    </section>
+    <section class="help-sec">
+      <h4>⏳ memberOf retirement <span class="tag new">BETA</span></h4>
+      <p>A <b>temporary</b> tool. The <code>memberOf</code> dynamic-rule operator has been in public preview since 2022 and Microsoft ends that preview on <b>3 November 2026</b>. Rules using it do not fail on that date — they <b>stop updating</b> and stay in their last known state: a frozen group keeps handing out whatever it held that day, joiners are never covered and leavers never removed, and nothing on screen says so.</p>
+      <ul>
+        <li><b>Three surfaces</b> — dynamic groups, dynamic administrative units and entitlement-management auto-assignment policies (the third needs <code>EntitlementManagement.Read.All</code>, asked once; a refusal reports that surface as <b>not read</b>, never as clean). The operator is detected by its documented <code>user.memberof</code> / <code>device.memberof</code> shape; anything that says memberof without matching it is reported as read-by-hand rather than dropped.</li>
+        <li><b>Consequences, not a list</b> — every affected group is crossed against the Conditional Access policies ENCA already holds: an <b>exclusion</b> that stops shrinking is a permanent bypass, an <b>inclusion</b> that stops growing is an enforcement gap, both named per policy with the policy's state. Group-based licensing, an already-paused rule and a stale source group are called out too.</li>
+        <li><b>Owner notification</b> — owners of the affected groups are read for an email that asks each owner to replace the rule, convert to assigned, or say it can go; administrative units have no owner and the modal says so. Countdown, Markdown report and CSV.</li>
+      </ul>
+      <p class="help-x">Reads only and asks for no extra consent beyond the optional entitlement-management scope — rewriting a membership rule changes who a Conditional Access policy hits, and that decision belongs to a person in the portal. Lives in the Temporary tools section and is removed once the retirement has passed.</p>
     </section>
 
     <section class="help-sec">
@@ -2902,62 +2954,62 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25271"></script>
-<script src="js/selfhost.js?v=25271"></script>
-<script src="js/version.js?v=25271"></script>
-<script src="js/fork.js?v=25271"></script>
-<script src="js/promote.js?v=25271"></script>
-<script src="js/authConfig.js?v=25271"></script>
-<script src="js/labels.js?v=25271"></script>
-<script src="js/graph.js?v=25271"></script>
-<script src="js/model.js?v=25271"></script>
-<script src="js/render.js?v=25271"></script>
-<script src="js/analyze.js?v=25271"></script>
-<script src="js/whatif.js?v=25271"></script>
-<script src="js/mslearn.js?v=25271"></script>
-<script src="js/gapcheck.js?v=25271"></script>
-<script src="js/cisdata.js?v=25271"></script>
-<script src="js/cischeck.js?v=25271"></script>
-<script src="js/exclusions.js?v=25271"></script>
-<script src="js/validator.js?v=25271"></script>
-<script src="js/whatifeval.js?v=25271"></script>
-<script src="js/compare.js?v=25271"></script>
-<script src="js/whois.js?v=25271"></script>
-<script src="js/wave.js?v=25271"></script>
-<script src="js/sessionctl.js?v=25271"></script>
-<script src="js/groupuse.js?v=25271"></script>
-<script src="js/iso3166.js?v=25271"></script>
-<script src="js/locations.js?v=25271"></script>
-<script src="js/authcontexts.js?v=25271"></script>
-<script src="js/authstrengths.js?v=25271"></script>
-<script src="js/recycle.js?v=25271"></script>
-<script src="js/rmau.js?v=25271"></script>
-<script src="js/camap.js?v=25271"></script>
-<script src="js/rmaudoc.js?v=25271"></script>
-<script src="js/termsofuse.js?v=25271"></script>
-<script src="js/audit.js?v=25271"></script>
-<script src="js/drift.js?v=25271"></script>
-<script src="js/guide.js?v=25271"></script>
-<script src="js/userimpact.js?v=25271"></script>
-<script src="js/smsvoice.js?v=25271"></script>
-<script src="js/memberof.js?v=25271"></script>
-<script src="js/devcheck.js?v=25271"></script>
-<script src="js/licgap.js?v=25271"></script>
-<script src="js/teamsdev.js?v=25271"></script>
-<script src="js/signins.js?v=25271"></script>
-<script src="js/reportimpact.js?v=25271"></script>
-<script src="js/changelog.js?v=25271"></script>
-<script src="js/baselineData.js?v=25271"></script>
-<script src="js/baselineJoeyData.js?v=25271"></script>
-<script src="js/baselineLive.js?v=25271"></script>
-<script src="js/baseline.js?v=25271"></script>
-<script src="js/baselineCleanup.js?v=25271"></script>
-<script src="js/groupTemplates.js?v=25271"></script>
-<script src="js/assign.js?v=25271"></script>
-<script src="js/cagroups.js?v=25271"></script>
-<script src="js/import.js?v=25271"></script>
-<script src="js/export.js?v=25271"></script>
-<script src="js/demo.js?v=25271"></script>
-<script src="js/app.js?v=25271"></script>
+<script src="js/branding.js?v=25272"></script>
+<script src="js/selfhost.js?v=25272"></script>
+<script src="js/version.js?v=25272"></script>
+<script src="js/fork.js?v=25272"></script>
+<script src="js/promote.js?v=25272"></script>
+<script src="js/authConfig.js?v=25272"></script>
+<script src="js/labels.js?v=25272"></script>
+<script src="js/graph.js?v=25272"></script>
+<script src="js/model.js?v=25272"></script>
+<script src="js/render.js?v=25272"></script>
+<script src="js/analyze.js?v=25272"></script>
+<script src="js/whatif.js?v=25272"></script>
+<script src="js/mslearn.js?v=25272"></script>
+<script src="js/gapcheck.js?v=25272"></script>
+<script src="js/cisdata.js?v=25272"></script>
+<script src="js/cischeck.js?v=25272"></script>
+<script src="js/exclusions.js?v=25272"></script>
+<script src="js/validator.js?v=25272"></script>
+<script src="js/whatifeval.js?v=25272"></script>
+<script src="js/compare.js?v=25272"></script>
+<script src="js/whois.js?v=25272"></script>
+<script src="js/wave.js?v=25272"></script>
+<script src="js/sessionctl.js?v=25272"></script>
+<script src="js/groupuse.js?v=25272"></script>
+<script src="js/iso3166.js?v=25272"></script>
+<script src="js/locations.js?v=25272"></script>
+<script src="js/authcontexts.js?v=25272"></script>
+<script src="js/authstrengths.js?v=25272"></script>
+<script src="js/recycle.js?v=25272"></script>
+<script src="js/rmau.js?v=25272"></script>
+<script src="js/camap.js?v=25272"></script>
+<script src="js/rmaudoc.js?v=25272"></script>
+<script src="js/termsofuse.js?v=25272"></script>
+<script src="js/audit.js?v=25272"></script>
+<script src="js/drift.js?v=25272"></script>
+<script src="js/guide.js?v=25272"></script>
+<script src="js/userimpact.js?v=25272"></script>
+<script src="js/smsvoice.js?v=25272"></script>
+<script src="js/memberof.js?v=25272"></script>
+<script src="js/devcheck.js?v=25272"></script>
+<script src="js/licgap.js?v=25272"></script>
+<script src="js/teamsdev.js?v=25272"></script>
+<script src="js/signins.js?v=25272"></script>
+<script src="js/reportimpact.js?v=25272"></script>
+<script src="js/changelog.js?v=25272"></script>
+<script src="js/baselineData.js?v=25272"></script>
+<script src="js/baselineJoeyData.js?v=25272"></script>
+<script src="js/baselineLive.js?v=25272"></script>
+<script src="js/baseline.js?v=25272"></script>
+<script src="js/baselineCleanup.js?v=25272"></script>
+<script src="js/groupTemplates.js?v=25272"></script>
+<script src="js/assign.js?v=25272"></script>
+<script src="js/cagroups.js?v=25272"></script>
+<script src="js/import.js?v=25272"></script>
+<script src="js/export.js?v=25272"></script>
+<script src="js/demo.js?v=25272"></script>
+<script src="js/app.js?v=25272"></script>
 </body>
 </html>

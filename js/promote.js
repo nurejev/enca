@@ -132,7 +132,7 @@ const PROMOTE = {
     },
     {
       n: 134,
-      title: "👥 CA groups ③ Members: show nesting (T12 4.8)",
+      title: "👥 CA groups ③ Members: show nesting (T12 4.8, R45)",
       tools: ["Conditional Access groups"],
       builds: [25267, 25268, 25270],
       risk: "low",
@@ -151,7 +151,7 @@ const PROMOTE = {
     },
     {
       n: 133,
-      title: "Sign-in source: Entra log | Defender hunting | + non-interactive (🚦 🎚 🕵 🌊)",
+      title: "Sign-in source: Entra log | Defender hunting | + non-interactive (🚦 🎚 🕵 🌊, R44)",
       tools: ["Sign-in failures", "Report-only impact", "Who is Anna to CA", "Who is the wave to CA"],
       builds: [25266, 25271],
       risk: "medium",
@@ -172,7 +172,7 @@ const PROMOTE = {
     },
     {
       n: 132,
-      title: "🛂 Session controls (T38)",
+      title: "🛂 Session controls (T38, R43)",
       tools: ["Session controls"],
       builds: [25265, 25266, 25269],
       risk: "medium",

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25272, date: "2026-09-08", title: "The roadmap catches up, and the two temporary tools get their Help",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Eight cards that were missing. In Now: R40 Who is Anna to CA, R41 Who is the wave to CA and R42 remove a member from a group — all in production since 309. In beta today: R43 Session controls, R44 the sign-in source switch and R45 the nesting view of the members matrix. Next: R46 Workload identity Conditional Access and R47 the Defender half of Device reality check, both designed and not yet built. R05 Baseline usage guide moves from Now to In beta today, where a beta-only tool belongs." },
+      { kind: "improved", tool: "Help", text: "📵 SMS and voice retirement and ⏳ memberOf retirement had no Help section — the only two tools without one. Both have one now: what the retirement does, the verdicts, the one write the SMS tool carries (the passkey dynamic-migration opt-out), the three surfaces the memberOf scan reads and what a frozen rule means for a Conditional Access policy." },
+    ],
+  },
+  {
     build: 25271, date: "2026-09-08", title: "The hunting sign-in source survives a large tenant",
     items: [
       { kind: "fixed", tool: "Sign-in failures", text: "On a large tenant the Defender hunting source failed with “Query execution has exceeded the allowed result size”: a day of sign-ins, each carrying its ConditionalAccessPolicies JSON, is more than one hunting response may return. The window is now read in explicit datetime slices — a day at first — and a slice that fails on size, or comes back at the row cap, is halved and both halves read, down to 15 minutes; only a 15-minute slice that still hits the cap is reported as capped. The progress line says how many slices were halved. 🎚 Report-only impact, 🕵 Who is Anna to CA and 🌊 Who is the wave to CA share the read and the fix." },
