@@ -346,12 +346,14 @@ const Graph = (() => {
     return r.json();
   }
 
-  async function ggetAll(url) {
+  // cap: stop paging once that many rows are in hand (the caller says so)
+  async function ggetAll(url, cap) {
     let out = [], next = url;
     while (next) {
       const j = await gget(next);
       out = out.concat(j.value || []);
       next = j["@odata.nextLink"] || null;
+      if (cap && out.length >= cap) break;
     }
     return out;
   }

@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25275, date: "2026-09-08", title: "Conditional Access groups 5.1: nesting in sight, All groups scope, the bar on click",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "Every scan now reads each group's nested groups (direct group members, one batch), so the ↪ Has nested groups chip is always there with a count before any member is read, the members column and the drawer name the nested groups, and a nested group inside an exclusion or break-glass group is Needs attention — whoever manages the nested group decides who bypasses the policy. That is the answer to 'what about nesting after a migration': Entra refuses groups inside a role-assignable group, the plain group that replaces it accepts them, disableNesting on the new group is offered but not generally available, so the list keeps it visible instead." },
+      { kind: "new", tool: "Conditional Access groups", text: "All groups scope — the third scope from the mockup: every security group in the tenant (first 5,000) next to the baseline's and the referenced ones, the extras listed as not in the baseline; their nesting and members are read when opened." },
+      { kind: "fix", tool: "Conditional Access groups", text: "The actions bar shows as soon as a row is open and acts on that row until you tick more; ✕ closes the drawer. Protect and Migrate reached from the list run their check on arrival for the groups you came with instead of showing a Scan button for what you just clicked. The drawer sticks below the toolbar whatever height the chips wrap to, so its header stays in sight." },
+    ],
+  },
+  {
     build: 25274, date: "2026-09-08", title: "Sign-in failures: the hunting source survives a large tenant, second attempt",
     items: [
       { kind: "fix", tool: "Sign-in failures", text: "Hunting + non-interactive on a 4-hour window still failed with 'Query execution has exceeded the allowed result size' after slicing down to 15 minutes — the policies JSON on every row is what weighs, not the row count. A 15-minute slice that still exceeds the size now lowers its row cap (20,000 → 10,000 → … → 1,000) and is reported as capped instead of failing the whole read. And Enforced on the hunting source now filters in the query — CA failures and the interrupt error codes only — so it reads hundreds of rows where the full window is hundreds of thousands; it reuses the shared window when 🎚 already read it. Report-only still reads the whole window." },

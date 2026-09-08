@@ -160,9 +160,13 @@ const CaGroups = (() => {
   //                          policy points at, which is far less Graph traffic.
   //   "all"                — additionally expect every bundled template and
   //                          baseline-catalog group, so missing ones show up.
+  const TENANT_CAP = 5000;
   async function scan(raws, opts) {
     const o = opts || {};
-    const scope = o.scope === "all" ? "all" : "policies";
+    // policies: only what the policies reference. all: plus what the baseline
+    // and templates expect. tenant: plus every security group in the directory
+    // (first 5,000) — the view for "what else is out there".
+    const scope = o.scope === "tenant" ? "tenant" : o.scope === "all" ? "all" : "policies";
     const tpl = templateNames();
     const cat = catalogGroupNames(raws);
     const refs = policyRefs(raws);
@@ -179,7 +183,7 @@ const CaGroups = (() => {
       if (!e) { e = { name: n, sources: new Set(), template: tpl.get(n) || null }; expected.set(n, e); }
       e.sources.add(src);
     };
-    if (scope === "all") {
+    if (scope !== "policies") {
       tpl.forEach((t, n) => want(n, "template"));
       cat.forEach((n) => want(n, "catalog"));
     }
@@ -244,11 +248,27 @@ const CaGroups = (() => {
       }));
     }
 
+    // tenant scope: every other security group, as "not in the baseline"
+    let tenantCapped = false;
+    if (scope === "tenant") {
+      o.onStatus?.("Reading every security group in the tenant…", 0, 0);
+      const seen = new Set(rows.filter((r) => r.id).map((r) => r.id));
+      try {
+        const all = await Graph.ggetAll("/groups?$filter=securityEnabled eq true and mailEnabled eq false&$select=id,displayName,description,isAssignableToRole,groupTypes,membershipRule,securityEnabled,mailEnabled&$top=999", TENANT_CAP);
+        tenantCapped = all.length >= TENANT_CAP;
+        for (const g of all) {
+          if (seen.has(g.id)) continue;
+          seen.add(g.id);
+          rows.push(row({ name: g.displayName, group: g, template: tpl.get(g.displayName) || null, sources: ["tenant"], status: "extra", refs: null }));
+        }
+      } catch (e) { console.warn("CaGroups: tenant read failed", e.message); }
+    }
+
     rows.sort((a, b) => STATUS[a.status].order - STATUS[b.status].order || a.name.localeCompare(b.name));
     const counts = rows.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
     const expectedTotal = rows.filter((r) => r.status === "present" || r.status === "missing").length;
     return {
-      rows, counts, expectedTotal, scope,
+      rows, counts, expectedTotal, scope, tenantCapped,
       baseline: (activeCat() || {}).id || null,
       other: otherBaseline(raws),
       present: counts.present || 0,
@@ -718,7 +738,9 @@ const CaGroups = (() => {
         <h3>👥 Conditional Access groups — ${esc(tenant || "this tenant")}</h3>
         <p style="margin-bottom:10px">${onlyPolicies
           ? `Only the groups your Conditional Access policies actually reference. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody. Switch the scope to <b>Baseline + templates</b> to also check which expected groups are missing.`
-          : `The groups your Conditional Access baseline depends on: every group the active baseline defines, plus every group your own policies point at. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody.`}</p>
+          : res.scope === "tenant"
+            ? `Every security group in the tenant${res.tenantCapped ? " (the first 5,000)" : ""} — the baseline's, the ones your policies point at, and everything else, listed as <b>not in the baseline</b>. Nested groups and members of the extras are read when you open them.`
+            : `The groups your Conditional Access baseline depends on: every group the active baseline defines, plus every group your own policies point at. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody. Switch the scope to <b>All groups</b> to see every security group in the tenant next to them.`}</p>
         ${typeof Baseline !== "undefined" && Baseline.activeChip ? `<p style="margin:0 0 8px">${Baseline.activeChip()}</p>` : ""}
         ${res.other ? `<p class="mini" style="margin:0 0 8px;color:var(--report)">⚠ ${res.other.hits} of this tenant's policies carry names from the <b>${esc(res.other.catalog.label)}</b> baseline, which is not the active one — its groups are not expected here. <a href="#" data-open-baseline="${esc(res.other.catalog.id)}">Open that baseline</a> to make it active.</p>` : ""}
         <div class="bl-chips">${["missing", "dangling", "present", "extra"].map(chip).join("")}</div>

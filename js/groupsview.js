@@ -48,17 +48,22 @@ const GroupsView = (() => {
     if (r.id && r.memberTotal === 0) flags.push("empty");
     if (r.id && (kind === "exclusion" || kind === "breakglass") && ctx.prot && !prot && !r.roleAssignable) flags.push("unprotected");
     if (r.roleAssignable) flags.push("roleassignable");
-    if ((r.children || []).length) flags.push("nested");
+    // nested groups are known from the scan (nestedGroups, direct group
+    // members) before any member read (children, from the transitive read)
+    const nestedN = (r.children || r.nestedGroups || []).length;
+    if (nestedN) flags.push("nested");
     if (r.dynamic) flags.push("dynamic");
     if (r.drift) flags.push("drift");
     if (r.nesting === "allowed" && kind === "exclusion") flags.push("nestingallowed");
-    const attention = flags.some((f) => ["missing", "dangling", "unprotected", "drift"].includes(f)) || (kind === "exclusion" && excOn && r.memberTotal === 0 && false);
-    return { kind, kindLabel, ca, isExcl, prot, incOn, excOn, flags, attention };
+    // a group nested inside an exclusion or break-glass group widens a
+    // standing bypass by one membership change somewhere else — attention
+    const attention = flags.some((f) => ["missing", "dangling", "unprotected", "drift"].includes(f)) || (nestedN > 0 && (kind === "exclusion" || kind === "breakglass"));
+    return { kind, kindLabel, ca, isExcl, prot, incOn, excOn, flags, attention, nestedN };
   }
 
   const CHIPS = [
     ["all", "All", "zero"], ["attention", "⚠ Needs attention", "red"], ["missing", "Missing from tenant", "amber"], ["dangling", "Referenced but gone", "red"],
-    ["empty", "Empty", "zero"], ["unprotected", "Not protected", "amber"], ["roleassignable", "Role-assignable", "zero"], ["nested", "Has nested groups", "zero"], ["extra", "Not in the baseline", "zero"],
+    ["empty", "Empty", "zero"], ["unprotected", "Not protected", "amber"], ["roleassignable", "Role-assignable", "zero"], ["nested", "↪ Has nested groups", "red"], ["extra", "Not in the baseline", "zero"],
   ];
   function matches(r, c, filter) {
     if (filter === "all") return true;
@@ -69,13 +74,14 @@ const GroupsView = (() => {
     const ctx = model.ctx;
     const counts = {};
     model.rows.forEach((r) => { const c = classify(r, ctx); CHIPS.forEach(([k]) => { if (matches(r, c, k)) counts[k] = (counts[k] || 0) + 1; }); });
-    return CHIPS.filter(([k]) => k === "all" || counts[k]).map(([k, l, cls]) => `<button class="fchip${active === k ? " active" : ""}" data-cgg-filter="${k}">${l} ${pill(counts[k] || 0, cls)}</button>`).join("");
+    return CHIPS.filter(([k]) => k === "all" || k === "nested" || counts[k]).map(([k, l, cls]) => `<button class="fchip${active === k ? " active" : ""}" data-cgg-filter="${k}">${l} ${pill(counts[k] || 0, cls)}</button>`).join("");
   }
 
   function membersCell(r, c) {
     if (!r.id) return '<span class="mini muted">—</span>';
     if (r.memberError) return `<span class="mini" style="color:var(--off)">could not read</span>`;
-    if (r.members == null) return `<span class="mini muted">not read</span> <button class="btn sm" data-cgg-read="${esc(r.name)}" title="Read the members of this group">read</button>`;
+    const pre = r.members == null && r.nestedGroups && r.nestedGroups.length ? `<div class="mini" style="color:var(--off)" title="${esc(r.nestedGroups.map((g) => g.name).join(", "))}">↪ ${r.nestedGroups.length} nested group${r.nestedGroups.length === 1 ? "" : "s"}</div>` : "";
+    if (r.members == null) return `<span class="mini muted">not read</span> <button class="btn sm" data-cgg-read="${esc(r.name)}" title="Read the members of this group">read</button>${pre}`;
     const direct = r.directIds ? r.members.filter((m) => m.direct).length : null;
     const nested = r.directIds ? r.members.length - direct : null;
     const via = r.children && r.children.length ? ` via ${esc(tail(r.children[0].name))}${r.children.length > 1 ? ` +${r.children.length - 1}` : ""}` : "";
@@ -133,13 +139,17 @@ const GroupsView = (() => {
       <p class="mini muted" style="padding:8px 14px">${rows.length} of ${model.rows.length} groups · sorted needs-attention first · click a row for its detail, tick rows for the actions bar</p></div>`;
   }
 
+  // The bar shows for the ticked rows — or, with nothing ticked, for the
+  // row that is open in the drawer, so a click is enough to act on a group.
   function bulkBar(model, o) {
-    const n = o.sel.size; if (!n) return "";
-    const rows = model.rows.filter((r) => o.sel.has(r.name));
+    const sel = o.sel.size ? o.sel : (o.open ? new Set([o.open]) : null);
+    if (!sel) return "";
+    const n = sel.size;
+    const rows = model.rows.filter((r) => sel.has(r.name));
     const missing = rows.filter((r) => !r.id && r.template).length;
     const unread = rows.filter((r) => r.id && r.members == null).length;
     return `<div class="cgg-bulk">
-      <b>${n} selected</b>
+      <b>${o.sel.size ? `${n} selected` : `${esc(o.open)} <span class="mini" style="font-weight:400;opacity:.8">(open — tick rows to act on more)</span>`}</b>
       ${unread ? `<button class="btn" data-cgg-bulk="read">👥 Read members${unread < n ? ` (${unread})` : ""}</button>` : ""}
       <button class="btn" data-cgg-bulk="compare" title="The members × groups matrix for the selected groups">⊞ Compare selected</button>
       <button class="btn" data-cgg-bulk="assign">🎯 Assign to policies…</button>
@@ -148,7 +158,7 @@ const GroupsView = (() => {
       <button class="btn" data-cgg-bulk="csv">📥 Import members (CSV)…</button>
       <span class="spacer"></span>
       ${missing ? `<button class="btn primary" data-cgg-bulk="create">＋ Create ${missing} missing</button>` : ""}
-      <button class="btn" data-cgg-bulk="clear" title="Clear the selection">✕</button>
+      <button class="btn" data-cgg-bulk="clear" title="${o.sel.size ? "Clear the selection" : "Close"}">✕</button>
     </div>`;
   }
 
@@ -184,7 +194,7 @@ const GroupsView = (() => {
 
   function drawerMembers(r, c, o) {
     if (!r.id) return `<p class="mini muted">This group does not exist in the tenant yet.${r.template ? ' <button class="btn sm primary" data-cgg-act="create" data-cgg-name="' + esc(r.name) + '">＋ Create it</button>' : ""}</p>`;
-    if (r.members == null) return `<div class="run-prompt" style="padding:18px"><button class="btn primary" data-cgg-read="${esc(r.name)}">👥 Read the members</button><p class="mini muted">Transitive, first 500, with the nested groups they came through.</p></div>`;
+    if (r.members == null) return `${r.nestedGroups && r.nestedGroups.length ? `<div class="wo-callout bad" style="margin:0 0 8px"><b>↪ ${r.nestedGroups.length} nested group${r.nestedGroups.length === 1 ? "" : "s"}:</b> ${r.nestedGroups.map((g) => esc(g.name)).join(", ")}. Whoever manages ${r.nestedGroups.length === 1 ? "that group" : "those groups"} decides who is in this one.</div>` : ""}<div class="run-prompt" style="padding:18px"><button class="btn primary" data-cgg-read="${esc(r.name)}">👥 Read the members</button><p class="mini muted">Transitive, first 500, with the nested groups they came through.</p></div>`;
     if (r.memberError) return `<p class="mini" style="color:var(--off)">Could not read the members: ${esc(r.memberError)}</p>`;
     const direct = r.directIds ? r.members.filter((m) => m.direct) : r.members;
     const children = r.children || [];

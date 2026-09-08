@@ -3277,6 +3277,11 @@
       if (cgRes.rows.some((r) => r.id && r.nesting === undefined)) {
         loadNestingStates(cgRes.rows).then(() => { if (cgTab === "groups") renderCaGroups(); }).catch((e) => console.warn("nesting state read failed:", e.message));
       }
+      if (cgRes.rows.some((r) => r.id && r.nestedGroups === undefined && !(r.sources || []).includes("tenant"))) {
+        loadNestedGroups(cgRes.rows).then(() => { if (cgTab === "groups") renderCaGroups(); }).catch((e) => console.warn("nested group read failed:", e.message));
+      }
+      // the drawer sticks below the toolbar, whatever height the chips wrap to
+      const tb = $("cgChips").closest(".toolbar"); if (tb && tb.offsetHeight) document.documentElement.style.setProperty("--cg-tb", `${tb.offsetHeight}px`);
       return;
     }
     // an engine screen: say where you are and how to get back to the list
@@ -4332,6 +4337,7 @@ max@contoso.com,"Global, DevOps"</pre>
         ${t.toAu === false
           ? `<p class="mini" style="margin:8px 0 0;color:var(--report)">The groups will be converted but left <b>unprotected</b> — an ordinary group any tenant-wide Groups Administrator can edit. That is fine as a staged migration: convert now, verify the members, then place them from <b>⑥ Protect</b> when ready.</p>`
           : `<p class="mini muted" style="margin:8px 0 0">Nesting off keeps the one property the role-assignable flag gave you for free: no group can be added as a member, so nobody widens an exclusion by nesting a group inside it.</p>`}
+        <p class="mini muted" style="margin:8px 0 0">Where the property cannot be set, nesting stays <b>in sight</b> instead: the groups list reads every group's nested groups on each scan, the ↪ chip filters to them, and a nested group inside an exclusion or break-glass group is Needs attention.</p>
         <label class="chk" style="display:block;margin-top:14px"><input type="checkbox" id="cgMigAck"${t.ack ? " checked" : ""}> I understand each group is <b>recreated</b>: the current group is renamed aside, a new one takes its name and members, every policy is repointed${t.toAu === false ? "" : ", and the new group is placed in the restricted AU — after which only an <b>AU-scoped role</b> can change its members"}.</label>
         <div class="row" style="justify-content:flex-start;margin-top:12px">
           <button class="btn primary" id="cgMigGo">Migrate</button>
@@ -5422,6 +5428,22 @@ max@contoso.com,"Global, DevOps"</pre>
   // disableNesting is invisible to a plain GET, so ask for it explicitly. One
   // batched pass over the groups that have an id; anything that errors stays
   // "unknown", which is a real answer here rather than a failure.
+  // Which groups sit INSIDE each group — direct group members only, one
+  // $batch over the referenced and baseline rows, on the scan rather than on a
+  // member read, because a nested group is the thing that widens an exclusion
+  // without anyone touching the exclusion. Tenant-scope extras are left for
+  // the member read: thousands of them would be thousands of requests.
+  async function loadNestedGroups(rows) {
+    const targets = rows.filter((r) => r.id && r.nestedGroups === undefined && !(r.sources || []).includes("tenant"));
+    if (!targets.length) return;
+    if (isDemo) { targets.forEach((r, i) => r.nestedGroups = i % 5 === 1 ? [{ id: `g-nest-${r.id}`, name: `SG-Demo-${((r.name || "").match(/CA\d+/) || ["team"])[0]}`, dynamic: false }] : []); return; }
+    const res = await Graph.gbatch(targets.map((r, i) => ({ id: i, url: `/groups/${r.id}/members/microsoft.graph.group?$select=id,displayName,groupTypes&$top=999` })));
+    targets.forEach((r, i) => {
+      const v = res[i];
+      r.nestedGroups = v && v.body && Array.isArray(v.body.value) ? v.body.value.map((g) => ({ id: g.id, name: g.displayName, dynamic: (g.groupTypes || []).includes("DynamicMembership") })) : (v && v.body && v.body.value === undefined && v.status >= 400 ? null : []);
+      if (r.nestedGroups === null) r.nestedGroups = [];
+    });
+  }
   async function loadNestingStates(rows) {
     const targets = rows.filter((r) => r.id && r.nesting === undefined);
     if (!targets.length) return;
@@ -6277,6 +6299,11 @@ This is a directory write. Nothing else changes.`)) return;
     if (tab === "migrate") { const ids = rows.filter((r) => r.id).map((r) => r.id); if (cgMig && cgMig.plan) cgMig.sel = new Set(ids.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); else cgMigPre = ids; }
     renderCaGroups();
     if (tab === "members" && rows.some((r) => r.id && r.members == null)) startMemberScan();
+    // the list already knows these groups — arriving with a selection runs
+    // the check straight away instead of showing a Scan button for what was
+    // just clicked
+    if (tab === "rmau" && rows.length && !(cgRmau && cgRmau.status) && !rmauBusy) cgRmauScan();
+    if (tab === "migrate" && rows.length && !cgMig && !cgMigBusy) cgMigScan();
   }
   $("cgBody").addEventListener("click", async (e) => {
     if (cgTab !== "groups") { const bk = e.target.closest("[data-cgg-back]"); if (bk) { cgTab = "groups"; renderCaGroups(); } return; }
@@ -6295,9 +6322,9 @@ This is a directory write. Nothing else changes.`)) return;
     }
     const bulk = t.closest("[data-cgg-bulk]");
     if (bulk) {
-      const names = [...cgSel], rows = names.map((n) => cgRes.rows.find((x) => x.name === n)).filter(Boolean);
+      const names = cgSel.size ? [...cgSel] : (cgOpen ? [cgOpen] : []), rows = names.map((n) => cgRes.rows.find((x) => x.name === n)).filter(Boolean);
       switch (bulk.dataset.cggBulk) {
-        case "clear": cgSel.clear(); renderCaGroups(); return;
+        case "clear": if (cgSel.size) cgSel.clear(); else cgOpen = null; renderCaGroups(); return;
         case "read": bulk.disabled = true; bulk.textContent = "Reading…"; await cgReadRows(rows.filter((r) => r.members == null)); renderCaGroups(); return;
         case "compare": cgGoTab("members", names); return;
         case "assign": openAssign(selected.size ? "selection" : "all"); toast(`The wizard scopes by policy — pick <span>${names.length === 1 ? esc(names[0]) : names.length + " groups"}</span> in its group step`); return;
