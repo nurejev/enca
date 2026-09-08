@@ -11638,9 +11638,12 @@ This is a directory write. Nothing else changes.`)) return;
   // ("Query execution has exceeded the allowed result size"). The window is
   // read a day at a time; a slice that fails on size is halved and both
   // halves read, down to 15 minutes. A slice that returns the row cap is
-  // halved too, so no slice ever silently drops rows; only a 15-minute slice
-  // that still hits the cap is reported as capped.
+  // halved too, so no slice ever silently drops rows. A 15-minute slice that
+  // STILL fails on size — a large tenant's non-interactive traffic, each row
+  // carrying the policies JSON — lowers its row cap and retries, down to
+  // 1,000 rows, and is reported as capped rather than failing the read.
   const HUNT_MIN_SLICE_MS = 15 * 60 * 1000;
+  const HUNT_MIN_CAP = 1000;
   const isSizeError = (e) => /exceeded the allowed result size|result size|too large|ResultSize/i.test((e && e.message) || "");
   async function readSignInsHunting(days, prog, opts = {}) {
     const interactiveOnly = logSource !== "huntall";
@@ -11649,21 +11652,25 @@ This is a directory write. Nothing else changes.`)) return;
     const slices = [];
     for (let t = start; t < now; t += dayMs) slices.push([t, Math.min(t + dayMs, now)]);
     prog.start(slices.length, "sign-ins", "day");
-    let out = [], capped = false, splits = 0;
-    const readSlice = async (from, to) => {
-      const q = Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId });
+    let out = [], capped = false, splits = 0, lowered = 0;
+    const readSlice = async (from, to, cap) => {
+      cap = cap || Signins.HUNT_CAP;
+      const q = Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly });
       let rows;
       try { rows = await huntRun(q, days); }
       catch (e) {
-        if (isSizeError(e) && to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
+        if (isSizeError(e)) {
+          if (to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
+          if (cap > HUNT_MIN_CAP) { lowered++; capped = true; await readSlice(from, to, Math.max(HUNT_MIN_CAP, Math.floor(cap / 2))); return; }
+        }
         throw e;
       }
-      if (rows.length >= Signins.HUNT_CAP) {
+      if (rows.length >= cap) {
         if (to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
         capped = true;
       }
       out = out.concat(Signins.fromHunting(rows));
-      if (splits) prog.st.label = `sign-ins (${splits} slice${splits === 1 ? "" : "s"} halved for size)`;
+      if (splits || lowered) prog.st.label = `sign-ins (${splits} slice${splits === 1 ? "" : "s"} halved${lowered ? `, ${lowered} capped` : ""} for size)`;
     };
     for (let i = 0; i < slices.length; i++) {
       await readSlice(slices[i][0], slices[i][1]);
@@ -11784,11 +11791,19 @@ This is a directory write. Nothing else changes.`)) return;
       if (isDemo) {
         records = demoSignIns();
       } else if (siMode === "reportonly" || logSource !== "entra") {
-        // Same window, same query as 🎚 Report-only impact. Hunting has no
-        // server-side CA filter, so enforced mode reads the window too and
-        // keeps the failures and interrupts here.
-        const w = await readSignInWindow(siDays, siProg, force);
-        records = w.records; siCapped = w.capped; reused = w.reused;
+        // Same window, same query as 🎚 Report-only impact. Enforced mode on
+        // the hunting source reuses that window when it is already read;
+        // otherwise it reads only the failures and interrupts, filtered in
+        // KQL — a large tenant's day is hundreds of rows instead of hundreds
+        // of thousands — and leaves the shared cache alone.
+        if (siMode !== "reportonly" && !(!force && logCacheUsable(siDays))) {
+          if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the source back to the Entra sign-in log, or grant it");
+          const h = await readSignInsHunting(siDays, siProg, { enforcedOnly: true });
+          records = h.records; siCapped = h.capped;
+        } else {
+          const w = await readSignInWindow(siDays, siProg, force);
+          records = w.records; siCapped = w.capped; reused = w.reused;
+        }
         if (siMode !== "reportonly") records = records.filter((r) => r.conditionalAccessStatus === "failure" || Signins.isInterrupt(r));
       } else {
         records = await siProg.fetchAll(Signins.query(siDays, siMode), SI_MAX, "sign-ins");

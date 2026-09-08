@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25274, date: "2026-09-08", title: "Sign-in failures: the hunting source survives a large tenant, second attempt",
+    items: [
+      { kind: "fix", tool: "Sign-in failures", text: "Hunting + non-interactive on a 4-hour window still failed with 'Query execution has exceeded the allowed result size' after slicing down to 15 minutes — the policies JSON on every row is what weighs, not the row count. A 15-minute slice that still exceeds the size now lowers its row cap (20,000 → 10,000 → … → 1,000) and is reported as capped instead of failing the whole read. And Enforced on the hunting source now filters in the query — CA failures and the interrupt error codes only — so it reads hundreds of rows where the full window is hundreds of thousands; it reuses the shared window when 🎚 already read it. Report-only still reads the whole window." },
+    ],
+  },
+  {
     build: 25273, date: "2026-09-08", title: "Conditional Access groups: one read, then everything is a row",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "The seven tabs — each starting its own scan, with “who is in CA011-Exclusion” three clicks and a 708 × 123 matrix away — are replaced as the way in by one LIST of groups and a DETAIL DRAWER that follows the row you click. The list carries status, members (count, direct vs nested, read on demand), the policies that use the group with their state, and its protection, with filter chips for needs attention, missing, gone, empty, not protected, role-assignable, nested and not in the baseline; search matches members too. Tick rows for the actions bar: read members, compare selected (the old matrix, only for what you ticked), assign, protect, migrate, import CSV, create the missing ones — each opens the engine screen with the selection carried across and a ← Groups button back. Each row offers what applies to it: Create on a missing group, Restore on a dangling reference, the wave on a deploy group. The drawer: Members as a tree (direct members, then each nested group with its own members; add inline; × removes from the group the member actually sits in, asking first), Policies with state, Protection with the button that fixes it, History from the directory audit log. Nothing scans twice. R48." },

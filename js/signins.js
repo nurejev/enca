@@ -97,12 +97,18 @@ const Signins = (() => {
   // from / to: ISO instants for one slice. The caller slices the window —
   // a day at first, halving on "result size exceeded" — so the query only
   // ever names an explicit range.
-  function huntingQuery({ from, to, table, interactiveOnly, userId, cap }) {
+  // enforcedOnly: the CA failures and interrupts, filtered server-side —
+  // KQL can OR across columns where the Graph signIns filter cannot, so
+  // enforced mode on a large tenant reads hundreds of rows, not a day's
+  // hundreds of thousands. ConditionalAccessStatus is an int in the hunting
+  // schema (1 = failure) but a word in the pre-October one, so both are matched.
+  function huntingQuery({ from, to, table, interactiveOnly, userId, cap, enforcedOnly }) {
     const T = table || "EntraIdSignInEvents";
     return `${T}
 | where Timestamp between (datetime(${from}) .. datetime(${to}))
 ${interactiveOnly ? '| where LogonType !has "non"' : ""}
 ${userId ? `| where AccountObjectId == "${String(userId).replace(/"/g, "")}"` : ""}
+${enforcedOnly ? `| where tostring(ConditionalAccessStatus) in~ ("1", "failure") or toint(ErrorCode) in (${[...INTERRUPT].join(", ")})` : ""}
 | project ${HUNT_COLS}
 | order by Timestamp desc
 | take ${cap || HUNT_CAP}`;

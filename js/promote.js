@@ -173,11 +173,12 @@ const PROMOTE = {
       n: 133,
       title: "Sign-in source: Entra log | Defender hunting | + non-interactive (🚦 🎚 🕵 🌊, R44)",
       tools: ["Sign-in failures", "Report-only impact", "Who is Anna to CA", "Who is the wave to CA"],
-      builds: [25266, 25271],
+      builds: [25266, 25274],
       risk: "medium",
       what: "One shared segment in the four sign-in tools choosing the source: the Graph sign-in list (as before, default), Defender advanced hunting over EntraIdSignInEvents (same interactive sign-ins, no cap, 30 days, ThreatHunting.Read.All) or hunting including non-interactive sign-ins. Adapter in js/signins.js (huntingQuery / fromHunting) shaping hunting rows into the Graph record, per-day queries with a row cap, AADSignInEventsBeta fallback, logCache keyed by source, interactive / non-interactive chips in 🚦, source named in 🎚, per-user hunting query in 🕵.",
       why: "The default is unchanged, so production risk is in what the switch does when used: the ConditionalAccessPolicies JSON shape and LogonType values in EntraIdSignInEvents are read tolerantly but were not seen on a real tenant, and non-interactive volume can be 5× interactive. Graduates once the hunting source has matched the Entra source on interactive rows for one window, and the non-interactive rows have been eyeballed once.",
       test: [
+        "Large tenant, Hunting + non-interactive, Last 4 hours, Enforced: the read must complete (progress may say slices halved / capped) and list failures and interrupts; the Sign-in source paragraph in Help explains the cap. Switch to Report-only: the whole window is read, sliced, and a capped 15-minute slice is said so in the result.",
         "On a tenant with Entra ID P2 and Defender: in 🚦 read 24 hours from the Entra sign-in log, note the failure count; switch to Defender hunting and read again — the interactive failure count must be the same (± sign-ins at the window edges) and every policy name must resolve. If ConditionalAccessPolicies renders empty, send back one raw row.",
         "Switch to Hunting + non-interactive: the header must show interactive / non-interactive chips, clicking non-interactive must show only cards marked non-interactive, and 🎚's header must say non-interactive sign-ins are included.",
         "Read 30 days on hunting: the progress must count days (30 steps), and a day with more than 20,000 sign-ins must produce the capped note. The 10,000 cap note must not appear on the hunting source.",
