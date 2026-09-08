@@ -786,7 +786,10 @@ const CaGroups = (() => {
       <tbody>${users.map((u) => `<tr>
         <td class="stick">${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""}<div class="mini muted">${esc(u.upn || "")}</div></td>
         ${m.cols.map((c) => u.groups.has(c.name)
-          ? '<td class="cellv ok" title="member">●</td>' : '<td class="cellv"></td>').join("")}
+          ? (c.dynamic
+            ? '<td class="cellv ok" title="member — dynamic group, membership is rule-managed">●</td>'
+            : `<td class="cellv ok cg-mem" data-cgrm-user="${esc(u.id)}" data-cgrm-group="${esc(c.name)}" title="member of ${esc(c.name)} — click to remove">●<span class="cg-rm" aria-hidden="true">×</span></td>`)
+          : '<td class="cellv"></td>').join("")}
         <td class="mini"><b>${u.groups.size}</b></td>
       </tr>`).join("")}</tbody></table></div>`;
   }

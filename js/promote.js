@@ -118,6 +118,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 131,
+      title: "👥 CA groups: remove a member (T12 4.7)",
+      tools: ["Conditional Access groups"],
+      builds: [25263],
+      risk: "medium",
+      what: "③ Members gains the mirror of ＋ Add: a − Remove button in the ADD OR REMOVE A MEMBER bar and an × on every ● in the matrix on hover. Confirms first with what the group is used for (exclusion → the user is back inside N policies; include → out of scope of N), refuses dynamic groups and users not read as members, re-reads the group afterwards. One DELETE on /groups/{id}/members/{user}/$ref with Group.ReadWrite.All.",
+      why: "A write, and the first one in the matrix that can lock somebody out — removing a break-glass account from CAB-SEC-U-BreakGlass is exactly one click away, which is why the confirmation names the consequence rather than asking “are you sure”. Graduates once the confirmation text has been read on a real exclusion group and a real include group and judged sufficient.",
+      test: [
+        "Load ③ Members for CAB-SEC-U-BreakGlass and one CAB-SEC-U-CAxxx-Exclusion group. Hover a ● in the matrix: an × must appear only on cells of ASSIGNED groups — a dynamic group's ● must not offer it, and its title must say rule-managed.",
+        "Click the × for a member of the exclusion group: the confirm must name the user, the group, and say it is an EXCLUSION group for N policies and that the user will be INSIDE them again. Cancel: nothing changes, no request is sent.",
+        "Confirm the same removal on a test user: the member disappears from the matrix, the success line names the policies the user is inside again, and after the re-read the row still lacks the user. Check the group in the Entra portal: the user is gone.",
+        "Type a UPN that is NOT a member of the picked group and press − Remove: it must refuse with “not a member … nothing to remove” and send no request.",
+        "Pick a dynamic group in the group box and press − Remove: it must refuse and say the rule decides. Decline Group.ReadWrite.All when asked: no request is sent and the bar keeps its message.",
+        "?demo=1: remove a demo member from a loaded group — the matrix updates locally and no Graph call is made.",
+      ],
+      files: ["js/app.js", "js/cagroups.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 130,
       title: "🌊 Who is the wave to CA (T37)",
       tools: ["Who is the wave to CA"],

@@ -242,6 +242,10 @@ table.plist tr:hover td{background:var(--hover)}
 .cg-row:hover{background:var(--ok-bg2)}
 .cg-err{color:var(--off);font-weight:600}
 .cg-matrix td.cellv{text-align:center;color:var(--on);font-size:15px}
+/* a member cell you can remove from: the dot stays, an × appears on hover */
+.cg-matrix td.cg-mem{cursor:pointer;position:relative}
+.cg-matrix td.cg-mem .cg-rm{display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:var(--bad-bg2);color:var(--off);font-weight:700;font-size:14px}
+.cg-matrix td.cg-mem:hover .cg-rm{display:flex}
 .cg-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-top:14px}
 .cg-panel h4{font-size:13px;margin-bottom:8px}
 .cg-progress{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin:10px 0}

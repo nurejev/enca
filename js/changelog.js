@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25263, date: "2026-09-08", title: "CA groups can remove a member",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "③ Members can REMOVE a member as well as add one: a − Remove button next to ＋ Add, and an × on every ● in the matrix when you hover it. Both ask first, and the question says what the group is used for — taking someone out of an EXCLUSION group puts them back inside the policy, taking them out of an include group takes them out of its scope — with the number of policies either way; the success line names the policies the user is inside again. Dynamic groups are not offered, since the rule decides their membership, and a user not read as a member is refused rather than deleted blind. The group is re-read afterwards so the matrix shows the result. Needs Group.ReadWrite.All, asked on the click." },
+    ],
+  },
+  {
     build: 25262, date: "2026-09-08", title: "Who is the wave to CA",
     items: [
       { kind: "new", tool: "Who is the wave to CA", text: "New tool, BETA and only here: the 🕵 Who is Anna to CA picture for a whole deployment group. Pick one of the active baseline's deploy or persona groups (offered with their member counts) or type any group, and get — per report-only policy that targets the wave — a GO-LIVE READINESS verdict: how many members would be locked out (named), prompted or unchanged, and how many were silent, which counts as no data and never as safety. Not yet, Friction only, Ready or No data. Around it: the policies that target the group and how (direct include, via a parent group, All users, or reaching members some other way), how many members an exclusion takes back out and through which group, the sign-ins Conditional Access stopped for members, and every member with how they got in — direct, via which child group, dynamic rule — and flags for a standing bypass, two waves at once, blocked, would be locked out, no Entra ID P1, disabled. Every member name opens 🕵 Who is Anna to CA; that tool's stage tile links back to the wave. Reads are bounded by the groups the policies name rather than by the members, and every member is resolved with the same rule the per-user tool uses, so the two cannot disagree. Markdown report and a CSV of every member. Reads only." },

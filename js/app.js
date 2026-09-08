@@ -4388,6 +4388,9 @@ max@contoso.com,"Global, DevOps"</pre>
   migBody().addEventListener("click", async (e) => {
     if (e.target.closest("[data-migrun]")) { cgMigScan(); return; }
     if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
+    if (e.target.id === "cgAddRm") { await cgRemoveMember($("cgAddUser")?.value, $("cgAddGroup")?.value); return; }
+    const rm = e.target.closest("[data-cgrm-user]");
+    if (rm) { await cgRemoveMember(rm.dataset.cgrmUser, rm.dataset.cgrmGroup, true); return; }
     if (e.target.id === "cgMigRescan") { cgMig = null; cgRes = null; cgMigScan(); return; }
     if (e.target.id === "cgMigAll") {
       const all = cgMig.plan.eligible.map((x) => x.id);
@@ -5861,6 +5864,55 @@ max@contoso.com,"Global, DevOps"</pre>
     }
   }
 
+  // Remove a member — the mirror of cgAddMember, and the one write in this
+  // matrix that can lock somebody out (a member taken out of an EXCLUSION
+  // group is suddenly inside the policy). So it always confirms, names both
+  // sides, and says what the group is used for before asking.
+  async function cgRemoveMember(who, gName, byId) {
+    const say = (html, bad) => {
+      cgAddMsg = { html, bad: !!bad };
+      const el = $("cgAddLog");
+      if (el) el.innerHTML = `<span style="${bad ? "color:var(--off)" : ""}">${html}</span>`;
+    };
+    who = (who || "").trim(); gName = (gName || "").trim();
+    if (!who) { say("Type a user first.", true); return; }
+    if (!gName) { say("Pick a group.", true); return; }
+    const row = (cgRes.rows || []).find((r) => r.name === gName && r.id);
+    if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
+    if (row.dynamic) { say(`<b>${esc(gName)}</b> is a dynamic group — its membership is decided by the rule, not by hand.`, true); return; }
+    cgAddGroup = gName;
+    const member = (row.members || []).find((m) => byId ? m.id === who : (m.upn || "").toLowerCase() === who.toLowerCase() || (m.name || "").toLowerCase() === who.toLowerCase());
+    if (!member) { say(`<b>${esc(who)}</b> is not a member of <b>${esc(gName)}</b> (as read here) — nothing to remove.`, true); return; }
+    // what the group does, so the reader knows which way the change cuts
+    const isExcl = (typeof Baseline !== "undefined" && Baseline.active) ? (() => { try { return !!Baseline.active().isExclusionGroup(gName); } catch { return false; } })() : false;
+    const usedBy = (policies || []).filter((p) => { const u = ((p.raw || {}).conditions || {}).users || {}; return (u.includeGroups || []).includes(row.id) || (u.excludeGroups || []).includes(row.id); });
+    const excBy = usedBy.filter((p) => ((((p.raw || {}).conditions || {}).users || {}).excludeGroups || []).includes(row.id));
+    const line = excBy.length
+      ? `${gName} is an EXCLUSION group for ${excBy.length} polic${excBy.length === 1 ? "y" : "ies"} — once removed, ${member.name} is INSIDE ${excBy.length === 1 ? "that policy" : "those policies"} again.`
+      : usedBy.length ? `${gName} is included by ${usedBy.length} polic${usedBy.length === 1 ? "y" : "ies"} — once removed, ${member.name} is no longer in their scope.`
+        : isExcl ? `${gName} is named like an exclusion group but no policy references it right now.` : `No policy references ${gName} right now.`;
+    if (!confirm(`Remove ${member.name} (${member.upn || ""}) from ${gName}?
+
+${line}
+
+This is a directory write. Nothing else changes.`)) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
+    say("Removing…");
+    try {
+      if (!isDemo) await Graph.gdelete(`/groups/${row.id}/members/${member.id}/$ref`, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+      row.members = (row.members || []).filter((m) => m.id !== member.id);
+      row.memberTotal = Math.max(0, (row.memberTotal || 1) - 1);
+      say(`✓ <b>${esc(member.name)}</b> removed from <b>${esc(gName)}</b>.${excBy.length ? ` <span style="color:var(--report)">Now inside ${excBy.map((p) => esc(p.seq || p.name)).join(", ")} again.</span>` : ""}`);
+      const uBox = $("cgAddUser"); if (uBox && !byId) uBox.value = "";
+      renderCgMembers();
+      if (!isDemo) {
+        try { await CaGroups.loadMembers([row], {}); renderCgMembers(); } catch { /* the optimistic row stands */ }
+      }
+    } catch (e) {
+      say(`Remove failed: ${esc(e.message || e)}`, true);
+    }
+  }
+
   function renderCgMembers() {
     const scanned = cgRes.rows.filter(r => r.members);
     if (cgMemberPick || (!scanned.length && !cgBusy)) {
@@ -5894,14 +5946,15 @@ max@contoso.com,"Global, DevOps"</pre>
     else if (cgAddGroup && !m.cols.some((c) => c.name === cgAddGroup)) cgAddGroup = "";
 
     const addBar = `<div class="cg-panel">
-        <h4>ADD A MEMBER <span class="tag new">NEW</span></h4>
+        <h4>ADD OR REMOVE A MEMBER <span class="tag upd">UPDATED</span></h4>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input id="cgAddUser" class="txt" list="cgUserSug" placeholder="User — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px;letter-spacing:normal;font-weight:400">
           <span class="mini muted">to</span>
           <input id="cgAddGroup" class="txt" list="cgGroupSug" placeholder="Group" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px;letter-spacing:normal;font-weight:400" value="${esc(cgAddGroup || "")}">
           <button class="btn primary" id="cgAddGo">＋ Add</button>
+          <button class="btn" id="cgAddRm" title="Remove the user from the group — asks first, and says what the group is used for">− Remove</button>
         </div>
-        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. ${m.cols.length === 1
+        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. To remove, use <b>− Remove</b> here or hover a ● in the matrix and click the ×; both ask first and say whether the group is an exclusion. ${m.cols.length === 1
           ? `Only <b>${esc(m.cols[0].name)}</b> is loaded here, so it is filled in for you — read more groups above to add to another.`
           : `The group list is the ${m.cols.length} groups whose members are loaded here, so the matrix can show the result immediately.`}</p>
         <div id="cgAddLog" class="mini" style="margin-top:8px">${cgAddMsg ? `<span style="${cgAddMsg.bad ? "color:var(--off)" : ""}">${cgAddMsg.html}</span>` : ""}</div>
