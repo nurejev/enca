@@ -103,7 +103,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
     "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -1978,6 +1978,7 @@
     ["toolCompare", "⚖ Compare users"],
     ["toolWhoIs", "🕵 Who is Anna to CA"],
     ["toolWave", "🌊 Who is the wave to CA"],
+    ["toolSessionCtl", "🛂 Session controls"],
     ["toolAudit", "🕓 Change audit"],
     ["toolSignins", "🚦 Sign-in failures"],
     ["toolImpact", "🎚 Report-only impact"],
@@ -14398,6 +14399,101 @@ This is a directory write. Nothing else changes.`)) return;
     downloadText(`CA-Wave-${R.group.displayName.replace(/[^\w.-]+/g, "_")}`, "csv", "text/csv", Wave.toCsv(R));
   });
 
+  // ---------- 🛂 Session controls (T38, BETA) ----------
+  // What a session control DID: Defender advanced hunting (CloudAppEvents,
+  // session / access control audit source) through Graph, joined to the
+  // shared Entra sign-in window for the routing policy. Two scopes asked on
+  // the click; each half degrades on its own — activities without routing,
+  // or routing without activities, both render and say what is missing.
+  let scRes = null, scBusy = false, scDays = 7, scFilter = "acted", scPfilter = "appcontrol", scQ = "";
+  const scProg = makeProgress("sc");
+  const SC_HUNT = ["ThreatHunting.Read.All"];
+
+  function openSessionCtl() {
+    crumb("🛂 Session controls");
+    show("screen-sessionctl");
+    $("scHead").innerHTML = `<h3>🛂 Session controls <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:6px">What did a session control actually <b>do</b>? The sign-in log stops at “policy applied — Conditional Access App Control”. Everything after that — the download that was blocked, the file that was protected, the step-up that fired — is written by <b>Defender for Cloud Apps</b>. This tool reads that log and joins it back to the Conditional Access policy that routed the session.</p>
+      <p class="mini muted" style="margin:0">Reads Defender advanced hunting through Microsoft Graph (<b>ThreatHunting.Read.All</b>, needs Security Reader or a Defender RBAC role with hunting access; 30-day retention) for what Defender did, and the Entra sign-in window 🚦 / 🎚 already read (<b>AuditLog.Read.All</b>) for which policy routed the session. Read-only.</p>`;
+    if (!policies.length) { $("scBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
+    if (scBusy) { $("scBody").innerHTML = scProg.panel("Reading Defender…"); return; }
+    if (scRes) { renderSessionCtl(); return; }
+    // the policy side needs no read at all — show it straight away
+    const pre = SessionCtl.analyze({ vms: policies, events: [], records: null, days: scDays });
+    $("scBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-scrun>▶ Read Defender activity</button><p class="mini muted">${pre.tiles.appcontrol} polic${pre.tiles.appcontrol === 1 ? "y carries" : "ies carry"} Conditional Access App Control, ${pre.tiles.other} carry other session controls. Nothing is written.</p></div>`;
+  }
+  $("toolSessionCtl").addEventListener("click", () => openSessionCtl());
+  $("scRescan").addEventListener("click", () => runSessionCtl(true));
+  $("scDays").addEventListener("change", (e) => { scDays = +e.target.value; if (scRes) runSessionCtl(); });
+  let scQTimer = null;
+  $("scSearch").addEventListener("input", (e) => { clearTimeout(scQTimer); scQTimer = setTimeout(() => { scQ = e.target.value; if (scRes) renderSessionCtl(); }, 200); });
+
+  async function scHunt(days) {
+    const run = (fallback) => Graph.gpost("/security/runHuntingQuery", { Query: SessionCtl.query(days, fallback), Timespan: `P${Math.max(1, Math.round(days))}D` }, [...AUTH_CONFIG.scopes, ...SC_HUNT]);
+    try { const j = await run(false); return { rows: (j && j.results) || [], fallback: false }; }
+    catch (e) {
+      // an older schema without AuditSource / SessionData fails the query
+      // with a semantic error — retry on wording alone and say so
+      if (/AuditSource|SessionData|SemanticError|semantic|not found|failed to resolve/i.test(e.message || "")) {
+        const j = await run(true); return { rows: (j && j.results) || [], fallback: true };
+      }
+      throw e;
+    }
+  }
+
+  async function runSessionCtl(force) {
+    if (scBusy) return;
+    scBusy = true; scRes = null;
+    $("scRescan").style.display = "none"; $("scMd").style.display = "none"; $("scCsv").style.display = "none";
+    $("scBody").innerHTML = scProg.panel("Reading Defender session-control activity…", "One advanced hunting query over CloudAppEvents; up to 5,000 events.");
+    try {
+      let events = [], records = null, fallback = false, capped = false;
+      const notes = [];
+      if (isDemo) {
+        events = SessionCtl.parseEvents((typeof DEMO_DATA !== "undefined" && DEMO_DATA.sessionEvents) || []);
+        records = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [];
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...SC_HUNT])) { scBusy = false; openSessionCtl(); return; }
+        try { const h = await scHunt(scDays); events = SessionCtl.parseEvents(h.rows); fallback = h.fallback; }
+        catch (e) {
+          console.error("session controls: hunting failed", e);
+          scBusy = false;
+          $("scBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not run the hunting query: ${esc(e.message || e)}<br><span class="muted">This needs ThreatHunting.Read.All and a Defender role with advanced-hunting access (Security Reader, Global Reader, Security Operator, Security Administrator or a unified RBAC role). The CloudAppEvents table is empty until the Microsoft 365 connector's activities are enabled in Defender for Cloud Apps.</span></p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-scrun>Try again</button></div>`;
+          return;
+        }
+        // routing half — the shared window; a refusal costs only the join
+        if (await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) {
+          $("scBody").innerHTML = scProg.panel("Reading the sign-in window for the routing policies…", "Shared with 🚦 Sign-in failures and 🎚 Report-only impact.");
+          try { const w = await readSignInWindow(scDays, scProg, force); records = w.records; capped = !!w.capped; }
+          catch (e) { console.warn("session controls: sign-in read failed", e.message); notes.push(`sign-in log not read (${e.message || e})`); }
+        } else notes.push("AuditLog.Read.All was not granted — routing not checked");
+      }
+      scRes = SessionCtl.analyze({ vms: policies, events, records, days: scDays, schemaFallback: fallback, capped });
+      scRes.notes = notes;
+      scBusy = false;
+      $("scRescan").style.display = ""; $("scMd").style.display = ""; $("scCsv").style.display = "";
+      renderSessionCtl();
+      if (!events.length) toast("Defender logged no session-control activity in this window");
+    } catch (e) {
+      console.error("Session controls failed:", e);
+      scBusy = false;
+      $("scBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">${esc(e.message || e)}</p>`;
+    } finally { scBusy = false; }
+  }
+  function renderSessionCtl() {
+    const R = scRes; if (!R) return;
+    $("scBody").innerHTML = (R.notes && R.notes.length ? `<p class="mini muted" style="margin:0 0 8px">${R.notes.map(esc).join(" · ")}</p>` : "") + SessionCtl.render(R, { rangeLabel: rangeLabel(scDays), filter: scFilter, pfilter: scPfilter, q: scQ });
+  }
+  $("scBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-scrun]")) { runSessionCtl(); return; }
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const f = e.target.closest("[data-sc-filter]"); if (f) { scFilter = f.dataset.scFilter; renderSessionCtl(); return; }
+    const pf = e.target.closest("[data-sc-pfilter]"); if (pf) { scPfilter = pf.dataset.scPfilter; renderSessionCtl(); return; }
+    const o = e.target.closest("[data-sc-open]"); if (o) { e.preventDefault(); $("woUser").value = o.dataset.scOpen; $("toolWhoIs").click(); runWhoIs(); }
+  });
+  $("scMd").addEventListener("click", () => { const R = scRes; if (!R) return; showReport("🛂 Session controls", "CA-SessionControls", SessionCtl.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(scDays) })); });
+  $("scCsv").addEventListener("click", () => { const R = scRes; if (!R) return; downloadText("CA-SessionControls", "csv", "text/csv", SessionCtl.toCsv(R)); });
+
   // ---------- User or Group analyzer (BETA) ----------
   // "Where is this group actually used?" The source registry, the matching and
   // the exports live in js/groupuse.js; this is screen, consent and rendering.
@@ -18044,7 +18140,7 @@ This is a directory write. Nothing else changes.`)) return;
     siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
     drHead: "toolDrift", ugHead: "toolGuide", dvHead: "toolDevCheck", lgHead: "toolLicGap",
-    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev", woHead: "toolWhoIs", wvHead: "toolWave",
+    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev", woHead: "toolWhoIs", wvHead: "toolWave", scHead: "toolSessionCtl",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25265, date: "2026-09-08", title: "Session controls",
+    items: [
+      { kind: "new", tool: "Session controls", text: "New tool, BETA and only here: what a session control actually DID. The sign-in log stops at “policy applied — Conditional Access App Control”; the blocked download, the protected file and the step-up are written by Defender for Cloud Apps, so until now “is CA308 blocking downloads” had no answer in ENCA. This tool reads Defender's activity log through advanced hunting on Microsoft Graph (ThreatHunting.Read.All, asked on the click — no second portal, no API token) and joins every event back to the Conditional Access policy that routed the session, using the sign-in window 🚦 Sign-in failures and 🎚 Report-only impact already share. Per policy with a session control: which control, sessions routed, what Defender did behind it, the Defender policies matched, and a verdict in words — Acting, Watching, Monitor only (routes, never blocks), Routed but nothing acted, Nothing routed, Off, Report-only. Then every Defender event with its routing policy, and the Defender session policies seen with the CA policy that routes to each or the warning that none does. A schema panel lists the action types and raw field names actually seen, because the words a blocked download uses differ per app and are documented nowhere — if a block shows as plain Activity, that list is what makes the classifier exact. Reads only." },
+    ],
+  },
+  {
     build: 25264, date: "2026-09-08", title: "Production is 309",
     items: [
       { kind: "fixed", tool: "Help", text: "Items 129, 130 and 131 — 🕵 Who is Anna to CA, 🌊 Who is the wave to CA and the − Remove in 👥 CA groups ③ Members — went to production as build 309. They leave the promotion queue, productionBuild moves to v1.0.309, and the two new tiles drop their only-here chip on both channels; BETA stays on both until they have proven themselves on real tenants." },

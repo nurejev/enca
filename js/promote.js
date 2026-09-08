@@ -118,6 +118,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 132,
+      title: "🛂 Session controls (T38)",
+      tools: ["Session controls"],
+      builds: [25265],
+      risk: "medium",
+      what: "New beta-only tool: Defender for Cloud Apps session-control activity (CloudAppEvents via Graph runHuntingQuery, ThreatHunting.Read.All) joined to the Entra sign-in window's routing policies. Per CA policy with a session control: control, sessions routed, Defender actions, Defender policies matched, verdict. Event table with filters, Defender policies seen, schema panel. New js/sessionctl.js plus tile, screen, Help, wiring; demo policy d10, sign-in si-11 and sessionEvents.",
+      why: "The classifier reads an undocumented schema: which ActionType a blocked download carries and where the matched policy name sits in RawEventData is known only from a real tenant with a real block. Graduates once one such tenant has confirmed the Blocked / Protected / Step-up rows are classified right and the routing join finds the CA policy. Also the first tool to use runHuntingQuery — the consent and the role requirement need one real run.",
+      test: [
+        "FIRST, on a tenant with Defender for Cloud Apps and at least one session policy that has blocked a download: open the tool, read 7 days, expand “What the hunting rows looked like” and send the ActionType list and RawEventData keys back. The Blocked row must be classified Blocked, not Activity; if not, that list is the fix.",
+        "The tile count of App Control policies must equal the number of policies whose session controls show Conditional Access App Control in List Policies. A policy with Monitor only must carry the Monitor-only callout, and its verdict must never be Acting.",
+        "For an enabled App Control policy: the Routed count must equal the number of sign-ins in 🚦 Sign-in failures' window (same range) whose applied policies include it with result success and a CloudAppSecurity session control. Spot-check three.",
+        "For a blocked download: its Routed-by column must name the CA policy the user's sign-in of that session carried; open the user in 🕵 Who is Anna to CA and confirm that policy reaches her. A block with no routing sign-in in 8h must read “none found”, never a guessed policy.",
+        "Decline ThreatHunting.Read.All: the run must stop with the role / permission message and nothing else must break. Grant it but decline AuditLog.Read.All: events must still render, the routing columns must say not checked, and the note above the result must say why.",
+        "On a tenant whose CloudAppEvents has no AuditSource column (older schema): the fallback query must run and the note must say events were picked by wording.",
+        "?demo=1: read — 2 App Control policies (CA310 On mcasConfigured, the limited-web-session policy Off monitorOnly), Gary's blocked download routed by CA310, Eva's block unmatched (“none found”), and the Monitor-only callout present.",
+      ],
+      files: ["js/sessionctl.js", "js/app.js", "index.html", "js/demo.js", "js/version.js"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],

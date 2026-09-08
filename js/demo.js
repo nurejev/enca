@@ -76,7 +76,21 @@ const DEMO_DATA = {
         persistentBrowser: { isEnabled: true, mode: "never" },
         signInFrequency: { isEnabled: true, frequencyInterval: "everyTime" },
         secureSignInSession: { isEnabled: true },
+        cloudAppSecurity: { isEnabled: true, cloudAppSecurityType: "monitorOnly" },
       },
+    },
+    {
+      id: "d10", displayName: "CA310-SESSION-Guests-DP-AllApps-AnyPlatform-BlockDownloadUnmanaged-v1.0",
+      state: "enabled", modifiedDateTime: "2026-08-20T09:00:00Z",
+      conditions: {
+        users: { includeGroups: ["g-CAB-SEC-U-Persona-Guests"], excludeGroups: ["g-CAB-SEC-U-BreakGlass"] },
+        applications: { includeApplications: ["All"] },
+        clientAppTypes: ["browser"],
+        devices: { deviceFilter: { mode: "exclude", rule: "device.isCompliant -eq True" } },
+      },
+      // Routes guest browser sessions to Defender for Cloud Apps, where a
+      // session policy blocks downloads — the 🛂 Session controls demo.
+      sessionControls: { cloudAppSecurity: { isEnabled: true, cloudAppSecurityType: "mcasConfigured" } },
     },
     // Three baseline-numbered policies, so the demo can show what a tenant
     // deployed from the catalog looks like — and, between them, all three
@@ -387,5 +401,29 @@ const DEMO_DATA = {
         { id: "d5", displayName: "Block elevated insider risk", result: "reportOnlyNotApplied", enforcedGrantControls: [], enforcedSessionControls: [] },
       ],
     },
+    {
+      id: "si-11", createdDateTime: "2026-07-21T08:12:40Z",
+      userDisplayName: "Gary Guest", userPrincipalName: "gary_ext#EXT#@contoso.com", userId: "u-guest1",
+      appDisplayName: "Office 365 SharePoint Online", appId: "00000003-0000-0ff1-ce00-000000000000",
+      resourceDisplayName: "Office 365 SharePoint Online",
+      ipAddress: "198.51.100.77", location: { city: "Lisbon", countryOrRegion: "PT" },
+      clientAppUsed: "Browser",
+      deviceDetail: { operatingSystem: "Windows 10", browser: "Chrome 127", isCompliant: false, isManaged: false, trustType: "" },
+      status: { errorCode: 0, failureReason: "" },
+      conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      appliedConditionalAccessPolicies: [
+        { id: "d10", displayName: "CA310-SESSION-Guests-DP-AllApps-AnyPlatform-BlockDownloadUnmanaged-v1.0", result: "success", enforcedGrantControls: [], enforcedSessionControls: ["CloudAppSecurity"] },
+        { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlyInterrupted", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
+      ],
+    },
+  ],
+
+  // ---- 🛂 Session controls: Defender advanced hunting rows (CloudAppEvents,
+  // session-control audit source) as runHuntingQuery returns them ----
+  sessionEvents: [
+    { Timestamp: "2026-07-21T08:12:44Z", ActionType: "Log on", ActivityType: "Logon", Application: "Microsoft SharePoint Online", ApplicationId: 20892, AccountObjectId: "u-guest1", AccountDisplayName: "Gary Guest", AccountId: "gary_ext#EXT#@contoso.com", ObjectName: "", ObjectType: "", IPAddress: "198.51.100.77", DeviceType: "Desktop", OSPlatform: "Windows", UserAgent: "Chrome/127", IsExternalUser: true, AccountType: "Regular", AuditSource: "Defender for Cloud Apps session control", SessionData: { InLineSessionId: "sess-4411" }, RawEventData: { PolicyName: "Monitor sessions – guests", DeviceTag: "Unmanaged" }, AdditionalFields: {} },
+    { Timestamp: "2026-07-21T08:19:02Z", ActionType: "Download file blocked", ActivityType: "Download", Application: "Microsoft SharePoint Online", ApplicationId: 20892, AccountObjectId: "u-guest1", AccountDisplayName: "Gary Guest", AccountId: "gary_ext#EXT#@contoso.com", ObjectName: "Q3-forecast.xlsx", ObjectType: "File", IPAddress: "198.51.100.77", DeviceType: "Desktop", OSPlatform: "Windows", UserAgent: "Chrome/127", IsExternalUser: true, AccountType: "Regular", AuditSource: "Defender for Cloud Apps session control", SessionData: { InLineSessionId: "sess-4411" }, RawEventData: { PolicyName: "Block download – unmanaged (guests)", ActionResult: "Blocked", FileSize: 2201344, DeviceTag: "Unmanaged" }, AdditionalFields: {} },
+    { Timestamp: "2026-07-21T08:21:15Z", ActionType: "Download file protected", ActivityType: "Download", Application: "Microsoft SharePoint Online", ApplicationId: 20892, AccountObjectId: "u-guest1", AccountDisplayName: "Gary Guest", AccountId: "gary_ext#EXT#@contoso.com", ObjectName: "Contract-final.pdf", ObjectType: "File", IPAddress: "198.51.100.77", DeviceType: "Desktop", OSPlatform: "Windows", UserAgent: "Chrome/127", IsExternalUser: true, AccountType: "Regular", AuditSource: "Defender for Cloud Apps session control", SessionData: { InLineSessionId: "sess-4411" }, RawEventData: { PolicyName: "Protect on download – Confidential", ActionResult: "Protected", SensitivityLabel: "Confidential" }, AdditionalFields: {} },
+    { Timestamp: "2026-07-21T14:03:30Z", ActionType: "Download file blocked", ActivityType: "Download", Application: "Microsoft SharePoint Online", ApplicationId: 20892, AccountObjectId: "u-emp1", AccountDisplayName: "Eva Employee", AccountId: "eva@contoso.com", ObjectName: "Salaries-2026.xlsx", ObjectType: "File", IPAddress: "203.0.113.24", DeviceType: "Desktop", OSPlatform: "Windows", UserAgent: "Edge/126", IsExternalUser: false, AccountType: "Regular", AuditSource: "Defender for Cloud Apps session control", SessionData: { InLineSessionId: "sess-4590" }, RawEventData: { PolicyName: "Block download – unmanaged (guests)", ActionResult: "Blocked" }, AdditionalFields: {} },
   ],
 };

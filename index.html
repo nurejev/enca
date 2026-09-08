@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25264"></script>
+<script src="js/popup-guard.js?v=25265"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25264" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25264">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25265" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25265">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25264"></script>
+<script src="js/selfhost-boot.js?v=25265"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25264"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25264"></script>
+<script src="js/counter.js?v=25265"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25265"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25264" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25265" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25264" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25265" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -219,6 +219,10 @@
       <div class="tool" id="toolWave">
         <div class="tool-ic">🌊</div><h3>Who is the wave to CA <span class="tag new">BETA</span></h3>
         <p>The same picture for a whole <b>deployment group</b>: who is in the wave and how they got in, which policies target it and how many members an exclusion takes back out, what the sign-in log did to its members, and — per report-only policy — whether it can go live <b>for this wave</b> without locking somebody out. The members that need a look, each one a click into 🕵 Who is Anna to CA.</p>
+      </div>
+      <div class="tool" id="toolSessionCtl">
+        <div class="tool-ic">🛂</div><h3>Session controls <span class="tag new">BETA</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
+        <p>What did a session control actually <b>do</b>? The sign-in log stops at “App Control applied”; the blocked download, the protected file and the step-up are written by Defender for Cloud Apps. Reads that log through Defender advanced hunting and joins every action back to the Conditional Access policy that routed the session — and says when a policy routes but never acts (Monitor only) or a Defender policy has no router. <span class="tag grant">extra permissions</span></p>
       </div>
       <div class="tool" id="toolGroupUse">
         <div class="tool-ic">🔗</div><h3>User or Group analyzer <span class="tag upd">UPDATED</span></h3>
@@ -994,6 +998,29 @@
     <div id="wvBody" style="margin-top:14px"></div>
   </section>
 
+  <!-- ============ SESSION CONTROLS ============ -->
+  <section id="screen-sessionctl" class="screen">
+    <div class="list-card readme" id="scHead" style="margin-top:0"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="scSearch" placeholder="Filter user, app, file, policy…" autocomplete="off" spellcheck="false">
+      </div>
+      <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px"><span>Window</span>
+        <select id="scDays" style="width:auto">
+          <option value="1">Last 24 hours</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select></label>
+      <div class="tb-actions">
+        <button class="btn" id="scRescan" style="display:none" title="Re-run the hunting query and re-read the sign-in window">⟳ Rescan</button>
+        <button class="btn" id="scMd" style="display:none">Export MD</button>
+        <button class="btn lemon" id="scCsv" style="display:none" title="Every Defender event with its routing policy">⤓ Export CSV</button>
+      </div>
+    </div>
+    <div id="scBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ NAMED LOCATIONS ============ -->
   <section id="screen-locations" class="screen">
     <div class="list-card readme" id="loHead" style="margin-top:0"></div>
@@ -1765,6 +1792,18 @@
         <li><b>How the wave is built</b> — direct members, each child group with its member count and dynamic rule, and callouts: two waves at once (both personas' policies apply, the stricter wins), standing bypasses, coverage (is every member also in the Global deploy group), disabled accounts.</li>
       </ul>
       <p class="help-x">Read-only. Members are read transitively, first 500. The reads are bounded by the <b>groups the policies name</b>, not by the members: every referenced group (first 999 members each) and the baseline's deploy / persona groups are read once, plus the directory roles, and every member is then resolved against every policy with the same rule 🕵 Who is Anna to CA uses — so the two tools cannot disagree about a member. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact read; a capped window is said so. Licence per member is the same verdict 🎫 Licence gap uses.</p>
+    </section>
+    <section class="help-sec">
+      <h4>🛂 Session controls <span class="tag new">BETA</span></h4>
+      <p>“Is CA308 blocking downloads?” has no answer in any log Entra keeps. A session control such as <b>Conditional Access App Control</b> only <i>routes</i> the browser session to Defender for Cloud Apps; what happens inside the session — a download blocked, a file labelled on the way out, a step-up authentication — is decided by a Defender <b>session policy</b> and written to Defender's activity log. This tool reads that log and joins it back to the routing policy.</p>
+      <ul>
+        <li><b>At a glance</b> — policies with a session control, sessions routed to Defender in the window (from the sign-in log: an applied policy carrying App Control), downloads blocked, and the other actions: protected, step-ups, audited, logins.</li>
+        <li><b>Per Conditional Access policy</b> — state, which session control (App Control: Monitor only / Block downloads / Use custom policy; sign-in frequency; persistent browser; token protection; CAE; app-enforced restrictions; Global Secure Access), how many sessions it routed, what Defender did behind it, which Defender policies matched, and a verdict: <b>Acting</b>, <b>Watching</b> (routed and logged, nothing acted), <b>Monitor only</b> (routes, never blocks), <b>Routed, nothing acted</b>, <b>Nothing routed</b>, Off, Report-only (session controls are not applied in report-only).</li>
+        <li><b>What Defender did</b> — every session-control event: when, user, app and object, action (Blocked / Protected / Step-up / Login routed / Audited), the Defender policy, and the Conditional Access policy that routed the session. Filters per action and a search box; user names open 🕵 Who is Anna to CA.</li>
+        <li><b>Defender session policies seen</b> — every policy name the activities carried, with its counts and the CA policy that routed to it — or the warning that none did.</li>
+        <li><b>Schema panel</b> — the action types and raw field names the hunting rows carried. The words a blocked download uses differ per app and are documented nowhere; if a block shows as plain “Activity”, that list is what makes the classifier exact.</li>
+      </ul>
+      <p class="help-x">Read-only. Defender activity comes from advanced hunting through Microsoft Graph — <code>POST /security/runHuntingQuery</code> over <code>CloudAppEvents</code> filtered to the session / access control audit source, delegated <b>ThreatHunting.Read.All</b>, the signed-in user needing Security Reader, Global Reader, Security Operator, Security Administrator or a Defender RBAC role with hunting access; 30-day retention, 5,000 events per read. Routing comes from the Entra sign-in window 🚦 Sign-in failures and 🎚 Report-only impact share (<b>AuditLog.Read.All</b>). Join: same user, same app, newest routing sign-in within 8 hours; a user-only fallback is labelled; no match is shown as no match. Monitor only logs the <i>Login</i> activity only — a policy on Monitor only never blocks anything, and the tool says so.</p>
     </section>
 
     <section class="help-sec">
@@ -2858,61 +2897,62 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25264"></script>
-<script src="js/selfhost.js?v=25264"></script>
-<script src="js/version.js?v=25264"></script>
-<script src="js/fork.js?v=25264"></script>
-<script src="js/promote.js?v=25264"></script>
-<script src="js/authConfig.js?v=25264"></script>
-<script src="js/labels.js?v=25264"></script>
-<script src="js/graph.js?v=25264"></script>
-<script src="js/model.js?v=25264"></script>
-<script src="js/render.js?v=25264"></script>
-<script src="js/analyze.js?v=25264"></script>
-<script src="js/whatif.js?v=25264"></script>
-<script src="js/mslearn.js?v=25264"></script>
-<script src="js/gapcheck.js?v=25264"></script>
-<script src="js/cisdata.js?v=25264"></script>
-<script src="js/cischeck.js?v=25264"></script>
-<script src="js/exclusions.js?v=25264"></script>
-<script src="js/validator.js?v=25264"></script>
-<script src="js/whatifeval.js?v=25264"></script>
-<script src="js/compare.js?v=25264"></script>
-<script src="js/whois.js?v=25264"></script>
-<script src="js/wave.js?v=25264"></script>
-<script src="js/groupuse.js?v=25264"></script>
-<script src="js/iso3166.js?v=25264"></script>
-<script src="js/locations.js?v=25264"></script>
-<script src="js/authcontexts.js?v=25264"></script>
-<script src="js/authstrengths.js?v=25264"></script>
-<script src="js/recycle.js?v=25264"></script>
-<script src="js/rmau.js?v=25264"></script>
-<script src="js/camap.js?v=25264"></script>
-<script src="js/rmaudoc.js?v=25264"></script>
-<script src="js/termsofuse.js?v=25264"></script>
-<script src="js/audit.js?v=25264"></script>
-<script src="js/drift.js?v=25264"></script>
-<script src="js/guide.js?v=25264"></script>
-<script src="js/userimpact.js?v=25264"></script>
-<script src="js/smsvoice.js?v=25264"></script>
-<script src="js/memberof.js?v=25264"></script>
-<script src="js/devcheck.js?v=25264"></script>
-<script src="js/licgap.js?v=25264"></script>
-<script src="js/teamsdev.js?v=25264"></script>
-<script src="js/signins.js?v=25264"></script>
-<script src="js/reportimpact.js?v=25264"></script>
-<script src="js/changelog.js?v=25264"></script>
-<script src="js/baselineData.js?v=25264"></script>
-<script src="js/baselineJoeyData.js?v=25264"></script>
-<script src="js/baselineLive.js?v=25264"></script>
-<script src="js/baseline.js?v=25264"></script>
-<script src="js/baselineCleanup.js?v=25264"></script>
-<script src="js/groupTemplates.js?v=25264"></script>
-<script src="js/assign.js?v=25264"></script>
-<script src="js/cagroups.js?v=25264"></script>
-<script src="js/import.js?v=25264"></script>
-<script src="js/export.js?v=25264"></script>
-<script src="js/demo.js?v=25264"></script>
-<script src="js/app.js?v=25264"></script>
+<script src="js/branding.js?v=25265"></script>
+<script src="js/selfhost.js?v=25265"></script>
+<script src="js/version.js?v=25265"></script>
+<script src="js/fork.js?v=25265"></script>
+<script src="js/promote.js?v=25265"></script>
+<script src="js/authConfig.js?v=25265"></script>
+<script src="js/labels.js?v=25265"></script>
+<script src="js/graph.js?v=25265"></script>
+<script src="js/model.js?v=25265"></script>
+<script src="js/render.js?v=25265"></script>
+<script src="js/analyze.js?v=25265"></script>
+<script src="js/whatif.js?v=25265"></script>
+<script src="js/mslearn.js?v=25265"></script>
+<script src="js/gapcheck.js?v=25265"></script>
+<script src="js/cisdata.js?v=25265"></script>
+<script src="js/cischeck.js?v=25265"></script>
+<script src="js/exclusions.js?v=25265"></script>
+<script src="js/validator.js?v=25265"></script>
+<script src="js/whatifeval.js?v=25265"></script>
+<script src="js/compare.js?v=25265"></script>
+<script src="js/whois.js?v=25265"></script>
+<script src="js/wave.js?v=25265"></script>
+<script src="js/sessionctl.js?v=25265"></script>
+<script src="js/groupuse.js?v=25265"></script>
+<script src="js/iso3166.js?v=25265"></script>
+<script src="js/locations.js?v=25265"></script>
+<script src="js/authcontexts.js?v=25265"></script>
+<script src="js/authstrengths.js?v=25265"></script>
+<script src="js/recycle.js?v=25265"></script>
+<script src="js/rmau.js?v=25265"></script>
+<script src="js/camap.js?v=25265"></script>
+<script src="js/rmaudoc.js?v=25265"></script>
+<script src="js/termsofuse.js?v=25265"></script>
+<script src="js/audit.js?v=25265"></script>
+<script src="js/drift.js?v=25265"></script>
+<script src="js/guide.js?v=25265"></script>
+<script src="js/userimpact.js?v=25265"></script>
+<script src="js/smsvoice.js?v=25265"></script>
+<script src="js/memberof.js?v=25265"></script>
+<script src="js/devcheck.js?v=25265"></script>
+<script src="js/licgap.js?v=25265"></script>
+<script src="js/teamsdev.js?v=25265"></script>
+<script src="js/signins.js?v=25265"></script>
+<script src="js/reportimpact.js?v=25265"></script>
+<script src="js/changelog.js?v=25265"></script>
+<script src="js/baselineData.js?v=25265"></script>
+<script src="js/baselineJoeyData.js?v=25265"></script>
+<script src="js/baselineLive.js?v=25265"></script>
+<script src="js/baseline.js?v=25265"></script>
+<script src="js/baselineCleanup.js?v=25265"></script>
+<script src="js/groupTemplates.js?v=25265"></script>
+<script src="js/assign.js?v=25265"></script>
+<script src="js/cagroups.js?v=25265"></script>
+<script src="js/import.js?v=25265"></script>
+<script src="js/export.js?v=25265"></script>
+<script src="js/demo.js?v=25265"></script>
+<script src="js/app.js?v=25265"></script>
 </body>
 </html>
