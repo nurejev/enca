@@ -103,7 +103,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-groupuse",
     "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -1796,6 +1796,8 @@
     ["toolWhatIf", "🧪 What-If"],
     ["toolGroupUse", "🔗 User or Group analyzer"],
     ["toolCompare", "⚖ Compare users"],
+    ["toolWhoIs", "🕵 Who is Anna to CA"],
+    ["toolWave", "🌊 Who is the wave to CA"],
     ["toolAudit", "🕓 Change audit"],
     ["toolSignins", "🚦 Sign-in failures"],
     ["toolImpact", "🎚 Report-only impact"],
@@ -4203,6 +4205,9 @@ max@contoso.com,"Global, DevOps"</pre>
   migBody().addEventListener("click", async (e) => {
     if (e.target.closest("[data-migrun]")) { cgMigScan(); return; }
     if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
+    if (e.target.id === "cgAddRm") { await cgRemoveMember($("cgAddUser")?.value, $("cgAddGroup")?.value); return; }
+    const rm = e.target.closest("[data-cgrm-user]");
+    if (rm) { await cgRemoveMember(rm.dataset.cgrmUser, rm.dataset.cgrmGroup, true); return; }
     if (e.target.id === "cgMigRescan") { cgMig = null; cgRes = null; cgMigScan(); return; }
     if (e.target.id === "cgMigAll") {
       const all = cgMig.plan.eligible.map((x) => x.id);
@@ -5676,6 +5681,55 @@ max@contoso.com,"Global, DevOps"</pre>
     }
   }
 
+  // Remove a member — the mirror of cgAddMember, and the one write in this
+  // matrix that can lock somebody out (a member taken out of an EXCLUSION
+  // group is suddenly inside the policy). So it always confirms, names both
+  // sides, and says what the group is used for before asking.
+  async function cgRemoveMember(who, gName, byId) {
+    const say = (html, bad) => {
+      cgAddMsg = { html, bad: !!bad };
+      const el = $("cgAddLog");
+      if (el) el.innerHTML = `<span style="${bad ? "color:var(--off)" : ""}">${html}</span>`;
+    };
+    who = (who || "").trim(); gName = (gName || "").trim();
+    if (!who) { say("Type a user first.", true); return; }
+    if (!gName) { say("Pick a group.", true); return; }
+    const row = (cgRes.rows || []).find((r) => r.name === gName && r.id);
+    if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
+    if (row.dynamic) { say(`<b>${esc(gName)}</b> is a dynamic group — its membership is decided by the rule, not by hand.`, true); return; }
+    cgAddGroup = gName;
+    const member = (row.members || []).find((m) => byId ? m.id === who : (m.upn || "").toLowerCase() === who.toLowerCase() || (m.name || "").toLowerCase() === who.toLowerCase());
+    if (!member) { say(`<b>${esc(who)}</b> is not a member of <b>${esc(gName)}</b> (as read here) — nothing to remove.`, true); return; }
+    // what the group does, so the reader knows which way the change cuts
+    const isExcl = (typeof Baseline !== "undefined" && Baseline.active) ? (() => { try { return !!Baseline.active().isExclusionGroup(gName); } catch { return false; } })() : false;
+    const usedBy = (policies || []).filter((p) => { const u = ((p.raw || {}).conditions || {}).users || {}; return (u.includeGroups || []).includes(row.id) || (u.excludeGroups || []).includes(row.id); });
+    const excBy = usedBy.filter((p) => ((((p.raw || {}).conditions || {}).users || {}).excludeGroups || []).includes(row.id));
+    const line = excBy.length
+      ? `${gName} is an EXCLUSION group for ${excBy.length} polic${excBy.length === 1 ? "y" : "ies"} — once removed, ${member.name} is INSIDE ${excBy.length === 1 ? "that policy" : "those policies"} again.`
+      : usedBy.length ? `${gName} is included by ${usedBy.length} polic${usedBy.length === 1 ? "y" : "ies"} — once removed, ${member.name} is no longer in their scope.`
+        : isExcl ? `${gName} is named like an exclusion group but no policy references it right now.` : `No policy references ${gName} right now.`;
+    if (!confirm(`Remove ${member.name} (${member.upn || ""}) from ${gName}?
+
+${line}
+
+This is a directory write. Nothing else changes.`)) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
+    say("Removing…");
+    try {
+      if (!isDemo) await Graph.gdelete(`/groups/${row.id}/members/${member.id}/$ref`, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+      row.members = (row.members || []).filter((m) => m.id !== member.id);
+      row.memberTotal = Math.max(0, (row.memberTotal || 1) - 1);
+      say(`✓ <b>${esc(member.name)}</b> removed from <b>${esc(gName)}</b>.${excBy.length ? ` <span style="color:var(--report)">Now inside ${excBy.map((p) => esc(p.seq || p.name)).join(", ")} again.</span>` : ""}`);
+      const uBox = $("cgAddUser"); if (uBox && !byId) uBox.value = "";
+      renderCgMembers();
+      if (!isDemo) {
+        try { await CaGroups.loadMembers([row], {}); renderCgMembers(); } catch { /* the optimistic row stands */ }
+      }
+    } catch (e) {
+      say(`Remove failed: ${esc(e.message || e)}`, true);
+    }
+  }
+
   function renderCgMembers() {
     const scanned = cgRes.rows.filter(r => r.members);
     if (cgMemberPick || (!scanned.length && !cgBusy)) {
@@ -5709,14 +5763,15 @@ max@contoso.com,"Global, DevOps"</pre>
     else if (cgAddGroup && !m.cols.some((c) => c.name === cgAddGroup)) cgAddGroup = "";
 
     const addBar = `<div class="cg-panel">
-        <h4>ADD A MEMBER <span class="tag new">NEW</span></h4>
+        <h4>ADD OR REMOVE A MEMBER <span class="tag upd">UPDATED</span></h4>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input id="cgAddUser" class="txt" list="cgUserSug" placeholder="User — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px;letter-spacing:normal;font-weight:400">
           <span class="mini muted">to</span>
           <input id="cgAddGroup" class="txt" list="cgGroupSug" placeholder="Group" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px;letter-spacing:normal;font-weight:400" value="${esc(cgAddGroup || "")}">
           <button class="btn primary" id="cgAddGo">＋ Add</button>
+          <button class="btn" id="cgAddRm" title="Remove the user from the group — asks first, and says what the group is used for">− Remove</button>
         </div>
-        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. ${m.cols.length === 1
+        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. To remove, use <b>− Remove</b> here or hover a ● in the matrix and click the ×; both ask first and say whether the group is an exclusion. ${m.cols.length === 1
           ? `Only <b>${esc(m.cols[0].name)}</b> is loaded here, so it is filled in for you — read more groups above to add to another.`
           : `The group list is the ${m.cols.length} groups whose members are loaded here, so the matrix can show the result immediately.`}</p>
         <div id="cgAddLog" class="mini" style="margin-top:8px">${cgAddMsg ? `<span style="${cgAddMsg.bad ? "color:var(--off)" : ""}">${cgAddMsg.html}</span>` : ""}</div>
@@ -13553,6 +13608,451 @@ max@contoso.com,"Global, DevOps"</pre>
       Comparer.markdown({ tenant: tenantName || "tenant", scenarioLine: R.scLine }, R.users, R.rows, R.groups, R.roles, R.sr));
   });
 
+  // ---------- 🕵 Who is Anna to CA (T36, BETA) ----------
+  // One user, the whole picture. The resolution is ⚖ Compare's
+  // (Comparer.resolveUser), the sign-in half is a per-user server-filtered
+  // read — a single user's window is small, so it never needs the 10,000
+  // cap — unless the shared window is already in memory and uncapped, in
+  // which case it is filtered from there and the tenant is not read twice.
+  let woRes = null, woBusy = false, woDays = 7, woFilter = "reach", woSeedList = "", woLogSkipped = "";
+  const woProg = makeProgress("wo");
+  const WO_METHODS = ["UserAuthenticationMethod.Read.All"];
+
+  function openWhoIs() {
+    crumb("🕵 Who is Anna to CA");
+    show("screen-whois");
+    $("woHead").innerHTML = `<h3>🕵 Who is Anna to CA <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:6px">One user, the whole Conditional Access picture: which <b>deployment group</b> she sits in and how she got there, every policy that <b>reaches</b> her (or misses her, and why), what the <b>sign-in log</b> says actually happened to her, and what happens to her the day <b>report-only</b> goes live.</p>
+      <p class="mini muted" style="margin:0">Memberships and policies come from what ENCA already holds. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Registered MFA methods are an optional extra read. Read-only.</p>`;
+    if (!policies.length) { $("woBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
+    if (isDemo) $("woUserList").innerHTML = (DEMO_DATA.analyzeUsers || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+    else if (!$("woUserList").children.length) {
+      Graph.gget("/users?$select=displayName,userPrincipalName&$top=100").then((r) => {
+        woSeedList = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+        if (!$("woUser").value.trim()) $("woUserList").innerHTML = woSeedList;
+      }).catch(() => {});
+    }
+    if (woBusy) { $("woBody").innerHTML = woProg.panel("Reading the user…"); return; }
+    if (woRes) { renderWhoIs(); return; }
+    $("woBody").innerHTML = '<div class="run-prompt"><p class="mini muted">Type a UPN or a name and press <b>Read user</b>. Nothing is written.</p></div>';
+  }
+  $("toolWhoIs").addEventListener("click", () => openWhoIs());
+
+  let woSugTimer = null;
+  $("woUser").addEventListener("input", (e) => {
+    const v = e.target.value; clearTimeout(woSugTimer);
+    woSugTimer = setTimeout(async () => {
+      const t = v.trim();
+      if (isDemo) return;
+      if (t.length < 2) { if (woSeedList) $("woUserList").innerHTML = woSeedList; return; }
+      try {
+        const f = t.replace(/'/g, "''");
+        const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
+        $("woUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+      } catch (err) { console.warn("whois: suggest failed", err.message); }
+    }, 250);
+  });
+  $("woUser").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runWhoIs(); } });
+  $("woRun").addEventListener("click", () => runWhoIs());
+  $("woRescan").addEventListener("click", () => runWhoIs(true));
+  $("woDays").addEventListener("change", (e) => { woDays = +e.target.value; if (woRes) runWhoIs(); });
+
+  // Which of the baseline's deploy / persona groups the tenant actually has —
+  // so "not in" and "the tenant does not have this group" stay different
+  // answers. One filtered read, by name.
+  async function woGroupsPresent(names) {
+    const m = new Map();
+    if (!names.length) return m;
+    names.forEach((n) => m.set(n.toLowerCase(), null));
+    if (isDemo) {
+      names.forEach((n) => { if ((DEMO_DATA.scopeGroups || {})[n]) m.set(n.toLowerCase(), { id: n, displayName: n }); });
+      return m;
+    }
+    for (let i = 0; i < names.length; i += 15) {
+      const part = names.slice(i, i + 15);
+      const flt = part.map((n) => `displayName eq '${String(n).replace(/'/g, "''")}'`).join(" or ");
+      try {
+        const gs = await Graph.ggetAll(`/groups?$filter=${encodeURIComponent(flt)}&$select=id,displayName&$top=999`);
+        gs.forEach((g) => m.set(String(g.displayName).toLowerCase(), g));
+      } catch (e) { console.warn("whois: group presence read failed", e.message); part.forEach((n) => m.delete(n.toLowerCase())); }
+    }
+    return m;
+  }
+
+  // direct vs nested: the direct list, then — for every direct group — the
+  // groups IT is (transitively) in, so a nested membership can name the
+  // parent it came through. One $batch, capped at 60 direct groups.
+  async function woPaths(u) {
+    if (isDemo) {
+      u.direct = new Set(u.groupIds);     // the demo directory has no nesting
+      u.via = {};
+      return;
+    }
+    try {
+      const direct = await Graph.ggetAll(`/users/${u.id}/memberOf?$select=id,displayName`);
+      u.direct = new Set(direct.filter((o) => !/(directoryrole|administrativeunit)/i.test(o["@odata.type"] || "")).map((o) => o.id));
+      const nested = [...u.groupIds].filter((g) => !u.direct.has(g));
+      u.via = {};
+      if (!nested.length) return;
+      const parents = [...u.direct].slice(0, 60);
+      const res = await Graph.gbatch(parents.map((id, i) => ({ id: i, url: `/groups/${id}/transitiveMemberOf?$select=id&$top=999` })));
+      parents.forEach((pid, i) => {
+        const v = res[i] && res[i].body && res[i].body.value;
+        (v || []).forEach((o) => { if (u.groupIds.has(o.id) && !u.direct.has(o.id)) (u.via[o.id] = u.via[o.id] || []).push(u.names[pid] || pid); });
+      });
+    } catch (e) { console.warn("whois: membership paths not read", e.message); u.direct = null; u.via = null; }
+  }
+
+  async function woExtras(u) {
+    u.dept = ""; u.title = ""; u.licence = null; u.methods = null;
+    if (isDemo) {
+      const d = (DEMO_DATA.analyzeUsers || []).find((x) => x.id === u.id) || {};
+      u.dept = d.department || ""; u.title = d.jobTitle || "";
+      try { u.licence = LicGap.licenceOf(d, LicGap.liveSkuSets(DEMO_DATA.skus || [])); } catch { u.licence = null; }
+      u.methods = u.id === "u-svc" ? [] : ["Microsoft Authenticator", "phone"];
+      return;
+    }
+    try {
+      const m = await Graph.gget(`/users/${u.id}?$select=id,department,jobTitle,assignedLicenses,assignedPlans`);
+      u.dept = m.department || ""; u.title = m.jobTitle || "";
+      let live = null;
+      try { const skus = await Graph.ggetAll("/subscribedSkus"); live = LicGap.liveSkuSets(skus); } catch { live = null; }
+      u.licence = LicGap.licenceOf(m, live);
+    } catch (e) { console.warn("whois: user detail not read", e.message); }
+    if (Graph.hasScopes(WO_METHODS)) await woReadMethods(u);
+  }
+  const WO_METHOD_LABEL = {
+    "#microsoft.graph.microsoftAuthenticatorAuthenticationMethod": "Microsoft Authenticator",
+    "#microsoft.graph.phoneAuthenticationMethod": "phone",
+    "#microsoft.graph.fido2AuthenticationMethod": "passkey (FIDO2)",
+    "#microsoft.graph.passwordAuthenticationMethod": null,
+    "#microsoft.graph.windowsHelloForBusinessAuthenticationMethod": "Windows Hello",
+    "#microsoft.graph.softwareOathAuthenticationMethod": "software OATH",
+    "#microsoft.graph.temporaryAccessPassAuthenticationMethod": "Temporary Access Pass",
+    "#microsoft.graph.emailAuthenticationMethod": "email (SSPR only)",
+    "#microsoft.graph.platformCredentialAuthenticationMethod": "platform credential",
+    "#microsoft.graph.hardwareOathAuthenticationMethod": "hardware OATH",
+  };
+  async function woReadMethods(u) {
+    try {
+      const ms = await Graph.ggetAll(`/users/${u.id}/authentication/methods`);
+      const out = new Set();
+      ms.forEach((m) => { const t = m["@odata.type"]; if (!(t in WO_METHOD_LABEL)) out.add(String(t || "").replace(/^#microsoft\.graph\./, "").replace(/AuthenticationMethod$/, "")); else if (WO_METHOD_LABEL[t]) out.add(WO_METHOD_LABEL[t]); });
+      u.methods = [...out];
+    } catch (e) { console.warn("whois: methods not read", e.message); u.methods = null; }
+  }
+
+  // This user's sign-ins in the window: from the shared window when it is
+  // in memory and was not capped, else one server-filtered read.
+  async function woSignIns(u, force) {
+    woLogSkipped = "";
+    if (isDemo) return ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || []).filter((r) => r.userId === u.id);
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { woLogSkipped = "AuditLog.Read.All was not granted"; return null; }
+    if (!force && logCacheUsable(woDays) && !logCache.capped) return logCache.records.filter((r) => r.userId === u.id);
+    const since = new Date(Date.now() - woDays * 86400000).toISOString();
+    const url = `/auditLogs/signIns?$filter=${encodeURIComponent(`userId eq '${u.id}' and createdDateTime ge ${since}`)}&$orderby=createdDateTime desc&$top=999`;
+    try { return await woProg.fetchAll(url, 5000, "sign-ins"); }
+    catch (e) {
+      console.warn("whois: sign-in read failed", e.message);
+      woLogSkipped = `could not read the sign-in log (${e.message || e}) — needs AuditLog.Read.All and a reader role such as Reports Reader`;
+      return null;
+    }
+  }
+
+  async function runWhoIs(force) {
+    if (woBusy) return;
+    const term = $("woUser").value.trim();
+    if (!term) { toast("Type a UPN or a name first"); $("woUser").focus(); return; }
+    woBusy = true; woRes = null;
+    $("woRescan").style.display = "none"; $("woMd").style.display = "none"; $("woCsv").style.display = "none";
+    $("woBody").innerHTML = woProg.panel(`Reading <b>${esc(term)}</b> — memberships, policies, sign-ins…`);
+    try {
+      const u = isDemo ? Comparer.resolveUserDemo(term) : await Comparer.resolveUser(term);
+      if (isDemo) {
+        // The demo policies reference scope groups as g-<name>; the demo
+        // resolver hands back the bare name. Use the id the policies use.
+        const refd = new Set(policies.flatMap((p) => { const c = ((p.raw || {}).conditions || {}).users || {}; return [...(c.includeGroups || []), ...(c.excludeGroups || [])]; }));
+        [...u.groupIds].forEach((g) => { if (refd.has(`g-${g}`)) { u.groupIds.delete(g); u.groupIds.add(`g-${g}`); u.names[`g-${g}`] = u.names[g] || g; } });
+      }
+      await woPaths(u);
+      await woExtras(u);
+      const cat = (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null;
+      const names = [...((cat && cat.predefined) || []).filter((n) => /-DG-/i.test(n)), ...((cat && cat.personaGroups) || []).filter((p) => p.group).map((p) => p.group)];
+      const dgPresent = await woGroupsPresent(names);
+      $("woBody").innerHTML = woProg.panel(`Reading <b>${esc(u.name)}</b>'s sign-ins…`);
+      const records = await woSignIns(u, force);
+      woRes = WhoIs.analyze({ user: u, vms: policies, records, cat, dgPresent, days: woDays });
+      woBusy = false;
+      $("woRescan").style.display = ""; $("woMd").style.display = ""; $("woCsv").style.display = "";
+      renderWhoIs();
+    } catch (e) {
+      console.error("Who is … to CA failed:", e);
+      woBusy = false;
+      $("woBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">${esc(e.message || e)}</p>`;
+    } finally { woBusy = false; }
+  }
+
+  function renderWhoIs() {
+    const R = woRes; if (!R) return;
+    $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, logSkipped: woLogSkipped });
+  }
+  $("woBody").addEventListener("click", async (e) => {
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const f = e.target.closest("[data-wo-filter]"); if (f) { woFilter = f.dataset.woFilter; renderWhoIs(); return; }
+    const R = woRes; if (!R) return;
+    if (e.target.closest("[data-wo-compare]")) {
+      // Compare adds by term; hand it the UPN and let it resolve, so the
+      // comparison starts with this user and the second one is a keystroke away.
+      $("toolCompare").click();
+      if (typeof addCuUser === "function") { const ok = await addCuUser(R.user.upn || R.user.name); if (ok) toast(`<span>${esc(R.user.name)}</span> added — add a colleague to compare`); }
+      return;
+    }
+    if (e.target.closest("[data-wo-whatif]")) { $("wiUser").value = R.user.upn || R.user.name; $("toolWhatIf").click(); toast("User filled in — pick the app and press <span>Evaluate</span>"); return; }
+    if (e.target.closest("[data-wo-groupuse]")) { const i = $("guTerm"); if (i) i.value = R.user.upn || R.user.name; $("toolGroupUse").click(); return; }
+    const rp = e.target.closest("[data-wo-replay]");
+    if (rp && R.log) { const row = R.log.rows.find((x) => x.id === rp.dataset.woReplay); if (row) siReplay(row); return; }
+    if (e.target.closest("[data-wo-methods]")) {
+      if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...WO_METHODS])) return;
+      await woReadMethods(R.user);
+      if (R.user.methods === null) toast("Could not read the registered methods — needs UserAuthenticationMethod.Read.All and Authentication Administrator or Global Reader");
+      renderWhoIs();
+    }
+  });
+  $("woMd").addEventListener("click", () => {
+    const R = woRes; if (!R) return;
+    showReport("🕵 Who is … to CA", `CA-WhoIs-${(R.user.upn || R.user.name).replace(/[^\w.-]+/g, "_")}`,
+      WhoIs.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(woDays) }));
+  });
+  $("woCsv").addEventListener("click", () => {
+    const R = woRes; if (!R) return;
+    downloadText(`CA-WhoIs-${(R.user.upn || R.user.name).replace(/[^\w.-]+/g, "_")}`, "csv", "text/csv", WhoIs.toCsv(R));
+  });
+
+  // ---------- 🌊 Who is the wave to CA (T37, BETA) ----------
+  // The T36 picture for a whole deployment group. Reads are bounded by the
+  // GROUPS the policies name, not by the members: every policy-referenced
+  // group (plus the baseline's deploy / persona groups) is read once as a
+  // member-id set, and each member is then resolved in memory through
+  // WhoIs.stateFor — the same function T36 uses, so the two cannot disagree.
+  // The sign-in half is the shared window (🚦 / 🎚), filtered to the members.
+  let wvRes = null, wvBusy = false, wvDays = 7, wvFilter = "look", wvPfilter = "targets", wvGroups = null, wvPick = null, wvLogSkipped = "";
+  const wvProg = makeProgress("wv");
+  const WV_MEMBER_CAP = 500;
+
+  // every group id the policies name in an include or exclude
+  const wvRefd = () => { const s = new Set(); policies.forEach((p) => { const c = ((p.raw || {}).conditions || {}).users || {}; [...(c.includeGroups || []), ...(c.excludeGroups || [])].forEach((g) => s.add(g)); }); return s; };
+  // the demo policies name scope groups as g-<name>; use that id when they do
+  const wvDemoId = (name) => wvRefd().has(`g-${name}`) ? `g-${name}` : name;
+  function wvHeadHtml() {
+    return `<h3>🌊 Who is the wave to CA <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:6px">The 🕵 Who is Anna to CA picture for a whole <b>deployment group</b>: who is in the wave and how they got there, which policies target the group, what the sign-in log did to its members, and whether the next report-only policy can go live <b>for this wave</b> without locking somebody out.</p>
+      <p class="mini muted" style="margin:0">Members are read transitively (first ${WV_MEMBER_CAP}); every member is resolved against every policy with the same rule 🕵 Who is Anna to CA uses. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Read-only.</p>`;
+  }
+  async function openWave() {
+    crumb("🌊 Who is the wave to CA");
+    show("screen-wave");
+    $("wvHead").innerHTML = wvHeadHtml();
+    if (!policies.length) { $("wvBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
+    if (wvBusy) { $("wvBody").innerHTML = wvProg.panel("Reading the wave…"); return; }
+    if (!wvGroups) await wvLoadPicker();
+    if (wvRes) { renderWave(); return; }
+    $("wvBody").innerHTML = '<div class="run-prompt"><p class="mini muted">Pick a deployment group above — or type any group name — and press <b>Read wave</b>. Nothing is written.</p></div>';
+  }
+  $("toolWave").addEventListener("click", () => openWave());
+
+  // The picker: the active baseline's deploy groups first, persona groups
+  // after, each with its transitive member count when the tenant has it.
+  async function wvLoadPicker() {
+    const cat = (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null;
+    const deploy = ((cat && cat.predefined) || []).filter((n) => /-DG-/i.test(n));
+    const persona = ((cat && cat.personaGroups) || []).filter((p) => p.group).map((p) => p.group);
+    const names = [...deploy, ...persona];
+    $("wvPicker").innerHTML = '<span class="mini muted">Reading the deploy groups…</span>';
+    const present = await woGroupsPresent(names);
+    wvGroups = names.map((n) => ({ name: n, kind: deploy.includes(n) ? "deploy" : "persona", id: (present.get(n.toLowerCase()) || {}).id || null, count: null }));
+    if (isDemo) wvGroups.forEach((g) => { if (g.id) g.id = wvDemoId(g.name); });
+    const have = wvGroups.filter((g) => g.id);
+    if (isDemo) have.forEach((g) => g.count = ((DEMO_DATA.scopeGroups || {})[g.name] || []).length);
+    else if (have.length) {
+      try {
+        const res = await Graph.gbatch(have.map((g, i) => ({ id: i, url: `/groups/${g.id}/transitiveMembers/microsoft.graph.user/$count` })));
+        have.forEach((g, i) => { const v = res[i]; g.count = v && v.body != null ? Number(v.body) : null; });
+      } catch (e) { console.warn("wave: member counts not read", e.message); }
+    }
+    renderWvPicker();
+  }
+  function renderWvPicker() {
+    const btn = (g) => `<button class="fchip${wvPick === g.id ? " active" : ""}${g.id ? "" : " wv-missing"}" data-wv-pick="${esc(g.id || "")}" title="${esc(g.name)}${g.id ? "" : " — this tenant does not have this group"}" ${g.id ? "" : "disabled"}>${esc(g.name.replace(/^CAD-SEC-U-DG-/i, "").replace(/^CAB-SEC-U-Persona-/i, "").replace(/^CAB-SEC-U-/i, ""))} <span class="pill ${g.count ? "" : "zero"}">${g.id ? (g.count == null ? "?" : g.count) : "—"}</span></button>`;
+    const deploy = wvGroups.filter((g) => g.kind === "deploy"), persona = wvGroups.filter((g) => g.kind === "persona");
+    $("wvPicker").innerHTML = (deploy.length ? `<span class="mini muted" style="align-self:center">Deploy</span>${deploy.map(btn).join("")}` : '<span class="mini muted">The active baseline has no deployment groups — its persona groups are offered instead.</span>')
+      + (persona.length ? `<span class="mini muted" style="align-self:center;margin-left:8px">Persona</span>${persona.map(btn).join("")}` : "");
+  }
+  $("wvPicker").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-wv-pick]"); if (!b || !b.dataset.wvPick) return;
+    wvPick = b.dataset.wvPick; $("wvTerm").value = ""; renderWvPicker(); runWave();
+  });
+  $("wvTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); wvPick = null; renderWvPicker(); runWave(); } });
+  $("wvRun").addEventListener("click", () => { if ($("wvTerm").value.trim()) wvPick = null; renderWvPicker(); runWave(); });
+  $("wvRescan").addEventListener("click", () => runWave(true));
+  $("wvDays").addEventListener("change", (e) => { wvDays = +e.target.value; if (wvRes) runWave(); });
+  let wvSugTimer = null;
+  $("wvTerm").addEventListener("input", (e) => {
+    const v = e.target.value; clearTimeout(wvSugTimer);
+    wvSugTimer = setTimeout(async () => {
+      const t = v.trim();
+      if (isDemo) { $("wvTermList").innerHTML = Object.keys(DEMO_DATA.scopeGroups || {}).filter((n) => n.toLowerCase().includes(t.toLowerCase())).map((n) => `<option value="${esc(n)}"></option>`).join(""); return; }
+      if (t.length < 2) return;
+      try {
+        const f = t.replace(/'/g, "''");
+        const r = await Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=id,displayName&$top=10`);
+        $("wvTermList").innerHTML = ((r && r.value) || []).map((g) => `<option value="${esc(g.displayName)}"></option>`).join("");
+      } catch (err) { console.warn("wave: suggest failed", err.message); }
+    }, 250);
+  });
+
+  async function wvResolveGroup(term) {
+    if (isDemo) {
+      const n = Object.keys(DEMO_DATA.scopeGroups || {}).find((x) => x.toLowerCase() === term.toLowerCase()) || Object.keys(DEMO_DATA.scopeGroups || {}).find((x) => x.toLowerCase().includes(term.toLowerCase()));
+      if (!n) throw new Error(`Group “${term}” not found in the demo directory`);
+      return { id: wvDemoId(n), displayName: n, description: "", groupTypes: [], membershipRule: null, isAssignableToRole: false, createdDateTime: "" };
+    }
+    const sel = "$select=id,displayName,description,groupTypes,membershipRule,isAssignableToRole,createdDateTime";
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(term)) return Graph.gget(`/groups/${term}?${sel}`);
+    const f = term.replace(/'/g, "''");
+    let j = await Graph.gget(`/groups?$filter=displayName eq '${f}'&${sel}&$top=2`);
+    let hits = (j && j.value) || [];
+    if (!hits.length) { j = await Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&${sel}&$top=2`); hits = (j && j.value) || []; }
+    if (hits.length !== 1) throw new Error(hits.length ? `“${term}” matches more than one group — use the exact name or the object ID` : `Group “${term}” not found`);
+    return hits[0];
+  }
+
+  // member-id sets for a list of group ids, one $batch (first 999 each —
+  // the wave itself is read fully and capped separately)
+  async function wvMemberSets(ids) {
+    const out = new Map(), names = {};
+    if (isDemo) {
+      ids.forEach((id) => { const n = id.replace(/^g-/, ""); const m = (DEMO_DATA.scopeGroups || {})[n]; if (m) { out.set(id, new Set(m)); names[id] = n; } });
+      return { out, names, truncated: [] };
+    }
+    const truncated = [];
+    for (let i = 0; i < ids.length; i += 40) {
+      const part = ids.slice(i, i + 40);
+      const res = await Graph.gbatch(part.flatMap((id, k) => [
+        { id: `m${k}`, url: `/groups/${id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999` },
+        { id: `n${k}`, url: `/groups/${id}?$select=id,displayName` },
+      ]));
+      part.forEach((id, k) => {
+        const m = res[`m${k}`], n = res[`n${k}`];
+        if (m && m.body) { out.set(id, new Set((m.body.value || []).map((x) => x.id))); if (m.body["@odata.nextLink"]) truncated.push(id); }
+        if (n && n.body && n.body.displayName) names[id] = n.body.displayName;
+      });
+      wvProg.tick(Math.min(i + 40, ids.length), Math.min(i + 40, ids.length));
+    }
+    return { out, names, truncated };
+  }
+
+  async function runWave(force) {
+    if (wvBusy) return;
+    const term = $("wvTerm").value.trim();
+    if (!wvPick && !term) { toast("Pick a deployment group or type a group name first"); return; }
+    wvBusy = true; wvRes = null;
+    $("wvRescan").style.display = "none"; $("wvMd").style.display = "none"; $("wvCsv").style.display = "none";
+    $("wvBody").innerHTML = wvProg.panel("Reading the group…");
+    try {
+      const cat = (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null;
+      const group = wvPick ? (isDemo ? await wvResolveGroup(wvPick.replace(/^g-/, "")) : await Graph.gget(`/groups/${wvPick}?$select=id,displayName,description,groupTypes,membershipRule,isAssignableToRole,createdDateTime`)) : await wvResolveGroup(term);
+      const gid = group.id;
+      // members (transitive, capped), direct users, child groups, parents
+      let members, direct = null, children = [], parents = new Set(), capped = false;
+      if (isDemo) {
+        const ids = (DEMO_DATA.scopeGroups || {})[gid.replace(/^g-/, "")] || [];
+        members = ids.map((id) => (DEMO_DATA.analyzeUsers || []).find((u) => u.id === id)).filter(Boolean);
+        direct = new Set(ids);
+      } else {
+        $("wvBody").innerHTML = wvProg.panel(`Reading the members of <b>${esc(group.displayName)}</b>…`);
+        members = await wvProg.fetchAll(`/groups/${gid}/transitiveMembers/microsoft.graph.user?$select=id,displayName,userPrincipalName,userType,accountEnabled,assignedLicenses,assignedPlans&$top=999`, WV_MEMBER_CAP, "members");
+        capped = !!wvProg.st.capped;
+        try {
+          const dm = await Graph.ggetAll(`/groups/${gid}/members?$select=id,displayName,membershipRule`);
+          direct = new Set(dm.filter((o) => /user$/i.test(o["@odata.type"] || "")).map((o) => o.id));
+          const cg = dm.filter((o) => /group$/i.test(o["@odata.type"] || ""));
+          if (cg.length) {
+            const res = await Graph.gbatch(cg.slice(0, 40).map((g, i) => ({ id: i, url: `/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999` })));
+            children = cg.slice(0, 40).map((g, i) => ({ id: g.id, name: g.displayName || g.id, rule: g.membershipRule || "", memberIds: new Set(((res[i] && res[i].body && res[i].body.value) || []).map((x) => x.id)) }));
+          }
+        } catch (e) { console.warn("wave: direct members not read", e.message); direct = null; }
+        try { (await Graph.ggetAll(`/groups/${gid}/transitiveMemberOf?$select=id`)).forEach((o) => { if (!/(directoryrole|administrativeunit)/i.test(o["@odata.type"] || "")) parents.add(o.id); }); } catch {}
+      }
+      // licence verdict per member, same as 🎫 Licence gap
+      let live = null;
+      try { live = LicGap.liveSkuSets(isDemo ? (DEMO_DATA.skus || []) : await Graph.ggetAll("/subscribedSkus")); } catch { live = null; }
+      members.forEach((m) => { try { m.licence = LicGap.licenceOf(m, live); } catch { m.licence = null; } });
+      // every group a policy names + the baseline's deploy / persona groups
+      $("wvBody").innerHTML = wvProg.panel("Reading the groups the policies name…");
+      const dgGroups = (wvGroups || []).filter((g) => g.id);
+      const refd = wvRefd();
+      dgGroups.forEach((g) => refd.add(g.id));
+      refd.delete(gid);
+      wvProg.start(refd.size, "groups", "group");
+      const { out: groupMembers, names, truncated } = await wvMemberSets([...refd]);
+      dgGroups.forEach((g) => { names[g.id] = names[g.id] || g.name; });
+      names[gid] = group.displayName;
+      // directory roles → member ids
+      const roleMembers = new Map();
+      if (isDemo) Object.entries(DEMO_DATA.roleMembers || {}).forEach(([rt, ids]) => { roleMembers.set(rt, new Set(ids)); names[rt] = (DEMO_DATA.names || {})[rt] || rt; });
+      else {
+        try {
+          const roles = await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId");
+          const res = await Graph.gbatch(roles.map((r, i) => ({ id: i, url: `/directoryRoles/${r.id}/members?$select=id` })));
+          roles.forEach((r, i) => { const v = res[i] && res[i].body && res[i].body.value; if (r.roleTemplateId) { roleMembers.set(r.roleTemplateId, new Set((v || []).map((x) => x.id))); names[r.roleTemplateId] = r.displayName; } });
+        } catch (e) { console.warn("wave: roles not read", e.message); }
+      }
+      // sign-ins: the shared window, filtered to the members
+      let records = null; wvLogSkipped = "";
+      if (isDemo) records = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [];
+      else if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) wvLogSkipped = "AuditLog.Read.All was not granted";
+      else {
+        $("wvBody").innerHTML = wvProg.panel("Reading the sign-in window…", "Shared with 🚦 Sign-in failures and 🎚 Report-only impact — read once, reused by all three.");
+        try { const w = await readSignInWindow(wvDays, wvProg, force); records = w.records; if (w.capped) wvLogSkipped = `window capped at ${SI_MAX.toLocaleString()} sign-ins`; }
+        catch (e) { console.warn("wave: sign-in read failed", e.message); wvLogSkipped = `could not read the sign-in log (${e.message || e})`; }
+      }
+      wvRes = Wave.analyze({ group, members, direct, children, parents, groupMembers, roleMembers, names, vms: policies, records, cat, dgGroups, memberCap: WV_MEMBER_CAP, capped, days: wvDays });
+      wvRes.truncated = truncated;
+      wvBusy = false;
+      $("wvRescan").style.display = ""; $("wvMd").style.display = ""; $("wvCsv").style.display = "";
+      renderWave();
+    } catch (e) {
+      console.error("Who is the wave to CA failed:", e);
+      wvBusy = false;
+      $("wvBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">${esc(e.message || e)}</p>`;
+    } finally { wvBusy = false; }
+  }
+  function renderWave() {
+    const R = wvRes; if (!R) return;
+    const notes = [];
+    if (wvLogSkipped) notes.push(`Sign-in half: ${esc(wvLogSkipped)}.`);
+    if (R.truncated && R.truncated.length) notes.push(`${R.truncated.length} referenced group${R.truncated.length === 1 ? "" : "s"} with more than 999 members were read partially — exclusion and other-wave counts may be low.`);
+    $("wvBody").innerHTML = (notes.length ? `<p class="mini muted" style="margin:0 0 8px">${notes.join(" ")}</p>` : "") + Wave.render(R, { rangeLabel: rangeLabel(wvDays), filter: wvFilter, pfilter: wvPfilter });
+  }
+  $("wvBody").addEventListener("click", (e) => {
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const f = e.target.closest("[data-wv-filter]"); if (f) { wvFilter = f.dataset.wvFilter; renderWave(); return; }
+    const pf = e.target.closest("[data-wv-pfilter]"); if (pf) { wvPfilter = pf.dataset.wvPfilter; renderWave(); return; }
+    const o = e.target.closest("[data-wv-open]");
+    if (o) { e.preventDefault(); $("woUser").value = o.dataset.wvOpen; $("toolWhoIs").click(); runWhoIs(); return; }
+    const R = wvRes; if (!R) return;
+    if (e.target.closest("[data-wv-cagroups]")) { $("toolCaGroups").click(); return; }
+    if (e.target.closest("[data-wv-groupuse]")) { const i = $("guTerm"); if (i) i.value = R.group.displayName; $("toolGroupUse").click(); }
+  });
+  $("wvMd").addEventListener("click", () => {
+    const R = wvRes; if (!R) return;
+    showReport("🌊 Who is the wave to CA", `CA-Wave-${R.group.displayName.replace(/[^\w.-]+/g, "_")}`, Wave.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(wvDays) }));
+  });
+  $("wvCsv").addEventListener("click", () => {
+    const R = wvRes; if (!R) return;
+    downloadText(`CA-Wave-${R.group.displayName.replace(/[^\w.-]+/g, "_")}`, "csv", "text/csv", Wave.toCsv(R));
+  });
+
   // ---------- User or Group analyzer (BETA) ----------
   // "Where is this group actually used?" The source registry, the matching and
   // the exports live in js/groupuse.js; this is screen, consent and rendering.
@@ -17092,7 +17592,7 @@ max@contoso.com,"Global, DevOps"</pre>
     siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
     drHead: "toolDrift", dvHead: "toolDevCheck", lgHead: "toolLicGap",
-    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev",
+    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev", woHead: "toolWhoIs", wvHead: "toolWave",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
