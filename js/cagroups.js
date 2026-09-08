@@ -835,16 +835,19 @@ const CaGroups = (() => {
       if (h && !h.direct) return `<td class="cellv ok cg-nested" title="member of ${esc(c.name)} via ${esc(h.via.join(", ") || "a nested group")} — remove from that group, not here">◐<span class="mini cg-via" title="${esc(h.via.join(", "))}">${esc(tail(h.via[0] || "nested"))}${h.via.length > 1 ? ` +${h.via.length - 1}` : ""}</span></td>`;
       return `<td class="cellv ok cg-mem" data-cgrm-user="${esc(u.id)}" data-cgrm-group="${esc(c.name)}" title="${h ? "direct " : ""}member of ${esc(c.name)} — click to remove">●<span class="cg-rm" aria-hidden="true">×</span></td>`;
     };
-    return `<div class="tablewrap"><table class="mtable cg-matrix${nesting ? " cg-nesting" : ""}">
+    // The same grid every matrix view uses (.matrix-wrap + .mtable): card
+    // surface, sticky header row, sticky first column, vertical policy-style
+    // headers. The old tablewrap / stick / vert classes never had CSS.
+    return `<div class="matrix-wrap cg-mwrap"><table class="mtable cg-matrix${nesting ? " cg-nesting" : ""}">
       <thead><tr>
-        <th class="stick">Member (${users.length})</th>
-        ${cols.map((c) => { const an = nesting && allNested(c); return `<th class="vert${an ? " cg-allnested" : ""}" title="${esc(c.name)}${c.children ? ` — ${c.children.length} nested group${c.children.length === 1 ? "" : "s"}` : ""}${an ? " — every member came in through a nested group; nothing here is removable from this group" : ""}"><span>${an ? "◐ " : ""}${esc(c.name)}</span></th>`; }).join("")}
-        <th style="width:60px">In</th>
+        <th class="ucol">Member (${users.length})</th>
+        ${cols.map((c) => { const an = nesting && allNested(c); return `<th class="pcol${an ? " cg-allnested" : ""}"><div class="ph" title="${esc(c.name)}${c.memberTotal != null ? ` — ${c.memberTotal} member${c.memberTotal === 1 ? "" : "s"}` : ""}${c.children ? ` — ${c.children.length} nested group${c.children.length === 1 ? "" : "s"}` : ""}${an ? " — every member came in through a nested group; nothing here is removable from this group" : ""}">${an ? "◐ " : ""}${esc(c.name)}</div></th>`; }).join("")}
+        <th class="pcol cg-incol" title="How many of the loaded groups this member is in">In</th>
       </tr></thead>
       <tbody>${users.map((u) => `<tr>
-        <td class="stick">${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""}<div class="mini muted">${esc(u.upn || "")}</div></td>
+        <td class="ucol"><span class="uname">${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""}</span><div class="uupn">${esc(u.upn || "")}</div></td>
         ${cols.map((c) => cell(u, c)).join("")}
-        <td class="mini"><b>${u.groups.size}</b></td>
+        <td class="cellv cg-incol"><b>${u.groups.size}</b></td>
       </tr>`).join("")}</tbody></table></div>`;
   }
 

@@ -242,6 +242,9 @@ table.plist tr:hover td{background:var(--hover)}
 .cg-row:hover{background:var(--ok-bg2)}
 .cg-err{color:var(--off);font-weight:600}
 .cg-matrix td.cellv{text-align:center;color:var(--on);font-size:15px}
+.cg-mwrap{max-height:calc(100vh - 220px);min-height:200px;margin-top:10px}
+.cg-matrix th.cg-incol{writing-mode:horizontal-tb;text-align:center;padding:8px 10px;font-size:11px;color:var(--muted)}
+.cg-matrix td.cg-incol{font-size:12px;color:var(--ink)}
 /* a member cell you can remove from: the dot stays, an × appears on hover */
 .cg-matrix td.cg-mem{cursor:pointer;position:relative}
 .cg-matrix td.cg-mem .cg-rm{display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:var(--bad-bg2);color:var(--off);font-weight:700;font-size:14px}

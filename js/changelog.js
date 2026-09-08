@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25270, date: "2026-09-08", title: "CA groups matrix gets its grid; Gap analyse gets its number",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "The ③ Members matrix finally has the grid every other matrix has. Since build 97 it was written with class names no stylesheet defined, so it rendered as bare rows — no card, no sticky header, no sticky first column — which the nesting view made impossible to ignore. It now uses the shared grid of 🔍 Gap analyse and 🚪 Exclusion analyzer: vertical group headers with the member count in the tooltip, a sticky Member column, scrolling inside its own box." },
+      { kind: "fixed", tool: "Gap analyse", text: "The header carries the T03 chip like every other tool, and the ← Back to policies button is gone — the tab bar already leads back to List Policies, and a second Back control read as a stray." },
+    ],
+  },
+  {
     build: 25269, date: "2026-09-08", title: "Session controls: type-ahead and hour windows",
     items: [
       { kind: "improved", tool: "Session controls", text: "The filter box suggests as you type — the users, apps, files, Defender policies and Conditional Access policies in the current result, labelled by kind — and the window gains 1-hour and 4-hour ranges next to 24 hours, 7 and 30 days, for checking a block that just happened." },

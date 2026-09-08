@@ -1332,7 +1332,7 @@
     // without it the only way out would be the tab bar.
     const seg = $("plViewSeg");
     if (seg) seg.style.display = isAn ? "none" : "";
-    $("anBack").style.display = isAn ? "inline-flex" : "none";
+    $("anBack").style.display = "none";   // the tab bar leads back; a second Back button read as a stray control
     updateSelbar();
   }
   // Pin the action bar just below the toolbar. The toolbar wraps to two or
@@ -18294,7 +18294,7 @@ This is a directory write. Nothing else changes.`)) return;
     siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
     drHead: "toolDrift", ugHead: "toolGuide", dvHead: "toolDevCheck", lgHead: "toolLicGap",
-    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev", woHead: "toolWhoIs", wvHead: "toolWave", scHead: "toolSessionCtl",
+    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev", woHead: "toolWhoIs", wvHead: "toolWave", scHead: "toolSessionCtl", anIntro: "toolAnalyze",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

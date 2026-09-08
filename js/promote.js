@@ -118,10 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 135,
+      title: "🔍 Gap analyse: T03 chip, no Back button (1.9.1)",
+      tools: ["Gap analyse"],
+      builds: [25270],
+      risk: "low",
+      what: "anIntro joins HEAD_TOOL so the Gap analyse header is stamped T03 · v like every other screen; the ← Back to policies button (1.9) is hidden — the tab bar already leads back.",
+      why: "Cosmetic; the Back button removal changes one exit path. Graduates with the next port.",
+      test: [
+        "Open 🔍 Gap analyse: the header must read Gap analyse — Conditional Access impact with a T03 · v1.9.1 chip; no ← Back to policies button anywhere on the screen. Click the 📋 List policies tab: the cards view must come back.",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 134,
       title: "👥 CA groups ③ Members: show nesting (T12 4.8)",
       tools: ["Conditional Access groups"],
-      builds: [25267, 25268],
+      builds: [25267, 25268, 25270],
       risk: "low",
       what: "loadMembers also reads /groups/{id}/members (direct users + member groups) and, in one $batch, each nested group's transitive users (first 40 groups); members carry direct / via. Matrix gains a Members / Show nesting / Nested only segment (● direct, ◐ nested with the child named), a NESTED GROUPS panel with expandable member lists, and ◐ cells are not removable. Demo nesting for the demo groups.",
       why: "Two extra reads per loaded group; the nesting read is best effort and a failure keeps the flat matrix. Graduates once a real group with a nested member group has shown the ◐ cells and the panel matches the portal.",
@@ -131,6 +144,7 @@ const PROMOTE = {
         "Nested only must keep exactly the ◐ rows; Members must show the matrix exactly as 4.7 did (no ◐, × on every ● of an assigned group).",
         "Read a group whose /members call fails (e.g. a mail-enabled group you lack rights on): the matrix must still render and the nesting panel must say nesting was not read.",
         "?demo=1: read members of three groups, Show nesting — every group with 2+ members has one ◐ member through SG-Demo-<n>, the panel lists it.",
+        "25270: the ③ Members matrix must render as a card with a sticky Member column and vertical group headers (like 🔍 Gap analyse's grid), scrolling inside its own box; the In column must be the last column.",
         "25268: with empty groups loaded, tick hide N empty groups — the empty columns must vanish, the ⚠ line must fold to one row that opens on click; a nested group with a long shared prefix must show its tail under the ◐, and a column with only ◐ members must carry ◐ in its header.",
       ],
       files: ["js/cagroups.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
