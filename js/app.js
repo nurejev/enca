@@ -4202,10 +4202,16 @@ max@contoso.com,"Global, DevOps"</pre>
 
   function migBody() { return $("cgBody"); }
 
-  async function cgMigScan() {
+  // onlyIds: arriving from the groups list with a selection, check just
+  // those — each candidate costs three reads (directory roles, member count,
+  // restricted-AU membership), and 66 of them for one clicked group is the
+  // wait the list was built to remove. The panel says the scan was scoped
+  // and offers the full one.
+  async function cgMigScan(onlyIds) {
     if (cgMig && cgMig.busy) { toast("A migration is <span>still running</span> — let it finish first"); return; }
     if (cgMigBusy) return;
     cgMigBusy = true;
+    const only = onlyIds && onlyIds.length ? new Set(onlyIds) : null;
     migBody().innerHTML = migBusyPanel();
     const say = (m, i, n) => { const el = $("cgMigStatus"); if (el) el.textContent = m;
       const b = $("cgMigBar"); if (b) b.innerHTML = progInline(i, n); };
@@ -4215,7 +4221,7 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       // Only role-assignable baseline groups are candidates; the rest are listed
       // as skipped so the wizard is honest about what it is not doing.
-      const rows = (cgRes.rows || []).filter((r) => r.id || r.roleAssignable);
+      const rows = (cgRes.rows || []).filter((r) => (r.id || r.roleAssignable) && (!only || only.has(r.id)));
       // Groups added by hand ride along and are re-checked from scratch, like
       // any other candidate — a rescan is a fresh reading of the tenant, not a
       // reason to forget what somebody put on the list.
@@ -4254,7 +4260,7 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       const auChoice = aus.length ? aus[0].id : "new";
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME();
-      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null,
+      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null, scoped: only ? cands.length : 0,
         plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA }) };
       if (cgMigPre && cgMigPre.length) { cgMig.sel = new Set(cgMigPre.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); cgMigPre = null; }
     } catch (e) {
@@ -4312,6 +4318,7 @@ max@contoso.com,"Global, DevOps"</pre>
       "The scan reads the groups the baseline and your policies know about. A role-assignable group of your own — one that predates all of this, or that no policy references — is reached by searching for it here. It is then checked exactly like a scanned one: directory roles it holds, members it would move, and whether it already sits in a restricted unit.");
 
     migBody().innerHTML = `
+      ${t.scoped ? `<p class="mini" style="margin:0 0 10px"><span class="tag">scoped</span> Checked only the ${t.scoped} group${t.scoped === 1 ? "" : "s"} you came with from the list. <button class="btn sm" data-migrun>▶ Check every role-assignable group</button></p>` : ""}
       <div class="cg-panel">
         <h4>WHY MIGRATE</h4>
         <p class="mini" style="margin:0 0 8px">Your CA exclusion groups were made <b>role-assignable</b> to keep their membership away from tenant-wide group administrators. A <b>restricted management administrative unit</b> does that job better: it lets you <b>name</b> who may manage them, instead of leaving it to anyone holding Privileged Role Administrator. It also drops the role-assignable costs — the 500-per-tenant cap, no dynamic membership, and no control over nesting.</p>
@@ -6303,7 +6310,7 @@ This is a directory write. Nothing else changes.`)) return;
     // the check straight away instead of showing a Scan button for what was
     // just clicked
     if (tab === "rmau" && rows.length && !(cgRmau && cgRmau.status) && !rmauBusy) cgRmauScan();
-    if (tab === "migrate" && rows.length && !cgMig && !cgMigBusy) cgMigScan();
+    if (tab === "migrate" && rows.length && !cgMigBusy && (!cgMig || cgMig.scoped)) cgMigScan(rows.filter((r) => r.id).map((r) => r.id));
   }
   $("cgBody").addEventListener("click", async (e) => {
     if (cgTab !== "groups") { const bk = e.target.closest("[data-cgg-back]"); if (bk) { cgTab = "groups"; renderCaGroups(); } return; }

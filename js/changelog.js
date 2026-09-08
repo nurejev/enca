@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25278, date: "2026-09-08", title: "Conditional Access groups: Migrate from the list checks only what you came with",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "Migrate reached from the groups list was checking every role-assignable group in the tenant — 66 groups, three reads each — for the one group you clicked. It now checks only the groups you came with, says so with a scoped tag, and offers the full check as a button. The groups themselves were already read; what the wizard reads per candidate is what the list does not hold: directory roles, the direct member count that will move, and restricted-AU membership." },
+    ],
+  },
+  {
     build: 25277, date: "2026-09-08", title: "Conditional Access groups: chips and the nesting switch read as controls",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "Filter chips: ink text, a firm border, lemon when on — the same lemon the primary buttons use, in both themes. The three chips about a security exposure carry their colour even idle: Needs attention and Has nested groups red (a live bypass), Not protected amber (an unguarded one). The Members / Show nesting / Nested only switch in ③ Compare is a recessed track with a raised lemon key, so all three read as buttons. The chips in 🌊 Who is the wave to CA and 🛂 Session controls pick up the same base look." },
