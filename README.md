@@ -127,7 +127,7 @@ Every JS file is an IIFE assigned to one global — no modules, no bundler, no b
 ```
 index.html            app shell: login, tools home, every tool screen, modals
 css/app.css           theme + light/dark palettes
-js/branding.js        name, org, logos, colours  ← forks only; a self-hosted instance brands itself via the ⚙ gear / selfhost-branding.json
+js/branding.js        name, org, logos, colours  ← forks only; a self-hosted instance brands itself via Branding settings (account menu) / selfhost-branding.json
 js/authConfig.js      clientId + scopes  ← the only other file you must edit
 js/labels.js          friendly names for Graph enums / well-known IDs
 js/graph.js           MSAL sign-in, policy fetch (Graph beta), GUID→name resolver
@@ -225,7 +225,7 @@ Full walkthrough, including keeping a pinned copy current:
 
 ## Rebranding
 
-**You no longer need a fork to rebrand.** On any non-production host a **⚙ gear appears next to Sign out** with the branding settings — product and organisation names, logos, login text, light/dark colour palettes:
+**You no longer need a fork to rebrand.** On any host, **Branding settings** sits in the account menu (click your initials, top right) with the branding settings — product and organisation names, logos, login text, light/dark colour palettes:
 
 - **Apply** keeps the look in this browser.
 - **Download selfhost-branding.json** exports it as a file. Serve that file next to `index.html` (the compose file and install scripts mount `./selfhost-branding.json` automatically) and **every visitor** to your instance gets the branding — and the red "BETA — not production" ribbon becomes a neutral "SELF-HOSTED" one.

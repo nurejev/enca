@@ -8,8 +8,8 @@
 // ======================================================================
 const APP_BUILD = {
   version: "1.0",
-  build: 307,
-  date: "2026-09-07",
+  build: 308,
+  date: "2026-09-08",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Build 277 carried a local Amsterdam time in this field, so
   // the sign-in stamp claimed a release time over an hour in the future; the
@@ -20,7 +20,7 @@ const APP_BUILD = {
   // thing I just pushed actually live?" is a question about minutes, not days.
   // UTC deliberately — a shared answer beats a local one when the person
   // asking and the person who pushed are in different places.
-  released: "2026-09-07T12:25Z",
+  released: "2026-09-08T09:22Z",
   // Stored UTC, shown in the reader's own timezone with the offset named.
   // A build is cut once, so one absolute instant is the right thing to record —
   // but "when was this last updated?" is asked by somebody sitting in a

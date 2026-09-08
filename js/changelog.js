@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 308, date: "2026-09-08", title: "The header keeps only your initials",
+    items: [
+      { kind: "improved", tool: "All tools", text: "The top right of every tool is now the theme toggle and one small button: a ring with your initials. Click it for a menu that shows the tenant and who is signed in (display name and account, which the header never had room for) and holds Copy tenant ID, Branding settings and Sign out. Nothing was taken away, it is one click further in; hovering the initials still shows tenant and account as a tooltip." },
+      { kind: "improved", tool: "All tools", text: "Branding settings is a row in that menu - the gear button beside Sign out is gone. It opens the same dialog (Apply, Download, Import, and Save to this deployment on an Azure Container Apps host). README and SELF-HOSTING.md say so." },
+      { kind: "improved", tool: "All tools", text: "The header's own Tools button is gone: the tab bar under it carries the same home icon, so the two sat one above the other doing one job. The logo still returns to the tools overview." },
+    ],
+  },
+  {
     build: 307, date: "2026-09-07", title: "R06 is out of beta, and the roadmap now says so",
     items: [
       { kind: "fixed", tool: "Roadmap", text: "R06 Self-hosting with Docker sat under In beta today while its own chip read live · build 305 - the card's text was corrected when self-hosting shipped in 305, but the card itself was never moved, so the heading over it kept saying not yet in production. It now sits in Now, next to R15. In beta today is back to the one thing that is beta-only: R01 CIS Benchmark." },

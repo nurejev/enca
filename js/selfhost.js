@@ -1,5 +1,5 @@
 // ======================================================================
-// Self-host branding (R06 / S02) — the ⚙ gear next to Sign out.
+// Self-host branding (R06 / S02) — Branding settings, in the account menu.
 //
 // A self-hosted instance can wear its organisation's identity WITHOUT
 // forking, through the same mechanism as the per-audience looks in
@@ -619,20 +619,29 @@
   }
 
   function addGear() {
-    const out = document.getElementById("signOutBtn");
-    if (!out || document.getElementById("selfhostGearBtn")) return;
+    // Since 25259 the entry point is the "Branding settings" row of the
+    // account menu (index.html) rather than a ⚙ button in the header; the
+    // row is static markup, so this only wires the click. The old injected
+    // button is kept as a fallback for a page that lacks the row.
+    if (document.getElementById("selfhostGearBtn")) return;
+    const row = document.getElementById("brandingBtn");
+    if (row) {
+      row.title = isProd()
+        ? "Branding — changes the look in this browser only"
+        : "Branding settings for this self-hosted deployment";
+      row.addEventListener("click", () => buildModal().classList.add("open"));
+      return;
+    }
+    const out = document.getElementById("acctBtn") || document.getElementById("signOutBtn");
+    if (!out) return;
     const b = document.createElement("button");
     b.className = "btn";
     b.id = "selfhostGearBtn";
     b.textContent = "⚙";
-    // The glyph at the .btn default size rendered near-invisible next to
-    // Sign out; drawn at 21px (same button, no label) it reads as a control.
     b.style.fontSize = "21px";
     b.style.lineHeight = "1";
     b.style.padding = "3px 10px 5px";
-    b.title = isProd()
-      ? "Branding — changes the look in this browser only"
-      : "Branding settings for this self-hosted deployment";
+    b.title = "Branding settings";
     b.addEventListener("click", () => buildModal().classList.add("open"));
     out.insertAdjacentElement("afterend", b);
   }

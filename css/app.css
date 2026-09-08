@@ -52,8 +52,6 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .toolnav-btn.home.active{background:var(--green);border-color:var(--green);color:#fff}
 :root[data-theme="dark"] .toolnav-btn.home.active{color:var(--green-deep)}
 /* header "Tools" button — same house, sized to sit next to the label */
-.btn.home-btn{display:inline-flex;align-items:center;gap:7px}
-.btn.home-btn svg{width:16px;height:16px;flex:none}
 .toolnav-btn.add{font-size:15px;padding:5px 11px;color:var(--green)}
 /* an open tab = label + close, sharing a pill */
 .toolnav-tab{flex:none;display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--soft)}
@@ -77,7 +75,22 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .toolnav-menu button.open{color:var(--muted)}
 .spacer{flex:1}
 .tenant{display:none;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
-.avatar{width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex:none}
+/* account button — the initials circle alone (25259); tenant, user, Copy
+   tenant ID, Branding settings and Sign out live in its menu */
+.acct{display:inline-flex;align-items:center;border:1px solid var(--border);background:var(--surface);
+  padding:3px;border-radius:999px;cursor:pointer;font:inherit;transition:.15s}
+.acct:hover,.acct[aria-expanded="true"]{border-color:var(--accent2)}
+.acct-menu{position:fixed;z-index:410;background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:var(--shadow);padding:6px;width:280px;color:var(--ink)}
+.acct-menu-head{display:flex;flex-direction:column;gap:2px;padding:4px 10px 10px;border-bottom:1px solid var(--border);margin-bottom:4px;min-width:0}
+.acct-menu-head>*{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-menu-head b{font-size:13px;color:var(--ink)}
+.acct-menu-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:8px}
+.acct-menu-sep{border-top:1px solid var(--border);margin:4px 0}
+.acct-menu button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);
+  font:inherit;font-size:13px;padding:8px 10px;border-radius:8px;cursor:pointer}
+.acct-menu button:hover{background:var(--soft)}
 .btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);padding:8px 16px;border-radius:10px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:8px;transition:.15s}
 .btn:hover{border-color:var(--accent2)}
 .btn.primary{background:var(--green);color:#fff;border-color:var(--green)}
@@ -1242,11 +1255,10 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
    wall, tighter cards, and the per-policy table scrolls sideways (its
    pinned label goes static there — a scroll container would break it). */
 @media (max-width: 680px){
-  /* the header wraps instead of pushing the page wide: tenant box on its own
-     row, long names ellipsised */
+  /* the header wraps instead of pushing the page wide (the account button is
+     just the initials since 25259, so it no longer needs a row of its own) */
   .hwrap{flex-wrap:wrap;row-gap:6px;padding:10px 14px}
-  .tenant{flex:1 1 100%;min-width:0;justify-content:flex-end}
-  #tenantName,#tenantUser{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:48vw}
+  .acct-menu{width:min(280px,calc(100vw - 16px))}
   /* wide tables (permissions overview, per-policy summaries) scroll inside
      their card instead of stretching the whole page sideways */
   .list-card{overflow-x:auto}
