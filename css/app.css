@@ -1748,7 +1748,9 @@ button.wo-tile.on{box-shadow:inset 0 0 0 2px var(--accent2)}
 /* ③ Members nesting view */
 .cg-matrix td.cg-nested{color:var(--report);cursor:default;position:relative}
 .cg-matrix td.cg-nested .cg-via{display:none}
-.cg-matrix.cg-nesting td.cg-nested .cg-via{display:block;font-size:9px;line-height:1;color:var(--muted);max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0 auto}
+.cg-matrix.cg-nesting td.cg-nested .cg-via{display:block;font-size:9px;line-height:1;color:var(--muted);max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0 auto}
+.cg-matrix.cg-nesting td.cellv{min-width:96px}
+.cg-matrix th.vert.cg-allnested span{color:var(--report)}
 .cg-nest{margin:4px 0 0 12px}
 .cg-nestrow{border:0;background:none;padding:2px 0;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;text-align:left}
 .cg-nestrow:hover b{color:var(--accent2)}

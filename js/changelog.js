@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25268, date: "2026-09-08", title: "CA groups ③ Members: hide empty groups, readable nesting labels",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "Three things a 708 × 123 matrix asked for. HIDE EMPTY GROUPS — a checkbox next to the nesting segment drops the empty columns (63 of 123 on a baseline tenant, empty by design), and the wall of empty-group names becomes one line that opens on click. The label under a ◐ shows the TAIL of the nested group name, since nested groups share a long prefix and the tail is what tells them apart, with the full list in the tooltip. A column whose every member came in through nesting carries ◐ in its header and says so — nothing in it is removable from this group." },
+    ],
+  },
+  {
     build: 25267, date: "2026-09-08", title: "CA groups ③ Members shows nesting",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "③ Members shows HOW as well as WHO. Every member read also reads the group's direct list and its nested member groups, so a Members / Show nesting / Nested only segment turns the matrix from ● into ● direct and ◐ through a nested group — the child group named under the dot — and a NESTED GROUPS panel lists each nested group with its member count, its dynamic rule when it has one, and its members on click. It matters for the write: a user in an exclusion group through SG-Finance-All cannot be removed from the exclusion group, only from SG-Finance-All, so a ◐ cell offers no × and the panel says where − Remove has to happen. A nesting read that fails leaves the flat matrix as it was and says so." },

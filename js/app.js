@@ -5923,6 +5923,7 @@ This is a directory write. Nothing else changes.`)) return;
   // default so the matrix reads as it always did.
   let cgNesting = "";          // "" | "show" | "only"
   const cgNestOpen = new Set();
+  let cgHideEmpty = false, cgEmptiesOpen = false;
   function renderCgMembers() {
     const scanned = cgRes.rows.filter(r => r.members);
     if (cgMemberPick || (!scanned.length && !cgBusy)) {
@@ -5939,10 +5940,11 @@ This is a directory write. Nothing else changes.`)) return;
       return;
     }
     const m = CaGroups.matrix(cgRes.rows);
+    // The empty groups as ONE line that opens, not a wall of names: on a
+    // baseline tenant half the exclusion groups are empty by design.
     const empties = m.empty.length
-      ? `<p class="mini" style="margin:10px 0;color:var(--report)">⚠ ${m.empty.length} group${m.empty.length === 1 ? " is" : "s are"} empty:
-         ${m.empty.map(c => `<b>${esc(c.name)}</b>`).join(", ")} — a policy scoped to an empty include group applies to nobody;
-         an empty exclude group excludes nobody.</p>` : "";
+      ? `<details class="cg-empties"${cgEmptiesOpen ? " open" : ""}><summary class="mini" style="margin:10px 0 4px;color:var(--report);cursor:pointer">⚠ ${m.empty.length} group${m.empty.length === 1 ? " is" : "s are"} empty — a policy scoped to an empty include group applies to nobody, an empty exclude group excludes nobody. <span class="muted">${cgHideEmpty ? "Hidden from the matrix." : "Show the names ▸"}</span></summary>
+         <p class="mini" style="margin:0 0 8px;color:var(--report)">${m.empty.map(c => `<b>${esc(c.name)}</b>`).join(", ")}</p></details>` : "";
     const errs = cgRes.rows.filter(r => r.memberError);
     // Add a member without leaving the matrix. Only the groups whose members
     // are actually loaded are offered — adding to a group you cannot see the
@@ -5976,7 +5978,8 @@ This is a directory write. Nothing else changes.`)) return;
         <button class="${cgNesting === "" ? "active" : ""}" data-cgnestmode="" style="padding:3px 10px;font-size:11px">Members</button>
         <button class="${cgNesting === "show" ? "active" : ""}" data-cgnestmode="show" style="padding:3px 10px;font-size:11px">Show nesting${nestedN ? ` (${nestedN})` : ""}</button>
         <button class="${cgNesting === "only" ? "active" : ""}" data-cgnestmode="only" style="padding:3px 10px;font-size:11px">Nested only${nestedUsers ? ` (${nestedUsers})` : ""}</button>
-      </span>`;
+      </span>
+      ${m.empty.length ? `<label class="chk mini" style="display:inline-flex;align-items:center;gap:5px;margin-left:8px;vertical-align:middle"><input type="checkbox" id="cgHideEmpty"${cgHideEmpty ? " checked" : ""}> hide ${m.empty.length} empty group${m.empty.length === 1 ? "" : "s"}</label>` : ""}`;
     $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">
         ${m.users.length} distinct member${m.users.length === 1 ? "" : "s"} across ${m.cols.length} group${m.cols.length === 1 ? "" : "s"}.
         <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Read more groups</button>
@@ -5984,8 +5987,10 @@ This is a directory write. Nothing else changes.`)) return;
         ${nestSeg}
       </div>${addBar}${empties}
       ${errs.length ? `<p class="mini" style="color:var(--off)">${errs.length} group${errs.length === 1 ? "" : "s"} could not be read: ${errs.map(r => esc(r.name)).join(", ")}</p>` : ""}
-      ${CaGroups.renderMatrix(m, cgQuery, cgNesting)}
+      ${CaGroups.renderMatrix(m, cgQuery, cgNesting, { hideEmpty: cgHideEmpty })}
       ${cgNesting ? CaGroups.renderNesting(m, cgNestOpen) : ""}`;
+    const he = $("cgHideEmpty"); if (he) he.addEventListener("change", (e) => { cgHideEmpty = e.target.checked; renderCgMembers(); });
+    const de = $("cgBody").querySelector(".cg-empties"); if (de) de.addEventListener("toggle", () => { cgEmptiesOpen = de.open; });
     const gl = $("cgGroupSug");
     if (gl) gl.innerHTML = m.cols.map((c) => `<option value="${esc(c.name)}"></option>`).join("");
   }

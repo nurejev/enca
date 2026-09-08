@@ -814,27 +814,36 @@ const CaGroups = (() => {
   // nesting: true shows HOW — ● direct, ◐ via a child group (named in the
   // tooltip, not removable here: the membership lives in the child). A
   // nested-only filter keeps the rows that came in through a child.
-  function renderMatrix(m, q, nesting) {
+  // The label under a ◐: nested-group names share a long prefix
+  // (Externen_Leeuwendaal_…), so the TAIL is what tells them apart.
+  const tail = (n, len = 12) => { n = String(n || ""); return n.length <= len ? n : "…" + n.slice(-len + 1); };
+  // opts: { hideEmpty } — a column with no members is dropped from the grid
+  function renderMatrix(m, q, nesting, opts = {}) {
     if (!m.cols.length) return '<p class="mini" style="padding:20px">No members loaded yet — run the member scan.</p>';
+    const cols = opts.hideEmpty ? m.cols.filter((c) => (c.memberTotal || 0) > 0) : m.cols;
     let users = q ? m.users.filter((u) => u.name.toLowerCase().includes(q) || (u.upn || "").toLowerCase().includes(q)) : m.users;
     if (nesting === "only") users = users.filter((u) => Object.values(u.how || {}).some((h) => h && !h.direct));
     if (!users.length) return `<p class="mini" style="padding:20px">${nesting === "only" ? "No member came in through a nested group." : "No members match the search."}</p>`;
+    if (!cols.length) return '<p class="mini" style="padding:20px">Every loaded group is empty — nothing to show with empty groups hidden.</p>';
+    // a column whose every member came in through nesting: nothing in it can
+    // be removed from here, and the header says so
+    const allNested = (c) => c.directIds && (c.members || []).length > 0 && (c.members || []).every((mm) => !mm.direct);
     const cell = (u, c) => {
       if (!u.groups.has(c.name)) return '<td class="cellv"></td>';
       const h = nesting ? u.how[c.name] : null;
       if (c.dynamic) return '<td class="cellv ok" title="member — dynamic group, membership is rule-managed">●</td>';
-      if (h && !h.direct) return `<td class="cellv ok cg-nested" title="member of ${esc(c.name)} via ${esc(h.via.join(", ") || "a nested group")} — remove from that group, not here">◐<span class="mini cg-via">${esc(h.via[0] || "nested")}${h.via.length > 1 ? ` +${h.via.length - 1}` : ""}</span></td>`;
+      if (h && !h.direct) return `<td class="cellv ok cg-nested" title="member of ${esc(c.name)} via ${esc(h.via.join(", ") || "a nested group")} — remove from that group, not here">◐<span class="mini cg-via" title="${esc(h.via.join(", "))}">${esc(tail(h.via[0] || "nested"))}${h.via.length > 1 ? ` +${h.via.length - 1}` : ""}</span></td>`;
       return `<td class="cellv ok cg-mem" data-cgrm-user="${esc(u.id)}" data-cgrm-group="${esc(c.name)}" title="${h ? "direct " : ""}member of ${esc(c.name)} — click to remove">●<span class="cg-rm" aria-hidden="true">×</span></td>`;
     };
     return `<div class="tablewrap"><table class="mtable cg-matrix${nesting ? " cg-nesting" : ""}">
       <thead><tr>
         <th class="stick">Member (${users.length})</th>
-        ${m.cols.map((c) => `<th class="vert" title="${esc(c.name)}${c.children ? ` — ${c.children.length} nested group${c.children.length === 1 ? "" : "s"}` : ""}"><span>${esc(c.name)}</span></th>`).join("")}
+        ${cols.map((c) => { const an = nesting && allNested(c); return `<th class="vert${an ? " cg-allnested" : ""}" title="${esc(c.name)}${c.children ? ` — ${c.children.length} nested group${c.children.length === 1 ? "" : "s"}` : ""}${an ? " — every member came in through a nested group; nothing here is removable from this group" : ""}"><span>${an ? "◐ " : ""}${esc(c.name)}</span></th>`; }).join("")}
         <th style="width:60px">In</th>
       </tr></thead>
       <tbody>${users.map((u) => `<tr>
         <td class="stick">${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""}<div class="mini muted">${esc(u.upn || "")}</div></td>
-        ${m.cols.map((c) => cell(u, c)).join("")}
+        ${cols.map((c) => cell(u, c)).join("")}
         <td class="mini"><b>${u.groups.size}</b></td>
       </tr>`).join("")}</tbody></table></div>`;
   }
