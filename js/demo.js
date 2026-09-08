@@ -132,8 +132,8 @@ const DEMO_DATA = {
     { id: "u-break1", displayName: "breakglass-01", userPrincipalName: "breakglass-01@contoso.com", userType: "Member", accountEnabled: true, assignedLicenses: [{ skuId: "sku-p1", disabledPlans: [] }], assignedPlans: [] },
     { id: "u-break2", displayName: "breakglass-02", userPrincipalName: "breakglass-02@contoso.com", userType: "Member", accountEnabled: true, assignedLicenses: [{ skuId: "sku-p1", disabledPlans: [] }], assignedPlans: [] },
     { id: "u-svc", displayName: "svc-legacyapp", userPrincipalName: "svc-legacyapp@contoso.com", userType: "Member", accountEnabled: true, assignedLicenses: [], assignedPlans: [] },
-    { id: "u-emp1", displayName: "Eva Employee", userPrincipalName: "eva@contoso.com", userType: "Member", accountEnabled: true, assignedLicenses: [{ skuId: "sku-p1", disabledPlans: [] }], assignedPlans: [] },
-    { id: "u-emp2", displayName: "Milan Medewerker", userPrincipalName: "milan@contoso.com", userType: "Member", accountEnabled: true, assignedLicenses: [], assignedPlans: [{ servicePlanId: "41781fb2-bc02-4b7c-bd55-b576c07bb09d", capabilityStatus: "Enabled" }] },
+    { id: "u-emp1", displayName: "Eva Employee", userPrincipalName: "eva@contoso.com", userType: "Member", accountEnabled: true, department: "Finance", assignedLicenses: [{ skuId: "sku-p1", disabledPlans: [] }], assignedPlans: [] },
+    { id: "u-emp2", displayName: "Milan Medewerker", userPrincipalName: "milan@contoso.com", userType: "Member", accountEnabled: true, department: "HR", assignedLicenses: [], assignedPlans: [{ servicePlanId: "41781fb2-bc02-4b7c-bd55-b576c07bb09d", capabilityStatus: "Enabled" }] },
     { id: "u-guest1", displayName: "Gary Guest", userPrincipalName: "gary_ext#EXT#@contoso.com", userType: "Guest", accountEnabled: true },
     { id: "u-old", displayName: "Olga Offboarded", userPrincipalName: "olga@contoso.com", userType: "Member", accountEnabled: false, assignedLicenses: [], assignedPlans: [] },
   ],
@@ -208,6 +208,11 @@ const DEMO_DATA = {
     "CAB-SEC-U-Persona-Internals": ["u-emp1", "u-emp2", "u-old"],
     "CAB-SEC-U-Persona-Guests": ["u-guest1"],
     "HR-Department": ["u-emp1", "u-emp2"],
+    // Deploy (wave) groups for 🕵 Who is Anna to CA: Eva and Milan are in
+    // the Internals wave, Alex in the Admins wave, everyone human in Global.
+    "CAD-SEC-U-DG-GLO": ["u-admin", "u-emp1", "u-emp2", "u-guest1"],
+    "CAD-SEC-U-DG-INT": ["u-emp1", "u-emp2"],
+    "CAD-SEC-U-DG-ADM": ["u-admin"],
   },
 
   // Named locations for the best-practice location checks.

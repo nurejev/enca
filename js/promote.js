@@ -118,6 +118,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 129,
+      title: "🕵 Who is Anna to CA (T36)",
+      tools: ["Who is Anna to CA"],
+      builds: [25261],
+      risk: "medium",
+      what: "New beta-only tool: one user, the whole Conditional Access picture on one screen — deployment stage (which CAD-SEC-U-DG-* groups, direct or nested via which parent), every policy and via what it reaches or excludes her, the sign-ins Conditional Access stopped for her, and her report-only forecast (locked out / prompts / no change / no data). Standing bypasses named. Reads only; the sign-in half is a per-user server-filtered read, or the shared window when complete. New js/whois.js plus tile, screen, Help section, wiring and CSS.",
+      why: "Composes ⚖ Compare users, 🚦 Sign-in failures and 🎚 Report-only impact for one user rather than inventing new reads, so the risk is in the COMPOSITION: the include reason, the nested-via path and the per-user report-only row are new code paths. Graduates once the ladder and the policy table have matched ⚖ Compare and 🎚 Report-only impact on a few real users, including one in an exclusion group and one not in any wave.",
+      test: [
+        "On a baseline tenant, read a user who is in CAD-SEC-U-DG-INT through a nested group: the ladder must show DG-INT as In · nested via <that parent>, and DG-GLO likewise; a deploy group the tenant does not have must read “Not in this tenant”, not “Not in”.",
+        "Read a user who is a direct member of a CAB-SEC-U-CAxxx-Exclusion group while that policy is On: the exclusion rung must be red, the policy row must read EXCLUDED with the group named, and a “Standing bypass” callout must appear. Switch the policy to report-only and rescan: the callout must go.",
+        "For the same user, open ⚖ Compare users with that user and a colleague: every ✓ / ✗ / · in Compare's assignment column for the user must agree with the Reaches her / Excluded / Not targeted chips here. Any disagreement is a bug in this tool, not in Compare.",
+        "Read a user with at least one sign-in an enforced policy blocked in the last 7 days: the blocked count in the tile, the policy row's Log column and the sign-ins table must agree with 🚦 Sign-in failures filtered to that UPN, and 🧪 Replay must open What-If prefilled with the app, platform, client and IP of that sign-in.",
+        "With a report-only policy that would deny the user: the forecast tile must say Locked out and name the policy; the same user's row in 🎚 Report-only impact → Per user must show the same policy with the same failure count. A report-only policy that reaches her but evaluated no sign-in must render as “no data”, never as no change.",
+        "Read a user in NO deploy group: the stage tile must say “Not in a wave” and the callout must offer 👥 Conditional Access groups. On a tenant with the Joey Verlinden baseline active, the ladder must say the baseline has no deployment groups and show the persona groups instead.",
+        "Decline AuditLog.Read.All when it is asked for: the memberships and policy table must still render, and the sign-in half must say why it was skipped. Press the MFA methods “read” button and decline: the chip must stay “not read”.",
+        "?demo=1: read eva@contoso.com — DG-GLO and DG-INT In, one report-only forecast from the demo sign-ins, and the policy names open the policy card.",
+      ],
+      files: ["js/whois.js", "js/app.js", "index.html", "css/app.css", "js/demo.js", "js/version.js"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25261, date: "2026-09-08", title: "Who is Anna to CA",
+    items: [
+      { kind: "new", tool: "Who is Anna to CA", text: "New tool, BETA and only here: one user, the whole Conditional Access picture on one screen. Type a UPN and get four answers at once — her DEPLOYMENT STAGE (which of the baseline's CAD-SEC-U-DG-* groups she is in, and how: direct, or nested via which parent), how many policies REACH her and via what (All users, a group with its path, a role, guest type — or EXCLUDED and by what), the sign-ins Conditional Access actually STOPPED for her in the window, and what happens to her the day everything in REPORT-ONLY goes live: locked out, extra prompts, no change, or no data. Exclusion groups she is in are listed with the policies they take her out of; one that bypasses an enforced policy is called a standing bypass, and who put her there is a click away in ⚖ Compare users or 🕓 Change audit. The sign-in half reads only this user's sign-ins, so it never hits the record cap, and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read when that window was complete. Registered MFA methods are an optional extra read. Buttons out to ⚖ Compare, 🧪 What-If, 🔗 User or Group analyzer and a 🧪 Replay per stopped sign-in; Markdown brief for the ticket and CSV of the policy table. Reads only." },
+    ],
+  },
+  {
     build: 25260, date: "2026-09-08", title: "Production is 308, and the promotion queue can batch",
     items: [
       { kind: "improved", tool: "Help", text: "Waiting for production groups items that belong together - a tool and its Help section, a feature and the fixes it grew on beta - under one group row. The group's tick takes every member; each member keeps its own tick, so one can be held back from the batch without losing the batch (the R28 case, where 67 stayed behind while 61-66, 68 and 69 went). A group that goes out incomplete is named in the exported order, member by member, so a deliberate hold-back reads as one and not as an item somebody forgot. Groups are declared in js/promote.js: a group id on each member and one title and reason in PROMOTE.groups." },
