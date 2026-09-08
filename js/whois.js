@@ -222,9 +222,13 @@ const WhoIs = (() => {
   const stateHtml = (st) => `<span class="wo-state ${st}">${dot(st)}${STATE_LABEL[st]}</span>`;
   const pill = (n, cls) => `<span class="pill ${n ? cls : "zero"}">${n}</span>`;
   const polLink = (r) => `<span class="pol-link" data-polid="${esc(r.id)}">${r.seq ? `<b>${esc(r.seq)}</b> ` : ""}${esc(r.name)}</span>`;
+  // "nested via X" is the line that matters: she is in the group because
+  // somebody put her in X, and whoever manages X decides — so it is marked,
+  // not muted, wherever a group reason is written
+  const howHtml = (how) => !how || how === "member" ? "" : /^nested/.test(how) ? ` <span class="wo-nest">↪ ${esc(how)}</span>` : ` <span class="mini muted">· ${esc(how)}</span>`;
   const whyHtml = (w) => {
     if (!w) return "";
-    if (w.kind === "group") return `<b>${esc(w.text)}</b>${w.how && w.how !== "member" ? ` <span class="mini muted">· ${esc(w.how)}</span>` : ""}`;
+    if (w.kind === "group") return `<b>${esc(w.text)}</b>${howHtml(w.how)}`;
     if (w.kind === "role") return `role <b>${esc(w.text)}</b>`;
     return `<b>${esc(w.text)}</b>`;
   };
@@ -315,14 +319,14 @@ const WhoIs = (() => {
       return `<div class="wo-rung ${cls}"><span class="g">${dot(r.inMember ? "on" : "na")}${esc(r.name)}${r.label ? ` <span class="mini muted">${esc(r.label.replace(/^\S+\s/, ""))}</span>` : ""}</span><span class="st">${st}</span></div>`;
     };
     const exclRung = (x) => `<div class="wo-rung ${x.bypass ? "excl" : "out"}"><span class="g">${dot(x.bypass ? "off" : "na")}${esc(x.name)}</span>
-      <span class="st">Excluded · <b>${esc(x.how)}</b></span>
+      <span class="st">Excluded · ${/^nested/.test(x.how) ? `<b class="wo-nest">↪ ${esc(x.how)}</b> <span class="mini muted">— whoever manages that group decides</span>` : `<b>${esc(x.how)}</b>`}</span>
       <span class="mini muted">${x.dangling ? "no policy references this group" : `from ${x.policies.map((p) => `${esc(p.seq || p.name)}${p.state === "on" ? "" : ` (${STATE_LABEL[p.state]})`}`).join(", ")}`}</span></div>`;
     const ladderHtml = `<div class="list-card wo-card">
       <h3 class="wo-h">🚀 Deployment groups <span class="mini muted">— ${res.ladder.hasDg ? "the ★ active baseline's deploy groups, membership read transitively" : "the ★ active baseline has no deployment groups; its persona groups are shown"}</span></h3>
       ${res.ladder.deploy.length ? `<div class="wo-ladder">${res.ladder.deploy.map(rung).join("")}</div>` : ""}
       ${res.ladder.persona.length ? `<div class="mini muted" style="margin:10px 0 4px">Persona groups (production)</div><div class="wo-ladder">${res.ladder.persona.map(rung).join("")}</div>` : ""}
       ${res.exclusions.length ? `<div class="mini muted" style="margin:10px 0 4px">Exclusion groups she is in</div><div class="wo-ladder">${res.exclusions.map(exclRung).join("")}</div>` : '<p class="mini muted" style="margin-top:10px">She is in no exclusion group.</p>'}
-      ${res.bypasses.map((x) => `<div class="wo-callout bad"><b>Standing bypass.</b> She is in <b>${esc(x.name)}</b> (${esc(x.how)}), which takes her out of ${x.policies.filter((p) => p.state === "on" && p.targeted).map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.seq ? `${p.seq} ${p.name}` : p.name)}</span>`).join(", ")} while ${x.policies.filter((p) => p.state === "on" && p.targeted).length === 1 ? "it is" : "they are"} <b>enforced</b>. Who put her there and when: <a href="#" class="md-tool" data-tool="toolCompare">⚖ Compare users</a> shows the membership next to a colleague's; <a href="#" class="md-tool" data-tool="toolAudit">🕓 Change audit</a> has the group change if it is inside the retention window.</div>`).join("")}
+      ${res.bypasses.map((x) => `<div class="wo-callout bad"><b>Standing bypass.</b> She is in <b>${esc(x.name)}</b> (${/^nested/.test(x.how) ? `<span class="wo-nest">↪ ${esc(x.how)}</span> — she was never added to the exclusion group itself` : esc(x.how)}), which takes her out of ${x.policies.filter((p) => p.state === "on" && p.targeted).map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.seq ? `${p.seq} ${p.name}` : p.name)}</span>`).join(", ")} while ${x.policies.filter((p) => p.state === "on" && p.targeted).length === 1 ? "it is" : "they are"} <b>enforced</b>. Who put her there and when: <a href="#" class="md-tool" data-tool="toolCompare">⚖ Compare users</a> shows the membership next to a colleague's; <a href="#" class="md-tool" data-tool="toolAudit">🕓 Change audit</a> has the group change if it is inside the retention window.</div>`).join("")}
       ${stage.kind === "none" && res.ladder.hasDg ? `<div class="wo-callout"><b>Not in a wave.</b> None of the deploy groups has her, so only policies scoped to <b>All users</b> (or a role / another group) reach her. If she is supposed to be in the rollout, add her through <a href="#" class="md-tool" data-tool="toolCaGroups">👥 Conditional Access groups</a>.</div>` : ""}
     </div>`;
 

@@ -120,8 +120,8 @@ const PROMOTE = {
     {
       n: 137,
       title: "🚪 Exclusion analyzer: nesting in sight (T09 1.7, R49)",
-      tools: ["Exclusion analyzer"],
-      builds: [25281],
+      tools: ["Exclusion analyzer", "Who is Anna to CA"],
+      builds: [25281, 25282],
       risk: "low",
       what: "js/exclusions.js: readNesting(groups) after the transitive read — one $batch of /groups/{id}/members (direct users + groups, split on @odata.type), one of the nested groups' transitiveMembers/user (first 40) — sets members[].direct / via, group.nested / directCount / nestedCount. effectiveUsers reasons carry nested + through; risk() adds the nested-groups flag (High when directCount === 0); rowSub / matrix cell (↪, class nest) / summary tag / CSV / MD carry it; app.js openExMembers sorts direct first and names the path. Demo: last member of a 2+ group comes through SG-Demo-*.",
       why: "Read-only and additive: a failed nesting read leaves the old result exactly as it was (caught, warned). The one judgement call is the High level for an exclusion group with no direct members — that is the case Mihai could not see and asked for, so it should stay loud.",
@@ -130,9 +130,10 @@ const PROMOTE = {
         "Effective users: a user from that group must show ↪ (not ◐) in the CA015 column, tooltip 'excluded via CAB-SEC-U-CA005-Exclusion ↪ <nested group> — through nesting only'.",
         "Risk review: CA015 must carry a High flag 'Exclusion group fed entirely by nested groups: CAB-SEC-U-CA005-Exclusion' naming the nine groups; a policy whose excluded group mixes direct and nested members must carry Medium instead.",
         "Export CSV and MD: the how column reads 'via <group> > <nested>' / 'via <group> ↪ <nested>'.",
+        "🕵 Who is Anna to CA on a user who sits in an exclusion group only through a nested group: the exclusion rung must read 'Excluded · ↪ nested via <group>' in red, the policy table's Reaches-her-via column the same, and the standing-bypass callout must say she was never added to the exclusion group itself. A direct member keeps 'direct'.",
         "?demo=1: head tag '1 excluded group with nested groups · 1 user through nesting', HR-Department row '2 members · ↪ 1 through 1 nested group', Milan shows ↪ in Effective users, Risk review Medium on the policy excluding HR-Department.",
       ],
-      files: ["js/exclusions.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+      files: ["js/exclusions.js", "js/whois.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
     },
     {
       n: 136,

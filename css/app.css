@@ -1846,3 +1846,4 @@ body.cgg-modal-open{overflow:hidden}
 .ex-ent .ex-nest{font-style:normal;font-weight:700;color:var(--off);margin-left:5px;font-size:11px}
 .ex-ent.allnested{border-color:var(--off)}
 .mtable .cell.ro.nest{color:var(--off)}
+.wo-nest{color:var(--off);font-weight:700}

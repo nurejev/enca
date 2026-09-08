@@ -14441,8 +14441,11 @@ This is a directory write. Nothing else changes.`)) return;
   // parent it came through. One $batch, capped at 60 direct groups.
   async function woPaths(u) {
     if (isDemo) {
-      u.direct = new Set(u.groupIds);     // the demo directory has no nesting
-      u.via = {};
+      // demo nesting: her first exclusion-looking group is reached through a
+      // nested group, so the ↪ path has something to show
+      u.direct = new Set(u.groupIds); u.via = {};
+      const ex = [...u.groupIds].find((g) => /exclusion/i.test(u.names[g] || ""));
+      if (ex) { u.direct.delete(ex); u.via[ex] = [`SG-Demo-${((u.names[ex] || "").match(/CA\d+/) || ["team"])[0]}`]; }
       return;
     }
     try {
