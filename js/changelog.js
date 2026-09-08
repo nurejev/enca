@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25279, date: "2026-09-08", title: "Conditional Access groups 5.2: the actions never take the list away",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "An action from the bar used to swap the whole list for the engine screen, and Migrate's re-render after its scan wiped the ← Groups bar with it — you were in Migrate with nothing else on screen and no way back." },
+      { kind: "new", tool: "Conditional Access groups", text: "The writes — Create, Assign, Import, Protect, Migrate — open in a dialog over the dimmed list, with your selection carried across; close it (✕ or Esc) and the ticks and the open row are exactly where you left them. ③ Compare opens as a sheet rising from the actions bar, the bar becoming its header; the list above stays live — tick more rows and the matrix follows. The actions bar is a real floating bar now, fixed to the bottom of the window. After a write the tool lands back on the list, not the old ① table." },
+    ],
+  },
+  {
     build: 25278, date: "2026-09-08", title: "Conditional Access groups: Migrate from the list checks only what you came with",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "Migrate reached from the groups list was checking every role-assignable group in the tenant — 66 groups, three reads each — for the one group you clicked. It now checks only the groups you came with, says so with a scoped tag, and offers the full check as a button. The groups themselves were already read; what the wizard reads per candidate is what the list does not hold: directory roles, the direct member count that will move, and restricted-AU membership." },

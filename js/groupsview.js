@@ -138,20 +138,20 @@ const GroupsView = (() => {
         <td>${protCell(r, c, ctx)}</td>
         <td class="cgg-acts">${rowActions(r, c)}</td>
       </tr>`).join("") || `<tr><td colspan="7" class="mini muted" style="padding:16px">No group matches ${o.filter === "all" ? "the search" : "this filter"}.</td></tr>`}</tbody></table></div>
-      <p class="mini muted" style="padding:8px 14px">${rows.length} of ${model.rows.length} groups · sorted needs-attention first · click a row for its detail, tick rows for the actions bar</p></div>`;
+      <p class="mini muted" style="padding:8px 14px">${rows.length} of ${model.rows.length} groups · sorted needs-attention first · click a row for its detail and the actions bar, tick rows to act on more</p></div>`;
   }
 
   // The bar shows for the ticked rows — or, with nothing ticked, for the
   // row that is open in the drawer, so a click is enough to act on a group.
   function bulkBar(model, o) {
-    const sel = o.sel.size ? o.sel : (o.open ? new Set([o.open]) : null);
+    const sel = o.sel.size ? o.sel : (o.open ? new Set([o.open]) : (o.engine ? new Set() : null));
     if (!sel) return "";
     const n = sel.size;
     const rows = model.rows.filter((r) => sel.has(r.name));
     const missing = rows.filter((r) => !r.id && r.template).length;
     const unread = rows.filter((r) => r.id && r.members == null).length;
     return `<div class="cgg-bulk">
-      <b>${o.sel.size ? `${n} selected` : `${esc(o.open)} <span class="mini" style="font-weight:400;opacity:.8">(open — tick rows to act on more)</span>`}</b>
+      <b>${o.engine ? `${esc(o.engine)} <span class="mini" style="font-weight:400;opacity:.8">· ${o.sel.size ? `${n} selected` : esc(o.open)} — tick rows above, the matrix follows</span>` : o.sel.size ? `${n} selected` : `${esc(o.open)} <span class="mini" style="font-weight:400;opacity:.8">(open — tick rows to act on more)</span>`}</b>
       ${unread ? `<button class="btn" data-cgg-bulk="read">👥 Read members${unread < n ? ` (${unread})` : ""}</button>` : ""}
       <button class="btn" data-cgg-bulk="compare" title="The members × groups matrix for the selected groups">⊞ Compare selected</button>
       <button class="btn" data-cgg-bulk="assign">🎯 Assign to policies…</button>
@@ -160,7 +160,7 @@ const GroupsView = (() => {
       <button class="btn" data-cgg-bulk="csv">📥 Import members (CSV)…</button>
       <span class="spacer"></span>
       ${missing ? `<button class="btn primary" data-cgg-bulk="create">＋ Create ${missing} missing</button>` : ""}
-      <button class="btn" data-cgg-bulk="clear" title="${o.sel.size ? "Clear the selection" : "Close"}">✕</button>
+      ${o.engine ? `<button class="btn" data-cgg-back title="Close and go back to the list">✕ Close</button>` : `<button class="btn" data-cgg-bulk="clear" title="${o.sel.size ? "Clear the selection" : "Close"}">✕</button>`}
     </div>`;
   }
 
@@ -239,8 +239,8 @@ const GroupsView = (() => {
   }
 
   function render(model, o) {
-    return `<div class="cgg-wrap">${list(model, o)}${drawer(model, o)}</div>${bulkBar(model, o)}`;
+    return `<div class="cgg-wrap">${list(model, o)}${drawer(model, o)}</div>`;
   }
 
-  return { classify, chips, render, CHIPS };
+  return { classify, chips, render, bulkBar, CHIPS };
 })();

@@ -3259,21 +3259,67 @@
       coverage: Math.round(((counts.present || 0) / expectedTotal) * 100), scanned: new Date() };
   }
 
+  // Where an engine screen lives. The list stays in #cgList; #cgBody — the
+  // element every engine renders into and listens on — is MOVED into a
+  // container: a dialog over the dimmed list for the writes (create, assign,
+  // import, protect, migrate — finish or cancel), a sheet rising from the
+  // actions bar for ③ Compare (look while you keep ticking rows). The
+  // close button sits in the container, outside #cgBody, so no engine
+  // re-render can wipe it — which is exactly what Migrate did to the old
+  // ← Groups bar after its scan.
+  const CG_LABEL = { check: "① Check", create: "② Create", members: "③ Members / Compare", assign: "④ Assign", csv: "⑤ Import members", rmau: "⑥ Protect", migrate: "⑦ Migrate" };
+  function cgPlaceEngine(hasBar) {
+    const body = $("cgBody"), list = $("cgList"), bar = $("cgBar"), ov = $("cgOverlay"), sh = $("cgSheet");
+    $("screen-cagroups").classList.toggle("sheet-open", cgTab === "members");
+    const home = () => { if (body.parentNode !== list.parentNode) list.insertAdjacentElement("afterend", body); if (bar.parentNode !== list.parentNode) body.insertAdjacentElement("afterend", bar); };
+    if (cgTab === "groups") {
+      home(); ov.hidden = true; sh.hidden = true; body.hidden = true; body.innerHTML = "";
+      bar.hidden = !hasBar; document.body.classList.remove("cgg-modal-open");
+    } else if (cgTab === "members") {
+      ov.hidden = true; document.body.classList.remove("cgg-modal-open");
+      body.hidden = false; sh.hidden = false;
+      if (body.parentNode !== $("cgSheetSlot")) $("cgSheetSlot").appendChild(body);
+      if (bar.parentNode !== $("cgSheetHd")) $("cgSheetHd").appendChild(bar);
+      bar.hidden = false;
+    } else {
+      sh.hidden = true;
+      if (bar.parentNode !== list.parentNode) list.insertAdjacentElement("afterend", bar);
+      bar.hidden = true;
+      body.hidden = false; ov.hidden = false;
+      if (body.parentNode !== $("cgOvSlot")) $("cgOvSlot").appendChild(body);
+      $("cgOvTitle").textContent = CG_LABEL[cgTab] || cgTab;
+      const n = cgSel.size || (cgOpen ? 1 : 0);
+      $("cgOvSub").textContent = n ? (cgSel.size ? `${n} group${n === 1 ? "" : "s"} carried from the list` : cgOpen) : "";
+      document.body.classList.add("cgg-modal-open");
+    }
+  }
+  function cgCloseEngine() { if (cgTab === "groups") return; cgTab = "groups"; cgQuery = ""; $("cgSearch").value = ""; renderCaGroups(); }
+
   function renderCaGroups() {
     if (!cgRes) return;
     $("cgHead").innerHTML = CaGroups.renderSummary(cgRes, tenantName);
     [...document.querySelectorAll("#cgTabs button")].forEach(b =>
       b.classList.toggle("active", b.dataset.cgtab === cgTab));
-    $("cgChips").innerHTML = cgTab === "check" ? CaGroups.chips(cgRes, cgFilter) : cgTab === "groups" ? GroupsView.chips(cgModel(), cgGFilter) : "";
-    $("cgChips").style.display = cgTab === "check" || cgTab === "groups" ? "flex" : "none";
+    // The toolbar belongs to the list, which is always on screen now: the
+    // chips filter it, the search filters it (and the members matrix when
+    // the sheet is open — one query, both views).
+    $("cgChips").innerHTML = GroupsView.chips(cgModel(), cgGFilter);
+    $("cgChips").style.display = "flex";
     $("cgFull").style.display = cgTab === "members" ? "inline-flex" : "none";
-    $("cgArchived").style.display = cgTab === "check" || cgTab === "groups" ? "inline-flex" : "none";
-    $("cgSearch").placeholder = cgTab === "members"
-      ? "Search member name or UPN…" : cgTab === "groups" ? "Search group, object ID or member…" : "Search group name or object ID…";
-    $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" || cgTab === "csv" || cgTab === "rmau" || cgTab === "migrate" ? "none" : "";
+    $("cgArchived").style.display = "inline-flex";
+    $("cgSearch").placeholder = cgTab === "members" ? "Search group, member or UPN…" : "Search group, object ID or member…";
+    $("cgSearch").style.display = "";
+
+    // The list, every time — ticks and the open row must show under a sheet
+    // and be intact when a dialog closes.
+    const model = cgModel();
+    const o = { filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, engine: cgTab === "members" ? "③ Members / Compare" : null };
+    $("cgList").innerHTML = GroupsView.render(model, o);
+    const barHtml = GroupsView.bulkBar(model, o);
+    $("cgBar").innerHTML = barHtml;
+    cgPlaceEngine(!!barHtml);
 
     if (cgTab === "groups") {
-      $("cgBody").innerHTML = GroupsView.render(cgModel(), { filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg });
       if (cgRes.rows.some((r) => r.id && r.nesting === undefined)) {
         loadNestingStates(cgRes.rows).then(() => { if (cgTab === "groups") renderCaGroups(); }).catch((e) => console.warn("nesting state read failed:", e.message));
       }
@@ -3284,12 +3330,6 @@
       const tb = $("cgChips").closest(".toolbar"); if (tb && tb.offsetHeight) document.documentElement.style.setProperty("--cg-tb", `${tb.offsetHeight}px`);
       return;
     }
-    // an engine screen: say where you are and how to get back to the list
-    const LABEL = { check: "① Check", create: "② Create", members: "③ Members / Compare", assign: "④ Assign", csv: "⑤ Import members", rmau: "⑥ Protect", migrate: "⑦ Migrate" };
-    const back = `<div class="cgg-back"><button class="btn sm" data-cgg-back>← Groups</button><span class="mini muted">${esc(LABEL[cgTab] || cgTab)}</span></div>`;
-    const paint = () => { if ($("cgBody").firstElementChild && !$("cgBody").querySelector(".cgg-back")) $("cgBody").insertAdjacentHTML("afterbegin", back); };
-    (window.requestAnimationFrame || setTimeout)(paint); setTimeout(paint, 0);
-
     if (cgTab === "check") {
       $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery, cgProt);
       // disableNesting is invisible to the main scan, so fill it in after the
@@ -5127,7 +5167,7 @@ max@contoso.com,"Global, DevOps"</pre>
       // Re-scan so Check reflects reality rather than what we hoped happened.
       cgRes = null;
       await openCaGroups(true);
-      cgTab = "check"; renderCaGroups();
+      cgTab = "groups"; renderCaGroups();
       return;
     }
     if (e.target.id === "cgmCreate") { await cgManualCreate(e.target); return; }
@@ -5168,7 +5208,7 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       const g = isDemo ? { id: "g-" + name, name, created: true } : await Assign.createGroup(r.template);
       toast(g.created ? `Created <span>${esc(name)}</span>` : `<span>${esc(name)}</span> already existed — reused`);
-      cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
+      cgRes = null; await openCaGroups(true); cgTab = "groups"; renderCaGroups();
     } catch (err) { console.error(err); toast(`Create failed: <span>${esc(err.message || err)}</span>`); if (btn) { btn.disabled = false; btn.textContent = "Create"; } }
   }
 
@@ -5242,7 +5282,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     showReport("⟳ Convert to dynamic", "CA-Group-Convert-Dynamic", md.join("\n"));
     toast(err ? `Convert stopped: <span>${esc(err.message || err)}</span>` : `<span>${esc(plan.name)}</span> is now dynamic${isDemo ? " (simulated)" : ""}`);
-    if (!isDemo && !err) { cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups(); }
+    if (!isDemo && !err) { cgRes = null; await openCaGroups(true); cgTab = "groups"; renderCaGroups(); }
   });
 
   // Carry the user members of one group into another. Role-assignable groups
@@ -5422,7 +5462,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     showReport("🧹 Archived groups removed", "CA-Groups-Housekeeping", L.join("\n"));
     toast(failed.length ? `Deleted ${done.length}, <span>${failed.length} failed</span>` : `<span>${done.length}</span> archived group${done.length === 1 ? "" : "s"} deleted`);
-    cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
+    cgRes = null; await openCaGroups(true); cgTab = "groups"; renderCaGroups();
   });
 
   // ---- disable group nesting (BETA) ----------------------------------------
@@ -5655,7 +5695,7 @@ max@contoso.com,"Global, DevOps"</pre>
       $("nestRcModal").classList.remove("open");
       showReport("🚫 Disable nesting — recreated", "CA-Group-DisableNesting", CaGroups.nestingReport(p, log, tenantName));
       toast(log.failed.length ? `Recreated with <span>${log.failed.length} failure(s)</span>` : `<span>${p.name}</span> recreated with nesting disabled`);
-      cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
+      cgRes = null; await openCaGroups(true); cgTab = "groups"; renderCaGroups();
     } catch (e) {
       console.error(e); toast(`Recreate failed: <span>${esc(e.message || e)}</span>`);
       btn.disabled = false;
@@ -6312,9 +6352,9 @@ This is a directory write. Nothing else changes.`)) return;
     if (tab === "rmau" && rows.length && !(cgRmau && cgRmau.status) && !rmauBusy) cgRmauScan();
     if (tab === "migrate" && rows.length && !cgMigBusy && (!cgMig || cgMig.scoped)) cgMigScan(rows.filter((r) => r.id).map((r) => r.id));
   }
-  $("cgBody").addEventListener("click", async (e) => {
-    if (cgTab !== "groups") { const bk = e.target.closest("[data-cgg-back]"); if (bk) { cgTab = "groups"; renderCaGroups(); } return; }
+  const cggClick = async (e) => {
     const t = e.target;
+    if (t.closest("[data-cgg-back]")) { cgCloseEngine(); return; }
     const pl = t.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     if (t.closest("[data-cgg-close]")) { cgOpen = null; renderCaGroups(); return; }
     const dt = t.closest("[data-cgg-dtab]"); if (dt) { cgDrTab = dt.dataset.cggDtab; renderCaGroups(); return; }
@@ -6358,13 +6398,19 @@ This is a directory write. Nothing else changes.`)) return;
     }
     const row = t.closest("[data-cgg-row]");
     if (row && !t.closest("input,button,a")) { cgOpenRow(row.dataset.cggRow); }
-  });
-  $("cgBody").addEventListener("change", (e) => {
-    if (cgTab !== "groups") return;
+  };
+  $("cgList").addEventListener("click", cggClick);
+  $("cgBar").addEventListener("click", cggClick);
+  $("cgOverlay").addEventListener("click", (e) => { if (e.target.closest("[data-cgg-back]") || e.target === $("cgOverlay")) cgCloseEngine(); });
+  $("cgSheet").addEventListener("click", (e) => { if (e.target.closest("[data-cgg-back]")) cgCloseEngine(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && cgTab !== "groups" && !$("cgOverlay").hidden && !(e.target && e.target.closest && e.target.closest("input,textarea,select"))) cgCloseEngine(); });
+  // ticks change the selection; under the open sheet the matrix follows them
+  const cggSelChanged = () => { if (cgTab === "members") cgGoTab("members", [...cgSel]); else renderCaGroups(); };
+  $("cgList").addEventListener("change", (e) => {
     const all = e.target.closest("[data-cgg-selall]");
-    if (all) { const names = [...$("cgBody").querySelectorAll("[data-cgg-row]")].map((r) => r.dataset.cggRow); all.checked ? names.forEach((n) => cgSel.add(n)) : names.forEach((n) => cgSel.delete(n)); renderCaGroups(); return; }
+    if (all) { const names = [...$("cgList").querySelectorAll("[data-cgg-row]")].map((r) => r.dataset.cggRow); all.checked ? names.forEach((n) => cgSel.add(n)) : names.forEach((n) => cgSel.delete(n)); cggSelChanged(); return; }
     const one = e.target.closest("[data-cgg-sel]");
-    if (one) { one.checked ? cgSel.add(one.dataset.cggSel) : cgSel.delete(one.dataset.cggSel); renderCaGroups(); }
+    if (one) { one.checked ? cgSel.add(one.dataset.cggSel) : cgSel.delete(one.dataset.cggSel); cggSelChanged(); }
   });
   $("cgChips").addEventListener("click", (e) => { const b = e.target.closest("[data-cgg-filter]"); if (!b) return; cgGFilter = b.dataset.cggFilter; renderCaGroups(); });
 
@@ -6399,6 +6445,8 @@ This is a directory write. Nothing else changes.`)) return;
   });
   $("cgBody").addEventListener("input", cgAddSuggest);
   $("cgBody").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
+  $("cgList").addEventListener("input", cgAddSuggest);
+  $("cgList").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
   $("cgTabs").addEventListener("click", (e) => {
     const b = e.target.closest("[data-cgtab]"); if (!b) return;
     cgTab = b.dataset.cgtab; cgQuery = ""; $("cgSearch").value = "";
