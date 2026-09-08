@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 310, date: "2026-09-08", title: "The roadmap catches up, and the two temporary tools get their Help",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "Eight cards that were missing. In Now: R40 Who is Anna to CA, R41 Who is the wave to CA and R42 remove a member from a group — all shipped in 309. In beta today: R43 Session controls, R44 the sign-in source switch and R45 the nesting view of the members matrix. Next: R46 Workload identity Conditional Access and R47 the Defender half of Device reality check, both designed and not yet built. R05 Baseline usage guide moves from Now to In beta today, where a beta-only tool belongs." },
+      { kind: "improved", tool: "Help", text: "📵 SMS and voice retirement and ⏳ memberOf retirement had no Help section — the only two tools without one. Both have one now: what the retirement does, the verdicts, the one write the SMS tool carries (the passkey dynamic-migration opt-out), the three surfaces the memberOf scan reads and what a frozen rule means for a Conditional Access policy." },
+    ],
+  },
+  {
     build: 309, date: "2026-09-08", title: "Who is Anna to CA, Who is the wave to CA, and CA groups can remove a member",
     items: [
       { kind: "new", tool: "Who is Anna to CA", text: "New tool (BETA): one user, the whole Conditional Access picture on one screen. Type a UPN and get four answers at once — her DEPLOYMENT STAGE (which of the baseline's CAD-SEC-U-DG-* groups she is in, and how: direct, or nested via which parent), how many policies REACH her and via what (All users, a group with its path, a role, guest type — or EXCLUDED and by what), the sign-ins Conditional Access actually STOPPED for her in the window, and what happens to her the day everything in REPORT-ONLY goes live: locked out, extra prompts, no change, or no data. Exclusion groups she is in are listed with the policies they take her out of; one that bypasses an enforced policy is called a standing bypass, and who put her there is a click away in ⚖ Compare users or 🕓 Change audit. The sign-in half reads only this user's sign-ins, so it never hits the record cap, and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read when that window was complete. Registered MFA methods are an optional extra read. Buttons out to ⚖ Compare, 🧪 What-If, 🔗 User or Group analyzer and a 🧪 Replay per stopped sign-in; Markdown brief for the ticket and CSV of the policy table. Reads only." },
