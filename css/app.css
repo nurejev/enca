@@ -1807,6 +1807,7 @@ button.wo-tile.on{box-shadow:inset 0 0 0 2px var(--accent2)}
 .cgg-x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 6px;line-height:1}
 .cgg-x:hover{color:var(--off)}
 /* The actions bar floats over the page bottom; in the sheet it is the header */
+.cgg-overlay[hidden],.cgg-sheet[hidden],.cgg-bar[hidden],#cgBody[hidden]{display:none!important}
 .cgg-bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:60;width:max-content;max-width:calc(100vw - 32px)}
 .cgg-bulk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--green);color:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 12px 36px rgba(0,0,0,.28)}
 /* dialog for the writes */

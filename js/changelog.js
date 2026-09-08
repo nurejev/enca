@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25280, date: "2026-09-08", title: "Conditional Access groups: the empty dialog on open",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "The dialog and sheet containers are flex boxes, and display:flex beat the hidden attribute — so an empty dialog covered the list the moment the tool opened. hidden wins now." },
+    ],
+  },
+  {
     build: 25279, date: "2026-09-08", title: "Conditional Access groups 5.2: the actions never take the list away",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "An action from the bar used to swap the whole list for the engine screen, and Migrate's re-render after its scan wiped the ← Groups bar with it — you were in Migrate with nothing else on screen and no way back." },
