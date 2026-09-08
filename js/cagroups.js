@@ -644,12 +644,48 @@ const CaGroups = (() => {
           disabled: m.accountEnabled === false,
         }));
         r.memberError = null;
+        await loadNesting(r);
       } catch (e) {
         r.members = []; r.memberTotal = null; r.memberError = e.message || String(e);
       }
       o.onProgress?.(i, targets.length);
     }
     return rows;
+  }
+
+  // HOW each member got in. The transitive read above flattens nesting away,
+  // which is right for "who is in scope" and wrong for "why is she in scope":
+  // a user in an exclusion group through SG-Finance-All cannot be removed
+  // from the exclusion group, only from SG-Finance-All. So the direct list
+  // is read, the direct member GROUPS are read with their own transitive
+  // users, and every member carries via: the child groups it came through.
+  // Best effort: a failed read leaves the flat picture intact and says so.
+  const NEST_CAP = 40;
+  async function loadNesting(r) {
+    r.directIds = null; r.children = null; r.nestError = null;
+    try {
+      const dm = await Graph.ggetAll(`/groups/${r.id}/members?$select=id,displayName,membershipRule,groupTypes&$top=999`);
+      r.directIds = new Set(dm.filter((o) => /user$/i.test(o["@odata.type"] || "")).map((o) => o.id));
+      const cg = dm.filter((o) => /group$/i.test(o["@odata.type"] || ""));
+      r.childTotal = cg.length;
+      r.children = [];
+      if (cg.length) {
+        const part = cg.slice(0, NEST_CAP);
+        const res = await Graph.gbatch(part.map((g, i) => ({ id: i, url: `/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id,displayName,userPrincipalName,accountEnabled&$top=999` })));
+        r.children = part.map((g, i) => {
+          const v = (res[i] && res[i].body && res[i].body.value) || [];
+          return { id: g.id, name: g.displayName || g.id, dynamic: !!g.membershipRule || (g.groupTypes || []).includes("DynamicMembership"), rule: g.membershipRule || "",
+            error: res[i] && res[i].error ? res[i].error : null,
+            members: v.slice(0, MEMBER_CAP).map((m) => ({ id: m.id, name: m.displayName || m.id, upn: m.userPrincipalName || "", disabled: m.accountEnabled === false })), memberTotal: v.length };
+        });
+      }
+      const via = new Map();
+      r.children.forEach((c) => c.members.forEach((m) => (via.get(m.id) || via.set(m.id, []).get(m.id)).push(c.name)));
+      r.members.forEach((m) => { m.direct = r.directIds.has(m.id); m.via = via.get(m.id) || []; });
+    } catch (e) {
+      r.nestError = e.message || String(e); r.directIds = null; r.children = null;
+      r.members.forEach((m) => { delete m.direct; delete m.via; });
+    }
   }
 
   // members × groups. Only groups that were actually scanned become columns,
@@ -660,13 +696,15 @@ const CaGroups = (() => {
     cols.forEach((c) => {
       (c.members || []).forEach((m) => {
         let u = users.get(m.id);
-        if (!u) { u = { ...m, groups: new Set() }; users.set(m.id, u); }
+        if (!u) { u = { id: m.id, name: m.name, upn: m.upn, disabled: m.disabled, groups: new Set(), how: {} }; users.set(m.id, u); }
         u.groups.add(c.name);
+        // how she is in THIS group: direct, or via which child groups (null = not read)
+        u.how[c.name] = c.directIds ? { direct: !!m.direct, via: m.via || [] } : null;
       });
     });
     const list = [...users.values()].sort((a, b) =>
       b.groups.size - a.groups.size || a.name.localeCompare(b.name));
-    return { cols, users: list, empty: cols.filter((c) => (c.memberTotal || 0) === 0) };
+    return { cols, users: list, empty: cols.filter((c) => (c.memberTotal || 0) === 0), nested: cols.some((c) => (c.children || []).length) };
   }
 
   // ---- rendering ----------------------------------------------------------
@@ -773,25 +811,49 @@ const CaGroups = (() => {
   }
 
   // members × groups, users as rows — same shape as the exclusion matrix
-  function renderMatrix(m, q) {
+  // nesting: true shows HOW — ● direct, ◐ via a child group (named in the
+  // tooltip, not removable here: the membership lives in the child). A
+  // nested-only filter keeps the rows that came in through a child.
+  function renderMatrix(m, q, nesting) {
     if (!m.cols.length) return '<p class="mini" style="padding:20px">No members loaded yet — run the member scan.</p>';
-    const users = q ? m.users.filter((u) => u.name.toLowerCase().includes(q) || (u.upn || "").toLowerCase().includes(q)) : m.users;
-    if (!users.length) return '<p class="mini" style="padding:20px">No members match the search.</p>';
-    return `<div class="tablewrap"><table class="mtable cg-matrix">
+    let users = q ? m.users.filter((u) => u.name.toLowerCase().includes(q) || (u.upn || "").toLowerCase().includes(q)) : m.users;
+    if (nesting === "only") users = users.filter((u) => Object.values(u.how || {}).some((h) => h && !h.direct));
+    if (!users.length) return `<p class="mini" style="padding:20px">${nesting === "only" ? "No member came in through a nested group." : "No members match the search."}</p>`;
+    const cell = (u, c) => {
+      if (!u.groups.has(c.name)) return '<td class="cellv"></td>';
+      const h = nesting ? u.how[c.name] : null;
+      if (c.dynamic) return '<td class="cellv ok" title="member — dynamic group, membership is rule-managed">●</td>';
+      if (h && !h.direct) return `<td class="cellv ok cg-nested" title="member of ${esc(c.name)} via ${esc(h.via.join(", ") || "a nested group")} — remove from that group, not here">◐<span class="mini cg-via">${esc(h.via[0] || "nested")}${h.via.length > 1 ? ` +${h.via.length - 1}` : ""}</span></td>`;
+      return `<td class="cellv ok cg-mem" data-cgrm-user="${esc(u.id)}" data-cgrm-group="${esc(c.name)}" title="${h ? "direct " : ""}member of ${esc(c.name)} — click to remove">●<span class="cg-rm" aria-hidden="true">×</span></td>`;
+    };
+    return `<div class="tablewrap"><table class="mtable cg-matrix${nesting ? " cg-nesting" : ""}">
       <thead><tr>
         <th class="stick">Member (${users.length})</th>
-        ${m.cols.map((c) => `<th class="vert" title="${esc(c.name)}"><span>${esc(c.name)}</span></th>`).join("")}
+        ${m.cols.map((c) => `<th class="vert" title="${esc(c.name)}${c.children ? ` — ${c.children.length} nested group${c.children.length === 1 ? "" : "s"}` : ""}"><span>${esc(c.name)}</span></th>`).join("")}
         <th style="width:60px">In</th>
       </tr></thead>
       <tbody>${users.map((u) => `<tr>
         <td class="stick">${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""}<div class="mini muted">${esc(u.upn || "")}</div></td>
-        ${m.cols.map((c) => u.groups.has(c.name)
-          ? (c.dynamic
-            ? '<td class="cellv ok" title="member — dynamic group, membership is rule-managed">●</td>'
-            : `<td class="cellv ok cg-mem" data-cgrm-user="${esc(u.id)}" data-cgrm-group="${esc(c.name)}" title="member of ${esc(c.name)} — click to remove">●<span class="cg-rm" aria-hidden="true">×</span></td>`)
-          : '<td class="cellv"></td>').join("")}
+        ${m.cols.map((c) => cell(u, c)).join("")}
         <td class="mini"><b>${u.groups.size}</b></td>
       </tr>`).join("")}</tbody></table></div>`;
+  }
+
+  // The nested groups behind the loaded columns, each with its members.
+  function renderNesting(m, open) {
+    const cols = m.cols.filter((c) => c.directIds);
+    if (!cols.length) return '<p class="mini muted" style="margin:10px 0">Nesting was not read for the loaded groups (older scan or a failed read) — re-read the members.</p>';
+    const withKids = cols.filter((c) => (c.children || []).length);
+    if (!withKids.length) return `<p class="mini muted" style="margin:10px 0">None of the ${cols.length} loaded group${cols.length === 1 ? " has" : "s have"} a nested group — every member is a direct member.</p>`;
+    return `<div class="cg-panel" style="margin-top:12px">
+      <h4>NESTED GROUPS <span class="mini muted" style="text-transform:none;letter-spacing:0;font-weight:400">— the groups inside the loaded groups, and who they bring in</span></h4>
+      ${withKids.map((c) => `<div style="margin-top:8px"><b>${esc(c.name)}</b> <span class="mini muted">${(c.directIds || new Set()).size} direct · ${c.children.length} nested group${c.children.length === 1 ? "" : "s"}${c.childTotal > c.children.length ? ` (first ${c.children.length} of ${c.childTotal})` : ""}</span>
+        ${c.children.map((k) => { const key = `${c.id}|${k.id}`; const isOpen = open && open.has(key); return `<div class="cg-nest">
+          <button class="cg-nestrow" data-cgnest="${esc(key)}"><span>${isOpen ? "▾" : "▸"}</span> <b>${esc(k.name)}</b> <span class="mini muted">${k.error ? `could not read: ${esc(k.error)}` : `${k.memberTotal} member${k.memberTotal === 1 ? "" : "s"}`}${k.dynamic ? ` · dynamic${k.rule ? `: <code>${esc(k.rule)}</code>` : ""}` : ""}</span></button>
+          ${isOpen ? `<ul class="cg-nestlist">${k.members.map((u) => `<li>${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""} <span class="mini muted">${esc(u.upn)}</span></li>`).join("") || '<li class="mini muted">no members</li>'}${k.memberTotal > k.members.length ? `<li class="mini muted">… ${k.memberTotal - k.members.length} more</li>` : ""}</ul>` : ""}
+        </div>`; }).join("")}</div>`).join("")}
+      <p class="mini muted" style="margin-top:8px">A member shown ◐ in the matrix came in through one of these. Removing her from the loaded group does nothing — the membership lives in the nested group, which is where − Remove has to happen.</p>
+    </div>`;
   }
 
   // ---- markdown -----------------------------------------------------------
@@ -1172,7 +1234,7 @@ const CaGroups = (() => {
 
   return {
     STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate, otherBaseline, activeCatalogs,
-    renderSummary, chips, renderTable, renderMatrix, toMd, filtered,
+    renderSummary, chips, renderTable, renderMatrix, renderNesting, toMd, filtered,
     NESTING, NEST_WRITE_SCOPES, nestingState, nestingPlan, nestingReport, adminList,
     NESTING_GA, NEST_V1, nestingUnsupported, nestingSupported, noteNestingUnsupported, NESTING_UNSUPPORTED_TEXT,
     ARCHIVE_SUFFIX, findArchived,

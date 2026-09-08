@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25267, date: "2026-09-08", title: "CA groups ③ Members shows nesting",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "③ Members shows HOW as well as WHO. Every member read also reads the group's direct list and its nested member groups, so a Members / Show nesting / Nested only segment turns the matrix from ● into ● direct and ◐ through a nested group — the child group named under the dot — and a NESTED GROUPS panel lists each nested group with its member count, its dynamic rule when it has one, and its members on click. It matters for the write: a user in an exclusion group through SG-Finance-All cannot be removed from the exclusion group, only from SG-Finance-All, so a ◐ cell offers no × and the panel says where − Remove has to happen. A nesting read that fails leaves the flat matrix as it was and says so." },
+    ],
+  },
+  {
     build: 25266, date: "2026-09-08", title: "A sign-in source switch, and Session controls tiles that filter",
     items: [
       { kind: "new", tool: "Sign-in failures", text: "A Sign-in SOURCE segment, shared with 🎚 Report-only impact, 🕵 Who is Anna to CA and 🌊 Who is the wave to CA: Entra sign-in log (interactive, capped at 10,000, AuditLog.Read.All), Defender hunting (the same interactive sign-ins from EntraIdSignInEvents through advanced hunting on Graph — ThreatHunting.Read.All, no cap, 30 days) or Hunting + non-interactive, which adds the token refreshes and background client sign-ins the Graph list never returns — where sign-in-frequency re-prompts at night, legacy-protocol blocks of service accounts and token-protection failures live. Chosen once per tenant, one cached window per source; the hunting read is one query per day so a response never hits the 50 MB cap, a day that hits the row cap says so, and the table name falls back to AADSignInEventsBeta until its retirement on 19 October 2026. With non-interactive rows in the result, the interactive / non-interactive counts in the header are chips that filter the list, the same chips sit in the filter strip, and each card says non-interactive. Hunting needs Entra ID P2 for the table to be populated." },

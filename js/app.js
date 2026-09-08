@@ -4392,6 +4392,8 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.closest("[data-migrun]")) { cgMigScan(); return; }
     if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
     if (e.target.id === "cgAddRm") { await cgRemoveMember($("cgAddUser")?.value, $("cgAddGroup")?.value); return; }
+    const nm = e.target.closest("[data-cgnestmode]"); if (nm) { cgNesting = nm.dataset.cgnestmode; renderCgMembers(); return; }
+    const nr = e.target.closest("[data-cgnest]"); if (nr) { const k = nr.dataset.cgnest; cgNestOpen.has(k) ? cgNestOpen.delete(k) : cgNestOpen.add(k); renderCgMembers(); return; }
     const rm = e.target.closest("[data-cgrm-user]");
     if (rm) { await cgRemoveMember(rm.dataset.cgrmUser, rm.dataset.cgrmGroup, true); return; }
     if (e.target.id === "cgMigRescan") { cgMig = null; cgRes = null; cgMigScan(); return; }
@@ -5916,6 +5918,11 @@ This is a directory write. Nothing else changes.`)) return;
     }
   }
 
+  // ③ nesting view: "how" instead of "who" — ● direct, ◐ through a nested
+  // group, plus the nested groups themselves with their members. Off by
+  // default so the matrix reads as it always did.
+  let cgNesting = "";          // "" | "show" | "only"
+  const cgNestOpen = new Set();
   function renderCgMembers() {
     const scanned = cgRes.rows.filter(r => r.members);
     if (cgMemberPick || (!scanned.length && !cgBusy)) {
@@ -5963,13 +5970,22 @@ This is a directory write. Nothing else changes.`)) return;
         <div id="cgAddLog" class="mini" style="margin-top:8px">${cgAddMsg ? `<span style="${cgAddMsg.bad ? "color:var(--off)" : ""}">${cgAddMsg.html}</span>` : ""}</div>
       </div>`;
 
+    const nestedN = m.cols.reduce((n, c) => n + ((c.children || []).length), 0);
+    const nestedUsers = m.users.filter((u) => Object.values(u.how || {}).some((h) => h && !h.direct)).length;
+    const nestSeg = `<span class="seg" style="display:inline-flex;margin-left:8px;vertical-align:middle" title="Show how each member got in: ● direct, ◐ through a nested group">
+        <button class="${cgNesting === "" ? "active" : ""}" data-cgnestmode="" style="padding:3px 10px;font-size:11px">Members</button>
+        <button class="${cgNesting === "show" ? "active" : ""}" data-cgnestmode="show" style="padding:3px 10px;font-size:11px">Show nesting${nestedN ? ` (${nestedN})` : ""}</button>
+        <button class="${cgNesting === "only" ? "active" : ""}" data-cgnestmode="only" style="padding:3px 10px;font-size:11px">Nested only${nestedUsers ? ` (${nestedUsers})` : ""}</button>
+      </span>`;
     $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">
         ${m.users.length} distinct member${m.users.length === 1 ? "" : "s"} across ${m.cols.length} group${m.cols.length === 1 ? "" : "s"}.
         <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Read more groups</button>
         <button class="btn sm" id="cgMemberGo" style="margin-left:6px">⟳ Re-read selected</button>
+        ${nestSeg}
       </div>${addBar}${empties}
       ${errs.length ? `<p class="mini" style="color:var(--off)">${errs.length} group${errs.length === 1 ? "" : "s"} could not be read: ${errs.map(r => esc(r.name)).join(", ")}</p>` : ""}
-      ${CaGroups.renderMatrix(m, cgQuery)}`;
+      ${CaGroups.renderMatrix(m, cgQuery, cgNesting)}
+      ${cgNesting ? CaGroups.renderNesting(m, cgNestOpen) : ""}`;
     const gl = $("cgGroupSug");
     if (gl) gl.innerHTML = m.cols.map((c) => `<option value="${esc(c.name)}"></option>`).join("");
   }
@@ -5977,6 +5993,16 @@ This is a directory write. Nothing else changes.`)) return;
   // One group's members, on demand. Same reader as the bulk scan so a row
   // filled this way is indistinguishable from one filled by "read all" — it
   // counts towards the matrix and the Markdown export straight away.
+  // demo nesting: the last member of every group with 2+ members came in
+  // through a nested "SG-Demo-<n>" group
+  function cgDemoNesting(r) {
+    const ms = r.members || [];
+    if (ms.length < 2) { r.directIds = new Set(ms.map((m) => m.id)); r.children = []; r.childTotal = 0; ms.forEach((m) => { m.direct = true; m.via = []; }); return; }
+    const last = ms[ms.length - 1];
+    const child = { id: `g-nest-${r.id}`, name: `SG-Demo-${((r.name || "").match(/CA\d+/) || ["team"])[0]}`, dynamic: false, rule: "", error: null, members: [last], memberTotal: 1 };
+    r.directIds = new Set(ms.slice(0, -1).map((m) => m.id)); r.children = [child]; r.childTotal = 1;
+    ms.forEach((m) => { m.direct = m.id !== last.id; m.via = m.id === last.id ? [child.name] : []; });
+  }
   async function scanOneGroup(name, btn) {
     const r = cgRes && cgRes.rows.find(x => x.name === name);
     if (!r || !r.id) return;
@@ -5986,6 +6012,7 @@ This is a directory write. Nothing else changes.`)) return;
       if (isDemo) {
         r.memberTotal = 3;
         r.members = [1, 2, 3].map(k => ({ id: `u${k}-${r.id}`, name: `Demo user ${k}`, upn: `demo${k}@contoso.com`, disabled: k === 3 }));
+        cgDemoNesting(r);
       } else {
         await CaGroups.loadMembers([r], {});
       }
@@ -6010,6 +6037,7 @@ This is a directory write. Nothing else changes.`)) return;
         targets.forEach((r, i) => {
           r.memberTotal = i % 4; r.members = Array.from({ length: i % 4 }, (_, k) =>
             ({ id: `u${k}-${i}`, name: `Demo user ${k + 1}`, upn: `demo${k + 1}@contoso.com`, disabled: false }));
+          cgDemoNesting(r);
         });
       } else {
         await CaGroups.loadMembers(targets, {

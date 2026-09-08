@@ -118,6 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 134,
+      title: "👥 CA groups ③ Members: show nesting (T12 4.8)",
+      tools: ["Conditional Access groups"],
+      builds: [25267],
+      risk: "low",
+      what: "loadMembers also reads /groups/{id}/members (direct users + member groups) and, in one $batch, each nested group's transitive users (first 40 groups); members carry direct / via. Matrix gains a Members / Show nesting / Nested only segment (● direct, ◐ nested with the child named), a NESTED GROUPS panel with expandable member lists, and ◐ cells are not removable. Demo nesting for the demo groups.",
+      why: "Two extra reads per loaded group; the nesting read is best effort and a failure keeps the flat matrix. Graduates once a real group with a nested member group has shown the ◐ cells and the panel matches the portal.",
+      test: [
+        "Load ③ Members for a group that contains a nested group: Show nesting must mark the nested members ◐ with the child group name under the dot, direct members ●; hovering a ◐ must say remove from that group, not here, and offer no ×.",
+        "The NESTED GROUPS panel must list the child with the same member count the portal shows; click it and the members must match. A dynamic child must show its rule.",
+        "Nested only must keep exactly the ◐ rows; Members must show the matrix exactly as 4.7 did (no ◐, × on every ● of an assigned group).",
+        "Read a group whose /members call fails (e.g. a mail-enabled group you lack rights on): the matrix must still render and the nesting panel must say nesting was not read.",
+        "?demo=1: read members of three groups, Show nesting — every group with 2+ members has one ◐ member through SG-Demo-<n>, the panel lists it.",
+      ],
+      files: ["js/cagroups.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 133,
       title: "Sign-in source: Entra log | Defender hunting | + non-interactive (🚦 🎚 🕵 🌊)",
       tools: ["Sign-in failures", "Report-only impact", "Who is Anna to CA", "Who is the wave to CA"],
