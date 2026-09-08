@@ -6020,10 +6020,10 @@ This is a directory write. Nothing else changes.`)) return;
 
     const nestedN = m.cols.reduce((n, c) => n + ((c.children || []).length), 0);
     const nestedUsers = m.users.filter((u) => Object.values(u.how || {}).some((h) => h && !h.direct)).length;
-    const nestSeg = `<span class="seg" style="display:inline-flex;margin-left:8px;vertical-align:middle" title="Show how each member got in: ● direct, ◐ through a nested group">
-        <button class="${cgNesting === "" ? "active" : ""}" data-cgnestmode="" style="padding:3px 10px;font-size:11px">Members</button>
-        <button class="${cgNesting === "show" ? "active" : ""}" data-cgnestmode="show" style="padding:3px 10px;font-size:11px">Show nesting${nestedN ? ` (${nestedN})` : ""}</button>
-        <button class="${cgNesting === "only" ? "active" : ""}" data-cgnestmode="only" style="padding:3px 10px;font-size:11px">Nested only${nestedUsers ? ` (${nestedUsers})` : ""}</button>
+    const nestSeg = `<span class="seg sw" style="margin-left:8px;vertical-align:middle" title="Show how each member got in: ● direct, ◐ through a nested group">
+        <button class="${cgNesting === "" ? "active" : ""}" data-cgnestmode="">Members</button>
+        <button class="${cgNesting === "show" ? "active" : ""}" data-cgnestmode="show">Show nesting${nestedN ? ` (${nestedN})` : ""}</button>
+        <button class="${cgNesting === "only" ? "active" : ""}" data-cgnestmode="only">Nested only${nestedUsers ? ` (${nestedUsers})` : ""}</button>
       </span>
       ${m.empty.length ? `<label class="chk mini" style="display:inline-flex;align-items:center;gap:5px;margin-left:8px;vertical-align:middle"><input type="checkbox" id="cgHideEmpty"${cgHideEmpty ? " checked" : ""}> hide ${m.empty.length} empty group${m.empty.length === 1 ? "" : "s"}</label>` : ""}`;
     $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">

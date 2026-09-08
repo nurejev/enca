@@ -178,8 +178,25 @@ footer{position:sticky;top:100vh}
 .seg button{border:0;background:none;padding:8px 16px;font-weight:600;font-size:13px;color:var(--muted)}
 .seg button.active{background:var(--green);color:#fff}
 .chip-filter{display:flex;gap:6px;flex-wrap:wrap}
-.fchip{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--muted)}
-.fchip.active{background:var(--soft);color:var(--green);border-color:var(--accent2)}
+/* Filter chips read as buttons: ink text, a firm border, lemon when on
+   (the same lemon the primary buttons use, so "on" needs no learning).
+   Tones: warn = a live bypass (red), sec = an unguarded one (amber) —
+   carried on the chip even when idle, in both themes. */
+.fchip{border:1px solid var(--chip-bd,#b9cfbf);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--ink)}
+.fchip.active{background:var(--lemon);color:var(--green-deep);border-color:var(--lemon)}
+.fchip.active .pill{background:rgba(18,51,31,.16);color:var(--green-deep)}
+.fchip.warn{background:var(--chip-warn-bg,#f7e3df);border-color:var(--chip-warn-bd,#e2a297);color:var(--chip-warn-fg,#8f3527)}
+.fchip.sec{background:var(--chip-sec-bg,#fdf3c9);border-color:var(--chip-sec-bd,#e8cf78);color:var(--chip-sec-fg,#8a6508)}
+.fchip.warn .pill{background:var(--chip-pill,rgba(255,255,255,.6));color:var(--chip-warn-fg,#8f3527)}
+.fchip.sec .pill{background:var(--chip-pill,rgba(255,255,255,.6));color:var(--chip-sec-fg,#8a6508)}
+.fchip.warn.active,.fchip.sec.active{background:var(--lemon);color:var(--green-deep);border-color:var(--lemon)}
+.fchip.warn.active .pill,.fchip.sec.active .pill{background:rgba(18,51,31,.16);color:var(--green-deep)}
+/* The recessed switch (③ Compare's Members / Show nesting / Nested only):
+   a track with a raised lemon key, so all three read as buttons. */
+.seg.sw{display:inline-flex;background:var(--sw-track,#e4eee6);border-color:var(--chip-bd,#b9cfbf);padding:3px;border-radius:12px;gap:2px;overflow:visible}
+.seg.sw button{color:var(--ink);border-radius:9px;padding:4px 12px;font-size:11.5px}
+.seg.sw button.active{background:var(--lemon);color:var(--green-deep);box-shadow:0 1px 2px rgba(18,51,31,.25)}
+.seg.sw button.active::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green-deep);margin-right:7px;vertical-align:1px}
 
 /* ---------- policy list ---------- */
 .list-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
@@ -950,6 +967,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
    Auto (no data-theme attribute). Explicit: html[data-theme="dark"|"light"].
    The theme button in the header cycles Auto → Light → Dark. */
 :root[data-theme="dark"]{
+  --chip-bd:#3c6b48;--chip-warn-bg:#3a1f1f;--chip-warn-bd:#6d2f28;--chip-warn-fg:#ffb3a8;--chip-sec-bg:#3a3118;--chip-sec-bd:#7a5d16;--chip-sec-fg:#f5c451;--chip-pill:rgba(0,0,0,.25);--sw-track:#0f2015;
   /* Greens, ink and lemon are lifted verbatim from limon-it.nl's dark theme so
      the tools and the site read as one product. The rule the site follows and
      this now follows too: the GREEN is the surface, the LEMON is the signal —
@@ -973,6 +991,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]):not([data-theme="dark"]){
+  --chip-bd:#3c6b48;--chip-warn-bg:#3a1f1f;--chip-warn-bd:#6d2f28;--chip-warn-fg:#ffb3a8;--chip-sec-bg:#3a3118;--chip-sec-bd:#7a5d16;--chip-sec-fg:#f5c451;--chip-pill:rgba(0,0,0,.25);--sw-track:#0f2015;
   /* Greens, ink and lemon are lifted verbatim from limon-it.nl's dark theme so
      the tools and the site read as one product. The rule the site follows and
      this now follows too: the GREEN is the surface, the LEMON is the signal —

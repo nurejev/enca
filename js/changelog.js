@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25277, date: "2026-09-08", title: "Conditional Access groups: chips and the nesting switch read as controls",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "Filter chips: ink text, a firm border, lemon when on — the same lemon the primary buttons use, in both themes. The three chips about a security exposure carry their colour even idle: Needs attention and Has nested groups red (a live bypass), Not protected amber (an unguarded one). The Members / Show nesting / Nested only switch in ③ Compare is a recessed track with a raised lemon key, so all three read as buttons. The chips in 🌊 Who is the wave to CA and 🛂 Session controls pick up the same base look." },
+    ],
+  },
+  {
     build: 25276, date: "2026-09-08", title: "Conditional Access groups: the actions bar in dark mode",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "The actions bar in dark mode was pale green with white text — unreadable. It now takes the deep green surface with a light border and light text, in both the chosen and the system dark theme." },

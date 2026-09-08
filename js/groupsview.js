@@ -62,8 +62,10 @@ const GroupsView = (() => {
   }
 
   const CHIPS = [
-    ["all", "All", "zero"], ["attention", "⚠ Needs attention", "red"], ["missing", "Missing from tenant", "amber"], ["dangling", "Referenced but gone", "red"],
-    ["empty", "Empty", "zero"], ["unprotected", "Not protected", "amber"], ["roleassignable", "Role-assignable", "zero"], ["nested", "↪ Has nested groups", "red"], ["extra", "Not in the baseline", "zero"],
+    // [key, label, pill colour, chip tone] — tone "warn" is a live bypass
+    // (red), "sec" an unguarded one (amber); the chip carries it even idle
+    ["all", "All", "zero"], ["attention", "⚠ Needs attention", "red", "warn"], ["missing", "Missing from tenant", "amber"], ["dangling", "Referenced but gone", "red"],
+    ["empty", "Empty", "zero"], ["unprotected", "Not protected", "amber", "sec"], ["roleassignable", "Role-assignable", "zero"], ["nested", "↪ Has nested groups", "red", "warn"], ["extra", "Not in the baseline", "zero"],
   ];
   function matches(r, c, filter) {
     if (filter === "all") return true;
@@ -74,7 +76,7 @@ const GroupsView = (() => {
     const ctx = model.ctx;
     const counts = {};
     model.rows.forEach((r) => { const c = classify(r, ctx); CHIPS.forEach(([k]) => { if (matches(r, c, k)) counts[k] = (counts[k] || 0) + 1; }); });
-    return CHIPS.filter(([k]) => k === "all" || k === "nested" || counts[k]).map(([k, l, cls]) => `<button class="fchip${active === k ? " active" : ""}" data-cgg-filter="${k}">${l} ${pill(counts[k] || 0, cls)}</button>`).join("");
+    return CHIPS.filter(([k]) => k === "all" || k === "nested" || counts[k]).map(([k, l, cls, tone]) => `<button class="fchip${tone ? ` ${tone}` : ""}${active === k ? " active" : ""}" data-cgg-filter="${k}">${l} ${pill(counts[k] || 0, cls)}</button>`).join("");
   }
 
   function membersCell(r, c) {
