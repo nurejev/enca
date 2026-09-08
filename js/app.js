@@ -14572,7 +14572,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("scSearch").addEventListener("input", (e) => { clearTimeout(scQTimer); scQTimer = setTimeout(() => { scQ = e.target.value; if (scRes) renderSessionCtl(); }, 200); });
 
   async function scHunt(days) {
-    const run = (fallback) => Graph.gpost("/security/runHuntingQuery", { Query: SessionCtl.query(days, fallback), Timespan: `P${Math.max(1, Math.round(days))}D` }, [...AUTH_CONFIG.scopes, ...SC_HUNT]);
+    const run = (fallback) => Graph.gpost("/security/runHuntingQuery", { Query: SessionCtl.query(days, fallback), Timespan: `P${Math.max(1, Math.ceil(days))}D` }, [...AUTH_CONFIG.scopes, ...SC_HUNT]);
     try { const j = await run(false); return { rows: (j && j.results) || [], fallback: false }; }
     catch (e) {
       // an older schema without AuditSource / SessionData fails the query
@@ -14626,6 +14626,14 @@ This is a directory write. Nothing else changes.`)) return;
   function renderSessionCtl() {
     const R = scRes; if (!R) return;
     $("scBody").innerHTML = (R.notes && R.notes.length ? `<p class="mini muted" style="margin:0 0 8px">${R.notes.map(esc).join(" · ")}</p>` : "") + SessionCtl.render(R, { rangeLabel: rangeLabel(scDays), filter: scFilter, pfilter: scPfilter, q: scQ });
+    // type-ahead from the result itself: users, apps, files, Defender and
+    // CA policies — the things the filter box actually matches on
+    const seen = new Set(), opts = [];
+    const add = (v, label) => { const k = String(v || "").trim(); if (!k || seen.has(k.toLowerCase())) return; seen.add(k.toLowerCase()); opts.push(`<option value="${esc(k)}"${label ? ` label="${esc(label)}"` : ""}></option>`); };
+    R.events.forEach((e) => { add(e.upn || e.name, e.upn ? e.name : "user"); add(e.app, "app"); add(e.file, "file"); add(e.policy, "Defender policy"); if (e.route) add(e.route.policyName, "CA policy"); });
+    R.rows.forEach((r) => add(r.name, r.seq ? `CA policy ${r.seq}` : "CA policy"));
+    R.mdaPolicies.forEach((m) => add(m.name, "Defender policy"));
+    $("scSearchList").innerHTML = opts.slice(0, 200).join("");
   }
   $("scBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-scrun]")) { runSessionCtl(); return; }

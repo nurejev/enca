@@ -48,18 +48,20 @@ const SessionCtl = (() => {
   // Two shapes: with the AuditSource / SessionData columns (June 2024+),
   // and a fallback for a schema that does not have them yet.
   function query(days, fallback) {
-    const d = Math.max(1, Math.round(days || 7));
+    // sub-day windows are hours: 1/24 → 1h, 4/24 → 4h
+    const win = (days || 7) >= 1 ? `${Math.max(1, Math.round(days || 7))}d` : `${Math.max(1, Math.round((days || 7) * 24))}h`;
+    const d = win;
     const cols = "Timestamp, ActionType, ActivityType, Application, ApplicationId, AccountObjectId, AccountDisplayName, AccountId, ObjectName, ObjectType, IPAddress, DeviceType, OSPlatform, UserAgent, IsExternalUser, AccountType, RawEventData, AdditionalFields";
     if (fallback) {
       return `CloudAppEvents
-| where Timestamp > ago(${d}d)
+| where Timestamp > ago(${d})
 | where ActionType has_any ("Block", "Blocked", "Protect", "Session", "Download", "Upload", "Login", "Step") or tostring(RawEventData) has_any ("SessionPolicy", "session control", "Blocked", "Protected")
 | project ${cols}
 | order by Timestamp desc
 | take 5000`;
     }
     return `CloudAppEvents
-| where Timestamp > ago(${d}d)
+| where Timestamp > ago(${d})
 | where AuditSource has "session control" or AuditSource has "access control"
 | project ${cols}, AuditSource, SessionData
 | order by Timestamp desc

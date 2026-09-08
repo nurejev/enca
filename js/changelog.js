@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25269, date: "2026-09-08", title: "Session controls: type-ahead and hour windows",
+    items: [
+      { kind: "improved", tool: "Session controls", text: "The filter box suggests as you type — the users, apps, files, Defender policies and Conditional Access policies in the current result, labelled by kind — and the window gains 1-hour and 4-hour ranges next to 24 hours, 7 and 30 days, for checking a block that just happened." },
+    ],
+  },
+  {
     build: 25268, date: "2026-09-08", title: "CA groups ③ Members: hide empty groups, readable nesting labels",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "Three things a 708 × 123 matrix asked for. HIDE EMPTY GROUPS — a checkbox next to the nesting segment drops the empty columns (63 of 123 on a baseline tenant, empty by design), and the wall of empty-group names becomes one line that opens on click. The label under a ◐ shows the TAIL of the nested group name, since nested groups share a long prefix and the tail is what tells them apart, with the full list in the tooltip. A column whose every member came in through nesting carries ◐ in its header and says so — nothing in it is removable from this group." },
