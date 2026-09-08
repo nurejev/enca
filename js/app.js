@@ -11709,15 +11709,28 @@ This is a directory write. Nothing else changes.`)) return;
   // row cap marked as capped. Sub-day windows are a single query.
   const HUNT_SCOPES = ["ThreatHunting.Read.All"];
   let huntTable = "EntraIdSignInEvents";
+  // The fallback is tried only when the error names the table itself — any
+  // other semantic error is a real query problem and must surface as such.
+  // When BOTH names fail to resolve, the tenant's hunting schema has no
+  // Entra sign-in table at all (it needs Entra ID P2 to exist and fill), and
+  // the message must say that, not quote the fallback's name.
+  const HUNT_NO_TABLE = "this tenant's advanced hunting schema has no Entra sign-in table (EntraIdSignInEvents, nor the older AADSignInEventsBeta). The table exists and fills only with an Entra ID P2 licence and a Defender role with hunting access — switch the sign-in source back to the Entra sign-in log";
   async function huntRun(query, days) {
     const body = { Query: query, Timespan: `P${Math.max(1, Math.ceil(days))}D` };
+    const noTable = (e, name) => new RegExp(`(resolve|find)[^']*'${name}'`, "i").test(e.message || "");
     try { const j = await Graph.gpost("/security/runHuntingQuery", body, [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]); return (j && j.results) || []; }
     catch (e) {
-      if (huntTable === "EntraIdSignInEvents" && /EntraIdSignInEvents|semantic|not found|failed to resolve/i.test(e.message || "")) {
-        huntTable = "AADSignInEventsBeta";
-        const j = await Graph.gpost("/security/runHuntingQuery", { ...body, Query: query.replace(/^EntraIdSignInEvents/, "AADSignInEventsBeta") }, [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]);
-        return (j && j.results) || [];
+      if (huntTable === "EntraIdSignInEvents" && noTable(e, "EntraIdSignInEvents")) {
+        try {
+          const j = await Graph.gpost("/security/runHuntingQuery", { ...body, Query: query.replace(/^EntraIdSignInEvents/, "AADSignInEventsBeta") }, [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]);
+          huntTable = "AADSignInEventsBeta";
+          return (j && j.results) || [];
+        } catch (e2) {
+          if (noTable(e2, "AADSignInEventsBeta")) throw new Error(HUNT_NO_TABLE);
+          throw e2;
+        }
       }
+      if (huntTable === "AADSignInEventsBeta" && noTable(e, "AADSignInEventsBeta")) { huntTable = "EntraIdSignInEvents"; throw new Error(HUNT_NO_TABLE); }
       throw e;
     }
   }

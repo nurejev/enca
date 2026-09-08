@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25283, date: "2026-09-08", title: "Sign-in source: a tenant without the hunting table says so",
+    items: [
+      { kind: "fix", tool: "Sign-in failures", text: "A tenant whose hunting schema has no EntraIdSignInEvents (the table exists only with Entra ID P2) fell through to the AADSignInEventsBeta fallback, which is gone too, and the error quoted the fallback's name — misleading. The fallback is now tried only when the error names the table itself, and when both names fail the message says what it is: no Entra sign-in table in this tenant's schema, needs P2, switch the source back to the Entra sign-in log. Applies to 🚦 🎚 🕵 🌊." },
+    ],
+  },
+  {
     build: 25282, date: "2026-09-08", title: "Who is Anna to CA: nested is loud",
     items: [
       { kind: "improved", tool: "Who is Anna to CA", text: "The tool already knew whether she is in a group directly or nested via another — and wrote it in grey. It is now marked ↪ in red wherever a group reason appears: the exclusion rungs, the Reaches-her-via column, the standing-bypass callout — with the note that whoever manages the nested group decides, and that she was never added to the exclusion group itself. Same reading 🚪 Exclusion analyzer and 👥 Conditional Access groups now make." },
