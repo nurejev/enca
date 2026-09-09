@@ -5486,12 +5486,21 @@ max@contoso.com,"Global, DevOps"</pre>
   async function loadNestedGroups(rows) {
     const targets = rows.filter((r) => r.id && r.nestedGroups === undefined && !(r.sources || []).includes("tenant"));
     if (!targets.length) return;
-    if (isDemo) { targets.forEach((r, i) => r.nestedGroups = i % 5 === 1 ? [{ id: `g-nest-${r.id}`, name: `SG-Demo-${((r.name || "").match(/CA\d+/) || ["team"])[0]}`, dynamic: false }] : []); return; }
-    const res = await Graph.gbatch(targets.map((r, i) => ({ id: i, url: `/groups/${r.id}/members/microsoft.graph.group?$select=id,displayName,groupTypes&$top=999` })));
+    if (isDemo) { targets.forEach((r, i) => { r.nestedGroups = i % 5 === 1 ? [{ id: `g-nest-${r.id}`, name: `SG-Demo-${((r.name || "").match(/CA\d+/) || ["team"])[0]}`, dynamic: false }] : []; r.directTotal = (r.name.length + i) % 4; }); return; }
+    // two requests per group in the same batch: its nested groups, and a
+    // count of its direct members of every type — so "empty" is known for
+    // every group on the scan, not only for the ones whose members were read
+    const reqs = [];
     targets.forEach((r, i) => {
-      const v = res[i];
-      r.nestedGroups = v && v.body && Array.isArray(v.body.value) ? v.body.value.map((g) => ({ id: g.id, name: g.displayName, dynamic: (g.groupTypes || []).includes("DynamicMembership") })) : (v && v.body && v.body.value === undefined && v.status >= 400 ? null : []);
-      if (r.nestedGroups === null) r.nestedGroups = [];
+      reqs.push({ id: `n${i}`, url: `/groups/${r.id}/members/microsoft.graph.group?$select=id,displayName,groupTypes&$top=999` });
+      reqs.push({ id: `c${i}`, url: `/groups/${r.id}/members/$count` });
+    });
+    const res = await Graph.gbatch(reqs);
+    targets.forEach((r, i) => {
+      const v = res[`n${i}`];
+      r.nestedGroups = v && v.body && Array.isArray(v.body.value) ? v.body.value.map((g) => ({ id: g.id, name: g.displayName, dynamic: (g.groupTypes || []).includes("DynamicMembership") })) : [];
+      const c = res[`c${i}`], n = c && c.status < 400 ? Number(typeof c.body === "object" && c.body !== null ? (c.body.value ?? c.body) : c.body) : NaN;
+      r.directTotal = Number.isFinite(n) ? n : null;
     });
   }
   async function loadNestingStates(rows) {

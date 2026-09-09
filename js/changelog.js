@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25286, date: "2026-09-09", title: "Conditional Access groups: Empty is counted for every group",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "Empty counted only the groups whose members had been read, so the chip said 1 on a tenant with a dozen empty exclusion groups. The scan now counts every group's direct members ($count, in the same batch as the nested-group read), so Empty is right from the first screen, and an unread row shows its direct count next to the read button." },
+      { kind: "fix", tool: "Conditional Access groups", text: "The word 'drift' under the status is gone: it stood for 'role-assignable — migrate it', which the Protection column and the Role-assignable chip already say; the one drift that still shows is 'assigned, template is dynamic'. Role-assignable no longer counts as Needs attention — 66 of them drowned the dangling, unprotected and nested rows." },
+    ],
+  },
+  {
     build: 25285, date: "2026-09-09", title: "Conditional Access groups: the Restore row fits",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "A row with 🔁 Restore and ⋯ overflowed the actions column and the status column broke 'present' in two. Column widths re-cut — status 84px, actions 150px, the buttons stacking on a narrow window; headers never wrap." },

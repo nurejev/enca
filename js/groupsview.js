@@ -45,7 +45,8 @@ const GroupsView = (() => {
     if (r.status === "missing") flags.push("missing");
     if (r.status === "dangling") flags.push("dangling");
     if (r.status === "extra") flags.push("extra");
-    if (r.id && r.memberTotal === 0) flags.push("empty");
+    // empty: no members read, or — before any read — a direct-member count of 0 from the scan
+    if (r.id && (r.memberTotal === 0 || (r.memberTotal == null && r.directTotal === 0))) flags.push("empty");
     if (r.id && (kind === "exclusion" || kind === "breakglass") && ctx.prot && !prot && !r.roleAssignable) flags.push("unprotected");
     if (r.roleAssignable) flags.push("roleassignable");
     // nested groups are known from the scan (nestedGroups, direct group
@@ -53,7 +54,10 @@ const GroupsView = (() => {
     const nestedN = (r.children || r.nestedGroups || []).length;
     if (nestedN) flags.push("nested");
     if (r.dynamic) flags.push("dynamic");
-    if (r.drift) flags.push("drift");
+    // drift: only the template-mismatch kind counts here — role-assignable
+    // has its own chip and its own column, and 66 of them in Needs attention
+    // would drown the dangling / unprotected / nested rows
+    if (r.drift && !/^role-assignable/.test(r.drift)) flags.push("drift");
     if (r.nesting === "allowed" && kind === "exclusion") flags.push("nestingallowed");
     // a group nested inside an exclusion or break-glass group widens a
     // standing bypass by one membership change somewhere else — attention
@@ -83,7 +87,7 @@ const GroupsView = (() => {
     if (!r.id) return '<span class="mini muted">—</span>';
     if (r.memberError) return `<span class="mini" style="color:var(--off)">could not read</span>`;
     const pre = r.members == null && r.nestedGroups && r.nestedGroups.length ? `<div class="mini" style="color:var(--off)" title="${esc(r.nestedGroups.map((g) => g.name).join(", "))}">↪ ${r.nestedGroups.length} nested group${r.nestedGroups.length === 1 ? "" : "s"}</div>` : "";
-    if (r.members == null) return `<span class="mini muted">not read</span> <button class="btn sm" data-cgg-read="${esc(r.name)}" title="Read the members of this group">read</button>${pre}`;
+    if (r.members == null) return `${r.directTotal === 0 ? '<b class="num">0</b><div class="mini muted">empty</div>' : `${r.directTotal != null ? `<b class="num">${r.directTotal}</b> <span class="mini muted">direct</span>` : '<span class="mini muted">not read</span>'} <button class="btn sm" data-cgg-read="${esc(r.name)}" title="Read the members of this group">read</button>`}${pre}`;
     const direct = r.directIds ? r.members.filter((m) => m.direct).length : null;
     const nested = r.directIds ? r.members.length - direct : null;
     const via = r.children && r.children.length ? ` via ${esc(tail(r.children[0].name))}${r.children.length > 1 ? ` +${r.children.length - 1}` : ""}` : "";
@@ -117,7 +121,10 @@ const GroupsView = (() => {
   function statusCell(r, c) {
     const S = { present: ["present", "nc"], missing: ["missing", "wp"], dangling: ["gone", "wb"], extra: ["present", "nc"] };
     const [l, cls] = S[r.status] || [r.status, ""];
-    return `<span class="res ${cls}">${l}</span>${r.drift ? `<div class="mini" style="color:var(--warn-fg)" title="${esc(r.drift)}">drift</div>` : ""}`;
+    // the word "drift" said nothing; say what is off. The role-assignable
+    // case is already in the Protection column, so it is not repeated here.
+    const d = r.drift && !/^role-assignable/.test(r.drift) ? r.drift : "";
+    return `<span class="res ${cls}">${l}</span>${d ? `<div class="mini" style="color:var(--warn-fg)" title="${esc(d)}">${/dynamic/.test(d) ? "assigned, template is dynamic" : esc(d)}</div>` : ""}`;
   }
 
   function list(model, o) {
