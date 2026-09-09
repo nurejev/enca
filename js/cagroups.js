@@ -900,13 +900,30 @@ const CaGroups = (() => {
     const rows = q ? pm.pols.filter((p) => `${p.seq || ""} ${p.name}`.toLowerCase().includes(q)) : pm.pols;
     if (!rows.length) return '<p class="mini" style="padding:20px">No policy references the picked groups.</p>';
     const ST = { enabled: ["on", "On"], enabledForReportingButNotEnforced: ["ro", "Report-only"], disabled: ["off", "Off"] };
-    const cell = (v) => v === "inc" ? '<td class="cellv ok" title="included">● in</td>' : v === "exc" ? '<td class="cellv no" title="excluded">✗ ex</td>' : '<td class="cellv" title="not referenced">·</td>';
+    // a missing cell on a differing row is a tick: add this group to this
+    // policy the way the other group is on it. A row where the picked groups
+    // are named differently (one included, one excluded) is a conflict —
+    // nothing to tick, that needs a person.
+    const cell = (p, g, v) => {
+      if (v === "inc") return '<td class="cellv ok" title="included">● in</td>';
+      if (v === "exc") return '<td class="cellv no" title="excluded">✗ ex</td>';
+      const others = [...p.cells.values()];
+      const want = others.includes("exc") && !others.includes("inc") ? "exc" : others.includes("inc") && !others.includes("exc") ? "inc" : null;
+      if (want && g.id) return `<td class="cellv cg-fixcell" title="Tick to add ${esc(g.name)} as ${want === "exc" ? "an exclusion" : "an inclusion"} on this policy"><label class="chk" style="margin:0;justify-content:center"><input type="checkbox" data-cgfix="${esc(p.id)}|${esc(g.id)}|${want}"> <span class="mini">+${want === "exc" ? "ex" : "in"}</span></label></td>`;
+      if (!want && others.some(Boolean)) return '<td class="cellv" title="the picked groups are named differently on this policy — one included, one excluded"><span class="mini" style="color:var(--report)">?</span></td>';
+      return '<td class="cellv" title="not referenced">·</td>';
+    };
+    const fixable = pm.pols.filter((p) => p.diff).length;
     const summary = pm.cols.length > 1 ? `<p class="mini" style="margin:0 0 8px">${pm.diffs ? `<b style="color:var(--off)">${pm.diffs} polic${pm.diffs === 1 ? "y differs" : "ies differ"}</b> between the picked groups — those rows come first. ` : `<b style="color:var(--on)">The picked groups are referenced identically.</b> `}${pm.missing.filter((g) => g.inc.length || g.exc.length).map((g) => `<span style="display:inline-block;margin-right:12px"><b>${esc(g.name)}</b> is missing: ${g.exc.length ? `<span style="color:var(--off)">${g.exc.length} exclusion${g.exc.length === 1 ? "" : "s"}</span>` : ""}${g.exc.length && g.inc.length ? " · " : ""}${g.inc.length ? `<span style="color:var(--report)">${g.inc.length} inclusion${g.inc.length === 1 ? "" : "s"}</span>` : ""}</span>`).join("")}</p>` : "";
-    return `${summary}<div class="matrix-wrap cg-mwrap"><table class="mtable cg-matrix cg-polmatrix">
+    const fixbar = fixable ? `<div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 8px;align-items:center;flex-wrap:wrap">
+        <button class="btn sm" data-cgfixall>☑ Tick every missing cell</button>
+        <button class="btn sm primary" data-cgfixgo disabled>🎯 Add the ticked groups to those policies (0)</button>
+        <span class="mini muted">Each tick is one policy update — the group is added the way the other group already is on that policy. Nothing is removed.</span></div>` : "";
+    return `${summary}${fixbar}<div class="matrix-wrap cg-mwrap"><table class="mtable cg-matrix cg-polmatrix">
       <thead><tr><th class="ucol">Policy (${rows.length})</th>${pm.cols.map((g) => `<th class="pcol"><div class="ph" title="${esc(g.name)}">${esc(g.name)}</div></th>`).join("")}<th class="pcol cg-incol" title="Policy state">State</th><th class="cg-fill"></th></tr></thead>
       <tbody>${rows.map((p) => { const st = ST[p.state] || null; return `<tr class="${p.diff ? "cmp-diff" : ""}">
         <td class="ucol"><span class="uname pol-link" data-polid="${esc(p.id)}" title="Open the policy card">${esc(p.seq ? `${p.seq} ${p.name}` : p.name)}</span>${p.diff ? '<div class="uupn" style="color:var(--report)">differs</div>' : ""}</td>
-        ${p.vals.map(cell).join("")}
+        ${pm.cols.map((g, i) => cell(p, g, p.vals[i])).join("")}
         <td class="cellv cg-incol">${st ? `<span class="wo-state ${st[0]}">${st[1]}</span>` : ""}</td><td class="cg-fill"></td>
       </tr>`; }).join("")}</tbody></table></div>`;
   }

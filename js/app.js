@@ -4452,6 +4452,7 @@ max@contoso.com,"Global, DevOps"</pre>
   }
 
   migBody().addEventListener("change", (e) => {
+    if (e.target.closest && e.target.closest("[data-cgfix]")) { cgFixSync(); return; }
     if (!cgMig) return;
     if (e.target.id === "cgMigAu") {
       cgMig.auChoice = e.target.value;
@@ -4489,6 +4490,8 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "cgAddRm") { await cgRemoveMember($("cgAddUser")?.value, $("cgAddGroup")?.value); return; }
     const nm = e.target.closest("[data-cgnestmode]"); if (nm) { cgNesting = nm.dataset.cgnestmode; renderCgMembers(); return; }
     const cv = e.target.closest("[data-cgcmpview]"); if (cv) { cgCmpView = cv.dataset.cgcmpview; renderCgMembers(); return; }
+    if (e.target.closest("[data-cgfixall]")) { $("cgBody").querySelectorAll("[data-cgfix]").forEach((cb) => { cb.checked = true; }); cgFixSync(); return; }
+    if (e.target.closest("[data-cgfixgo]")) { await cgFixApply(e.target.closest("[data-cgfixgo]")); return; }
     const nr = e.target.closest("[data-cgnest]"); if (nr) { const k = nr.dataset.cgnest; cgNestOpen.has(k) ? cgNestOpen.delete(k) : cgNestOpen.add(k); renderCgMembers(); return; }
     const rm = e.target.closest("[data-cgrm-user]");
     if (rm) { await cgRemoveMember(rm.dataset.cgrmUser, rm.dataset.cgrmGroup, true); return; }
@@ -6151,6 +6154,34 @@ This is a directory write. Nothing else changes.`)) return;
   let cgCmpView = "members";   // "members" | "policies" — what the compare sheet compares
   const cgNestOpen = new Set();
   let cgHideEmpty = false, cgEmptiesOpen = false;
+  // The ticks in the Policies view: how many, and the write behind them —
+  // one Assign.apply per (group, include/exclude) pair, the scan's refs
+  // updated in place so the grid shows the result without a re-scan.
+  function cgFixSync() {
+    const n = $("cgBody").querySelectorAll("[data-cgfix]:checked").length;
+    const b = $("cgBody").querySelector("[data-cgfixgo]"); if (b) { b.disabled = !n; b.textContent = `🎯 Add the ticked groups to those policies (${n})`; }
+  }
+  async function cgFixApply(btn) {
+    const ticks = [...$("cgBody").querySelectorAll("[data-cgfix]:checked")].map((cb) => { const [pid, gid, how] = cb.dataset.cgfix.split("|"); return { pid, gid, how }; });
+    if (!ticks.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) return;
+    btn.disabled = true; btn.textContent = "Updating…";
+    const byKey = new Map();
+    ticks.forEach((t) => { const k = `${t.gid}|${t.how}`; if (!byKey.has(k)) byKey.set(k, { gid: t.gid, how: t.how, pids: [] }); byKey.get(k).pids.push(t.pid); });
+    let ok = 0, bad = [];
+    for (const job of byKey.values()) {
+      const row = cgRes.rows.find((r) => r.id === job.gid); if (!row) continue;
+      const res = isDemo ? job.pids.map((pid) => ({ pid, ok: true, changed: true })) : await Assign.apply(job.pids, job.how === "exc" ? 3 : 2, [job.gid], (m) => { btn.textContent = m; });
+      res.forEach((r, i) => {
+        const pid = job.pids[i], vm = policies.find((p) => p.id === pid);
+        if (r.ok) { ok++; const list = job.how === "exc" ? row.refs.exclude : row.refs.include; if (!list.some((p) => p.id === pid)) list.push({ id: pid, name: vm ? vm.name : (r.name || pid), seq: vm ? vm.seq : null }); row.refCount = row.refs.include.length + row.refs.exclude.length; }
+        else bad.push(`${r.name || pid}: ${r.error || "failed"}`);
+      });
+    }
+    toast(bad.length ? `${ok} added, <span>${bad.length} failed</span>: ${esc(bad.slice(0, 3).join(" · "))}` : `<span>${ok}</span> polic${ok === 1 ? "y" : "ies"} updated`);
+    renderCgMembers();
+    if (cgTab === "members") renderCaGroups();
+  }
   function renderCgMembers() {
     const scanned = cgRes.rows.filter(r => r.members);
     if (cgMemberPick || (!scanned.length && !cgBusy)) {

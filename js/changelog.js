@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25294, date: "2026-09-09", title: "Conditional Access groups 5.6: the Policies view fixes what it finds",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "Every missing cell on a differing row of the Policies view is a tick — add this group to this policy the way the other group already is on it (+ex or +in). ☑ Tick every missing cell, then one button applies them: one policy update per tick, nothing removed, the grid updating in place. A row where the picked groups are named differently (one included, one excluded) shows ? instead — that needs a person." },
+    ],
+  },
+  {
     build: 25293, date: "2026-09-09", title: "Conditional Access groups: the Compare sheet sizes itself to its content",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "The Compare sheet is as wide as the matrix needs — two groups do not earn the whole window — and as tall as the rows need, up to the tool area. The Half toggle stays." },
