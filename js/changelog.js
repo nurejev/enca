@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25299, date: "2026-09-09", title: "Conditional Access groups: the Archived groups delete is visible while it runs",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "The delete was working — the toasts were the only sign, and the dialog looked stuck for a minute with a greyed button. The dialog now shows a progress bar and a step log (taking it out of n policies… ✓ verified · deleting… ✓ deleted), the title says Working… 2/6, and Close is locked until it is done." },
+    ],
+  },
+  {
     build: 25298, date: "2026-09-09", title: "Conditional Access groups: the Archived groups Delete button says why it is off",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "The Delete button in 🧹 Archived groups could stay off with DELETE typed and five rows ticked. It re-evaluates on every tick, keystroke and re-render now, says how many it will delete, and says why it is off — tick the groups, or type DELETE." },

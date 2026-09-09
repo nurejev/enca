@@ -5554,14 +5554,29 @@ max@contoso.com,"Global, DevOps"</pre>
     const btn = $("arcGo"); btn.disabled = true;
     const unref = !!($("arcUnref") && $("arcUnref").checked);
     if (unref && picked.some((r) => r.refCount > 0) && !isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) { btn.disabled = false; return; }
+    // The run is visible IN the dialog: a log that grows per step, the
+    // buttons locked, the count in the title — toasts alone were missed and
+    // the dialog looked stuck for a minute.
+    const log = [];
+    const paint = (status) => {
+      $("arcSub").innerHTML = `<b>Working… ${status}</b>`;
+      $("arcBody").innerHTML = `<div class="cg-panel"><h4>DELETING ${picked.length} ARCHIVED GROUP${picked.length === 1 ? "" : "S"}</h4>
+        <div class="cg-progress"><div style="width:${Math.round((log.filter((l) => l.done).length / picked.length) * 100)}%"></div></div>
+        <div class="mini" style="margin-top:8px">${log.map((l) => l.html).join("")}</div></div>`;
+      btn.textContent = `Working… ${status}`;
+    };
+    const say = (html, done) => { log.push({ html: `<div>${html}</div>`, done: !!done }); paint(`${log.filter((l) => l.done).length}/${picked.length}`); };
+    $("arcCancel").disabled = true; $("arcOk").disabled = true;
+    paint(`0/${picked.length}`);
     const done = [], failed = [], unreffed = [];
     for (let i = 0; i < picked.length; i++) {
       const r = picked[i];
+      say(`<b>${esc(r.name)}</b>`);
       try {
         // 1. out of every policy still naming it — read live, not from the
         // scan, so a reference added since is not missed
         if (unref && r.refCount > 0) {
-          toast(`Removing ${r.name} from its policies (${i + 1}/${picked.length})…`);
+          say(`&nbsp;&nbsp;· taking it out of ${r.refCount} polic${r.refCount === 1 ? "y" : "ies"}…`);
           let inc = r.refs.include.map((p) => p.id), exc = r.refs.exclude.map((p) => p.id);
           if (!isDemo) {
             const live = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,conditions");
@@ -5581,13 +5596,16 @@ max@contoso.com,"Global, DevOps"</pre>
             if (left.length) throw new Error(`the removal did not take on ${left.map((p) => p.displayName || p.id).join(", ")} — not deleted`);
           }
           unreffed.push({ ...r, policies: inc.length + exc.length });
+          say(`&nbsp;&nbsp;✓ out of ${inc.length + exc.length} polic${inc.length + exc.length === 1 ? "y" : "ies"}, verified`);
         }
         // 2. delete (soft, 30 days)
-        toast(`Deleting ${i + 1}/${picked.length}…`);
+        say("&nbsp;&nbsp;· deleting…");
         if (!isDemo) await Graph.gdelete(`/groups/${r.id}`, [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
         done.push(r);
-      } catch (e) { failed.push({ ...r, error: e.message || String(e) }); }
+        say("&nbsp;&nbsp;✓ deleted (soft, restorable for 30 days)", true);
+      } catch (e) { failed.push({ ...r, error: e.message || String(e) }); say(`&nbsp;&nbsp;<span style="color:var(--off)">✗ ${esc(e.message || e)}</span>`, true); }
     }
+    $("arcCancel").disabled = false; $("arcOk").disabled = false; btn.textContent = "Delete ticked";
     $("arcModal").classList.remove("open");
     const L = [`# Archived groups removed — ${tenantName || "tenant"}`, "", Brand.generatedBy("Generated"), "",
       `- **Deleted:** ${done.length}${failed.length ? ` · **failed:** ${failed.length}` : ""}`,
