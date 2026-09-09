@@ -139,7 +139,7 @@ const PROMOTE = {
       n: 136,
       title: "👥 CA groups 5.0: one list + drawer instead of seven tabs (T12, R48)",
       tools: ["Conditional Access groups"],
-      builds: [25273, 25275, 25276, 25277, 25278, 25279, 25280, 25284, 25285, 25286, 25287, 25288, 25289, 25290, 25291, 25292],
+      builds: [25273, 25275, 25276, 25277, 25278, 25279, 25280, 25284, 25285, 25286, 25287, 25288, 25289, 25290, 25291, 25292, 25293],
       risk: "medium",
       what: "New js/groupsview.js (list, chips, bulk bar, drawer renderers) and a groups landing view in app.js. 25279: the list renders into #cgList and stays; #cgBody (the element every engine renders into and listens on) is MOVED by cgPlaceEngine into #cgOverlay (dialog, writes) or #cgSheet (sheet, members) and back, so engine code is untouched; #cgBar is the floating bar (fixed) and becomes the sheet header. Earlier: cgTab = groups by default, the tab strip hidden, engine screens reached from row / bulk actions with the selection carried across (cgGoTab, cgRmauPre / cgMigPre applied after their scans) and a ← Groups bar back. Drawer: members tree with add (existing cgAddMember via hidden group input) and remove (existing cgRemoveMember; new cgRemoveFromChild for nested groups), policies, protection, history (directoryAudits filtered on the group id). Tile blurb, Help and roadmap R48 rewritten.",
       why: "Every engine is unchanged, so the risk is in the routing and the reads: a bulk action that lands on the wrong screen, a pre-selection that does not stick, a member read that repeats. Graduates once one real tenant has been worked from the list end to end — create, protect, migrate, compare — without touching the old tabs, and the nested-remove confirm has been read on a real nested group.",

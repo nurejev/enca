@@ -1829,8 +1829,12 @@ body.cgg-modal-open{overflow:hidden}
 .cgg-sbd > #cgBody > :first-child{margin-top:0}
 #screen-cagroups.sheet-open{padding-bottom:min(72vh,820px)}
 /* full-height sheet: the tool area below the header and the tabs */
-.cgg-sheet.full{top:calc(var(--sticky-nav,106px) + 8px);max-height:none;left:10px;right:10px}
-.cgg-sheet.full .cgg-sbd{flex:1}
+/* "full" = as tall as the content needs, up to the tool area, and as wide as
+   the matrix needs — two narrow columns do not earn the whole window */
+.cgg-sheet.full{top:auto;bottom:0;max-height:calc(100vh - var(--sticky-nav,106px) - 8px);left:50%;right:auto;transform:translateX(-50%);width:max-content;min-width:min(760px,96vw);max-width:calc(100vw - 20px)}
+.cgg-sheet.full .cgg-sbd{flex:1;min-height:0}
+.cgg-sheet.full .cg-mwrap{max-height:none;width:max-content;max-width:100%}
+.cgg-sheet.full .mtable{min-width:0}
 #screen-cagroups.sheet-full{padding-bottom:0}
 /* the list fits its card: fixed layout, wrapping cells, the ⋯ column always in view */
 .cgg-list .gu-tw{overflow-x:visible}

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25293, date: "2026-09-09", title: "Conditional Access groups: the Compare sheet sizes itself to its content",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "The Compare sheet is as wide as the matrix needs — two groups do not earn the whole window — and as tall as the rows need, up to the tool area. The Half toggle stays." },
+    ],
+  },
+  {
     build: 25292, date: "2026-09-09", title: "Conditional Access groups: policy differences called out on the Members view",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "When the picked groups are referenced differently, the Members view says so in a red callout — which group is missing how many inclusions and exclusions — with a button to the Policies view, so the Members | Policies switch is not the only way to find it." },
