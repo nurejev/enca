@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25295, date: "2026-09-09", title: "Conditional Access groups: a refused policy update says why",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "Four policies answered every add with a bare 400. Graph validates the whole policy on any change, so a policy the portal saved with a setting the API no longer accepts refuses every update — including adding a group. On a 400 the policy is re-read and the known combinations are named (app-protection grant without an iOS/Android-only platform condition, Exchange ActiveSync mixed with other client types, the retired deviceStates, app-enforced restrictions off Office 365, the retired GuestsOrExternalUsers include), with the fix: open it in the portal, adjust, save, retry. The outcome stays above the grid instead of vanishing in a toast; the tick cells read as buttons." },
+      { kind: "fix", tool: "Assign groups", text: "Every group write carries the policy's guest / external-user block through. A PATCH of conditions.users that omitted it could drop it from the policy." },
+    ],
+  },
+  {
     build: 25294, date: "2026-09-09", title: "Conditional Access groups 5.6: the Policies view fixes what it finds",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "Every missing cell on a differing row of the Policies view is a tick — add this group to this policy the way the other group already is on it (+ex or +in). ☑ Tick every missing cell, then one button applies them: one policy update per tick, nothing removed, the grid updating in place. A row where the picked groups are named differently (one included, one excluded) shows ? instead — that needs a person." },

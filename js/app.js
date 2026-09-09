@@ -4489,7 +4489,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
     if (e.target.id === "cgAddRm") { await cgRemoveMember($("cgAddUser")?.value, $("cgAddGroup")?.value); return; }
     const nm = e.target.closest("[data-cgnestmode]"); if (nm) { cgNesting = nm.dataset.cgnestmode; renderCgMembers(); return; }
-    const cv = e.target.closest("[data-cgcmpview]"); if (cv) { cgCmpView = cv.dataset.cgcmpview; renderCgMembers(); return; }
+    const cv = e.target.closest("[data-cgcmpview]"); if (cv) { cgCmpView = cv.dataset.cgcmpview; cgFixLast = null; renderCgMembers(); return; }
     if (e.target.closest("[data-cgfixall]")) { $("cgBody").querySelectorAll("[data-cgfix]").forEach((cb) => { cb.checked = true; }); cgFixSync(); return; }
     if (e.target.closest("[data-cgfixgo]")) { await cgFixApply(e.target.closest("[data-cgfixgo]")); return; }
     const nr = e.target.closest("[data-cgnest]"); if (nr) { const k = nr.dataset.cgnest; cgNestOpen.has(k) ? cgNestOpen.delete(k) : cgNestOpen.add(k); renderCgMembers(); return; }
@@ -6157,6 +6157,7 @@ This is a directory write. Nothing else changes.`)) return;
   // The ticks in the Policies view: how many, and the write behind them —
   // one Assign.apply per (group, include/exclude) pair, the scan's refs
   // updated in place so the grid shows the result without a re-scan.
+  let cgFixLast = null;   // the last apply's outcome, shown above the grid until the next
   function cgFixSync() {
     const n = $("cgBody").querySelectorAll("[data-cgfix]:checked").length;
     const b = $("cgBody").querySelector("[data-cgfixgo]"); if (b) { b.disabled = !n; b.textContent = `🎯 Add the ticked groups to those policies (${n})`; }
@@ -6178,7 +6179,8 @@ This is a directory write. Nothing else changes.`)) return;
         else bad.push(`${r.name || pid}: ${r.error || "failed"}`);
       });
     }
-    toast(bad.length ? `${ok} added, <span>${bad.length} failed</span>: ${esc(bad.slice(0, 3).join(" · "))}` : `<span>${ok}</span> polic${ok === 1 ? "y" : "ies"} updated`);
+    cgFixLast = { ok, bad };
+    toast(bad.length ? `${ok} added, <span>${bad.length} failed</span> — see the note above the grid` : `<span>${ok}</span> polic${ok === 1 ? "y" : "ies"} updated`);
     renderCgMembers();
     if (cgTab === "members") renderCaGroups();
   }
@@ -6255,6 +6257,7 @@ This is a directory write. Nothing else changes.`)) return;
           <span style="margin-left:10px">${pm.pols.length} polic${pm.pols.length === 1 ? "y references" : "ies reference"} the ${pm.cols.length} picked group${pm.cols.length === 1 ? "" : "s"}.</span>
           <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Pick more groups</button>
         </div>
+        ${cgFixLast && cgFixLast.bad.length ? `<div class="wo-callout bad" style="margin:0 0 10px"><b>${cgFixLast.ok} added, ${cgFixLast.bad.length} refused.</b><ul class="mini" style="margin:6px 0 0 16px;padding:0">${cgFixLast.bad.map((b) => `<li style="margin:2px 0">${esc(b)}</li>`).join("")}</ul></div>` : ""}
         ${CaGroups.renderPolicyMatrix(pm, cgQuery)}
         <p class="mini muted" style="margin-top:8px">● in = the policy includes the group, ✗ ex = excludes it, · = does not name it. A row marked <b>differs</b> names some of the picked groups and not the others — fix it with 🎯 Assign to policies (add the group that is missing). Policy names open the card.</p>`;
       return;

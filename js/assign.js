@@ -427,14 +427,39 @@ const Assign = (() => {
         break;
       }
     }
-    return {
-      users: {
-        includeUsers, excludeUsers: cur.excludeUsers,
-        includeGroups, excludeGroups,
-        includeRoles: cur.includeRoles, excludeRoles: cur.excludeRoles,
-      },
-      notes,
+    // The guest / external-user blocks ride along untouched: a PATCH of
+    // conditions.users that omits them would drop them from the policy.
+    const users = {
+      includeUsers, excludeUsers: cur.excludeUsers,
+      includeGroups, excludeGroups,
+      includeRoles: cur.includeRoles, excludeRoles: cur.excludeRoles,
     };
+    if (u.includeGuestsOrExternalUsers) users.includeGuestsOrExternalUsers = u.includeGuestsOrExternalUsers;
+    if (u.excludeGuestsOrExternalUsers) users.excludeGuestsOrExternalUsers = u.excludeGuestsOrExternalUsers;
+    return { users, notes };
+  }
+
+  // Why Graph refused a PATCH with a generic 400. Graph validates the WHOLE
+  // policy on any update, so a policy the portal saved with a combination the
+  // API no longer accepts refuses every change — including adding a group.
+  // Name the combinations that are known to do this, so the fix is in reach.
+  function diagnose(raw) {
+    const out = [];
+    const c = raw.conditions || {}, g = raw.grantControls || {}, sc = raw.sessionControls || {};
+    const built = g.builtInControls || [];
+    const plats = (c.platforms && c.platforms.includePlatforms) || [];
+    const apps = (c.applications && c.applications.includeApplications) || [];
+    const cats = c.clientAppTypes || [];
+    if (built.some((b) => /approvedApplication|compliantApplication/.test(b)) && (!plats.length || plats.some((p) => /windows|macOS|linux|all/i.test(p))))
+      out.push("app-protection grant (approved app / app protection policy) without a platform condition limited to iOS and Android");
+    if (cats.includes("exchangeActiveSync") && cats.length > 1 && !(apps.length === 1 && /00000002-0000-0ff1-ce00-000000000000|Office365/i.test(apps[0])))
+      out.push("Exchange ActiveSync among the client app types together with other client types or non-Exchange apps");
+    if (c.devices && c.devices.deviceStates) out.push("the retired deviceStates condition (replace with a device filter)");
+    if (sc.applicationEnforcedRestrictions && sc.applicationEnforcedRestrictions.isEnabled && !apps.some((a) => /Office365|00000003-0000-0ff1-ce00-000000000000|00000002-0000-0ff1-ce00-000000000000/i.test(a)))
+      out.push("app-enforced restrictions without Office 365 / SharePoint / Exchange as the target");
+    if (c.users && c.users.includeUsers && c.users.includeUsers.includes("GuestsOrExternalUsers")) out.push("the retired GuestsOrExternalUsers include (replace with the guest / external user types block)");
+    if (g.termsOfUse && g.termsOfUse.length && !built.length && g.operator === "AND") out.push("terms of use with AND and no other control");
+    return out;
   }
 
   // Roles version. Deliberately a separate function rather than more branches
@@ -514,7 +539,15 @@ const Assign = (() => {
         await pause(80);
       } catch (e) {
         console.error(`Assign: ${name} failed`, e);
-        results.push({ name, ok: false, error: e.message || String(e) });
+        let error = e.message || String(e);
+        if (/\(400\)/.test(error)) {
+          try {
+            const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${policyIds[i]}`);
+            const why = diagnose(fresh);
+            error = `Graph refuses to update this policy at all — it validates the whole policy on any change, and this one carries ${why.length ? why.join("; ") : "a setting the API no longer accepts (the portal saved it; the API validates it)"}. Open the policy in the Entra portal, adjust that setting, save — then retry here. (${error})`;
+          } catch { /* keep the raw error */ }
+        }
+        results.push({ name, ok: false, error, unpatchable: /refuses to update/.test(error) });
       }
     }
     return results;

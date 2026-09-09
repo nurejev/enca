@@ -1884,3 +1884,9 @@ body.cgg-modal-open{overflow:hidden}
 .cg-matrix tbody td.cg-fill{background:transparent}
 .cg-polmatrix td.cg-fixcell{background:var(--warn-bg2,var(--warn-bg));padding:2px 4px}
 .cg-polmatrix td.cg-fixcell .chk input{margin:0}
+/* the tick cells read as buttons: dashed until ticked, filled when ticked */
+.cg-polmatrix td.cg-fixcell{background:transparent;padding:3px}
+.cg-polmatrix td.cg-fixcell label{display:flex;align-items:center;justify-content:center;gap:4px;margin:0;padding:4px 4px;border:1px dashed var(--report);border-radius:7px;cursor:pointer;color:var(--report);font-weight:700;font-size:11px;white-space:nowrap}
+.cg-polmatrix td.cg-fixcell label:has(input:checked){background:var(--lemon);border-style:solid;border-color:var(--lemon);color:var(--green-deep)}
+.cg-polmatrix td.cg-fixcell input{margin:0;width:13px;height:13px}
+.cg-polmatrix tr.cmp-diff td.ucol .uupn{color:var(--report)}
