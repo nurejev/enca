@@ -127,15 +127,36 @@ const GroupsView = (() => {
     return `<span class="res ${cls}">${l}</span>${d ? `<div class="mini" style="color:var(--warn-fg)" title="${esc(d)}">${/dynamic/.test(d) ? "assigned, template is dynamic" : esc(d)}</div>` : ""}`;
   }
 
+  // Column sort. No sort chosen = needs-attention first, then name. A chosen
+  // column sorts by its value, name as the tie-break; click again to flip.
+  const STATUS_ORDER = { missing: 0, dangling: 1, present: 2, extra: 3 };
+  function sorter(sort) {
+    if (!sort || !sort.key) return (a, b) => (b.c.attention - a.c.attention) || a.r.name.localeCompare(b.r.name);
+    const dir = sort.dir < 0 ? -1 : 1;
+    const val = ({ r, c }) => {
+      switch (sort.key) {
+        case "status": return STATUS_ORDER[r.status] ?? 9;
+        case "members": return r.memberTotal ?? r.directTotal ?? -1;
+        case "usedby": return (r.refs ? (r.refs.include || []).length + (r.refs.exclude || []).length : r.refCount) || 0;
+        case "prot": return c.prot ? 0 : r.roleAssignable ? 1 : c.flags.includes("unprotected") ? 3 : 2;
+        default: return null;
+      }
+    };
+    return (a, b) => {
+      if (sort.key === "name") return dir * a.r.name.localeCompare(b.r.name);
+      const x = val(a), y = val(b);
+      return (x === y ? 0 : dir * (x < y ? -1 : 1)) || a.r.name.localeCompare(b.r.name);
+    };
+  }
   function list(model, o) {
     const ctx = model.ctx;
     const rows = model.rows.map((r) => ({ r, c: classify(r, ctx) }))
       .filter(({ r, c }) => matches(r, c, o.filter))
       .filter(({ r }) => !o.q || r.name.toLowerCase().includes(o.q) || (r.id || "").toLowerCase().includes(o.q) || (r.members || []).some((m) => (m.name || "").toLowerCase().includes(o.q) || (m.upn || "").toLowerCase().includes(o.q)))
-      .sort((a, b) => (b.c.attention - a.c.attention) || a.r.name.localeCompare(b.r.name));
+      .sort(sorter(o.sort));
     const allSel = rows.length && rows.every(({ r }) => o.sel.has(r.name));
     return `<div class="list-card cgg-list"><div class="gu-tw" style="border:0;border-radius:0"><table class="plist cgg-tbl">
-      <thead><tr><th style="width:28px"><input type="checkbox" class="cgg-chk" data-cgg-selall="1"${allSel ? " checked" : ""} title="Select every group in this view"></th><th>Group</th><th>Status</th><th>Members</th><th>Used by</th><th>Protection</th><th></th></tr></thead>
+      <thead><tr><th style="width:28px"><input type="checkbox" class="cgg-chk" data-cgg-selall="1"${allSel ? " checked" : ""} title="Select every group in this view"></th>${[["name", "Group"], ["status", "Status"], ["members", "Members"], ["usedby", "Used by"], ["prot", "Protection"]].map(([k, l]) => `<th class="cgg-sort${o.sort && o.sort.key === k ? " on" : ""}" data-cgg-sort="${k}" title="Sort by ${l.toLowerCase()}">${l}${o.sort && o.sort.key === k ? (o.sort.dir < 0 ? " ▼" : " ▲") : ""}</th>`).join("")}<th></th></tr></thead>
       <tbody>${rows.map(({ r, c }) => `<tr class="cgg-row${o.open === r.name ? " open" : ""}${o.sel.has(r.name) ? " sel" : ""}" data-cgg-row="${esc(r.name)}">
         <td><input type="checkbox" class="cgg-chk" data-cgg-sel="${esc(r.name)}"${o.sel.has(r.name) ? " checked" : ""}></td>
         <td><b>${esc(r.name)}</b><div class="mini muted">${esc([c.kindLabel, r.roleAssignable ? "role-assignable" : "", r.dynamic ? "dynamic" : "", r.status === "extra" ? "not in baseline" : "", r.status === "missing" && r.sources.length ? `expected by ${r.sources.join(", ")}` : ""].filter(Boolean).join(" · "))}</div></td>

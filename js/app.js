@@ -3324,7 +3324,7 @@
     // The list, every time — ticks and the open row must show under a sheet
     // and be intact when a dialog closes.
     const model = cgModel();
-    const o = { filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, engine: cgTab === "members" ? "③ Members / Compare" : null, sheetFull: cgSheetFull };
+    const o = { filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, sort: cgSort, engine: cgTab === "members" ? "③ Members / Compare" : null, sheetFull: cgSheetFull };
     $("cgList").innerHTML = GroupsView.render(model, o);
     const barHtml = GroupsView.bulkBar(model, o);
     $("cgBar").innerHTML = barHtml;
@@ -6163,6 +6163,7 @@ This is a directory write. Nothing else changes.`)) return;
   // one Assign.apply per (group, include/exclude) pair, the scan's refs
   // updated in place so the grid shows the result without a re-scan.
   let cgFixLast = null;   // the last apply's outcome, shown above the grid until the next
+  let cgSort = null;      // {key, dir} for the groups list; null = attention first
   function cgFixSync() {
     const n = $("cgBody").querySelectorAll("[data-cgfix]:checked").length;
     const b = $("cgBody").querySelector("[data-cgfixgo]"); if (b) { b.disabled = !n; b.textContent = `🎯 Add the ticked groups to those policies (${n})`; }
@@ -6553,6 +6554,7 @@ This is a directory write. Nothing else changes.`)) return;
     const t = e.target;
     if (t.closest("[data-cgg-back]")) { cgCloseEngine(); return; }
     if (t.closest("[data-cgg-sheetsize]")) { cgSheetSize(!cgSheetFull); return; }
+    const so = t.closest("[data-cgg-sort]"); if (so) { const k = so.dataset.cggSort; cgSort = cgSort && cgSort.key === k ? (cgSort.dir > 0 ? { key: k, dir: -1 } : null) : { key: k, dir: 1 }; renderCaGroups(); return; }
     const pl = t.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     if (t.closest("[data-cgg-close]")) { cgOpen = null; renderCaGroups(); return; }
     const dt = t.closest("[data-cgg-dtab]"); if (dt) { cgDrTab = dt.dataset.cggDtab; renderCaGroups(); return; }

@@ -1890,3 +1890,8 @@ body.cgg-modal-open{overflow:hidden}
 .cg-polmatrix td.cg-fixcell label:has(input:checked){background:var(--lemon);border-style:solid;border-color:var(--lemon);color:var(--green-deep)}
 .cg-polmatrix td.cg-fixcell input{margin:0;width:13px;height:13px}
 .cg-polmatrix tr.cmp-diff td.ucol .uupn{color:var(--report)}
+.cgg-tbl th.cgg-sort{cursor:pointer;user-select:none}
+.cgg-tbl th.cgg-sort:hover{color:var(--accent2)}
+.cgg-tbl th.cgg-sort.on{color:var(--ink)}
+.cgg-tbl th:first-child,.cgg-tbl td:first-child{vertical-align:middle;text-align:center;padding-left:8px;padding-right:0}
+.cgg-tbl .cgg-chk{margin:0;vertical-align:middle;width:15px;height:15px}

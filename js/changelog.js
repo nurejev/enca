@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25297, date: "2026-09-09", title: "Conditional Access groups: the list sorts",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "Click Group, Status, Members, Used by or Protection to sort the list by it, again to flip, a third time to go back to needs-attention first. The select-all box sits on the row's centre line like the others." },
+    ],
+  },
+  {
     build: 25296, date: "2026-09-09", title: "Conditional Access groups: the Migrate step list follows the unit you chose",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "The Migrate step list kept naming the first restricted unit in the tenant after the dropdown was changed to another; it follows the choice now." },
