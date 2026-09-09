@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25298, date: "2026-09-09", title: "Conditional Access groups: the Archived groups Delete button says why it is off",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "The Delete button in 🧹 Archived groups could stay off with DELETE typed and five rows ticked. It re-evaluates on every tick, keystroke and re-render now, says how many it will delete, and says why it is off — tick the groups, or type DELETE." },
+    ],
+  },
+  {
     build: 25297, date: "2026-09-09", title: "Conditional Access groups: the list sorts",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "Click Group, Status, Members, Used by or Protection to sort the list by it, again to flip, a third time to go back to needs-attention first. The select-all box sits on the row's centre line like the others." },

@@ -5470,12 +5470,19 @@ max@contoso.com,"Global, DevOps"</pre>
       ${stillUsed ? `<p class="mini" style="margin-top:8px;color:var(--off)">A group still referenced by a policy is <b>not</b> ticked by Select all. Ticked with the box above on, it is removed from those policies first (the replacement is already on them), verified, and only then deleted — so no policy is left naming an id the directory no longer has.</p>` : ""}
       ${arcRows.some((r) => r.members) ? `<p class="mini" style="margin-top:6px;color:var(--report)">⚠ An archived group with members is one whose members were never carried across.
         Check the replacement has them before deleting.</p>` : ""}`;
+    arcSyncGo();
   }
   // The typed confirmation and the tick count both gate the button, so they
   // are decided in one place — a bulk toggle used to leave it stale.
+  // The button says why it is off, and every path that could change the
+  // answer re-evaluates it — a stale disabled button with DELETE typed and
+  // five rows ticked is the one thing this dialog must never show.
   function arcSyncGo() {
     const typed = ($("arcOk").value || "").trim().toUpperCase() === "DELETE";
-    $("arcGo").disabled = !typed || !arcRows.some((r) => r.checked);
+    const n = arcRows.filter((r) => r.checked).length;
+    $("arcGo").disabled = !typed || !n;
+    $("arcGo").textContent = n ? `Delete ${n} ticked` : "Delete ticked";
+    const why = $("arcWhy"); if (why) why.textContent = !n ? "tick the groups to delete" : !typed ? "type DELETE to enable" : "";
   }
   // Update the toolbar WITHOUT re-rendering the table: with 95 rows a full
   // re-render on every tick would throw away the scroll position inside the
@@ -5537,7 +5544,8 @@ max@contoso.com,"Global, DevOps"</pre>
     } catch (err) { toast(`Could not check: <span>${esc(err.message || err)}</span>`); }
     finally { btn.disabled = false; btn.textContent = label; }
   });
-  $("arcOk").addEventListener("input", arcSyncGo);
+  ["input", "change", "keyup", "paste"].forEach((ev) => $("arcOk").addEventListener(ev, () => setTimeout(arcSyncGo, 0)));
+  $("arcBody").addEventListener("click", () => setTimeout(arcSyncGo, 0));
   $("arcCancel").addEventListener("click", () => $("arcModal").classList.remove("open"));
   $("arcGo").addEventListener("click", async () => {
     const picked = arcRows.filter((r) => r.checked);
