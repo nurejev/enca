@@ -15095,24 +15095,48 @@ This is a directory write. Nothing else changes.`)) return;
   let scQTimer = null;
   $("scSearch").addEventListener("input", (e) => { clearTimeout(scQTimer); scQTimer = setTimeout(() => { scQ = e.target.value; if (scRes) renderSessionCtl(); }, 200); });
 
-  async function scHunt(days) {
-    const run = (fallback) => Graph.gpost("/security/runHuntingQuery", { Query: SessionCtl.query(days, fallback), Timespan: `P${Math.max(1, Math.ceil(days))}D` }, [...AUTH_CONFIG.scopes, ...SC_HUNT]);
-    try { const j = await run(false); return { rows: (j && j.results) || [], fallback: false }; }
-    catch (e) {
-      // an older schema without AuditSource / SessionData fails the query
-      // with a semantic error — retry on wording alone and say so
-      if (/AuditSource|SessionData|SemanticError|semantic|not found|failed to resolve/i.test(e.message || "")) {
-        const j = await run(true); return { rows: (j && j.results) || [], fallback: true };
+  // The window in slices — 4 hours each for a day or more, one slice for a
+  // sub-day window — every slice its own hunting query with a 2-minute
+  // client-side limit; a slice that runs out of time is halved and both
+  // halves read, down to 30 minutes, then reported as skipped. Progress is
+  // per slice, so "Reading Defender…" is never a spinner with no number.
+  const SC_SLICE_MS = 4 * 3600000, SC_MIN_SLICE_MS = 30 * 60000, SC_TIMEOUT_MS = 120000;
+  async function scHunt(days, prog) {
+    let fallback = false, skipped = 0;
+    const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("hunting query took longer than 2 minutes")), ms))]);
+    const run = (range, fb) => withTimeout(Graph.gpost("/security/runHuntingQuery", { Query: SessionCtl.query(days, fb, range), Timespan: `P${Math.max(1, Math.ceil(days))}D` }, [...AUTH_CONFIG.scopes, ...SC_HUNT]), SC_TIMEOUT_MS);
+    const now = Date.now(), start = now - days * 86400000;
+    const slices = [];
+    if (days >= 1) { for (let t = start; t < now; t += SC_SLICE_MS) slices.push([t, Math.min(t + SC_SLICE_MS, now)]); } else slices.push([start, now]);
+    prog && prog.start(slices.length, "events", "slice");
+    let rows = [];
+    const readSlice = async (from, to) => {
+      const range = { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
+      try {
+        const j = await run(range, fallback);
+        rows = rows.concat((j && j.results) || []);
+      } catch (e) {
+        const m = e.message || "";
+        if (!fallback && /AuditSource|SessionData|SemanticError|semantic|not found|failed to resolve/i.test(m)) { fallback = true; return readSlice(from, to); }
+        if (/longer than 2 minutes|timed out|timeout|Gateway|502|504/i.test(m)) {
+          if (to - from > SC_MIN_SLICE_MS) { const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
+          skipped++; return;
+        }
+        throw e;
       }
-      throw e;
+    };
+    for (let i = 0; i < slices.length; i++) {
+      await readSlice(slices[i][0], slices[i][1]);
+      prog && prog.tick(rows.length, i + 1);
     }
+    return { rows, fallback, skipped };
   }
 
   async function runSessionCtl(force) {
     if (scBusy) return;
     scBusy = true; scRes = null;
     $("scRescan").style.display = "none"; $("scMd").style.display = "none"; $("scCsv").style.display = "none";
-    $("scBody").innerHTML = scProg.panel("Reading Defender session-control activity…", "One advanced hunting query over CloudAppEvents; up to 5,000 events.");
+    $("scBody").innerHTML = scProg.panel("Reading Defender session-control activity…", "Advanced hunting over CloudAppEvents in 4-hour slices, up to 5,000 events per slice; a slice that takes more than 2 minutes is halved.");
     try {
       let events = [], records = null, fallback = false, capped = false;
       const notes = [];
@@ -15121,7 +15145,7 @@ This is a directory write. Nothing else changes.`)) return;
         records = demoSignIns();
       } else {
         if (!await preConsent([...AUTH_CONFIG.scopes, ...SC_HUNT])) { scBusy = false; openSessionCtl(); return; }
-        try { const h = await scHunt(scDays); events = SessionCtl.parseEvents(h.rows); fallback = h.fallback; }
+        try { const h = await scHunt(scDays, scProg); events = SessionCtl.parseEvents(h.rows); fallback = h.fallback; if (h.skipped) notes.push(`${h.skipped} half-hour slice${h.skipped === 1 ? "" : "s"} of Defender activity took longer than 2 minutes and ${h.skipped === 1 ? "was" : "were"} skipped — narrow the window`); }
         catch (e) {
           console.error("session controls: hunting failed", e);
           scBusy = false;

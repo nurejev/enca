@@ -229,11 +229,12 @@ const PROMOTE = {
       n: 132,
       title: "🛂 Session controls (T38, R43)",
       tools: ["Session controls"],
-      builds: [25265, 25266, 25269],
+      builds: [25265, 25266, 25269, 25300],
       risk: "medium",
       what: "New beta-only tool: Defender for Cloud Apps session-control activity (CloudAppEvents via Graph runHuntingQuery, ThreatHunting.Read.All) joined to the Entra sign-in window's routing policies. Per CA policy with a session control: control, sessions routed, Defender actions, Defender policies matched, verdict. Event table with filters, Defender policies seen, schema panel. New js/sessionctl.js plus tile, screen, Help, wiring; demo policy d10, sign-in si-11 and sessionEvents.",
       why: "The classifier reads an undocumented schema: which ActionType a blocked download carries and where the matched policy name sits in RawEventData is known only from a real tenant with a real block. Graduates once one such tenant has confirmed the Blocked / Protected / Step-up rows are classified right and the routing join finds the CA policy. Also the first tool to use runHuntingQuery — the consent and the role requirement need one real run.",
       test: [
+        "Large tenant, Last 24 hours: the progress line must count slices (slice 2 of 6 · 40s) and finish in minutes, not hang on Waiting for the first page; a slice over 2 minutes must be halved (visible as more slices) and, at 30 minutes, reported skipped in the note above the result.",
         "FIRST, on a tenant with Defender for Cloud Apps and at least one session policy that has blocked a download: open the tool, read 7 days, expand “What the hunting rows looked like” and send the ActionType list and RawEventData keys back. The Blocked row must be classified Blocked, not Activity; if not, that list is the fix.",
         "The tile count of App Control policies must equal the number of policies whose session controls show Conditional Access App Control in List Policies. A policy with Monitor only must carry the Monitor-only callout, and its verdict must never be Acting.",
         "For an enabled App Control policy: the Routed count must equal the number of sign-ins in 🚦 Sign-in failures' window (same range) whose applied policies include it with result success and a CloudAppSecurity session control. Spot-check three.",

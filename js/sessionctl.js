@@ -47,25 +47,27 @@ const SessionCtl = (() => {
   // ------------------------------------------------------------ query --
   // Two shapes: with the AuditSource / SessionData columns (June 2024+),
   // and a fallback for a schema that does not have them yet.
-  function query(days, fallback) {
-    // sub-day windows are hours: 1/24 → 1h, 4/24 → 4h
+  // range: {from,to} ISO instants for one slice — the caller cuts the window
+  // into slices so a day of CloudAppEvents on a large tenant is six short
+  // queries with progress, not one that scans millions of rows in silence.
+  // The AuditSource test is an exact, case-insensitive match (in~), not a
+  // full-text `has` over every row, and `top` replaces order-by + take.
+  function query(days, fallback, range) {
     const win = (days || 7) >= 1 ? `${Math.max(1, Math.round(days || 7))}d` : `${Math.max(1, Math.round((days || 7) * 24))}h`;
-    const d = win;
+    const when = range ? `| where Timestamp between (datetime(${range.from}) .. datetime(${range.to}))` : `| where Timestamp > ago(${win})`;
     const cols = "Timestamp, ActionType, ActivityType, Application, ApplicationId, AccountObjectId, AccountDisplayName, AccountId, ObjectName, ObjectType, IPAddress, DeviceType, OSPlatform, UserAgent, IsExternalUser, AccountType, RawEventData, AdditionalFields";
     if (fallback) {
       return `CloudAppEvents
-| where Timestamp > ago(${d})
+${when}
 | where ActionType has_any ("Block", "Blocked", "Protect", "Session", "Download", "Upload", "Login", "Step") or tostring(RawEventData) has_any ("SessionPolicy", "session control", "Blocked", "Protected")
 | project ${cols}
-| order by Timestamp desc
-| take 5000`;
+| top 5000 by Timestamp desc`;
     }
     return `CloudAppEvents
-| where Timestamp > ago(${d})
-| where AuditSource has "session control" or AuditSource has "access control"
+${when}
+| where AuditSource in~ ("Session control", "Access control", "Conditional Access App Control", "SessionControl", "AccessControl")
 | project ${cols}, AuditSource, SessionData
-| order by Timestamp desc
-| take 5000`;
+| top 5000 by Timestamp desc`;
   }
 
   // ------------------------------------------------------------ parse --

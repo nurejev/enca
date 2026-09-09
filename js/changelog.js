@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25300, date: "2026-09-09", title: "Session controls: no longer forever",
+    items: [
+      { kind: "fix", tool: "Session controls", text: "One hunting query over a day of CloudAppEvents on a large tenant scanned millions of rows with a full-text AuditSource test and a sort, and the panel showed a spinner with no number. The window is read in 4-hour slices now, each its own query with a 2-minute limit — a slice that runs out of time is halved down to 30 minutes and then reported as skipped — with per-slice progress; the AuditSource test is an exact match and top replaces order-by + take." },
+    ],
+  },
+  {
     build: 25299, date: "2026-09-09", title: "Conditional Access groups: the Archived groups delete is visible while it runs",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "The delete was working — the toasts were the only sign, and the dialog looked stuck for a minute with a greyed button. The dialog now shows a progress bar and a step log (taking it out of n policies… ✓ verified · deleting… ✓ deleted), the title says Working… 2/6, and Close is locked until it is done." },
