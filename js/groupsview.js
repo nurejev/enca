@@ -200,7 +200,7 @@ const GroupsView = (() => {
     if (r.memberError) return `<p class="mini" style="color:var(--off)">Could not read the members: ${esc(r.memberError)}</p>`;
     const direct = r.directIds ? r.members.filter((m) => m.direct) : r.members;
     const children = r.children || [];
-    const addBox = r.dynamic ? '<p class="mini muted">Dynamic group — the rule decides the membership.</p>'
+    const addBox = o.engine ? '<p class="mini muted">Add and remove from the matrix below while Compare is open.</p>' : r.dynamic ? '<p class="mini muted">Dynamic group — the rule decides the membership.</p>'
       : `<div class="cgg-add"><input id="cgAddUser" class="txt" list="cgUserSug" placeholder="Add a member — name or UPN" spellcheck="false" autocomplete="off"><input id="cgAddGroup" type="hidden" value="${esc(r.name)}"><button class="btn primary" id="cgAddGo">＋ Add</button></div>
         <div id="cgAddLog" class="mini" style="margin:4px 0 6px">${o.addMsg ? `<span style="${o.addMsg.bad ? "color:var(--off)" : ""}">${o.addMsg.html}</span>` : ""}</div>`;
     const li = (m, kind, gname, gid) => `<li class="${kind}"><span><b>${esc(m.name)}</b>${m.disabled ? ' <span class="tag block">disabled</span>' : ""} <span class="mini muted">${esc(m.upn || "")}</span></span>${r.dynamic ? "" : `<button class="cgg-x" data-cgg-rm="${esc(m.id)}" data-cgg-rmgroup="${esc(gname)}" data-cgg-rmgid="${esc(gid || "")}" title="Remove from ${esc(gname)}">×</button>`}</li>`;

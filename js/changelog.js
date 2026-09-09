@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25284, date: "2026-09-09", title: "Conditional Access groups 5.3: every action reviewed on a real tenant",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "The drawer follows the tick: ticking a row opens it, unticking the open row opens the last one still ticked — the pane no longer shows a group you did not select. The drawer's ＋ Add and × had lost their click handler when the list moved into its own element — restored." },
+      { kind: "fix", tool: "Conditional Access groups", text: "⋯ → Read members / Protect / Migrate / Import / Create now go the same way the bar goes: straight to the matrix or the scoped check for that one group, not the 133-group picker in a full-height sheet. Compare shows the groups you picked, not every group read this session. The sheet is sized to its content." },
+      { kind: "fix", tool: "Conditional Access groups", text: "Migrate reuses the protection map the list already read (no memberOf call per candidate), and on a tenant without Entra ID P2 it treats the PIM eligibility read's licence error (AadPremiumLicenseRequired) as 'no eligible roles' instead of skipping the group — a P1 tenant cannot hold eligible assignments, so the active-role check is the whole answer." },
+      { kind: "fix", tool: "Conditional Access groups", text: "The list fits its card: fixed column widths and wrapping cells, so the ⋯ column is never hidden behind a sideways scroll." },
+    ],
+  },
+  {
     build: 25283, date: "2026-09-08", title: "Sign-in source: a tenant without the hunting table says so",
     items: [
       { kind: "fix", tool: "Sign-in failures", text: "A tenant whose hunting schema has no EntraIdSignInEvents (the table exists only with Entra ID P2) fell through to the AADSignInEventsBeta fallback, which is gone too, and the error quoted the fallback's name — misleading. The fallback is now tried only when the error names the table itself, and when both names fail the message says what it is: no Entra sign-in table in this tenant's schema, needs P2, switch the source back to the Entra sign-in log. Applies to 🚦 🎚 🕵 🌊." },

@@ -1165,8 +1165,12 @@ const CaGroups = (() => {
       const b = await Graph.gget(`/roleManagement/directory/roleEligibilitySchedules?$filter=principalId eq '${groupId}'&$expand=roleDefinition($select=displayName)`);
       out.eligible = ((b && b.value) || []).map((r) => (r.roleDefinition && r.roleDefinition.displayName) || r.roleDefinitionId);
     } catch (e) {
-      // PIM is licence-gated; "not licensed" is not the same as "failed to read".
-      if (!/not licensed|does not have|Insufficient privileges/i.test(e.message || "")) { out.ok = false; out.error = out.error || (e.message || String(e)); }
+      // PIM is licence-gated; "not licensed" is not the same as "failed to
+      // read": a P1 tenant answers AadPremiumLicenseRequired ("needs Entra ID
+      // P2 or Governance") and cannot hold eligible assignments at all, so
+      // the active list above is the whole answer.
+      if (!/not licensed|does not have|Insufficient privileges|AadPremiumLicenseRequired|Entra ID P2|Premium P2|Governance license/i.test(e.message || "")) { out.ok = false; out.error = out.error || (e.message || String(e)); }
+      else out.pimUnlicensed = true;
     }
     return out;
   }

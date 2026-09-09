@@ -4287,6 +4287,9 @@ max@contoso.com,"Global, DevOps"</pre>
             cands[i].memberTotal = ms.length;
           } catch (e) { console.warn("member count failed for", cands[i].name, e.message); }
         }
+        // the list already read every restricted unit's members on open —
+        // reuse that instead of one memberOf call per candidate
+        if (cgProt) { const p = cgProt.get(cands[i].id); if (p) protectedIn.set(cands[i].id, { auId: p.auId, auName: p.auName }); continue; }
         try {
           const r = await Graph.gget(`/groups/${cands[i].id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
           const hit = ((r && r.value) || []).find((a) => a.isMemberManagementRestricted === true);
@@ -6032,7 +6035,10 @@ This is a directory write. Nothing else changes.`)) return;
       </div>`;
       return;
     }
-    const m = CaGroups.matrix(cgRes.rows);
+    // The matrix is the groups you PICKED (ticked in the list, or chosen in the
+    // picker), not every group that was ever read this session — with nothing
+    // picked, everything read is shown, as before.
+    const m = CaGroups.matrix(cgMemberSel.size ? cgRes.rows.filter((r) => cgMemberSel.has(r.name)) : cgRes.rows);
     // The empty groups as ONE line that opens, not a wall of names: on a
     // baseline tenant half the exclusion groups are empty by design.
     const empties = m.empty.length
@@ -6408,9 +6414,17 @@ This is a directory write. Nothing else changes.`)) return;
   const cggSelChanged = () => { if (cgTab === "members") cgGoTab("members", [...cgSel]); else renderCaGroups(); };
   $("cgList").addEventListener("change", (e) => {
     const all = e.target.closest("[data-cgg-selall]");
-    if (all) { const names = [...$("cgList").querySelectorAll("[data-cgg-row]")].map((r) => r.dataset.cggRow); all.checked ? names.forEach((n) => cgSel.add(n)) : names.forEach((n) => cgSel.delete(n)); cggSelChanged(); return; }
+    if (all) { const names = [...$("cgList").querySelectorAll("[data-cgg-row]")].map((r) => r.dataset.cggRow); all.checked ? names.forEach((n) => cgSel.add(n)) : names.forEach((n) => cgSel.delete(n)); if (!all.checked && cgOpen && !cgSel.has(cgOpen)) cgOpen = null; cggSelChanged(); return; }
     const one = e.target.closest("[data-cgg-sel]");
-    if (one) { one.checked ? cgSel.add(one.dataset.cggSel) : cgSel.delete(one.dataset.cggSel); cggSelChanged(); }
+    if (one) {
+      const name = one.dataset.cggSel;
+      // the drawer follows the tick: tick → that group opens; untick the open
+      // one → the last group still ticked opens, or nothing
+      if (one.checked) { cgSel.add(name); cgOpenRow(name); if (cgTab === "members") cgGoTab("members", [...cgSel]); return; }
+      cgSel.delete(name);
+      if (cgOpen === name) { const last = [...cgSel].pop(); if (last) { cgOpenRow(last); if (cgTab === "members") cgGoTab("members", [...cgSel]); return; } cgOpen = null; }
+      cggSelChanged();
+    }
   });
   $("cgChips").addEventListener("click", (e) => { const b = e.target.closest("[data-cgg-filter]"); if (!b) return; cgGFilter = b.dataset.cggFilter; renderCaGroups(); });
 
@@ -6427,13 +6441,9 @@ This is a directory write. Nothing else changes.`)) return;
     // Carry the group across rather than dropping the reader back into a tab
     // with nothing selected — the whole point is not having to find it again.
     const name = a.dataset.cgactname;
-    const row = (cgRes && cgRes.rows || []).find((x) => x.name === name);
     $("depModal").classList.remove("open");
-    cgTab = a.dataset.cgact; cgQuery = ""; $("cgSearch").value = "";
-    if (cgTab === "members") { cgMemberSel.clear(); cgMemberSel.add(name); cgMemberPick = true; }
-    if (cgTab === "rmau" && row && row.id && cgRmau) { cgRmau.sel = new Set([row.id]); cgRmau.q = name; }
-    if (cgTab === "migrate" && row && row.id && cgMig) { cgMig.sel = new Set([row.id]); }
-    renderCaGroups();
+    if (a.dataset.cgact === "assign") { openAssign(selected.size ? "selection" : "all"); return; }
+    cgGoTab(a.dataset.cgact, [name]);
     toast(`<span>${esc(name)}</span> carried over to ${esc(a.textContent.trim())}`);
   });
 
@@ -6447,6 +6457,10 @@ This is a directory write. Nothing else changes.`)) return;
   $("cgBody").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
   $("cgList").addEventListener("input", cgAddSuggest);
   $("cgList").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
+  $("cgList").addEventListener("click", async (e) => {
+    if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
+    if (e.target.id === "cgAddRm") { await cgRemoveMember($("cgAddUser")?.value, $("cgAddGroup")?.value); }
+  });
   $("cgTabs").addEventListener("click", (e) => {
     const b = e.target.closest("[data-cgtab]"); if (!b) return;
     cgTab = b.dataset.cgtab; cgQuery = ""; $("cgSearch").value = "";
