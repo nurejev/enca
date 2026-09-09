@@ -1828,6 +1828,10 @@ body.cgg-modal-open{overflow:hidden}
 .cgg-sbd{padding:12px 16px 20px;overflow-y:auto;flex:1;min-height:0}
 .cgg-sbd > #cgBody > :first-child{margin-top:0}
 #screen-cagroups.sheet-open{padding-bottom:min(72vh,820px)}
+/* full-height sheet: the tool area below the header and the tabs */
+.cgg-sheet.full{top:calc(var(--sticky-nav,106px) + 8px);max-height:none;left:10px;right:10px}
+.cgg-sheet.full .cgg-sbd{flex:1}
+#screen-cagroups.sheet-full{padding-bottom:0}
 /* the list fits its card: fixed layout, wrapping cells, the ⋯ column always in view */
 .cgg-list .gu-tw{overflow-x:visible}
 .cgg-tbl{width:100%;table-layout:fixed;min-width:0}

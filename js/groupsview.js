@@ -158,7 +158,7 @@ const GroupsView = (() => {
     const missing = rows.filter((r) => !r.id && r.template).length;
     const unread = rows.filter((r) => r.id && r.members == null).length;
     return `<div class="cgg-bulk">
-      <b>${o.engine ? `${esc(o.engine)} <span class="mini" style="font-weight:400;opacity:.8">· ${o.sel.size ? `${n} selected` : esc(o.open)} — tick rows above, the matrix follows</span>` : o.sel.size ? `${n} selected` : `${esc(o.open)} <span class="mini" style="font-weight:400;opacity:.8">(open — tick rows to act on more)</span>`}</b>
+      <b>${o.engine ? `${esc(o.engine)} <span class="mini" style="font-weight:400;opacity:.8">· ${o.sel.size ? `${n} selected` : esc(o.open)}${o.sheetFull ? "" : " — tick rows above, the matrix follows"}</span>` : o.sel.size ? `${n} selected` : `${esc(o.open)} <span class="mini" style="font-weight:400;opacity:.8">(open — tick rows to act on more)</span>`}</b>
       ${unread ? `<button class="btn" data-cgg-bulk="read">👥 Read members${unread < n ? ` (${unread})` : ""}</button>` : ""}
       <button class="btn" data-cgg-bulk="compare" title="The members × groups matrix for the selected groups">⊞ Compare selected</button>
       <button class="btn" data-cgg-bulk="assign">🎯 Assign to policies…</button>
@@ -167,7 +167,7 @@ const GroupsView = (() => {
       <button class="btn" data-cgg-bulk="csv">📥 Import members (CSV)…</button>
       <span class="spacer"></span>
       ${missing ? `<button class="btn primary" data-cgg-bulk="create">＋ Create ${missing} missing</button>` : ""}
-      ${o.engine ? `<button class="btn" data-cgg-back title="Close and go back to the list">✕ Close</button>` : `<button class="btn" data-cgg-bulk="clear" title="${o.sel.size ? "Clear the selection" : "Close"}">✕</button>`}
+      ${o.engine ? `<button class="btn" data-cgg-sheetsize title="${o.sheetFull ? "Half height — the list stays visible above and the matrix follows your ticks" : "Full height"}">${o.sheetFull ? "▁ Half" : "⤢ Full"}</button> <button class="btn" data-cgg-back title="Close and go back to the list">✕ Close</button>` : `<button class="btn" data-cgg-bulk="clear" title="${o.sel.size ? "Clear the selection" : "Close"}">✕</button>`}
     </div>`;
   }
 

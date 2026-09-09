@@ -3271,6 +3271,8 @@
   function cgPlaceEngine(hasBar) {
     const body = $("cgBody"), list = $("cgList"), bar = $("cgBar"), ov = $("cgOverlay"), sh = $("cgSheet");
     $("screen-cagroups").classList.toggle("sheet-open", cgTab === "members");
+    $("screen-cagroups").classList.toggle("sheet-full", cgTab === "members" && cgSheetFull);
+    sh.classList.toggle("full", cgSheetFull);
     const home = () => { if (body.parentNode !== list.parentNode) list.insertAdjacentElement("afterend", body); if (bar.parentNode !== list.parentNode) body.insertAdjacentElement("afterend", bar); };
     if (cgTab === "groups") {
       home(); ov.hidden = true; sh.hidden = true; body.hidden = true; body.innerHTML = "";
@@ -3293,6 +3295,15 @@
       document.body.classList.remove("cgg-modal-open");
     }
   }
+  // The sheet is full-height by default — a 79 × 2 matrix in half a window
+  // is not readable — with a Half toggle for working the list beneath it.
+  let cgSheetFull = (() => { try { return localStorage.getItem("enca-cg-sheet") !== "half"; } catch { return true; } })();
+  function cgSheetSize(full) {
+    cgSheetFull = full; try { localStorage.setItem("enca-cg-sheet", full ? "full" : "half"); } catch { /* fine */ }
+    $("cgSheet").classList.toggle("full", full);
+    $("screen-cagroups").classList.toggle("sheet-full", full && cgTab === "members");
+    const b = $("cgBar").querySelector("[data-cgg-sheetsize]"); if (b) b.textContent = full ? "▁ Half" : "⤢ Full";
+  }
   function cgCloseEngine() { if (cgTab === "groups") return; cgTab = "groups"; cgQuery = ""; $("cgSearch").value = ""; renderCaGroups(); }
 
   function renderCaGroups() {
@@ -3313,7 +3324,7 @@
     // The list, every time — ticks and the open row must show under a sheet
     // and be intact when a dialog closes.
     const model = cgModel();
-    const o = { filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, engine: cgTab === "members" ? "③ Members / Compare" : null };
+    const o = { filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, engine: cgTab === "members" ? "③ Members / Compare" : null, sheetFull: cgSheetFull };
     $("cgList").innerHTML = GroupsView.render(model, o);
     const barHtml = GroupsView.bulkBar(model, o);
     $("cgBar").innerHTML = barHtml;
@@ -6372,6 +6383,7 @@ This is a directory write. Nothing else changes.`)) return;
   const cggClick = async (e) => {
     const t = e.target;
     if (t.closest("[data-cgg-back]")) { cgCloseEngine(); return; }
+    if (t.closest("[data-cgg-sheetsize]")) { cgSheetSize(!cgSheetFull); return; }
     const pl = t.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     if (t.closest("[data-cgg-close]")) { cgOpen = null; renderCaGroups(); return; }
     const dt = t.closest("[data-cgg-dtab]"); if (dt) { cgDrTab = dt.dataset.cggDtab; renderCaGroups(); return; }

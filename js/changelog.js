@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25288, date: "2026-09-09", title: "Conditional Access groups: Compare opens full height",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "Compare opens full height — the tool area below the header and the tabs — because a 79 × 2 matrix in half a window was not readable. ▁ Half in its header drops it to the half sheet where the list stays visible and the matrix follows your ticks; the choice is remembered." },
+    ],
+  },
+  {
     build: 25287, date: "2026-09-09", title: "Conditional Access groups: the dialog covers the tool, not the app",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "The dialog starts below the header and the tool tabs and no longer locks the page, so every other tool stays one click away while a migration runs — the tool keeps its own window in its own tab. ⟳ Rescan inside Migrate re-checks the same groups with the same scope instead of throwing the list's scan away and checking all 94 role-assignable groups." },
