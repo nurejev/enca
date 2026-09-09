@@ -210,23 +210,27 @@ const Assign = (() => {
   // row rather than from one shared selection, and the action is fixed to
   // ADD-to-exclude: restoring a reference must never rewrite the exclusions a
   // policy already has, whatever else is in that list.
-  async function applyMapped(items, onStatus) {
+  async function applyMapped(items, onStatus, onItem, shouldStop) {
     const results = [];
     for (let i = 0; i < (items || []).length; i++) {
       const it = items[i];
       let name = it.policy || it.policyId;
+      if (shouldStop && shouldStop()) { results.push({ name, ok: false, stopped: true, error: "stopped", group: it.group }); continue; }
+      onItem?.(i, "start");
       try {
         const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${it.id}`);
         name = fresh.displayName || name;
         onStatus?.(`Updating ${name} (${i + 1}/${items.length})…`);
         const { users } = newUsersBlock(fresh, 3, [it.groupId], "groups");
-        if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false, group: it.group }); continue; }
+        if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false, group: it.group }); onItem?.(i, "end", results[results.length - 1]); continue; }
         await Graph.gpatch(`/identity/conditionalAccess/policies/${it.id}`, { conditions: { users } });
         results.push({ name, ok: true, changed: true, group: it.group });
+        onItem?.(i, "end", results[results.length - 1]);
         await pause(80);
       } catch (e) {
         console.error(`Assign restore: ${name} failed`, e);
         results.push({ name, ok: false, error: e.message || String(e), group: it.group });
+        onItem?.(i, "end", results[results.length - 1]);
       }
     }
     return results;
@@ -521,18 +525,24 @@ const Assign = (() => {
 
   const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  async function apply(policyIds, action, groupIds, onStatus, target) {
+  // onItem(i, phase, result): "start" before the write, "end" with the
+  // result — what the run ledger draws. shouldStop() lets a Stop button end
+  // the run between writes; the rows not reached are reported as such.
+  async function apply(policyIds, action, groupIds, onStatus, target, onItem, shouldStop) {
     const results = [];
     for (let i = 0; i < policyIds.length; i++) {
+      if (shouldStop && shouldStop()) { results.push({ name: policyIds[i], ok: false, stopped: true, error: "stopped" }); continue; }
       let name = policyIds[i];
+      onItem?.(i, "start");
       try {
         const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${policyIds[i]}`);
         name = fresh.displayName || name;
         onStatus?.(`Updating ${name} (${i + 1}/${policyIds.length})…`);
         const { users } = newUsersBlock(fresh, action, groupIds, target);
-        if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false }); continue; }
+        if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false }); onItem?.(i, "end", results[results.length - 1]); continue; }
         await Graph.gpatch(`/identity/conditionalAccess/policies/${policyIds[i]}`, { conditions: { users } });
         results.push({ name, ok: true, changed: true });
+        onItem?.(i, "end", results[results.length - 1]);
         // Gentle pacing between writes only. A tenant-wide run is 100+ PATCHes;
         // spacing them slightly keeps us under Graph's burst limit so the
         // Retry-After back-off in graphFetch rarely has to fire at all.
@@ -548,6 +558,7 @@ const Assign = (() => {
           } catch { /* keep the raw error */ }
         }
         results.push({ name, ok: false, error, unpatchable: /refuses to update/.test(error) });
+        onItem?.(i, "end", results[results.length - 1]);
       }
     }
     return results;

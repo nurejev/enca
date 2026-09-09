@@ -118,6 +118,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 138,
+      title: "✅ Run ledger for every batch write (R50)",
+      tools: ["Conditional Access groups", "List Policies"],
+      builds: [25301],
+      risk: "medium",
+      what: "New js/runledger.js (RunLedger.create(host,{unit,items,onStop}) → start/done/fail/skip/note/finish, stopped) + .rl CSS. Assign.apply / applyMapped gain onItem(i, phase, result) and shouldStop(). Wired: 🎯 Assign confirm modal (asConfirmBody replaced by the ledger; modal stays open on failures, Back→Close), 🎚 Set policy state (stLedger inserted in the modal), 👥 ⑦ Migrate (ledger element kept on cgMig so a re-render puts it back; steps as row notes; L.fail names the step), 🧹 Archived groups (arcBody), ⑥ Protect (cgRmauLog; skipped rows for missing units), ② Create (cgCreateLog; dialog stays, close re-reads), ⑤ Import CSV (cgCsvLog), Compare → Policies ticks (#cgFixLedger kept across re-render). cgCloseEngine re-scans when cgRes was thrown away; list click handler guards a missing scan.",
+      why: "Every wired site is a write path, so the risk is a loop that stops early, a row index that drifts (the Compare ticks use an offset per job), or a dialog that closes on a failure and hides the ✗. Graduates once each site has been run once on a real tenant with at least one deliberate failure in the list.",
+      test: [
+        "🎯 Assign, tenant-wide exclude (100+ policies): the confirm modal must show every policy before the first write, the working row amber and scrolled into view, ✓ per row; press ■ Stop mid-run — the write in flight completes, the rest read 'stopped', the modal stays open with Back reading Close, and the report lists the stopped rows.",
+        "🎯 Assign on a set that includes an unpatchable policy (the REQ-PVM-ReqApp-* ones): the ✗ row must carry the diagnosis inline and the modal must stay open; the clean policies must still be ✓.",
+        "🎚 Set policy state on 5 policies: the ledger appears in the modal, ✓ per row with the new state, the modal closes on a clean run and stays open on a failure.",
+        "👥 ⑦ Migrate 2 groups: one row per group, the step notes changing on the working row (renamed → created → members → repointed → verified → AU), ✓ migrated at the end; navigate to another tool mid-run and back — the same ledger with its progress must be there.",
+        "👥 🧹 Archived groups, ⑥ Protect, ② Create, ⑤ Import CSV: each shows the ledger, Stop works, a failure keeps the dialog open with the reason on the row; after Create, Close must re-read the tenant and the list must show the new groups.",
+        "Compare → Policies: tick 3 missing cells across 2 groups → apply: the ledger above the grid must show 3 rows in order, each ✓, the grid re-rendering with no differing rows and the ledger still visible.",
+        "?demo=1: Archived groups delete, Migrate, Create and the Compare ticks all render a finished ledger with green rows; Assign's Apply animates 40 ms per row.",
+      ],
+      files: ["js/runledger.js", "js/assign.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 137,
       title: "🚪 Exclusion analyzer: nesting in sight (T09 1.7, R49)",
       tools: ["Exclusion analyzer", "Who is Anna to CA"],

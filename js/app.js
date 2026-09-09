@@ -2253,18 +2253,22 @@
     if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) return;
     const ps = exportOrder([...selected].map(id => policies.find(p => p.id === id)));
     $("stGo").disabled = true;
+    let host = $("stLedger"); if (!host) { host = document.createElement("div"); host.id = "stLedger"; $("stGo").closest(".modal").insertBefore(host, $("stGo").closest(".row")); }
+    const L = RunLedger.create(host, { unit: "policies", items: ps.map((p) => ({ label: p.name })) });
     try {
       const results = [];
       for (let i = 0; i < ps.length; i++) {
-        toast(`Updating ${i + 1}/${ps.length}…`);
+        if (L.stopped) { results.push({ name: ps[i].name, ok: false, stopped: true }); continue; }
+        L.start(i);
         try {
           if (!isDemo) await Graph.gpatch(`/identity/conditionalAccess/policies/${ps[i].id}`, { state });
-          results.push({ name: ps[i].name, ok: true });
-        } catch (e) { console.error(e); results.push({ name: ps[i].name, ok: false }); }
+          results.push({ name: ps[i].name, ok: true }); L.done(i, "", state === "enabled" ? "On" : state === "disabled" ? "Off" : "Report-only");
+        } catch (e) { console.error(e); results.push({ name: ps[i].name, ok: false, error: e.message || String(e) }); L.fail(i, e.message || String(e)); }
       }
-      $("stateModal").classList.remove("open");
+      L.finish();
       const failed = results.filter(r => !r.ok).length;
-      toast(failed ? `State change done with <span>${failed} failure(s)</span> — see console`
+      if (!failed) { $("stateModal").classList.remove("open"); host.remove(); }
+      toast(failed ? `State change done with <span>${failed} failure(s)</span> — the reasons are on the rows`
         : `State of <span>${results.length}</span> policies set${isDemo ? " (simulated)" : ""}`);
       if (!isDemo && results.some(r => r.ok)) await loadFromGraph(true);
     } finally { $("stGo").disabled = false; }
@@ -3199,7 +3203,7 @@
     if (!keepTab) { cgTab = "groups"; cgFilter = "all"; cgQuery = ""; $("cgSearch").value = ""; }
     if (!cgRes) {
       $("cgHead").innerHTML = '<p class="mini">Scanning groups…</p>';
-      $("cgChips").innerHTML = ""; $("cgBody").innerHTML = "";
+      $("cgChips").innerHTML = ""; $("cgBody").innerHTML = ""; $("cgList").innerHTML = '<p class="mini muted" style="padding:20px">Re-reading the tenant…</p>'; $("cgBar").hidden = true;
       try {
         cgRes = isDemo ? demoGroupScan() : await CaGroups.scan(policies, {
           scope: cgScope,
@@ -3304,7 +3308,15 @@
     $("screen-cagroups").classList.toggle("sheet-full", full && cgTab === "members");
     const b = $("cgBar").querySelector("[data-cgg-sheetsize]"); if (b) b.textContent = full ? "▁ Half" : "⤢ Full";
   }
-  function cgCloseEngine() { if (cgTab === "groups") return; cgTab = "groups"; cgQuery = ""; $("cgSearch").value = ""; renderCaGroups(); }
+  // Closing an engine that wrote (Migrate, Create, the deletes) finds the
+  // scan thrown away — re-scan so the list shows the tenant as it is now,
+  // rather than the stale rows under a dialog that just changed them.
+  function cgCloseEngine() {
+    if (cgTab === "groups") return;
+    cgTab = "groups"; cgQuery = ""; $("cgSearch").value = "";
+    if (!cgRes) { cgPlaceEngine(false); openCaGroups(true); return; }
+    renderCaGroups();
+  }
 
   function renderCaGroups() {
     if (!cgRes) return;
@@ -3705,24 +3717,22 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!adds.length) return;
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
     t.busy = true; btn.disabled = true; t.log = null;
-    const bar = $("cgCsvBar"), log = $("cgCsvLog");
-    bar.style.display = "block";
-    const lines = [];
+    const log = $("cgCsvLog");
+    const L = RunLedger.create(log, { unit: "members", items: adds.map((x) => ({ label: x.upn, sub: `→ ${x.group}` })) });
     t.results = t.plan.filter((x) => x.state !== "add").map((x) => ({ ...x, state: x.state === "already" ? "already" : x.state }));
     for (let i = 0; i < adds.length; i++) {
       const a = adds[i];
-      bar.firstElementChild.style.width = `${Math.round(((i + 1) / adds.length) * 100)}%`;
+      if (L.stopped) { t.results.push({ ...a, state: "skipped", error: "stopped" }); continue; }
+      L.start(i);
       try {
         if (!isDemo) await Graph.gpost(`/groups/${a.gid}/members/$ref`,
           { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${a.uid}` });
-        t.results.push({ ...a, state: "added" });
-        lines.push(`<div>✓ ${esc(a.upn)} → <b>${esc(a.group)}</b></div>`);
+        t.results.push({ ...a, state: "added" }); L.done(i, "", "added");
       } catch (err) {
-        t.results.push({ ...a, state: "failed", error: err.message || String(err) });
-        lines.push(`<div style="color:var(--off)">✗ ${esc(a.upn)} → <b>${esc(a.group)}</b> — ${esc(err.message || err)}</div>`);
+        t.results.push({ ...a, state: "failed", error: err.message || String(err) }); L.fail(i, err.message || String(err));
       }
-      log.innerHTML = lines.slice(-12).join("");
     }
+    L.finish();
     t.busy = false; t.stage = "done";
     const ok = t.results.filter((x) => x.state === "added").length;
     const failed = t.results.filter((x) => x.state === "failed").length;
@@ -4347,6 +4357,8 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     const t = cgMig;
     if (t.results) { renderCgMigResults(); return; }
+    // a run in flight: put its ledger back after the panel is drawn
+    if (t.busy && t.ledgerEl) setTimeout(() => { const l = $("cgMigLog"); if (l && !l.contains(t.ledgerEl)) { l.innerHTML = ""; l.appendChild(t.ledgerEl); } }, 0);
 
     const p = t.plan;
     const sel = t.sel || new Set(p.eligible.map((x) => x.id));
@@ -4405,7 +4417,7 @@ max@contoso.com,"Global, DevOps"</pre>
           <button class="btn" id="cgMigRescan">⟳ Rescan</button>
         </div>
         <div id="cgMigBar2" style="${t.busy || (t.log || []).length ? "" : "display:none;"}width:100%;margin-top:12px">${t.busy ? progInline(t.done || 0, t.total || 0) : ""}</div>
-        <div id="cgMigLog" class="mini" style="margin-top:8px">${(t.log || []).join("")}</div>
+        <div id="cgMigLog" class="mini" style="margin-top:8px"></div>
         </div>
       </div>` : `<div class="cg-panel">
         <h4>NOTHING TO MIGRATE</h4>
@@ -4550,19 +4562,23 @@ max@contoso.com,"Global, DevOps"</pre>
     // on the state and re-find the element on every write: the panel can be
     // destroyed and rebuilt as often as it likes, and progress survives it.
     t.log = []; t.done = 0; t.total = picked.length;
+    // The ledger element is kept on the state: navigating away re-renders
+    // the panel, and paint() puts the same element back, so progress
+    // survives the panel being destroyed and rebuilt.
+    const lhost = document.createElement("div");
+    const L = RunLedger.create(lhost, { unit: "groups", items: picked.map((x) => ({ label: x.name, sub: `${x.nRef || 0} polic${x.nRef === 1 ? "y" : "ies"}` })) });
+    t.ledgerEl = L.el; let cur = -1;
     const paint = () => {
-      const l = $("cgMigLog"); if (l) l.innerHTML = t.log.join("");
-      const b = $("cgMigBar2");
-      if (b) { b.style.display = "block"; b.innerHTML = progInline(t.done, t.total); }
+      const l = $("cgMigLog"); if (l && t.ledgerEl && !l.contains(t.ledgerEl)) { l.innerHTML = ""; l.appendChild(t.ledgerEl); }
+      const b = $("cgMigBar2"); if (b) b.style.display = "none";
       runBadge({ label: "⑦ Migrating", done: t.done, total: t.total,
         back: () => { openCaGroups().then(() => { cgTab = "migrate"; renderCaGroups(); }); } });
     };
     paint();
     const results = [];
-    const say = (html) => { t.log.push(html); paint(); };
-    const bar = { set innerHTML(v) { const b = $("cgMigBar2"); if (b) { b.style.display = "block"; b.innerHTML = v; } },
-                  style: { set display(v) { const b = $("cgMigBar2"); if (b) b.style.display = v; } } };
-    bar.style.display = "block";
+    const plain = (html) => String(html).replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim();
+    const say = (html) => { t.log.push(html); if (cur >= 0) L.note(cur, plain(html).replace(/^[✓•⚠✗·]\s*/, "")); paint(); };
+    const bar = { set innerHTML(v) { /* the ledger is the bar now */ }, style: { set display(v) { /* idem */ } } };
 
     // The AU must exist before the first group finishes, but create it once —
     // and not at all if the placement step was switched off.
@@ -4586,7 +4602,8 @@ max@contoso.com,"Global, DevOps"</pre>
     for (let i = 0; i < picked.length; i++) {
       const x = picked[i];
       t.done = i;
-      bar.innerHTML = progInline(i, picked.length);
+      if (L.stopped) { results.push({ name: x.name, ok: false, stopped: true, error: "stopped before this group — nothing changed for it", steps: [], state: "Nothing changed." }); continue; }
+      cur = i; L.start(i);
       // The ledger: every step the run takes, with what it did — so a failure
       // says exactly where it stopped, what is already changed and what to do.
       const res = { name: x.name, ok: false, memberTotal: x.memberTotal, archiveName: x.archiveName, oldId: x.id, steps: [] };
@@ -4709,9 +4726,11 @@ max@contoso.com,"Global, DevOps"</pre>
           say(`<div>&nbsp;&nbsp;• left outside the restricted AU — add it from ⑥ Protect when ready</div>`);
         }
         res.ok = true;
+        L.done(i, res.inAu ? `migrated, in ${t.auName || "the restricted AU"}` : "migrated — not protected yet", "migrated");
       } catch (err) {
         res.error = err.message || String(err);
         res.failedAt = stage;
+        L.fail(i, `${STEP[stage] || stage}: ${res.error}`);
         step(stage, "failed", res.error);
         // what the tenant looks like NOW, and what to do about it
         res.state = stage === "rename" ? "Nothing changed."
@@ -4724,7 +4743,7 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       results.push(res);
     }
-    bar.innerHTML = progInline(picked.length, picked.length);
+    L.finish();
     t.done = picked.length;
     t.results = results; t.busy = false; btn.disabled = false;
     runBadge(null);                      // finished: the badge must not linger
@@ -5063,10 +5082,11 @@ max@contoso.com,"Global, DevOps"</pre>
     const scopes = [...AUTH_CONFIG.scopes, ...RMAU_WRITE, ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
     if (!isDemo && !await preConsent(scopes)) return;
     t.busy = true; btn.disabled = true;
-    const bar = rmauBody().querySelector("#cgRmauBar"), log = rmauBody().querySelector("#cgRmauLog");
-    bar.style.display = "block";
-    const lines = [], results = [];
-    const say = (h) => { lines.push(h); log.innerHTML = lines.slice(-10).join(""); };
+    const log = rmauBody().querySelector("#cgRmauLog");
+    const results = [];
+    const L = RunLedger.create(log, { unit: "groups", items: picked.map((g) => ({ label: g.name })), onStop: false });
+    const idx = (g) => picked.indexOf(g);
+    const say = (h) => { const pre = log.querySelector(".rl-pre") || (() => { const d = document.createElement("div"); d.className = "rl-pre mini"; log.prepend(d); return d; })(); pre.insertAdjacentHTML("beforeend", h); };
     try {
       // 1) work out where each group goes BEFORE writing anything, so a group
       //    whose vault does not exist is reported rather than quietly filed
@@ -5080,7 +5100,7 @@ max@contoso.com,"Global, DevOps"</pre>
           error: unset
             ? "its name carries no CA number the baseline recognises, and no fallback unit was chosen"
             : `its persona unit ${x.dest.auName} does not exist — create it in 🛡 Restricted AUs, then protect this group` });
-        say(`<div style="color:var(--off)">⊘ <b>${esc(x.g.name)}</b> — ${unset ? "no persona and no fallback chosen" : `${esc(x.dest.auName)} does not exist yet`}</div>`);
+        L.skip(idx(x.g), unset ? "no persona and no fallback chosen" : `${x.dest.auName} does not exist yet`);
       }
       const doable = plan.filter((x) => x.dest.source !== "missing" && x.dest.source !== "unset");
 
@@ -5113,18 +5133,19 @@ max@contoso.com,"Global, DevOps"</pre>
       for (let i = 0; i < doable.length; i++) {
         const { g, dest } = doable[i];
         const au = auOf(dest);
-        bar.firstElementChild.style.width = `${Math.round(((i + 1) / doable.length) * 100)}%`;
+        L.start(idx(g));
         try {
           if (!isDemo) await Graph.gpost(`/administrativeUnits/${au.id}/members/$ref`,
             { "@odata.id": `https://graph.microsoft.com/beta/groups/${g.id}` });
           results.push({ name: g.name, excludeCount: g.refs.exclude.length, state: "added", auName: au.name });
-          say(`<div>✓ protected <b>${esc(g.name)}</b> → ${esc(au.name)}</div>`);
+          L.done(idx(g), `→ ${au.name}`, "protected");
         } catch (err) {
           const already = /added object references already exist|one or more added object references already exist/i.test(err.message || "");
           results.push({ name: g.name, excludeCount: g.refs.exclude.length, state: already ? "already" : "failed", auName: au.name, error: already ? "" : (err.message || String(err)) });
-          say(`<div style="color:var(--off)">${already ? "•" : "✗"} <b>${esc(g.name)}</b>${already ? ` — already in ${esc(au.name)}` : ` — ${esc(err.message || err)}`}</div>`);
+          if (already) L.done(idx(g), `already in ${au.name}`, "unchanged"); else L.fail(idx(g), err.message || String(err));
         }
       }
+      L.finish();
       // 3) the scoped administrators, so somebody can still manage the members.
       // One failure must not cost the others: each is resolved and granted on
       // its own, and every outcome reaches the report. The directory role is
@@ -5208,35 +5229,31 @@ max@contoso.com,"Global, DevOps"</pre>
       if (!picked.length) { toast("Nothing selected to create"); return; }
       if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
       e.target.disabled = true;
-      const bar = $("cgCreateBar"), log = $("cgCreateLog");
-      bar.style.display = "block";
-      const lines = [];
+      const log = $("cgCreateLog");
+      const L = RunLedger.create(log, { unit: "groups", items: picked.map((r) => ({ label: r.name })) });
       let ok = 0, failed = 0;
       for (let i = 0; i < picked.length; i++) {
         const r = picked[i];
-        bar.firstElementChild.style.width = `${Math.round(((i + 1) / picked.length) * 100)}%`;
+        if (L.stopped) continue;
+        L.start(i);
         try {
           const g = isDemo
             ? { id: "g-" + r.name, name: r.name, created: true }
             : await Assign.createGroup({ ...r.template, disableNesting: nestWanted("cgCreateNest") });
           ok++;
-          lines.push(`<div>${g.created ? "✓ created" : "• already existed, reused"} <b>${esc(r.name)}</b>`
-            + (g.created && g.nesting === "disabled" ? ' <span class="mini" style="color:var(--on)">🚫 nesting disabled</span>' : "")
-            + (g.created && g.nesting === "unsupported" ? ` <span class="mini" style="color:var(--report)">• nesting not available in this tenant</span>` : "")
-            + (g.created && g.nesting === "failed" ? ` <span class="mini" style="color:var(--off)">⚠ nesting still allowed — ${esc(g.nestingError || "")}</span>` : "")
-            + `</div>`);
+          L.done(i, g.created ? (g.nesting === "disabled" ? "nesting disabled" : g.nesting === "unsupported" ? "nesting not available in this tenant" : g.nesting === "failed" ? `nesting still allowed — ${g.nestingError || ""}` : "") : "already existed, reused", g.created ? "created" : "reused");
         } catch (err) {
           failed++;
-          lines.push(`<div style="color:var(--off)">✗ <b>${esc(r.name)}</b> — ${esc(err.message || err)}</div>`);
+          L.fail(i, err.message || String(err));
         }
-        log.innerHTML = lines.join("");
       }
-      e.target.disabled = false;
+      L.finish();
+      e.target.disabled = true; e.target.textContent = "Done";
       toast(failed ? `${ok} created, <span>${failed} failed</span>` : `<span>${ok}</span> group${ok === 1 ? "" : "s"} created${isDemo ? " (simulated)" : ""}`);
-      // Re-scan so Check reflects reality rather than what we hoped happened.
+      // The ledger stays readable; the scan is stale now and Close re-reads
+      // the tenant, so the list shows what was really created.
       cgRes = null;
-      await openCaGroups(true);
-      cgTab = "groups"; renderCaGroups();
+      log.insertAdjacentHTML("beforeend", '<p class="mini muted" style="margin-top:8px">Close this dialog to re-read the tenant — the list will show the groups as they are now.</p>');
       return;
     }
     if (e.target.id === "cgmCreate") { await cgManualCreate(e.target); return; }
@@ -5557,21 +5574,18 @@ max@contoso.com,"Global, DevOps"</pre>
     // The run is visible IN the dialog: a log that grows per step, the
     // buttons locked, the count in the title — toasts alone were missed and
     // the dialog looked stuck for a minute.
-    const log = [];
-    const paint = (status) => {
-      $("arcSub").innerHTML = `<b>Working… ${status}</b>`;
-      $("arcBody").innerHTML = `<div class="cg-panel"><h4>DELETING ${picked.length} ARCHIVED GROUP${picked.length === 1 ? "" : "S"}</h4>
-        <div class="cg-progress"><div style="width:${Math.round((log.filter((l) => l.done).length / picked.length) * 100)}%"></div></div>
-        <div class="mini" style="margin-top:8px">${log.map((l) => l.html).join("")}</div></div>`;
-      btn.textContent = `Working… ${status}`;
-    };
-    const say = (html, done) => { log.push({ html: `<div>${html}</div>`, done: !!done }); paint(`${log.filter((l) => l.done).length}/${picked.length}`); };
+    $("arcSub").innerHTML = "<b>Working…</b>";
+    $("arcBody").innerHTML = "";
+    const L = RunLedger.create($("arcBody"), { unit: "archived groups", items: picked.map((r) => ({ label: r.name, sub: r.refCount ? `named by ${r.refCount} polic${r.refCount === 1 ? "y" : "ies"}` : "" })) });
+    const plain = (h) => String(h).replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim().replace(/^[✓·✗]\s*/, "");
+    let cur = -1;
+    const say = (html) => { if (cur >= 0) L.note(cur, plain(html)); btn.textContent = `Working… ${L.items.filter((x) => x.state === "done" || x.state === "fail").length}/${picked.length}`; };
     $("arcCancel").disabled = true; $("arcOk").disabled = true;
-    paint(`0/${picked.length}`);
     const done = [], failed = [], unreffed = [];
     for (let i = 0; i < picked.length; i++) {
       const r = picked[i];
-      say(`<b>${esc(r.name)}</b>`);
+      if (L.stopped) { failed.push({ ...r, error: "stopped before this group — nothing changed" }); continue; }
+      cur = i; L.start(i);
       try {
         // 1. out of every policy still naming it — read live, not from the
         // scan, so a reference added since is not missed
@@ -5602,23 +5616,25 @@ max@contoso.com,"Global, DevOps"</pre>
         say("&nbsp;&nbsp;· deleting…");
         if (!isDemo) await Graph.gdelete(`/groups/${r.id}`, [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
         done.push(r);
-        say("&nbsp;&nbsp;✓ deleted (soft, restorable for 30 days)", true);
-      } catch (e) { failed.push({ ...r, error: e.message || String(e) }); say(`&nbsp;&nbsp;<span style="color:var(--off)">✗ ${esc(e.message || e)}</span>`, true); }
+        L.done(i, unreffed.some((u) => u.id === r.id) ? `out of ${unreffed.find((u) => u.id === r.id).policies} polic${unreffed.find((u) => u.id === r.id).policies === 1 ? "y" : "ies"}, verified · soft-deleted, restorable for 30 days` : "soft-deleted, restorable for 30 days", "deleted");
+      } catch (e) { failed.push({ ...r, error: e.message || String(e) }); L.fail(i, e.message || String(e), "refused"); }
     }
+    L.finish();
     $("arcCancel").disabled = false; $("arcOk").disabled = false; btn.textContent = "Delete ticked";
-    $("arcModal").classList.remove("open");
-    const L = [`# Archived groups removed — ${tenantName || "tenant"}`, "", Brand.generatedBy("Generated"), "",
+    if (!failed.length) $("arcModal").classList.remove("open");
+    else $("arcSub").innerHTML = `<b style="color:var(--off)">${done.length} deleted, ${failed.length} refused</b> — the reasons are on the rows; Close when read.`;
+    const L2 = [`# Archived groups removed — ${tenantName || "tenant"}`, "", Brand.generatedBy("Generated"), "",
       `- **Deleted:** ${done.length}${failed.length ? ` · **failed:** ${failed.length}` : ""}`,
       isDemo ? "- _Demo mode — simulated._" : "- Each deletion is a **soft delete**: Entra keeps the group for 30 days and it can be restored.", ""];
     if (done.length) {
-      L.push("| Group | Object ID | Replaced by | Taken out of | Other uses at delete |", "| --- | --- | --- | --- | --- |");
-      done.forEach((r) => { const u = unreffed.find((x) => x.id === r.id); L.push(`| ${r.name} | \`${r.id}\` | ${r.liveName} | ${u ? `${u.policies} polic${u.policies === 1 ? "y" : "ies"}` : "—"} | ${r.uses == null ? "not checked" : r.uses.length ? r.uses.map((h) => `${h.sourceLabel}: ${h.name}`).join("; ") : "none"} |`); });
+      L2.push("| Group | Object ID | Replaced by | Taken out of | Other uses at delete |", "| --- | --- | --- | --- | --- |");
+      done.forEach((r) => { const u = unreffed.find((x) => x.id === r.id); L2.push(`| ${r.name} | \`${r.id}\` | ${r.liveName} | ${u ? `${u.policies} polic${u.policies === 1 ? "y" : "ies"}` : "—"} | ${r.uses == null ? "not checked" : r.uses.length ? r.uses.map((h) => `${h.sourceLabel}: ${h.name}`).join("; ") : "none"} |`); });
     }
     if (failed.length) {
-      L.push("", "## Failed", "");
-      failed.forEach((f) => L.push(`- ❌ **${f.name}** — ${f.error}`));
+      L2.push("", "## Failed", "");
+      failed.forEach((f) => L2.push(`- ❌ **${f.name}** — ${f.error}`));
     }
-    showReport("🧹 Archived groups removed", "CA-Groups-Housekeeping", L.join("\n"));
+    showReport("🧹 Archived groups removed", "CA-Groups-Housekeeping", L2.join("\n"));
     toast(failed.length ? `Deleted ${done.length}, <span>${failed.length} failed</span>` : `<span>${done.length}</span> archived group${done.length === 1 ? "" : "s"} deleted`);
     cgRes = null; await openCaGroups(true); cgTab = "groups"; renderCaGroups();
   });
@@ -6201,18 +6217,28 @@ This is a directory write. Nothing else changes.`)) return;
     btn.disabled = true; btn.textContent = "Updating…";
     const byKey = new Map();
     ticks.forEach((t) => { const k = `${t.gid}|${t.how}`; if (!byKey.has(k)) byKey.set(k, { gid: t.gid, how: t.how, pids: [] }); byKey.get(k).pids.push(t.pid); });
-    let ok = 0, bad = [];
-    for (const job of byKey.values()) {
-      const row = cgRes.rows.find((r) => r.id === job.gid); if (!row) continue;
-      const res = isDemo ? job.pids.map((pid) => ({ pid, ok: true, changed: true })) : await Assign.apply(job.pids, job.how === "exc" ? 3 : 2, [job.gid], (m) => { btn.textContent = m; });
+    // the ledger sits above the grid while the writes run — one row per tick
+    const nameOf = (pid) => { const vm = policies.find((p) => p.id === pid); return vm ? (vm.seq ? `${vm.seq} ${vm.name}` : vm.name) : pid; };
+    const jobs = [...byKey.values()];
+    const rows = []; jobs.forEach((job) => { const g = cgRes.rows.find((r) => r.id === job.gid); job.pids.forEach((pid) => rows.push({ label: nameOf(pid), sub: `+${job.how === "exc" ? "ex" : "in"} ${g ? g.name : job.gid}` })); });
+    let host = $("cgFixLedger"); if (!host) { host = document.createElement("div"); host.id = "cgFixLedger"; btn.closest(".row").insertAdjacentElement("afterend", host); }
+    const L = RunLedger.create(host, { unit: "policy updates", items: rows });
+    let base = 0, ok = 0, bad = [];
+    for (const job of jobs) {
+      const row = cgRes.rows.find((r) => r.id === job.gid); if (!row) { base += job.pids.length; continue; }
+      const off = base;
+      const onItem = (i, phase, r) => { if (phase === "start") L.start(off + i); else if (r.ok) L.done(off + i, r.changed === false ? "already there" : "", "added"); else if (r.stopped) L.skip(off + i, "stopped"); else L.fail(off + i, r.error || "failed"); };
+      const res = isDemo ? await (async () => { const out = []; for (let i = 0; i < job.pids.length; i++) { onItem(i, "start"); await new Promise((r) => setTimeout(r, 40)); out.push({ pid: job.pids[i], ok: true, changed: true }); onItem(i, "end", out[i]); } return out; })() : await Assign.apply(job.pids, job.how === "exc" ? 3 : 2, [job.gid], null, undefined, onItem, () => L.stopped);
       res.forEach((r, i) => {
         const pid = job.pids[i], vm = policies.find((p) => p.id === pid);
         if (r.ok) { ok++; const list = job.how === "exc" ? row.refs.exclude : row.refs.include; if (!list.some((p) => p.id === pid)) list.push({ id: pid, name: vm ? vm.name : (r.name || pid), seq: vm ? vm.seq : null }); row.refCount = row.refs.include.length + row.refs.exclude.length; }
         else bad.push(`${r.name || pid}: ${r.error || "failed"}`);
       });
+      base += job.pids.length;
     }
-    cgFixLast = { ok, bad };
-    toast(bad.length ? `${ok} added, <span>${bad.length} failed</span> — see the note above the grid` : `<span>${ok}</span> polic${ok === 1 ? "y" : "ies"} updated`);
+    L.finish();
+    cgFixLast = { ok, bad, ledger: L.el };
+    toast(bad.length ? `${ok} added, <span>${bad.length} failed</span> — the reasons are on the rows` : `<span>${ok}</span> polic${ok === 1 ? "y" : "ies"} updated`);
     renderCgMembers();
     if (cgTab === "members") renderCaGroups();
   }
@@ -6285,11 +6311,12 @@ This is a directory write. Nothing else changes.`)) return;
         <button class="${cgCmpView === "policies" ? "active" : ""}" data-cgcmpview="policies">Policies (${pm.pols.length})${pm.diffs ? ` <span class="pill red" style="margin-left:4px">${pm.diffs} differ</span>` : ""}</button>
       </span>`;
     if (cgCmpView === "policies") {
+      setTimeout(() => { const h = $("cgFixLedger"); if (h && cgFixLast && cgFixLast.ledger && !h.contains(cgFixLast.ledger)) h.appendChild(cgFixLast.ledger); }, 0);
       $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">${viewSeg}
           <span style="margin-left:10px">${pm.pols.length} polic${pm.pols.length === 1 ? "y references" : "ies reference"} the ${pm.cols.length} picked group${pm.cols.length === 1 ? "" : "s"}.</span>
           <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Pick more groups</button>
         </div>
-        ${cgFixLast && cgFixLast.bad.length ? `<div class="wo-callout bad" style="margin:0 0 10px"><b>${cgFixLast.ok} added, ${cgFixLast.bad.length} refused.</b><ul class="mini" style="margin:6px 0 0 16px;padding:0">${cgFixLast.bad.map((b) => `<li style="margin:2px 0">${esc(b)}</li>`).join("")}</ul></div>` : ""}
+        ${cgFixLast ? `<div id="cgFixLedger" style="margin:0 0 10px"></div>` : ""}
         ${CaGroups.renderPolicyMatrix(pm, cgQuery)}
         <p class="mini muted" style="margin-top:8px">● in = the policy includes the group, ✗ ex = excludes it, · = does not name it. A row marked <b>differs</b> names some of the picked groups and not the others — fix it with 🎯 Assign to policies (add the group that is missing). Policy names open the card.</p>`;
       return;
@@ -6578,6 +6605,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   const cggClick = async (e) => {
     const t = e.target;
+    if (!cgRes && !t.closest("[data-cgg-back]")) return;
     if (t.closest("[data-cgg-back]")) { cgCloseEngine(); return; }
     if (t.closest("[data-cgg-sheetsize]")) { cgSheetSize(!cgSheetFull); return; }
     const so = t.closest("[data-cgg-sort]"); if (so) { const k = so.dataset.cggSort; cgSort = cgSort && cgSort.key === k ? (cgSort.dir > 0 ? { key: k, dir: -1 } : null) : { key: k, dir: 1 }; renderCaGroups(); return; }
@@ -7316,7 +7344,7 @@ This is a directory write. Nothing else changes.`)) return;
   // The restore write: create whatever groups were asked for, then one PATCH
   // per policy with that policy's own group. Creation failures drop their row
   // rather than failing the run — the other policies are still repairable.
-  async function runRestore() {
+  async function runRestore(onItem, shouldStop) {
     const rows = asPlanActionable();
     const items = [];
     for (const r of rows) {
@@ -7334,7 +7362,7 @@ This is a directory write. Nothing else changes.`)) return;
     const creatable = items.filter((r) => r.groupId);
     const failed = items.filter((r) => !r.groupId)
       .map((r) => ({ name: r.policy, ok: false, group: r.group, error: `${r.group} could not be created: ${r.createFailed || "unknown error"}` }));
-    const done = await Assign.applyMapped(creatable, (m) => toast(m));
+    const done = await Assign.applyMapped(creatable, null, onItem, shouldStop);
     return [...done, ...failed];
   }
 
@@ -7342,19 +7370,28 @@ This is a directory write. Nothing else changes.`)) return;
   $("asConfirmGo").addEventListener("click", async () => {
     if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) return;
     const gids = asGroups.filter(g => g.checked).map(g => g.id);
-    const btn = $("asConfirmGo"); btn.disabled = true;
+    const btn = $("asConfirmGo"); btn.disabled = true; $("asConfirmBack").disabled = true;
+    // the run ledger takes the summary's place in the modal: every policy
+    // listed before the first write, the one being written marked, ✓ / ✗ as
+    // each lands, Stop between writes
+    const mapped = Assign.MAPPED_ACTIONS.has(asAction);
+    const rowsFor = mapped ? asPlanActionable().map((r) => ({ label: r.policy, sub: r.group })) : asPolicies.map((p) => ({ label: p.name }));
+    const host = document.createElement("div"); $("asConfirmBody").innerHTML = ""; $("asConfirmBody").appendChild(host);
+    const L = RunLedger.create(host, { unit: "policies", items: rowsFor });
+    const onItem = (i, phase, r) => { if (phase === "start") L.start(i); else if (r.ok) L.done(i, r.changed === false ? "already set" : "", r.changed === false ? "unchanged" : "updated"); else if (r.stopped) L.skip(i, "stopped"); else L.fail(i, r.error || "failed"); };
     try {
-      const mapped = Assign.MAPPED_ACTIONS.has(asAction);
       if (isDemo) {
-        asResults = (mapped ? asPlanActionable() : asPolicies)
-          .map((x) => ({ name: mapped ? x.policy : x.name, ok: true, changed: true, group: x.group }));
+        asResults = [];
+        const src = mapped ? asPlanActionable() : asPolicies;
+        for (let i = 0; i < src.length; i++) { L.start(i); await new Promise((r) => setTimeout(r, 40)); const x = src[i]; asResults.push({ name: mapped ? x.policy : x.name, ok: true, changed: true, group: x.group }); L.done(i, "", "updated"); }
         toast("Demo — changes <span>simulated</span>");
       } else if (mapped) {
-        asResults = await runRestore();
+        asResults = await runRestore(onItem, () => L.stopped);
       } else {
         const ids = asTarget === "roles" ? asRoles.filter(r => r.checked).map(r => r.id) : gids;
-        asResults = await Assign.apply(asPolicies.map(p => p.id), asAction, ids, (m) => toast(m), asTarget);
+        asResults = await Assign.apply(asPolicies.map(p => p.id), asAction, ids, null, asTarget, onItem, () => L.stopped);
       }
+      L.finish({ report: () => showReport("👥 Group assignment report", "CA-Assign-Report", assignReportMd(asRun)) });
       // Snapshot the run so the report reflects exactly what was applied, not
       // whatever the wizard state happens to be when the button is clicked.
       asRun = { action: asAction, scope: asScope, target: asTarget,
@@ -7362,9 +7399,12 @@ This is a directory write. Nothing else changes.`)) return;
         groups: asGroups.filter(g => g.checked).map(g => ({ ...g })),
         roles: asRoles.filter(r => r.checked).map(r => ({ ...r })),
         results: asResults, when: new Date() };
-      $("asConfirm").classList.remove("open");
       asStep = 3; renderAssign();
       const failed = asResults.filter(r => !r.ok).length;
+      // the modal stays open on a failure or a stop so the ✗ rows are read
+      // where they happened; a clean run closes it as before
+      if (!failed) $("asConfirm").classList.remove("open");
+      else { $("asConfirmGo").style.display = "none"; $("asConfirmBack").disabled = false; $("asConfirmBack").textContent = "Close"; }
       const changed = asResults.filter(r => r.ok && r.changed !== false).length;
       toast(failed ? `Done with <span>${failed} failure(s)</span>`
         : `<span>${changed}</span> polic${changed === 1 ? "y" : "ies"} updated${changed < asResults.length ? `, ${asResults.length - changed} already set` : ""}`);
@@ -7374,8 +7414,10 @@ This is a directory write. Nothing else changes.`)) return;
       if (asScope === "all" || failed) showReport("👥 Group assignment report", "CA-Assign-Report", assignReportMd(asRun));
     } catch (e) {
       console.error(e); toast(`Assign failed: <span>${esc(e.message || e)}</span>`);
-    } finally { btn.disabled = false; }
+    } finally { btn.disabled = false; $("asConfirmBack").disabled = false; }
   });
+  // the confirm modal's Back doubles as Close after a run with failures
+  $("asConfirmBack").addEventListener("click", () => { $("asConfirmGo").style.display = ""; $("asConfirmBack").textContent = "Back"; });
 
   // Change report for an assign run — what was applied, which policies changed,
   // which were left alone, and every failure with its Graph error. Same shape

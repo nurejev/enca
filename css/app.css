@@ -1895,3 +1895,40 @@ body.cgg-modal-open{overflow:hidden}
 .cgg-tbl th.cgg-sort.on{color:var(--ink)}
 .cgg-tbl th:first-child,.cgg-tbl td:first-child{vertical-align:middle;text-align:center;padding-left:8px;padding-right:0}
 .cgg-tbl .cgg-chk{margin:0;vertical-align:middle;width:15px;height:15px}
+
+/* ===== run ledger — one progress box for every batch write ===== */
+.rl{border:1px solid var(--border);border-radius:12px;background:var(--bg);overflow:hidden;margin-top:10px}
+.rl-hd{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);background:var(--surface)}
+.rl-hd b{font-size:13px}
+.rl-hd .n{margin-left:auto;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--muted)}
+.rl-hd .n b{color:var(--ink)}
+.rl-bar{height:6px;background:var(--soft)}
+.rl-bar i{display:block;height:100%;background:var(--accent2);transition:width .3s}
+.rl-bar i.has-fail{background:linear-gradient(90deg,var(--accent2) 0 92%,var(--off) 92% 100%)}
+.rl-list{max-height:280px;overflow-y:auto;font-size:12.5px;scrollbar-width:thin}
+.rl-row{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:6px 12px;border-top:1px solid var(--border)}
+.rl-row:first-child{border-top:0}
+.rl-row .ic{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;border:1.5px solid var(--border);color:var(--muted);box-sizing:border-box}
+.rl-row.done .ic{background:var(--on);border-color:var(--on);color:#fff}
+.rl-row.fail .ic{background:var(--off);border-color:var(--off);color:#fff}
+.rl-row.skip .ic{background:var(--soft);border-color:var(--border);color:var(--muted)}
+.rl-row.work{background:var(--warn-bg)}
+.rl-row.work .ic{border-color:var(--report);border-top-color:transparent;animation:rlspin 1s linear infinite}
+@keyframes rlspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.rl-row.work .ic{animation:none;border-top-color:var(--report)}}
+.rl-row .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rl-row .lbl small{color:var(--muted);margin-left:6px}
+.rl-row.fail .lbl small{color:var(--off)}
+.rl-row.fail .lbl{white-space:normal}
+.rl-row.pend{color:var(--muted)}
+.rl-row .st{font-size:11px;color:var(--muted);white-space:nowrap}
+.rl-row.done .st{color:var(--on)}.rl-row.fail .st{color:var(--off)}.rl-row.work .st{color:var(--report);font-weight:700}
+.rl-ft{display:flex;gap:10px;align-items:center;padding:7px 12px;border-top:1px solid var(--border);background:var(--surface);font-size:12px;color:var(--muted);flex-wrap:wrap}
+.rl-ft .k{display:inline-flex;align-items:center;gap:5px}
+.rl-ft .k i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.rl-ft .k.d i{background:var(--on)}.rl-ft .k.f i{background:var(--off)}.rl-ft .k.p i{background:var(--border)}
+.rl-ft .rl-actions{margin-left:auto;display:inline-flex;gap:6px}
+.rl-ft .stop{margin-left:auto}
+.rl-ft .rl-actions:not(:empty) + .stop{margin-left:0}
+.rl.finished .rl-hd{background:var(--ok-bg)}
+.rl.finished.has-fail .rl-hd{background:var(--bad-bg)}

@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25300"></script>
+<script src="js/popup-guard.js?v=25301"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25300" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25300">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25301" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25301">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25300"></script>
+<script src="js/selfhost-boot.js?v=25301"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25300"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25300"></script>
+<script src="js/counter.js?v=25301"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25301"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25300" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25301" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25300" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25301" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1560,6 +1560,10 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R49</span> <a href="#" class="md-tool" data-tool="toolExclusions">🚪 Exclusions: nesting in sight</a> <span class="tag grant">live · beta 25281</span></h4>
             <p class="mini" style="margin:0">The exclusion analyzer shows <b>how</b> a user got into an exclusion group, not only that they are in it: direct or through a named nested group, per member, per matrix cell and in the head count — and the risk review flags an exclusion group fed by nested groups as the bypass it is. Same nesting read 👥 Conditional Access groups uses, so the two tools agree.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25301">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R50</span> <a href="#" class="md-tool" data-tool="toolCaGroups">✅ One run ledger for every write</a> <span class="tag grant">live · beta 25301</span></h4>
+            <p class="mini" style="margin:0">Every tool that walks a list and writes — 139 policies, 6 groups, 4 ticks — shows the same box: the whole list before the first write, the row being written marked, ✓ or ✗ as each lands with the reason inline, the box scrolling to keep the working row in view, a count and a clock, Stop between writes. In 🎯 Assign, 🎚 Set policy state, and 👥 Migrate, Protect, Create, Import CSV, Archived groups and the Compare ticks.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -2063,6 +2067,7 @@
         <li><b>The actions bar</b> — shows as soon as a row is open, and acts on that row until you tick more. Tick rows and act on them: read members, ⊞ compare selected (the members × groups matrix, only for what you ticked, with the nesting view), assign to policies, protect in a restricted unit, migrate off role-assignable, import members from CSV, create the missing ones. The writes — Create, Assign, Import, Protect, Migrate — open in a <b>dialog over the list</b> with your selection carried across; close it (✕ or Esc) and the ticks and the open row are where you left them. ⊞ Compare opens as a <b>sheet rising from the bar</b> with two views — <b>Members</b> (the members × groups matrix, with nesting) and <b>Policies</b> (groups × policies: ● in, ✗ ex, · not named; rows where the picked groups differ come first, and each group gets a line saying how many inclusions and exclusions it is missing against the others — after a migration, that is what the new group still lacks; every missing cell is a tick, and one button adds the ticked groups to those policies the way the other group already is on them) — full height by default; ▁ Half in its header drops it to half the window so the list stays visible above it and the matrix follows your ticks. Protect and Migrate check only the groups you came with on arrival, and offer the full check as a button.</li>
         <li><b>The detail drawer</b> — click a row, or tick it: the drawer follows the tick, and unticking the open row opens the last one still ticked. <b>Members</b>: direct members first, then each nested group with its own members underneath; add inline; × removes from the group the member actually sits in — a member under a nested group is removed from that nested group, and the confirmation names what else that group feeds. <b>Policies</b>: include / exclude with state, names open the policy card. <b>Protection</b>: the unit it is in, or why it is not protected and the button that fixes it. <b>History</b>: the group's last 30 days from the directory audit log — who added or removed whom.</li>
       </ul>
+      <p class="help-x" style="margin-bottom:10px"><b>The run ledger.</b> Every write that walks a list — Migrate, Protect, Create, Import CSV, Archived groups, the Compare ticks, and 🎯 Assign and 🎚 Set policy state elsewhere — shows the same box: the whole list before the first write, the row being written marked amber, ✓ green or ✗ red as each lands with the reason on the row, the box scrolling to keep the working row in view, a count and a clock in the header, and <b>■ Stop after this one</b>, which finishes the write in flight and reports the rest as not reached. A run with failures keeps its dialog open so the ✗ rows are read where they happened.</p>
       <p class="help-x" style="margin-bottom:10px">Below: the engine screens the list opens in its dialog and sheet. They are the same flows as before, one step shorter because the groups arrive pre-selected.</p>
       <ul>
         <li><b>Check</b> — baseline groups vs this tenant: present, missing, or drifted. <b>Create</b> a single missing group per row (the TeamsSharedDevices group is created as a <b>dynamic</b> group with the Teams-Rooms membership rule). A group that IS still role-assignable is flagged the other way round now — that flag is retired, so a plain group is correct and a role-assignable one is what needs attention, with a button into <b>⑦ Migrate</b> to convert it and place it in a restricted administrative unit. Everything created here is a plain security group with <b>nesting disabled</b>.</li>
@@ -2984,63 +2989,64 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25300"></script>
-<script src="js/selfhost.js?v=25300"></script>
-<script src="js/version.js?v=25300"></script>
-<script src="js/fork.js?v=25300"></script>
-<script src="js/promote.js?v=25300"></script>
-<script src="js/authConfig.js?v=25300"></script>
-<script src="js/labels.js?v=25300"></script>
-<script src="js/graph.js?v=25300"></script>
-<script src="js/model.js?v=25300"></script>
-<script src="js/render.js?v=25300"></script>
-<script src="js/analyze.js?v=25300"></script>
-<script src="js/whatif.js?v=25300"></script>
-<script src="js/mslearn.js?v=25300"></script>
-<script src="js/gapcheck.js?v=25300"></script>
-<script src="js/cisdata.js?v=25300"></script>
-<script src="js/cischeck.js?v=25300"></script>
-<script src="js/exclusions.js?v=25300"></script>
-<script src="js/validator.js?v=25300"></script>
-<script src="js/whatifeval.js?v=25300"></script>
-<script src="js/compare.js?v=25300"></script>
-<script src="js/whois.js?v=25300"></script>
-<script src="js/wave.js?v=25300"></script>
-<script src="js/sessionctl.js?v=25300"></script>
-<script src="js/groupuse.js?v=25300"></script>
-<script src="js/iso3166.js?v=25300"></script>
-<script src="js/locations.js?v=25300"></script>
-<script src="js/authcontexts.js?v=25300"></script>
-<script src="js/authstrengths.js?v=25300"></script>
-<script src="js/recycle.js?v=25300"></script>
-<script src="js/rmau.js?v=25300"></script>
-<script src="js/camap.js?v=25300"></script>
-<script src="js/rmaudoc.js?v=25300"></script>
-<script src="js/termsofuse.js?v=25300"></script>
-<script src="js/audit.js?v=25300"></script>
-<script src="js/drift.js?v=25300"></script>
-<script src="js/guide.js?v=25300"></script>
-<script src="js/userimpact.js?v=25300"></script>
-<script src="js/smsvoice.js?v=25300"></script>
-<script src="js/memberof.js?v=25300"></script>
-<script src="js/devcheck.js?v=25300"></script>
-<script src="js/licgap.js?v=25300"></script>
-<script src="js/teamsdev.js?v=25300"></script>
-<script src="js/signins.js?v=25300"></script>
-<script src="js/reportimpact.js?v=25300"></script>
-<script src="js/changelog.js?v=25300"></script>
-<script src="js/baselineData.js?v=25300"></script>
-<script src="js/baselineJoeyData.js?v=25300"></script>
-<script src="js/baselineLive.js?v=25300"></script>
-<script src="js/baseline.js?v=25300"></script>
-<script src="js/baselineCleanup.js?v=25300"></script>
-<script src="js/groupTemplates.js?v=25300"></script>
-<script src="js/assign.js?v=25300"></script>
-<script src="js/cagroups.js?v=25300"></script>
-<script src="js/groupsview.js?v=25300"></script>
-<script src="js/import.js?v=25300"></script>
-<script src="js/export.js?v=25300"></script>
-<script src="js/demo.js?v=25300"></script>
-<script src="js/app.js?v=25300"></script>
+<script src="js/branding.js?v=25301"></script>
+<script src="js/selfhost.js?v=25301"></script>
+<script src="js/version.js?v=25301"></script>
+<script src="js/fork.js?v=25301"></script>
+<script src="js/promote.js?v=25301"></script>
+<script src="js/authConfig.js?v=25301"></script>
+<script src="js/labels.js?v=25301"></script>
+<script src="js/graph.js?v=25301"></script>
+<script src="js/model.js?v=25301"></script>
+<script src="js/render.js?v=25301"></script>
+<script src="js/analyze.js?v=25301"></script>
+<script src="js/whatif.js?v=25301"></script>
+<script src="js/mslearn.js?v=25301"></script>
+<script src="js/gapcheck.js?v=25301"></script>
+<script src="js/cisdata.js?v=25301"></script>
+<script src="js/cischeck.js?v=25301"></script>
+<script src="js/exclusions.js?v=25301"></script>
+<script src="js/validator.js?v=25301"></script>
+<script src="js/whatifeval.js?v=25301"></script>
+<script src="js/compare.js?v=25301"></script>
+<script src="js/whois.js?v=25301"></script>
+<script src="js/wave.js?v=25301"></script>
+<script src="js/sessionctl.js?v=25301"></script>
+<script src="js/groupuse.js?v=25301"></script>
+<script src="js/iso3166.js?v=25301"></script>
+<script src="js/locations.js?v=25301"></script>
+<script src="js/authcontexts.js?v=25301"></script>
+<script src="js/authstrengths.js?v=25301"></script>
+<script src="js/recycle.js?v=25301"></script>
+<script src="js/rmau.js?v=25301"></script>
+<script src="js/camap.js?v=25301"></script>
+<script src="js/rmaudoc.js?v=25301"></script>
+<script src="js/termsofuse.js?v=25301"></script>
+<script src="js/audit.js?v=25301"></script>
+<script src="js/drift.js?v=25301"></script>
+<script src="js/guide.js?v=25301"></script>
+<script src="js/userimpact.js?v=25301"></script>
+<script src="js/smsvoice.js?v=25301"></script>
+<script src="js/memberof.js?v=25301"></script>
+<script src="js/devcheck.js?v=25301"></script>
+<script src="js/licgap.js?v=25301"></script>
+<script src="js/teamsdev.js?v=25301"></script>
+<script src="js/signins.js?v=25301"></script>
+<script src="js/reportimpact.js?v=25301"></script>
+<script src="js/changelog.js?v=25301"></script>
+<script src="js/baselineData.js?v=25301"></script>
+<script src="js/baselineJoeyData.js?v=25301"></script>
+<script src="js/baselineLive.js?v=25301"></script>
+<script src="js/baseline.js?v=25301"></script>
+<script src="js/baselineCleanup.js?v=25301"></script>
+<script src="js/groupTemplates.js?v=25301"></script>
+<script src="js/assign.js?v=25301"></script>
+<script src="js/cagroups.js?v=25301"></script>
+<script src="js/groupsview.js?v=25301"></script>
+<script src="js/runledger.js?v=25301"></script>
+<script src="js/import.js?v=25301"></script>
+<script src="js/export.js?v=25301"></script>
+<script src="js/demo.js?v=25301"></script>
+<script src="js/app.js?v=25301"></script>
 </body>
 </html>

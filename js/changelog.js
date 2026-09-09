@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25301, date: "2026-09-09", title: "One run ledger for every write",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "Every batch write shows the run ledger: the whole list before the first write, the row being written marked amber, ✓ green or ✗ red per row with the reason inline, the box scrolling to keep the working row in view, a count and a clock in the header, and Stop after this one. ⑦ Migrate (one row per group, its steps as notes), 🧹 Archived groups, ⑥ Protect, ② Create, ⑤ Import CSV and the Compare → Policies ticks use it. A dialog with failures stays open so the ✗ rows are read where they happened; Create keeps its ledger until you close, and the list re-reads the tenant then. R50." },
+      { kind: "new", tool: "List Policies", text: "🎯 Assign's Apply and 🎚 Set policy state show the same run ledger in their dialog — the toast-per-policy and the spinner are gone. A run with failures keeps the dialog open; Back becomes Close." },
+      { kind: "fix", tool: "Conditional Access groups", text: "Closing Migrate or Create after a write re-reads the tenant, so the list under the dialog shows the groups as they are now rather than the rows the write just changed; ticking a row while that re-read runs no longer errors." },
+    ],
+  },
+  {
     build: 25300, date: "2026-09-09", title: "Session controls: no longer forever",
     items: [
       { kind: "fix", tool: "Session controls", text: "One hunting query over a day of CloudAppEvents on a large tenant scanned millions of rows with a full-text AuditSource test and a sort, and the panel showed a spinner with no number. The window is read in 4-hour slices now, each its own query with a 2-minute limit — a slice that runs out of time is halved down to 30 minutes and then reported as skipped — with per-slice progress; the AuditSource test is an exact match and top replaces order-by + take." },
