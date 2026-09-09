@@ -366,6 +366,14 @@ const Analyzer = (() => {
     mfa:      (r) => r.enforcedCount > 0 && !r.mfaCovered,
     licensed: (r) => r.applied.length > 0 && !!r.lic && !(r.needsP2 ? r.lic.p2 : r.lic.p1),
   };
+  // The users who DID reach a stage — the other half of every funnel row, so
+  // a stage nobody fell out of is still a list you can open.
+  const REACH = {
+    targeted: (r) => r.applied.length > 0,
+    enforced: (r) => r.enforcedCount > 0,
+    mfa:      (r) => !!r.mfaCovered,
+    licensed: (r) => r.applied.length > 0 && !!r.lic && !!(r.needsP2 ? r.lic.p2 : r.lic.p1),
+  };
 
   function coverage(report, licRead) {
     const rows = report || [];
@@ -443,20 +451,21 @@ const Analyzer = (() => {
     const rows = cov.stages.map((st, i) => {
       const w = st.read ? Math.max(st.pctAll * 100, st.n ? 0.6 : 0) : 0;
       const drop = i > 0 && st.read && st.dropped > 0;
-      // A row is clickable only when it HAS a drop to show. A stage nobody
-      // fell out of, and a stage that was never read, are not links that
-      // quietly do nothing when pressed.
-      const f = drop ? `cf:${st.key}` : (st.key === "users" ? "all" : null);
-      const on = f && filter === f;
-      return `<div class="cf-row${st.read ? "" : " cf-unread"}${f ? " cf-click" : ""}${on ? " active" : ""}"
-        ${f ? `data-f="${esc(f)}" role="button" tabindex="0"` : ""}
-        title="${esc(st.hint)}${f && drop ? ` — click to list the ${st.dropped.toLocaleString()} who did not get this far.` : ""}">
+      // Every read row opens a list: the bar (who reached this stage) and,
+      // when there is one, the drop (who did not). A stage never read is not
+      // a link that quietly does nothing when pressed.
+      const fIn = !st.read ? null : st.key === "users" ? "all" : `cfin:${st.key}`;
+      const fDrop = drop ? `cf:${st.key}` : null;
+      const onIn = fIn && filter === fIn, onDrop = fDrop && filter === fDrop;
+      return `<div class="cf-row${st.read ? "" : " cf-unread"}${fIn ? " cf-click" : ""}${onIn || onDrop ? " active" : ""}"
+        ${fIn ? `data-f="${esc(fIn)}" role="button" tabindex="0"` : ""}
+        title="${esc(st.hint)}${fIn ? ` — click to list the ${st.n.toLocaleString()} who got this far${drop ? `; the −${st.dropped.toLocaleString()} lists who did not` : ""}.` : ""}">
         <div class="cf-label">${esc(st.label)}</div>
         <div class="cf-track"><div class="cf-fill cf-${esc(st.key)}" style="width:${w}%"></div></div>
         <div class="cf-n">${st.read ? `<b>${st.n.toLocaleString()}</b> <span class="mini muted">${pc(st.pctAll)}</span>`
           : '<span class="mini muted">not read</span>'}</div>
         <div class="cf-drop mini">${drop
-          ? `<span style="color:var(--off)">−${st.dropped.toLocaleString()}</span> <span class="muted">of ${st.of.toLocaleString()}</span>`
+          ? `<span class="cf-dropbtn${onDrop ? " active" : ""}" data-f="${esc(fDrop)}" role="button" tabindex="0" title="List the ${st.dropped.toLocaleString()} who did not get this far" style="color:var(--off);cursor:pointer;text-decoration:underline dotted">−${st.dropped.toLocaleString()}</span> <span class="muted">of ${st.of.toLocaleString()}</span>`
           : i === 0 ? '<span class="muted">the denominator</span>' : '<span class="muted">—</span>'}</div>
       </div>`;
     }).join("");
@@ -472,7 +481,7 @@ const Analyzer = (() => {
     // honest fix for two numbers that would otherwise appear to disagree.
     if (narrowed) notes.push(`<b>The list below is filtered further</b> — by a group, a user type or a search — so it holds fewer rows than the numbers above. Clicking a row here clears those.`);
     return `<div class="list-card cf-card">
-      <div class="cf-head"><b>Coverage</b> <span class="mini muted">— how many of the ${cov.total.toLocaleString()} in scope your policies actually reach, and how far each one gets. Click a row to list the users who did <b>not</b> get that far.</span></div>
+      <div class="cf-head"><b>Coverage</b> <span class="mini muted">— how many of the ${cov.total.toLocaleString()} in scope your policies actually reach, and how far each one gets. Click a row to list the users who got that far; click its <b>−n</b> to list the ones who did <b>not</b>.</span></div>
       ${rows}
       ${notes.length ? `<div class="cf-notes mini">${notes.map((n) => `<div>${n}</div>`).join("")}</div>` : ""}
     </div>`;
@@ -495,6 +504,10 @@ const Analyzer = (() => {
       if (filter.startsWith("cf:")) {
         const drop = DROP[filter.slice(3)];
         if (drop && !drop(r)) return;
+      }
+      if (filter.startsWith("cfin:")) {
+        const reach = REACH[filter.slice(5)];
+        if (reach && !reach(r)) return;
       }
       if (query && !r.user.toLowerCase().includes(query) && !r.upn.toLowerCase().includes(query)) return;
       idx.push(i);

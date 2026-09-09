@@ -1870,3 +1870,9 @@ body.cgg-modal-open{overflow:hidden}
 .cg-matrix thead th.pcol .ph{max-height:180px}
 .cg-polmatrix td.ucol .uname.pol-link{cursor:pointer}
 .cg-polmatrix td.ucol .uname.pol-link:hover{color:var(--accent2)}
+
+/* 🧹 Archived groups: the table fits the dialog, names wrap, no sideways scroll */
+#arcBody .gu-tw{overflow-x:visible}
+#arcBody table.plist{min-width:0;width:100%;table-layout:fixed}
+#arcBody table.plist td{overflow-wrap:anywhere;vertical-align:top}
+#arcBody table.plist th:nth-child(1){width:30px}#arcBody table.plist th:nth-child(3){width:20%}#arcBody table.plist th:nth-child(4){width:70px}#arcBody table.plist th:nth-child(5){width:22%}#arcBody table.plist th:nth-child(6){width:22%}

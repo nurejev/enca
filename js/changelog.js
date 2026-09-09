@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25291, date: "2026-09-09", title: "Gap analyse: every coverage row is a filter",
+    items: [
+      { kind: "fix", tool: "Gap analyse", text: "A coverage row used to be clickable only when somebody had dropped out of it — Required to do MFA at 100% was dead. Clicking a row now lists the users who got that far, and its −n lists the ones who did not, so both halves of every stage open." },
+      { kind: "fix", tool: "Conditional Access groups", text: "The 🧹 Archived groups dialog shows everything: it is as wide as the window allows, the table fits it with wrapping cells and no sideways scroll, and a group's policies are shown as the first two names plus '+n more' with the full list on hover." },
+    ],
+  },
+  {
     build: 25290, date: "2026-09-09", title: "Conditional Access groups 5.5: Compare compares policies too",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "A Members | Policies switch in the Compare sheet. Policies is a groups × policies grid — ● in, ✗ ex, · not named — with the rows where the picked groups differ first and marked, and a line per group saying how many inclusions and exclusions it is missing against the others. After a migration that is the list the new group still lacks; policy names open the card, 🎯 Assign fixes it." },

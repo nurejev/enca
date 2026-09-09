@@ -5449,9 +5449,8 @@ max@contoso.com,"Global, DevOps"</pre>
             ${r.roleAssignable ? '<span class="tag block">role-assignable</span>' : ""}${r.dynamic ? '<span class="tag">dynamic</span>' : ""}</td>
           <td class="mini">${esc(r.liveName)}</td>
           <td class="gu-num${r.members ? "" : " gu-zero"}">${r.members == null ? "—" : r.members}</td>
-          <td class="mini">${r.refCount
-            ? `<span style="color:var(--off)">${r.refCount} polic${r.refCount === 1 ? "y" : "ies"}</span><div class="mini">${esc(
-                [...r.refs.include.map((p) => p.name), ...r.refs.exclude.map((p) => p.name)].slice(0, 3).join(", "))}</div>`
+          <td class="mini" style="max-width:260px">${r.refCount
+            ? (() => { const names = [...r.refs.include.map((p) => p.name), ...r.refs.exclude.map((p) => p.name)]; return `<span style="color:var(--off)">${r.refCount} polic${r.refCount === 1 ? "y" : "ies"}</span><div class="mini muted" title="${esc(names.join("\n"))}">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2} more` : ""}</div>`; })()
             : '<span class="muted">no policy</span>'}</td>
           <td class="mini" data-arcuses="${i}">${r.uses == null ? '<span class="muted">not checked</span>' : r.uses.length
             ? `<span style="color:var(--off)">${r.uses.length} hit${r.uses.length === 1 ? "" : "s"}</span><div class="mini">${esc(r.uses.slice(0, 3).map((u) => `${u.sourceLabel}: ${u.name}`).join(" · "))}${r.uses.length > 3 ? " …" : ""}</div>`
@@ -17035,6 +17034,10 @@ This is a directory write. Nothing else changes.`)) return;
       "cf:enforced": "coverage — targeted only by report-only policies",
       "cf:mfa": "coverage — reached by a policy that never asks for MFA",
       "cf:licensed": "coverage — targeted without the licence their policies require",
+      "cfin:targeted": "coverage — reached by at least one active policy",
+      "cfin:enforced": "coverage — covered by an enforced policy",
+      "cfin:mfa": "coverage — required to do MFA by an enforced policy",
+      "cfin:licensed": "coverage — licensed for what they are targeted by",
     };
     if (anFilter !== "all") filterBits.push(FILTER_LABEL[anFilter] || anFilter);
     if (anQuery) filterBits.push(`search: "${anQuery}"`);
