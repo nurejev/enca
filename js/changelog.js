@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25287, date: "2026-09-09", title: "Conditional Access groups: the dialog covers the tool, not the app",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "The dialog starts below the header and the tool tabs and no longer locks the page, so every other tool stays one click away while a migration runs — the tool keeps its own window in its own tab. ⟳ Rescan inside Migrate re-checks the same groups with the same scope instead of throwing the list's scan away and checking all 94 role-assignable groups." },
+    ],
+  },
+  {
     build: 25286, date: "2026-09-09", title: "Conditional Access groups: Empty is counted for every group",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "Empty counted only the groups whose members had been read, so the chip said 1 on a tenant with a dozen empty exclusion groups. The scan now counts every group's direct members ($count, in the same batch as the nested-group read), so Empty is right from the first screen, and an unread row shows its direct count next to the read button." },

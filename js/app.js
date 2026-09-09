@@ -3290,7 +3290,7 @@
       $("cgOvTitle").textContent = CG_LABEL[cgTab] || cgTab;
       const n = cgSel.size || (cgOpen ? 1 : 0);
       $("cgOvSub").textContent = n ? (cgSel.size ? `${n} group${n === 1 ? "" : "s"} carried from the list` : cgOpen) : "";
-      document.body.classList.add("cgg-modal-open");
+      document.body.classList.remove("cgg-modal-open");
     }
   }
   function cgCloseEngine() { if (cgTab === "groups") return; cgTab = "groups"; cgQuery = ""; $("cgSearch").value = ""; renderCaGroups(); }
@@ -4303,7 +4303,7 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       const auChoice = aus.length ? aus[0].id : "new";
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME();
-      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null, scoped: only ? cands.length : 0,
+      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null, scoped: only ? cands.length : 0, scopeIds: only ? [...only] : null,
         plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA }) };
       if (cgMigPre && cgMigPre.length) { cgMig.sel = new Set(cgMigPre.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); cgMigPre = null; }
     } catch (e) {
@@ -4474,7 +4474,9 @@ max@contoso.com,"Global, DevOps"</pre>
     const nr = e.target.closest("[data-cgnest]"); if (nr) { const k = nr.dataset.cgnest; cgNestOpen.has(k) ? cgNestOpen.delete(k) : cgNestOpen.add(k); renderCgMembers(); return; }
     const rm = e.target.closest("[data-cgrm-user]");
     if (rm) { await cgRemoveMember(rm.dataset.cgrmUser, rm.dataset.cgrmGroup, true); return; }
-    if (e.target.id === "cgMigRescan") { cgMig = null; cgRes = null; cgMigScan(); return; }
+    // Rescan re-checks the same groups — it does not throw the list's own
+    // scan away, and it keeps the scope it was opened with
+    if (e.target.id === "cgMigRescan") { const ids = cgMig && cgMig.scopeIds; cgMig = null; cgMigScan(ids); return; }
     if (e.target.id === "cgMigAll") {
       const all = cgMig.plan.eligible.map((x) => x.id);
       const cur = cgMig.sel || new Set(all);

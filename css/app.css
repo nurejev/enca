@@ -1808,18 +1808,21 @@ button.wo-tile.on{box-shadow:inset 0 0 0 2px var(--accent2)}
 .cgg-x:hover{color:var(--off)}
 /* The actions bar floats over the page bottom; in the sheet it is the header */
 .cgg-overlay[hidden],.cgg-sheet[hidden],.cgg-bar[hidden],#cgBody[hidden]{display:none!important}
-.cgg-bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:60;width:max-content;max-width:calc(100vw - 32px)}
+.cgg-bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:43;width:max-content;max-width:calc(100vw - 32px)}
 .cgg-bulk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--green);color:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 12px 36px rgba(0,0,0,.28)}
 /* dialog for the writes */
-.cgg-overlay{position:fixed;inset:0;z-index:70;background:rgba(10,24,14,.55);display:flex;align-items:flex-start;justify-content:center;padding:36px 16px 24px;overflow:hidden}
-.cgg-dialog{background:var(--bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.45);width:min(1180px,100%);max-height:calc(100vh - 60px);display:flex;flex-direction:column}
+/* The dialog covers the TOOL, not the app: it starts below the header and
+   the tool tabs (z-index under both), so every other tool stays one click
+   away while a migration runs. */
+.cgg-overlay{position:fixed;left:0;right:0;bottom:0;top:var(--sticky-nav,106px);z-index:44;background:rgba(10,24,14,.55);display:flex;align-items:flex-start;justify-content:center;padding:18px 16px 24px;overflow:hidden}
+.cgg-dialog{background:var(--bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.45);width:min(1180px,100%);max-height:calc(100vh - var(--sticky-nav,106px) - 42px);display:flex;flex-direction:column}
 .cgg-dhd{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface);border-radius:16px 16px 0 0;margin:0}
 .cgg-dhd b{font-size:15px}.cgg-dhd .btn{margin-left:auto}
 .cgg-dbd{padding:14px 18px 20px;overflow-y:auto;flex:1;min-height:0}
 .cgg-dbd > #cgBody > :first-child{margin-top:0}
 body.cgg-modal-open{overflow:hidden}
 /* sheet for ③ Compare */
-.cgg-sheet{position:fixed;left:16px;right:16px;bottom:0;z-index:60;max-height:min(72vh,820px);background:var(--bg);border:1px solid var(--border);border-bottom:0;border-radius:16px 16px 0 0;box-shadow:0 -16px 50px rgba(0,0,0,.35);display:flex;flex-direction:column}
+.cgg-sheet{position:fixed;left:16px;right:16px;bottom:0;z-index:44;max-height:min(72vh,820px);background:var(--bg);border:1px solid var(--border);border-bottom:0;border-radius:16px 16px 0 0;box-shadow:0 -16px 50px rgba(0,0,0,.35);display:flex;flex-direction:column}
 .cgg-shd .cgg-bar{position:static;transform:none;width:auto;max-width:none}
 .cgg-shd .cgg-bulk{border-radius:15px 15px 0 0;box-shadow:none}
 .cgg-sbd{padding:12px 16px 20px;overflow-y:auto;flex:1;min-height:0}
