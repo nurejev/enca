@@ -6228,7 +6228,10 @@ This is a directory write. Nothing else changes.`)) return;
         <p class="mini muted" style="margin-top:8px">● in = the policy includes the group, ✗ ex = excludes it, · = does not name it. A row marked <b>differs</b> names some of the picked groups and not the others — fix it with 🎯 Assign to policies (add the group that is missing). Policy names open the card.</p>`;
       return;
     }
-    $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">${viewSeg}
+    // differences in policy references are the thing a migration can leave
+    // behind — say so on the members view too, with the way over
+    const diffNote = pm.diffs ? `<div class="wo-callout bad" style="margin:0 0 10px"><b>${pm.diffs} polic${pm.diffs === 1 ? "y references" : "ies reference"} some of these groups and not the others.</b> ${pm.missing.filter((g) => g.inc.length || g.exc.length).map((g) => `${esc(g.name)} is missing ${[g.exc.length ? `${g.exc.length} exclusion${g.exc.length === 1 ? "" : "s"}` : "", g.inc.length ? `${g.inc.length} inclusion${g.inc.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" and ")}`).join("; ")}. <button class="btn sm" data-cgcmpview="policies" style="margin-left:6px">Show the policies</button></div>` : "";
+    $("cgBody").innerHTML = `${diffNote}<div class="mini" style="margin:10px 0">${viewSeg}
         <span style="margin-left:10px">${m.users.length} distinct member${m.users.length === 1 ? "" : "s"} across ${m.cols.length} group${m.cols.length === 1 ? "" : "s"}.</span>
         <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Read more groups</button>
         <button class="btn sm" id="cgMemberGo" style="margin-left:6px">⟳ Re-read selected</button>

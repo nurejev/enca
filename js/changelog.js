@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25292, date: "2026-09-09", title: "Conditional Access groups: policy differences called out on the Members view",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "When the picked groups are referenced differently, the Members view says so in a red callout — which group is missing how many inclusions and exclusions — with a button to the Policies view, so the Members | Policies switch is not the only way to find it." },
+    ],
+  },
+  {
     build: 25291, date: "2026-09-09", title: "Gap analyse: every coverage row is a filter",
     items: [
       { kind: "fix", tool: "Gap analyse", text: "A coverage row used to be clickable only when somebody had dropped out of it — Required to do MFA at 100% was dead. Clicking a row now lists the users who got that far, and its −n lists the ones who did not, so both halves of every stage open." },

@@ -1876,3 +1876,5 @@ body.cgg-modal-open{overflow:hidden}
 #arcBody table.plist{min-width:0;width:100%;table-layout:fixed}
 #arcBody table.plist td{overflow-wrap:anywhere;vertical-align:top}
 #arcBody table.plist th:nth-child(1){width:30px}#arcBody table.plist th:nth-child(3){width:20%}#arcBody table.plist th:nth-child(4){width:70px}#arcBody table.plist th:nth-child(5){width:22%}#arcBody table.plist th:nth-child(6){width:22%}
+.cg-matrix thead th.cg-fill{background:var(--soft)}
+.cg-matrix tbody td.cg-fill{background:transparent}
