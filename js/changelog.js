@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25290, date: "2026-09-09", title: "Conditional Access groups 5.5: Compare compares policies too",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "A Members | Policies switch in the Compare sheet. Policies is a groups × policies grid — ● in, ✗ ex, · not named — with the rows where the picked groups differ first and marked, and a line per group saying how many inclusions and exclusions it is missing against the others. After a migration that is the list the new group still lacks; policy names open the card, 🎯 Assign fixes it." },
+      { kind: "fix", tool: "Conditional Access groups", text: "The member matrix is laid out like 🚪 Exclusion analyzer's: narrow group columns with the slack in a filler column, so two groups no longer stretch across the whole window." },
+    ],
+  },
+  {
     build: 25289, date: "2026-09-09", title: "Conditional Access groups 5.4: a failed migration says where it stopped; Archived groups leave nothing behind",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "Migrate: each group carries a step ledger — rename aside, create, copy members, repoint, verify, place in the AU — with ✓ ✗ ⚠ per step, the failing step named in the tag, and a 'Where things stand' line saying what the tenant looks like now and how to finish or undo. A failed create now rolls the rename back, so a group that failed there is exactly as it was; a failed member copy leaves every policy on the old group, so nobody is uncovered; a failed repoint says how many policies got the new group and how many lost the old one." },

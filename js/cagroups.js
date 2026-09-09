@@ -864,13 +864,51 @@ const CaGroups = (() => {
       <thead><tr>
         <th class="ucol">Member (${users.length})</th>
         ${cols.map((c) => { const an = nesting && allNested(c); return `<th class="pcol${an ? " cg-allnested" : ""}"><div class="ph" title="${esc(c.name)}${c.memberTotal != null ? ` — ${c.memberTotal} member${c.memberTotal === 1 ? "" : "s"}` : ""}${c.children ? ` — ${c.children.length} nested group${c.children.length === 1 ? "" : "s"}` : ""}${an ? " — every member came in through a nested group; nothing here is removable from this group" : ""}">${an ? "◐ " : ""}${esc(c.name)}</div></th>`; }).join("")}
-        <th class="pcol cg-incol" title="How many of the loaded groups this member is in">In</th>
+        <th class="pcol cg-incol" title="How many of the loaded groups this member is in">In</th><th class="cg-fill"></th>
       </tr></thead>
       <tbody>${users.map((u) => `<tr>
         <td class="ucol"><span class="uname">${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""}</span><div class="uupn">${esc(u.upn || "")}</div></td>
         ${cols.map((c) => cell(u, c)).join("")}
-        <td class="cellv cg-incol"><b>${u.groups.size}</b></td>
+        <td class="cellv cg-incol"><b>${u.groups.size}</b></td><td class="cg-fill"></td>
       </tr>`).join("")}</tbody></table></div>`;
+  }
+
+  // Groups × POLICIES: which policies include or exclude each of the picked
+  // groups. Rows where the groups differ come first and are marked — after a
+  // migration, that is the list of policies the new group is still missing.
+  // refs are what the scan read: {include:[{id,name}], exclude:[{id,name}]}.
+  function policyMatrix(rows, stateOf) {
+    const cols = rows.filter((r) => r.id);
+    const pols = new Map();
+    const touch = (p) => { const k = String(p.id || p); if (!pols.has(k)) pols.set(k, { id: k, name: p.name || (p.displayName) || k, seq: p.seq || null, cells: new Map() }); return pols.get(k); };
+    cols.forEach((g) => {
+      ((g.refs && g.refs.include) || []).forEach((p) => { touch(p).cells.set(g.name, "inc"); });
+      ((g.refs && g.refs.exclude) || []).forEach((p) => { touch(p).cells.set(g.name, "exc"); });
+    });
+    const list = [...pols.values()].map((p) => {
+      const vals = cols.map((g) => p.cells.get(g.name) || "");
+      const diff = cols.length > 1 && new Set(vals).size > 1;
+      return { ...p, state: stateOf ? stateOf(p.id) : null, vals, diff };
+    });
+    list.sort((a, b) => (b.diff - a.diff) || String(a.seq || a.name).localeCompare(String(b.seq || b.name)));
+    // per group: what it is missing compared with the union of the others
+    const missing = cols.map((g) => ({ name: g.name, inc: list.filter((p) => p.cells.get(g.name) !== "inc" && [...p.cells.values()].includes("inc")).map((p) => p), exc: list.filter((p) => p.cells.get(g.name) !== "exc" && [...p.cells.values()].includes("exc")).map((p) => p) }));
+    return { cols, pols: list, diffs: list.filter((p) => p.diff).length, missing };
+  }
+  function renderPolicyMatrix(pm, q) {
+    if (!pm.cols.length) return '<p class="mini" style="padding:20px">Pick groups first.</p>';
+    const rows = q ? pm.pols.filter((p) => `${p.seq || ""} ${p.name}`.toLowerCase().includes(q)) : pm.pols;
+    if (!rows.length) return '<p class="mini" style="padding:20px">No policy references the picked groups.</p>';
+    const ST = { enabled: ["on", "On"], enabledForReportingButNotEnforced: ["ro", "Report-only"], disabled: ["off", "Off"] };
+    const cell = (v) => v === "inc" ? '<td class="cellv ok" title="included">● in</td>' : v === "exc" ? '<td class="cellv no" title="excluded">✗ ex</td>' : '<td class="cellv" title="not referenced">·</td>';
+    const summary = pm.cols.length > 1 ? `<p class="mini" style="margin:0 0 8px">${pm.diffs ? `<b style="color:var(--off)">${pm.diffs} polic${pm.diffs === 1 ? "y differs" : "ies differ"}</b> between the picked groups — those rows come first. ` : `<b style="color:var(--on)">The picked groups are referenced identically.</b> `}${pm.missing.filter((g) => g.inc.length || g.exc.length).map((g) => `<span style="display:inline-block;margin-right:12px"><b>${esc(g.name)}</b> is missing: ${g.exc.length ? `<span style="color:var(--off)">${g.exc.length} exclusion${g.exc.length === 1 ? "" : "s"}</span>` : ""}${g.exc.length && g.inc.length ? " · " : ""}${g.inc.length ? `<span style="color:var(--report)">${g.inc.length} inclusion${g.inc.length === 1 ? "" : "s"}</span>` : ""}</span>`).join("")}</p>` : "";
+    return `${summary}<div class="matrix-wrap cg-mwrap"><table class="mtable cg-matrix cg-polmatrix">
+      <thead><tr><th class="ucol">Policy (${rows.length})</th>${pm.cols.map((g) => `<th class="pcol"><div class="ph" title="${esc(g.name)}">${esc(g.name)}</div></th>`).join("")}<th class="pcol cg-incol" title="Policy state">State</th><th class="cg-fill"></th></tr></thead>
+      <tbody>${rows.map((p) => { const st = ST[p.state] || null; return `<tr class="${p.diff ? "cmp-diff" : ""}">
+        <td class="ucol"><span class="uname pol-link" data-polid="${esc(p.id)}" title="Open the policy card">${esc(p.seq ? `${p.seq} ${p.name}` : p.name)}</span>${p.diff ? '<div class="uupn" style="color:var(--report)">differs</div>' : ""}</td>
+        ${p.vals.map(cell).join("")}
+        <td class="cellv cg-incol">${st ? `<span class="wo-state ${st[0]}">${st[1]}</span>` : ""}</td><td class="cg-fill"></td>
+      </tr>`; }).join("")}</tbody></table></div>`;
   }
 
   // The nested groups behind the loaded columns, each with its members.
@@ -1272,7 +1310,7 @@ const CaGroups = (() => {
 
   return {
     STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate, otherBaseline, activeCatalogs,
-    renderSummary, chips, renderTable, renderMatrix, renderNesting, toMd, filtered,
+    renderSummary, chips, renderTable, renderMatrix, renderNesting, policyMatrix, renderPolicyMatrix, toMd, filtered,
     NESTING, NEST_WRITE_SCOPES, nestingState, nestingPlan, nestingReport, adminList,
     NESTING_GA, NEST_V1, nestingUnsupported, nestingSupported, noteNestingUnsupported, NESTING_UNSUPPORTED_TEXT,
     ARCHIVE_SUFFIX, findArchived,

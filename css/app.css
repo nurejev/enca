@@ -1863,3 +1863,10 @@ body.cgg-modal-open{overflow:hidden}
 .ex-ent.allnested{border-color:var(--off)}
 .mtable .cell.ro.nest{color:var(--off)}
 .wo-nest{color:var(--off);font-weight:700}
+
+/* ③ Compare: narrow group columns like 🚪's matrix; a filler column takes the slack */
+.cg-matrix thead th.pcol,.cg-matrix td.cellv{width:46px;min-width:46px;max-width:46px}
+.cg-matrix th.cg-fill,.cg-matrix td.cg-fill{width:auto;border-right:0;background:transparent}
+.cg-matrix thead th.pcol .ph{max-height:180px}
+.cg-polmatrix td.ucol .uname.pol-link{cursor:pointer}
+.cg-polmatrix td.ucol .uname.pol-link:hover{color:var(--accent2)}

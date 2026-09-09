@@ -4488,6 +4488,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
     if (e.target.id === "cgAddRm") { await cgRemoveMember($("cgAddUser")?.value, $("cgAddGroup")?.value); return; }
     const nm = e.target.closest("[data-cgnestmode]"); if (nm) { cgNesting = nm.dataset.cgnestmode; renderCgMembers(); return; }
+    const cv = e.target.closest("[data-cgcmpview]"); if (cv) { cgCmpView = cv.dataset.cgcmpview; renderCgMembers(); return; }
     const nr = e.target.closest("[data-cgnest]"); if (nr) { const k = nr.dataset.cgnest; cgNestOpen.has(k) ? cgNestOpen.delete(k) : cgNestOpen.add(k); renderCgMembers(); return; }
     const rm = e.target.closest("[data-cgrm-user]");
     if (rm) { await cgRemoveMember(rm.dataset.cgrmUser, rm.dataset.cgrmGroup, true); return; }
@@ -6148,6 +6149,7 @@ This is a directory write. Nothing else changes.`)) return;
   // group, plus the nested groups themselves with their members. Off by
   // default so the matrix reads as it always did.
   let cgNesting = "";          // "" | "show" | "only"
+  let cgCmpView = "members";   // "members" | "policies" — what the compare sheet compares
   const cgNestOpen = new Set();
   let cgHideEmpty = false, cgEmptiesOpen = false;
   function renderCgMembers() {
@@ -6209,8 +6211,26 @@ This is a directory write. Nothing else changes.`)) return;
         <button class="${cgNesting === "only" ? "active" : ""}" data-cgnestmode="only">Nested only${nestedUsers ? ` (${nestedUsers})` : ""}</button>
       </span>
       ${m.empty.length ? `<label class="chk mini" style="display:inline-flex;align-items:center;gap:5px;margin-left:8px;vertical-align:middle"><input type="checkbox" id="cgHideEmpty"${cgHideEmpty ? " checked" : ""}> hide ${m.empty.length} empty group${m.empty.length === 1 ? "" : "s"}</label>` : ""}`;
-    $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">
-        ${m.users.length} distinct member${m.users.length === 1 ? "" : "s"} across ${m.cols.length} group${m.cols.length === 1 ? "" : "s"}.
+    // Two things to compare between the picked groups: WHO is in them, and
+    // WHICH POLICIES reference them — after a migration the second is the
+    // list of inclusions and exclusions the new group is still missing.
+    const picked = cgMemberSel.size ? cgRes.rows.filter((r) => cgMemberSel.has(r.name)) : cgRes.rows.filter((r) => r.members);
+    const pm = CaGroups.policyMatrix(picked, (id) => { const vm = policies.find((p) => p.id === id); return vm ? (vm.raw && vm.raw.state) || vm.state : null; });
+    const viewSeg = `<span class="seg sw" style="vertical-align:middle" title="Compare who is in the groups, or which policies reference them">
+        <button class="${cgCmpView === "members" ? "active" : ""}" data-cgcmpview="members">Members (${m.users.length})</button>
+        <button class="${cgCmpView === "policies" ? "active" : ""}" data-cgcmpview="policies">Policies (${pm.pols.length})${pm.diffs ? ` <span class="pill red" style="margin-left:4px">${pm.diffs} differ</span>` : ""}</button>
+      </span>`;
+    if (cgCmpView === "policies") {
+      $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">${viewSeg}
+          <span style="margin-left:10px">${pm.pols.length} polic${pm.pols.length === 1 ? "y references" : "ies reference"} the ${pm.cols.length} picked group${pm.cols.length === 1 ? "" : "s"}.</span>
+          <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Pick more groups</button>
+        </div>
+        ${CaGroups.renderPolicyMatrix(pm, cgQuery)}
+        <p class="mini muted" style="margin-top:8px">● in = the policy includes the group, ✗ ex = excludes it, · = does not name it. A row marked <b>differs</b> names some of the picked groups and not the others — fix it with 🎯 Assign to policies (add the group that is missing). Policy names open the card.</p>`;
+      return;
+    }
+    $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">${viewSeg}
+        <span style="margin-left:10px">${m.users.length} distinct member${m.users.length === 1 ? "" : "s"} across ${m.cols.length} group${m.cols.length === 1 ? "" : "s"}.</span>
         <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Read more groups</button>
         <button class="btn sm" id="cgMemberGo" style="margin-left:6px">⟳ Re-read selected</button>
         ${nestSeg}
