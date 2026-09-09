@@ -4427,16 +4427,22 @@ max@contoso.com,"Global, DevOps"</pre>
     migBody().innerHTML = `<div class="cg-panel">
         <h4>MIGRATION ${ok === r.length ? "COMPLETE" : "FINISHED WITH FAILURES"}</h4>
         <p class="mini"><b style="color:var(--on)">${ok} of ${r.length} migrated</b>${ok === r.length ? "" : ` · <b style="color:var(--off)">${r.length - ok} failed</b>`}</p>
-        ${r.map((x) => `<div style="padding:8px 0;border-top:1px solid var(--border)">
-            <span class="tag ${x.ok ? "grant" : "block"}">${x.ok ? "migrated" : "failed"}</span> <b>${esc(x.name)}</b>
+        ${r.map((x) => {
+          const ICON = { done: "✓", undone: "↩", partial: "⚠", failed: "✗", skipped: "•" };
+          const COL = { done: "var(--on)", undone: "var(--report)", partial: "var(--report)", failed: "var(--off)", skipped: "var(--muted)" };
+          const ledger = (x.steps || []).length ? `<ol class="mini" style="margin:6px 0 0 4px;padding:0;list-style:none">${x.steps.map((s) => `<li style="padding:1px 0"><b style="color:${COL[s.s] || "inherit"}">${ICON[s.s] || "•"}</b> ${esc(s.label)}${s.note ? ` <span class="muted">— ${esc(s.note)}</span>` : ""}</li>`).join("")}</ol>` : "";
+          return `<div style="padding:8px 0;border-top:1px solid var(--border)">
+            <span class="tag ${x.ok ? "grant" : "block"}">${x.ok ? "migrated" : `failed at: ${esc((x.steps.find((s) => s.k === x.failedAt) || {}).label || x.failedAt || "")}`}</span> <b>${esc(x.name)}</b>
             ${x.membersMoved != null && x.memberTotal != null ? `<span class="tag">${x.membersMoved}/${x.memberTotal} members</span>` : ""}
             ${x.refsMoved != null ? `<span class="tag">${x.refsMoved} policies</span>` : ""}
             ${x.ok ? (x.inAu ? '<span class="tag ok">in the restricted AU</span>' : '<span class="tag block">not protected yet</span>') : ""}
-            ${x.error ? `<div class="mini" style="color:var(--off)">${esc(x.error)}</div>` : ""}
-            ${x.archiveName ? `<div class="mini muted">rollback: ${esc(x.archiveName)}</div>` : ""}
-          </div>`).join("")}
+            ${ledger}
+            ${x.error ? `<div class="mini" style="color:var(--off);margin-top:4px">${esc(x.error)}</div>` : ""}
+            ${x.state ? `<div class="mini" style="color:var(--report);margin-top:2px"><b>Where things stand:</b> ${esc(x.state)}</div>` : ""}
+            ${x.archiveName && x.ok ? `<div class="mini muted">rollback: ${esc(x.archiveName)}</div>` : ""}
+          </div>`; }).join("")}
         ${outside.length ? `<p class="mini" style="margin:12px 0 0;color:var(--report)">⚠ <b>${outside.length} group${outside.length === 1 ? " is" : "s are"} converted but not protected.</b> They are ordinary groups now, so any tenant-wide Groups Administrator can change their members until you place them in a restricted AU.</p>` : ""}
-        <p class="mini" style="margin:12px 0 0">Check the members of each new group before deleting anything. The archived groups are your rollback — remove them from <b>🧹 Archived groups</b> on the ① Check tab once you are satisfied.</p>
+        <p class="mini" style="margin:12px 0 0">Check the members of each new group before deleting anything. The archived groups are your rollback — remove them from <b>🧹 Archived groups</b> in the toolbar once you are satisfied; that dialog takes the old group out of any policy still naming it and checks its other uses before it deletes.</p>
         <div class="row" style="justify-content:flex-start;margin-top:12px">
           ${outside.length ? '<button class="btn primary" id="cgMigProtect">🔒 Protect them now (⑥)</button>' : ""}
           <button class="btn" id="cgMigMd">📄 Change report</button>
@@ -4572,30 +4578,49 @@ max@contoso.com,"Global, DevOps"</pre>
       const x = picked[i];
       t.done = i;
       bar.innerHTML = progInline(i, picked.length);
-      const res = { name: x.name, ok: false, memberTotal: x.memberTotal, archiveName: x.archiveName };
+      // The ledger: every step the run takes, with what it did — so a failure
+      // says exactly where it stopped, what is already changed and what to do.
+      const res = { name: x.name, ok: false, memberTotal: x.memberTotal, archiveName: x.archiveName, oldId: x.id, steps: [] };
+      const STEP = { rename: "Rename the old group aside", create: "Create the plain replacement", members: "Copy the members", repoint: "Repoint the policies", verify: "Verify no policy still names the old group", au: "Place the new group in the restricted AU" };
+      const step = (k, s, note) => { const e = res.steps.find((q) => q.k === k); if (e) { e.s = s; e.note = note || e.note; } else res.steps.push({ k, label: STEP[k], s, note: note || "" }); };
+      let stage = "rename";
       try {
         say(`<div><b>${esc(x.name)}</b></div>`);
         // 1. rename the old one aside
         if (!isDemo) await Graph.gpatch(`/groups/${x.id}`, { displayName: x.archiveName }, scopes);
+        step("rename", "done", `now named ${x.archiveName}`);
         say(`<div>&nbsp;&nbsp;✓ renamed to ${esc(x.archiveName)}</div>`);
-        // 2. create the replacement — plain, optionally nesting-proof
+        // 2. create the replacement — plain, optionally nesting-proof. A
+        // failed create rolls the rename back, so a group that failed here is
+        // exactly as it was.
+        stage = "create";
         let created;
         if (isDemo) { created = { id: "demo-new-" + x.id }; }
         else {
-          created = await Assign.createGroup({ displayName: x.name, roleAssignable: false, disableNesting: !!t.nesting }, { mustCreate: true });
+          try { created = await Assign.createGroup({ displayName: x.name, roleAssignable: false, disableNesting: !!t.nesting }, { mustCreate: true }); }
+          catch (ce) {
+            const back = await Graph.gpatch(`/groups/${x.id}`, { displayName: x.name }, scopes).then(() => true).catch(() => false);
+            step("rename", back ? "undone" : "done", back ? "rolled back — the old group has its name again" : `could NOT be rolled back — the old group is still named ${x.archiveName}`);
+            throw new Error(`${ce.message || ce}${back ? " — the rename was rolled back, nothing changed" : ""}`);
+          }
           if (!created || !created.id || created.id === x.id) {
-            await Graph.gpatch(`/groups/${x.id}`, { displayName: x.name }, scopes).catch(() => {});
+            const back = await Graph.gpatch(`/groups/${x.id}`, { displayName: x.name }, scopes).then(() => true).catch(() => false);
+            step("rename", back ? "undone" : "done", back ? "rolled back" : `could NOT be rolled back — still named ${x.archiveName}`);
             throw new Error("Create returned the existing group — the rename was rolled back and no policy was touched.");
           }
         }
         res.newId = created.id;
+        step("create", "done", `${x.name} (${created.id})${t.nesting ? ", nesting disabled" : ""}`);
         say(`<div>&nbsp;&nbsp;✓ created plain group${t.nesting ? " (nesting disabled)" : ""}</div>`);
+        stage = "members";
         // 3. members BEFORE the AU, or they can never be added
         if (!isDemo) {
           const mm = await moveGroupMembers(x.id, created.id);
-          res.membersMoved = mm.moved; res.memberTotal = mm.total;
+          res.membersMoved = mm.moved; res.memberTotal = mm.total; res.membersFailed = mm.failed;
+          step("members", mm.failed.length ? "partial" : "done", `${mm.moved} of ${mm.total} copied${mm.failed.length ? ` — ${mm.failed.length} failed: ${mm.failed.map((f) => f.name || f.id || f).slice(0, 5).join(", ")}` : ""}`);
           say(`<div>&nbsp;&nbsp;✓ ${mm.moved}/${mm.total} members copied${mm.failed.length ? ` — ${mm.failed.length} failed` : ""}</div>`);
-        } else { res.membersMoved = res.memberTotal || 0; }
+        } else { res.membersMoved = res.memberTotal || 0; step("members", "done", `${res.membersMoved} copied`); }
+        stage = "repoint";
         // 4./5. add the new group everywhere, then remove the old one
         //
         // The reference list came from the SCAN. A policy edited since then —
@@ -4619,18 +4644,23 @@ max@contoso.com,"Global, DevOps"</pre>
             incIds = inc; excIds = exc;
           } catch (e) { say(`<div style="color:var(--report)">&nbsp;&nbsp;⚠ could not re-read the policies (${esc(e.message || e)}) — using the scan's list</div>`); }
         }
-        const apply = async (ids, action, id) => {
+        // add first, remove last: at no point is a policy without the group
+        res.refsAdded = 0; res.refsRemoved = 0;
+        const apply = async (ids, action, id, what) => {
           if (!ids.length || isDemo) return;
           const r = await Assign.apply(ids, action, [id]);
           const bad = r.filter((q) => !q.ok);
-          if (bad.length) throw new Error(`policy update failed on ${bad.length} — the old group is still assigned, so nothing is uncovered`);
+          if (what === "add") res.refsAdded += r.length - bad.length; else res.refsRemoved += r.length - bad.length;
+          if (bad.length) throw new Error(`policy update failed on ${bad.length} (${bad.map((q) => q.name).join(", ")}) — the old group is still assigned, so nothing is uncovered`);
         };
-        await apply(incIds, 2, created.id);
-        await apply(excIds, 3, created.id);
-        await apply(incIds, 5, x.id);
-        await apply(excIds, 6, x.id);
+        await apply(incIds, 2, created.id, "add");
+        await apply(excIds, 3, created.id, "add");
+        await apply(incIds, 5, x.id, "remove");
+        await apply(excIds, 6, x.id, "remove");
         res.refsMoved = incIds.length + excIds.length;
+        step("repoint", "done", `${res.refsMoved} polic${res.refsMoved === 1 ? "y" : "ies"}: new group added, old group removed`);
         if (res.refsMoved) say(`<div>&nbsp;&nbsp;✓ ${res.refsMoved} policy assignment${res.refsMoved === 1 ? "" : "s"} repointed</div>`);
+        stage = "verify";
         // VERIFY the removal. Entra keeps a group id in a policy after the group
         // is gone, so a removal that quietly did not take leaves a reference
         // that only breaks later, when the archived group is deleted — which is
@@ -4646,28 +4676,42 @@ max@contoso.com,"Global, DevOps"</pre>
             });
             if (left.length) {
               res.staleLeft = left.map((pol) => pol.displayName || pol.id);
+              step("verify", "partial", `still named by ${res.staleLeft.join(", ")}`);
               say(`<div style="color:var(--off)">&nbsp;&nbsp;⚠ the old group is STILL referenced by ${left.length} polic${left.length === 1 ? "y" : "ies"}: ${esc(res.staleLeft.join(", "))} — do NOT delete the archived group yet, or those policies will name an id that no longer exists</div>`);
             } else {
+              step("verify", "done", "no policy names the old group");
               say(`<div>&nbsp;&nbsp;✓ verified: no policy still references the old group</div>`);
             }
-          } catch (e) { say(`<div style="color:var(--report)">&nbsp;&nbsp;⚠ could not verify the removal (${esc(e.message || e)}) — check ① Check for a dangling reference before deleting the archive</div>`); }
+          } catch (e) { step("verify", "partial", `could not verify: ${e.message || e}`); say(`<div style="color:var(--report)">&nbsp;&nbsp;⚠ could not verify the removal (${esc(e.message || e)}) — check the list for a dangling reference before deleting the archive</div>`); }
         }
         // 6. LAST: into the restricted AU — or deliberately not
+        stage = "au";
         if (toAu) {
           if (!isDemo) {
             await Graph.gpost(`/administrativeUnits/${auId}/members/$ref`,
               { "@odata.id": `https://graph.microsoft.com/beta/groups/${created.id}` }, scopes);
           }
           res.inAu = true;
+          step("au", "done", t.auName || "");
           say(`<div>&nbsp;&nbsp;✓ placed in the restricted AU</div>`);
         } else {
           res.inAu = false;
+          step("au", "skipped", "left outside on purpose — ⑥ Protect adds it later");
           say(`<div>&nbsp;&nbsp;• left outside the restricted AU — add it from ⑥ Protect when ready</div>`);
         }
         res.ok = true;
       } catch (err) {
         res.error = err.message || String(err);
-        say(`<div style="color:var(--off)">&nbsp;&nbsp;✗ ${esc(res.error)}</div>`);
+        res.failedAt = stage;
+        step(stage, "failed", res.error);
+        // what the tenant looks like NOW, and what to do about it
+        res.state = stage === "rename" ? "Nothing changed."
+          : stage === "create" ? (res.steps.find((q) => q.k === "rename" && q.s === "undone") ? "Nothing changed — the old group has its name and every policy still points at it." : `The old group is still renamed to ${x.archiveName}; nothing else changed. Rename it back by hand, or run Migrate again for this group.`)
+          : stage === "members" ? `The new plain group exists with ${res.membersMoved || 0} of ${res.memberTotal ?? "?"} members; every policy still points at the OLD group (${x.archiveName}), so nobody is uncovered. Finish by hand: copy the missing members to the new group, then use ④ Assign to swap the policies from the old group to the new one — or delete the new group and rename the old one back.`
+          : stage === "repoint" ? `The new group has its members; the new group was ADDED to ${res.refsAdded || 0} polic${res.refsAdded === 1 ? "y" : "ies"} and the old group REMOVED from ${res.refsRemoved || 0} — the rest still point at the old group (${x.archiveName}), so nobody is uncovered. Finish with ④ Assign: add the new group and remove the old one on the policies still naming it.`
+          : stage === "verify" ? "The migration is done; the read-back could not confirm every policy dropped the old group — check the list for a dangling reference before deleting the archive."
+          : "The group is migrated but sits OUTSIDE the restricted AU — a tenant-wide Groups Administrator can change its members until ⑥ Protect files it.";
+        say(`<div style="color:var(--off)">&nbsp;&nbsp;✗ ${esc(res.error)}</div><div class="mini" style="color:var(--report)">&nbsp;&nbsp;→ ${esc(res.state)}</div>`);
       }
       results.push(res);
     }
@@ -5397,7 +5441,7 @@ max@contoso.com,"Global, DevOps"</pre>
         </div>`;
       })()}
       <div class="gu-tw"><table class="plist">
-        <thead><tr><th></th><th>Archived group</th><th>Replaced by</th><th class="gu-num">Members</th><th>Still referenced</th></tr></thead>
+        <thead><tr><th></th><th>Archived group</th><th>Replaced by</th><th class="gu-num">Members</th><th>Still referenced</th><th>Other uses</th></tr></thead>
         <tbody>${arcRows.map((r, i) => `<tr>
           <td><input type="checkbox" data-arc="${i}" ${r.checked ? "checked" : ""}></td>
           <td><b>${esc(r.name)}</b><div class="mini muted">${esc(r.id)}</div>
@@ -5407,9 +5451,15 @@ max@contoso.com,"Global, DevOps"</pre>
           <td class="mini">${r.refCount
             ? `<span style="color:var(--off)">${r.refCount} polic${r.refCount === 1 ? "y" : "ies"}</span><div class="mini">${esc(
                 [...r.refs.include.map((p) => p.name), ...r.refs.exclude.map((p) => p.name)].slice(0, 3).join(", "))}</div>`
-            : '<span class="muted">no policy</span>'}</td></tr>`).join("")}</tbody></table></div>
-      ${stillUsed ? `<p class="mini" style="margin-top:10px;color:var(--off)">A group still referenced by a policy is <b>not</b> ticked by default —
-        deleting it would leave that policy pointing at nothing. Move the reference first (④ Assign), or tick it deliberately.</p>` : ""}
+            : '<span class="muted">no policy</span>'}</td>
+          <td class="mini" data-arcuses="${i}">${r.uses == null ? '<span class="muted">not checked</span>' : r.uses.length
+            ? `<span style="color:var(--off)">${r.uses.length} hit${r.uses.length === 1 ? "" : "s"}</span><div class="mini">${esc(r.uses.slice(0, 3).map((u) => `${u.sourceLabel}: ${u.name}`).join(" · "))}${r.uses.length > 3 ? " …" : ""}</div>`
+            : '<span style="color:var(--on)">none found</span>'}</td></tr>`).join("")}</tbody></table></div>
+      <div class="row" style="justify-content:flex-start;gap:10px;margin:10px 0 0;flex-wrap:wrap;align-items:center">
+        <button class="btn sm" id="arcUses" title="Run the User or Group analyzer on the ticked groups: app assignments, Intune, licensing, Teams, admin units — what a recreate does not move">🔗 Check other uses of the ticked groups</button>
+        <label class="chk mini" style="margin:0;display:inline-flex;align-items:center;gap:6px"><input type="checkbox" id="arcUnref" checked> Take a ticked group out of every policy still naming it before deleting it</label>
+      </div>
+      ${stillUsed ? `<p class="mini" style="margin-top:8px;color:var(--off)">A group still referenced by a policy is <b>not</b> ticked by Select all. Ticked with the box above on, it is removed from those policies first (the replacement is already on them), verified, and only then deleted — so no policy is left naming an id the directory no longer has.</p>` : ""}
       ${arcRows.some((r) => r.members) ? `<p class="mini" style="margin-top:6px;color:var(--report)">⚠ An archived group with members is one whose members were never carried across.
         Check the replacement has them before deleting.</p>` : ""}`;
   }
@@ -5449,6 +5499,36 @@ max@contoso.com,"Global, DevOps"</pre>
     $("arcBody").querySelectorAll("[data-arc]").forEach((cb) => { cb.checked = !!arcRows[+cb.dataset.arc].checked; });
     arcSyncBar(); arcSyncGo();
   });
+  // "Use the analyzer to find out": the same sources 🔗 User or Group
+  // analyzer runs, minus the user-only ones and Azure (its own token), over
+  // the ticked archived groups in one pass. Hits are what a delete would
+  // leave dangling OUTSIDE Conditional Access — shown, never auto-removed.
+  $("arcBody").addEventListener("click", async (e) => {
+    if (e.target.id !== "arcUses") return;
+    const picked = arcRows.filter((r) => r.checked && r.id);
+    if (!picked.length) { toast("Tick the groups to check first"); return; }
+    const btn = e.target; btn.disabled = true; const label = btn.textContent;
+    try {
+      const srcs = GroupUse.SOURCES.filter((s) => !s.userOnly && s.area !== "azure");
+      const scopes = [...new Set(srcs.flatMap((s) => s.scopes || []))];
+      if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...scopes])) return;
+      const ids = new Set(picked.map((r) => r.id.toLowerCase()));
+      let rows = [];
+      if (isDemo) rows = [{ pid: picked[0].id.toLowerCase(), name: "Demo Intune compliance policy", sourceLabel: "Intune compliance", how: "assigned" }];
+      else {
+        const res = await GroupUse.analyze({ ids, principal: { type: "group", id: picked[0].id, name: picked[0].name }, isUser: false,
+          policies: policies.map((p) => p.raw), sourceIds: srcs.map((s) => s.id), batchIds: picked.map((r) => r.id),
+          onStatus: (m) => { btn.textContent = `🔗 ${m}`; } });
+        rows = res.rows.filter((h) => h.source !== "ca");   // CA references are the column to the left, and the delete handles them
+        if (res.failed.length) toast(`${res.failed.length} source${res.failed.length === 1 ? "" : "s"} could not be read: <span>${esc(res.failed.map((f) => f.label).join(", "))}</span>`);
+      }
+      picked.forEach((r) => { r.uses = rows.filter((h) => String(h.pid || "").toLowerCase() === r.id.toLowerCase()); });
+      renderArchived();
+      const hits = picked.reduce((n, r) => n + r.uses.length, 0);
+      toast(hits ? `<span>${hits}</span> other use${hits === 1 ? "" : "s"} found — see the last column` : "No other uses found for the ticked groups");
+    } catch (err) { toast(`Could not check: <span>${esc(err.message || err)}</span>`); }
+    finally { btn.disabled = false; btn.textContent = label; }
+  });
   $("arcOk").addEventListener("input", arcSyncGo);
   $("arcCancel").addEventListener("click", () => $("arcModal").classList.remove("open"));
   $("arcGo").addEventListener("click", async () => {
@@ -5456,21 +5536,49 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!picked.length) return;
     if (!await preConsent([...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES])) return;
     const btn = $("arcGo"); btn.disabled = true;
-    const done = [], failed = [];
+    const unref = !!($("arcUnref") && $("arcUnref").checked);
+    if (unref && picked.some((r) => r.refCount > 0) && !isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) { btn.disabled = false; return; }
+    const done = [], failed = [], unreffed = [];
     for (let i = 0; i < picked.length; i++) {
-      toast(`Deleting ${i + 1}/${picked.length}…`);
+      const r = picked[i];
       try {
-        if (!isDemo) await Graph.gdelete(`/groups/${picked[i].id}`, [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
-        done.push(picked[i]);
-      } catch (e) { failed.push({ ...picked[i], error: e.message || String(e) }); }
+        // 1. out of every policy still naming it — read live, not from the
+        // scan, so a reference added since is not missed
+        if (unref && r.refCount > 0) {
+          toast(`Removing ${r.name} from its policies (${i + 1}/${picked.length})…`);
+          let inc = r.refs.include.map((p) => p.id), exc = r.refs.exclude.map((p) => p.id);
+          if (!isDemo) {
+            const live = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,conditions");
+            inc = []; exc = [];
+            for (const pol of live) {
+              const u = (pol.conditions && pol.conditions.users) || {};
+              if ((u.includeGroups || []).some((g) => String(g).toLowerCase() === r.id.toLowerCase())) inc.push(pol.id);
+              if ((u.excludeGroups || []).some((g) => String(g).toLowerCase() === r.id.toLowerCase())) exc.push(pol.id);
+            }
+            const bad = [];
+            if (inc.length) bad.push(...(await Assign.apply(inc, 5, [r.id])).filter((q) => !q.ok));
+            if (exc.length) bad.push(...(await Assign.apply(exc, 6, [r.id])).filter((q) => !q.ok));
+            if (bad.length) throw new Error(`still named by ${bad.map((q) => q.name).join(", ")} — not deleted, so no policy points at nothing`);
+            // verify
+            const after = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,conditions");
+            const left = after.filter((pol) => { const u = (pol.conditions && pol.conditions.users) || {}; return [...(u.includeGroups || []), ...(u.excludeGroups || [])].some((g) => String(g).toLowerCase() === r.id.toLowerCase()); });
+            if (left.length) throw new Error(`the removal did not take on ${left.map((p) => p.displayName || p.id).join(", ")} — not deleted`);
+          }
+          unreffed.push({ ...r, policies: inc.length + exc.length });
+        }
+        // 2. delete (soft, 30 days)
+        toast(`Deleting ${i + 1}/${picked.length}…`);
+        if (!isDemo) await Graph.gdelete(`/groups/${r.id}`, [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
+        done.push(r);
+      } catch (e) { failed.push({ ...r, error: e.message || String(e) }); }
     }
     $("arcModal").classList.remove("open");
     const L = [`# Archived groups removed — ${tenantName || "tenant"}`, "", Brand.generatedBy("Generated"), "",
       `- **Deleted:** ${done.length}${failed.length ? ` · **failed:** ${failed.length}` : ""}`,
       isDemo ? "- _Demo mode — simulated._" : "- Each deletion is a **soft delete**: Entra keeps the group for 30 days and it can be restored.", ""];
     if (done.length) {
-      L.push("| Group | Object ID | Replaced by |", "| --- | --- | --- |");
-      done.forEach((r) => L.push(`| ${r.name} | \`${r.id}\` | ${r.liveName} |`));
+      L.push("| Group | Object ID | Replaced by | Taken out of | Other uses at delete |", "| --- | --- | --- | --- | --- |");
+      done.forEach((r) => { const u = unreffed.find((x) => x.id === r.id); L.push(`| ${r.name} | \`${r.id}\` | ${r.liveName} | ${u ? `${u.policies} polic${u.policies === 1 ? "y" : "ies"}` : "—"} | ${r.uses == null ? "not checked" : r.uses.length ? r.uses.map((h) => `${h.sourceLabel}: ${h.name}`).join("; ") : "none"} |`); });
     }
     if (failed.length) {
       L.push("", "## Failed", "");

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25289, date: "2026-09-09", title: "Conditional Access groups 5.4: a failed migration says where it stopped; Archived groups leave nothing behind",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "Migrate: each group carries a step ledger — rename aside, create, copy members, repoint, verify, place in the AU — with ✓ ✗ ⚠ per step, the failing step named in the tag, and a 'Where things stand' line saying what the tenant looks like now and how to finish or undo. A failed create now rolls the rename back, so a group that failed there is exactly as it was; a failed member copy leaves every policy on the old group, so nobody is uncovered; a failed repoint says how many policies got the new group and how many lost the old one." },
+      { kind: "new", tool: "Conditional Access groups", text: "🧹 Archived groups leaves nothing behind: a ticked group still named by a policy is taken out of those policies first (live read, removal, read-back) and deleted only when no policy names it. 🔗 Check other uses runs the User or Group analyzer's sources over the ticked groups — app assignments, Intune, licensing, Teams, admin units — and shows the hits per group before you delete; the report lists what each deleted group was taken out of and what else still pointed at it." },
+    ],
+  },
+  {
     build: 25288, date: "2026-09-09", title: "Conditional Access groups: Compare opens full height",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "Compare opens full height — the tool area below the header and the tabs — because a 79 × 2 matrix in half a window was not readable. ▁ Half in its header drops it to the half sheet where the list stays visible and the matrix follows your ticks; the choice is remembered." },
