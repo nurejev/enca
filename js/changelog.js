@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25296, date: "2026-09-09", title: "Conditional Access groups: the Migrate step list follows the unit you chose",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "The Migrate step list kept naming the first restricted unit in the tenant after the dropdown was changed to another; it follows the choice now." },
+    ],
+  },
+  {
     build: 25295, date: "2026-09-09", title: "Conditional Access groups: a refused policy update says why",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "Four policies answered every add with a bare 400. Graph validates the whole policy on any change, so a policy the portal saved with a setting the API no longer accepts refuses every update — including adding a group. On a 400 the policy is re-read and the known combinations are named (app-protection grant without an iOS/Android-only platform condition, Exchange ActiveSync mixed with other client types, the retired deviceStates, app-enforced restrictions off Office 365, the retired GuestsOrExternalUsers include), with the fix: open it in the portal, adjust, save, retry. The outcome stays above the grid instead of vanishing in a toast; the tick cells read as buttons." },

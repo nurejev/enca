@@ -4458,6 +4458,11 @@ max@contoso.com,"Global, DevOps"</pre>
       cgMig.auChoice = e.target.value;
       const hit = cgMig.aus.find((a) => a.id === e.target.value);
       cgMig.auName = hit ? hit.name : RMAU_DEFAULT_NAME();
+      // the step list names the unit — it must follow the choice, or the
+      // plan says one unit while the dropdown says another
+      cgMig.plan = { ...cgMig.plan, eligible: cgMig.plan.eligible.map((x) => ({ ...x,
+        steps: x.steps.map((st) => st.key === "rmau" ? { ...st, text: `Add the new group to the restricted AU “${cgMig.auName}” — last, so the member copy is still possible` } : st) })) };
+      renderCgMigrate();
       return;
     }
     if (e.target.id === "cgMigNest") { cgMig.nesting = e.target.checked; return; }
