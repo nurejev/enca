@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25285, date: "2026-09-09", title: "Conditional Access groups: the Restore row fits",
+    items: [
+      { kind: "fix", tool: "Conditional Access groups", text: "A row with 🔁 Restore and ⋯ overflowed the actions column and the status column broke 'present' in two. Column widths re-cut — status 84px, actions 150px, the buttons stacking on a narrow window; headers never wrap." },
+    ],
+  },
+  {
     build: 25284, date: "2026-09-09", title: "Conditional Access groups 5.3: every action reviewed on a real tenant",
     items: [
       { kind: "fix", tool: "Conditional Access groups", text: "The drawer follows the tick: ticking a row opens it, unticking the open row opens the last one still ticked — the pane no longer shows a group you did not select. The drawer's ＋ Add and × had lost their click handler when the list moved into its own element — restored." },

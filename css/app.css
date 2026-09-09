@@ -1828,9 +1828,12 @@ body.cgg-modal-open{overflow:hidden}
 /* the list fits its card: fixed layout, wrapping cells, the ⋯ column always in view */
 .cgg-list .gu-tw{overflow-x:visible}
 .cgg-tbl{width:100%;table-layout:fixed;min-width:0}
-.cgg-tbl td,.cgg-tbl th{overflow-wrap:anywhere}
-.cgg-tbl th:nth-child(1){width:30px}.cgg-tbl th:nth-child(3){width:11%}.cgg-tbl th:nth-child(4){width:14%}.cgg-tbl th:nth-child(5){width:19%}.cgg-tbl th:nth-child(6){width:14%}.cgg-tbl th:nth-child(7){width:110px}
-.cgg-tbl td.cgg-acts{white-space:nowrap;text-align:right}
+.cgg-tbl td{overflow-wrap:anywhere}
+.cgg-tbl th{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cgg-tbl th:nth-child(1){width:30px}.cgg-tbl th:nth-child(3){width:84px}.cgg-tbl th:nth-child(4){width:13%}.cgg-tbl th:nth-child(5){width:19%}.cgg-tbl th:nth-child(6){width:13%}.cgg-tbl th:nth-child(7){width:150px}
+.cgg-tbl td.cgg-acts{text-align:right}
+.cgg-tbl td.cgg-acts .btn{margin:2px 0 2px 4px;white-space:nowrap}
+@media (max-width:1280px){.cgg-tbl th:nth-child(7){width:96px}.cgg-tbl td.cgg-acts .btn{display:block;margin-left:auto}}
 .cgg-bulk .btn{background:rgba(255,255,255,.14);border-color:transparent;color:#fff;padding:5px 12px;min-height:0;font-size:12.5px}
 .cgg-bulk .btn:hover{background:rgba(255,255,255,.26)}
 .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
