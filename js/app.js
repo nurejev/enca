@@ -15779,7 +15779,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("scRescan").style.display = "none"; $("scMd").style.display = "none"; $("scCsv").style.display = "none";
     $("scBody").innerHTML = scProg.panel("Reading Defender session-control activity…", "Advanced hunting over CloudAppEvents in 4-hour slices, up to 5,000 events per slice; a slice that takes more than 2 minutes is halved.");
     try {
-      let events = [], records = null, fallback = false, capped = false;
+      let events = [], records = null, fallback = false, capped = false, logFailed = false;
       const notes = [];
       if (isDemo) {
         events = SessionCtl.parseEvents((typeof DEMO_DATA !== "undefined" && DEMO_DATA.sessionEvents) || []);
@@ -15801,11 +15801,15 @@ This is a directory write. Nothing else changes.`)) return;
         else if (await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) {
           $("scBody").innerHTML = scProg.panel("Reading the sign-in window for the routing policies…", "Shared with 🚦 Sign-in failures and 🎚 Report-only impact.");
           try { const w = await readSignInWindow(scDays, scProg, force); records = w.records; capped = !!w.capped; }
-          catch (e) { if (e && e.stopped) notes.push("stopped by you during the sign-in read — Defender activity is complete, routing to a CA policy is not"); else { console.warn("session controls: sign-in read failed", e.message); notes.push(`sign-in log not read (${e.message || e})`); } }
+          catch (e) { if (e && e.stopped) notes.push("stopped by you during the sign-in read — Defender activity is complete, routing to a CA policy is not"); else { console.warn("session controls: sign-in read failed", e.message); notes.push(`sign-in log not read (${e.message || e})`); logFailed = true; } }
         } else notes.push("AuditLog.Read.All was not granted — routing not checked");
       }
       scRes = SessionCtl.analyze({ vms: policies, events, records, days: scDays, schemaFallback: fallback, capped });
       scRes.notes = notes;
+      // kept for ↻ read the sign-in window again: the Defender half is
+      // minutes of hunting and does not need to be repeated for a 502 on
+      // the log (25326)
+      scRes.rawEvents = events; scRes.fallback = fallback; scRes.logFailed = logFailed;
       scBusy = false;
       $("scRescan").style.display = ""; $("scMd").style.display = ""; $("scCsv").style.display = "";
       renderSessionCtl();
@@ -15818,7 +15822,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function renderSessionCtl() {
     const R = scRes; if (!R) return;
-    $("scBody").innerHTML = (R.notes && R.notes.length ? `<p class="mini muted" style="margin:0 0 8px">${R.notes.map(esc).join(" · ")}</p>` : "") + SessionCtl.render(R, { rangeLabel: rangeLabel(scDays), filter: scFilter, pfilter: scPfilter, q: scQ });
+    $("scBody").innerHTML = (R.notes && R.notes.length ? `<p class="mini muted" style="margin:0 0 8px">${R.notes.map(esc).join(" · ")}${R.logFailed ? ` <button class="btn sm" data-sc-retrylog title="Read only the sign-in window again — the Defender activity already read is kept">↻ Read the sign-in window again</button>` : ""}</p>` : "") + SessionCtl.render(R, { rangeLabel: rangeLabel(scDays), filter: scFilter, pfilter: scPfilter, q: scQ });
     // type-ahead from the result itself: users, apps, files, Defender and
     // CA policies — the things the filter box actually matches on
     const seen = new Set(), opts = [];
@@ -15828,8 +15832,27 @@ This is a directory write. Nothing else changes.`)) return;
     R.mdaPolicies.forEach((m) => add(m.name, "Defender policy"));
     dlSet("scSearchList", opts.slice(0, 200).join(""));
   }
+  // Only the sign-in half again: the hunt that took minutes stays.
+  async function scRetryLog(btn) {
+    const R = scRes; if (!R || scBusy) return;
+    scBusy = true; scProg.begin();
+    if (btn) { btn.disabled = true; btn.textContent = "↻ Reading…"; }
+    try {
+      if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { toast("AuditLog.Read.All was not granted"); return; }
+      const w = isDemo ? { records: demoSignIns(), capped: false } : await readSignInWindow(scDays, scProg, true);
+      const notes = (R.notes || []).filter((n) => !/^sign-in log not read/.test(n));
+      const next = SessionCtl.analyze({ vms: policies, events: R.rawEvents || [], records: w.records, days: scDays, schemaFallback: R.fallback, capped: !!w.capped });
+      next.notes = notes; next.rawEvents = R.rawEvents; next.fallback = R.fallback; next.logFailed = false;
+      scRes = next;
+      renderSessionCtl();
+    } catch (e) {
+      toast(`Sign-in window not read: <span>${esc(e.message || e)}</span>`);
+      if (btn) { btn.disabled = false; btn.textContent = "↻ Read the sign-in window again"; }
+    } finally { scBusy = false; scProg.stop(); }
+  }
   $("scBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-scrun]")) { runSessionCtl(); return; }
+    const rl = e.target.closest("[data-sc-retrylog]"); if (rl) { scRetryLog(rl); return; }
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const f = e.target.closest("[data-sc-filter]"); if (f) { scFilter = f.dataset.scFilter; renderSessionCtl(); return; }
     const pf = e.target.closest("[data-sc-pfilter]"); if (pf) { scPfilter = pf.dataset.scPfilter; renderSessionCtl(); return; }

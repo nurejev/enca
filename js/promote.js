@@ -118,6 +118,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 162,
+      title: "🌐 Graph retries 502 and says it in one line; 🛂 re-reads only the sign-in window (T38 0.6.1)",
+      tools: ["Session controls", "Sign-in failures", "Report-only impact", "Who is Anna to CA", "Who is the wave to CA"],
+      builds: [25326],
+      risk: "medium",
+      what: "js/graph.js graphFetch + ARM fetch + $batch inner retry: 502 joins 429/503/504 in the retry loop (MAX_RETRIES 5, Retry-After or exponential back-off). graphError: an e.message that is HTML (<html, <title>, <body, </h1>) is replaced by gatewayText(status, html) — the page title or '502 Bad Gateway' — and a non-JSON gateway body gets the same line. js/app.js runSessionCtl: logFailed flag, scRes.rawEvents/fallback kept; renderSessionCtl adds data-sc-retrylog when logFailed; scRetryLog(btn) reads the window with force and re-runs SessionCtl.analyze on the kept events.",
+      why: "Medium because the retry loop is shared by EVERY Graph call: a real, persistent 502 now costs up to five back-offs (about a minute) before the error surfaces, where it used to fail at once. That is the intended trade — the case that prompted it was one 502 in a 30-day read.",
+      test: [
+        "Any read on a healthy tenant: unchanged timing (no retry fires without a 5xx).",
+        "Force a 502 (devtools → override response on one signIns page with status 502 and an HTML body): the read pauses, the progress line shows the throttle wait, and continues when the override is lifted; with the override kept, the error after ~1 minute reads 'Microsoft's gateway answered with an error page instead of data — 502 Bad Gateway …' with no HTML in it.",
+        "🛂 with the sign-in read failing (same override) after the hunt succeeded: the note shows ↻ Read the sign-in window again; click it with the override lifted — routing appears, the events count is unchanged, no second hunt ran (network tab: no runHuntingQuery).",
+        "A 403 or 400 from Graph: message unchanged (code and inner still printed).",
+      ],
+      files: ["js/graph.js", "js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 161,
       title: "🔒 Protect 3.0.3: greyed ticks say why, persona/deploy groups resolve by name, dynamic never nests (T20, T27 1.8.3)",
       tools: ["Protect exclusions", "Restricted AUs"],

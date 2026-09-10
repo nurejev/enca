@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25326, date: "2026-09-10", title: "A 502 is retried, said in one line, and Session controls re-reads only the log",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Microsoft's Graph edge answered one page of a sign-in read with nginx's “502 Bad Gateway” — an HTML page wrapped in a JSON error — and the whole window died on it, with the HTML, padding comments and all, printed as the reason. 502 is now retried the way 429, 503 and 504 already were (up to five times, backing off), inside a batch too; and when it still fails the message is one line: Microsoft's gateway answered with an error page instead of data — 502 Bad Gateway — transient, not this tenant or account, run it again." },
+      { kind: "improved", tool: "Session controls", text: "When the Defender hunt succeeded and only the sign-in window failed, the note carries ↻ Read the sign-in window again: it re-reads the log alone and joins it to the activity already in hand, instead of a Rescan that repeats minutes of hunting." },
+    ],
+  },
+  {
     build: 25325, date: "2026-09-10", title: "Protect: why a tick is greyed out, and the persona groups find their vault",
     items: [
       { kind: "fixed", tool: "Protect exclusions", text: "A greyed-out tick said “see left”, and the cell on the left did not say it was the reason. The tick now says why itself: no vault to put it in — map it, or pick a fallback unit in Settings; CAB-SEC-RMAU-INT-Exclusions does not exist yet — create it in 🛡 Restricted AUs; blocked by 2 nested groups; already; the directory did not return the nesting state. The row tick explains itself on hover too." },
