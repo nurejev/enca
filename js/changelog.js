@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25310, date: "2026-09-10", title: "Restricted AUs: archived groups are not candidates",
+    items: [
+      { kind: "fixed", tool: "Restricted AUs", text: "After a migration, the unit card offered the renamed-aside original — Emergency_Access1 (migrated 2026-09-10) — as a break-glass group that cannot go in because it is role-assignable, with a Migrate button, while the real Emergency_Access1 was already a member. Archived originals are your rollback, not candidates: the persona chips and Bulk add skip them now." },
+    ],
+  },
+  {
     build: 25309, date: "2026-09-10", title: "Group popup: nesting state",
     items: [
       { kind: "improved", tool: "List Policies", text: "Clicking a group on a policy card shows a Nesting row next to Role-assignable: 🚫 disabled (no group can be added as a member), allowed, impossible on a role-assignable group, or not reported by the directory. Read from v1.0 with the member preview, so it agrees with the 🚫 chip in Conditional Access groups." },

@@ -9622,7 +9622,10 @@ This is a directory write. Nothing else changes.`)) return;
         for (const p of [...ruBulkPrefixes(), ...(RU_BULK_EXTRA[code] || [])]) {
           try {
             const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
-            for (const g of r) if (!seen.has(g.id) && CaMap.codeOf(g) === code) { seen.add(g.id); entry.groups.push(g); }
+            // An archived original — "(migrated 2026-09-10)", "(legacy …)" —
+            // is the rollback of a group that already went in; offering it
+            // as "cannot, role-assignable — Migrate it" is wrong twice over.
+            for (const g of r) if (!seen.has(g.id) && CaMap.codeOf(g) === code && !CaGroups.ARCHIVE_SUFFIX.test(g.displayName || "")) { seen.add(g.id); entry.groups.push(g); }
           } catch (e) { console.warn("persona chips: prefix", p, "failed:", e.message || e); }
         }
         // The prefix scan is bounded to the CAB-SEC / CAD-SEC family on
@@ -9659,7 +9662,7 @@ This is a directory write. Nothing else changes.`)) return;
           // group estate should still get the ones that did come back.
           try {
             const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
-            for (const g of r) if (!seen.has(g.id)) { seen.add(g.id); groups.push(g); }
+            for (const g of r) if (!seen.has(g.id) && !CaGroups.ARCHIVE_SUFFIX.test(g.displayName || "")) { seen.add(g.id); groups.push(g); }   // archived originals are rollbacks, not candidates
           } catch (e) { console.warn("bulk add: prefix", p, "failed:", e.message || e); }
         }
         // Same reason as the persona chips: the prefix scan cannot reach a

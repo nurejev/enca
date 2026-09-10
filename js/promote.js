@@ -118,6 +118,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 147,
+      title: "🛡 Restricted AUs: archived (migrated …) groups leave the chips and Bulk add (T27 1.8.2)",
+      tools: ["Restricted AUs"],
+      builds: [25310],
+      risk: "low",
+      what: "js/app.js ruPgLoad and the bulk-add scan filter on CaGroups.ARCHIVE_SUFFIX (already exported; the Archived-groups tool's sieve).",
+      why: "Filter on an existing regex; nothing else changes.",
+      test: [
+        "Open CAB-SEC-RMAU-BreakGlass on the tenant migrated today: the 'cannot' list must not name Emergency_Access1/2 (migrated 2026-09-10); Emergency_Access1/2 stay listed as members.",
+        "＋ Bulk add Break-glass groups: the found list must not include any '(migrated …)' or '(legacy …)' group.",
+        "🧹 Archived groups still lists them for deletion — unchanged.",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 146,
       title: "🗂 Group popup shows the nesting state (T01 2.10.1)",
       tools: ["List Policies"],
