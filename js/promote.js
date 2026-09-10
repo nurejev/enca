@@ -118,6 +118,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 155,
+      title: "🌊🛂 ■ Stop on the wave and Session controls reads (T37 0.5, T38 0.6)",
+      tools: ["Who is the wave to CA", "Session controls"],
+      builds: [25320],
+      risk: "low",
+      what: "js/app.js makeProgress: st.stop + begin()/check()/requestStop(), a ■ Stop button in panel() for a progress with stoppable = true, one document-level click handler over PROG_REG (the panel is re-rendered per phase). fetchAll checks between pages; readSignInsHunting checks per slice; a joined read (logInflight) is left on stop without cancelling the other tool's read. runWave: begin() per run, checks between the member pages, the group batches, the roles; a stop before the group half is complete renders a Stopped panel with Read again, a stop during the sign-in window keeps the result and sets wvLogSkipped. scHunt returns stoppedAt/slices; runSessionCtl renders the partial rows with a PARTIAL note and skips the sign-in read; a stop during the sign-in read keeps the Defender half.",
+      why: "Read-only tools, nothing written. The stop is checked between calls, so the query in flight always completes — a two-minute hunting query still takes two minutes to stop, and the line says so. Only wv and sc opt in; every other progress panel is unchanged.",
+      test: [
+        "🌊 on a real tenant, a deployment group of a few thousand members: press ■ Stop during 'Reading the members' — the button reads ■ Stopping…, the line says stopping after the current query, and the next panel is 'Stopped by you — N members read' with a 🔎 Read the wave again button that starts a fresh run (not a stuck one: the button runs and the stop does not carry over).",
+        "🌊 press ■ Stop during 'Reading the sign-in window' (Entra source, 30 days): the result renders with the members, exclusions and other waves, and the note under the head reads 'Sign-in half: stopped by you during the sign-in read'.",
+        "🛂 30 days, hunting: press ■ Stop after two or three slices — the result renders with the events read so far, the first note says 'stopped by you after N of M slices — the Defender window is PARTIAL', and the sign-in window was not read (no routing column values).",
+        "🛂 let the hunt finish, press ■ Stop during 'Reading the sign-in window for the routing policies': the Defender half renders and the note says routing is not there.",
+        "Start 🚦 Sign-in failures on a 30-day hunting window, then open 🛂 and run it so it JOINS that read (the line says 🚦 is already reading this window); press ■ Stop in 🛂 — 🛂 stops, and 🚦's read completes and renders on its own.",
+        "🚦 Sign-in failures, 🎚 Report-only impact, 🕵 Who is Anna: no ■ Stop button appears in their progress panels (they did not opt in).",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 154,
       title: "👥 ⑦ Migrate repoint runs all four passes past a refusal (T12 5.9.8)",
       tools: ["Conditional Access groups"],

@@ -10396,19 +10396,33 @@ This is a directory write. Nothing else changes.`)) return;
   // (prefix scopes the element ids), so two reads running in background tabs
   // never write into each other's panel; the state lives outside the DOM so
   // switching tabs and back re-renders mid-flight.
+  // Every progress object by prefix, so ONE document-level click handler can
+  // serve the ■ Stop button in whichever panel is on screen — the panel is
+  // re-rendered by innerHTML at every phase of a read, and a per-render
+  // listener would be lost with it.
+  const PROG_REG = {};
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pgstop]"); if (!b) return;
+    const p = PROG_REG[b.dataset.pgstop]; if (p) p.requestStop();
+  });
   function makeProgress(prefix) {
     // detail: what the read is doing RIGHT NOW inside a step (a hunting slice,
     // a wait on another tool's read) — the difference between a bar that sits
     // at 0 for three minutes and one that says why. frac: how far into the
     // current step, so the bar moves inside a long step.
-    const st = { n: 0, step: 0, t0: 0, cap: 0, label: "records", stepLabel: "page", capped: false, detail: "", frac: 0 };
+    // stop: set by the ■ Stop button (25320, T37 + T38 on Mihai's ask). A
+    // running Graph call cannot be cancelled, so the loops CHECK it between
+    // calls — check() throws a stopped error the runner catches — and the
+    // line says so while the current query finishes.
+    const st = { n: 0, step: 0, t0: 0, cap: 0, label: "records", stepLabel: "page", capped: false, detail: "", frac: 0, stop: false };
     const elapsed = () => { const s = Math.round((Date.now() - st.t0) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
     const line = () => {
       if (!st.step && !st.detail) return "Waiting for the first page from Microsoft Graph…";
       const base = st.step
         ? `${st.n.toLocaleString()} ${st.label} · ${st.stepLabel} ${st.step}${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""} · ${elapsed()}`
         : `${st.n.toLocaleString()} ${st.label} · ${elapsed()}`;
-      return st.detail ? `${base} · ${st.detail}` : base;
+      const withDetail = st.detail ? `${base} · ${st.detail}` : base;
+      return st.stop ? `${withDetail} · stopping after the current query — a running query cannot be cancelled` : withDetail;
     };
     const width = () => st.cap ? Math.min(100, (st.stepLabel === "page" ? st.n : st.step + (st.frac || 0)) / st.cap * 100) : 0;
     // The clock moves on its own: a single hunting query can take a minute,
@@ -10416,12 +10430,25 @@ This is a directory write. Nothing else changes.`)) return;
     let clock = null;
     const paint = () => { const t = $(prefix + "PgTxt"), b = $(prefix + "PgBar"); if (t) t.textContent = line(); if (b) b.style.width = width() + "%"; return !!t; };
     const startClock = () => { if (clock) clearInterval(clock); let miss = 0; clock = setInterval(() => { if (!paint()) { if (++miss > 3) { clearInterval(clock); clock = null; } } else miss = 0; }, 1000); };
+    // The ■ Stop button renders only for a progress that opted in
+    // (api.stoppable = true) — the tools whose runner knows what a stop means.
     const panel = (msg, note) => `<div class="run-prompt"><div class="spinner"></div>
       <p class="mini muted">${msg}</p>
       <div class="ri-progwrap"><div class="ri-progbar" id="${prefix}PgBar" style="width:${width()}%"></div></div>
       <p class="mini" id="${prefix}PgTxt">${line()}</p>
-      ${note ? `<p class="mini muted" style="margin-top:2px">${note}</p>` : ""}</div>`;
+      ${note ? `<p class="mini muted" style="margin-top:2px">${note}</p>` : ""}
+      ${api.stoppable ? `<button class="btn sm" data-pgstop="${prefix}" ${st.stop ? "disabled" : ""} title="Stop after the query that is running now">${st.stop ? "■ Stopping…" : "■ Stop"}</button>` : ""}</div>`;
     const start = (cap, label, stepLabel) => { st.n = 0; st.step = 0; st.t0 = Date.now(); st.cap = cap || 0; st.label = label || "records"; st.stepLabel = stepLabel || "page"; st.capped = false; st.detail = ""; st.frac = 0; startClock(); };
+    // begin(): a runner calls it once per run, so a stop from the previous
+    // run never leaks into the next. check(): the loops call it between
+    // calls; it throws an error the runner recognises by e.stopped.
+    const begin = () => { st.stop = false; };
+    const stopErr = () => Object.assign(new Error("stopped"), { stopped: true });
+    const check = () => { if (st.stop) throw stopErr(); };
+    const requestStop = () => {
+      st.stop = true; paint();
+      document.querySelectorAll(`[data-pgstop="${prefix}"]`).forEach((b) => { b.disabled = true; b.textContent = "■ Stopping…"; });
+    };
     const tick = (n, step) => {
       st.n = n; st.step = step != null ? step : st.step + 1; st.frac = 0;
       paint();
@@ -10434,6 +10461,7 @@ This is a directory write. Nothing else changes.`)) return;
       start(cap, label, "page");
       let out = [], next = url;
       while (next && out.length < cap) {
+        check();
         const j = await Graph.gget(next);
         out = out.concat(j.value || []);
         tick(out.length);
@@ -10442,7 +10470,9 @@ This is a directory write. Nothing else changes.`)) return;
       st.capped = !!next;
       return out.slice(0, cap);
     };
-    return { st, panel, start, tick, detail, stop, fetchAll };
+    const api = { st, panel, start, tick, detail, stop, fetchAll, begin, check, requestStop, stoppable: false };
+    PROG_REG[prefix] = api;
+    return api;
   }
 
   // The audit range selector stores days; sub-day ranges are fractions (1h = 1/24).
@@ -12428,6 +12458,7 @@ This is a directory write. Nothing else changes.`)) return;
     // "waiting for the first page" for that long reads as nothing happening.
     const say = (from, to, what) => prog.detail(`${dayLabel(from)} ${hm(from)}–${hm(to)}${what ? ` · ${what}` : ""}${splits ? ` · ${splits} slice${splits === 1 ? "" : "s"} halved` : ""}${lowered ? ` · ${lowered} capped` : ""}${interactiveOnly ? "" : " · incl. non-interactive"}`, dayCovered / dayMs);
     const readSlice = async (from, to, cap) => {
+      if (prog.check) prog.check();
       cap = cap || Signins.HUNT_CAP;
       const q = Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly });
       let rows;
@@ -12473,7 +12504,9 @@ This is a directory write. Nothing else changes.`)) return;
       const other = logInflight;
       prog.start(other.prog.st.cap, other.prog.st.label, other.prog.st.stepLabel);
       const mirror = setInterval(() => { const s = other.prog.st; prog.st.n = s.n; prog.st.step = s.step; prog.st.cap = s.cap; prog.st.label = s.label; prog.st.stepLabel = s.stepLabel; prog.st.frac = s.frac; prog.st.t0 = s.t0; prog.detail(`${other.by} is already reading this window — joining that read${s.detail ? ` · ${s.detail}` : ""}`); }, 1000);
-      try { await other.promise; } finally { clearInterval(mirror); prog.detail(""); }
+      // A stop while joined leaves the join; the other tool's read goes on.
+      const leave = new Promise((_, rej) => { const t = setInterval(() => { if (prog.st.stop) { clearInterval(t); rej(Object.assign(new Error("stopped"), { stopped: true })); } }, 500); other.promise.then(() => clearInterval(t), () => clearInterval(t)); });
+      try { await Promise.race([other.promise, leave]); } finally { clearInterval(mirror); prog.detail(""); }
       if (logCacheUsable(days)) return { ...logCache, reused: true };
       // the read we joined failed or was replaced — fall through to our own
     }
@@ -15354,7 +15387,7 @@ This is a directory write. Nothing else changes.`)) return;
   // WhoIs.stateFor — the same function T36 uses, so the two cannot disagree.
   // The sign-in half is the shared window (🚦 / 🎚), filtered to the members.
   let wvRes = null, wvBusy = false, wvDays = 7, wvFilter = "look", wvPfilter = "targets", wvGroups = null, wvPick = null, wvLogSkipped = "";
-  const wvProg = makeProgress("wv"); wvProg.by = "🌊 Who is the wave to CA";
+  const wvProg = makeProgress("wv"); wvProg.by = "🌊 Who is the wave to CA"; wvProg.stoppable = true;
   const WV_MEMBER_CAP = 500;
 
   // every group id the policies name in an include or exclude
@@ -15456,6 +15489,7 @@ This is a directory write. Nothing else changes.`)) return;
     }
     const truncated = [];
     for (let i = 0; i < ids.length; i += 40) {
+      wvProg.check();
       const part = ids.slice(i, i + 40);
       const res = await Graph.gbatch(part.flatMap((id, k) => [
         { id: `m${k}`, url: `/groups/${id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999` },
@@ -15475,7 +15509,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (wvBusy) return;
     const term = $("wvTerm").value.trim();
     if (!wvPick && !term) { toast("Pick a deployment group or type a group name first"); return; }
-    wvBusy = true; wvRes = null;
+    wvBusy = true; wvRes = null; wvProg.begin();
     $("wvRescan").style.display = "none"; $("wvMd").style.display = "none"; $("wvCsv").style.display = "none";
     $("wvBody").innerHTML = wvProg.panel("Reading the group…");
     try {
@@ -15501,6 +15535,7 @@ This is a directory write. Nothing else changes.`)) return;
             children = cg.slice(0, 40).map((g, i) => ({ id: g.id, name: g.displayName || g.id, rule: g.membershipRule || "", memberIds: new Set(((res[i] && res[i].body && res[i].body.value) || []).map((x) => x.id)) }));
           }
         } catch (e) { console.warn("wave: direct members not read", e.message); direct = null; }
+        wvProg.check();
         try { (await Graph.ggetAll(`/groups/${gid}/transitiveMemberOf?$select=id`)).forEach((o) => { if (!/(directoryrole|administrativeunit)/i.test(o["@odata.type"] || "")) parents.add(o.id); }); } catch {}
       }
       // licence verdict per member, same as 🎫 Licence gap
@@ -15521,6 +15556,7 @@ This is a directory write. Nothing else changes.`)) return;
       const roleMembers = new Map();
       if (isDemo) Object.entries(DEMO_DATA.roleMembers || {}).forEach(([rt, ids]) => { roleMembers.set(rt, new Set(ids)); names[rt] = (DEMO_DATA.names || {})[rt] || rt; });
       else {
+        wvProg.check();
         try {
           const roles = await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId");
           const res = await Graph.gbatch(roles.map((r, i) => ({ id: i, url: `/directoryRoles/${r.id}/members?$select=id` })));
@@ -15530,11 +15566,15 @@ This is a directory write. Nothing else changes.`)) return;
       // sign-ins: the shared window, filtered to the members
       let records = null; wvLogSkipped = "";
       if (isDemo) records = demoSignIns();
+      else if (wvProg.st.stop) wvLogSkipped = "stopped by you before the sign-in window was read — the group half is complete, the log half is not";
       else if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) wvLogSkipped = "AuditLog.Read.All was not granted";
       else {
         $("wvBody").innerHTML = wvProg.panel("Reading the sign-in window…", "Shared with 🚦 Sign-in failures and 🎚 Report-only impact — read once, reused by all three.");
+        // A stop here keeps what the group half found: the members, the
+        // exclusions, the other waves. Only the sign-in half is missing,
+        // and the note says so.
         try { const w = await readSignInWindow(wvDays, wvProg, force); records = w.records; if (w.capped) wvLogSkipped = `window capped at ${SI_MAX.toLocaleString()} sign-ins`; }
-        catch (e) { console.warn("wave: sign-in read failed", e.message); wvLogSkipped = `could not read the sign-in log (${e.message || e})`; }
+        catch (e) { if (e && e.stopped) wvLogSkipped = "stopped by you during the sign-in read — the group half is complete, the log half is not"; else { console.warn("wave: sign-in read failed", e.message); wvLogSkipped = `could not read the sign-in log (${e.message || e})`; } }
       }
       wvRes = Wave.analyze({ group, members, direct, children, parents, groupMembers, roleMembers, names, vms: policies, records, cat, dgGroups, memberCap: WV_MEMBER_CAP, capped, days: wvDays });
       wvRes.truncated = truncated;
@@ -15542,10 +15582,17 @@ This is a directory write. Nothing else changes.`)) return;
       $("wvRescan").style.display = ""; $("wvMd").style.display = ""; $("wvCsv").style.display = "";
       renderWave();
     } catch (e) {
-      console.error("Who is the wave to CA failed:", e);
       wvBusy = false;
+      if (e && e.stopped) {
+        // Stopped before the group half was complete: nothing to analyse
+        // honestly, so say where it stopped and offer the read again.
+        $("wvBody").innerHTML = `<div class="run-prompt"><p class="mini">Stopped by you — ${esc(wvProg.st.n.toLocaleString())} ${esc(wvProg.st.label)} read before the stop. Nothing is shown: the wave is analysed from the whole group, and a partial member list would report exclusions and other waves that are not there.</p><button class="btn primary" id="wvAgain">🔎 Read the wave again</button></div>`;
+        const b = $("wvAgain"); if (b) b.addEventListener("click", () => runWave(force));
+        return;
+      }
+      console.error("Who is the wave to CA failed:", e);
       $("wvBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">${esc(e.message || e)}</p>`;
-    } finally { wvBusy = false; }
+    } finally { wvBusy = false; wvProg.stop(); }
   }
   function renderWave() {
     const R = wvRes; if (!R) return;
@@ -15580,7 +15627,7 @@ This is a directory write. Nothing else changes.`)) return;
   // the click; each half degrades on its own — activities without routing,
   // or routing without activities, both render and say what is missing.
   let scRes = null, scBusy = false, scDays = 7, scFilter = "acted", scPfilter = "appcontrol", scQ = "";
-  const scProg = makeProgress("sc"); scProg.by = "🛂 Session controls";
+  const scProg = makeProgress("sc"); scProg.by = "🛂 Session controls"; scProg.stoppable = true;
   const SC_HUNT = ["ThreatHunting.Read.All"];
 
   function openSessionCtl() {
@@ -15616,7 +15663,7 @@ This is a directory write. Nothing else changes.`)) return;
     const slices = [];
     if (days >= 1) { for (let t = start; t < now; t += SC_SLICE_MS) slices.push([t, Math.min(t + SC_SLICE_MS, now)]); } else slices.push([start, now]);
     prog && prog.start(slices.length, "events", "slice");
-    let rows = [];
+    let rows = [], stoppedAt = 0;
     const readSlice = async (from, to) => {
       const range = { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
       try {
@@ -15633,15 +15680,18 @@ This is a directory write. Nothing else changes.`)) return;
       }
     };
     for (let i = 0; i < slices.length; i++) {
+      // A stop keeps the slices already read: the events so far are real
+      // events, and the result says the window is partial.
+      if (prog && prog.st.stop) { stoppedAt = i; break; }
       await readSlice(slices[i][0], slices[i][1]);
       prog && prog.tick(rows.length, i + 1);
     }
-    return { rows, fallback, skipped };
+    return { rows, fallback, skipped, stoppedAt, slices: slices.length };
   }
 
   async function runSessionCtl(force) {
     if (scBusy) return;
-    scBusy = true; scRes = null;
+    scBusy = true; scRes = null; scProg.begin();
     $("scRescan").style.display = "none"; $("scMd").style.display = "none"; $("scCsv").style.display = "none";
     $("scBody").innerHTML = scProg.panel("Reading Defender session-control activity…", "Advanced hunting over CloudAppEvents in 4-hour slices, up to 5,000 events per slice; a slice that takes more than 2 minutes is halved.");
     try {
@@ -15652,18 +15702,22 @@ This is a directory write. Nothing else changes.`)) return;
         records = demoSignIns();
       } else {
         if (!await preConsent([...AUTH_CONFIG.scopes, ...SC_HUNT])) { scBusy = false; openSessionCtl(); return; }
-        try { const h = await scHunt(scDays, scProg); events = SessionCtl.parseEvents(h.rows); fallback = h.fallback; if (h.skipped) notes.push(`${h.skipped} half-hour slice${h.skipped === 1 ? "" : "s"} of Defender activity took longer than 2 minutes and ${h.skipped === 1 ? "was" : "were"} skipped — narrow the window`); }
+        let stoppedHunt = false;
+        try { const h = await scHunt(scDays, scProg); events = SessionCtl.parseEvents(h.rows); fallback = h.fallback; if (h.stoppedAt) { stoppedHunt = true; notes.push(`stopped by you after ${h.stoppedAt} of ${h.slices} slices — the Defender window is PARTIAL (the ${h.stoppedAt === 1 ? "first slice" : `first ${h.stoppedAt} slices`} of ${rangeLabel(scDays)}), and the sign-in window was not read`); } if (h.skipped) notes.push(`${h.skipped} half-hour slice${h.skipped === 1 ? "" : "s"} of Defender activity took longer than 2 minutes and ${h.skipped === 1 ? "was" : "were"} skipped — narrow the window`); }
         catch (e) {
           console.error("session controls: hunting failed", e);
           scBusy = false;
           $("scBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not run the hunting query: ${esc(e.message || e)}<br><span class="muted">This needs ThreatHunting.Read.All and a Defender role with advanced-hunting access (Security Reader, Global Reader, Security Operator, Security Administrator or a unified RBAC role). The CloudAppEvents table is empty until the Microsoft 365 connector's activities are enabled in Defender for Cloud Apps.</span></p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-scrun>Try again</button></div>`;
           return;
         }
-        // routing half — the shared window; a refusal costs only the join
-        if (await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) {
+        // routing half — the shared window; a refusal costs only the join.
+        // A stop during the hunt skips it (the reader wants out); a stop
+        // during this read keeps the Defender half and says routing is missing.
+        if (stoppedHunt) { /* noted above */ }
+        else if (await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) {
           $("scBody").innerHTML = scProg.panel("Reading the sign-in window for the routing policies…", "Shared with 🚦 Sign-in failures and 🎚 Report-only impact.");
           try { const w = await readSignInWindow(scDays, scProg, force); records = w.records; capped = !!w.capped; }
-          catch (e) { console.warn("session controls: sign-in read failed", e.message); notes.push(`sign-in log not read (${e.message || e})`); }
+          catch (e) { if (e && e.stopped) notes.push("stopped by you during the sign-in read — Defender activity is complete, routing to a CA policy is not"); else { console.warn("session controls: sign-in read failed", e.message); notes.push(`sign-in log not read (${e.message || e})`); } }
         } else notes.push("AuditLog.Read.All was not granted — routing not checked");
       }
       scRes = SessionCtl.analyze({ vms: policies, events, records, days: scDays, schemaFallback: fallback, capped });
@@ -15676,7 +15730,7 @@ This is a directory write. Nothing else changes.`)) return;
       console.error("Session controls failed:", e);
       scBusy = false;
       $("scBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">${esc(e.message || e)}</p>`;
-    } finally { scBusy = false; }
+    } finally { scBusy = false; scProg.stop(); }
   }
   function renderSessionCtl() {
     const R = scRes; if (!R) return;
