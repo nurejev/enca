@@ -4848,10 +4848,10 @@ max@contoso.com,"Global, DevOps"</pre>
     const t = cgRmau, cands = rmauCands(), ctx = prCtx(t);
     if (prState.forScan !== t || !prState.ticks) {
       prState.forScan = t; prState.ticks = new Map(); prState.results = null; prState.runEl = null;
-      cands.forEach((g) => prState.ticks.set(g.id, Protect.defaultTicks(g, Protect.classify(g, ctx))));
+      cands.forEach((g) => prState.ticks.set(g.id, Protect.defaultTicks(g, Protect.classify(g, ctx), t.pre)));
     }
     // a group whose nesting state arrived after the first render gets its default nest tick once
-    cands.forEach((g) => { const k = prState.ticks.get(g.id); if (k && k.nest === undefined) { const c = Protect.classify(g, ctx); if (c.nest !== "reading") k.nest = Protect.defaultTicks(g, c).nest; } });
+    cands.forEach((g) => { const k = prState.ticks.get(g.id); if (k && k.nest === undefined) { const c = Protect.classify(g, ctx); if (c.nest !== "reading") k.nest = Protect.defaultTicks(g, c, t.pre).nest; } });
     const unmatched = cands.filter((g) => !t.status.get(g.id) && !g.roleAssignable && !cgAuIneligible(g)).filter((g) => { const s = rmauTarget(t, g).source; return s === "unset" || s.startsWith("fallback"); }).length;
     rmauBody().innerHTML = Protect.render(cands, ctx, {
       filter: prState.filter, q: t.q, ticks: prState.ticks, busy: prState.busy, results: prState.results,
@@ -5041,7 +5041,7 @@ max@contoso.com,"Global, DevOps"</pre>
         if (g.manual || (!g.dynamic && !g.unused)) st.sel.add(g.id);
       });
       // carried over from the groups list: tick exactly those, not the default set
-      if (cgRmauPre && cgRmauPre.length) { st.sel = new Set(cgRmauPre.filter((id) => st.status.has(id) && !st.status.get(id))); cgRmauPre = null; }
+      if (cgRmauPre && cgRmauPre.length) { st.sel = new Set(cgRmauPre.filter((id) => st.status.has(id) && !st.status.get(id))); st.pre = new Set(cgRmauPre); cgRmauPre = null; }
       // Deliberately NOT defaulted to st.rmaus[0]: that is Global on most
       // tenants, so an unrecognised group would be filed into the Global vault
       // by nothing more than list order. Unset means "skip these" until someone

@@ -48,14 +48,14 @@ const Protect = (() => {
     const canNest = ctx.nestAvail !== false && nest === "allowed";
     return { prot, ineligible, ra, vault, nest, nested, dest, cat, canVault, canNest, frozen: !!(prot && ra) };
   }
-  // default ticks: what the row lacks, for the groups the protection is FOR —
-  // assigned exclusion groups somebody maintains by hand (dynamic and unused
-  // ones are opt-in, as ⑥ always had it; a group added by hand is ticked)
-  function defaultTicks(g, c) {
-    const wanted = g.manual || (!g.dynamic && !g.unused);
-    // nest stays undefined while the state is still being read, so the
-    // default can be filled in once it arrives (app.js does that per render)
-    return { vault: c.canVault && wanted, nest: c.nest === "reading" ? undefined : (c.canNest && (g.manual || !g.unused)) };
+  // Default ticks: NONE. ⑥ pre-selected every assigned exclusion group, and
+  // on a 115-group tenant that read as "Protect 83" under a single visible
+  // tick (2026-09-10). Here a tick is something you did: a row, the header
+  // box, or a selection carried over from the groups list (`pre`). nest stays
+  // undefined while the state is still being read (app.js fills it in).
+  function defaultTicks(g, c, pre) {
+    const on = !!(pre && pre.has(g.id));
+    return { vault: on && c.canVault, nest: c.nest === "reading" ? undefined : (on && c.canNest) };
   }
 
   const CATS = [
@@ -181,7 +181,7 @@ const Protect = (() => {
     const ledger = `<div id="prLedger"></div>`;
     const bar = `<div class="pr-barwrap"><div class="cgg-bulk">
         <span>🔒 <b>${jobs.length ? `Protect ${jobs.length} group${jobs.length === 1 ? "" : "s"}` : "Nothing ticked"}</b></span>
-        <span class="mini" style="opacity:.85">${jobs.length ? `· ${nV} into ${nV === 1 ? "its" : "their"} vault${nV === 1 ? "" : "s"} · ${nN} nesting off` : "tick a row, or the header box for everything that still lacks a lock"}</span>
+        <span class="mini" style="opacity:.85">${jobs.length ? `· ${nV} into ${nV === 1 ? "its" : "their"} vault${nV === 1 ? "" : "s"} · ${nN} nesting off` : "tick a row, or the header box for every row that still lacks a lock"}</span>
         <span style="flex:1"></span>
         <button class="btn" id="cgRmauRecheck">⟳ Re-check</button>
         <button class="btn primary" id="prGo"${jobs.length && !o.busy ? "" : " disabled"}>Protect ${jobs.length || ""}</button>
@@ -201,7 +201,7 @@ const Protect = (() => {
           <thead><tr><th style="width:30px"><input type="checkbox" data-pr-all${allOn ? " checked" : ""}${selectable.length ? "" : " disabled"} title="Tick every row that still lacks a lock"></th><th>Group</th><th style="width:100px">Used by</th><th style="width:26%">🔒 Members — restricted unit</th><th style="width:20%">🚫 Nesting</th><th style="width:190px">Apply</th></tr></thead>
           <tbody>${tbody || `<tr><td colspan="6" class="mini muted" style="padding:14px">${q ? `No exclusion group matches “${esc(o.q)}”.` : "Nothing in this filter."}</td></tr>`}</tbody>
         </table></div>
-        <div class="legend mini muted" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px"><span>${dot("on")}protected</span><span>${dot("off")}open</span><span>${dot("na")}cannot / not applicable</span><span>Ticks are pre-set to what each row still lacks; an unticked row is left alone.</span></div>
+        <div class="legend mini muted" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px"><span>${dot("on")}protected</span><span>${dot("off")}open</span><span>${dot("na")}cannot / not applicable</span><span>Tick a row for both locks it lacks, or one box for one lock; the header box ticks every row that lacks something. Nothing is ticked for you.</span></div>
         ${ledger}
         ${settings}
         ${o.find || ""}

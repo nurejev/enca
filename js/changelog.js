@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25312, date: "2026-09-10", title: "Protect exclusions: nothing ticked for you",
+    items: [
+      { kind: "fixed", tool: "Protect exclusions", text: "3.0 pre-ticked every assigned exclusion group, so the bar said Protect 83 while one row was visibly ticked. Ticks now start empty: tick a row for both locks it lacks, one box for one lock, or the header box for every row that lacks something — and a selection carried over from CA groups arrives ticked." },
+    ],
+  },
+  {
     build: 25311, date: "2026-09-10", title: "Protect exclusions 3.0: two locks per group",
     items: [
       { kind: "new", tool: "Protect exclusions", text: "Redrawn around the two things that widen an exclusion group without the policy being touched: a tenant-wide admin adding a member, and somebody nesting a group inside it. One row per group with a column for each lock — the restricted management administrative unit and disableNesting — and a tick for each, pre-set to what the row still lacks. Five tiles and chips say how far along you are (fully protected, vault only, nesting only, open, cannot here). A row that cannot be protected says why and carries the way out. The unit / scoped-administrator / acknowledgement settings fold into a drawer. The run shows the run ledger with both locks as steps; the report gets a Nesting column. Nesting is set in place and read back, never by recreating; on a directory without the property the screen says so once and the nesting tick is off the table." },
