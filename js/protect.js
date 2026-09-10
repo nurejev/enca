@@ -32,7 +32,12 @@ const Protect = (() => {
     const vault = prot ? "in" : (ra || ineligible) ? "cannot" : ctx.statusError ? "unknown" : "open";
     const ns = ctx.nestingOf(g.id);
     const nested = ctx.nestedOf(g.id);
+    // A dynamic-membership group has no group members by construction —
+    // its members are the users or devices its rule selects — so there is
+    // nothing to disable: "not reported" on every dynamic persona group was
+    // read as a missing lock (25325).
     const nest = ra ? "impossible"
+      : g.dynamic ? "dynamic"
       : ns === "disabled" ? "disabled"
         : ns === "allowed" ? (nested ? "blocked" : "allowed")
           : ns === "unknown" ? "unknown" : "reading";
@@ -40,9 +45,9 @@ const Protect = (() => {
     let cat;
     if (vault === "cannot") cat = "cannot";
     else if (ctx.nestAvail === false) cat = vault === "in" ? "full" : "open";   // one lock exists here
-    else if (vault === "in" && nest === "disabled") cat = "full";
+    else if (vault === "in" && (nest === "disabled" || nest === "dynamic")) cat = "full";
     else if (vault === "in") cat = "vaultonly";
-    else if (nest === "disabled") cat = "nestonly";
+    else if (nest === "disabled" || nest === "dynamic") cat = "nestonly";
     else cat = "open";
     const canVault = vault === "open" && !!dest && dest.source !== "missing" && dest.source !== "unset";
     const canNest = ctx.nestAvail !== false && nest === "allowed";
@@ -112,7 +117,7 @@ const Protect = (() => {
       if (c.ineligible) return `<span class="wo-state na">${dot("na")}cannot</span><div class="mini muted">${esc(c.ineligible)}</div>`;
       if (c.vault === "unknown") return `<span class="wo-state na">${dot("na")}unknown</span><div class="mini muted">the administrative units could not be read</div>`;
       const d = c.dest || {};
-      const where = d.source === "persona" ? `→ <b>${esc(d.auName)}</b> <span class="muted">(${d.by === "map" ? "mapped" : "persona"})</span>`
+      const where = d.source === "persona" ? `→ <b>${esc(d.auName)}</b> <span class="muted">(${d.by === "tenant" ? "mapped by you" : /CA\d{3,4}/i.test(g.name || "") ? "by CA number" : "by name"})</span>`
         : d.source === "missing" ? `<span style="color:var(--off)">→ <b>${esc(d.auName)}</b> does not exist — create it in 🛡 Restricted AUs first</span>`
           : d.source === "unset" ? `<span style="color:var(--report)">unmapped — no CA number in the name and no mapping. Map it once in 🛡 Restricted AUs → 🏷 Group personas, or pick a fallback unit in Settings</span>`
             : `<span style="color:var(--report)">→ <b>${esc(d.auName)}</b> (fallback)</span>`;
@@ -121,6 +126,7 @@ const Protect = (() => {
     const nestCell = (r) => {
       const { c } = r;
       if (c.nest === "impossible") return `<span class="wo-state na">${dot("na")}impossible</span><div class="mini muted">Entra never nests into a role-assignable group</div>`;
+      if (c.nest === "dynamic") return `<span class="wo-state on">${dot("on")}🚫 never</span><div class="mini muted">dynamic membership — its rule picks users or devices, a group can never be added</div>`;
       if (c.nest === "disabled") return `<span class="wo-state on">${dot("on")}🚫 disabled</span>`;
       if (c.nest === "blocked") return `<span class="wo-state off">${dot("off")}allowed · <b>${c.nested} nested group${c.nested === 1 ? "" : "s"} inside</b></span><div class="mini muted">must be emptied of groups first — 👥 CA groups shows them</div>`;
       if (c.nest === "allowed") return `<span class="wo-state off">${dot("off")}allowed</span><div class="mini muted">a group can be nested into it</div>`;
@@ -131,20 +137,30 @@ const Protect = (() => {
       const { g, c } = r, t = tk(g.id);
       if (c.cat === "cannot") return c.ra && !c.prot ? `<button class="btn sm" data-pr-migrate="${esc(g.id)}">⑦ Migrate it first</button>` : '<span class="mini muted">—</span>';
       if (c.cat === "full") return '<span class="wo-state on">✓ fully protected</span>';
+      // A disabled tick says WHY on the tick itself — "see left" sent the
+      // reader to a cell that did not say it was the reason (25325).
+      const d = c.dest || {};
+      const vWhy = c.prot ? "already"
+        : c.vault === "unknown" ? "units not read"
+          : d.source === "unset" ? "no vault to put it in — map it, or pick a fallback unit in Settings"
+            : d.source === "missing" ? `${d.auName} does not exist yet — create it in 🛡 Restricted AUs`
+              : "nothing to apply";
       const v = c.canVault ? `<label class="pr-tick"><input type="checkbox" data-pr-tick="vault" data-pr-id="${esc(g.id)}"${t.vault ? " checked" : ""}> place in vault</label>`
-        : c.prot ? '<label class="pr-tick dis"><input type="checkbox" disabled> place in vault <span class="muted">— already</span></label>'
-          : '<label class="pr-tick dis"><input type="checkbox" disabled> place in vault <span class="muted">— see left</span></label>';
+        : `<label class="pr-tick dis" title="${esc(vWhy)}"><input type="checkbox" disabled> place in vault <span class="muted">— ${esc(vWhy)}</span></label>`;
       const nn = nestNA ? '<label class="pr-tick dis"><input type="checkbox" disabled> disable nesting <span class="muted">— n/a</span></label>'
         : c.canNest ? `<label class="pr-tick"><input type="checkbox" data-pr-tick="nest" data-pr-id="${esc(g.id)}"${t.nest ? " checked" : ""}> disable nesting</label>`
-          : c.nest === "disabled" ? '<label class="pr-tick dis"><input type="checkbox" disabled> disable nesting <span class="muted">— already</span></label>'
-            : c.nest === "blocked" ? '<label class="pr-tick dis"><input type="checkbox" disabled> disable nesting <span class="muted">— blocked</span></label>'
-              : '<label class="pr-tick dis"><input type="checkbox" disabled> disable nesting <span class="muted">— not reported</span></label>';
+          : c.nest === "disabled" ? '<label class="pr-tick dis" title="Nesting is already disabled on this group"><input type="checkbox" disabled> disable nesting <span class="muted">— already</span></label>'
+            : c.nest === "dynamic" ? '<label class="pr-tick dis" title="A dynamic group has no group members by construction — nothing to disable"><input type="checkbox" disabled> disable nesting <span class="muted">— never nests (dynamic)</span></label>'
+              : c.nest === "impossible" ? '<label class="pr-tick dis" title="Entra never nests into a role-assignable group"><input type="checkbox" disabled> disable nesting <span class="muted">— impossible</span></label>'
+                : c.nest === "blocked" ? `<label class="pr-tick dis" title="Empty it of the ${c.nested} nested group${c.nested === 1 ? "" : "s"} first — 👥 CA groups shows them"><input type="checkbox" disabled> disable nesting <span class="muted">— blocked by ${c.nested} nested group${c.nested === 1 ? "" : "s"}</span></label>`
+                  : c.nest === "reading" ? '<label class="pr-tick dis"><input type="checkbox" disabled> disable nesting <span class="muted">— reading…</span></label>'
+                    : '<label class="pr-tick dis" title="The directory did not return the nesting property for this group — the read went to v1.0 and came back without it; nothing can be ticked until it does"><input type="checkbox" disabled> disable nesting <span class="muted">— state not returned by the directory</span></label>';
       return v + nn;
     };
     const anyTick = (id) => { const t = tk(id); return !!(t.vault || t.nest); };
     const tbody = shown.map((r) => `<tr class="${anyTick(r.g.id) ? "pr-sel" : ""}">
-        <td><input type="checkbox" data-pr-row="${esc(r.g.id)}"${anyTick(r.g.id) ? " checked" : ""}${(r.c.canVault || r.c.canNest) ? "" : " disabled"}></td>
-        <td><b>${esc(r.g.name)}</b>${r.g.manual ? ' <span class="tag" title="Added by hand — stays across a rescan">by hand</span>' : ""}${r.g.dynamic ? ' <span class="tag">dynamic</span>' : ""}<div class="mini muted">${esc(r.g.label || (r.c.dest && r.c.dest.code ? `${r.c.dest.code} · ${r.c.dest.by === "map" ? "mapped" : "by CA number"}` : r.g.breakGlass ? "break-glass group" : "exclusion group"))}${r.g.manual ? ' <button class="btn sm" data-pr-unadd="' + esc(r.g.id) + '" title="Take it off this list">✕</button>' : ""}</div></td>
+        <td><input type="checkbox" data-pr-row="${esc(r.g.id)}"${anyTick(r.g.id) ? " checked" : ""}${(r.c.canVault || r.c.canNest) ? "" : ` disabled title="Nothing can be applied to this row — the Apply column says why per lock"`}></td>
+        <td><b>${esc(r.g.name)}</b>${r.g.manual ? ' <span class="tag" title="Added by hand — stays across a rescan">by hand</span>' : ""}${r.g.dynamic ? ' <span class="tag">dynamic</span>' : ""}<div class="mini muted">${esc(r.g.label || (r.c.dest && r.c.dest.code ? `${r.c.dest.code} · ${r.c.dest.by === "tenant" ? "mapped by you" : /CA\d{3,4}/i.test(r.g.name || "") ? "by CA number" : "by name"}` : r.g.breakGlass ? "break-glass group" : "exclusion group"))}${r.g.manual ? ' <button class="btn sm" data-pr-unadd="' + esc(r.g.id) + '" title="Take it off this list">✕</button>' : ""}</div></td>
         <td class="mini">${(() => { const ex = (r.g.refs && r.g.refs.exclude || []).length, inc = (r.g.refs && r.g.refs.include || []).length; return ex ? `excluded by ${ex}${r.g.breakGlass && inc ? `<div class="muted">included by ${inc}</div>` : ""}` : r.g.breakGlass && inc ? `included by ${inc}<div class="muted">break-glass</div>` : '<span class="muted">not referenced</span>'; })()}</td>
         <td>${vaultCell(r)}</td>
         <td>${nestCell(r)}</td>

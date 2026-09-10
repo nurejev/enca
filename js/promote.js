@@ -118,6 +118,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 161,
+      title: "🔒 Protect 3.0.3: greyed ticks say why, persona/deploy groups resolve by name, dynamic never nests (T20, T27 1.8.3)",
+      tools: ["Protect exclusions", "Restricted AUs"],
+      builds: [25325],
+      risk: "low",
+      what: "js/rmau.js conventionCode: after the CA number and break-glass, Persona-NAME (PERSONA_WORD) and -DG-CODE (DG_CODE) resolve to the persona code — CloudFellows convention only; a catalog with its own codeForGroup is untouched. js/protect.js classify: g.dynamic → nest 'dynamic' (counts like disabled for cat); nestCell prints 🚫 never; applyCell prints the reason on each disabled tick (vWhy from dest.source / vault / prot; nest variants incl. blocked-by-N and 'state not returned by the directory') with title; the row tick carries a title when nothing is tickable; the group label reads 'mapped by you' / 'by CA number' / 'by name' from dest.by === 'tenant'.",
+      why: "Display + routing. The routing change means Bulk add in T27 will now OFFER persona and deploy groups for their persona unit (nothing is written without a tick), and Protect will place a persona group into its persona's vault when ticked — a persona group in a vault means only the scoped administrators of that persona can change who is in the persona, which is the intent. Dynamic groups: Entra refuses group members on dynamic groups by design, so 'never' is a fact, not a guess.",
+      test: [
+        "Perfetti, 🔒 Protect: CAB-SEC-U-Persona-Admins reads '→ CAB-SEC-RMAU-ADM-Exclusions (by name)' (or 'does not exist yet — create it' with the reason on the tick); the 'Not fully protected' count drops by the dynamic persona groups whose only missing lock was nesting.",
+        "CAB-SEC-U-TeamsSharedDevices: still unmapped, the tick reads '— no vault to put it in — map it, or pick a fallback unit in Settings'.",
+        "A dynamic group: Nesting cell '🚫 never — dynamic membership'; the disable-nesting tick reads '— never nests (dynamic)'.",
+        "A group with nested groups inside: the tick reads '— blocked by N nested groups' with the hover naming 👥 CA groups.",
+        "🛡 Restricted AUs → ＋ Bulk add for the Admins unit: CAB-SEC-U-Persona-Admins is offered; 🏷 Group personas no longer lists the persona groups as unmapped.",
+        "Joey Verlinden baseline tenant: unchanged (its catalog carries its own codeForGroup).",
+        "?demo=1: Persona-Internals / Persona-Externals rows read 'INT · by name' / 'EXT · by name' with the vault tick saying the unit does not exist yet; the dynamic rows read 🚫 never.",
+      ],
+      files: ["js/rmau.js", "js/protect.js", "index.html", "js/version.js"],
+    },
+    {
       n: 160,
       title: "🧹 Archived groups: partly done is a state, not a failure (T12 5.9.9, run ledger)",
       tools: ["Conditional Access groups"],

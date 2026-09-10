@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25325, date: "2026-09-10", title: "Protect: why a tick is greyed out, and the persona groups find their vault",
+    items: [
+      { kind: "fixed", tool: "Protect exclusions", text: "A greyed-out tick said “see left”, and the cell on the left did not say it was the reason. The tick now says why itself: no vault to put it in — map it, or pick a fallback unit in Settings; CAB-SEC-RMAU-INT-Exclusions does not exist yet — create it in 🛡 Restricted AUs; blocked by 2 nested groups; already; the directory did not return the nesting state. The row tick explains itself on hover too." },
+      { kind: "fixed", tool: "Protect exclusions", text: "Every persona group — CAB-SEC-U-Persona-Admins, -Internals, -Externals, -GuestUsers, -GuestAdmins, -DevOps, -Microsoft365ServiceAccounts — and every deploy group (CAD-SEC-U-DG-INT and the rest) read “unmapped — no CA number in the name”. They are the baseline's own groups and name their persona in words; they now resolve to that persona's vault by name, the way break-glass already did. A tenant's own group with no persona in its name is still unmapped, and still says so." },
+      { kind: "fixed", tool: "Protect exclusions", text: "A dynamic-membership group showed nesting as “not reported” and was counted as missing that lock. Its rule picks users or devices and a group can never be added to it, so the cell now reads 🚫 never — dynamic membership — and the group counts as having that lock." },
+      { kind: "improved", tool: "Restricted AUs", text: "The same name resolution reaches ＋ Bulk add and 🏷 Group personas: the persona and deploy groups are offered for their own unit instead of appearing as unmapped." },
+    ],
+  },
+  {
     build: 25324, date: "2026-09-10", title: "Partly done is a state of its own",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "🧹 Archived groups: a group taken out of 36 of its 39 policies while three refused the change showed a red ✗ refused, as if nothing had happened — 36 PATCHes had landed. The row is now an amber ◐ PARTLY DONE and says both numbers: taken out of 36 of 39, still named by the three that refused, not deleted so no policy points at nothing. The header counts partly done separately from failed, the dialog's summary line says what partly done means, and the report has a Partly done table with the next step: fix the refusing policies in the portal and run 🧹 again — the group is still there." },

@@ -169,6 +169,8 @@ const Rmau = (() => {
   // vault whatever it is called, so the match is by intent rather than by our
   // preferred spelling.
   const BREAKGLASS_NAME = /break[-_ ]?glass|emergency[-_ ]?access|^bg[-_]/i;
+  const PERSONA_WORD = { admins: "ADM", internals: "INT", externals: "EXT", guestusers: "GUESTUSERS", guestadmins: "GUESTAdmins", microsoft365serviceaccounts: "SA", serviceaccounts: "SA", devops: "DevOps", frontline: "FW", fw: "FW", workloadids: "WLI", wli: "WLI" };
+  const DG_CODE = { glo: "GLO", adm: "ADM", int: "INT", ext: "EXT", guestusers: "GUESTUSERS", guestadmins: "GUESTAdmins", sa: "SA", devops: "DevOps", fw: "FW", wli: "WLI" };
 
   // The CloudFellows convention, by name. Kept as its own function because it
   // is what the CloudFellows catalog's contract points at (js/baseline.js).
@@ -181,6 +183,14 @@ const Rmau = (() => {
     const m = /CA(\d{3,4})/i.exec(n);
     if (m) return CA_BASE_CODE[Math.floor(+m[1] / 100) * 100] || null;
     if (BREAKGLASS_NAME.test(n)) return "BreakGlass";
+    // The baseline's OWN persona and deploy groups name their persona in
+    // words, not in a CA number: CAB-SEC-U-Persona-Admins, CAD-SEC-U-DG-INT.
+    // They are the baseline's convention, not a tenant's — so reading them
+    // is not a guess (25325: T20 listed every persona group as "unmapped").
+    const p = /Persona-(Admins|Internals|Externals|GuestUsers|GuestAdmins|Microsoft365ServiceAccounts|ServiceAccounts|DevOps|Frontline|FW|WorkloadIDs|WLI)\b/i.exec(n);
+    if (p) return PERSONA_WORD[p[1].toLowerCase()] || null;
+    const d = /-DG-(GLO|ADM|INT|EXT|GUESTUSERS|GUESTAdmins|SA|DevOps|FW|WLI)$/i.exec(n);
+    if (d) return DG_CODE[d[1].toLowerCase()] || null;
     if (/\bfrontline\b|[-_]FW[-_]|[-_]FW$/i.test(n)) return "FW";
     return null;
   }
