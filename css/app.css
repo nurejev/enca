@@ -1932,6 +1932,10 @@ body.cgg-modal-open{overflow:hidden}
 .rl-row .ic{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;border:1.5px solid var(--border);color:var(--muted);box-sizing:border-box}
 .rl-row.done .ic{background:var(--on);border-color:var(--on);color:#fff}
 .rl-row.fail .ic{background:var(--off);border-color:var(--off);color:#fff}
+.rl-row.part .ic{background:var(--report);border-color:var(--report);color:#fff}
+.rl-row.part .st{color:var(--report)}.rl-row.part .lbl small{color:var(--report)}.rl-row.part .lbl{white-space:normal}
+.rl-bar i.has-part{background:linear-gradient(90deg,var(--accent2) 0 92%,var(--report) 92% 100%)}
+.rl-ft .k.h i{background:var(--report)}
 .rl-row.skip .ic{background:var(--soft);border-color:var(--border);color:var(--muted)}
 .rl-row.work{background:var(--warn-bg)}
 .rl-row.work .ic{border-color:var(--report);border-top-color:transparent;animation:rlspin 1s linear infinite}

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25324, date: "2026-09-10", title: "Partly done is a state of its own",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "🧹 Archived groups: a group taken out of 36 of its 39 policies while three refused the change showed a red ✗ refused, as if nothing had happened — 36 PATCHes had landed. The row is now an amber ◐ PARTLY DONE and says both numbers: taken out of 36 of 39, still named by the three that refused, not deleted so no policy points at nothing. The header counts partly done separately from failed, the dialog's summary line says what partly done means, and the report has a Partly done table with the next step: fix the refusing policies in the portal and run 🧹 again — the group is still there." },
+      { kind: "improved", tool: "All tools", text: "The run ledger every batch write shows has the state for it — ◐ partly done, amber, counted on its own in the header and the footer — so any tool whose item is several writes can say that some landed and some did not, instead of choosing between ✓ and ✗." },
+    ],
+  },
+  {
     build: 25323, date: "2026-09-10", title: "Who is Anna: out of scope is not no data, and the cards fold",
     items: [
       { kind: "fixed", tool: "Who is Anna to CA", text: "The report-only forecast said “no data — reach her but evaluated none of her sign-ins” for six policies that had in fact been evaluated on every one of her 7,111 sign-ins and found not to apply — a block on legacy authentication for a user with no legacy client, a high-risk policy for a user with no risk, an Android app policy on a Windows user. That is the opposite of no data: it is the answer. Such a policy now reads OUT OF SCOPE ON HER SIGN-INS with the evaluation count, the tile says “Nothing for her” when all report-only policies are like that, and the callout explains that going live changes nothing for her as she signs in today while a different client or a risk event would bring them into play. “No data” is kept for a policy that appears on none of her records at all, and now says what that means: created after the window, or the source dropped its verdicts." },

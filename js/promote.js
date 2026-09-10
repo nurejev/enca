@@ -118,6 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 160,
+      title: "🧹 Archived groups: partly done is a state, not a failure (T12 5.9.9, run ledger)",
+      tools: ["Conditional Access groups"],
+      builds: [25324],
+      risk: "low",
+      what: "js/runledger.js: L.part(i, note, st) → state 'part', icon ◐, counted in the header ('· N partly done') and a footer key that appears only when used; bar class has-part. css: .rl-row.part amber. js/app.js archived run: when Assign.apply reports refusals the thrown Error carries e.partial {removed, total, refused[]}; the catch routes it to L.part and a partial[] list; the summary line and the report (Partly done table with the next step) print it. Failed stays for a group where nothing landed.",
+      why: "Display + report. No write changes: the delete was already skipped on any refusal; only the wording of the outcome changes. The PVM run that showed it: DG-GUESTAdmins 36 of 39, DG-GUESTUSERS 32 of 35, the three refusing policies being REQ-PVM-ReqApp-iOSAndAndr-Exo-DLG, REQ-PVM-ReqAppOrDevComp-iOSAndAndr-DLG, REQ-PVM-ReqAppOrDevComp-Android-DLG.",
+      test: [
+        "Perfetti: tick an archived group still named by the REQ-PVM-ReqApp-* policies plus normal ones, type DELETE — the row ends ◐ partly done with 'taken out of N of M policies; still named by … (3 refused the change) — not deleted'; the header reads '… · 1 partly done'; the summary line above the DELETE box says partly done; the report has the Partly done table.",
+        "A group whose every policy accepts: ✓ as before, soft-deleted.",
+        "A group whose every referencing policy refuses: ✗ refused (taken out of 0 of N).",
+        "After a partly-done run the 👥 list still shows the group with the 'archived original — still named by 3 policies' note and the chip from 5.9.7.",
+        "?demo=1: unchanged (the demo never refuses).",
+      ],
+      files: ["js/runledger.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 159,
       title: "🕵 Who is Anna 0.8: out-of-scope forecast verdict, folding cards, plain risk footer (T36, T37 0.6.1)",
       tools: ["Who is Anna to CA", "Who is the wave to CA"],

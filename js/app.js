@@ -5928,7 +5928,7 @@ max@contoso.com,"Global, DevOps"</pre>
     let cur = -1;
     const say = (html) => { if (cur >= 0) L.note(cur, plain(html)); btn.textContent = `Working… ${L.items.filter((x) => x.state === "done" || x.state === "fail").length}/${picked.length}`; };
     $("arcCancel").disabled = true; $("arcOk").disabled = true;
-    const done = [], failed = [], unreffed = [];
+    const done = [], failed = [], partial = [], unreffed = [];
     for (let i = 0; i < picked.length; i++) {
       const r = picked[i];
       if (L.stopped) { failed.push({ ...r, error: "stopped before this group — nothing changed" }); continue; }
@@ -5956,7 +5956,18 @@ max@contoso.com,"Global, DevOps"</pre>
             if (inc.length) bad.push(...(await Assign.apply(inc, 5, [r.id], null, "groups", tick)).filter((q) => !q.ok));
             if (exc.length) bad.push(...(await Assign.apply(exc, 6, [r.id], null, "groups", tick)).filter((q) => !q.ok));
             say(`&nbsp;&nbsp;· out of ${total} polic${total === 1 ? "y" : "ies"} — verifying…`);
-            if (bad.length) throw new Error(`still named by ${bad.map((q) => q.name).join(", ")} — not deleted, so no policy points at nothing`);
+            if (bad.length) {
+              // PARTLY DONE, not failed: the group is out of the policies that
+              // accepted the PATCH and still in the ones that refused (the
+              // four unpatchable REQ-PVM-ReqApp-* policies on Perfetti). Say
+              // both numbers; the delete is not attempted, so nothing points
+              // at nothing. 25324, from a screenshot: 36 of 39 landed and the
+              // row read "refused" as if nothing had.
+              const okN = total - bad.length;
+              const err = new Error(`taken out of ${okN} of ${total} polic${total === 1 ? "y" : "ies"}; still named by ${bad.map((q) => q.name).join(", ")} (${bad.length} refused the change) — not deleted, so no policy points at nothing`);
+              err.partial = { removed: okN, total, refused: bad.map((q) => q.name) };
+              throw err;
+            }
             // verify
             const after = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,conditions");
             const left = after.filter((pol) => { const u = (pol.conditions && pol.conditions.users) || {}; return [...(u.includeGroups || []), ...(u.excludeGroups || [])].some((g) => String(g).toLowerCase() === r.id.toLowerCase()); });
@@ -5970,18 +5981,26 @@ max@contoso.com,"Global, DevOps"</pre>
         if (!isDemo) await Graph.gdelete(`/groups/${r.id}`, [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
         done.push(r);
         L.done(i, unreffed.some((u) => u.id === r.id) ? `out of ${unreffed.find((u) => u.id === r.id).policies} polic${unreffed.find((u) => u.id === r.id).policies === 1 ? "y" : "ies"}, verified · soft-deleted, restorable for 30 days` : "soft-deleted, restorable for 30 days", "deleted");
-      } catch (e) { failed.push({ ...r, error: e.message || String(e) }); L.fail(i, e.message || String(e), "refused"); }
+      } catch (e) {
+        if (e && e.partial) { partial.push({ ...r, error: e.message || String(e), partial: e.partial }); L.part(i, e.message || String(e), "partly done"); }
+        else { failed.push({ ...r, error: e.message || String(e) }); L.fail(i, e.message || String(e), "refused"); }
+      }
     }
     L.finish();
     $("arcCancel").disabled = false; $("arcOk").disabled = false; btn.textContent = "Delete ticked";
-    if (!failed.length) $("arcModal").classList.remove("open");
-    else $("arcSub").innerHTML = `<b style="color:var(--off)">${done.length} deleted, ${failed.length} refused</b> — the reasons are on the rows; Close when read.`;
+    if (!failed.length && !partial.length) $("arcModal").classList.remove("open");
+    else $("arcSub").innerHTML = `<b style="color:${failed.length ? "var(--off)" : "var(--report)"}">${done.length} deleted${partial.length ? `, ${partial.length} partly done` : ""}${failed.length ? `, ${failed.length} refused` : ""}</b> — ${partial.length ? "partly done = out of most policies, still named by the ones that refused, not deleted; " : ""}the details are on the rows; Close when read.`;
     const L2 = [`# Archived groups removed — ${tenantName || "tenant"}`, "", Brand.generatedBy("Generated"), "",
-      `- **Deleted:** ${done.length}${failed.length ? ` · **failed:** ${failed.length}` : ""}`,
+      `- **Deleted:** ${done.length}${partial.length ? ` · **partly done:** ${partial.length}` : ""}${failed.length ? ` · **failed:** ${failed.length}` : ""}`,
       isDemo ? "- _Demo mode — simulated._" : "- Each deletion is a **soft delete**: Entra keeps the group for 30 days and it can be restored.", ""];
     if (done.length) {
       L2.push("| Group | Object ID | Replaced by | Taken out of | Other uses at delete |", "| --- | --- | --- | --- | --- |");
       done.forEach((r) => { const u = unreffed.find((x) => x.id === r.id); L2.push(`| ${r.name} | \`${r.id}\` | ${r.liveName} | ${u ? `${u.policies} polic${u.policies === 1 ? "y" : "ies"}` : "—"} | ${r.uses == null ? "not checked" : r.uses.length ? r.uses.map((h) => `${h.sourceLabel}: ${h.name}`).join("; ") : "none"} |`); });
+    }
+    if (partial.length) {
+      L2.push("", "## Partly done — out of most policies, NOT deleted", "");
+      L2.push("| Group | Object ID | Taken out of | Still named by | Next |", "| --- | --- | --- | --- | --- |");
+      partial.forEach((f) => L2.push(`| ${f.name} | \`${f.id}\` | ${f.partial.removed} of ${f.partial.total} policies | ${f.partial.refused.join(", ")} | fix the refusing polic${f.partial.refused.length === 1 ? "y" : "ies"} in the portal, then run 🧹 again — the group is still there, nothing to restore |`));
     }
     if (failed.length) {
       L2.push("", "## Failed", "");
