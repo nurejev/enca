@@ -118,6 +118,20 @@ const PROMOTE = {
 
   items: [
     {
+      n: 146,
+      title: "🗂 Group popup shows the nesting state (T01 2.10.1)",
+      tools: ["List Policies"],
+      builds: [25309],
+      risk: "low",
+      what: "js/app.js openDepView(type='group'): one extra GET CaGroups.NEST_V1(/groups/{id}?$select=id,disableNesting) → obj._nesting via CaGroups.nestingState; depSettingsHtml adds a Nesting row (role-assignable → impossible). Demo: exclusion/persona names read as disabled.",
+      why: "Read-only, one extra request per popup open (cached in depCache with the rest).",
+      test: [
+        "Open a policy card → click a recreated exclusion group (CAB-SEC-U-CA002-Exclusion): Nesting reads '🚫 disabled'; a role-assignable group reads 'impossible'; a plain group without the property reads 'allowed'.",
+        "?demo=1: any group popup shows the row.",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 145,
       title: "👥 Finished writes consume their ticks (T12 5.9.4)",
       tools: ["Conditional Access groups"],

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25309, date: "2026-09-10", title: "Group popup: nesting state",
+    items: [
+      { kind: "improved", tool: "List Policies", text: "Clicking a group on a policy card shows a Nesting row next to Role-assignable: 🚫 disabled (no group can be added as a member), allowed, impossible on a role-assignable group, or not reported by the directory. Read from v1.0 with the member preview, so it agrees with the 🚫 chip in Conditional Access groups." },
+    ],
+  },
+  {
     build: 25308, date: "2026-09-10", title: "A finished migration unticks its groups",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "Groups migrated earlier kept turning up in the next Migrate under Not migrated as already a plain group. The ticks are by name, and the new group takes the old name, so a migrated group stayed ticked through the re-scan and was carried along. A completed Migrate or Archived-groups delete now drops its groups from the selection, and a tick on a group the scan no longer has is dropped on every render." },

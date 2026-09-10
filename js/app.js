@@ -16895,6 +16895,11 @@ This is a directory write. Nothing else changes.`)) return;
     if (type === "authContext") rows.push(["Description", esc(o.description || "")], ["Available", String(o.isAvailable ?? "—")]);
     if (type === "group") rows.push(["Description", esc(o.description || "")], ["Security enabled", String(o.securityEnabled ?? "—")],
       ["Role-assignable", String(o.isAssignableToRole ?? "false")], ["Group types", (o.groupTypes || []).join(", ") || "assigned"],
+      // disableNesting, read from v1.0 alongside the members (see openDepView)
+      ["Nesting", o.isAssignableToRole ? "impossible — role-assignable groups never take a group as a member"
+        : o._nesting === "disabled" ? '<b style="color:var(--on)">🚫 disabled</b> — no group can be added as a member'
+          : o._nesting === "allowed" ? "allowed — a group can be nested into this one"
+            : o._nesting === "unknown" ? "not reported — this directory does not return disableNesting" : "—"],
       ["Membership rule", o.membershipRule ? `<code>${esc(o.membershipRule)}</code>` : "—"],
       ["On-prem synced", String(o.onPremisesSyncEnabled ?? "—")],
       [`Members${o._members ? ` (first ${o._members.items.length}${o._members.count != null ? ` of ${o._members.count}` : ""})` : ""}`,
@@ -16924,7 +16929,13 @@ This is a directory write. Nothing else changes.`)) return;
             const m = await Graph.gget(`/groups/${id}/members?$top=5&$count=true&$select=displayName,userPrincipalName`);
             obj._members = { count: m["@odata.count"], items: m.value || [] };
           } catch (e) { console.warn("Member fetch failed:", e.message); }
-        }
+          // v1.0 on purpose — the beta base answers without the property on
+          // some tenants (see enca-nesting-v1 / CaGroups.NEST_V1)
+          try {
+            const n = await Graph.gget(CaGroups.NEST_V1(`/groups/${id}?$select=id,disableNesting`));
+            obj._nesting = CaGroups.nestingState(n);
+          } catch (e) { console.warn("Nesting read failed:", e.message); obj._nesting = "unknown"; }
+        } else if (type === "group" && isDemo) obj._nesting = /Exclusion|Persona/i.test(label || "") ? "disabled" : "allowed";
         depCache.set(key, obj);
       }
       currentDepObj = obj;
