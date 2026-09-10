@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25304, date: "2026-09-10", title: "CA groups: which groups have nesting disabled",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "A 🚫 Nesting disabled chip filters the list to the groups where disableNesting is set — no group can be added as a member. The list already read the property after the scan; now it shows: the chip with its count (it fills in a moment after the list — a 0 means none has it), 🚫 nesting disabled under the member count on those rows, and the drawer's Protection tab opening with the nesting state: disabled, allowed (with the Disable nesting button right there for an exclusion or break-glass group), impossible on a role-assignable group, or not reported by a directory that lacks the property." },
+    ],
+  },
+  {
     build: 25303, date: "2026-09-10", title: "Who is Anna to CA: identity risk + state filter",
     items: [
       { kind: "new", tool: "Who is Anna to CA", text: "A fifth tile, Identity risk: whether Identity Protection has her at risk and at which level — low, medium, high, or confirmed compromised — since when and why, or remediated, dismissed, confirmed safe or never flagged. When a risk-based policy reaching her fires on that level, the tile names it. Risky sign-ins in the window are counted per level off her own sign-in records, and a 🛡 Identity risk card lists the risk detections of the last 30 days (type, level, state, activity, where) and the risky sign-ins (level, state, detection types, what CA did, Replay into What-If). The user record and the detections are an optional read — IdentityRiskyUser.Read.All and IdentityRiskEvent.Read.All, asked on the click, or read straight away when already granted; without Entra ID P2 the tile says so instead of guessing." },

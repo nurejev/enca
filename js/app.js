@@ -6688,6 +6688,7 @@ This is a directory write. Nothing else changes.`)) return;
         case "assign": openAssign(selected.size ? "selection" : "all"); return;
         case "rmau": cgGoTab("rmau", [name]); return;
         case "migrate": cgGoTab("migrate", [name]); return;
+        case "nesting": openNesting(name, act); return;   // ⑧ Disable nesting, from the drawer's Protection tab
         case "menu": showGroupRow(name); return;
       }
       return;

@@ -59,6 +59,9 @@ const GroupsView = (() => {
     // would drown the dangling / unprotected / nested rows
     if (r.drift && !/^role-assignable/.test(r.drift)) flags.push("drift");
     if (r.nesting === "allowed" && kind === "exclusion") flags.push("nestingallowed");
+    // disableNesting read after the scan (loadNestingStates): "disabled" is
+    // the state the baseline wants on every persona / exclusion group
+    if (r.nesting === "disabled") flags.push("nestingdisabled");
     // a group nested inside an exclusion or break-glass group widens a
     // standing bypass by one membership change somewhere else — attention
     const attention = flags.some((f) => ["missing", "dangling", "unprotected", "drift"].includes(f)) || (nestedN > 0 && (kind === "exclusion" || kind === "breakglass"));
@@ -69,7 +72,7 @@ const GroupsView = (() => {
     // [key, label, pill colour, chip tone] — tone "warn" is a live bypass
     // (red), "sec" an unguarded one (amber); the chip carries it even idle
     ["all", "All", "zero"], ["attention", "⚠ Needs attention", "red", "warn"], ["missing", "Missing from tenant", "amber"], ["dangling", "Referenced but gone", "red"],
-    ["empty", "Empty", "zero"], ["unprotected", "Not protected", "amber", "sec"], ["roleassignable", "Role-assignable", "zero"], ["nested", "↪ Has nested groups", "red", "warn"], ["extra", "Not in the baseline", "zero"],
+    ["empty", "Empty", "zero"], ["unprotected", "Not protected", "amber", "sec"], ["roleassignable", "Role-assignable", "zero"], ["nested", "↪ Has nested groups", "red", "warn"], ["nestingdisabled", "🚫 Nesting disabled", "green"], ["extra", "Not in the baseline", "zero"],
   ];
   function matches(r, c, filter) {
     if (filter === "all") return true;
@@ -80,18 +83,24 @@ const GroupsView = (() => {
     const ctx = model.ctx;
     const counts = {};
     model.rows.forEach((r) => { const c = classify(r, ctx); CHIPS.forEach(([k]) => { if (matches(r, c, k)) counts[k] = (counts[k] || 0) + 1; }); });
-    return CHIPS.filter(([k]) => k === "all" || k === "nested" || counts[k]).map(([k, l, cls, tone]) => `<button class="fchip${tone ? ` ${tone}` : ""}${active === k ? " active" : ""}" data-cgg-filter="${k}">${l} ${pill(counts[k] || 0, cls)}</button>`).join("");
+    // the nesting-disabled count arrives after the scan, so the chip is always
+    // there — a 0 after the read is an answer (none has it), not a hidden chip
+    const nestRead = model.rows.some((r) => r.id && r.nesting !== undefined);
+    return CHIPS.filter(([k]) => k === "all" || k === "nested" || (k === "nestingdisabled" && nestRead) || counts[k]).map(([k, l, cls, tone]) => `<button class="fchip${tone ? ` ${tone}` : ""}${active === k ? " active" : ""}" data-cgg-filter="${k}">${l} ${pill(counts[k] || 0, cls)}</button>`).join("");
   }
 
+  // 🚫 on the row when disableNesting is set — the members column is where
+  // nesting is otherwise talked about, so the two read together
+  const noNest = (r) => r.nesting === "disabled" ? '<div class="mini" style="color:var(--on)" title="disableNesting is set: no group can be added as a member of this group">🚫 nesting disabled</div>' : "";
   function membersCell(r, c) {
     if (!r.id) return '<span class="mini muted">—</span>';
     if (r.memberError) return `<span class="mini" style="color:var(--off)">could not read</span>`;
-    const pre = r.members == null && r.nestedGroups && r.nestedGroups.length ? `<div class="mini" style="color:var(--off)" title="${esc(r.nestedGroups.map((g) => g.name).join(", "))}">↪ ${r.nestedGroups.length} nested group${r.nestedGroups.length === 1 ? "" : "s"}</div>` : "";
+    const pre = (r.members == null && r.nestedGroups && r.nestedGroups.length ? `<div class="mini" style="color:var(--off)" title="${esc(r.nestedGroups.map((g) => g.name).join(", "))}">↪ ${r.nestedGroups.length} nested group${r.nestedGroups.length === 1 ? "" : "s"}</div>` : "") + noNest(r);
     if (r.members == null) return `${r.directTotal === 0 ? '<b class="num">0</b><div class="mini muted">empty</div>' : `${r.directTotal != null ? `<b class="num">${r.directTotal}</b> <span class="mini muted">direct</span>` : '<span class="mini muted">not read</span>'} <button class="btn sm" data-cgg-read="${esc(r.name)}" title="Read the members of this group">read</button>`}${pre}`;
     const direct = r.directIds ? r.members.filter((m) => m.direct).length : null;
     const nested = r.directIds ? r.members.length - direct : null;
     const via = r.children && r.children.length ? ` via ${esc(tail(r.children[0].name))}${r.children.length > 1 ? ` +${r.children.length - 1}` : ""}` : "";
-    return `<b class="num">${r.memberTotal}</b>${r.memberTotal > r.members.length ? ` <span class="mini muted">(first ${r.members.length})</span>` : ""}${direct != null && r.memberTotal ? `<div class="mini muted">${direct === r.memberTotal ? "all direct" : nested === r.memberTotal ? `all${via}` : `${direct} direct · ${nested}${via}`}</div>` : r.dynamic ? '<div class="mini muted">dynamic</div>' : ""}`;
+    return `<b class="num">${r.memberTotal}</b>${r.memberTotal > r.members.length ? ` <span class="mini muted">(first ${r.members.length})</span>` : ""}${direct != null && r.memberTotal ? `<div class="mini muted">${direct === r.memberTotal ? "all direct" : nested === r.memberTotal ? `all${via}` : `${direct} direct · ${nested}${via}`}</div>` : r.dynamic ? '<div class="mini muted">dynamic</div>' : ""}${noNest(r)}`;
   }
   function usedByCell(r, ctx) {
     const { include: inc, exclude: exc } = refsOf(r, ctx);
@@ -250,6 +259,20 @@ const GroupsView = (() => {
   }
   function drawerProtection(r, c, ctx) {
     if (!r.id) return '<p class="mini muted">Not in the tenant yet.</p>';
+    return nestingLine(r, c) + drawerProtectionAu(r, c, ctx);
+  }
+  // Group nesting is the other half of "who can widen this group": a
+  // restricted unit guards the member list, disableNesting guards against a
+  // group being put in it — so it is said here, above the unit.
+  function nestingLine(r, c) {
+    const st = r.nesting;
+    if (r.roleAssignable) return '<p class="mini muted" style="margin:0 0 8px">Group nesting: <b>impossible</b> — Entra never allows a group inside a role-assignable group.</p>';
+    if (st === "disabled") return '<p class="mini" style="margin:0 0 8px">Group nesting: <b style="color:var(--on)">🚫 disabled</b> — no group can be added as a member (disableNesting is set).</p>';
+    if (st === "allowed") return `<p class="mini" style="margin:0 0 8px">Group nesting: <b${c.kind === "exclusion" || c.kind === "breakglass" ? ' style="color:var(--warn-fg)"' : ""}>allowed</b> — a group can be nested into this one${c.kind === "exclusion" || c.kind === "breakglass" ? `, which widens the ${c.kind === "breakglass" ? "break-glass" : "exclusion"} without touching it` : ""}. <button class="btn sm" data-cgg-act="nesting" data-cgg-name="${esc(r.name)}">🚫 Disable nesting</button></p>`;
+    if (st === "unknown") return '<p class="mini muted" style="margin:0 0 8px">Group nesting: <b>not reported</b> — this directory does not return disableNesting (the property is not generally available).</p>';
+    return '<p class="mini muted" style="margin:0 0 8px">Group nesting: reading…</p>';
+  }
+  function drawerProtectionAu(r, c, ctx) {
     if (c.prot) return `<p>🔒 In <b>${esc(c.prot.auName)}</b> — a restricted management administrative unit. Its members can only be changed by a role scoped to that unit; tenant-wide admins cannot add themselves.</p>${r.roleAssignable ? '<div class="wo-callout"><b>Frozen.</b> Role-assignable and inside a restricted unit: its membership cannot be read or moved from here. Remove it from the unit first, then convert it.</div>' : ""}`;
     if (r.roleAssignable) return `<p>Role-assignable. A role-assignable group cannot be placed in a restricted unit — the baseline's answer is to <b>migrate</b> it to a plain group that the vault can hold.</p><button class="btn primary" data-cgg-act="migrate" data-cgg-name="${esc(r.name)}">🧹 Migrate off role-assignable…</button>`;
     if (!ctx.prot) return '<p class="mini muted">Protection was not read (the administrative-unit read failed or was refused).</p>';

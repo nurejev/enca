@@ -118,6 +118,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 141,
+      title: "👥 CA groups 5.9: 🚫 Nesting disabled chip + drawer nesting line (T12)",
+      tools: ["Conditional Access groups"],
+      builds: [25304],
+      risk: "low",
+      what: "js/groupsview.js: classify() adds the nestingdisabled flag from r.nesting (already loaded by loadNestingStates on the list render); CHIPS gains ['nestingdisabled', '🚫 Nesting disabled', 'green'], shown once any row has a nesting state read; membersCell appends noNest(r); drawerProtection = nestingLine(r, c) + the old AU body, with data-cgg-act='nesting' routed to openNesting() in app.js.",
+      why: "Read-only, derived from a read the list already did. The only write path is the existing ⑧ Disable nesting button, reachable one click sooner.",
+      test: [
+        "Real tenant: open the list — after a moment the 🚫 Nesting disabled chip appears with a count; click it: only groups with disableNesting true, each row carrying '🚫 nesting disabled' under the members; compare against Get-MgBetaGroup -Property disableNesting for two of them.",
+        "A tenant whose directory does not return the property: the chip shows 0 and the drawer's Protection tab says 'not reported' — no error.",
+        "Open an exclusion group with nesting allowed: Protection tab starts with 'allowed' in amber and a 🚫 Disable nesting button that opens the ⑧ dialog for that group; a role-assignable group says 'impossible'.",
+        "?demo=1: every 4th group is 'disabled' — chip count > 0, rows marked, drawer line present.",
+      ],
+      files: ["js/groupsview.js", "js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 140,
       title: "🕵 Who is Anna to CA 0.5: identity risk tile + card, state filter (T36)",
       tools: ["Who is Anna to CA"],
