@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25327, date: "2026-09-10", title: "Help catches up with the day",
+    items: [
+      { kind: "improved", tool: "Help", text: "Four sections were rewritten against what the tools do now. 🕵 Who is Anna to CA: five tiles, baseline policy numbers, the 🛡 Identity risk card that lists only the risk policies reaching her, 💻 Devices, 🔐 MFA on her sign-ins, the stopped table's why, the out-of-scope forecast verdict, folding cards. 🌊 Who is the wave: 🛡 Read identity risk for the whole wave, ■ Stop, folding. 🛂 Session controls: the two halves that fail on their own, ↻ Read the sign-in window again, ■ Stop, and where routing comes from. 🔒 Protect exclusions: it still described 2.x with one vault per run — now the two locks per group, nothing pre-ticked, a greyed tick that says why, persona and deploy groups resolving by name, dynamic groups that never nest, break-glass on any reference." },
+      { kind: "improved", tool: "Help", text: "🎚 Report-only impact says where its sign-ins come from — the sign-in source segment shared with 🚦, 🕵 and 🌊: Entra sign-in log, Defender hunting, or Hunting + non-interactive — and that one window read is shared by five tools, not two. 👥 Conditional Access groups: 🧹 Archived groups explains partly done. 🛡 Restricted AUs: the no-guessing rule names its one exception, the baseline's own persona and deploy group names." },
+    ],
+  },
+  {
     build: 25326, date: "2026-09-10", title: "A 502 is retried, said in one line, and Session controls re-reads only the log",
     items: [
       { kind: "fixed", tool: "All tools", text: "Microsoft's Graph edge answered one page of a sign-in read with nginx's “502 Bad Gateway” — an HTML page wrapped in a JSON error — and the whole window died on it, with the HTML, padding comments and all, printed as the reason. 502 is now retried the way 429, 503 and 504 already were (up to five times, backing off), inside a batch too; and when it still fails the message is one line: Microsoft's gateway answered with an error page instead of data — 502 Bad Gateway — transient, not this tenant or account, run it again." },

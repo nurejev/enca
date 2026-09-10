@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25326"></script>
+<script src="js/popup-guard.js?v=25327"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25326" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25326">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25327" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25327">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25326"></script>
+<script src="js/selfhost-boot.js?v=25327"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25326"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25326"></script>
+<script src="js/counter.js?v=25327"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25327"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25326" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25327" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25326" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25327" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1828,42 +1828,52 @@
       </ul>
       <p class="help-x">Read-only. Resolution is per user (a few Graph calls each), so it stays fast on any tenant size. Assignment looks at user scoping only — conditions like location or platform only enter through the scenario run.</p>
     </section>
-    <section class="help-sec">
+        <section class="help-sec">
       <h4>🕵 Who is Anna to CA <span class="tag new">BETA</span></h4>
-      <p>The question a service desk gets is never “which policies target group X” — it is <b>why can't Anna sign in</b>, or <b>is Anna in the wave yet</b>. Answering it used to take four tools. This one takes a UPN and puts the whole Conditional Access picture for that one person on a single screen.</p>
+      <p>The question a service desk gets is never “which policies target group X” — it is <b>why can't Anna sign in</b>, <b>why does she keep getting the Authenticator prompt</b>, or <b>is Anna in the wave yet</b>. Answering it used to take four tools. This one takes a UPN and puts the whole Conditional Access picture for that one person on a single screen — and everything on it is <b>hers</b>: her policies, her devices, her sign-ins, never a tenant-wide list.</p>
       <ul>
-        <li><b>At a glance</b> — four tiles: her <b>deployment stage</b> (which of the active baseline's <code>CAD-SEC-U-DG-*</code> groups she is in), how many policies <b>reach</b> her (enforced / report-only / off, and how many exclude her), how many sign-ins Conditional Access <b>stopped</b> in the window, and what happens to her <b>if everything in report-only went live</b> — locked out, extra prompts, no change, or no data.</li>
-        <li><b>Deployment groups</b> — every deploy group and persona group of the ★ active baseline with In / Not in / Not in this tenant, and for each membership <b>how</b>: direct, or nested via which parent group. The exclusion groups she is in are listed with the policies they take her out of; one that bypasses an <b>enforced</b> policy is called a standing bypass. Who put her there is a question for ⚖ Compare users (the membership next to a colleague's) or 🕓 Change audit.</li>
-        <li><b>Policies</b> — every policy, including the Off ones: state, <b>reaches her via</b> (All users, a group with its path, a role, guest type — or EXCLUDED and by what), the controls, this user's blocked / interrupted counts from the log, and for report-only policies the forecast (would block / prompts / no change, or no data). Filter chips: reaches her, excluded, not targeted, all.</li>
-        <li><b>Sign-ins Conditional Access stopped</b> — her rows from the log: when, app and client, the policy, blocked or interrupted with the reason and error code, and a one-click 🧪 Replay in What-If.</li>
-        <li><b>If everything in report-only went live</b> — worst case first, per policy, from the report-only verdicts on her own sign-ins, with the reason a denial would happen (“needs a compliant device — device NOT compliant”). A report-only policy that reaches her but evaluated none of her sign-ins is shown as <b>no data</b>, never as safe.</li>
-        <li><b>Buttons out</b> — ⚖ Compare (adds her, ready for a colleague), 🧪 What-If (user filled in), 🔗 Analyzer (everything outside Conditional Access that points at her), Markdown brief for the ticket, CSV of the policy table.</li>
+        <li><b>At a glance</b> — five tiles: her <b>deployment stage</b> (which of the active baseline's <code>CAD-SEC-U-DG-*</code> groups she is in), how many policies <b>reach</b> her (enforced / report-only / off, and how many exclude her), how many sign-ins Conditional Access <b>stopped</b> in the window, what happens to her <b>if everything in report-only went live</b> — locked out, extra prompts, no change, nothing for her, or no data — and her <b>identity risk</b>.</li>
+        <li><b>Policy numbers are the baseline's</b> — <code>CA012</code> from “(NEW)CA012-BLOCK-…”, the number the person reading knows the policy by — never ENCA's own running number. A policy whose name carries no number is shown in full.</li>
+        <li><b>Deployment groups</b> — every deploy group and persona group of the ★ active baseline with In / Not in / Not in this tenant, and for each membership <b>how</b>: direct, or nested via which parent group. The exclusion groups she is in are listed with the policies they take her out of; one that bypasses an enforced policy is called a <b>standing bypass</b>. Who put her there is a question for ⚖ Compare users (the membership next to a colleague's) or 🕓 Change audit.</li>
+        <li><b>Policies</b> — every policy, including the Off ones: state, <b>reaches her via</b> (All users, a group with its path, a role, guest type — or EXCLUDED and by what), the controls, this user's blocked / interrupted counts from the log, and for report-only policies the forecast. Filter chips: reaches her, excluded, not targeted, all; and by state.</li>
+        <li><b>🛡 Identity risk</b> — what Identity Protection says about her now (at risk and at which level, remediated, dismissed, never flagged), the risk detections of the last 30 days, the risky sign-ins in the window, and <b>only the risk-based policies that reach her</b> — user risk, sign-in risk, insider risk — with the one that <b>fires now</b> on her current level named. A risk policy that does not reach her (not targeted, or she is excluded) is counted in one line and stays in the policies table, not here. The user-risk read is optional (IdentityRiskyUser.Read.All + IdentityRiskEvent.Read.All), offered as a button, and needs Entra ID P2 to be populated. Nothing here changes the tenant — dismissing or confirming a risk is done in the Entra portal.</li>
+        <li><b>💻 Devices she signs in from</b> — one row per device in the window with what Conditional Access saw of it on the last sign-in: <b>Compliant</b>, <b>Managed, not compliant</b>, <b>Registered, not managed</b> or <b>Unmanaged</b>; sign-in and stopped counts, the apps, when it was last seen. A callout says when a compliant-device grant reaches her and sign-ins came from devices that cannot meet it. State is per sign-in, not per device — a laptop made compliant yesterday shows compliant on the sign-ins since.</li>
+        <li><b>🔐 MFA on her sign-ins</b> — the answer to “she keeps getting the prompt on app X — which policy is it?”. A prompt the user <i>completes</i> is a successful sign-in, so it never appears in the stopped list; this card does: per app, the applied policies that <b>demanded MFA</b> (result success with an MFA or authentication-strength grant), how many sign-ins required it, and — from the record's own authentication steps — how many were a <b>fresh prompt</b> versus a claim already in the token, from how many devices, with the last fresh prompt. Then it says why: fresh prompts spread over many devices (a non-persistent VDI pool is one prompt per host), a sign-in frequency or non-persistent browser session reaching her, or every requirement satisfied by the token — in which case the prompt she sees is per-user MFA, security defaults or the app, not Conditional Access. Hunting rows carry the requirement but not the steps and count as <i>not known</i>; the Entra log source tells them apart.</li>
+        <li><b>Sign-ins Conditional Access stopped</b> — her rows from the log the way 🚦 Sign-in failures shows them: when, app, client, device state and place; under each policy the <b>control it demanded</b>; under the result the error code <b>in words</b> — MFA demanded and not completed (50074), compliant device required and this one is not (53000), device authentication demanded (50097) — and a one-click 🧪 Replay in What-If.</li>
+        <li><b>If everything in report-only went live</b> — worst case first, per policy, from the report-only verdicts on her own sign-ins, with the reason a denial would happen (“needs a compliant device — device NOT compliant”). Three outcomes that look alike are told apart: <b>out of scope on her sign-ins</b> (the policy was evaluated on every one of her sign-ins and its conditions never matched — no legacy client, no risk, not that app — so going live changes nothing for her as she signs in today), <b>no data</b> (the policy appears on none of her records at all: created after the window, or the source dropped its verdicts — never safety), and a real verdict.</li>
+        <li><b>Every card folds</b> on its heading — click to fold or unfold; the choice is remembered per card, so the next user or a rescan keeps your layout.</li>
+        <li><b>Buttons out</b> — ⚖ Compare (adds her, ready for a colleague), 🧪 What-If (user filled in), 🔗 Analyzer (everything outside Conditional Access that points at her), 🌊 the wave she is in, Markdown brief for the ticket with every card, CSV of the policy table.</li>
       </ul>
-      <p class="help-x">Read-only. Memberships and policies come from what ENCA already holds — the same include/exclude resolution as ⚖ Compare users. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins (server-filtered, so no record cap) — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read when it was not capped. Registered MFA methods are an optional extra read (<b>UserAuthenticationMethod.Read.All</b>), offered as a button and never required. Licence comes from the same verdict 🎫 Licence gap uses.</p>
+      <p class="help-x">Read-only. Memberships and policies come from what ENCA already holds — the same include/exclude resolution as ⚖ Compare users. <b>Sign-in source:</b> the segment in the toolbar is shared with 🚦 Sign-in failures, 🎚 Report-only impact and 🌊 the wave — Entra sign-in log (interactive, AuditLog.Read.All), Defender hunting, or Hunting + non-interactive (ThreatHunting.Read.All, Entra ID P2) — see 🚦 for the trade-offs. On the Entra source only this user's sign-ins are read (server-filtered, so no record cap), or the window another tool already read is reused when it was not capped. Registered MFA methods and identity risk are optional extra reads, offered as buttons and never required. Licence comes from the same verdict 🎫 Licence gap uses.</p>
     </section>
-    <section class="help-sec">
+        <section class="help-sec">
       <h4>🌊 Who is the wave to CA <span class="tag new">BETA</span></h4>
       <p>A rollout goes wave by wave — <code>CAD-SEC-U-DG-GLO</code>, then <code>-INT</code>, then <code>-ADM</code>. The question before the next policy is switched from report-only to On is <b>can this wave take it</b>, and until now the answer was per policy (🎚 Report-only impact) or per user (🕵 Who is Anna to CA), never per wave. Pick a deployment group — the active baseline's deploy and persona groups are offered with their member counts, or type any group — and get:</p>
       <ul>
-        <li><b>At a glance</b> — how many policies <b>target</b> the group (enforced / report-only / off, and how many reach members some other way), the sign-ins Conditional Access <b>stopped</b> for its members in the window, how many members would be <b>locked out</b> if everything in report-only went live, and the quiet ones — signed in, nothing stopped, no forecast change.</li>
+        <li><b>At a glance</b> — how many policies target the group (enforced / report-only / off, and how many reach members some other way), the sign-ins Conditional Access stopped for its members in the window, how many members would be locked out if everything in report-only went live, and the <b>quiet</b> ones — signed in, nothing stopped, no forecast change.</li>
         <li><b>Go-live readiness per report-only policy</b> — for each report-only policy that targets the wave: members with traffic, how many would be locked out (named), prompted, unchanged, and how many were silent. Verdict: <b>Not yet</b> (somebody would be denied), <b>Friction only</b> (prompts, nobody denied), <b>Ready</b> (evaluated, nobody stopped) or <b>No data</b>. Silent members are counted as no data, never as safety.</li>
-        <li><b>Policies and how they reach the wave</b> — targets via a direct include of the group or a parent group, All users, or “reaches N members another way” (a role, another group, guest type); how many members an exclusion takes back out and through which group; the controls; blocked / interrupted counts and distinct members from the log.</li>
+        <li><b>Policies and how they reach the wave</b> — targets via a direct include of the group or a parent group, All users, or “reaches N members another way” (a role, another group, guest type); how many members an exclusion takes back out and through which group; the controls; blocked / interrupted counts and distinct members from the log. Policy numbers are the baseline's, as in 🕵.</li>
+        <li><b>🛡 Identity risk across the wave</b> — on demand, the <b>Read identity risk</b> button in the head: Identity Protection's user risk for every member (one read each, twenty to a batch; IdentityRiskyUser.Read.All, Entra ID P2), joined to the risky sign-ins the members already have from the window and to the risk-based policies aimed at the wave. Three tiles — members at risk by level, members with a risky sign-in, risk policies <b>firing now</b> on whom — the risk policies with how many members each reaches, and a table of the members that are flagged, remediated or had a risky sign-in. Before the read, a callout already names the members with a risky sign-in in the window.</li>
         <li><b>Members</b> — every member with how they got in (direct, via which child group, dynamic rule) and flags: in an exclusion group while the policy is On (a standing bypass), in two waves at once, blocked in the window, would be locked out, no Entra ID P1, disabled. Filter chips per flag; every name opens 🕵 Who is Anna to CA for that person.</li>
         <li><b>How the wave is built</b> — direct members, each child group with its member count and dynamic rule, and callouts: two waves at once (both personas' policies apply, the stricter wins), standing bypasses, coverage (is every member also in the Global deploy group), disabled accounts.</li>
+        <li><b>■ Stop</b> — the read can be stopped. Stopped while the group is being read, nothing partial is shown (a half member list would report exclusions that are not there) and the read is offered again; stopped during the sign-in window, the group half stays and the note says the log half is missing. A running Graph call cannot be cancelled, so the stop lands after the query in flight.</li>
+        <li><b>Every card folds</b> on its heading, remembered per card.</li>
       </ul>
-      <p class="help-x">Read-only. Members are read transitively, first 500. The reads are bounded by the <b>groups the policies name</b>, not by the members: every referenced group (first 999 members each) and the baseline's deploy / persona groups are read once, plus the directory roles, and every member is then resolved against every policy with the same rule 🕵 Who is Anna to CA uses — so the two tools cannot disagree about a member. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact read; a capped window is said so. Licence per member is the same verdict 🎫 Licence gap uses.</p>
+      <p class="help-x">Read-only. Members are read transitively, first 500. The reads are bounded by the groups the policies name, not by the members: every referenced group (first 999 members each) and the baseline's deploy / persona groups are read once, plus the directory roles, and every member is then resolved against every policy with the same rule 🕵 Who is Anna to CA uses — so the two tools cannot disagree about a member. <b>Sign-in source:</b> the same segment as 🚦, 🎚 and 🕵 — Entra sign-in log, Defender hunting, or Hunting + non-interactive — and the window is read once and shared; a capped window is said so. Licence per member is the same verdict 🎫 Licence gap uses.</p>
     </section>
-    <section class="help-sec">
+        <section class="help-sec">
       <h4>🛂 Session controls <span class="tag new">BETA</span></h4>
-      <p>“Is CA308 blocking downloads?” has no answer in any log Entra keeps. A session control such as <b>Conditional Access App Control</b> only <i>routes</i> the browser session to Defender for Cloud Apps; what happens inside the session — a download blocked, a file labelled on the way out, a step-up authentication — is decided by a Defender <b>session policy</b> and written to Defender's activity log. This tool reads that log and joins it back to the routing policy.</p>
+      <p>“Is CA308 blocking downloads?” has no answer in any log Entra keeps. A session control such as Conditional Access App Control only <i>routes</i> the browser session to Defender for Cloud Apps; what happens inside the session — a download blocked, a file labelled on the way out, a step-up authentication — is decided by a Defender session policy and written to Defender's activity log. This tool reads that log and joins it back to the routing policy.</p>
       <ul>
         <li><b>At a glance</b> — policies with a session control, sessions routed to Defender in the window (from the sign-in log: an applied policy carrying App Control), downloads blocked, and the other actions: protected, step-ups, audited, logins.</li>
         <li><b>Per Conditional Access policy</b> — state, which session control (App Control: Monitor only / Block downloads / Use custom policy; sign-in frequency; persistent browser; token protection; CAE; app-enforced restrictions; Global Secure Access), how many sessions it routed, what Defender did behind it, which Defender policies matched, and a verdict: <b>Acting</b>, <b>Watching</b> (routed and logged, nothing acted), <b>Monitor only</b> (routes, never blocks), <b>Routed, nothing acted</b>, <b>Nothing routed</b>, Off, Report-only (session controls are not applied in report-only).</li>
         <li><b>What Defender did</b> — every session-control event: when, user, app and object, action (Blocked / Protected / Step-up / Login routed / Audited), the Defender policy, and the Conditional Access policy that routed the session. Filters per action and a search box; user names open 🕵 Who is Anna to CA.</li>
         <li><b>Defender session policies seen</b> — every policy name the activities carried, with its counts and the CA policy that routed to it — or the warning that none did.</li>
         <li><b>Schema panel</b> — the action types and raw field names the hunting rows carried. The words a blocked download uses differ per app and are documented nowhere; if a block shows as plain “Activity”, that list is what makes the classifier exact.</li>
+        <li><b>Two halves that fail on their own.</b> The Defender half is minutes of hunting; the routing half is the shared sign-in window. When only the sign-in window fails — a gateway hiccup, a refused scope — the activities are still shown, the note says routing cannot be said, and <b>↻ Read the sign-in window again</b> re-reads the log alone and joins it to the activity already in hand, instead of a Rescan that repeats the hunt.</li>
+        <li><b>■ Stop</b> — during the hunt, the slices already read are kept and shown as a <b>partial</b> window, named as such, without reading the sign-in log; during the sign-in read, the Defender half stays and routing is marked missing. The stop lands after the query in flight — a running hunting query cannot be cancelled.</li>
       </ul>
-      <p class="help-x">Read-only. Defender activity comes from advanced hunting through Microsoft Graph — <code>POST /security/runHuntingQuery</code> over <code>CloudAppEvents</code> filtered to the session / access control audit source, delegated <b>ThreatHunting.Read.All</b>, the signed-in user needing Security Reader, Global Reader, Security Operator, Security Administrator or a Defender RBAC role with hunting access; 30-day retention; the window is read in 4-hour slices of up to 5,000 events each, a slice that takes more than 2 minutes is halved down to 30 minutes and then skipped with a note. Routing comes from the Entra sign-in window 🚦 Sign-in failures and 🎚 Report-only impact share (<b>AuditLog.Read.All</b>). Join: same user, same app, newest routing sign-in within 8 hours; a user-only fallback is labelled; no match is shown as no match. Monitor only logs the <i>Login</i> activity only — a policy on Monitor only never blocks anything, and the tool says so.</p>
+      <p class="help-x">Read-only. Defender activity comes from advanced hunting through Microsoft Graph — <code>POST /security/runHuntingQuery</code> over <code>CloudAppEvents</code> filtered to the session / access control audit source, delegated <b>ThreatHunting.Read.All</b>, the signed-in user needing Security Reader, Global Reader, Security Operator, Security Administrator or a Defender RBAC role with hunting access; 30-day retention; the window is read in 4-hour slices of up to 5,000 events each, a slice that takes more than 2 minutes is halved down to 30 minutes and then skipped with a note. <b>Routing comes from the sign-in window</b> 🚦 Sign-in failures, 🎚 Report-only impact, 🕵 and 🌊 share, from whichever <b>sign-in source</b> is chosen there — Entra sign-in log (AuditLog.Read.All) or Defender hunting. Join: same user, same app, newest routing sign-in within 8 hours; a user-only fallback is labelled; no match is shown as <i>no match</i>. Monitor only logs the Login activity only — a policy on Monitor only never blocks anything, and the tool says so.</p>
     </section>
 
     <section class="help-sec">
@@ -1898,7 +1908,7 @@
         <li><b>What cannot go in is shown as prominently as what can</b>, because those rows need a different action rather than another attempt: a <b>role-assignable</b> group (would be frozen — convert it with ⑦ Migrate first), a <b>Microsoft 365</b>, <b>mail-enabled security</b> or <b>distribution</b> group (only cloud security groups may be members), one <b>already in this unit</b>, and one <b>already in another restricted unit</b> — that last is not a duplicate but a widening, since a scoped administrator on <i>any</i> unit an object belongs to can manage it.</li>
         <li><b>Add a member</b> — the box suggests your <b>baseline group names</b> before you type anything, since those are what the AU exists to protect, and folds in live directory results for any other group or user as you type.</li>
         <li><b>🏷 Group personas — this tenant</b> <span class="tag new">NEW</span>. Every tool here routes a group to its vault by reading the <b>CA number in its name</b>, which works for the baseline and for nothing else: <code>SEC-VIP-Exceptions</code> and <code>Contractors-NoMFA</code> match no persona, so ⑥ Protect skips them, ＋ Bulk add never offers them, and break-glass had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them their naming is wrong is not a feature. Say once where such a group belongs and <b>every tool routes it there afterwards</b> — ⑥ Protect files it, ＋ Bulk add and the persona chips offer it, 📥 Import places a reused group with it, and both the Markdown report here and the restricted-unit pages in 📄 Create documentation state the mapping.</li>
-        <li><b>It does not guess.</b> Matching is exact — the group's object id, or its display name compared case-insensitively. Nothing is inferred from a prefix or a word in the name, because a mapping nobody stated is how a group ends up in the wrong vault silently, and a vault is an authorisation boundary: the wrong one hands a persona's scoped administrator another persona's exclusions. What you state <b>wins over the CA number</b> — somebody typed it, against this group, in this tenant — and ⑥ Protect marks such a row <span class="tag">mapped here</span> so a group filed somewhere its name does not explain always says why.</li>
+        <li><b>It does not guess.</b> Matching is exact — the group's object id, or its display name compared case-insensitively. Nothing is inferred from a prefix or a word in a <i>tenant's</i> name — the baseline's <b>own</b> groups are the one exception, and they are not a guess: <code>CAB-SEC-U-Persona-Admins</code> and <code>CAD-SEC-U-DG-INT</code> name their persona in words the way <code>CA101</code> names it in a number, and are read the same way. Everything else is left alone, because a mapping nobody stated is how a group ends up in the wrong vault silently, and a vault is an authorisation boundary: the wrong one hands a persona's scoped administrator another persona's exclusions. What you state <b>wins over the CA number</b> — somebody typed it, against this group, in this tenant — and ⑥ Protect marks such a row <span class="tag">mapped here</span> so a group filed somewhere its name does not explain always says why.</li>
         <li><b>And it does not hide the unmapped.</b> <b>🔎 Find the unmapped groups</b> lists every group your policies reference that nothing places — no CA number the baseline recognises, and nothing said here — with a one-click persona for each. A group with no persona stays visible <i>as unmapped</i> rather than quietly dropping out of every list, and ⑥ Protect says the same on the row instead of silently skipping it. Filing a group from that list records its <b>object id</b>, so it survives a rename in Entra; typing a name into the box can only record the name.</li>
         <li><b>Where the mapping is kept.</b> In this browser, under this tenant's id — nothing is written to your directory, nothing leaves the machine, and the hosted site goes on storing nothing server-side. Two consequences, stated rather than hidden: it does not follow you to another browser or another machine, and a private window keeps it for the session only. <b>⭳ Export JSON / ⭱ Import JSON</b> is the way round both — the mapping is a few lines of JSON that can live in a repository next to the tenant's other configuration, and importing offers <i>replace</i> or <i>merge</i> rather than choosing for you.</li>
         <li><b>👤 Grant across units</b> — one set of people, several units, applied as a grid. Each unit × each administrator is a separate grant and a separate outcome, because a partial success has to be readable rather than rounded to “done”. It is deliberately not an “apply to all”: who may reach the Admins exclusions is not automatically who may reach the Externals ones, and assuming otherwise would quietly undo the per-persona split. A unit with nobody scoped to it is flagged in the list — that is a unit whose members <b>nobody</b> can change.</li>
@@ -1977,7 +1987,8 @@
         <li><b>Why it would say no</b> — not just why the policy looked at the user. The scope line explains the assignment; this explains the refusal: what the policy demands and what the sign-in actually brought — <i>needs a compliant device — device NOT compliant, Azure AD joined, Windows</i>. Stated as evidence rather than as a diagnosis, because Graph does not return a per-control verdict: a device with <b>no</b> compliance state on the record is reported as unregistered rather than as non-compliant, which is a different problem with a different fix. Only a <b>denial</b> gets one — an interruption was satisfied by doing the extra step, so calling it a refusal would be wrong — and a <b>Block</b> policy says it blocks outright, since nothing the user does would help.</li>
         <li><b>The sign-ins behind the verdict</b>, shown the way 🚦 Sign-in failures shows them: the controls the policy demanded, then the client, operating system, location and device state of the actual sign-in — up to three per user and policy, which is enough to see a pattern without holding the window in memory twice. Where the sign-in <i>also</i> failed for an enforced reason, the failure reason and error code are there too (<code>Device authentication is required. (50097)</code>). Where it does not, the row says the sign-in itself succeeded and this policy only recorded what it would have done — an absence that is information, not a gap.</li>
         <li><b>A verdict is only as good as its window.</b> The range and the number of sign-ins read are stated up front, and a truncated read says so — a policy with <b>no evidence</b> is called out rather than counted as safe, because "nobody was affected" and "nobody signed in" look identical in a summary and only one of them is a reason to go live.</li>
-        <li><b>One read, two tools.</b> 🚦 Sign-in failures in report-only mode issues byte-for-byte the same Graph query as this tool — the whole window, because report-only verdicts cannot be filtered server-side. Whichever runs second reuses what the first read and says so, rather than spending another multi-minute pass over ten thousand records; <b>⟳ Rescan</b> always re-reads the tenant. Enforced-failure mode keeps its own server-filtered read, since that is a different and much cheaper query.</li>
+        <li><b>Sign-in source.</b> The segment in the toolbar is shared with 🚦 Sign-in failures, 🕵 Who is Anna to CA and 🌊 the wave: the <b>Entra sign-in log</b> (interactive only, capped at 10,000, AuditLog.Read.All), <b>Defender hunting</b> (the same sign-ins from <code>EntraIdSignInEvents</code> through advanced hunting on Graph — ThreatHunting.Read.All, no cap, 30 days, Entra ID P2 for the table to be populated) or <b>Hunting + non-interactive</b>, which adds the token refreshes and background client sign-ins the Graph list never returns. A forecast that counts non-interactive sign-ins is a different number — the header says which source the verdicts came from. The hunting read is one query per day, halved on size, and narrates every query; two tools asking for the same window at once share one read. Full detail under 🚦.</li>
+        <li><b>One read, five tools.</b> 🚦 Sign-in failures in report-only mode, 🕵, 🌊 and 🛂 issue the same window read as this tool — the whole window, because report-only verdicts cannot be filtered server-side. Whichever runs second reuses what the first read and says so, rather than spending another multi-minute pass over ten thousand records; <b>⟳ Rescan</b> always re-reads the tenant. Enforced-failure mode keeps its own server-filtered read, since that is a different and much cheaper query.</li>
         <li><b>Export MD</b> — the forecast with every affected user, for the change record or the go-live approval.</li>
       </ul>
       <p class="help-x">Read-only. Needs <code>AuditLog.Read.All</code> (requested when you run it) and a reader role such as Reports Reader, Security Reader or Security Administrator. Audit retention is licence-bound — roughly 30 days on Entra ID P1/P2 — so the window is what Microsoft still holds, not all history.</p>
@@ -2063,7 +2074,7 @@
       <p>The group side of the baseline, in one tool. <b>One read, then everything is a row.</b> On open the tool reads the tenant once — the groups your policies reference (scope <b>Used by CA policies</b>), plus everything the ★ active baseline expects (<b>Baseline + templates</b>), or every security group in the tenant, first 5,000 (<b>All groups</b>) — with their policies, protection, role-assignable state and <b>nested groups</b> — and shows them as a <b>list</b>. Members and nesting are read per group when you first look at it, kept for the session, and a write re-reads only the group it touched.</p>
       <ul>
         <li><b>The list</b> — group, status (present / missing / referenced but gone), members (count, direct vs nested, or a read button), the policies that use it with their state, protection (which restricted unit, or not protected). Filter chips: needs attention, missing, gone, empty, not protected, role-assignable, ↪ has nested groups (always shown — a nested group inside an exclusion or break-glass group is needs attention, because whoever manages the nested group decides who bypasses the policy), not in the baseline; the search matches group names, object IDs and members. Sorted attention first; click a column header to sort by it, again to flip, a third time to go back. Each row offers what applies to it — ＋ Create on a missing group, 🔁 Restore on a dangling reference, 🌊 on a deploy group, ⋯ for everything else.</li>
-        <li><b>🧹 Archived groups</b> (toolbar) — the groups a migration renamed aside. Delete leaves nothing behind: a ticked group still named by a policy is taken out of those policies first (live read, removal, read-back) and deleted only when no policy names it; <b>🔗 Check other uses</b> runs the User or Group analyzer's sources over the ticked groups — app assignments, Intune, licensing, Teams, admin units — and shows the hits per group before you delete, because a recreate moves Conditional Access for you and nothing else.</li>
+        <li><b>🧹 Archived groups</b> (toolbar) — the groups a migration renamed aside. Delete leaves nothing behind: a ticked group still named by a policy is taken out of those policies first (live read, removal, read-back) and deleted only when no policy names it. A policy that refuses the change (the unpatchable ones every tenant seems to have) does not fail the group: the row reads <b>◐ partly done</b> — taken out of 36 of 39, still named by the three that refused, not deleted so no policy points at nothing — and the report says which policies to fix before running again. <b>🔗 Check other uses</b> runs the User or Group analyzer's sources over the ticked groups — app assignments, Intune, licensing, Teams, admin units — and shows the hits per group before you delete, because a recreate moves Conditional Access for you and nothing else.</li>
         <li><b>The actions bar</b> — shows as soon as a row is open, and acts on that row until you tick more. Tick rows and act on them: read members, ⊞ compare selected (the members × groups matrix, only for what you ticked, with the nesting view), assign to policies, protect in a restricted unit, migrate off role-assignable, import members from CSV, create the missing ones. The writes — Create, Assign, Import, Protect, Migrate — open in a <b>dialog over the list</b> with your selection carried across; close it (✕ or Esc) and the ticks and the open row are where you left them. ⊞ Compare opens as a <b>sheet rising from the bar</b> with two views — <b>Members</b> (the members × groups matrix, with nesting) and <b>Policies</b> (groups × policies: ● in, ✗ ex, · not named; rows where the picked groups differ come first, and each group gets a line saying how many inclusions and exclusions it is missing against the others — after a migration, that is what the new group still lacks; every missing cell is a tick, and one button adds the ticked groups to those policies the way the other group already is on them) — full height by default; ▁ Half in its header drops it to half the window so the list stays visible above it and the matrix follows your ticks. Protect and Migrate check only the groups you came with on arrival, and offer the full check as a button.</li>
         <li><b>The detail drawer</b> — click a row, or tick it: the drawer follows the tick, and unticking the open row opens the last one still ticked. <b>Members</b>: direct members first, then each nested group with its own members underneath; add inline; × removes from the group the member actually sits in — a member under a nested group is removed from that nested group, and the confirmation names what else that group feeds. <b>Policies</b>: include / exclude with state, names open the policy card. <b>Protection</b>: the unit it is in, or why it is not protected and the button that fixes it. <b>History</b>: the group's last 30 days from the directory audit log — who added or removed whom.</li>
       </ul>
@@ -2105,21 +2116,21 @@
       <p class="help-x">Writes only on Create / Recreate / Make dynamic / Assign / Import members / Protect / Migrate, each behind a confirmation.</p>
     </section>
 
-    <section class="help-sec">
-      <h4>🔒 Protect exclusions <span class="tag new">NEW</span> <span class="tag block">writes to tenant</span></h4>
-      <p>The exclusion-group protection workflow as its own tool — identical to <b>Conditional Access groups → ⑥ Protect</b>, just reachable directly from the home grid.</p>
+        <section class="help-sec">
+      <h4>🔒 Protect exclusions <span class="tag upd">UPDATED</span> <span class="tag block">writes to tenant</span></h4>
+      <p>An exclusion group is exposed in two ways, and one lock does not cover the other: <b>who can change its members</b> (a restricted management administrative unit — the vault) and <b>whether a group can be nested into it</b> (the group's <code>disableNesting</code> setting — otherwise anyone who can edit some other group can put that group inside the exclusion and walk through the policy). This tool shows <b>both locks per group in one table</b> and applies either or both in one run. It is the standalone version of Conditional Access groups → ⑥ Protect and shares that scan and selection.</p>
       <ul>
-        <li><b>What it does</b> — creates the restricted management administrative unit if it doesn't exist (or reuses an existing restricted one), shows which exclusion groups are already protected, adds the selected groups, and can grant one account Groups Administrator <b>scoped to the AU</b>. Explicit acknowledgement before anything is written; Markdown change report after. <b>Role-assignable groups are refused here</b> — their membership is already limited to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two, so a group with both protections has nobody who can edit its members. Choose one or the other.</li>
-        <li><b>Shared state</b> — it uses the same group scan and selection as CA groups ⑥, so switching between the two views keeps your work.</li>
-        <li><b>Each group goes to its own persona vault.</b> The destination is read from the CA number in the group's name — CA001 to <code>CAB-SEC-RMAU-GLO-Exclusions</code>, CA101 to <code>ADM</code>, CA1001 to <code>DevOps</code> — and shown per row before you write. One unit for the whole run was the old behaviour, and it quietly undid the point of having a unit per persona: protect CA001 and CA101 together and the Admins exclusions land in the Global vault, giving the Global vault's scoped administrators control of policies they have nothing to do with.</li>
-        <li><b>Nothing is filed by proximity.</b> If a group's persona unit does not exist yet, or its name carries no CA number the baseline recognises, it is <b>skipped and named</b> rather than placed in whichever unit was nearest. The fallback unit at the top is used only for the unrecognised ones, and only if you pick it — it is unset by default, because defaulting to the first unit in the list means Global on most tenants.</li>
-        <li><b>Scoped administrators are granted on every unit</b> the run wrote to, not just one of them, with each grant reported separately.</li>
-        <li><b>🧊 frozen</b> — a group that is <b>role-assignable</b> and <i>already</i> in a restricted unit is a dead end: its members may only be changed by Global Administrator or Privileged Role Administrator, and the unit blocks both. Neither flag can be undone. Remove it from the unit to restore those two roles, then convert it with <b>⑦ Migrate</b>. ENCA refuses to create this state, but it can be inherited from a tenant configured before that guard existed, or from the portal — so it is now detected and called out wherever the group appears.</li>
-        <li><b>Search</b> — the box above the list narrows the exclusion groups already found, with type-ahead over their names. Select-all then applies to what is visible, not to the whole list behind the filter.</li>
-        <li><b>Groups no policy references are listed too.</b> A baseline exclusion group can sit inside a unit — or be frozen inside one — long after the policy that used it was retired, and while the list only held <i>currently referenced</i> groups there was nowhere in the app that would tell you. They appear marked <b>not referenced</b>, are never pre-selected and are not swept up by select-all: they are here to be seen, not acted on by default.</li>
-        <li><b>Protection is read in one call</b> for the whole tenant rather than one per group, so the wider list costs nothing extra. If that read fails the column says <b>unknown</b>, never “unprotected” — the reassuring answer is the one you must not guess.</li>
+        <li><b>One row per group, two locks.</b> <b>🔒 Members — restricted unit</b>: in which vault it sits, or <i>unprotected</i> with where it would go. <b>🚫 Nesting</b>: disabled, allowed (with the number of nested groups already inside), <i>never</i> for a dynamic-membership group (its rule picks users or devices; a group can never be added), <i>impossible</i> for a role-assignable one, or <i>not returned by the directory</i>. Chips filter by state: not fully protected, vault only, nesting only, open, fully protected, cannot here.</li>
+        <li><b>Nothing is pre-ticked.</b> A tick is something you did: a row, the header box (ticks every lock that is still open), or a selection carried over from the CA groups list. The bar counts exactly the ticks.</li>
+        <li><b>A greyed tick says why, on the tick itself</b> — <i>no vault to put it in — map it, or pick a fallback unit in Settings</i>; <i>CAB-SEC-RMAU-INT-Exclusions does not exist yet — create it in 🛡 Restricted AUs</i>; <i>blocked by 2 nested groups</i> (empty it first — 👥 CA groups shows them); <i>already</i>; <i>never nests (dynamic)</i>; <i>state not returned by the directory</i>. The row tick explains itself on hover.</li>
+        <li><b>Each group goes to its own persona vault.</b> The destination is read from the group's name — the <b>CA number</b> (<code>CA001</code> to <code>CAB-SEC-RMAU-GLO-Exclusions</code>, <code>CA101</code> to ADM, <code>CA1001</code> to DevOps), or, for the baseline's own groups, the <b>persona in the name</b> (<code>CAB-SEC-U-Persona-Admins</code>, <code>CAD-SEC-U-DG-INT</code>) and break-glass by intent (<code>BreakGlass</code>, <code>Emergency_Access1</code>) — or from what you said once in 🛡 Restricted AUs → 🏷 Group personas. Shown per row before you write. A tenant's own group that names no persona stays <b>unmapped</b> and says so; the <b>fallback unit</b> in Settings is used only for those, and only if you pick it — it is unset by default, because defaulting to the first unit in the list means Global on most tenants. Nothing is filed by proximity.</li>
+        <li><b>Break-glass groups are candidates on any reference</b> — included by the break-glass policy and excluded by none, they used to be missed; the group holding the accounts that bypass every policy belongs in the break-glass vault whatever it is called.</li>
+        <li><b>Role-assignable groups are refused</b> — their membership is already limited to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two, so a group with both has nobody who can edit its members; <b>⑦ Migrate it first</b> is offered on the row. <b>🧊 frozen</b> — a group that already has both (inherited from before the guard, or from the portal) is a dead end and is called out wherever it appears: take it out of the unit to restore the two roles, then migrate.</li>
+        <li><b>The run</b> — the run ledger with both locks as notes per group: added to the vault (or already there), nesting disabled and <b>read back</b> — a tenant whose directory does not return the property is told so once, tenant-wide, rather than per row. Scoped administrators are granted on every unit the run wrote to, each grant reported separately. Explicit acknowledgement before anything is written; Markdown change report after.</li>
+        <li><b>Groups no policy references are listed too</b>, marked <i>not referenced</i>, never pre-selected and not swept up by select-all: a baseline exclusion group can sit in a unit, or be frozen inside one, long after its policy was retired. Protection is read in one call for the whole tenant; if that read fails the column says <i>unknown</i>, never “unprotected”.</li>
+        <li><b>Search</b> — the box narrows the groups already found; select-all applies to what is visible.</li>
       </ul>
-      <p class="help-x">Needs <code>AdministrativeUnit.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role and Entra ID P1 for administrative-unit administrators. See the CA groups section above for the full detail and caveats.</p>
+      <p class="help-x">Needs <code>AdministrativeUnit.ReadWrite.All</code> and <code>Group.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role for the unit and Entra ID P1 for administrative-unit administrators. Nesting is read and written on Graph v1.0 — some tenants answer without the property on beta. See the CA groups section above for the migration and the vault design.</p>
     </section>
 
     <section class="help-sec">
@@ -2989,65 +3000,65 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25326"></script>
-<script src="js/selfhost.js?v=25326"></script>
-<script src="js/version.js?v=25326"></script>
-<script src="js/fork.js?v=25326"></script>
-<script src="js/promote.js?v=25326"></script>
-<script src="js/authConfig.js?v=25326"></script>
-<script src="js/labels.js?v=25326"></script>
-<script src="js/graph.js?v=25326"></script>
-<script src="js/model.js?v=25326"></script>
-<script src="js/render.js?v=25326"></script>
-<script src="js/analyze.js?v=25326"></script>
-<script src="js/whatif.js?v=25326"></script>
-<script src="js/mslearn.js?v=25326"></script>
-<script src="js/gapcheck.js?v=25326"></script>
-<script src="js/cisdata.js?v=25326"></script>
-<script src="js/cischeck.js?v=25326"></script>
-<script src="js/exclusions.js?v=25326"></script>
-<script src="js/validator.js?v=25326"></script>
-<script src="js/whatifeval.js?v=25326"></script>
-<script src="js/compare.js?v=25326"></script>
-<script src="js/whois.js?v=25326"></script>
-<script src="js/wave.js?v=25326"></script>
-<script src="js/sessionctl.js?v=25326"></script>
-<script src="js/groupuse.js?v=25326"></script>
-<script src="js/iso3166.js?v=25326"></script>
-<script src="js/locations.js?v=25326"></script>
-<script src="js/authcontexts.js?v=25326"></script>
-<script src="js/authstrengths.js?v=25326"></script>
-<script src="js/recycle.js?v=25326"></script>
-<script src="js/rmau.js?v=25326"></script>
-<script src="js/camap.js?v=25326"></script>
-<script src="js/rmaudoc.js?v=25326"></script>
-<script src="js/termsofuse.js?v=25326"></script>
-<script src="js/audit.js?v=25326"></script>
-<script src="js/drift.js?v=25326"></script>
-<script src="js/guide.js?v=25326"></script>
-<script src="js/userimpact.js?v=25326"></script>
-<script src="js/smsvoice.js?v=25326"></script>
-<script src="js/memberof.js?v=25326"></script>
-<script src="js/devcheck.js?v=25326"></script>
-<script src="js/licgap.js?v=25326"></script>
-<script src="js/teamsdev.js?v=25326"></script>
-<script src="js/signins.js?v=25326"></script>
-<script src="js/reportimpact.js?v=25326"></script>
-<script src="js/changelog.js?v=25326"></script>
-<script src="js/baselineData.js?v=25326"></script>
-<script src="js/baselineJoeyData.js?v=25326"></script>
-<script src="js/baselineLive.js?v=25326"></script>
-<script src="js/baseline.js?v=25326"></script>
-<script src="js/baselineCleanup.js?v=25326"></script>
-<script src="js/groupTemplates.js?v=25326"></script>
-<script src="js/assign.js?v=25326"></script>
-<script src="js/cagroups.js?v=25326"></script>
-<script src="js/groupsview.js?v=25326"></script>
-<script src="js/runledger.js?v=25326"></script>
-<script src="js/protect.js?v=25326"></script>
-<script src="js/import.js?v=25326"></script>
-<script src="js/export.js?v=25326"></script>
-<script src="js/demo.js?v=25326"></script>
-<script src="js/app.js?v=25326"></script>
+<script src="js/branding.js?v=25327"></script>
+<script src="js/selfhost.js?v=25327"></script>
+<script src="js/version.js?v=25327"></script>
+<script src="js/fork.js?v=25327"></script>
+<script src="js/promote.js?v=25327"></script>
+<script src="js/authConfig.js?v=25327"></script>
+<script src="js/labels.js?v=25327"></script>
+<script src="js/graph.js?v=25327"></script>
+<script src="js/model.js?v=25327"></script>
+<script src="js/render.js?v=25327"></script>
+<script src="js/analyze.js?v=25327"></script>
+<script src="js/whatif.js?v=25327"></script>
+<script src="js/mslearn.js?v=25327"></script>
+<script src="js/gapcheck.js?v=25327"></script>
+<script src="js/cisdata.js?v=25327"></script>
+<script src="js/cischeck.js?v=25327"></script>
+<script src="js/exclusions.js?v=25327"></script>
+<script src="js/validator.js?v=25327"></script>
+<script src="js/whatifeval.js?v=25327"></script>
+<script src="js/compare.js?v=25327"></script>
+<script src="js/whois.js?v=25327"></script>
+<script src="js/wave.js?v=25327"></script>
+<script src="js/sessionctl.js?v=25327"></script>
+<script src="js/groupuse.js?v=25327"></script>
+<script src="js/iso3166.js?v=25327"></script>
+<script src="js/locations.js?v=25327"></script>
+<script src="js/authcontexts.js?v=25327"></script>
+<script src="js/authstrengths.js?v=25327"></script>
+<script src="js/recycle.js?v=25327"></script>
+<script src="js/rmau.js?v=25327"></script>
+<script src="js/camap.js?v=25327"></script>
+<script src="js/rmaudoc.js?v=25327"></script>
+<script src="js/termsofuse.js?v=25327"></script>
+<script src="js/audit.js?v=25327"></script>
+<script src="js/drift.js?v=25327"></script>
+<script src="js/guide.js?v=25327"></script>
+<script src="js/userimpact.js?v=25327"></script>
+<script src="js/smsvoice.js?v=25327"></script>
+<script src="js/memberof.js?v=25327"></script>
+<script src="js/devcheck.js?v=25327"></script>
+<script src="js/licgap.js?v=25327"></script>
+<script src="js/teamsdev.js?v=25327"></script>
+<script src="js/signins.js?v=25327"></script>
+<script src="js/reportimpact.js?v=25327"></script>
+<script src="js/changelog.js?v=25327"></script>
+<script src="js/baselineData.js?v=25327"></script>
+<script src="js/baselineJoeyData.js?v=25327"></script>
+<script src="js/baselineLive.js?v=25327"></script>
+<script src="js/baseline.js?v=25327"></script>
+<script src="js/baselineCleanup.js?v=25327"></script>
+<script src="js/groupTemplates.js?v=25327"></script>
+<script src="js/assign.js?v=25327"></script>
+<script src="js/cagroups.js?v=25327"></script>
+<script src="js/groupsview.js?v=25327"></script>
+<script src="js/runledger.js?v=25327"></script>
+<script src="js/protect.js?v=25327"></script>
+<script src="js/import.js?v=25327"></script>
+<script src="js/export.js?v=25327"></script>
+<script src="js/demo.js?v=25327"></script>
+<script src="js/app.js?v=25327"></script>
 </body>
 </html>
