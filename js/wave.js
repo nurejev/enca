@@ -286,7 +286,7 @@ const Wave = (() => {
         const listed = res.members.filter((m) => (m.risk && m.risk.atRisk) || m.riskySignIns || (m.risk && /^(remediated|dismissed|confirmedSafe)$/i.test(String(m.risk.state || ""))))
           .sort((a, b) => ((b.risk && b.risk.atRisk) - (a.risk && a.risk.atRisk)) || (!!b.riskySignIns - !!a.riskySignIns) || a.name.localeCompare(b.name));
         riskHtml = `<div class="list-card wo-card">
-          <h3 class="wo-h">🛡 Identity risk across the wave <span class="mini muted">— user risk read ${esc(String(rk.at).slice(0, 16).replace("T", " "))}${rk.errs ? ` · ${rk.errs} not read` : ""}</span></h3>
+          <h3 class="wo-h" data-wo-fold="risk">🛡 Identity risk across the wave <span class="mini muted">— user risk read ${esc(String(rk.at).slice(0, 16).replace("T", " "))}${rk.errs ? ` · ${rk.errs} not read` : ""}</span></h3>
           <div class="wo-verdicts wo-3" style="margin:0 0 10px">
             <div class="wo-vt ${rk.atRisk.length ? "bad" : "ok"}"><span class="k">Members at risk</span><span class="v">${rk.atRisk.length}</span><span class="s">${rk.atRisk.length ? ["high", "medium", "low"].map((l) => [l, rk.atRisk.filter((m) => lc(m.risk.level) === l).length]).filter(([, n]) => n).map(([l, n]) => `${n} ${l}`).join(" · ") : "Identity Protection flags nobody in the wave"}</span></div>
             <div class="wo-vt ${rk.risky.length ? "warn" : "ok"}"><span class="k">Risky sign-ins · ${esc(rangeLabel)}</span><span class="v">${rk.risky.length}</span><span class="s">member${rk.risky.length === 1 ? "" : "s"} with a risky sign-in in the window</span></div>
@@ -312,7 +312,7 @@ const Wave = (() => {
     const fbar = (fc) => { const t = fc.evaluated || 1; const w = (n) => Math.round(n / t * 100); return `<div class="wo-fbar" style="width:180px"><i class="b" style="width:${w(fc.blocked.length)}%"></i><i class="p" style="width:${w(fc.prompted.length)}%"></i><i class="n" style="width:${w(fc.unchanged)}%"></i></div>`; };
     const VERDICT = { notyet: '<span class="wo-res wb">Not yet</span>', friction: '<span class="wo-res wp">Friction only</span>', ready: '<span class="wo-res nc">Ready</span>', nodata: '<span class="mini muted">No data</span>' };
     const readiness = `<div class="list-card wo-card">
-      <h3 class="wo-h">🧭 Go-live readiness per report-only policy — this wave only</h3>
+      <h3 class="wo-h" data-wo-fold="readiness">🧭 Go-live readiness per report-only policy — this wave only</h3>
       ${!log ? '<p class="mini muted">Needs the sign-in log.</p>' : !roRows.length ? '<p class="mini muted">No report-only policy targets this wave.</p>' : `<div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Policy</th><th>Members with traffic</th><th>Forecast</th><th>Verdict</th></tr></thead><tbody>
         ${roRows.map((r) => { const fc = r.forecast; return `<tr><td>${polLink(r)}<div class="mini muted">${esc(r.target.text)}</div></td><td class="num">${fc.withTraffic} / ${fc.reach}${fc.silent ? `<div class="mini muted">${fc.silent} silent</div>` : ""}</td>
           <td>${fc.evaluated ? fbar(fc) : ""}${fc.blocked.length ? `<span class="wo-res wb">${fc.blocked.length} locked out</span> · ` : ""}${fc.prompted.length ? `<span class="wo-res wp">${fc.prompted.length} prompted</span> · ` : ""}${fc.evaluated ? `<span class="wo-res nc">${fc.unchanged} no change</span>` : '<span class="mini muted">no member sign-in was evaluated by it</span>'}</td>
@@ -327,7 +327,7 @@ const Wave = (() => {
       .map(([k, l]) => `<button class="fchip${pfilter === k ? " active" : ""}" data-wv-pfilter="${k}">${l}</button>`).join("");
     const pshown = res.rows.filter((r) => pfilter === "all" || (pfilter === "targets" ? r.target && r.target.kind !== "other" : r.target && r.target.kind === "other"));
     const ptable = `<div class="list-card wo-card">
-      <h3 class="wo-h">📋 Policies and how they reach the wave</h3>
+      <h3 class="wo-h" data-wo-fold="policies">📋 Policies and how they reach the wave</h3>
       <div class="chip-filter" style="margin:8px 0 10px">${pchips}</div>
       <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Policy</th><th>State</th><th>Targets via</th><th>Excluded members</th><th>Controls</th><th>Log · ${esc(rangeLabel)}</th></tr></thead><tbody>
         ${pshown.map((r) => `<tr class="${r.state === "off" ? "wo-dim" : ""}"><td>${polLink(r)}</td><td>${stateHtml(r.state)}</td><td class="wo-via">${r.target ? (r.target.kind === "other" ? `<span style="color:var(--warn-fg)">${esc(r.target.text)}</span>` : `<b>${esc(r.target.text)}</b>`) : '<span class="mini muted">does not target it</span>'}${r.target && r.target.kind !== "other" && r.reach < mc.total - r.exc.length ? `<div class="mini muted">reaches ${r.reach} of ${mc.total}</div>` : ""}</td>
@@ -344,7 +344,7 @@ const Wave = (() => {
     const mshown = res.members.filter((m) => filter === "all" ? true : filter === "look" ? m.needsLook : filter === "bypass" ? m.exclusions.length : m.flags.includes(filter));
     const maxRows = opts.maxRows || 100;
     const mtable = `<div class="list-card wo-card">
-      <h3 class="wo-h">👥 Members ${pill(mc.total, "zero")} <span class="mini muted">— click a name for 🕵 Who is … to CA</span></h3>
+      <h3 class="wo-h" data-wo-fold="members">👥 Members ${pill(mc.total, "zero")} <span class="mini muted">— click a name for 🕵 Who is … to CA</span></h3>
       <div class="chip-filter" style="margin:8px 0 10px">${mchips}</div>
       <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Member</th><th>In wave via</th><th>Flags</th><th>${esc(rangeLabel)}</th><th>Forecast</th></tr></thead><tbody>
         ${mshown.slice(0, maxRows).map((m) => `<tr><td><a href="#" class="wv-member" data-wv-open="${esc(m.upn)}"><b>${esc(m.name)}</b></a><div class="mini muted">${esc(m.upn)}</div></td><td class="wo-via">${esc(m.how)}${m.roles.length ? `<div class="mini muted">${esc(m.roles.join(", "))}</div>` : ""}</td>
@@ -358,7 +358,7 @@ const Wave = (() => {
 
     // ---- how the wave is built
     const built = `<div class="list-card wo-card">
-      <h3 class="wo-h">🧩 How the wave is built</h3>
+      <h3 class="wo-h" data-wo-fold="built">🧩 How the wave is built</h3>
       ${mc.direct != null ? `<div class="wo-grp"><span><b>Direct members</b></span><span class="muted">${mc.direct}</span><span class="mini muted">added by hand — 🔗 Analyzer for who</span></div>` : '<p class="mini muted">Direct list not read.</p>'}
       ${res.children.map((ch) => `<div class="wo-grp"><span>${esc(ch.name)}</span><span class="muted">nested · ${ch.n} member${ch.n === 1 ? "" : "s"}</span><span class="mini muted">${ch.rule ? `dynamic · <span class="uupn">${esc(ch.rule)}</span>` : "assigned"}</span></div>`).join("")}
       ${res.isDyn ? `<div class="wo-grp"><span><b>Dynamic rule</b></span><span class="muted">all ${mc.total}</span><span class="mini muted uupn">${esc(g.membershipRule || "")}</span></div>` : ""}

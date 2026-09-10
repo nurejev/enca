@@ -118,6 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 159,
+      title: "🕵 Who is Anna 0.8: out-of-scope forecast verdict, folding cards, plain risk footer (T36, T37 0.6.1)",
+      tools: ["Who is Anna to CA", "Who is the wave to CA"],
+      builds: [25323],
+      risk: "low",
+      what: "js/whois.js logOf: roEval (policy → {total, notApplied} over reportOnly* results on her records); analyze: a nodata forecast with notApplied > 0 becomes {scoped, notApplied, evaluated}; forecast.worst gains 'scoped' (+ scoped/silent lists); forecastHtml, the tile, the callout (ok style) and toMd/toCsv print it; the 'No data' callout now explains the two causes. Every wo-card h3 carries data-wo-fold=key (whois: ladder policies risk devices mfa stopped forecast; wave: risk readiness policies members built); app.js applyFolds(bodyId)/foldClick(bodyId, e) shared by #woBody and #wvBody, state in localStorage enca.woFold as bodyId:key; css .wo-folded hides everything but the heading, chevron ::after. Identity-risk footer reworded.",
+      why: "Display only. The verdict change reads results already on the records (reportOnlyNotApplied) that ReportImpact drops for impact counting — nothing is read differently.",
+      test: [
+        "Perfetti, Ivan Gerdes, 7 days: the forecast tile reads 'Nothing for her — 6 report-only policies reach her, all evaluated her sign-ins and none matched their conditions'; the green callout lists the six with (7,111×) each; the Forecast column reads 'out of scope on her sign-ins — evaluated 7,111×, never matched'.",
+        "A user with one report-only policy that never appears on any record (created today): that policy alone reads No data, with the two-cause explanation; the tile stays No data only when NO scoped policy exists, else the scoped ones win.",
+        "Fold 💻 Devices, open another user: still folded; unfold: stays open after a rescan. Fold 👥 Members in 🌊: remembered separately from 🕵.",
+        "Clicking a policy link or a button inside a heading must not fold the card.",
+        "?demo=1: Eva — forecast card shows 'Out of scope on her sign-ins — Block elevated insider risk (2×)' under the No change row; Milan — still 'No data' for the two policies absent from his records.",
+      ],
+      files: ["js/whois.js", "js/wave.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 158,
       title: "🌊 Who is the wave 0.6: 🛡 Read identity risk for the whole wave (T37)",
       tools: ["Who is the wave to CA"],

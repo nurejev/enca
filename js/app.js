@@ -15336,8 +15336,10 @@ This is a directory write. Nothing else changes.`)) return;
   function renderWhoIs() {
     const R = woRes; if (!R) return;
     $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, stateFilter: woSfilter, logSkipped: woLogSkipped });
+    applyFolds("woBody");
   }
   $("woBody").addEventListener("click", async (e) => {
+    if (foldClick("woBody", e)) return;
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const f = e.target.closest("[data-wo-filter]"); if (f) { woFilter = f.dataset.woFilter; renderWhoIs(); return; }
     const sf = e.target.closest("[data-wo-sfilter]"); if (sf) { woSfilter = sf.dataset.woSfilter; renderWhoIs(); return; }
@@ -15601,8 +15603,31 @@ This is a directory write. Nothing else changes.`)) return;
     if (wvLogSkipped) notes.push(`Sign-in half: ${esc(wvLogSkipped)}.`);
     if (R.truncated && R.truncated.length) notes.push(`${R.truncated.length} referenced group${R.truncated.length === 1 ? "" : "s"} with more than 999 members were read partially — exclusion and other-wave counts may be low.`);
     $("wvBody").innerHTML = (notes.length ? `<p class="mini muted" style="margin:0 0 8px">${notes.join(" ")}</p>` : "") + Wave.render(R, { rangeLabel: rangeLabel(wvDays), filter: wvFilter, pfilter: wvPfilter });
+    applyFolds("wvBody");
+  }
+  // ---- card folding, shared by 🕵 and 🌊 (25323, on Mihai's ask): click a
+  // card heading to fold it; the state is remembered per tool and card so a
+  // rescan or a new user keeps the layout the reader chose.
+  const WO_FOLD_KEY = "enca.woFold";
+  const readFolds = () => { try { return JSON.parse(localStorage.getItem(WO_FOLD_KEY) || "[]"); } catch { return []; } };
+  const writeFolds = (a) => { try { localStorage.setItem(WO_FOLD_KEY, JSON.stringify(a)); } catch { /* private mode */ } };
+  function applyFolds(bodyId) {
+    const host = $(bodyId); if (!host) return;
+    const folded = new Set(readFolds());
+    host.querySelectorAll(".wo-card > .wo-h[data-wo-fold]").forEach((h) => { h.parentElement.classList.toggle("wo-folded", folded.has(`${bodyId}:${h.dataset.woFold}`)); h.title = h.parentElement.classList.contains("wo-folded") ? "Unfold this section" : "Fold this section away"; });
+  }
+  function foldClick(bodyId, e) {
+    const h = e.target.closest(".wo-h[data-wo-fold]"); if (!h) return false;
+    if (e.target.closest("a, button, input, .pol-link")) return false;
+    const key = `${bodyId}:${h.dataset.woFold}`;
+    const set = new Set(readFolds());
+    set.has(key) ? set.delete(key) : set.add(key);
+    writeFolds([...set]);
+    applyFolds(bodyId);
+    return true;
   }
   $("wvBody").addEventListener("click", (e) => {
+    if (foldClick("wvBody", e)) return;
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const f = e.target.closest("[data-wv-filter]"); if (f) { wvFilter = f.dataset.wvFilter; renderWave(); return; }
     const pf = e.target.closest("[data-wv-pfilter]"); if (pf) { wvPfilter = pf.dataset.wvPfilter; renderWave(); return; }

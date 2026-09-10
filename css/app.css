@@ -1706,6 +1706,14 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-card{padding:18px 20px;margin-top:14px}
 .wo-card:first-child{margin-top:0}
 .wo-h{font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* 25323: every card in 🕵 / 🌊 folds on its heading. The chevron is the only
+   hint; a folded card keeps its heading (and the counts in it) and hides
+   the rest. Remembered per tool + card in localStorage. */
+.wo-h[data-wo-fold]{cursor:pointer;user-select:none}
+.wo-h[data-wo-fold]::after{content:"\25be";margin-left:auto;color:var(--muted);font-size:13px;transition:transform .15s}
+.wo-card.wo-folded .wo-h[data-wo-fold]::after{transform:rotate(-90deg)}
+.wo-card.wo-folded > :not(.wo-h){display:none}
+.wo-card.wo-folded .wo-h{margin-bottom:0}
 .wo-who{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center}
 .wo-av{width:48px;height:48px;font-size:17px}
 .wo-name{font-size:17px;font-weight:700;letter-spacing:-.01em}

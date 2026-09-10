@@ -184,7 +184,19 @@ const WhoIs = (() => {
       }
     } catch (e) { console.warn("whois: report-only build failed", e && e.message); }
     const failedIds = new Set(rows.map((r) => r.id));
-    return { rows, total: recs.length, passed: recs.filter((r) => !failedIds.has(r.id)).length, blocked, interrupted, perPolicy, ro, devices: devicesOf(recs, failedIds), mfa: mfaOf(recs, lookup) };
+    // How often each report-only policy was EVALUATED on her sign-ins and
+    // found out of scope (reportOnlyNotApplied). ReportImpact drops those —
+    // rightly, for impact — but for one person "no data" and "evaluated
+    // 7,000 times, her sign-ins never matched its conditions" are opposite
+    // answers, and the card said the first while the second was true.
+    const roEval = new Map();
+    recs.forEach((r) => (r.appliedConditionalAccessPolicies || []).forEach((p) => {
+      if (!/^reportOnly/i.test(String(p.result || ""))) return;
+      const k = p.id || p.displayName;
+      const e = roEval.get(k) || roEval.set(k, { total: 0, notApplied: 0 }).get(k);
+      e.total++; if (/notApplied/i.test(String(p.result))) e.notApplied++;
+    }));
+    return { rows, total: recs.length, passed: recs.filter((r) => !failedIds.has(r.id)).length, blocked, interrupted, perPolicy, ro, roEval, devices: devicesOf(recs, failedIds), mfa: mfaOf(recs, lookup) };
   }
 
   // The devices she signed in from, and what Conditional Access saw of each:
@@ -326,7 +338,8 @@ const WhoIs = (() => {
     const rows = lookup.map((P) => {
       const st = stateFor(P, user);
       const cnt = log ? (log.perPolicy.get(P.id) || null) : null;
-      const fc = P.state === "ro" && log ? (roByPolicy.get(P.id) || { success: 0, interrupted: 0, failure: 0, nodata: true }) : null;
+      let fc = P.state === "ro" && log ? (roByPolicy.get(P.id) || { success: 0, interrupted: 0, failure: 0, nodata: true }) : null;
+      if (fc && fc.nodata && log.roEval && log.roEval.get(P.id) && log.roEval.get(P.id).notApplied) fc = { ...fc, nodata: false, scoped: true, notApplied: log.roEval.get(P.id).notApplied, evaluated: log.roEval.get(P.id).total };
       return { ...P, ...st, log: cnt, forecast: fc };
     }).sort((a, b) => {
       const o = { inc: 0, exc: 1, na: 2 };
@@ -348,7 +361,9 @@ const WhoIs = (() => {
       const ro = log.ro;
       const block = ro ? ro.policies.filter((p) => p.failure) : [];
       const prompt = ro ? ro.policies.filter((p) => !p.failure && p.interrupted) : [];
-      forecast = { worst: block.length ? "block" : prompt.length ? "prompt" : (ro && ro.policies.length) ? "clean" : "nodata", block, prompt, roCount: counts.ro };
+      const scoped = rows.filter((r) => r.state === "ro" && r.s === "inc" && r.forecast && r.forecast.scoped);
+      const silent = rows.filter((r) => r.state === "ro" && r.s === "inc" && r.forecast && r.forecast.nodata);
+      forecast = { worst: block.length ? "block" : prompt.length ? "prompt" : (ro && ro.policies.length) ? "clean" : (scoped.length && !silent.length) ? "scoped" : "nodata", block, prompt, scoped, silent, roCount: counts.ro };
     }
     const risk = riskOf(records, user.id, user, lookup);
     return { user, days: days || null, ladder, exclusions, rows, counts, stage, log, forecast, risk, bypasses: exclusions.filter((x) => x.bypass) };
@@ -379,6 +394,7 @@ const WhoIs = (() => {
   function forecastHtml(fc) {
     if (!fc) return '<span class="mini muted">—</span>';
     if (fc.nodata) return '<span class="mini muted">no sign-in evaluated it — no data, not safe</span>';
+    if (fc.scoped) return `<span class="mini muted" title="Every evaluation returned report-only: not applied — the policy looked at the sign-in and its conditions did not match">out of scope on her sign-ins — evaluated ${fc.notApplied.toLocaleString()}×, never matched</span>`;
     const tot = (fc.failure || 0) + (fc.interrupted || 0) + (fc.success || 0);
     const w = (n) => tot ? Math.round(n / tot * 100) : 0;
     const bar = `<div class="wo-fbar" title="${fc.failure || 0} would block · ${fc.interrupted || 0} would prompt · ${fc.success || 0} no change"><i class="b" style="width:${w(fc.failure || 0)}%"></i><i class="p" style="width:${w(fc.interrupted || 0)}%"></i><i class="n" style="width:${w(fc.success || 0)}%"></i></div>`;
@@ -429,7 +445,9 @@ const WhoIs = (() => {
           ? `<div class="wo-vt warn"><span class="k">If report-only went live</span><span class="v">Extra prompts</span><span class="s">from ${esc(fc.prompt.map((p) => p.name).join(", "))}</span></div>`
           : fc.worst === "clean"
             ? `<div class="wo-vt ok"><span class="k">If report-only went live</span><span class="v">No change</span><span class="s">her sign-ins already satisfy every report-only policy</span></div>`
-            : `<div class="wo-vt"><span class="k">If report-only went live</span><span class="v muted">No data</span><span class="s">${c.ro ? `${c.ro} report-only ${c.ro === 1 ? "policy reaches" : "policies reach"} her, none evaluated a sign-in in the window` : "no report-only policy reaches her"}</span></div>`
+            : fc.worst === "scoped"
+              ? `<div class="wo-vt ok"><span class="k">If report-only went live</span><span class="v">Nothing for her</span><span class="s">${fc.scoped.length} report-only ${fc.scoped.length === 1 ? "policy reaches" : "policies reach"} her, all evaluated her sign-ins and none matched their conditions</span></div>`
+              : `<div class="wo-vt"><span class="k">If report-only went live</span><span class="v muted">No data</span><span class="s">${c.ro ? `${c.ro} report-only ${c.ro === 1 ? "policy reaches" : "policies reach"} her, none evaluated a sign-in in the window` : "no report-only policy reaches her"}</span></div>`
       : `<div class="wo-vt"><span class="k">If report-only went live</span><span class="v muted">—</span><span class="s">sign-in log not read</span></div>`;
 
     // ---- identity risk tile: the user's Identity Protection state first,
@@ -482,7 +500,7 @@ const WhoIs = (() => {
       <span class="st">Excluded · ${/^nested/.test(x.how) ? `<b class="wo-nest">↪ ${esc(x.how)}</b> <span class="mini muted">— whoever manages that group decides</span>` : `<b>${esc(x.how)}</b>`}</span>
       <span class="mini muted">${x.dangling ? "no policy references this group" : `from ${x.policies.map((p) => `${esc(p.seq || p.name)}${p.state === "on" ? "" : ` (${STATE_LABEL[p.state]})`}`).join(", ")}`}</span></div>`;
     const ladderHtml = `<div class="list-card wo-card">
-      <h3 class="wo-h">🚀 Deployment groups <span class="mini muted">— ${res.ladder.hasDg ? "the ★ active baseline's deploy groups, membership read transitively" : "the ★ active baseline has no deployment groups; its persona groups are shown"}</span></h3>
+      <h3 class="wo-h" data-wo-fold="ladder">🚀 Deployment groups <span class="mini muted">— ${res.ladder.hasDg ? "the ★ active baseline's deploy groups, membership read transitively" : "the ★ active baseline has no deployment groups; its persona groups are shown"}</span></h3>
       ${res.ladder.deploy.length ? `<div class="wo-ladder">${res.ladder.deploy.map(rung).join("")}</div>` : ""}
       ${res.ladder.persona.length ? `<div class="mini muted" style="margin:10px 0 4px">Persona groups (production)</div><div class="wo-ladder">${res.ladder.persona.map(rung).join("")}</div>` : ""}
       ${res.exclusions.length ? `<div class="mini muted" style="margin:10px 0 4px">Exclusion groups she is in</div><div class="wo-ladder">${res.exclusions.map(exclRung).join("")}</div>` : '<p class="mini muted" style="margin-top:10px">She is in no exclusion group.</p>'}
@@ -511,7 +529,7 @@ const WhoIs = (() => {
       : !r.log ? (r.state === "off" ? '<span class="mini muted">no verdicts (Off)</span>' : pill(0, "zero"))
         : `${r.log.blocked ? `${pill(r.log.blocked, "red")} blocked` : ""}${r.log.blocked && r.log.interrupted ? " · " : ""}${r.log.interrupted ? `${pill(r.log.interrupted, "amber")} interrupted` : ""}`;
     const tbl = `<div class="list-card wo-card">
-      <h3 class="wo-h">📋 Policies and how they reach her</h3>
+      <h3 class="wo-h" data-wo-fold="policies">📋 Policies and how they reach her</h3>
       <div class="chip-filter" style="margin:8px 0 6px">${chips}</div>
       <div class="chip-filter" style="margin:0 0 10px">${stateChips}</div>
       <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Policy</th><th>State</th><th>Reaches her via</th><th>Controls</th><th>Log · ${esc(rangeLabel)}</th><th>Forecast</th></tr></thead><tbody>
@@ -536,7 +554,7 @@ const WhoIs = (() => {
         const typeLabel = (t) => esc(String(t || "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase());
         const lvlCls = (l) => l === "high" ? "blk" : l === "medium" ? "int" : "wb";
         riskHtml = `<div class="list-card wo-card">
-          <h3 class="wo-h">🛡 Identity risk${rsi.length ? ` <span class="mini muted">— ${rk.signIns.length} risky sign-in${rk.signIns.length === 1 ? "" : "s"} · ${esc(rangeLabel)}</span>` : ""}</h3>
+          <h3 class="wo-h" data-wo-fold="risk">🛡 Identity risk${rsi.length ? ` <span class="mini muted">— ${rk.signIns.length} risky sign-in${rk.signIns.length === 1 ? "" : "s"} · ${esc(rangeLabel)}</span>` : ""}</h3>
           ${polRows}
           ${dets.length ? `<div class="mini muted" style="margin:6px 0 4px">Risk detections${rk.user.detWindow ? ` · last ${rk.user.detWindow} days` : ""}</div><div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>When</th><th>Detection</th><th>Level</th><th>State</th><th>Activity</th><th>Where</th></tr></thead><tbody>
             ${dets.map((d) => `<tr><td class="num">${esc(fmtWhen(d.when))}</td><td>${typeLabel(d.type)}${d.info ? `<div class="mini muted">${esc(d.info)}</div>` : ""}</td><td><span class="wo-res ${lvlCls(d.level)}">${capL(esc(d.level))}</span></td><td>${esc(d.state)}${d.detail && d.detail !== "none" ? `<div class="mini muted">${esc(d.detail)}</div>` : ""}</td><td>${esc(d.activity)}${d.source ? `<div class="mini muted">${esc(d.source)}</div>` : ""}</td><td>${esc([d.city, d.country].filter(Boolean).join(", "))}${d.ip ? `<div class="mini muted">${esc(d.ip)}</div>` : ""}</td></tr>`).join("")}
@@ -544,7 +562,7 @@ const WhoIs = (() => {
           ${rsi.length ? `<div class="mini muted" style="margin:10px 0 4px">Risky sign-ins · ${esc(rangeLabel)}</div><div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>When</th><th>App</th><th>Risk</th><th>State</th><th>Detections</th><th>Where</th><th>CA</th><th></th></tr></thead><tbody>
             ${rsi.map((r) => `<tr><td class="num">${esc(fmtWhen(r.when))}</td><td>${esc(r.app)}</td><td><span class="wo-res ${lvlCls(r.level)}">${capL(esc(r.level))}</span></td><td>${esc(r.state)}${r.detail && r.detail !== "none" ? `<div class="mini muted">${esc(r.detail)}</div>` : ""}</td><td class="mini">${(r.types || []).map(typeLabel).join(", ") || "—"}</td><td>${esc([r.city, r.country].filter(Boolean).join(", "))}${r.ip ? `<div class="mini muted">${esc(r.ip)}</div>` : ""}</td><td class="mini">${esc(r.caStatus || "—")}</td><td><button class="fchip" data-wo-replay="${esc(r.id)}" title="Prefill 🧪 What-If from this sign-in">🧪 Replay</button></td></tr>`).join("")}
           </tbody></table></div>${rk.signIns.length > rsi.length ? `<p class="mini muted" style="margin-top:6px">${rk.signIns.length - rsi.length} more — export CSV for all.</p>` : ""}` : ""}
-          <p class="mini muted" style="margin-top:8px">User risk and detections are Identity Protection's (needs Entra ID P2 to be populated); sign-in risk is read off her own sign-in records. Nothing here changes the tenant — dismiss or confirm in the Entra portal.</p>
+          <p class="mini muted" style="margin-top:8px">Where this comes from: the user-risk line and the detections table are what Identity Protection says about her (only filled in on Entra ID P2); the risky sign-ins table is her own sign-in records in the window. This card only reads — to dismiss or confirm a risk, do it in the Entra portal under Identity Protection → Risky users.</p>
         </div>`;
       }
     }
@@ -559,7 +577,7 @@ const WhoIs = (() => {
       const notOk = dv.by.managed + dv.by.registered + dv.by.unmanaged;
       const sum = ["compliant", "managed", "registered", "unmanaged"].filter((k) => dv.by[k]).map((k) => `<span class="wo-res ${DEV_STATE[k].cls}">${dv.by[k]}</span> ${DEV_STATE[k].label.toLowerCase()}`).join(" · ");
       devHtml = `<div class="list-card wo-card">
-        <h3 class="wo-h">💻 Devices she signs in from · ${esc(rangeLabel)} ${pill(dv.rows.length, "")}</h3>
+        <h3 class="wo-h" data-wo-fold="devices">💻 Devices she signs in from · ${esc(rangeLabel)} ${pill(dv.rows.length, "")}</h3>
         ${dv.rows.length ? `<p class="mini" style="margin:0 0 8px">${dv.total} sign-in${dv.total === 1 ? "" : "s"}: ${sum}.</p>
         ${needDev.length ? `<div class="wo-callout${notOk ? " bad" : " ok"}"><b>${notOk ? `${notOk} sign-in${notOk === 1 ? "" : "s"} from a device that cannot satisfy a compliant-device grant` : "Every sign-in came from a compliant device"}</b> — ${needDev.map((r) => polLink(r)).join(", ")} require${needDev.length === 1 ? "s" : ""} one${needDev.some((r) => r.state === "ro") ? " (report-only ones would, once live)" : ""}.${notOk ? " The enforced ones are the Blocked rows below; the report-only ones are the forecast." : ""}</div>` : ""}
         <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Device</th><th>OS · browser</th><th>State</th><th class="num">Sign-ins</th><th class="num">Stopped</th><th>Last seen</th></tr></thead><tbody>
@@ -586,7 +604,7 @@ const WhoIs = (() => {
       if (mf.required && !mf.fresh && known) why.push(`Every MFA requirement in the window was satisfied by a claim already in the token — no fresh prompt was recorded. A prompt she sees that is not here is not Conditional Access: per-user MFA, security defaults, the app's own step-up, or a self-service registration flow.`);
       if (mf.unknown && !known) why.push(`Fresh vs reused cannot be told apart from the hunting source — switch the sign-in source to the Entra sign-in log to see which prompts were real.`);
       mfaHtml = `<div class="list-card wo-card">
-        <h3 class="wo-h">🔐 MFA on her sign-ins · ${esc(rangeLabel)} <span class="mini muted">— ${mf.required} of ${mf.total} required it</span></h3>
+        <h3 class="wo-h" data-wo-fold="mfa">🔐 MFA on her sign-ins · ${esc(rangeLabel)} <span class="mini muted">— ${mf.required} of ${mf.total} required it</span></h3>
         ${mf.required ? `<div class="wo-verdicts wo-3" style="margin:0 0 10px">
           <div class="wo-vt ${mf.fresh ? "warn" : "ok"}"><span class="k">Fresh prompts</span><span class="v">${mf.fresh}</span><span class="s">${pct(mf.fresh, known)} of the ${known} known — she had to pick up the phone</span></div>
           <div class="wo-vt ok"><span class="k">Satisfied by the token</span><span class="v">${mf.claim}</span><span class="s">an MFA claim already in the session — no prompt</span></div>
@@ -606,7 +624,7 @@ const WhoIs = (() => {
     if (log) {
       const rows = log.rows.slice(0, opts.maxRows || 50);
       const sil = `<div class="list-card wo-card">
-        <h3 class="wo-h">🚦 Sign-ins Conditional Access stopped · ${esc(rangeLabel)} ${pill(log.rows.length, "red")}</h3>
+        <h3 class="wo-h" data-wo-fold="stopped">🚦 Sign-ins Conditional Access stopped · ${esc(rangeLabel)} ${pill(log.rows.length, "red")}</h3>
         ${log.rows.length ? `<div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>When</th><th>App · client</th><th>Policy</th><th>Result</th><th></th></tr></thead><tbody>
           ${rows.map((r) => `<tr><td class="num">${esc(fmtWhen(r.when))}</td><td>${esc(r.app)}<div class="mini muted">${esc([r.browser || r.client, r.os, r.compliant ? "compliant" : r.managed ? "managed" : r.os ? "unmanaged" : "", [r.city, r.country].filter(Boolean).join(" ")].filter(Boolean).join(" · "))}</div></td>
             <td>${r.policies.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${(p.controls || []).length ? `<div class="mini" style="color:var(--on)">demanded ${esc(p.controls.join(", "))}</div>` : ""}`).join("<br>")}</td>
@@ -621,10 +639,12 @@ const WhoIs = (() => {
       if (fc && fc.block.length) fc.block.forEach((p) => items.push(`<div class="wo-callout bad"><b>Locked out</b> — <span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span> would deny ${p.failure} of her sign-ins${(p.denyWhy || []).length ? `: ${p.denyWhy.slice(0, 3).map((d) => `${esc(d.what)}${d.n > 1 ? ` ×${d.n}` : ""}`).join("; ")}` : ""}${(p.samples || []).length ? `<div class="mini muted">e.g. ${p.samples.slice(0, 2).map((s) => esc([s.app, s.browser || s.client, s.os, s.compliant ? "compliant" : s.os ? "unmanaged" : "", [s.city, s.country].filter(Boolean).join(" ")].filter(Boolean).join(" · "))).join(" — ")}</div>` : ""}</div>`));
       if (fc && fc.prompt.length) fc.prompt.forEach((p) => items.push(`<div class="wo-callout"><b>Extra prompts</b> — <span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span> would stop ${p.interrupted} sign-in${p.interrupted === 1 ? "" : "s"} for an extra step${(p.riskWhy || []).length ? ` (${p.riskWhy.map((d) => `${esc(d.what)} ×${d.n}`).join(", ")})` : ""}.</div>`));
       if (ro) ro.policies.filter((p) => !p.failure && !p.interrupted && p.success).forEach((p) => items.push(`<div class="wo-callout ok"><b>No change</b> — <span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>: ${p.success} sign-in${p.success === 1 ? "" : "s"} already satisfied it.</div>`));
+      const scoped = res.rows.filter((r) => r.state === "ro" && r.s === "inc" && r.forecast && r.forecast.scoped);
+      if (scoped.length) items.push(`<div class="wo-callout ok"><b>Out of scope on her sign-ins</b> — ${scoped.map((r) => `<span class="pol-link" data-polid="${esc(r.id)}">${esc(r.seq || r.name)}</span> <span class="muted">(${r.forecast.notApplied.toLocaleString()}×)</span>`).join(", ")} reach${scoped.length === 1 ? "es" : ""} her by assignment and ${scoped.length === 1 ? "was" : "were"} evaluated on her sign-ins, but the conditions never matched — no legacy client, no risk, not that app or platform. Going live changes nothing for her as she signs in today; a different client or a risk event would bring ${scoped.length === 1 ? "it" : "them"} into play.</div>`);
       const silent = res.rows.filter((r) => r.state === "ro" && r.s === "inc" && r.forecast && r.forecast.nodata);
-      if (silent.length) items.push(`<div class="wo-callout"><b>No data</b> — ${silent.map((r) => `<span class="pol-link" data-polid="${esc(r.id)}">${esc(r.seq || r.name)}</span>`).join(", ")} reach${silent.length === 1 ? "es" : ""} her but evaluated none of her sign-ins in the window. Not evidence of safety.</div>`);
+      if (silent.length) items.push(`<div class="wo-callout"><b>No data</b> — ${silent.map((r) => `<span class="pol-link" data-polid="${esc(r.id)}">${esc(r.seq || r.name)}</span>`).join(", ")} reach${silent.length === 1 ? "es" : ""} her but ${silent.length === 1 ? "does" : "do"} not appear on any of her ${log.total.toLocaleString()} sign-in records — not even as “not applied”. A report-only policy is evaluated on every sign-in it is assigned to, so a policy missing from all of them was created after the window, or the source dropped its verdicts (the hunting adapter is the suspect — switch to the Entra sign-in log and compare). Not evidence of safety.</div>`);
       const fch = `<div class="list-card wo-card">
-        <h3 class="wo-h">🎚 If everything in report-only went live today</h3>
+        <h3 class="wo-h" data-wo-fold="forecast">🎚 If everything in report-only went live today</h3>
         ${items.join("") || `<p class="mini muted">${c.ro ? "No report-only verdict on her sign-ins in this window." : "No report-only policy reaches her."}</p>`}
         <p class="mini muted" style="margin-top:8px">Worst case first, per policy, from the report-only verdicts on her own sign-ins. Zero traffic on a policy is shown as no data, never as safe.</p>
       </div>`;
@@ -667,7 +687,7 @@ const WhoIs = (() => {
       else if (rk.err) L.push(`- **Identity risk:** user risk not read (${e(rk.err)}) — ${si}`);
       else L.push(`- **Identity risk:** ${rk.atRisk ? `${e(rk.user.state)}, level ${e(rk.user.level)}${rk.user.updated ? ` since ${e(rk.user.updated)}` : ""}${rk.user.detail && rk.user.detail !== "none" ? ` (${e(rk.user.detail)})` : ""}` : String(rk.user.state || "none") === "none" ? "not flagged" : `${e(rk.user.state)}${rk.user.updated ? ` (${e(rk.user.updated)})` : ""}`}${rk.policies.filter((p) => p.firesNow).length ? ` — fires ${rk.policies.filter((p) => p.firesNow).map((p) => e(p.name)).join(", ")}` : ""} — ${si}`);
     }
-    if (fc) L.push(`- **If report-only went live:** ${fc.worst === "block" ? `LOCKED OUT by ${fc.block.map((p) => e(p.name)).join(", ")}` : fc.worst === "prompt" ? `extra prompts from ${fc.prompt.map((p) => e(p.name)).join(", ")}` : fc.worst === "clean" ? "no change" : "no data"}`);
+    if (fc) L.push(`- **If report-only went live:** ${fc.worst === "block" ? `LOCKED OUT by ${fc.block.map((p) => e(p.name)).join(", ")}` : fc.worst === "prompt" ? `extra prompts from ${fc.prompt.map((p) => e(p.name)).join(", ")}` : fc.worst === "clean" ? "no change" : fc.worst === "scoped" ? `nothing for her — ${fc.scoped.length} report-only policies evaluated her sign-ins and never matched their conditions` : "no data"}`);
     L.push("", "## Deployment groups", "", "| Group | Status | How |", "| --- | --- | --- |");
     res.ladder.deploy.concat(res.ladder.persona).forEach((r) => L.push(`| ${e(r.name)} | ${r.inMember ? "IN" : r.exists === false ? "not in tenant" : "not in"} | ${e(r.how || "")} |`));
     if (res.exclusions.length) {
@@ -677,7 +697,7 @@ const WhoIs = (() => {
     L.push("", "## Policies", "", `| CA | Policy | State | Assignment | Via | Controls | Blocked | Interrupted | Forecast |`, "| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
     res.rows.forEach((r) => {
       const why = r.s === "exc" ? `EXCLUDED — ${e((r.exc || {}).text)}${(r.exc || {}).how ? ` (${e(r.exc.how)})` : ""}` : r.s === "inc" ? `${e((r.inc || {}).text)}${(r.inc || {}).how && r.inc.how !== "member" ? ` (${e(r.inc.how)})` : ""}` : "·";
-      const fcs = r.forecast ? (r.forecast.nodata ? "no data" : `${r.forecast.failure} block / ${r.forecast.interrupted} prompt / ${r.forecast.success} ok`) : "";
+      const fcs = r.forecast ? (r.forecast.nodata ? "no data" : r.forecast.scoped ? `out of scope (${r.forecast.notApplied}× not applied)` : `${r.forecast.failure} block / ${r.forecast.interrupted} prompt / ${r.forecast.success} ok`) : "";
       L.push(`| ${e(r.seq)} | ${e(r.name)} | ${STATE_LABEL[r.state]} | ${r.s === "inc" ? "✓" : r.s === "exc" ? "✗" : "·"} | ${why} | ${e((r.controls || []).join(` ${r.op || ","} `))} | ${r.log ? r.log.blocked : ""} | ${r.log ? r.log.interrupted : ""} | ${fcs} |`);
     });
     if (res.risk && ((res.risk.user && res.risk.user.detections || []).length || res.risk.signIns.length)) {
