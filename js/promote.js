@@ -118,6 +118,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 150,
+      title: "📥 Import shows the run ledger (T06 2.10)",
+      tools: ["Import"],
+      builds: [25314],
+      risk: "low",
+      what: "js/import.js importPolicies gains opts.onItem(i, phase, result) and opts.shouldStop(). js/app.js imGo: RunLedger.create into #imBody with row 0 = dependencies (ensureDependencies / imCopyCounterparts onStatus → L.note(0)), rows 1..n = policies; failures or a Stop keep the dialog open; demo animates the rows.",
+      why: "Presentation over the existing write loop — the requests are unchanged. The one behavioural change: Stop between policies (never mid-policy), and a run with a refused policy no longer auto-closes the dialog.",
+      test: [
+        "Import 6 policies on a real tenant: the dialog shows the ledger — Dependencies row working then ✓ with 'n created · m reused', each policy row amber while writing, ✓ 'created, Off' (or 'updated in place · “old” switched Off'); the dialog closes and the report opens.",
+        "Import one that Graph refuses (the workload-identity case without the licence, or a policy naming an app with no service principal): the row is ✗ with the reason, the dialog stays open with the summary line, the report opens.",
+        "Press ■ Stop during a 6-policy run: the policy in flight completes, the rest read 'stopped', the dialog stays open, the report lists them as not imported.",
+        "?demo=1: Import 3 → the ledger animates and closes; report opens.",
+      ],
+      files: ["js/import.js", "js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 149,
       title: "👥 Used by shows the baseline's CA number, not ENCA's seq (T12 5.9.6)",
       tools: ["Conditional Access groups"],

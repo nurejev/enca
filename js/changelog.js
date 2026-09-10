@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25314, date: "2026-09-10", title: "Import: the run ledger",
+    items: [
+      { kind: "improved", tool: "Import", text: "The import shows the same run ledger every other write shows, in the dialog, instead of a toast per policy behind it. A first row for the dependency pass (groups, locations, strengths, contexts, terms of use — created or reused, counted), then one row per policy: created, updated in place or switched, the old version switched Off, unknown app references dropped, or ✗ with the reason on the row. Stop between policies. A clean run closes the dialog; one with a refusal stays open so the ✗ rows are read where they happened." },
+    ],
+  },
+  {
     build: 25313, date: "2026-09-10", title: "CA groups: the baseline's policy number",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "Used by showed ENCA's running number (CA068, the 68th policy alphabetically) instead of the baseline's own (CA002 from the policy name), so CAB-SEC-U-CA002-Exclusion read as excluded by CA068. The list, the drawer's Policies tab and the matrices now show the number from the policy name, and the full name when it has none." },

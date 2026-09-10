@@ -3122,6 +3122,19 @@
       ...(placing || fixPlace ? ["AdministrativeUnit.ReadWrite.All"] : []),
       ...(fixNest ? CaGroups.NEST_WRITE_SCOPES : [])])) return;
     $("imGo").disabled = true;
+    // The run is visible IN the dialog — the run ledger every other write
+    // shows, not a toast per policy that vanishes behind the modal. Row 0 is
+    // the dependency pass (groups, locations, strengths…), then one row per
+    // policy; the ⟳ ticks and the report come after.
+    const imHost = $("imBody");
+    const imKeep = imHost.innerHTML;
+    imHost.innerHTML = "";
+    const L = RunLedger.create(imHost, { unit: "policies", items: [
+      { label: "Dependencies", sub: "groups, named locations, authentication strengths, contexts, terms of use — created if missing" },
+      ...chosen.map((p) => ({ label: p.name, sub: p.upgrade ? (imMode === "replace" ? "update in place — the current version is switched Off after" : "new version next to the current one") : "new policy, Off" })),
+    ], onStop: () => {} });
+    const depSay = (m) => L.note(0, m);
+    let stoppedEarly = false;
     try {
       let depLog = { created: [], reused: [], warnings: [] }, maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, personaGroupIds: {} }, res = { results: [], warnings: [] };
       // Only build the dependencies the CHOSEN policies need — importing one
@@ -3133,6 +3146,7 @@
         : imMode === "switch" ? chosen.map(p => p.name) : [];
       const switching = imMode === "switch" && imSwitch;
       if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
+      L.start(0);
       if (isDemo) {
         chosen.forEach(p => { if (p.personaGroup && !matchedNames.includes(p.name)) maps.personaGroupIds[p.personaGroup] = "g-" + p.personaGroup; });
         res.results = chosen.map(p => {
@@ -3163,14 +3177,26 @@
             else depLog.unplaced.push({ name: g.displayName, code, why: !code ? ((info && info.why) || "no persona could be read from the policies that use it") : `no restricted unit for ${code}` });
           }
         }
+        L.done(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused (simulated)`, "ready");
+        for (let i = 0; i < chosen.length; i++) { L.start(i + 1); await new Promise((r) => setTimeout(r, 40)); L.done(i + 1, "imported, Off (simulated)", "imported"); }
       } else {
-        const dep = await Importer.ensureDependencies(scoped, (m) => toast(esc(m)), { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
+        const dep = await Importer.ensureDependencies(scoped, depSay, { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
         if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
         // 🔀 the members come across BEFORE the policies land, so a policy
         // that is switched On afterwards already excludes the right people.
-        if (switching) depLog.copied = await imCopyCounterparts(scoped, maps, (m) => toast(esc(m)));
-        res = await Importer.importPolicies(chosen, maps, (m) => toast(esc(m)), { mode: imMode });
+        if (switching) depLog.copied = await imCopyCounterparts(scoped, maps, depSay);
+        L.done(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused${depLog.warnings.length ? ` · ${depLog.warnings.length} warning${depLog.warnings.length === 1 ? "" : "s"} — in the report` : ""}${switching && depLog.copied ? ` · members copied for ${depLog.copied.length} group${depLog.copied.length === 1 ? "" : "s"}` : ""}`, "ready");
+        res = await Importer.importPolicies(chosen, maps, (m) => { const i = chosen.findIndex((p) => m.startsWith(p.name + ":")); if (i >= 0) L.note(i + 1, m.slice(chosen[i].name.length + 1).trim()); }, {
+          mode: imMode, shouldStop: () => L.stopped,
+          onItem: (i, phase, r) => {
+            if (phase === "start") { L.start(i + 1); return; }
+            if (!r) return;
+            if (r.stopped) { L.skip(i + 1, "stopped"); stoppedEarly = true; return; }
+            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : "created"}, Off${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}`, "imported");
+            else L.fail(i + 1, r.error || "refused", "refused");
+          },
+        });
       }
       // R04: finish the job on the groups this import REUSED — but only if the
       // policies actually landed. An import that failed has no business having
@@ -3181,18 +3207,25 @@
       } else if (fixes.length) {
         depLog.warnings.push(`No policy was imported, so the ${fixes.length} group change${fixes.length === 1 ? "" : "s"} you ticked ${fixes.length === 1 ? "was" : "were"} NOT applied — nothing existing is altered by an import that did not happen.`);
       }
+      L.finish();
       // Change report — shown on screen and downloadable. A failed import is
       // the case you most need to read, so it should not require opening a file.
       const md = Importer.buildReport({ tenantName, fileName: imFileName, depLog, planItems: imPlan, results: res.results, warnings: res.warnings, mode: imMode, licence: imLic });
       const failed = res.results.filter(r => !r.ok).length;
-      $("importModal").classList.remove("open");
+      // a clean run closes the dialog; one with failures (or a stop) stays open
+      // so the ✗ rows are read where they happened — same manners as ⑦ / 🧹
+      if (!failed && !stoppedEarly) $("importModal").classList.remove("open");
+      else { $("imGo").style.display = "none"; imHost.insertAdjacentHTML("beforeend", `<p class="mini" style="margin-top:10px;color:var(--off)"><b>${failed} refused${stoppedEarly ? ", stopped early" : ""}</b> — the reasons are on the rows and in the report; Close when read.</p>`); }
       showReport("📥 Import report", "CA-Import-Report", md);
       toast(failed ? `Import done with <span>${failed} failure(s)</span>`
         : `Imported <span>${res.results.length}</span> policies (Off)${isDemo ? " (simulated)" : ""}`);
       if (!isDemo && res.results.some(r => r.ok)) await loadFromGraph(true);
     } catch (e) {
       console.error(e); toast(`Import failed: <span>${esc(e.message || e)}</span>`);
+      try { L.finish(); } catch {}
+      imHost.insertAdjacentHTML("beforeend", `<p class="mini" style="margin-top:10px;color:var(--off)">✗ ${esc(e.message || e)}</p>`);
     } finally { $("imGo").disabled = false; }
+    void imKeep;   // the plan list is rebuilt from imPlan on the next open, not restored from this run
   });
 
   // ---------- Conditional Access groups ----------
