@@ -1713,8 +1713,12 @@
       policiesReadAt = Date.now();
       refreshViews();
       renderPermissions();
-      if (from === "screen-cagroups") { cgRes = null; await openCaGroups(true); }
-      else show(from || (isRefresh ? "screen-list" : "screen-home"));
+      // The read is async: if another tool was opened while it ran (shownScreen
+      // is no longer the loading screen), stay there — a refresh must never
+      // pull you back to the tool that asked for it. T12 still re-scans, quietly.
+      const moved = shownScreen !== "screen-loading";
+      if (from === "screen-cagroups") { cgRes = null; await openCaGroups(true, moved); }
+      else if (!moved) show(from || (isRefresh ? "screen-list" : "screen-home"));
       toast(isRefresh
         ? `Refreshed from Entra — <span>${policies.length}</span> Conditional Access policies`
         : `Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
@@ -3218,7 +3222,10 @@
 
   $("toolCaGroups").addEventListener("click", () => { openCaGroups(); });
 
-  async function openCaGroups(keepTab) {
+  // `quiet` re-scans WITHOUT taking the screen — for a refresh that finishes
+  // after you have moved to another tool: the list updates behind your back
+  // and is current when you come back, instead of dragging you back to it.
+  async function openCaGroups(keepTab, quiet) {
     // The crumb lives HERE, not on the tile handler, because the tile is only
     // one of the ways in. ⑦ Migrate it from Protect exclusions, the Restricted
     // AUs cannot-list, the import preflight and the migration corner badge all
@@ -3227,8 +3234,7 @@
     // tool you came from as active, with no CA groups tab opened at all.
     // crumb() is idempotent (registers the tab if missing, activates it), so
     // the in-tool refresh calls that also come through here are unaffected.
-    crumb("👥 Conditional Access groups");
-    show("screen-cagroups");
+    if (!quiet) { crumb("👥 Conditional Access groups"); show("screen-cagroups"); }
     if (!keepTab) { cgTab = "groups"; cgFilter = "all"; cgQuery = ""; $("cgSearch").value = ""; }
     if (!cgRes) {
       $("cgHead").innerHTML = '<p class="mini">Scanning groups…</p>';
@@ -5335,7 +5341,7 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       const g = isDemo ? { id: "g-" + name, name, created: true } : await Assign.createGroup(r.template);
       toast(g.created ? `Created <span>${esc(name)}</span>` : `<span>${esc(name)}</span> already existed — reused`);
-      cgRes = null; await openCaGroups(true); cgTab = "groups"; renderCaGroups();
+      cgRes = null; await openCaGroups(true, shownScreen !== "screen-cagroups"); cgTab = "groups"; renderCaGroups();
     } catch (err) { console.error(err); toast(`Create failed: <span>${esc(err.message || err)}</span>`); if (btn) { btn.disabled = false; btn.textContent = "Create"; } }
   }
 
@@ -5409,7 +5415,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     showReport("⟳ Convert to dynamic", "CA-Group-Convert-Dynamic", md.join("\n"));
     toast(err ? `Convert stopped: <span>${esc(err.message || err)}</span>` : `<span>${esc(plan.name)}</span> is now dynamic${isDemo ? " (simulated)" : ""}`);
-    if (!isDemo && !err) { cgRes = null; await openCaGroups(true); cgTab = "groups"; renderCaGroups(); }
+    if (!isDemo && !err) { cgRes = null; await openCaGroups(true, shownScreen !== "screen-cagroups"); cgTab = "groups"; renderCaGroups(); }
   });
 
   // Carry the user members of one group into another. Role-assignable groups
@@ -5683,7 +5689,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     showReport("🧹 Archived groups removed", "CA-Groups-Housekeeping", L2.join("\n"));
     toast(failed.length ? `Deleted ${done.length}, <span>${failed.length} failed</span>` : `<span>${done.length}</span> archived group${done.length === 1 ? "" : "s"} deleted`);
-    cgRes = null; await openCaGroups(true); cgTab = "groups"; renderCaGroups();
+    cgRes = null; await openCaGroups(true, shownScreen !== "screen-cagroups"); cgTab = "groups"; renderCaGroups();
   });
 
   // ---- disable group nesting (BETA) ----------------------------------------
@@ -5925,7 +5931,7 @@ max@contoso.com,"Global, DevOps"</pre>
       $("nestRcModal").classList.remove("open");
       showReport("🚫 Disable nesting — recreated", "CA-Group-DisableNesting", CaGroups.nestingReport(p, log, tenantName));
       toast(log.failed.length ? `Recreated with <span>${log.failed.length} failure(s)</span>` : `<span>${p.name}</span> recreated with nesting disabled`);
-      cgRes = null; await openCaGroups(true); cgTab = "groups"; renderCaGroups();
+      cgRes = null; await openCaGroups(true, shownScreen !== "screen-cagroups"); cgTab = "groups"; renderCaGroups();
     } catch (e) {
       console.error(e); toast(`Recreate failed: <span>${esc(e.message || e)}</span>`);
       btn.disabled = false;
@@ -6063,7 +6069,7 @@ max@contoso.com,"Global, DevOps"</pre>
         : `<span>${esc(g.name)}</span> already existed — reused`);
       // fold the new group into the scan so Check shows it without a refresh
       cgRes = null;
-      await openCaGroups(true);
+      await openCaGroups(true, shownScreen !== "screen-cagroups");
       cgTab = "create"; renderCaGroups();
     } catch (err) {
       console.error(err);
@@ -7773,7 +7779,7 @@ This is a directory write. Nothing else changes.`)) return;
     renderBlCleanup();
     showReport("🧹 Baseline leftovers — change report", "CA-Baseline-Leftovers", BaselineCleanup.toMd(t.plan, results, { tenant: tenantName, build: APP_BUILD.label }));
     // the policies list and the group scans are stale now
-    if (okN && !isDemo) { cgRes = null; try { await loadFromGraph(true); openBaseline(blCat, true); } catch (err) { console.warn("reload after leftovers:", err); } }
+    if (okN && !isDemo) { cgRes = null; try { await loadFromGraph(true); if (shownScreen === "screen-baseline") openBaseline(blCat, true); } catch (err) { console.warn("reload after leftovers:", err); } }
   });
 
   // The facts the dry run needs, read once per preview: every group in
@@ -10996,7 +11002,8 @@ This is a directory write. Nothing else changes.`)) return;
     btn.disabled = true; btn.textContent = "Reading…";
     try {
       if (isDemo) { policiesReadAt = Date.now(); openUserImpact(); toast("Demo — <span>re-analysed</span> the sample policies"); return; }
-      if (await loadFromGraph(true)) openUserImpact();
+      // re-open only if still here — a move to another tool mid-read wins
+      if (await loadFromGraph(true)) { if (shownScreen === "screen-userimpact") openUserImpact(); else renderUserImpact(); }
     } finally { btn.disabled = false; btn.innerHTML = label; }
   });
   $("uiBody").addEventListener("click", (e) => {

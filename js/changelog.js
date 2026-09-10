@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25306, date: "2026-09-10", title: "A refresh stays out of your way",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "The re-read after a policy write took the screen when it finished — open another tool while it ran and the groups list came back in front of you. It now stays where you are and re-scans the list in the background, so it is current when you return. Every other tool's refresh gets the same rule: it returns you to where it was pressed only if you have not moved since." },
+    ],
+  },
+  {
     build: 25305, date: "2026-09-10", title: "Migrate report: is nesting disabled?",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "The ⑦ Migrate report has a Nesting column: per new group, disabled, allowed (not requested), ALLOWED with the reason it could not be set, or not available in this tenant — what the create read back, not what the tick asked for. When any new group still allows nesting the report says where to finish it (the group's Protection tab, 🚫 Disable nesting). The step ledger in the dialog says the same instead of assuming the tick took." },

@@ -118,6 +118,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 143,
+      title: "🔄 Refresh never pulls you back to the tool that asked (T12 5.9.2)",
+      tools: ["Conditional Access groups"],
+      builds: [25306],
+      risk: "low",
+      what: "openCaGroups(keepTab, quiet): quiet skips crumb()+show() and only re-scans/renders. loadFromGraph(true): after the read, moved = shownScreen !== 'screen-loading'; T12 re-scans with quiet=moved, other tools show(from) only when !moved. The after-write re-scans inside T12 (Archived, Protect, Migrate, Create) pass quiet when shownScreen !== 'screen-cagroups'.",
+      why: "Follow-up to queue 139's refresh-return: that fix navigated unconditionally when the async read finished. Navigation only; no read changes.",
+      test: [
+        "T12 → Assign a group to a policy from the drawer → Apply → close → immediately open 🕵 Who is Anna to CA while 'Refreshing' shows: you must stay on T36; go back to T12 — the list is already re-scanned with the new policy count.",
+        "Same, but stay on T12: it re-scans and stays in front, as before.",
+        "🧹 Archived groups delete on a big group (2 min): switch to another tool mid-run — when it finishes you stay there; T12's list is current on return.",
+        "🗣 User impact ⟳ Re-read, then move to another tool while it reads: you stay on the new tool.",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 142,
       title: "👥 ⑦ Migrate report: Nesting column from the verified create (T12 5.9.1)",
       tools: ["Conditional Access groups"],
