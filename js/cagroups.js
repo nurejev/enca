@@ -1299,12 +1299,22 @@ const CaGroups = (() => {
       `**When:** ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, "",
       `Role-assignable groups were used to keep CA exclusion membership out of reach of tenant-wide group administrators. A restricted management administrative unit does that and lets you name who may manage them. The two cannot be combined: a role-assignable group admits only Global Administrator or Privileged Role Administrator, and a restricted AU blocks exactly those two.`, ""];
     L.push(`## Result`, "");
-    L.push(`| Group | Outcome | New id | Members | Policies |`, `| --- | --- | --- | ---: | ---: |`);
+    // Nesting is the one property the role-assignable flag gave for free, so
+    // the report says per group whether the new one has it — as verified by
+    // the create, never as requested.
+    const nestOf = (r) => !r.newId ? "—" : r.nesting === "disabled" ? "disabled" : r.nesting === "unsupported" ? "not available in this tenant" : r.nesting === "failed" ? `ALLOWED — ${r.nestingError || "could not be set"}` : r.nesting === "n/a" ? "allowed (not requested)" : "not confirmed";
+    L.push(`| Group | Outcome | New id | Members | Policies | Nesting |`, `| --- | --- | --- | ---: | ---: | --- |`);
     for (const r of (results || [])) {
       const mem = r.membersMoved != null && r.memberTotal != null ? `${r.membersMoved}/${r.memberTotal}` : (r.membersMoved != null ? String(r.membersMoved) : "—");
-      L.push(`| ${r.name} | ${r.ok ? "migrated" : "FAILED"} | ${r.newId || "—"} | ${mem} | ${r.refsMoved != null ? r.refsMoved : "—"} |`);
+      L.push(`| ${r.name} | ${r.ok ? "migrated" : "FAILED"} | ${r.newId || "—"} | ${mem} | ${r.refsMoved != null ? r.refsMoved : "—"} | ${nestOf(r)} |`);
     }
     L.push("");
+    const nestOpen = (results || []).filter((r) => r.ok && r.newId && r.nesting !== "disabled");
+    if (nestOpen.length) {
+      L.push(nestOpen.some((r) => r.nesting === "unsupported")
+        ? `_Nesting could not be disabled here: this directory does not recognise the disableNesting property yet. Nesting stays in sight instead — the groups list reads every group's nested groups on each scan, and a nested group inside an exclusion is Needs attention._`
+        : `_${nestOpen.length} new group${nestOpen.length === 1 ? " allows" : "s allow"} nesting — **CA groups → the group's Protection tab → 🚫 Disable nesting** finishes the job once you are ready._`, "");
+    }
     const skipped = (plan && plan.skipped) || [];
     if (skipped.length) {
       L.push(`## Not migrated (${skipped.length})`, "");

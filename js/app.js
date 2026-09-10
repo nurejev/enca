@@ -4657,7 +4657,7 @@ max@contoso.com,"Global, DevOps"</pre>
         // exactly as it was.
         stage = "create";
         let created;
-        if (isDemo) { created = { id: "demo-new-" + x.id }; }
+        if (isDemo) { created = { id: "demo-new-" + x.id, nesting: t.nesting ? "disabled" : "n/a" }; }
         else {
           try { created = await Assign.createGroup({ displayName: x.name, roleAssignable: false, disableNesting: !!t.nesting }, { mustCreate: true }); }
           catch (ce) {
@@ -4672,8 +4672,13 @@ max@contoso.com,"Global, DevOps"</pre>
           }
         }
         res.newId = created.id;
-        step("create", "done", `${x.name} (${created.id})${t.nesting ? ", nesting disabled" : ""}`);
-        say(`<div>&nbsp;&nbsp;✓ created plain group${t.nesting ? " (nesting disabled)" : ""}</div>`);
+        // What createGroup VERIFIED, not what was asked for: disabled (read
+        // back), failed (still allowed — reason kept), unsupported (directory
+        // lacks the property), n/a (not requested). The report prints it.
+        res.nesting = created.nesting || (t.nesting ? "failed" : "n/a"); res.nestingError = created.nestingError || "";
+        const nestWord = res.nesting === "disabled" ? "nesting disabled" : res.nesting === "unsupported" ? "nesting not available in this tenant" : res.nesting === "failed" ? `nesting STILL ALLOWED — ${res.nestingError || "not confirmed"}` : "";
+        step("create", "done", `${x.name} (${created.id})${nestWord ? `, ${nestWord}` : ""}`);
+        say(`<div>&nbsp;&nbsp;✓ created plain group${nestWord ? ` (${nestWord})` : ""}</div>`);
         stage = "members";
         // 3. members BEFORE the AU, or they can never be added
         if (!isDemo) {

@@ -118,6 +118,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 142,
+      title: "👥 ⑦ Migrate report: Nesting column from the verified create (T12 5.9.1)",
+      tools: ["Conditional Access groups"],
+      builds: [25305],
+      risk: "low",
+      what: "js/app.js migrate run: res.nesting / res.nestingError taken from Assign.createGroup's confirmNesting result (disabled | failed | unsupported | n/a) instead of echoing t.nesting; step + say lines use it. js/cagroups.js migrateReport: Nesting column + a closing line when any new group still allows nesting.",
+      why: "Report-only change over data the create already produced; the demo create now returns nesting too so ?demo=1 renders the column.",
+      test: [
+        "Migrate one group with 'Disable nesting on the new groups' ticked on a tenant that supports the property: the report row reads 'disabled' and the ledger step says 'nesting disabled'.",
+        "Same with the tick OFF: 'allowed (not requested)' and the closing line naming the Protection tab.",
+        "On the tenant that refuses disableNesting (2026-08-19): 'not available in this tenant' and the italic line about nesting staying in sight — no failure.",
+        "?demo=1: Migrate two groups, open the report — Nesting column present, 'disabled' when ticked.",
+      ],
+      files: ["js/app.js", "js/cagroups.js", "index.html", "js/version.js"],
+    },
+    {
       n: 141,
       title: "👥 CA groups 5.9: 🚫 Nesting disabled chip + drawer nesting line (T12)",
       tools: ["Conditional Access groups"],

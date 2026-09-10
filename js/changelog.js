@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25305, date: "2026-09-10", title: "Migrate report: is nesting disabled?",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "The ⑦ Migrate report has a Nesting column: per new group, disabled, allowed (not requested), ALLOWED with the reason it could not be set, or not available in this tenant — what the create read back, not what the tick asked for. When any new group still allows nesting the report says where to finish it (the group's Protection tab, 🚫 Disable nesting). The step ledger in the dialog says the same instead of assuming the tick took." },
+    ],
+  },
+  {
     build: 25304, date: "2026-09-10", title: "CA groups: which groups have nesting disabled",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "A 🚫 Nesting disabled chip filters the list to the groups where disableNesting is set — no group can be added as a member. The list already read the property after the scan; now it shows: the chip with its count (it fills in a moment after the list — a 0 means none has it), 🚫 nesting disabled under the member count on those rows, and the drawer's Protection tab opening with the nesting state: disabled, allowed (with the Disable nesting button right there for an exclusion or break-glass group), impossible on a role-assignable group, or not reported by a directory that lacks the property." },
