@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25315, date: "2026-09-10", title: "The hunting read says what it is doing",
+    items: [
+      { kind: "fixed", tool: "Session controls", text: "On a large tenant with Hunting + non-interactive the panel sat on “waiting for the first page” with an empty bar for minutes: a day is dozens of hunting queries of a minute each, and only a finished day moved the bar. Every query is now named — the day, the time slice, rows so far, slices halved for size — the bar moves inside a day and the clock runs on its own. Same for 🌊 Who is the wave to CA, 🚦 Sign-in failures and 🎚 Report-only impact." },
+      { kind: "improved", tool: "Who is the wave to CA", text: "Two tools asking for the same sign-in window at once share one read: 🛂 Session controls and 🌊 the wave started together used to each read the whole window, doubling the wait. The second now says who is already reading and joins that read." },
+    ],
+  },
+  {
     build: 25314, date: "2026-09-10", title: "Import: the run ledger",
     items: [
       { kind: "improved", tool: "Import", text: "The import shows the same run ledger every other write shows, in the dialog, instead of a toast per policy behind it. A first row for the dependency pass (groups, locations, strengths, contexts, terms of use — created or reused, counted), then one row per policy: created, updated in place or switched, the old version switched Off, unknown app references dropped, or ✗ with the reason on the row. Stop between policies. A clean run closes the dialog; one with a refusal stays open so the ✗ rows are read where they happened." },

@@ -10308,24 +10308,38 @@ This is a directory write. Nothing else changes.`)) return;
   // never write into each other's panel; the state lives outside the DOM so
   // switching tabs and back re-renders mid-flight.
   function makeProgress(prefix) {
-    const st = { n: 0, step: 0, t0: 0, cap: 0, label: "records", stepLabel: "page", capped: false };
+    // detail: what the read is doing RIGHT NOW inside a step (a hunting slice,
+    // a wait on another tool's read) — the difference between a bar that sits
+    // at 0 for three minutes and one that says why. frac: how far into the
+    // current step, so the bar moves inside a long step.
+    const st = { n: 0, step: 0, t0: 0, cap: 0, label: "records", stepLabel: "page", capped: false, detail: "", frac: 0 };
     const elapsed = () => { const s = Math.round((Date.now() - st.t0) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
-    const line = () => st.step
-      ? `${st.n.toLocaleString()} ${st.label} · ${st.stepLabel} ${st.step}${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""} · ${elapsed()}`
-      : "Waiting for the first page from Microsoft Graph…";
-    const width = () => st.cap ? Math.min(100, (st.stepLabel === "page" ? st.n : st.step) / st.cap * 100) : 0;
+    const line = () => {
+      if (!st.step && !st.detail) return "Waiting for the first page from Microsoft Graph…";
+      const base = st.step
+        ? `${st.n.toLocaleString()} ${st.label} · ${st.stepLabel} ${st.step}${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""} · ${elapsed()}`
+        : `${st.n.toLocaleString()} ${st.label} · ${elapsed()}`;
+      return st.detail ? `${base} · ${st.detail}` : base;
+    };
+    const width = () => st.cap ? Math.min(100, (st.stepLabel === "page" ? st.n : st.step + (st.frac || 0)) / st.cap * 100) : 0;
+    // The clock moves on its own: a single hunting query can take a minute,
+    // and a line that only updates when a page lands reads as "hung".
+    let clock = null;
+    const paint = () => { const t = $(prefix + "PgTxt"), b = $(prefix + "PgBar"); if (t) t.textContent = line(); if (b) b.style.width = width() + "%"; return !!t; };
+    const startClock = () => { if (clock) clearInterval(clock); let miss = 0; clock = setInterval(() => { if (!paint()) { if (++miss > 3) { clearInterval(clock); clock = null; } } else miss = 0; }, 1000); };
     const panel = (msg, note) => `<div class="run-prompt"><div class="spinner"></div>
       <p class="mini muted">${msg}</p>
       <div class="ri-progwrap"><div class="ri-progbar" id="${prefix}PgBar" style="width:${width()}%"></div></div>
       <p class="mini" id="${prefix}PgTxt">${line()}</p>
       ${note ? `<p class="mini muted" style="margin-top:2px">${note}</p>` : ""}</div>`;
-    const start = (cap, label, stepLabel) => { st.n = 0; st.step = 0; st.t0 = Date.now(); st.cap = cap || 0; st.label = label || "records"; st.stepLabel = stepLabel || "page"; st.capped = false; };
+    const start = (cap, label, stepLabel) => { st.n = 0; st.step = 0; st.t0 = Date.now(); st.cap = cap || 0; st.label = label || "records"; st.stepLabel = stepLabel || "page"; st.capped = false; st.detail = ""; st.frac = 0; startClock(); };
     const tick = (n, step) => {
-      st.n = n; st.step = step != null ? step : st.step + 1;
-      const t = $(prefix + "PgTxt"), b = $(prefix + "PgBar");
-      if (t) t.textContent = line();
-      if (b) b.style.width = width() + "%";
+      st.n = n; st.step = step != null ? step : st.step + 1; st.frac = 0;
+      paint();
     };
+    // inside a step: say what is happening and how far along the step is
+    const detail = (text, frac) => { st.detail = text || ""; if (frac != null) st.frac = Math.max(0, Math.min(0.999, frac)); paint(); };
+    const stop = () => { if (clock) { clearInterval(clock); clock = null; } };
     // Capped, narrated pager — the record cap is also the bar's 100%.
     const fetchAll = async (url, cap, label) => {
       start(cap, label, "page");
@@ -10339,7 +10353,7 @@ This is a directory write. Nothing else changes.`)) return;
       st.capped = !!next;
       return out.slice(0, cap);
     };
-    return { st, panel, start, tick, fetchAll };
+    return { st, panel, start, tick, detail, stop, fetchAll };
   }
 
   // The audit range selector stores days; sub-day ranges are fractions (1h = 1/24).
@@ -12316,11 +12330,20 @@ This is a directory write. Nothing else changes.`)) return;
     const slices = [];
     for (let t = start; t < now; t += dayMs) slices.push([t, Math.min(t + dayMs, now)]);
     prog.start(slices.length, "sign-ins", "day");
-    let out = [], capped = false, splits = 0, lowered = 0;
+    let out = [], capped = false, splits = 0, lowered = 0, dayStart = 0, dayCovered = 0, queries = 0;
+    const hm = (t) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    const dayLabel = (t) => new Date(t).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" });
+    // Every query is said while it runs: which day, which slice of it, how
+    // many rows so far, how many slices were halved. A large tenant's day of
+    // non-interactive sign-ins is dozens of queries of a minute each, and
+    // "waiting for the first page" for that long reads as nothing happening.
+    const say = (from, to, what) => prog.detail(`${dayLabel(from)} ${hm(from)}–${hm(to)}${what ? ` · ${what}` : ""}${splits ? ` · ${splits} slice${splits === 1 ? "" : "s"} halved` : ""}${lowered ? ` · ${lowered} capped` : ""}${interactiveOnly ? "" : " · incl. non-interactive"}`, dayCovered / dayMs);
     const readSlice = async (from, to, cap) => {
       cap = cap || Signins.HUNT_CAP;
       const q = Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly });
       let rows;
+      queries++;
+      say(from, to, `query ${queries} running${cap < Signins.HUNT_CAP ? ` (cap ${cap.toLocaleString()})` : ""}`);
       try { rows = await huntRun(q, days); }
       catch (e) {
         if (isSizeError(e)) {
@@ -12334,27 +12357,50 @@ This is a directory write. Nothing else changes.`)) return;
         capped = true;
       }
       out = out.concat(Signins.fromHunting(rows));
-      if (splits || lowered) prog.st.label = `sign-ins (${splits} slice${splits === 1 ? "" : "s"} halved${lowered ? `, ${lowered} capped` : ""} for size)`;
+      dayCovered = Math.min(dayMs, to - dayStart);
+      prog.st.n = out.length;
+      say(from, to, `${rows.length.toLocaleString()} rows`);
     };
     for (let i = 0; i < slices.length; i++) {
+      dayStart = slices[i][0]; dayCovered = 0;
       await readSlice(slices[i][0], slices[i][1]);
       prog.tick(out.length, i + 1);
     }
+    prog.detail("");
     return { records: out, capped, splits };
   }
 
   // force: a Rescan means the reader wants the tenant re-read, not our copy.
+  //
+  // One read at a time. 🛂 Session controls and 🌊 the wave both want the
+  // same window; started together on a large tenant with the hunting source
+  // they each ran the whole multi-minute read, doubling the load and the
+  // wait. The second asker now joins the read in flight and mirrors its
+  // progress into its own panel, then both get the same cache entry.
+  let logInflight = null;   // { days, source, promise, prog }
   async function readSignInWindow(days, prog, force) {
     if (!force && logCacheUsable(days)) return { ...logCache, reused: true };
-    let records, capped;
-    if (logSource === "entra") {
-      records = await prog.fetchAll(ReportImpact.query(days), SI_MAX, "sign-ins");
-      capped = !!prog.st.capped;
-    } else {
-      if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the source back to the Entra sign-in log, or grant it");
-      ({ records, capped } = await readSignInsHunting(days, prog));
+    if (!force && logInflight && logInflight.days === days && logInflight.source === logSource) {
+      const other = logInflight;
+      prog.start(other.prog.st.cap, other.prog.st.label, other.prog.st.stepLabel);
+      const mirror = setInterval(() => { const s = other.prog.st; prog.st.n = s.n; prog.st.step = s.step; prog.st.cap = s.cap; prog.st.label = s.label; prog.st.stepLabel = s.stepLabel; prog.st.frac = s.frac; prog.st.t0 = s.t0; prog.detail(`${other.by} is already reading this window — joining that read${s.detail ? ` · ${s.detail}` : ""}`); }, 1000);
+      try { await other.promise; } finally { clearInterval(mirror); prog.detail(""); }
+      if (logCacheUsable(days)) return { ...logCache, reused: true };
+      // the read we joined failed or was replaced — fall through to our own
     }
-    logCache = { days, source: logSource, records, capped, at: Date.now() };
+    let records, capped;
+    const run = (async () => {
+      if (logSource === "entra") {
+        records = await prog.fetchAll(ReportImpact.query(days), SI_MAX, "sign-ins");
+        capped = !!prog.st.capped;
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the source back to the Entra sign-in log, or grant it");
+        ({ records, capped } = await readSignInsHunting(days, prog));
+      }
+      logCache = { days, source: logSource, records, capped, at: Date.now() };
+    })();
+    logInflight = { days, source: logSource, promise: run, prog, by: prog.by || "another tool" };
+    try { await run; } finally { if (logInflight && logInflight.promise === run) logInflight = null; prog.stop(); }
     return { ...logCache, reused: false };
   }
   const logAgeLabel = () => {
@@ -12409,7 +12455,7 @@ This is a directory write. Nothing else changes.`)) return;
   });
   let siBusy = false, siCapped = false;
   const siOpen = new Set();
-  const siProg = makeProgress("si");
+  const siProg = makeProgress("si"); siProg.by = "🚦 Sign-in failures";
   const siBusyPanel = () => siProg.panel(
     "Reading the sign-in log… this keeps running if you switch tabs.",
     siMode === "reportonly"
@@ -12711,7 +12757,7 @@ This is a directory write. Nothing else changes.`)) return;
   let riBusy = false, riCapped = false;
   const riOpen = new Set();
   // Same shared fetch-progress visual as Sign-in failures and Change audit.
-  const riProg = makeProgress("ri");
+  const riProg = makeProgress("ri"); riProg.by = "🎚 Report-only impact";
   const riBusyPanel = () => riProg.panel(
     "Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.",
     `The bar runs to the ${SI_MAX.toLocaleString()}-sign-in cap — most tenants finish well before the end of it.`);
@@ -15219,7 +15265,7 @@ This is a directory write. Nothing else changes.`)) return;
   // WhoIs.stateFor — the same function T36 uses, so the two cannot disagree.
   // The sign-in half is the shared window (🚦 / 🎚), filtered to the members.
   let wvRes = null, wvBusy = false, wvDays = 7, wvFilter = "look", wvPfilter = "targets", wvGroups = null, wvPick = null, wvLogSkipped = "";
-  const wvProg = makeProgress("wv");
+  const wvProg = makeProgress("wv"); wvProg.by = "🌊 Who is the wave to CA";
   const WV_MEMBER_CAP = 500;
 
   // every group id the policies name in an include or exclude
@@ -15445,7 +15491,7 @@ This is a directory write. Nothing else changes.`)) return;
   // the click; each half degrades on its own — activities without routing,
   // or routing without activities, both render and say what is missing.
   let scRes = null, scBusy = false, scDays = 7, scFilter = "acted", scPfilter = "appcontrol", scQ = "";
-  const scProg = makeProgress("sc");
+  const scProg = makeProgress("sc"); scProg.by = "🛂 Session controls";
   const SC_HUNT = ["ThreatHunting.Read.All"];
 
   function openSessionCtl() {

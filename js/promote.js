@@ -118,6 +118,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 151,
+      title: "🛂🌊🚦🎚 Hunting read narrates every query + one read for two askers",
+      tools: ["Session controls", "Who is the wave to CA", "Sign-in failures", "Report-only impact"],
+      builds: [25315],
+      risk: "low",
+      what: "makeProgress: st.detail + st.frac, detail(text, frac), a 1 s clock that repaints until the panel is gone, stop(). readSignInsHunting calls prog.detail before and after every huntRun (day, HH:MM–HH:MM, query n, rows, halved/capped counts) and advances frac by the part of the day covered. readSignInWindow: logInflight { days, source, promise, prog, by } — a second asker for the same days+source mirrors the first's st into its own panel every second and awaits the same promise, then returns the cache. Each prog carries .by for the message.",
+      why: "Presentation plus a join on an in-flight promise; the hunting queries themselves are unchanged. The join only applies to the same days and source; a Rescan (force) still reads on its own.",
+      test: [
+        "Large tenant, Hunting + non-interactive, 7 days: open 🛂 — within a few seconds the line reads 'Wed 04 Sep 00:00–12:00 · query 1 running · incl. non-interactive' and the clock ticks; as slices are halved the line says so; the bar moves within the day.",
+        "While 🛂 is reading, open 🌊 and press Read wave with the same window: its panel reads '🛂 Session controls is already reading this window — joining that read · <the same detail>'; when 🛂 finishes, 🌊 renders from the cache without a second read.",
+        "Entra sign-in log source: unchanged page-by-page line.",
+        "?demo=1: the four tools still open and render.",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 150,
       title: "📥 Import shows the run ledger (T06 2.10)",
       tools: ["Import"],
