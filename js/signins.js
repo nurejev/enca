@@ -46,6 +46,25 @@ const Signins = (() => {
   //   50158  external security challenge — terms of use / third-party MFA
   //   500121 authentication failed during the strong auth request
   const INTERRUPT = new Set([50074, 50076, 50072, 50079, 50097, 50158, 500121]);
+  // The same codes in words, for a row whose record carries no failureReason
+  // (hunting rows never do; Graph rows for interrupts usually say "Strong
+  // Authentication is required", which is the code again). What the code
+  // MEANS for the person reading it — the prompt that was shown and not
+  // completed — not the portal's wording.
+  const CODE_TEXT = {
+    50074: "MFA was demanded — the prompt was shown and not completed",
+    50076: "MFA was demanded by policy, a per-user change or a new location — not completed",
+    50072: "MFA enrolment was demanded — the user has no method registered yet",
+    50079: "MFA enrolment was demanded — the user has no method registered yet",
+    50097: "device authentication was demanded — a compliant or joined device, or sign-in frequency needing the device's session",
+    50158: "an external challenge was demanded — terms of use, or a third-party MFA provider",
+    500121: "the MFA request failed — wrong code, denied, or timed out",
+    53000: "a compliant device was required and this one is not",
+    53001: "a domain-joined device was required and this one is not",
+    53003: "blocked by Conditional Access",
+    530032: "blocked by a security policy on the tenant",
+  };
+  const codeText = (code) => CODE_TEXT[Number(code)] || "";
   const isInterrupt = (rec) => INTERRUPT.has((rec.status || {}).errorCode);
 
   // The error code narrows WHICH control stopped the sign-in — a 50097 next
@@ -92,7 +111,7 @@ const Signins = (() => {
   // parse / build / ReportImpact never learn which source fed them. One
   // day per query keeps every result under the 50 MB response cap; a day
   // that hits the row cap is reported as capped, never silently trimmed.
-  const HUNT_COLS = "Timestamp, Application, ApplicationId, LogonType, ErrorCode, CorrelationId, SessionId, AccountDisplayName, AccountObjectId, AccountUpn, ResourceDisplayName, ResourceId, OSPlatform, DeviceTrustType, IsManaged, IsCompliant, RiskLevelDuringSignIn, ClientAppUsed, Browser, ConditionalAccessPolicies, ConditionalAccessStatus, IPAddress, Country, City, RequestId, ReportId";
+  const HUNT_COLS = "Timestamp, Application, ApplicationId, LogonType, ErrorCode, CorrelationId, SessionId, AccountDisplayName, AccountObjectId, AccountUpn, ResourceDisplayName, ResourceId, OSPlatform, DeviceTrustType, IsManaged, IsCompliant, RiskLevelDuringSignIn, ClientAppUsed, Browser, ConditionalAccessPolicies, ConditionalAccessStatus, IPAddress, Country, City, RequestId, ReportId, DeviceName, EntraIdDeviceId";
   const HUNT_CAP = 20000;
   // from / to: ISO instants for one slice. The caller slices the window —
   // a day at first, halving on "result size exceeded" — so the query only
@@ -133,7 +152,7 @@ ${enforcedOnly ? `| where tostring(ConditionalAccessStatus) in~ ("1", "failure")
         appDisplayName: r.Application || "", appId: r.ApplicationId || "", resourceDisplayName: r.ResourceDisplayName || "", resourceId: r.ResourceId || "",
         ipAddress: r.IPAddress || "", location: { city: r.City || "", countryOrRegion: r.Country || "" },
         clientAppUsed: r.ClientAppUsed || "",
-        deviceDetail: { operatingSystem: r.OSPlatform || "", browser: r.Browser || "", isCompliant: Number(r.IsCompliant) === 1 || r.IsCompliant === true, isManaged: Number(r.IsManaged) === 1 || r.IsManaged === true, trustType: trust },
+        deviceDetail: { deviceId: r.EntraIdDeviceId || r.AadDeviceId || "", displayName: r.DeviceName || "", operatingSystem: r.OSPlatform || "", browser: r.Browser || "", isCompliant: Number(r.IsCompliant) === 1 || r.IsCompliant === true, isManaged: Number(r.IsManaged) === 1 || r.IsManaged === true, trustType: trust },
         status: { errorCode: Number(r.ErrorCode) || 0, failureReason: "" },
         conditionalAccessStatus: caStatus, riskLevelDuringSignIn: risk,
         signInEventTypes: [interactive ? "interactiveUser" : "nonInteractiveUser"], interactive,
@@ -288,5 +307,5 @@ ${enforcedOnly ? `| where tostring(ConditionalAccessStatus) in~ ("1", "failure")
     return L.join("\r\n");
   }
 
-  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv };
+  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText };
 })();

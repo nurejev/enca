@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25321, date: "2026-09-10", title: "Who is Anna: her policies, her devices, her numbers",
+    items: [
+      { kind: "fixed", tool: "Who is Anna to CA", text: "The 🛡 Identity risk card listed every risk-based policy in the tenant as “reaching her” — twenty rows for a user five of them targeted. It now lists only the ones that reach her, resolved the same way as the policies table (targeted, and not excluded), and says in one line how many do not and why: not targeted at her, or she is excluded. Insider-risk policies show their levels instead of a bare dash." },
+      { kind: "improved", tool: "Who is Anna to CA", text: "Policy numbers are the BASELINE's — CA012 from “(NEW)CA012-BLOCK-…” — not ENCA's running number (CA001 = the first policy alphabetically), in the ladder, the exclusion cards, the tables and the export. A policy whose name carries no number shows in full. 🌊 Who is the wave to CA follows through the shared lookup." },
+      { kind: "new", tool: "Who is Anna to CA", text: "💻 Devices she signs in from: one row per device in the window with what Conditional Access saw of it — Compliant, Managed but not compliant, Registered but not managed, or Unmanaged — the sign-in and stopped counts, the apps, when it was last seen. A callout says when a compliant-device grant reaches her and sign-ins came from devices that cannot meet it — the enforced ones are the Blocked rows, the report-only ones the forecast. State is per sign-in, not per device: a device made compliant yesterday shows compliant on the sign-ins since. The Markdown export carries the table." },
+      { kind: "improved", tool: "Who is Anna to CA", text: "The stopped-sign-ins table says WHY the way 🚦 Sign-in failures does: under each policy, the control it demanded; under the result, the error code in words — MFA demanded and not completed (50074), compliant device required and this one is not (53000), device authentication demanded (50097) — rather than a bare number." },
+    ],
+  },
+  {
     build: 25320, date: "2026-09-10", title: "The wave and Session controls can be stopped",
     items: [
       { kind: "improved", tool: "Who is the wave to CA", text: "The read has a ■ Stop button. Stopped while the group is being read, the tool says how many members it got to and offers the read again — nothing partial is shown, because the wave is analysed from the whole group and a half-read member list would report exclusions and other waves that are not there. Stopped during the sign-in window, the group half stays: members, exclusions, other waves, all of it, with a note that the log half was not read. A running Graph call cannot be cancelled, so the stop lands after the query in flight, and the progress line says so while it waits." },

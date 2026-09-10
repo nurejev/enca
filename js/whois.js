@@ -41,11 +41,18 @@ const WhoIs = (() => {
 
   // ---------------------------------------------------------- lookup --
   // Like Comparer.buildLookup, but keeps Off policies and the CA number.
+  // `seq` is the BASELINE's number — CA012 in "(NEW)CA012-BLOCK-…" — not
+  // ENCA's running seq (CA001 = the first policy alphabetically): the person
+  // reading this knows their policies by the number in the name, and a card
+  // saying "from CA042, CA072" for policies called CA1001 and CA201 read as
+  // a mismatch (0.6, same rule as 👥 CA groups 5.9.6). No number in the name
+  // → empty, and every place that prints it falls back to the full name.
+  const caNumOf = (name) => { const m = String(name || "").match(/\bCA\d{3,4}[A-Za-z]?\b/); return m ? m[0] : ""; };
   function buildLookup(vms) {
     return (vms || []).map((vm) => {
       const p = vm.raw || {}, u = ((p.conditions || {}).users) || {};
       return {
-        id: p.id, name: p.displayName || vm.name || p.id, seq: vm.seq || "", state: STATE[p.state] || "off",
+        id: p.id, name: p.displayName || vm.name || p.id, seq: caNumOf(p.displayName || vm.name), state: STATE[p.state] || "off",
         includeAll: (u.includeUsers || []).includes("All"),
         incUsers: new Set((u.includeUsers || []).filter((x) => x !== "All" && x !== "None" && x !== "GuestsOrExternalUsers")),
         excUsers: new Set((u.excludeUsers || []).filter((x) => x !== "GuestsOrExternalUsers")),
@@ -60,6 +67,8 @@ const WhoIs = (() => {
         // risk-based = needs Entra ID P2 on every targeted user
         risk: !!(((p.conditions || {}).userRiskLevels || []).length || ((p.conditions || {}).signInRiskLevels || []).length || ((p.conditions || {}).insiderRiskLevels || []).length),
         userRisk: ((p.conditions || {}).userRiskLevels || []).map(lc), signInRisk: ((p.conditions || {}).signInRiskLevels || []).map(lc),
+        // insiderRiskLevels is a comma-separated STRING on the wire ("minor,moderate"), not an array like the other two
+        insiderRisk: (() => { const ir = (p.conditions || {}).insiderRiskLevels; return (Array.isArray(ir) ? ir : String(ir || "").split(",")).map((x) => lc(String(x).trim())).filter(Boolean); })(),
       };
     });
   }
@@ -175,7 +184,39 @@ const WhoIs = (() => {
       }
     } catch (e) { console.warn("whois: report-only build failed", e && e.message); }
     const failedIds = new Set(rows.map((r) => r.id));
-    return { rows, total: recs.length, passed: recs.filter((r) => !failedIds.has(r.id)).length, blocked, interrupted, perPolicy, ro };
+    return { rows, total: recs.length, passed: recs.filter((r) => !failedIds.has(r.id)).length, blocked, interrupted, perPolicy, ro, devices: devicesOf(recs, failedIds) };
+  }
+
+  // The devices she signed in from, and what Conditional Access saw of each:
+  // compliant (managed by Intune and passing its policy), managed but NOT
+  // compliant, registered or joined but not managed, or unmanaged — nothing
+  // Entra knows about. One row per device: the Entra device id when the
+  // record carries one, else the device name, else OS + browser (a browser
+  // sign-in from an unregistered laptop has no id and no name).
+  const DEV_STATE = {
+    compliant:  { label: "Compliant",                 cls: "ok",  note: "managed by Intune and compliant" },
+    managed:    { label: "Managed, not compliant",    cls: "int", note: "managed by Intune, failing its compliance policy — a compliant-device grant blocks it" },
+    registered: { label: "Registered, not managed",   cls: "int", note: "known to Entra (registered or joined) but not managed by Intune — a compliant-device grant blocks it" },
+    unmanaged:  { label: "Unmanaged",                 cls: "blk", note: "nothing Entra knows about — a compliant-device grant blocks it, and a device filter cannot see it" },
+  };
+  const devStateOf = (dd) => dd.isCompliant ? "compliant" : dd.isManaged ? "managed" : dd.trustType ? "registered" : "unmanaged";
+  function devicesOf(recs, failedIds) {
+    const out = new Map();
+    recs.forEach((r) => {
+      const dd = r.deviceDetail || {};
+      const key = dd.deviceId || dd.displayName || `${dd.operatingSystem || ""}|${dd.browser || ""}`;
+      if (!out.has(key)) out.set(key, { id: dd.deviceId || "", name: dd.displayName || "", os: dd.operatingSystem || "", browser: dd.browser || "", trustType: dd.trustType || "", managed: !!dd.isManaged, compliant: !!dd.isCompliant, state: devStateOf(dd), count: 0, stopped: 0, last: "", apps: new Map() });
+      const d = out.get(key);
+      d.count++;
+      if (failedIds.has(r.id)) d.stopped++;
+      if (String(r.createdDateTime || "") > d.last) { d.last = r.createdDateTime || ""; d.state = devStateOf(dd); d.compliant = !!dd.isCompliant; d.managed = !!dd.isManaged; }
+      const app = r.appDisplayName || r.resourceDisplayName || ""; if (app) d.apps.set(app, (d.apps.get(app) || 0) + 1);
+    });
+    const rows = [...out.values()].map((d) => ({ ...d, apps: [...d.apps.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a) }))
+      .sort((a, b) => b.count - a.count);
+    const by = { compliant: 0, managed: 0, registered: 0, unmanaged: 0 };
+    rows.forEach((d) => { by[d.state] += d.count; });
+    return { rows, by, total: recs.length };
   }
 
   // ------------------------------------------------------------- risk --
@@ -204,14 +245,19 @@ const WhoIs = (() => {
     const worst = rows.reduce((m, r) => (RISK_ORDER[r.level] || 0) > (RISK_ORDER[m] || 0) ? r.level : m, "none");
     const ur = user && user.risk && !user.risk.err ? user.risk : null;
     const atRisk = !!ur && /^(atRisk|confirmedCompromised)$/i.test(String(ur.state || ""));
-    // the risk-based policies that reach her, and whether they fire on what
-    // Identity Protection says about her right now
-    const policies = (lookup || []).filter((P) => P.risk && P.state !== "off").map((P) => ({
-      id: P.id, name: P.name, seq: P.seq, state: P.state, userRisk: P.userRisk, signInRisk: P.signInRisk,
+    // the risk-based policies that REACH her — the same stateFor() the
+    // policies table uses, so a policy she is not targeted by, or is excluded
+    // from, is not listed as reaching her (0.5.1: 0.5 listed every risk
+    // policy in the tenant, twenty rows for a user five of them targeted) —
+    // and whether they fire on what Identity Protection says about her now
+    const allRisk = (lookup || []).filter((P) => P.risk && P.state !== "off");
+    const policies = allRisk.filter((P) => stateFor(P, user).s === "inc").map((P) => ({
+      id: P.id, name: P.name, seq: P.seq, state: P.state, userRisk: P.userRisk, signInRisk: P.signInRisk, insiderRisk: P.insiderRisk || [],
       firesNow: atRisk && P.userRisk.includes(lc(ur.level)),
       firesOnSignIn: P.signInRisk.some((l) => byLevel[l] > 0),
     }));
-    return { read: !!(user && user.risk), err: user && user.risk && user.risk.err || "", user: ur, atRisk, signIns: rows, byLevel, worst, total: recs.length, policies };
+    const notReaching = { excluded: allRisk.filter((P) => stateFor(P, user).s === "exc").length, na: allRisk.filter((P) => stateFor(P, user).s === "na").length };
+    return { read: !!(user && user.risk), err: user && user.risk && user.risk.err || "", user: ur, atRisk, signIns: rows, byLevel, worst, total: recs.length, policies, notReaching };
   }
 
   // ---------------------------------------------------------- analyze --
@@ -428,8 +474,12 @@ const WhoIs = (() => {
     {
       const dets = (rk.user && rk.user.detections) || [];
       const rsi = rk.signIns.slice(0, 20);
-      const polRows = rk.policies.length ? `<p class="mini" style="margin:0 0 8px">Risk-based policies reaching her: ${rk.policies.map((p) => `${polLink(p)}${p.state === "ro" ? " (report-only)" : ""} <span class="muted">— ${[p.userRisk.length ? `user risk ${p.userRisk.join("/")}` : "", p.signInRisk.length ? `sign-in risk ${p.signInRisk.join("/")}` : ""].filter(Boolean).join(", ")}${p.firesNow ? ' · <b class="wo-res blk">fires now</b>' : p.firesOnSignIn ? ' · <span class="wo-res int">fired on a sign-in in the window</span>' : ""}</span>`).join("<br>")}</p>` : "";
-      if (dets.length || rsi.length || (rk.read && !rk.err && rk.policies.length)) {
+      const nr = rk.notReaching || { excluded: 0, na: 0 };
+      const nrText = (nr.excluded || nr.na) ? `<span class="muted">${[nr.na ? `${nr.na} not targeted at her` : "", nr.excluded ? `${nr.excluded} she is excluded from` : ""].filter(Boolean).join(", ")} — ${nr.excluded + nr.na === 1 ? "it is" : "they are"} in the policies table below, not here.</span>` : "";
+      const polRows = rk.policies.length
+        ? `<p class="mini" style="margin:0 0 8px">Risk-based policies reaching her: ${rk.policies.map((p) => `${polLink(p)}${p.state === "ro" ? " (report-only)" : ""} <span class="muted">— ${[p.userRisk.length ? `user risk ${p.userRisk.join("/")}` : "", p.signInRisk.length ? `sign-in risk ${p.signInRisk.join("/")}` : "", (p.insiderRisk || []).length ? `insider risk ${p.insiderRisk.join("/")}` : ""].filter(Boolean).join(", ")}${p.firesNow ? ' · <b class="wo-res blk">fires now</b>' : p.firesOnSignIn ? ' · <span class="wo-res int">fired on a sign-in in the window</span>' : ""}</span>`).join("<br>")}${nrText ? `<br>${nrText}` : ""}</p>`
+        : (nr.excluded || nr.na) ? `<p class="mini" style="margin:0 0 8px">No risk-based policy reaches her. ${nrText}</p>` : "";
+      if (dets.length || rsi.length || (rk.read && !rk.err && (rk.policies.length || nr.excluded || nr.na))) {
         const typeLabel = (t) => esc(String(t || "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase());
         const lvlCls = (l) => l === "high" ? "blk" : l === "medium" ? "int" : "wb";
         riskHtml = `<div class="list-card wo-card">
@@ -447,6 +497,28 @@ const WhoIs = (() => {
     }
 
     // ---- sign-ins + forecast
+    // ---- devices: what she signs in from, and whether a compliant-device
+    // grant that reaches her can be met from them
+    let devHtml = "";
+    if (log && log.devices) {
+      const dv = log.devices;
+      const needDev = res.rows.filter((r) => r.s === "inc" && r.state !== "off" && (r.controls || []).some((x) => /compliant|hybrid.?joined|domain.?joined/i.test(String(x))));   // the vm carries the label ("Require device to be marked compliant"), not the id
+      const notOk = dv.by.managed + dv.by.registered + dv.by.unmanaged;
+      const sum = ["compliant", "managed", "registered", "unmanaged"].filter((k) => dv.by[k]).map((k) => `<span class="wo-res ${DEV_STATE[k].cls}">${dv.by[k]}</span> ${DEV_STATE[k].label.toLowerCase()}`).join(" · ");
+      devHtml = `<div class="list-card wo-card">
+        <h3 class="wo-h">💻 Devices she signs in from · ${esc(rangeLabel)} ${pill(dv.rows.length, "")}</h3>
+        ${dv.rows.length ? `<p class="mini" style="margin:0 0 8px">${dv.total} sign-in${dv.total === 1 ? "" : "s"}: ${sum}.</p>
+        ${needDev.length ? `<div class="wo-callout${notOk ? " bad" : " ok"}"><b>${notOk ? `${notOk} sign-in${notOk === 1 ? "" : "s"} from a device that cannot satisfy a compliant-device grant` : "Every sign-in came from a compliant device"}</b> — ${needDev.map((r) => polLink(r)).join(", ")} require${needDev.length === 1 ? "s" : ""} one${needDev.some((r) => r.state === "ro") ? " (report-only ones would, once live)" : ""}.${notOk ? " The enforced ones are the Blocked rows below; the report-only ones are the forecast." : ""}</div>` : ""}
+        <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Device</th><th>OS · browser</th><th>State</th><th class="num">Sign-ins</th><th class="num">Stopped</th><th>Last seen</th></tr></thead><tbody>
+          ${dv.rows.slice(0, 30).map((d) => `<tr><td><b>${esc(d.name || (d.id ? d.id.slice(0, 8) + "…" : d.os ? `${d.os} device` : "Unknown device"))}</b>${d.id ? `<div class="mini muted">${esc(d.id)}</div>` : ""}${d.apps.length ? `<div class="mini muted">${esc(d.apps.slice(0, 3).join(", "))}${d.apps.length > 3 ? ` +${d.apps.length - 3}` : ""}</div>` : ""}</td>
+            <td>${esc([d.os, d.browser].filter(Boolean).join(" · ") || "—")}${d.trustType ? `<div class="mini muted">${esc(d.trustType)}</div>` : ""}</td>
+            <td><span class="wo-res ${DEV_STATE[d.state].cls}" title="${esc(DEV_STATE[d.state].note)}">${DEV_STATE[d.state].label}</span></td>
+            <td class="num">${d.count}</td><td class="num">${d.stopped || ""}</td><td class="num">${esc(fmtWhen(d.last))}</td></tr>`).join("")}
+        </tbody></table></div>${dv.rows.length > 30 ? `<p class="mini muted" style="margin-top:6px">${dv.rows.length - 30} more devices.</p>` : ""}
+        <p class="mini muted" style="margin-top:8px">State is what the sign-in record says Conditional Access saw at that moment (isCompliant, isManaged, trustType) — a device made compliant yesterday shows compliant only on the sign-ins since. Rows without an Entra device id are grouped by OS and browser.</p>`
+          : `<p class="mini muted">No sign-ins in the window, so no devices.</p>`}
+      </div>`;
+    }
     let logHtml = "";
     if (log) {
       const rows = log.rows.slice(0, opts.maxRows || 50);
@@ -454,8 +526,8 @@ const WhoIs = (() => {
         <h3 class="wo-h">🚦 Sign-ins Conditional Access stopped · ${esc(rangeLabel)} ${pill(log.rows.length, "red")}</h3>
         ${log.rows.length ? `<div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>When</th><th>App · client</th><th>Policy</th><th>Result</th><th></th></tr></thead><tbody>
           ${rows.map((r) => `<tr><td class="num">${esc(fmtWhen(r.when))}</td><td>${esc(r.app)}<div class="mini muted">${esc([r.browser || r.client, r.os, r.compliant ? "compliant" : r.managed ? "managed" : r.os ? "unmanaged" : "", [r.city, r.country].filter(Boolean).join(" ")].filter(Boolean).join(" · "))}</div></td>
-            <td>${r.policies.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>`).join("<br>")}</td>
-            <td><span class="wo-res ${r.interrupted ? "int" : "blk"}">${r.interrupted ? "Interrupted" : "Blocked"}</span><div class="mini muted">${esc(r.failureReason || "")}${r.errorCode != null ? ` · ${esc(r.errorCode)}` : ""}</div></td>
+            <td>${r.policies.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${(p.controls || []).length ? `<div class="mini" style="color:var(--on)">demanded ${esc(p.controls.join(", "))}</div>` : ""}`).join("<br>")}</td>
+            <td><span class="wo-res ${r.interrupted ? "int" : "blk"}">${r.interrupted ? "Interrupted" : "Blocked"}</span><div class="mini muted">${esc(r.failureReason || (typeof Signins !== "undefined" && Signins.codeText ? Signins.codeText(r.errorCode) : "") || "")}${r.errorCode != null ? ` <span class="muted">(${esc(r.errorCode)})</span>` : ""}</div></td>
             <td><button class="fchip" data-wo-replay="${esc(r.id)}" title="Prefill 🧪 What-If from this sign-in">🧪 Replay</button></td></tr>`).join("")}
         </tbody></table></div>${log.rows.length > rows.length ? `<p class="mini muted" style="margin-top:6px">${log.rows.length - rows.length} more — export CSV for all.</p>` : ""}`
           : `<p class="mini muted">Nothing stopped her: ${log.total} sign-in${log.total === 1 ? "" : "s"} in the window, ${log.passed} passed every enforced policy.</p>`}
@@ -477,7 +549,7 @@ const WhoIs = (() => {
     } else {
       logHtml = `<div class="list-card wo-card"><div class="run-prompt" style="padding:24px 20px"><p class="mini muted">The sign-in half was not read — ${esc(opts.logSkipped || "sign-in log not available")}.</p></div></div>`;
     }
-    return head + ladderHtml + tbl + riskHtml + logHtml;
+    return head + ladderHtml + tbl + riskHtml + devHtml + logHtml;
   }
 
   // ------------------------------------------------------------- csv --
@@ -539,6 +611,13 @@ const WhoIs = (() => {
       }
     }
     if (log) {
+      if (log.devices && log.devices.rows.length) {
+        const dv = log.devices;
+        L.push("", `## Devices she signs in from (${e(meta.rangeLabel || "window")})`, "");
+        L.push(`${dv.total} sign-ins: ${["compliant", "managed", "registered", "unmanaged"].filter((k) => dv.by[k]).map((k) => `${dv.by[k]} ${DEV_STATE[k].label.toLowerCase()}`).join(", ")}.`, "");
+        L.push("| Device | OS · browser | State | Sign-ins | Stopped | Last seen |", "| --- | --- | --- | --- | --- | --- |");
+        dv.rows.forEach((d) => L.push(`| ${e(d.name || d.id || (d.os ? `${d.os} device` : "Unknown device"))} | ${e([d.os, d.browser].filter(Boolean).join(" · "))}${d.trustType ? ` (${e(d.trustType)})` : ""} | ${DEV_STATE[d.state].label} | ${d.count} | ${d.stopped} | ${e(d.last)} |`));
+      }
       L.push("", `## Sign-ins Conditional Access stopped (${e(meta.rangeLabel || "window")})`, "");
       if (!log.rows.length) L.push(`None — ${log.total} sign-ins, ${log.passed} passed.`);
       else {
