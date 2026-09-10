@@ -1453,6 +1453,16 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .pq-group td{background:var(--soft);border-top:2px solid var(--border)}
 .pq-member td:nth-child(2){padding-left:22px;position:relative}
 .pq-member td:nth-child(2)::before{content:"└";position:absolute;left:8px;color:var(--muted)}
+/* 25319: the queue is folded. A row is one line and opens on click; a batch
+   row (one tool's run, or a hand-named group) shows its members on click.
+   The chevron is the only visible hint, so it turns when open. */
+.pq-table tr.pq-row,.pq-table tr.pq-group{cursor:pointer}
+.pq-table tr.pq-row:hover td{background:var(--soft)}
+.pq-table tr.pq-group:hover td{filter:brightness(1.04)}
+.pq-tog{display:inline-block;color:var(--accent2);transition:transform .15s;user-select:none;font-size:15px;width:12px}
+.pq-tog.open{transform:rotate(90deg)}
+.pq-detail{margin:6px 0 2px 16px;cursor:auto}
+.pq-table td{vertical-align:top}
 /* Shipped-before. Outside the timeline on purpose: these are delivered, and
    leaving them in the "Now" column makes a roadmap read as busier than it is. */
 .rm-shipped{margin-top:34px;padding-top:22px;border-top:1px solid var(--border)}

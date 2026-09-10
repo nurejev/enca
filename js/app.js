@@ -705,39 +705,97 @@
         return new Set(kept);
       })();
 
-      // Blocks in number order: an ungrouped item is a block of one; items
-      // sharing a `group` id form one block, placed where its lowest number
-      // falls. A group named on only one queued item is no group — the item
-      // renders plain and the id is ignored until a second member exists.
+      // Blocks in number order, and FOLDED. The table is read to decide what
+      // to promote, and at twenty-odd rows of what / why / test it stopped
+      // being readable as a list. So (25319, on Mihai's ask — the way the
+      // TUNO queue does it): a row is one line — tick, number, title, risk,
+      // builds — and opens on click to show its what, why, carve-out, test
+      // steps and files. Items on the SAME TOOL sit under one tool row, also
+      // folded, because most of the queue is one tool's run of versions
+      // (T12 5.0 → 5.9.8 is eleven rows) and the decision is usually "push
+      // the tool's batch", not eleven decisions. A hand-named `group` still
+      // wins over the tool: it is the deliberate batch, with a reason.
+      //
+      // An item's home is its first tool; an item that touches three or more
+      // tools files under "Several tools", because calling a 12-tool fix a
+      // 🕵 Who is Anna change would hide it from everyone else. A block of
+      // one renders plain — a header over a single row is noise.
       const gcount = {};
       items.forEach((i) => { if (i.group) gcount[i.group] = (gcount[i.group] || 0) + 1; });
+      const SEVERAL = "Several tools";
+      const homeOf = (it) => {
+        if (it.group && gcount[it.group] > 1) return { id: "g:" + it.group, named: true };
+        const ts = it.tools || [];
+        const t = ts.length >= 3 ? SEVERAL : (ts[0] || SEVERAL);
+        return { id: "t:" + t, named: false, title: t };
+      };
       const blocks = [];
-      const seen = new Set();
+      const byId = {};
       for (const it of items) {
-        if (it.group && gcount[it.group] > 1) {
-          if (seen.has(it.group)) continue;
-          seen.add(it.group);
-          const g = Object.assign({ id: it.group, title: it.group }, (PROMOTE.groups || {})[it.group] || {});
-          blocks.push({ group: g, items: items.filter((i) => i.group === it.group) });
-        } else blocks.push({ items: [it] });
+        const h = homeOf(it);
+        if (!byId[h.id]) {
+          const g = h.named
+            ? Object.assign({ id: it.group, title: it.group }, (PROMOTE.groups || {})[it.group] || {})
+            : { id: h.id, title: h.title };
+          byId[h.id] = { key: h.id, named: h.named, group: g, items: [] };
+          blocks.push(byId[h.id]);
+        }
+        byId[h.id].items.push(it);
       }
-      const rowFor = (it, inGroup) => {
-            const r = RISK[it.risk] || RISK.low;
-            return `<tr${inGroup ? ` class="pq-member" data-pqof="${esc2(it.group)}"` : ""}>
-              <td><input type="checkbox" data-pqpick="${it.n}" ${picked.has(it.n) ? "checked" : ""} title="${inGroup ? `Untick to hold item ${it.n} back from its group` : `Include item ${it.n} in the promotion order`}"></td>
-              <td><b style="font-size:15px">${it.n}</b></td>
-              <td><b>${esc2(it.title)}</b>
-                <div class="mini muted">${(it.tools || []).join(" · ")}</div>
-                <div class="mini" style="margin-top:4px">${esc2(it.what)}</div>
+      // Which blocks are open: remembered per block key so a reload lands on
+      // the batch being worked, and a block with a ticked member opens by
+      // itself — a tick is a selection, and a selection you cannot see is a
+      // trap when the next thing you press is Export.
+      const PQ_OPEN = "enca.pqOpen";
+      const readOpen = () => { try { return new Set(JSON.parse(localStorage.getItem(PQ_OPEN) || "[]")); } catch { return new Set(); } };
+      const writeOpen = (s) => { try { localStorage.setItem(PQ_OPEN, JSON.stringify([...s])); } catch { /* private mode */ } };
+      const openKeys = readOpen();
+      blocks.forEach((bl) => { if (bl.items.length > 1 && bl.items.some((i) => picked.has(i.n))) openKeys.add(bl.key); });
+      const buildsShort = (bs) => {
+        bs = (bs || []).slice().sort((a, b) => a - b);
+        if (bs.length <= 3) return bs.join(", ");
+        return `${bs[0]} … ${bs[bs.length - 1]} <span class="muted">(${bs.length})</span>`;
+      };
+      const riskTag = (risk) => { const r = RISK[risk] || RISK.low; return `<span class="tag ${r.cls}" title="${r.note}">${r.label}</span>`; };
+      const detailFor = (it) => `
+                <div class="mini" style="margin-top:2px">${esc2(it.what)}</div>
                 <div class="mini" style="margin-top:4px;color:var(--report)"><b>Why:</b> ${esc2(it.why)}</div>
                 ${it.carveout ? `<div class="mini" style="margin-top:4px;color:var(--off)"><b>⚠ Carve-out on port:</b> ${esc2(it.carveout)}</div>` : ""}
                 ${(it.test || []).length ? `<details class="pq-test"><summary class="mini"><b>How to test it</b> — ${(it.test).length} step${(it.test).length === 1 ? "" : "s"}</summary>
                   <ol class="mini pq-steps">${(it.test).map((t) => `<li>${esc2(t)}</li>`).join("")}</ol></details>`
                   : `<div class="mini" style="margin-top:4px;color:var(--off)"><b>How to test it:</b> not written — this item is not finished, and promoting it means promoting something nobody has said how to check.</div>`}
-                <div class="mini muted" style="margin-top:4px">${(it.files || []).map((f) => `<code>${esc2(f)}</code>`).join(" ")}</div></td>
-              <td><span class="tag ${r.cls}">${r.label}</span><div class="mini muted" style="margin-top:4px">${r.note}</div></td>
-              <td class="mini">${(it.builds || []).join(", ")}</td>
+                <div class="mini muted" style="margin-top:4px">${(it.files || []).map((f) => `<code>${esc2(f)}</code>`).join(" ")}</div>`;
+      const rowFor = (it, bl) => {
+            const inGroup = !!bl, key = bl ? bl.key : "";
+            const hidden = bl && !openKeys.has(key);
+            return `<tr class="pq-row${inGroup ? " pq-member" : ""}" data-pqrow="${it.n}"${inGroup ? ` data-pqof="${esc2(key)}"` : ""}${hidden ? " hidden" : ""}>
+              <td><input type="checkbox" data-pqpick="${it.n}" ${picked.has(it.n) ? "checked" : ""} title="${inGroup ? `Untick to hold item ${it.n} back from its batch` : `Include item ${it.n} in the promotion order`}"></td>
+              <td><b style="font-size:15px">${it.n}</b></td>
+              <td><span class="pq-tog" data-pqtog="${it.n}" title="Open — what changed, why, how to test it">▸</span> <b>${esc2(it.title)}</b>
+                ${(it.tools || []).length > 1 ? `<span class="mini muted"> · ${(it.tools || []).map(esc2).join(" · ")}</span>` : ""}
+                <div class="pq-detail" data-pqdetail="${it.n}" hidden>${detailFor(it)}</div></td>
+              <td>${riskTag(it.risk)}</td>
+              <td class="mini">${buildsShort(it.builds)}</td>
             </tr>`;
+      };
+      const headFor = (bl) => {
+            // One row per batch: the tick promotes every member, the click
+            // shows them. Members keep their own ticks so one can be held back.
+            const g = bl.group, ns = bl.items.map((i) => i.n), on = ns.filter((n) => picked.has(n)).length;
+            const worst = ["high", "medium", "low"].find((r) => bl.items.some((i) => (i.risk || "low") === r)) || "low";
+            const counts = ["high", "medium", "low"].map((r) => [r, bl.items.filter((i) => (i.risk || "low") === r).length]).filter(([, c]) => c).map(([r, c]) => `${c} ${r}`).join(" · ");
+            const builds = bl.items.flatMap((i) => i.builds || []);
+            const open = openKeys.has(bl.key);
+            return `<tr class="pq-group${bl.named ? " pq-named" : ""}" data-pqhead="${esc2(bl.key)}">
+                <td><input type="checkbox" data-pqgroup="${esc2(bl.key)}" ${on === ns.length ? "checked" : ""} title="Tick to include all ${ns.length} items of this batch in the promotion order"></td>
+                <td><span class="pq-tog${open ? " open" : ""}" data-pqtogblock="${esc2(bl.key)}" title="${open ? "Fold the batch away" : "Show the items"}">▸</span></td>
+                <td><b>${esc2(g.title)}</b> <span class="tag">${bl.named ? "group" : "tool"} · ${ns.length} items</span>
+                  <span class="mini muted"> · items ${ns.join(", ")}</span>
+                  <div class="mini muted" style="margin-top:2px"><span data-pqgroupstate="${esc2(bl.key)}"></span></div>
+                  ${g.why ? `<div class="mini" style="margin-top:4px;color:var(--report)"><b>Why together:</b> ${esc2(g.why)}</div>` : ""}</td>
+                <td>${riskTag(worst)}<div class="mini muted" style="margin-top:4px">${counts}</div></td>
+                <td class="mini">${buildsShort(builds)}</td>
+              </tr>`;
       };
       el.innerHTML = `
         <h4>🚚 Waiting for production <span class="tag new">BETA CHANNEL</span></h4>
@@ -746,39 +804,24 @@
           shipped appears below; for that, read <b>📋 What's new</b>. Each row is one promotable <b>change to the
           tools</b> with a <b>stable number</b>, so <i>“push number 3 to main”</i> means exactly one thing.
           Roadmap cards, changelog entries and this table itself are not listed: they describe the work rather
-          than being it, and they travel with whatever promotion happens next. Items that belong together — a tool
-          and its Help section, a feature and the fixes it grew — sit under one <b>group</b> row: its tick takes
-          them all, and each member keeps its own tick so one can be held back without losing the batch.</p>
-        <p class="mini muted" style="margin:-6px 0 10px"><b>Every row carries a test checklist.</b> <i>Why</i> says what the
-          risk is and what would have to be true for the item to graduate; it does not say how to find out. The steps
-          under <b>How to test it</b> do — each one names the tenant state it needs and the outcome you should see, so a
-          step can fail rather than be nodded through. Where a check needs a tenant nobody has to hand, the step says
-          so: knowing which check was skipped is worth more than a list that pretends all of them were run.</p>
+          than being it, and they travel with whatever promotion happens next.</p>
+        <p class="mini muted" style="margin:-6px 0 10px"><b>The list is folded.</b> A row is one line — click it to open what
+          changed, why, the <b>test checklist</b> and the files. Items on the <b>same tool</b> sit under one tool row, folded
+          too, because most of this queue is one tool's run of versions and the usual decision is the tool's batch: the batch
+          row's tick takes every item, and each item keeps its own tick so one can be held back. A hand-named <b>group</b> —
+          a tool and its Help section, a feature and the fixes it grew — works the same way and says why it belongs together.
+          <i>Why</i> says what would have to be true for an item to graduate; <b>How to test it</b> says how to find out, one
+          falsifiable step at a time, and names the tenant a check needs when nobody has it to hand.</p>
         ${items.length ? `<div class="tb-actions" style="margin:0 0 8px">
           <span class="mini" id="pqPickCount"><b>${picked.size}</b> of ${items.length} ticked for promotion</span>
           <button class="btn sm" id="pqExport" ${picked.size ? "" : "disabled"}>⭳ Export promotion order</button>
           <button class="btn sm" id="pqClear" ${picked.size ? "" : "disabled"}>Clear ticks</button>
+          <button class="btn sm" id="pqFold" title="Fold every batch and every row">Fold all</button>
           <span class="mini muted">tick what you have verified, export, and hand the file to the working session — it is the order, not the verification</span>
         </div>` : ""}
-        <div class="cg-tablewrap"><table class="cg-table">
-          <thead><tr><th style="width:34px" title="Tick to include in the promotion order"></th><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:120px">Beta builds</th></tr></thead>
-          <tbody>${blocks.map((bl) => {
-            if (bl.group) {
-              // One block per group: a header row whose tick promotes every
-              // member, then the members with their own ticks so one can be
-              // held back from the batch. 25260, on Mihai's ask.
-              const g = bl.group, ns = bl.items.map((i) => i.n);
-              const on = ns.filter((n) => picked.has(n)).length;
-              return `<tr class="pq-group">
-                <td><input type="checkbox" data-pqgroup="${esc2(g.id)}" ${on === ns.length ? "checked" : ""} title="Tick to include all ${ns.length} items of this group in the promotion order"></td>
-                <td><b style="font-size:15px">⋮</b></td>
-                <td colspan="3"><b>${esc2(g.title)}</b> <span class="tag">group · ${ns.length} items</span>
-                  <div class="mini muted" style="margin-top:2px">Items ${ns.join(", ")} — the tick takes them all; untick one below to hold it back from the batch. <span data-pqgroupstate="${esc2(g.id)}"></span></div>
-                  ${g.why ? `<div class="mini" style="margin-top:4px;color:var(--report)"><b>Why together:</b> ${esc2(g.why)}</div>` : ""}</td>
-              </tr>` + bl.items.map((it) => rowFor(it, true)).join("");
-            }
-            return rowFor(bl.items[0], false);
-          }).join("")}</tbody></table></div>
+        <div class="cg-tablewrap"><table class="cg-table pq-table">
+          <thead><tr><th style="width:34px" title="Tick to include in the promotion order"></th><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:150px">Beta builds</th></tr></thead>
+          <tbody>${blocks.map((bl) => bl.items.length > 1 ? headFor(bl) + bl.items.map((it) => rowFor(it, bl)).join("") : rowFor(bl.items[0], null)).join("")}</tbody></table></div>
         ${(PROMOTE.staying || []).length ? `
           <h4 style="margin-top:18px">Staying on this channel</h4>
           <p class="mini muted" style="margin:0 0 6px">Also part of the gap, but permanently: these exist here and are not going to production.</p>
@@ -806,10 +849,39 @@
           gcb.checked = on === members.length && members.length > 0;
           gcb.indeterminate = on > 0 && on < members.length;
           const st = el.querySelector(`[data-pqgroupstate="${gid}"]`);
-          if (st) st.textContent = on === members.length ? "Whole group ticked." : on ? `${on} of ${members.length} ticked — the order will name the ones held back.` : "";
+          if (st) st.textContent = on === members.length ? "Whole batch ticked." : on ? `${on} of ${members.length} ticked — the order will name the ones held back.` : "";
         });
       };
       syncGroups();
+      // ---- fold / unfold ----
+      // A click anywhere on a row that is not its tick opens it; the batch
+      // row shows or hides its members. Open state is remembered per batch.
+      const setBlock = (key, open) => {
+        el.querySelectorAll(`tr[data-pqof="${key}"]`).forEach((tr) => { tr.hidden = !open; });
+        const tg = el.querySelector(`[data-pqtogblock="${key}"]`);
+        if (tg) { tg.classList.toggle("open", open); tg.title = open ? "Fold the batch away" : "Show the items"; }
+        const s = readOpen(); open ? s.add(key) : s.delete(key); writeOpen(s);
+      };
+      const setRow = (n, open) => {
+        const d = el.querySelector(`[data-pqdetail="${n}"]`), tg = el.querySelector(`[data-pqtog="${n}"]`);
+        if (d) d.hidden = !open;
+        if (tg) tg.classList.toggle("open", open);
+      };
+      el.querySelectorAll("tr[data-pqhead]").forEach((tr) => tr.addEventListener("click", (ev) => {
+        if (ev.target.closest("input, a, button, details, .pq-detail")) return;
+        const key = tr.dataset.pqhead;
+        setBlock(key, !readOpen().has(key));
+      }));
+      el.querySelectorAll("tr[data-pqrow]").forEach((tr) => tr.addEventListener("click", (ev) => {
+        if (ev.target.closest("input, a, button, details, .pq-detail, code")) return;
+        const n = tr.dataset.pqrow, d = el.querySelector(`[data-pqdetail="${n}"]`);
+        setRow(n, !!(d && d.hidden));
+      }));
+      const foldBtn = el.querySelector("#pqFold");
+      if (foldBtn) foldBtn.addEventListener("click", () => {
+        el.querySelectorAll("tr[data-pqhead]").forEach((tr) => setBlock(tr.dataset.pqhead, false));
+        el.querySelectorAll("tr[data-pqrow]").forEach((tr) => setRow(tr.dataset.pqrow, false));
+      });
       el.querySelectorAll("[data-pqpick]").forEach((cb) => cb.addEventListener("change", () => {
         const n = Number(cb.dataset.pqpick);
         const ns = new Set(readPicks());

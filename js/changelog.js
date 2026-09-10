@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25319, date: "2026-09-10", title: "The promotion queue folds",
+    items: [
+      { kind: "improved", tool: "Help", text: "🚚 Waiting for production is a list again. Every row is one line — number, title, risk, builds — and opens on click to show what changed, why, the test checklist and the files; at twenty-five rows of all of that at once it had stopped being readable as a queue. Items on the SAME TOOL sit under one tool row, folded too, the way the TUNO queue does it: most of this queue is one tool's run of versions (👥 CA groups 5.0 to 5.9.8 is eleven rows) and the usual decision is the tool's batch, not eleven decisions. The tool row's tick takes every item and each item keeps its own tick, exactly as a hand-named group already did — a group still wins over the tool, because it is the deliberate batch with a reason. An item that touches three or more tools files under Several tools rather than under whichever tool happens to be named first. Which batches are open is remembered, a batch with a ticked item opens by itself so a selection is never out of sight, and Fold all closes everything. The exported order now names a tool batch that goes out incomplete, member by member, the way it already named an incomplete group — so a held-back version reads as a decision and not as a row somebody forgot." },
+    ],
+  },
+  {
     build: 25318, date: "2026-09-10", title: "Migrate: the repoint finishes past a refusal",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "⑦ Migrate's repoint has four passes — add the new group to the includes, to the excludes, remove the old group from the includes, from the excludes — and it stopped at the first policy Graph refused, leaving the old group in every policy of the later passes. All four passes now run; the refusals are collected and named together, so the only policies left naming the archived original are the ones that refused, and the message says which and what to do next (fix the policy in the portal, then 🎯 Assign)." },

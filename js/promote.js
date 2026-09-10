@@ -623,7 +623,23 @@ PROMOTE.buildOrder = function (pickedNs, appBuild) {
     const held = members.filter((n) => !ns.includes(n));
     L.push(`GROUP ${gid} — ${g.title}: ${held.length ? `INCOMPLETE — promoting ${going.join(", ")}; held back ${held.join(", ")} (deliberate; do not port them)` : `whole (${going.join(", ")})`}`);
   }
-  if (gids.length) L.push("");
+  // Tool batches (25319): the queue folds items on the same tool under one
+  // row whose tick takes them all, so a tool's run going out with a member
+  // held back is the same kind of decision as an incomplete group — name it,
+  // so the session does not port the missing version "for completeness".
+  // Same home rule as the queue: first tool, or "Several tools" at three+.
+  const all = PROMOTE.items || [];
+  const gc = {}; all.forEach((i) => { if (i.group) gc[i.group] = (gc[i.group] || 0) + 1; });
+  const homeOf = (i) => (i.group && gc[i.group] > 1) ? null : (((i.tools || []).length >= 3) ? "Several tools" : ((i.tools || [])[0] || "Several tools"));
+  const homes = [...new Set(items.map(homeOf).filter(Boolean))];
+  for (const h of homes) {
+    const members = all.filter((i) => homeOf(i) === h).map((i) => i.n).sort((a, b) => a - b);
+    if (members.length < 2) continue;
+    const going = members.filter((n) => ns.includes(n));
+    const held = members.filter((n) => !ns.includes(n));
+    L.push(`TOOL ${h}: ${held.length ? `INCOMPLETE — promoting ${going.join(", ")}; held back ${held.join(", ")} (deliberate; do not port them)` : `whole (${going.join(", ")})`}`);
+  }
+  if (gids.length || homes.length) L.push("");
   for (const it of items) {
     L.push(`## Item ${it.n} — ${it.title}`);
     L.push(`- tools: ${(it.tools || []).join(", ")}`);
