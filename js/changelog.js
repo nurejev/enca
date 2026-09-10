@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25307, date: "2026-09-10", title: "Nesting disabled: read where it is answered",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "The 🚫 Nesting disabled chip stayed empty on a tenant whose groups had just been recreated with nesting disabled. The list read the property through the beta endpoint, which answers without it on some tenants; the create verifies through v1.0, where it is returned. The list now reads through v1.0 as well, so the chip, the row marker and the drawer line agree with what the create read back." },
+    ],
+  },
+  {
     build: 25306, date: "2026-09-10", title: "A refresh stays out of your way",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "The re-read after a policy write took the screen when it finished — open another tool while it ran and the groups list came back in front of you. It now stays where you are and re-scans the list in the background, so it is current when you return. Every other tool's refresh gets the same rule: it returns you to where it was pressed only if you have not moved since." },

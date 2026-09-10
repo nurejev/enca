@@ -5731,7 +5731,11 @@ max@contoso.com,"Global, DevOps"</pre>
     const targets = rows.filter((r) => r.id && r.nesting === undefined);
     if (!targets.length) return;
     if (isDemo) { targets.forEach((r, i) => r.nesting = i % 4 === 0 ? "disabled" : "allowed"); return; }
-    const res = await Graph.gbatch(targets.map((r, i) => ({ id: i, url: `/groups/${r.id}?$select=id,disableNesting` })));
+    // v1.0, not the beta base: the same route confirmNesting() reads after a
+    // create. On 2026-09-10 a tenant whose creates had VERIFIED nesting
+    // disabled showed nothing in the list, because this batch went to beta
+    // and beta answered every group without the property.
+    const res = await Graph.gbatch(targets.map((r, i) => ({ id: i, url: `/groups/${r.id}?$select=id,disableNesting` })), null, { base: "https://graph.microsoft.com/v1.0" });
     targets.forEach((r, i) => {
       const v = res[i];
       r.nesting = v && v.body ? CaGroups.nestingState(v.body) : "unknown";

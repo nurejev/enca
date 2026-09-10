@@ -118,6 +118,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 144,
+      title: "👥 Nesting-disabled read goes to v1.0 like the create's verify (T12 5.9.3)",
+      tools: ["Conditional Access groups"],
+      builds: [25307],
+      risk: "low",
+      what: "js/graph.js gbatch(requests, onProgress, opts): opts.base posts the batch to an absolute base (v1.0) so the inner relative URLs resolve there. js/app.js loadNestingStates uses { base: 'https://graph.microsoft.com/v1.0' } — the same route Assign.confirmNesting and ⑧ Disable nesting already read (CaGroups.NEST_V1).",
+      why: "Read-only. gbatch default behaviour unchanged (no base → the beta base as before).",
+      test: [
+        "Perfetti Van Melle, after the 2026-09-10 recreates with nesting disabled: the chip must count them and the rows carry 🚫 nesting disabled; compare with GET https://graph.microsoft.com/v1.0/groups/{id}?$select=id,disableNesting in Graph Explorer for two of them.",
+        "A group created without the tick: drawer Protection tab says 'allowed'; the Disable nesting button opens ⑧.",
+        "Every other batch caller (nested groups, member counts, protection map) still works — no base passed, so nothing changed for them.",
+      ],
+      files: ["js/graph.js", "js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 143,
       title: "🔄 Refresh never pulls you back to the tool that asked (T12 5.9.2)",
       tools: ["Conditional Access groups"],

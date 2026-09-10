@@ -299,8 +299,13 @@ const Graph = (() => {
   //
   // Returns { [id]: { body } | { error } } — one entry per request, never
   // throws for an individual failure, so one bad object cannot sink the run.
-  async function gbatch(requests, onProgress) {
+  // opts.base: an absolute Graph base for the batch endpoint — the inner
+  // relative URLs resolve against the version the batch was posted to, so a
+  // batch to v1.0 reads v1.0 resources. Needed for disableNesting, which only
+  // v1.0 returns on some tenants (see NEST_V1 in js/cagroups.js).
+  async function gbatch(requests, onProgress, opts = {}) {
     const out = {};
+    const endpoint = opts.base ? `${opts.base}/$batch` : "/$batch";
     const parts = chunk(requests || [], 20);
     let done = 0;
     for (const part of parts) {
@@ -311,7 +316,7 @@ const Graph = (() => {
         })),
       };
       let j = null;
-      try { j = await gpost("/$batch", body); }
+      try { j = await gpost(endpoint, body); }
       catch (e) { part.forEach((r) => out[r.id] = { error: e.message || String(e) }); done += part.length; onProgress?.(done, requests.length); continue; }
 
       // Individual 429s inside a batch carry their own Retry-After; retry those
