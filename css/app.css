@@ -1716,6 +1716,7 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-self:start}
 .wo-verdicts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
 .wo-verdicts.wo-5{grid-template-columns:repeat(5,1fr)}
+.wo-verdicts.wo-3{grid-template-columns:repeat(3,1fr)}
 @media (max-width:1200px){.wo-verdicts.wo-5{grid-template-columns:repeat(3,1fr)}}
 .wo-vt{border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--soft2);display:grid;gap:2px;align-content:start}
 .wo-vt .k{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}

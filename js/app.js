@@ -15578,6 +15578,7 @@ This is a directory write. Nothing else changes.`)) return;
       }
       wvRes = Wave.analyze({ group, members, direct, children, parents, groupMembers, roleMembers, names, vms: policies, records, cat, dgGroups, memberCap: WV_MEMBER_CAP, capped, days: wvDays });
       wvRes.truncated = truncated;
+      wvRes.memberIds = members.map((m) => m.id);
       wvBusy = false;
       $("wvRescan").style.display = ""; $("wvMd").style.display = ""; $("wvCsv").style.display = "";
       renderWave();
@@ -15607,10 +15608,49 @@ This is a directory write. Nothing else changes.`)) return;
     const pf = e.target.closest("[data-wv-pfilter]"); if (pf) { wvPfilter = pf.dataset.wvPfilter; renderWave(); return; }
     const o = e.target.closest("[data-wv-open]");
     if (o) { e.preventDefault(); $("woUser").value = o.dataset.wvOpen; $("toolWhoIs").click(); runWhoIs(); return; }
+    const rb = e.target.closest("[data-wv-risk]"); if (rb) { wvReadRisk(rb); return; }
     const R = wvRes; if (!R) return;
     if (e.target.closest("[data-wv-cagroups]")) { $("toolCaGroups").click(); return; }
     if (e.target.closest("[data-wv-groupuse]")) { const i = $("guTerm"); if (i) i.value = R.group.displayName; $("toolGroupUse").click(); }
   });
+  // 🛡 identity risk for the wave (T37 0.6): one riskyUsers GET per member,
+  // twenty to a $batch; 404 = never flagged. Joined to the risky sign-ins
+  // the members already carry from the shared window (no second log read).
+  let wvRiskBusy = false;
+  async function wvReadRisk(btn) {
+    const R = wvRes; if (!R || wvRiskBusy) return;
+    wvRiskBusy = true;
+    if (btn) { btn.disabled = true; btn.textContent = "🛡 Reading…"; }
+    try {
+      const byId = new Map();
+      if (isDemo) {
+        R.members.forEach((m) => { const d = (DEMO_DATA.riskyUsers || {})[m.id]; byId.set(m.id, d ? { level: d.level, state: d.state, detail: d.detail, updated: d.updated } : null); });
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...WO_RISK])) { toast("IdentityRiskyUser.Read.All was not granted — identity risk not read"); return; }
+        const ids = (R.memberIds || R.members.map((m) => m.id));
+        const say = (e) => /licen|premium|P2/i.test(String(e || "")) ? "needs Entra ID P2" : /403|Forbidden|Authorization/i.test(String(e || "")) ? "not allowed" : String(e || "error").slice(0, 80);
+        for (let i = 0; i < ids.length; i += 20) {
+          const part = ids.slice(i, i + 20);
+          if (btn) btn.textContent = `🛡 Reading… ${Math.min(i + 20, ids.length)} of ${ids.length}`;
+          const res = await Graph.gbatch(part.map((id, k) => ({ id: k, url: `/identityProtection/riskyUsers/${id}` })));
+          part.forEach((id, k) => {
+            const r = res[k] || {};
+            if (r.status === 404) { byId.set(id, null); return; }
+            if (r.status >= 400 || !r.body || r.body.error) { byId.set(id, { err: say(r.body && r.body.error && r.body.error.message || r.status) }); return; }
+            byId.set(id, { level: r.body.riskLevel || "none", state: r.body.riskState || "none", detail: r.body.riskDetail || "none", updated: r.body.riskLastUpdatedDateTime || "" });
+          });
+        }
+      }
+      Wave.applyRisk(R, byId);
+      renderWave();
+      const rk = R.risk;
+      toast(rk.atRisk.length ? `${rk.atRisk.length} member${rk.atRisk.length === 1 ? "" : "s"} at risk${rk.fires.length ? ` — ${rk.fires.length} risk polic${rk.fires.length === 1 ? "y fires" : "ies fire"}` : ""}` : "Nobody in the wave is flagged by Identity Protection");
+    } catch (e) {
+      console.warn("wave: identity risk not read", e);
+      toast(`Identity risk not read: <span>${esc(e.message || e)}</span>`);
+      if (btn) { btn.disabled = false; btn.textContent = "🛡 Read identity risk"; }
+    } finally { wvRiskBusy = false; }
+  }
   $("wvMd").addEventListener("click", () => {
     const R = wvRes; if (!R) return;
     showReport("🌊 Who is the wave to CA", `CA-Wave-${R.group.displayName.replace(/[^\w.-]+/g, "_")}`, Wave.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(wvDays) }));

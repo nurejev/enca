@@ -153,7 +153,7 @@ const WhoIs = (() => {
   // --------------------------------------------------------- sign-ins --
   // records → enforced failures/interrupts (Signins.parse) + the user's
   // report-only row (ReportImpact.build), both scoped to this user already.
-  function logOf(records, userId, roPolicies) {
+  function logOf(records, userId, roPolicies, lookup) {
     const recs = (records || []).filter((r) => !userId || r.userId === userId);
     const rows = recs.map((r) => Signins.parse(r, "enforced")).filter(Boolean)
       .sort((a, b) => String(b.when).localeCompare(String(a.when)));
@@ -184,7 +184,7 @@ const WhoIs = (() => {
       }
     } catch (e) { console.warn("whois: report-only build failed", e && e.message); }
     const failedIds = new Set(rows.map((r) => r.id));
-    return { rows, total: recs.length, passed: recs.filter((r) => !failedIds.has(r.id)).length, blocked, interrupted, perPolicy, ro, devices: devicesOf(recs, failedIds) };
+    return { rows, total: recs.length, passed: recs.filter((r) => !failedIds.has(r.id)).length, blocked, interrupted, perPolicy, ro, devices: devicesOf(recs, failedIds), mfa: mfaOf(recs, lookup) };
   }
 
   // The devices she signed in from, and what Conditional Access saw of each:
@@ -217,6 +217,59 @@ const WhoIs = (() => {
     const by = { compliant: 0, managed: 0, registered: 0, unmanaged: 0 };
     rows.forEach((d) => { by[d.state] += d.count; });
     return { rows, by, total: recs.length };
+  }
+
+  // -------------------------------------------------------------- mfa --
+  // "He keeps getting the Authenticator prompt on app X — which policy?"
+  // The stopped-sign-ins table cannot answer it: a prompt the user COMPLETES
+  // is a successful sign-in. So, per app, from her own records: the sign-ins
+  // where MFA was required, which applied policies demanded it (result
+  // success + an MFA / authentication-strength grant), and whether the MFA
+  // was a FRESH prompt or a claim already in the token — the record's
+  // authenticationDetails say which (Graph only; hunting rows carry the
+  // requirement but not the steps, and are counted as "not known").
+  const MFA_CTRL = /mfa|auth(entication)?.?strength/i;
+  const isClaim = (t) => /claim in the token|satisfied by claim|already satisfied|previously satisfied/i.test(String(t || ""));
+  const mfaStepOf = (rec) => {
+    const steps = rec.authenticationDetails;
+    if (!Array.isArray(steps)) return "unknown";
+    const mfa = steps.filter((st) => /multi|mfa|second/i.test(String(st.authenticationStepRequirement || "")) || /mfa|authenticator|passkey|fido|hello|phone|sms|oath|text message|voice/i.test(String(st.authenticationMethod || "")));
+    if (!mfa.length) return "unknown";
+    if (mfa.some((st) => isClaim(st.authenticationStepResultDetail))) return "claim";
+    if (mfa.some((st) => st.succeeded === true || /completed|success|verified/i.test(String(st.authenticationStepResultDetail || "")))) return "fresh";
+    return "unknown";
+  };
+  function mfaOf(recs, lookup) {
+    const byId = new Map((lookup || []).map((P) => [P.id, P]));
+    const apps = new Map();
+    const tot = { total: recs.length, required: 0, fresh: 0, claim: 0, unknown: 0, devices: new Set(), freshDevices: new Set(), policies: new Map() };
+    recs.forEach((r) => {
+      if (r.authenticationRequirement !== "multiFactorAuthentication") return;
+      tot.required++;
+      const how = mfaStepOf(r);
+      tot[how]++;
+      const dd = r.deviceDetail || {};
+      const dev = dd.displayName || dd.deviceId || `${dd.operatingSystem || ""}|${dd.browser || ""}`;
+      tot.devices.add(dev);
+      if (how === "fresh") tot.freshDevices.add(dev);
+      const demanded = (r.appliedConditionalAccessPolicies || []).filter((p) => p.result === "success" && [...(p.enforcedGrantControls || [])].some((c) => MFA_CTRL.test(String(c))));
+      const app = r.appDisplayName || r.resourceDisplayName || "(app)";
+      const a = apps.get(app) || apps.set(app, { app, required: 0, fresh: 0, claim: 0, unknown: 0, policies: new Map(), devices: new Set(), freshDevices: new Set(), lastFresh: "", last: "" }).get(app);
+      a.required++; a[how]++;
+      a.devices.add(dev); if (how === "fresh") { a.freshDevices.add(dev); if (String(r.createdDateTime || "") > a.lastFresh) a.lastFresh = r.createdDateTime || ""; }
+      if (String(r.createdDateTime || "") > a.last) a.last = r.createdDateTime || "";
+      demanded.forEach((p) => {
+        const P = byId.get(p.id);
+        const key = p.id || p.displayName;
+        const e = a.policies.get(key) || a.policies.set(key, { id: p.id, name: (P && P.name) || p.displayName || p.id, seq: P ? P.seq : "", controls: new Set(), n: 0, fresh: 0 }).get(key);
+        e.n++; if (how === "fresh") e.fresh++; (p.enforcedGrantControls || []).forEach((c) => e.controls.add(String(c)));
+        const t = tot.policies.get(key) || tot.policies.set(key, { id: p.id, name: e.name, seq: e.seq, n: 0, fresh: 0 }).get(key);
+        t.n++; if (how === "fresh") t.fresh++;
+      });
+    });
+    const rows = [...apps.values()].map((a) => ({ ...a, policies: [...a.policies.values()].map((e) => ({ ...e, controls: [...e.controls] })).sort((x, y) => y.n - x.n), devices: a.devices.size, freshDevices: a.freshDevices.size }))
+      .sort((x, y) => y.fresh - x.fresh || y.required - x.required);
+    return { ...tot, devices: tot.devices.size, freshDevices: tot.freshDevices.size, policies: [...tot.policies.values()].sort((x, y) => y.n - x.n), apps: rows };
   }
 
   // ------------------------------------------------------------- risk --
@@ -266,7 +319,7 @@ const WhoIs = (() => {
     const ladder = ladderOf(user, cat, dgPresent);
     const exclusions = exclusionsOf(user, lookup, cat);
     const roPolicies = lookup.filter((P) => P.state === "ro").map((P) => ({ id: P.id, name: P.name }));
-    const log = records ? logOf(records, user.id, roPolicies) : null;
+    const log = records ? logOf(records, user.id, roPolicies, lookup) : null;
     const roByPolicy = new Map();
     if (log && log.ro) log.ro.policies.forEach((p) => roByPolicy.set(p.id || p.key, p));
 
@@ -519,6 +572,36 @@ const WhoIs = (() => {
           : `<p class="mini muted">No sign-ins in the window, so no devices.</p>`}
       </div>`;
     }
+    // ---- MFA prompts: the complaint "I keep getting the Authenticator
+    // prompt on X" — which policy demands it, and were they fresh prompts
+    let mfaHtml = "";
+    if (log && log.mfa) {
+      const mf = log.mfa;
+      const sessionRows = res.rows.filter((r) => r.s === "inc" && r.state !== "off" && (r.session || []).some((x) => /signInFrequency|persistentBrowser/i.test(String(x))));
+      const known = mf.fresh + mf.claim;
+      const pct = (n, d) => d ? `${Math.round(n / d * 100)}%` : "—";
+      const why = [];
+      if (mf.fresh && mf.freshDevices >= 3) why.push(`The fresh prompts came from <b>${mf.freshDevices} different devices</b>. A device with no session for her has to do MFA once before its token carries the claim — on a non-persistent VDI pool that is one prompt per host she lands on, which a person experiences as “continuously”.`);
+      if (mf.fresh && sessionRows.length) why.push(`Session controls reaching her: ${sessionRows.map((r) => `${polLink(r)} <span class="muted">(${esc((r.session || []).join(", "))})</span>`).join(", ")} — a sign-in frequency re-prompts on its own clock, and a non-persistent browser session forgets the claim when the browser closes.`);
+      if (mf.required && !mf.fresh && known) why.push(`Every MFA requirement in the window was satisfied by a claim already in the token — no fresh prompt was recorded. A prompt she sees that is not here is not Conditional Access: per-user MFA, security defaults, the app's own step-up, or a self-service registration flow.`);
+      if (mf.unknown && !known) why.push(`Fresh vs reused cannot be told apart from the hunting source — switch the sign-in source to the Entra sign-in log to see which prompts were real.`);
+      mfaHtml = `<div class="list-card wo-card">
+        <h3 class="wo-h">🔐 MFA on her sign-ins · ${esc(rangeLabel)} <span class="mini muted">— ${mf.required} of ${mf.total} required it</span></h3>
+        ${mf.required ? `<div class="wo-verdicts wo-3" style="margin:0 0 10px">
+          <div class="wo-vt ${mf.fresh ? "warn" : "ok"}"><span class="k">Fresh prompts</span><span class="v">${mf.fresh}</span><span class="s">${pct(mf.fresh, known)} of the ${known} known — she had to pick up the phone</span></div>
+          <div class="wo-vt ok"><span class="k">Satisfied by the token</span><span class="v">${mf.claim}</span><span class="s">an MFA claim already in the session — no prompt</span></div>
+          <div class="wo-vt"><span class="k">Not known</span><span class="v">${mf.unknown}</span><span class="s">${mf.unknown ? "hunting rows carry no step detail" : "—"}</span></div>
+        </div>
+        ${why.map((w) => `<div class="wo-callout${/different devices|Session controls/.test(w) ? "" : " ok"}">${w}</div>`).join("")}
+        <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>App</th><th>Policies that demanded MFA</th><th class="num">Required</th><th class="num">Fresh</th><th class="num">By token</th><th class="num">Devices</th><th>Last fresh prompt</th></tr></thead><tbody>
+          ${mf.apps.slice(0, 20).map((a) => `<tr><td><b>${esc(a.app)}</b></td>
+            <td>${a.policies.length ? a.policies.map((p) => `${polLink(p)} <span class="mini muted">${esc(p.controls.join(", "))} · ${p.n}${p.fresh ? ` · <b>${p.fresh} fresh</b>` : ""}</span>`).join("<br>") : '<span class="muted">no applied policy carried an MFA grant — the requirement came from outside Conditional Access</span>'}</td>
+            <td class="num">${a.required}</td><td class="num">${a.fresh ? `<b>${a.fresh}</b>` : ""}</td><td class="num">${a.claim || ""}</td><td class="num">${a.devices}${a.freshDevices ? ` <span class="mini muted">(${a.freshDevices} fresh)</span>` : ""}</td><td class="num">${a.lastFresh ? esc(fmtWhen(a.lastFresh)) : "—"}</td></tr>`).join("")}
+        </tbody></table></div>${mf.apps.length > 20 ? `<p class="mini muted" style="margin-top:6px">${mf.apps.length - 20} more apps.</p>` : ""}
+        <p class="mini muted" style="margin-top:8px">Required = the sign-in's authenticationRequirement was multi-factor. Fresh = the record's authentication steps show the MFA being performed; by token = the step says the requirement was satisfied by a claim in the token. Policies are the applied policies with result success that carried an MFA or authentication-strength grant — the ones that made the sign-in need it. A row with fresh prompts and no policy is per-user MFA or security defaults.</p>`
+          : `<p class="mini muted">No sign-in in the window required MFA.</p>`}
+      </div>`;
+    }
     let logHtml = "";
     if (log) {
       const rows = log.rows.slice(0, opts.maxRows || 50);
@@ -549,7 +632,7 @@ const WhoIs = (() => {
     } else {
       logHtml = `<div class="list-card wo-card"><div class="run-prompt" style="padding:24px 20px"><p class="mini muted">The sign-in half was not read — ${esc(opts.logSkipped || "sign-in log not available")}.</p></div></div>`;
     }
-    return head + ladderHtml + tbl + riskHtml + devHtml + logHtml;
+    return head + ladderHtml + tbl + riskHtml + devHtml + mfaHtml + logHtml;
   }
 
   // ------------------------------------------------------------- csv --
@@ -617,6 +700,13 @@ const WhoIs = (() => {
         L.push(`${dv.total} sign-ins: ${["compliant", "managed", "registered", "unmanaged"].filter((k) => dv.by[k]).map((k) => `${dv.by[k]} ${DEV_STATE[k].label.toLowerCase()}`).join(", ")}.`, "");
         L.push("| Device | OS · browser | State | Sign-ins | Stopped | Last seen |", "| --- | --- | --- | --- | --- | --- |");
         dv.rows.forEach((d) => L.push(`| ${e(d.name || d.id || (d.os ? `${d.os} device` : "Unknown device"))} | ${e([d.os, d.browser].filter(Boolean).join(" · "))}${d.trustType ? ` (${e(d.trustType)})` : ""} | ${DEV_STATE[d.state].label} | ${d.count} | ${d.stopped} | ${e(d.last)} |`));
+      }
+      if (log.mfa && log.mfa.required) {
+        const mf = log.mfa;
+        L.push("", `## MFA on her sign-ins (${e(meta.rangeLabel || "window")})`, "");
+        L.push(`${mf.required} of ${mf.total} sign-ins required MFA: ${mf.fresh} fresh prompts, ${mf.claim} satisfied by the token, ${mf.unknown} not known. Fresh prompts came from ${mf.freshDevices} device(s).`, "");
+        L.push("| App | Policies that demanded MFA | Required | Fresh | By token | Devices | Last fresh prompt |", "| --- | --- | --- | --- | --- | --- | --- |");
+        mf.apps.forEach((a) => L.push(`| ${e(a.app)} | ${a.policies.map((p) => `${e(p.seq || p.name)} (${e(p.controls.join(", "))}) ×${p.n}${p.fresh ? `, ${p.fresh} fresh` : ""}`).join("; ") || "none — outside Conditional Access"} | ${a.required} | ${a.fresh} | ${a.claim} | ${a.devices} | ${e(a.lastFresh)} |`));
       }
       L.push("", `## Sign-ins Conditional Access stopped (${e(meta.rangeLabel || "window")})`, "");
       if (!log.rows.length) L.push(`None — ${log.total} sign-ins, ${log.passed} passed.`);

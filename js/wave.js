@@ -99,6 +99,15 @@ const Wave = (() => {
       const ids = new Set(memberRows.map((r) => r.id));
       const recs = records.filter((r) => ids.has(r.userId));
       recs.forEach((r) => { const m = byId.get(r.userId); if (m) m.signIns++; });
+      // risky sign-ins per member, off the same records — the wave's half of
+      // 🛡 identity risk before anything is read (0.6)
+      const RO_ = { none: 0, hidden: 0, low: 1, medium: 2, high: 3 };
+      recs.forEach((r) => {
+        const m = byId.get(r.userId); if (!m) return;
+        const a = lc(r.riskLevelAggregated || ""), d = lc(r.riskLevelDuringSignIn || "");
+        const lvl = (RO_[a] || 0) >= (RO_[d] || 0) ? a : d;
+        if (RO_[lvl]) { m.riskySignIns = m.riskySignIns || { high: 0, medium: 0, low: 0 }; m.riskySignIns[lvl]++; }
+      });
       const rows = recs.map((r) => Signins.parse(r, "enforced")).filter(Boolean).sort((x, y) => String(y.when).localeCompare(String(x.when)));
       rows.forEach((r) => { const m = byId.get(r.userId); if (!m) return; m.log.rows.push(r); m.log[r.interrupted ? "interrupted" : "blocked"]++; });
       const perPolicy = new Map();
@@ -177,7 +186,12 @@ const Wave = (() => {
     const glo = (dgGroups || []).find((g) => /-DG-GLO$/i.test(g.name) && g.id && g.id !== gid && groupMembers.has(g.id));
     const coverage = glo ? { name: glo.name, missing: memberRows.filter((m) => !groupMembers.get(glo.id).has(m.id)).length } : null;
 
-    return { group, isDyn, days, members: memberRows, mcounts, children: (children || []).map((c) => ({ id: c.id, name: c.name, rule: c.rule, n: c.memberIds.size })), rows, counts, log, waveOverlap, alsoIn, bypassGroups, coverage, memberCap: memberCap || 0, capped: !!a.capped, dgGroups: dgGroups || [] };
+    // the risk-based policies aimed at this wave, with how many members each reaches
+    const riskPolicies = lookup.filter((P) => P.risk && P.state !== "off").map((P) => ({
+      id: P.id, name: P.name, seq: P.seq, state: P.state, userRisk: P.userRisk, signInRisk: P.signInRisk, insiderRisk: P.insiderRisk || [],
+      reach: memberRows.filter((m) => m.states.find((s) => s.P.id === P.id).st.s === "inc").length,
+    })).filter((p) => p.reach);
+    return { group, isDyn, days, riskPolicies, members: memberRows, mcounts, children: (children || []).map((c) => ({ id: c.id, name: c.name, rule: c.rule, n: c.memberIds.size })), rows, counts, log, waveOverlap, alsoIn, bypassGroups, coverage, memberCap: memberCap || 0, capped: !!a.capped, dgGroups: dgGroups || [] };
   }
 
   // ----------------------------------------------------------- render --
@@ -196,6 +210,32 @@ const Wave = (() => {
     nop1: () => '<span class="ctrl">no P1</span>', disabled: () => '<span class="ctrl">disabled</span>', guest: () => '<span class="ctrl">guest</span>',
     blocked: () => "", lockout: () => "",
   };
+
+  // ---- 🛡 identity risk for the whole wave (0.6, on Mihai's ask): the
+  // user-risk record per member (read on demand — it is one call per member
+  // and needs IdentityRiskyUser.Read.All), joined to the risky sign-ins the
+  // members already have from the shared window, and to the risk policies
+  // aimed at the wave: which would FIRE on a member as she stands now.
+  // riskById: userId → { level, state, detail, updated } | null (never
+  // flagged) | { err }. Mutates res (members get .risk) and sets res.risk.
+  function applyRisk(res, riskById, meta = {}) {
+    const RS = { atRisk: 1, confirmedCompromised: 1 };
+    let errs = 0;
+    res.members.forEach((m) => {
+      const r = riskById.has(m.id) ? riskById.get(m.id) : undefined;
+      if (r && r.err) { errs++; m.risk = { err: r.err }; return; }
+      m.risk = r || { level: "none", state: "none", detail: "none", updated: "" };
+      m.risk.atRisk = !!RS[m.risk.state];
+      m.risk.fires = m.risk.atRisk ? res.riskPolicies.filter((P) => P.userRisk.includes(lc(m.risk.level)) && m.states.find((s) => s.P.id === P.id).st.s === "inc") : [];
+    });
+    const atRisk = res.members.filter((m) => m.risk && m.risk.atRisk);
+    const remediated = res.members.filter((m) => m.risk && /^(remediated|dismissed|confirmedSafe)$/i.test(String(m.risk.state || "")));
+    const risky = res.members.filter((m) => m.riskySignIns);
+    const fires = new Map();
+    atRisk.forEach((m) => (m.risk.fires || []).forEach((P) => { const e = fires.get(P.id) || fires.set(P.id, { ...P, members: [] }).get(P.id); e.members.push(m); }));
+    res.risk = { read: true, at: meta.at || new Date().toISOString(), errs, atRisk, remediated, risky, fires: [...fires.values()], notRead: res.members.length - res.members.filter((m) => m.risk && !m.risk.err).length };
+    return res.risk;
+  }
 
   function render(res, opts = {}) {
     const g = res.group, c = res.counts, mc = res.mcounts, log = res.log, filter = opts.filter || "look";
@@ -224,6 +264,7 @@ const Wave = (() => {
         <div class="wo-actions">
           <button class="btn sm" data-wv-cagroups title="Open 👥 Conditional Access groups">👥 CA groups</button>
           <button class="btn sm" data-wv-groupuse title="Open 🔗 User or Group analyzer on this group">🔗 Analyzer</button>
+          ${res.risk ? "" : `<button class="btn sm" data-wv-risk title="Read Identity Protection's user risk for every member (IdentityRiskyUser.Read.All) and join it to the risky sign-ins already in the window">🛡 Read identity risk</button>`}
         </div>
       </div>
       <div class="wo-verdicts">
@@ -233,6 +274,38 @@ const Wave = (() => {
         ${log ? `<div class="wo-vt ok"><span class="k">Quiet members · ${esc(rangeLabel)}</span><span class="v">${mc.quiet}</span><span class="s">signed in, nothing stopped, no forecast change</span></div>` : `<div class="wo-vt"><span class="k">Needs a look</span><span class="v">${mc.needsLook}</span><span class="s">of ${mc.total} members</span></div>`}
       </div>
     </div>`;
+
+    // ---- 🛡 identity risk card: only once read (the button in the head)
+    let riskHtml = "";
+    {
+      const rk = res.risk;
+      const rsum = (m) => m.riskySignIns ? ["high", "medium", "low"].filter((l) => m.riskySignIns[l]).map((l) => `<span class="wo-res ${l === "high" ? "blk" : l === "medium" ? "int" : "wb"}">${m.riskySignIns[l]} ${l}</span>`).join(" ") : '<span class="muted">—</span>';
+      const RS_LABEL = { atRisk: "At risk", confirmedCompromised: "Compromised", remediated: "Remediated", dismissed: "Dismissed", confirmedSafe: "Confirmed safe", none: "No risk" };
+      const risky = res.members.filter((m) => m.riskySignIns);
+      if (rk) {
+        const listed = res.members.filter((m) => (m.risk && m.risk.atRisk) || m.riskySignIns || (m.risk && /^(remediated|dismissed|confirmedSafe)$/i.test(String(m.risk.state || ""))))
+          .sort((a, b) => ((b.risk && b.risk.atRisk) - (a.risk && a.risk.atRisk)) || (!!b.riskySignIns - !!a.riskySignIns) || a.name.localeCompare(b.name));
+        riskHtml = `<div class="list-card wo-card">
+          <h3 class="wo-h">🛡 Identity risk across the wave <span class="mini muted">— user risk read ${esc(String(rk.at).slice(0, 16).replace("T", " "))}${rk.errs ? ` · ${rk.errs} not read` : ""}</span></h3>
+          <div class="wo-verdicts wo-3" style="margin:0 0 10px">
+            <div class="wo-vt ${rk.atRisk.length ? "bad" : "ok"}"><span class="k">Members at risk</span><span class="v">${rk.atRisk.length}</span><span class="s">${rk.atRisk.length ? ["high", "medium", "low"].map((l) => [l, rk.atRisk.filter((m) => lc(m.risk.level) === l).length]).filter(([, n]) => n).map(([l, n]) => `${n} ${l}`).join(" · ") : "Identity Protection flags nobody in the wave"}</span></div>
+            <div class="wo-vt ${rk.risky.length ? "warn" : "ok"}"><span class="k">Risky sign-ins · ${esc(rangeLabel)}</span><span class="v">${rk.risky.length}</span><span class="s">member${rk.risky.length === 1 ? "" : "s"} with a risky sign-in in the window</span></div>
+            <div class="wo-vt ${rk.fires.length ? "bad" : "ok"}"><span class="k">Risk policies firing now</span><span class="v">${rk.fires.length}</span><span class="s">${rk.fires.length ? rk.fires.map((P) => `${esc(P.seq || P.name)} on ${P.members.length}`).join(" · ") : `${res.riskPolicies.length} risk-based polic${res.riskPolicies.length === 1 ? "y aims" : "ies aim"} at the wave, none fires on anyone as they stand`}</span></div>
+          </div>
+          ${res.riskPolicies.length ? `<p class="mini" style="margin:0 0 8px">Risk-based policies aimed at the wave: ${res.riskPolicies.map((P) => `<span class="pol-link" data-polid="${esc(P.id)}">${P.seq ? `<b>${esc(P.seq)}</b> ` : ""}${esc(P.name)}</span>${P.state === "ro" ? " (report-only)" : ""} <span class="muted">— ${[P.userRisk.length ? `user risk ${P.userRisk.join("/")}` : "", P.signInRisk.length ? `sign-in risk ${P.signInRisk.join("/")}` : "", P.insiderRisk.length ? `insider risk ${P.insiderRisk.join("/")}` : ""].filter(Boolean).join(", ")} · reaches ${P.reach}</span>`).join("<br>")}</p>` : '<p class="mini muted" style="margin:0 0 8px">No risk-based policy reaches this wave.</p>'}
+          ${listed.length ? `<div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Member</th><th>User risk</th><th>Since</th><th>Risky sign-ins</th><th>Fires</th></tr></thead><tbody>
+            ${listed.slice(0, 60).map((m) => `<tr${m.risk && m.risk.atRisk ? ' class="wo-exrow"' : ""}><td><a href="#" class="wv-member" data-wv-open="${esc(m.upn)}"><b>${esc(m.name)}</b></a><div class="mini muted">${esc(m.upn)}</div></td>
+              <td>${m.risk && m.risk.err ? `<span class="muted">not read — ${esc(m.risk.err)}</span>` : `<span class="wo-res ${m.risk && m.risk.atRisk ? (lc(m.risk.level) === "high" ? "blk" : "int") : "nc"}">${RS_LABEL[(m.risk || {}).state] || esc((m.risk || {}).state || "No risk")}</span>${m.risk && m.risk.atRisk ? ` <span class="mini">${esc(m.risk.level)}</span>` : ""}${m.risk && m.risk.detail && m.risk.detail !== "none" ? `<div class="mini muted">${esc(m.risk.detail)}</div>` : ""}`}</td>
+              <td class="mini">${m.risk && m.risk.updated ? esc(String(m.risk.updated).slice(0, 10)) : "—"}</td>
+              <td>${rsum(m)}</td>
+              <td class="mini">${m.risk && m.risk.fires && m.risk.fires.length ? m.risk.fires.map((P) => `<span class="pol-link" data-polid="${esc(P.id)}">${esc(P.seq || P.name)}</span>`).join(", ") : '<span class="muted">—</span>'}</td></tr>`).join("")}
+          </tbody></table></div>${listed.length > 60 ? `<p class="mini muted" style="margin-top:6px">${listed.length - 60} more — export CSV for all.</p>` : ""}` : '<p class="mini muted">Nobody in the wave is flagged, remediated or has a risky sign-in in the window.</p>'}
+          <p class="mini muted" style="margin-top:8px">User risk is Identity Protection's (needs Entra ID P2 to be populated); risky sign-ins are the members' own records in the shared window. Click a member for her full picture in 🕵 Who is Anna to CA. Nothing here changes the tenant.</p>
+        </div>`;
+      } else if (risky.length) {
+        riskHtml = `<div class="wo-callout"><b>${risky.length} member${risky.length === 1 ? "" : "s"} had a risky sign-in in the window</b> — ${risky.slice(0, 6).map((m) => `<a href="#" class="wv-member" data-wv-open="${esc(m.upn)}">${esc(m.name)}</a> (${rsum(m)})`).join(", ")}${risky.length > 6 ? ` +${risky.length - 6}` : ""}. Press <b>🛡 Read identity risk</b> for what Identity Protection says about them now and which risk policies fire.</div>`;
+      }
+    }
 
     // ---- readiness
     const roRows = res.rows.filter((r) => r.state === "ro" && r.target && r.target.kind !== "other");
@@ -295,7 +368,7 @@ const Wave = (() => {
       ${mc.disabled ? `<div class="wo-callout"><b>${mc.disabled} disabled account${mc.disabled === 1 ? "" : "s"}</b> in the wave — they count toward the licence obligation and toward nothing else.</div>` : ""}
     </div>`;
 
-    return head + readiness + ptable + `<div class="wo-split">${mtable}${built}</div>`;
+    return head + riskHtml + readiness + ptable + `<div class="wo-split">${mtable}${built}</div>`;
   }
 
   // ------------------------------------------------------------- csv --
@@ -319,6 +392,15 @@ const Wave = (() => {
     if (res.waveOverlap.length) L.push(`- **Two waves at once:** ${res.waveOverlap.map((x) => `${x.n} also in ${e(x.name)}`).join(", ")}`);
     if (mc.bypass) L.push(`- **Standing bypasses:** ${mc.bypass} members in an exclusion group while the policy is On`);
     if (res.coverage) L.push(`- **Coverage:** ${res.coverage.missing ? `${res.coverage.missing} members are NOT in ${e(res.coverage.name)}` : `all members are also in ${e(res.coverage.name)}`}`);
+    if (res.risk) {
+      const rk = res.risk;
+      L.push(`- **Identity risk:** ${rk.atRisk.length} at risk, ${rk.remediated.length} remediated/dismissed, ${rk.risky.length} with a risky sign-in in the window${rk.fires.length ? `; firing: ${rk.fires.map((P) => `${e(P.seq || P.name)} on ${P.members.length}`).join(", ")}` : ""}${rk.errs ? `; ${rk.errs} not read` : ""}`);
+      const listed = res.members.filter((m) => (m.risk && m.risk.atRisk) || m.riskySignIns);
+      if (listed.length) {
+        L.push("", "## Identity risk", "", "| Member | UPN | User risk | Level | Since | Risky sign-ins | Fires |", "| --- | --- | --- | --- | --- | --- | --- |");
+        listed.forEach((m) => L.push(`| ${e(m.name)} | ${e(m.upn)} | ${e((m.risk || {}).state || "")} | ${e((m.risk || {}).level || "")} | ${e(String((m.risk || {}).updated || "").slice(0, 10))} | ${m.riskySignIns ? ["high", "medium", "low"].filter((l) => m.riskySignIns[l]).map((l) => `${m.riskySignIns[l]} ${l}`).join(", ") : ""} | ${((m.risk || {}).fires || []).map((P) => e(P.seq || P.name)).join(", ")} |`));
+      }
+    }
     const roRows = res.rows.filter((r) => r.state === "ro" && r.forecast);
     if (roRows.length) {
       L.push("", "## Go-live readiness per report-only policy", "", "| Policy | With traffic | Locked out | Prompted | No change | Silent | Verdict |", "| --- | --- | --- | --- | --- | --- | --- |");
@@ -337,5 +419,5 @@ const Wave = (() => {
     return L.join("\n");
   }
 
-  return { analyze, render, toMd, toCsv };
+  return { analyze, applyRisk, render, toMd, toCsv };
 })();

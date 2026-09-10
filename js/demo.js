@@ -350,7 +350,14 @@ const DEMO_DATA = {
       deviceDetail: { operatingSystem: "Windows 11", browser: "Edge 126", isCompliant: true, isManaged: true, trustType: "AzureAd" },
       status: { errorCode: 0, failureReason: "" },
       conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      // 🕵 0.7 MFA card: a FRESH Authenticator prompt for Eva on Teams
+      authenticationRequirement: "multiFactorAuthentication",
+      authenticationDetails: [
+        { authenticationStepDateTime: "2026-07-21T10:02:05Z", authenticationMethod: "Password", authenticationMethodDetail: "Password in the cloud", succeeded: true, authenticationStepResultDetail: "Correct password", authenticationStepRequirement: "Primary authentication" },
+        { authenticationStepDateTime: "2026-07-21T10:02:11Z", authenticationMethod: "Microsoft Authenticator", authenticationMethodDetail: "Microsoft Authenticator (mobile app notification)", succeeded: true, authenticationStepResultDetail: "MFA successfully completed", authenticationStepRequirement: "Multi-factor authentication" },
+      ],
       appliedConditionalAccessPolicies: [
+        { id: "d7", displayName: "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0", result: "success", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
         { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlySuccess", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
         { id: "d5", displayName: "Block elevated insider risk", result: "reportOnlyNotApplied", enforcedGrantControls: [], enforcedSessionControls: [] },
       ],
@@ -407,7 +414,13 @@ const DEMO_DATA = {
       deviceDetail: { operatingSystem: "Windows 11", browser: "Edge 126", isCompliant: true, isManaged: true, trustType: "AzureAd" },
       status: { errorCode: 0, failureReason: "" },
       conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      // 🕵 0.7 MFA card: MFA required but satisfied by the claim in the token
+      authenticationRequirement: "multiFactorAuthentication",
+      authenticationDetails: [
+        { authenticationStepDateTime: "2026-07-19T16:55:37Z", authenticationMethod: "Previously satisfied", authenticationMethodDetail: "", succeeded: true, authenticationStepResultDetail: "MFA requirement satisfied by claim in the token", authenticationStepRequirement: "Multi-factor authentication" },
+      ],
       appliedConditionalAccessPolicies: [
+        { id: "d7", displayName: "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0", result: "success", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
         { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlySuccess", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
         { id: "d5", displayName: "Block elevated insider risk", result: "reportOnlyNotApplied", enforcedGrantControls: [], enforcedSessionControls: [] },
       ],

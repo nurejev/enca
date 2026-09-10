@@ -111,7 +111,7 @@ const Signins = (() => {
   // parse / build / ReportImpact never learn which source fed them. One
   // day per query keeps every result under the 50 MB response cap; a day
   // that hits the row cap is reported as capped, never silently trimmed.
-  const HUNT_COLS = "Timestamp, Application, ApplicationId, LogonType, ErrorCode, CorrelationId, SessionId, AccountDisplayName, AccountObjectId, AccountUpn, ResourceDisplayName, ResourceId, OSPlatform, DeviceTrustType, IsManaged, IsCompliant, RiskLevelDuringSignIn, ClientAppUsed, Browser, ConditionalAccessPolicies, ConditionalAccessStatus, IPAddress, Country, City, RequestId, ReportId, DeviceName, EntraIdDeviceId";
+  const HUNT_COLS = "Timestamp, Application, ApplicationId, LogonType, ErrorCode, CorrelationId, SessionId, AccountDisplayName, AccountObjectId, AccountUpn, ResourceDisplayName, ResourceId, OSPlatform, DeviceTrustType, IsManaged, IsCompliant, RiskLevelDuringSignIn, ClientAppUsed, Browser, ConditionalAccessPolicies, ConditionalAccessStatus, IPAddress, Country, City, RequestId, ReportId, DeviceName, EntraIdDeviceId, AuthenticationRequirement, RiskLevelAggregated, RiskState";
   const HUNT_CAP = 20000;
   // from / to: ISO instants for one slice. The caller slices the window —
   // a day at first, halving on "result size exceeded" — so the query only
@@ -133,6 +133,7 @@ ${enforcedOnly ? `| where tostring(ConditionalAccessStatus) in~ ("1", "failure")
 | take ${cap || HUNT_CAP}`;
   }
   const RISK_N = { 0: "none", 1: "none", 10: "low", 50: "medium", 100: "high" };
+  const RISK_STATE_N = { 0: "none", 1: "confirmedSafe", 2: "remediated", 3: "dismissed", 4: "atRisk", 5: "confirmedCompromised" };
   const CA_STATUS_N = { 0: "success", 1: "failure", 2: "notApplied" };
   const RESULT_N = { 0: "success", 1: "failure", 2: "notApplied", 3: "notEnabled", 4: "unknown", 5: "unknownFutureValue", 6: "reportOnlySuccess", 7: "reportOnlyFailure", 8: "reportOnlyNotApplied", 9: "reportOnlyInterrupted" };
   const pick = (o, ...ks) => { for (const k of ks) { if (o && o[k] != null) return o[k]; } return undefined; };
@@ -145,6 +146,8 @@ ${enforcedOnly ? `| where tostring(ConditionalAccessStatus) in~ ("1", "failure")
       const interactive = !/non/i.test(String(r.LogonType || ""));
       const trust = { workplace: "Workplace", azuread: "AzureAd", serverad: "ServerAd" }[String(r.DeviceTrustType || "").toLowerCase()] || (r.DeviceTrustType || "");
       const risk = typeof r.RiskLevelDuringSignIn === "number" ? (RISK_N[r.RiskLevelDuringSignIn] || "none") : String(r.RiskLevelDuringSignIn || "none").toLowerCase();
+      const riskAgg = typeof r.RiskLevelAggregated === "number" ? (RISK_N[r.RiskLevelAggregated] || "none") : String(r.RiskLevelAggregated || "none").toLowerCase();
+      const riskState = typeof r.RiskState === "number" ? (RISK_STATE_N[r.RiskState] || "none") : String(r.RiskState || "none");
       return {
         id: r.RequestId || r.ReportId || r.CorrelationId || "",
         createdDateTime: r.Timestamp, correlationId: r.CorrelationId || "", sessionId: r.SessionId || "",
@@ -154,7 +157,10 @@ ${enforcedOnly ? `| where tostring(ConditionalAccessStatus) in~ ("1", "failure")
         clientAppUsed: r.ClientAppUsed || "",
         deviceDetail: { deviceId: r.EntraIdDeviceId || r.AadDeviceId || "", displayName: r.DeviceName || "", operatingSystem: r.OSPlatform || "", browser: r.Browser || "", isCompliant: Number(r.IsCompliant) === 1 || r.IsCompliant === true, isManaged: Number(r.IsManaged) === 1 || r.IsManaged === true, trustType: trust },
         status: { errorCode: Number(r.ErrorCode) || 0, failureReason: "" },
-        conditionalAccessStatus: caStatus, riskLevelDuringSignIn: risk,
+        conditionalAccessStatus: caStatus, riskLevelDuringSignIn: risk, riskLevelAggregated: riskAgg, riskState,
+        // hunting has the requirement but not the per-step detail, so fresh
+        // MFA vs an MFA claim reused from the token cannot be told apart here
+        authenticationRequirement: /multi/i.test(String(r.AuthenticationRequirement || "")) ? "multiFactorAuthentication" : (r.AuthenticationRequirement ? "singleFactorAuthentication" : ""),
         signInEventTypes: [interactive ? "interactiveUser" : "nonInteractiveUser"], interactive,
         appliedConditionalAccessPolicies: pols.map((p) => ({
           id: pick(p, "id", "Id", "policyId", "PolicyId") || "",

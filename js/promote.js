@@ -118,6 +118,43 @@ const PROMOTE = {
 
   items: [
     {
+      n: 158,
+      title: "🌊 Who is the wave 0.6: 🛡 Read identity risk for the whole wave (T37)",
+      tools: ["Who is the wave to CA"],
+      builds: [25322],
+      risk: "low",
+      what: "js/wave.js analyze: per-member riskySignIns off the shared records (riskLevelAggregated | riskLevelDuringSignIn) and res.riskPolicies (risk policies with reach > 0); new Wave.applyRisk(res, riskById) sets m.risk (+ atRisk, fires) and res.risk {atRisk, remediated, risky, fires, errs}; render: data-wv-risk button in the head until read, a pre-read callout naming members with risky sign-ins, the 🛡 card (three tiles, policies list, member table) after the head; toMd section. js/app.js wvReadRisk(btn): preConsent WO_RISK, gbatch 20 × /identityProtection/riskyUsers/{id} (404 → null), Wave.applyRisk + renderWave; demo from DEMO_DATA.riskyUsers; wvRes.memberIds kept.",
+      why: "Read-only. One riskyUsers GET per member — a 500-member wave is 25 batches. A tenant without P2 gets an error per member, shown as not read.",
+      test: [
+        "Real tenant, P2, Security Reader: run 🌊 on a deploy group, press 🛡 Read identity risk — the button counts up (20 of N …), the card appears with the at-risk members matching the Entra Risky users blade (same level and state), and the button is gone.",
+        "A wave containing a user with a risky sign-in in the window: BEFORE the read a callout names her; after it her row shows the sign-in risk counts and the user-risk state side by side.",
+        "A wave reached by an enforced MediumUserRisk policy with a member at medium risk: the Fires tile counts the policy, the member's row names it; a member at risk whom the policy does not reach (excluded, not targeted) is NOT counted.",
+        "Without the scope: decline consent — a toast, no card, the button usable again. A P1 tenant: rows read 'not read — needs Entra ID P2', the errs count in the header.",
+        "Rescan the wave: the card is gone and the button is back (the risk read belongs to a result).",
+        "?demo=1: DG-ADM — pre-read callout 'Alex Admin (1 medium)'; after the read Alex At risk medium since 2026-07-20, no policy fires (CA201 aims at Internals); DG-INT — Eva Remediated, nobody at risk, two risk policies listed with reach 2.",
+      ],
+      files: ["js/wave.js", "js/app.js", "js/signins.js", "index.html", "js/version.js"],
+    },
+    {
+      n: 157,
+      title: "🕵 Who is Anna 0.7: 🔐 MFA on her sign-ins — which policy prompts, fresh vs token (T36)",
+      tools: ["Who is Anna to CA"],
+      builds: [25322],
+      risk: "low",
+      what: "js/whois.js mfaOf(recs, lookup): per record with authenticationRequirement multiFactorAuthentication — demanded = applied policies with result success and an MFA / authentication-strength grant; mfaStepOf(rec) reads authenticationDetails (claim | fresh | unknown); per app: required / fresh / claim / unknown, policies with counts, devices, last fresh prompt; totals + freshDevices. logOf(records, userId, roPolicies, lookup) carries it as log.mfa; render adds the 🔐 card between Devices and the log split with three tiles, why-callouts (many fresh devices; session controls reaching her from r.session; all-by-token; hunting-unknown) and the per-app table; toMd section. js/signins.js: HUNT_COLS + fromHunting carry AuthenticationRequirement, RiskLevelAggregated, RiskState (RISK_STATE_N). js/demo.js: si-6 fresh Authenticator step, si-10 claim step, both with CA200 applied.",
+      why: "Read-only, display. The fresh/claim split depends on authenticationDetails wording (“MFA requirement satisfied by claim in the token”, “MFA successfully completed”) — Microsoft's strings, matched by regex; a wording change degrades to not known, never to a wrong answer. Three more columns in the hunting $project (test 1).",
+      test: [
+        "Hunting source, 1 day: the read still resolves with AuthenticationRequirement, RiskLevelAggregated and RiskState in the query; the 🔐 card shows Required counts with everything under Not known.",
+        "Entra log source, the Perfetti case (Ivan Gerdes, Devex QA): the card lists Devex QA with CA098 (authentication strength) as the demanding policy, a fresh count with the number of devices beside it, and the callout about fresh prompts spread over many devices; the Microsoft-managed risky-sign-in policy must NOT appear (no risky sign-in in the window).",
+        "A user on one laptop all week: fresh prompts ≤ a handful, most rows By token, no device callout.",
+        "A user reached by a sign-in-frequency policy: the callout names it with its session controls.",
+        "A user whose MFA came only from per-user MFA / security defaults: the app row reads 'no applied policy carried an MFA grant' and the callout says the prompt is not Conditional Access.",
+        "Export MD: the MFA section with the per-app table.",
+        "?demo=1: Eva — '2 of 4 required it', Fresh 1 (Teams, Authenticator), By token 1 (Exchange), both demanded by CA200; Alex — no card content beyond 'No sign-in in the window required MFA'.",
+      ],
+      files: ["js/whois.js", "js/signins.js", "js/demo.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 156,
       title: "🕵 Who is Anna 0.6: baseline CA numbers, 💻 Devices card, 🚦 why on stopped sign-ins (T36, T37 0.5.1)",
       tools: ["Who is Anna to CA", "Who is the wave to CA"],
