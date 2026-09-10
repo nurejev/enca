@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25317, date: "2026-09-10", title: "CA groups: archived originals still in policies",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "A renamed-aside original a policy still names is a migration whose repoint did not finish — the policy targets the old, frozen group. Such a row now says so under its name, counts as Needs attention, has its own chip (🧹 Archived, still in policies), and the drawer's Protection tab says what to do: swap the group with 🎯 Assign, then delete the original via 🧹 Archived groups." },
+    ],
+  },
+  {
     build: 25316, date: "2026-09-10", title: "Protect exclusions: break-glass groups on any reference",
     items: [
       { kind: "fixed", tool: "Protect exclusions", text: "Break-glass account groups were missing from the list. A candidate was a group some policy excludes, and Emergency_Access1 / Emergency_Access2 are included by the break-glass policy and excluded by none — so they never showed, even already in the BreakGlass vault. A group named like a break-glass group is a candidate on any reference now, tagged break-glass, with Used by reading included by n; ⑥ Protect inside CA groups follows the same rule." },

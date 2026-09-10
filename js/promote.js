@@ -118,6 +118,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 153,
+      title: "👥 Archived originals still in policies are called out (T12 5.9.7)",
+      tools: ["Conditional Access groups"],
+      builds: [25317],
+      risk: "low",
+      what: "js/groupsview.js classify: `archived` (CaGroups.ARCHIVE_SUFFIX on the name) and `archivedref` (archived + any policy reference) flags; kindLabel says which; archivedref is Needs attention; chip '🧹 Archived, still in policies'; drawerProtectionAu opens with a callout pointing at 🎯 Assign then 🧹.",
+      why: "Display only. Background: on 2026-09-10 Perfetti Van Melle showed 7 '(migrated …)' groups still excluded/included by up to 46 policies — a repoint that did not complete.",
+      test: [
+        "Perfetti Van Melle, scope Used by CA policies: the 7 '(migrated …)' rows read 'archived original — still named by n policies …', sit under Needs attention, and the new chip counts 7; the drawer's Protection tab shows the red callout.",
+        "Scope All groups: the 80 archived originals no policy names read 'archived original — rollback, delete via 🧹' and are NOT Needs attention.",
+        "🧹 Archived groups still lists all 87.",
+      ],
+      files: ["js/groupsview.js", "index.html", "js/version.js"],
+    },
+    {
       n: 152,
       title: "🔒 Break-glass groups are candidates on any policy reference (T20 3.0.2 / ⑥)",
       tools: ["Protect exclusions", "Conditional Access groups"],

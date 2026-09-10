@@ -33,6 +33,11 @@ const GroupsView = (() => {
     const isExcl = (() => { try { return !!(cat && cat.isExclusionGroup && cat.isExclusionGroup(name)); } catch { return false; } })() || /-Exclusions?$|-Exclusion-| - Exclude$/i.test(name);
     const ca = (name.match(/\bCA(\d{3,4})\b/) || [])[0] || "";
     let kind = "other", kindLabel = "";
+    // A renamed-aside original — "(migrated 2026-09-10)", "(legacy …)" — is a
+    // rollback, and a rollback that a policy STILL names is a migration that
+    // did not finish its repoint: the policy targets the old group, whose
+    // members are frozen in time. That is the loudest thing on the row.
+    const archived = typeof CaGroups !== "undefined" && CaGroups.ARCHIVE_SUFFIX ? CaGroups.ARCHIVE_SUFFIX.test(name) : /\((?:legacy|nesting|migrated)\s+\d{4}-\d{2}-\d{2}\)\s*$/i.test(name);
     if (/BreakGlass|Emergency_Access/i.test(name)) { kind = "breakglass"; kindLabel = "break-glass"; }
     else if (/-DG-/i.test(name)) { kind = "deploy"; kindLabel = "deploy group"; }
     else if (/-Persona-|^CA-.*(Internals|Admins|Guests|ServiceAccounts|Externals)$/i.test(name)) { kind = "persona"; kindLabel = "persona group"; }
@@ -59,12 +64,14 @@ const GroupsView = (() => {
     // would drown the dangling / unprotected / nested rows
     if (r.drift && !/^role-assignable/.test(r.drift)) flags.push("drift");
     if (r.nesting === "allowed" && kind === "exclusion") flags.push("nestingallowed");
+    const refN = R.include.length + R.exclude.length;
+    if (archived) { flags.push("archived"); if (refN) { flags.push("archivedref"); kindLabel = `archived original — still named by ${refN} polic${refN === 1 ? "y" : "ies"}: the migration's repoint did not finish here`; } else kindLabel = "archived original — rollback, delete via 🧹 Archived groups"; }
     // disableNesting read after the scan (loadNestingStates): "disabled" is
     // the state the baseline wants on every persona / exclusion group
     if (r.nesting === "disabled") flags.push("nestingdisabled");
     // a group nested inside an exclusion or break-glass group widens a
     // standing bypass by one membership change somewhere else — attention
-    const attention = flags.some((f) => ["missing", "dangling", "unprotected", "drift"].includes(f)) || (nestedN > 0 && (kind === "exclusion" || kind === "breakglass"));
+    const attention = flags.some((f) => ["missing", "dangling", "unprotected", "drift", "archivedref"].includes(f)) || (nestedN > 0 && (kind === "exclusion" || kind === "breakglass"));
     return { kind, kindLabel, ca, isExcl, prot, incOn, excOn, flags, attention, nestedN };
   }
 
@@ -72,7 +79,7 @@ const GroupsView = (() => {
     // [key, label, pill colour, chip tone] — tone "warn" is a live bypass
     // (red), "sec" an unguarded one (amber); the chip carries it even idle
     ["all", "All", "zero"], ["attention", "⚠ Needs attention", "red", "warn"], ["missing", "Missing from tenant", "amber"], ["dangling", "Referenced but gone", "red"],
-    ["empty", "Empty", "zero"], ["unprotected", "Not protected", "amber", "sec"], ["roleassignable", "Role-assignable", "zero"], ["nested", "↪ Has nested groups", "red", "warn"], ["nestingdisabled", "🚫 Nesting disabled", "green"], ["extra", "Not in the baseline", "zero"],
+    ["empty", "Empty", "zero"], ["unprotected", "Not protected", "amber", "sec"], ["roleassignable", "Role-assignable", "zero"], ["nested", "↪ Has nested groups", "red", "warn"], ["nestingdisabled", "🚫 Nesting disabled", "green"], ["archivedref", "🧹 Archived, still in policies", "red", "warn"], ["extra", "Not in the baseline", "zero"],
   ];
   function matches(r, c, filter) {
     if (filter === "all") return true;
@@ -273,6 +280,7 @@ const GroupsView = (() => {
     return '<p class="mini muted" style="margin:0 0 8px">Group nesting: reading…</p>';
   }
   function drawerProtectionAu(r, c, ctx) {
+    if (c.flags.includes("archivedref")) return `<div class="wo-callout bad"><b>Archived original still in policies.</b> This is the renamed-aside copy a migration left as its rollback, and ${c.incOn + c.excOn ? "enabled " : ""}policies still name it — the repoint did not finish here (a policy Graph refuses to update keeps the old group). Open <b>🎯 Assign</b> to remove it from those policies and add the live group, then delete it via 🧹 Archived groups.</div>`;
     if (c.prot) return `<p>🔒 In <b>${esc(c.prot.auName)}</b> — a restricted management administrative unit. Its members can only be changed by a role scoped to that unit; tenant-wide admins cannot add themselves.</p>${r.roleAssignable ? '<div class="wo-callout"><b>Frozen.</b> Role-assignable and inside a restricted unit: its membership cannot be read or moved from here. Remove it from the unit first, then convert it.</div>' : ""}`;
     if (r.roleAssignable) return `<p>Role-assignable. A role-assignable group cannot be placed in a restricted unit — the baseline's answer is to <b>migrate</b> it to a plain group that the vault can hold.</p><button class="btn primary" data-cgg-act="migrate" data-cgg-name="${esc(r.name)}">🧹 Migrate off role-assignable…</button>`;
     if (!ctx.prot) return '<p class="mini muted">Protection was not read (the administrative-unit read failed or was refused).</p>';
