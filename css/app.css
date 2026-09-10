@@ -1934,3 +1934,16 @@ body.cgg-modal-open{overflow:hidden}
 .rl-ft .rl-actions:not(:empty) + .stop{margin-left:0}
 .rl.finished .rl-hd{background:var(--ok-bg)}
 .rl.finished.has-fail .rl-hd{background:var(--bad-bg)}
+
+/* ---- T20 🔒 Protect exclusions 3.0 — two locks per row ---- */
+.pr-table td{vertical-align:top}
+.pr-table tr.pr-sel td{background:var(--ok-bg2)}
+.pr-tick{display:flex;gap:6px;align-items:center;font-size:12px;margin:2px 0;cursor:pointer}
+.pr-tick.dis{opacity:.5;cursor:default}
+.pr-settings{margin-top:14px;border:1px solid var(--border);border-radius:10px;padding:10px 14px;background:var(--soft2)}
+.pr-settings summary{cursor:pointer;font-weight:600;font-size:13px}
+.pr-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}
+.pr-barwrap{position:sticky;bottom:14px;z-index:5;display:flex;justify-content:center;margin-top:14px}
+.pr-barwrap .cgg-bulk{width:100%}
+.pr-barwrap .cgg-bulk .btn.primary[disabled]{opacity:.5}
+@media (max-width:860px){.pr-settings-grid{grid-template-columns:1fr}}

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25311, date: "2026-09-10", title: "Protect exclusions 3.0: two locks per group",
+    items: [
+      { kind: "new", tool: "Protect exclusions", text: "Redrawn around the two things that widen an exclusion group without the policy being touched: a tenant-wide admin adding a member, and somebody nesting a group inside it. One row per group with a column for each lock — the restricted management administrative unit and disableNesting — and a tick for each, pre-set to what the row still lacks. Five tiles and chips say how far along you are (fully protected, vault only, nesting only, open, cannot here). A row that cannot be protected says why and carries the way out. The unit / scoped-administrator / acknowledgement settings fold into a drawer. The run shows the run ledger with both locks as steps; the report gets a Nesting column. Nesting is set in place and read back, never by recreating; on a directory without the property the screen says so once and the nesting tick is off the table." },
+      { kind: "fixed", tool: "Conditional Access groups", text: "The Empty chip counted only the groups whose members had been read. The scan's direct-member count comes back inside the batch as text, which the parser could not read, so every unread group stayed at not read instead of 0 · empty. Read properly now, so Empty is right from the first screen." },
+    ],
+  },
+  {
     build: 25310, date: "2026-09-10", title: "Restricted AUs: archived groups are not candidates",
     items: [
       { kind: "fixed", tool: "Restricted AUs", text: "After a migration, the unit card offered the renamed-aside original — Emergency_Access1 (migrated 2026-09-10) — as a break-glass group that cannot go in because it is role-assignable, with a Migrate button, while the real Emergency_Access1 was already a member. Archived originals are your rollback, not candidates: the persona chips and Bulk add skip them now." },

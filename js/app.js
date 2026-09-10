@@ -4816,6 +4816,172 @@ max@contoso.com,"Global, DevOps"</pre>
   }
   $("toolProtect").addEventListener("click", () => { openProtect(); });
 
+  // ---------- T20 3.0: two locks per group ----------
+  // The unit scan (cgRmau) is ⑥'s; the ticks, the filter and the run are
+  // this screen's. Ticks belong to one scan: a rescan resets them to what
+  // each row lacks. The nesting state comes from the same v1.0 read the
+  // groups list does (loadNestingStates), on the rows the table shows.
+  const prState = { filter: "all", ticks: null, forScan: null, results: null, busy: false, settingsOpen: false };
+  function prRows() {
+    const ids = new Set(rmauCands().map((g) => g.id));
+    return [...(cgRes ? cgRes.rows : []).filter((r) => r.id && ids.has(r.id)), ...[...cgManual.protect.values()].filter((g) => ids.has(g.id))];
+  }
+  function prCtx(t) {
+    const byId = new Map(prRows().map((r) => [r.id, r]));
+    const nOf = (id) => (byId.get(id) || {}).nesting;
+    const cands = rmauCands();
+    const known = cands.some((g) => nOf(g.id) === "disabled" || nOf(g.id) === "allowed");
+    const anyRead = cands.some((g) => nOf(g.id) !== undefined);
+    const nestAvail = !CaGroups.nestingSupported() ? false : known ? true : anyRead ? false : null;
+    return { status: t.status, statusError: t.statusError || null, nestingOf: nOf, nestedOf: (id) => ((byId.get(id) || {}).nestedGroups || []).length,
+      ineligible: cgAuIneligible, target: (g) => rmauTarget(t, g), nestAvail };
+  }
+  function renderProtect() {
+    if (rmauBusy) { rmauBody().innerHTML = rmauBusyPanel(); return; }
+    if (!cgRmau) {
+      rmauBody().innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-rmaurun>▶ Scan the exclusion groups</button>
+        <p class="mini muted">Reads the tenant's groups, the administrative units, each exclusion group's protection and whether nesting is disabled on it. Nothing is written. The result stays until you rescan.</p>
+      </div>`;
+      return;
+    }
+    const t = cgRmau, cands = rmauCands(), ctx = prCtx(t);
+    if (prState.forScan !== t || !prState.ticks) {
+      prState.forScan = t; prState.ticks = new Map(); prState.results = null; prState.runEl = null;
+      cands.forEach((g) => prState.ticks.set(g.id, Protect.defaultTicks(g, Protect.classify(g, ctx))));
+    }
+    // a group whose nesting state arrived after the first render gets its default nest tick once
+    cands.forEach((g) => { const k = prState.ticks.get(g.id); if (k && k.nest === undefined) { const c = Protect.classify(g, ctx); if (c.nest !== "reading") k.nest = Protect.defaultTicks(g, c).nest; } });
+    const unmatched = cands.filter((g) => !t.status.get(g.id) && !g.roleAssignable && !cgAuIneligible(g)).filter((g) => { const s = rmauTarget(t, g).source; return s === "unset" || s.startsWith("fallback"); }).length;
+    rmauBody().innerHTML = Protect.render(cands, ctx, {
+      filter: prState.filter, q: t.q, ticks: prState.ticks, busy: prState.busy, results: prState.results,
+      settings: { rmaus: t.rmaus, auChoice: t.auChoice, auName: t.auName, admin: t.admin, adminCount: CaGroups.adminList(t.admin).length, ack: t.ack, unmatched, open: prState.settingsOpen },
+      find: cgFindPanel("protect", t.find, "Not on the list? Search the whole directory", "The table holds what the policies point at. A group of your own — a break-glass group no policy references yet, an exclusion group named outside the baseline — is reached by searching for it here, and is then checked exactly like a scanned one."),
+    });
+    // the run ledger outlives the re-render that shows the result
+    if (prState.runEl) { const host = rmauBody().querySelector("#prLedger"); if (host) host.appendChild(prState.runEl); }
+    // the second lock is read after the first paint, like the groups list does
+    const rows = prRows();
+    const still = () => rmauStandalone && shownScreen === "screen-protect";
+    if (rows.some((r) => r.nesting === undefined)) loadNestingStates(rows).then(() => { if (still()) renderProtect(); }).catch((e) => console.warn("protect: nesting read failed", e.message));
+    if (rows.some((r) => r.nestedGroups === undefined && !(r.sources || []).includes("tenant"))) loadNestedGroups(rows).then(() => { if (still()) renderProtect(); }).catch((e) => console.warn("protect: nested-group read failed", e.message));
+  }
+  // one group's second lock: PATCH on v1.0 and read it back — never a recreate
+  async function prDisableNesting(g) {
+    if (isDemo) return { state: "disabled" };
+    if (!CaGroups.nestingSupported()) return { state: "unsupported", error: CaGroups.NESTING_UNSUPPORTED_TEXT };
+    try {
+      await Graph.gpatch(CaGroups.NEST_V1(`/groups/${g.id}`), { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
+      const back = await Graph.gget(CaGroups.NEST_V1(`/groups/${g.id}?$select=id,disableNesting`));
+      if (CaGroups.nestingState(back) === "disabled") return { state: "disabled" };
+      return { state: "failed", error: "Entra accepted the update but the property did not read back as set" };
+    } catch (e) {
+      if (CaGroups.noteNestingUnsupported(e)) return { state: "unsupported", error: CaGroups.NESTING_UNSUPPORTED_TEXT };
+      return { state: "failed", error: GroupUse.shortErr(e) };
+    }
+  }
+  async function prApply(btn) {
+    const t = cgRmau; if (!t || t.busy || prState.busy) return;
+    if (!rmauBody().querySelector("#cgRmauAck")?.checked) { prState.settingsOpen = true; renderProtect(); toast("Tick the <span>acknowledgement</span> under Settings first — this restricts who can manage these groups"); return; }
+    t.ack = true; t.admin = (rmauBody().querySelector("#cgRmauAdmin")?.value || "").trim();
+    const cands = rmauCands(), ctx = prCtx(t);
+    const jobs = cands.map((g) => { const c = Protect.classify(g, ctx), k = prState.ticks.get(g.id) || {}; return { g, c, doVault: !!(k.vault && c.canVault), doNest: !!(k.nest && c.canNest) }; }).filter((j) => j.doVault || j.doNest);
+    if (!jobs.length) return;
+    const scopes = [...AUTH_CONFIG.scopes, ...(jobs.some((j) => j.doVault) ? RMAU_WRITE : []), ...(jobs.some((j) => j.doNest) ? CaGroups.NEST_WRITE_SCOPES : []), ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
+    if (!isDemo && !await preConsent(scopes)) return;
+    prState.busy = true; t.busy = true; prState.results = null; renderProtect();
+    const host = document.createElement("div"); prState.runEl = host;
+    rmauBody().querySelector("#prLedger").appendChild(host);
+    const L = RunLedger.create(host, { unit: "groups", items: jobs.map((j) => ({ label: j.g.name, sub: [j.doVault ? `vault → ${(j.c.dest && j.c.dest.auName) || "new unit"}` : "", j.doNest ? "nesting off" : ""].filter(Boolean).join(" · ") })), onStop: () => {} });
+    const pre = document.createElement("div"); pre.className = "rl-pre mini"; host.prepend(pre);
+    const say = (h) => pre.insertAdjacentHTML("beforeend", h);
+    const rows = [];
+    try {
+      // the fallback unit is created only if something actually needs it
+      let fallback = null;
+      if (jobs.some((j) => j.doVault && j.c.dest.source === "fallbackNew")) {
+        const name = (rmauBody().querySelector("#cgRmauName")?.value || t.auName || RMAU_DEFAULT_NAME()).trim() || RMAU_DEFAULT_NAME();
+        if (isDemo) fallback = { id: "au-demo", name, created: true };
+        else {
+          const made = await Graph.gpost("/administrativeUnits", { displayName: name, description: "Restricted management administrative unit protecting Conditional Access exclusion groups. Membership changes require a role scoped to this administrative unit.", isMemberManagementRestricted: true });
+          fallback = { id: made.id, name, created: true };
+        }
+        say(`<div>✓ created restricted management administrative unit <b>${esc(fallback.name)}</b></div>`);
+      }
+      const auOf = (d) => d.source === "fallbackNew" ? fallback : { id: d.auId, name: d.auName, created: false };
+      const units = new Map();
+      for (let i = 0; i < jobs.length; i++) {
+        const j = jobs[i], res = { name: j.g.name, id: j.g.id, vault: null, nest: null };
+        if (L.stopped) { rows.push(res); continue; }
+        L.start(i);
+        const notes = [];
+        if (j.doVault) {
+          const au = auOf(j.c.dest); units.set(au.id, au);
+          L.note(i, `placing in ${au.name}…`);
+          try {
+            if (!isDemo) await Graph.gpost(`/administrativeUnits/${au.id}/members/$ref`, { "@odata.id": `https://graph.microsoft.com/beta/groups/${j.g.id}` });
+            res.vault = { state: "added", auName: au.name }; notes.push(`vault ✓ ${au.name}`);
+            t.status.set(j.g.id, { auId: au.id, auName: au.name });
+          } catch (err) {
+            const already = /added object references already exist/i.test(err.message || "");
+            res.vault = { state: already ? "already" : "failed", auName: au.name, error: already ? "" : (err.message || String(err)) };
+            notes.push(already ? `vault — already in ${au.name}` : `vault ✗ ${GroupUse.shortErr(err)}`);
+            if (already) t.status.set(j.g.id, { auId: au.id, auName: au.name });
+          }
+        }
+        if (j.doNest) {
+          L.note(i, `${notes.join(" · ")}${notes.length ? " · " : ""}nesting: setting…`);
+          res.nest = await prDisableNesting(j.g);
+          const row = prRows().find((r) => r.id === j.g.id); if (row && res.nest.state === "disabled") row.nesting = "disabled";
+          notes.push(res.nest.state === "disabled" ? "nesting ✓ disabled, read back" : res.nest.state === "unsupported" ? "nesting — not available in this tenant" : `nesting ✗ ${res.nest.error}`);
+        }
+        const bad = (res.vault && res.vault.state === "failed") || (res.nest && res.nest.state === "failed");
+        if (bad) L.fail(i, notes.join(" · "), "refused"); else L.done(i, notes.join(" · "), (res.vault && res.vault.state === "added") || (res.nest && res.nest.state === "disabled") ? "protected" : "unchanged");
+        rows.push(res);
+      }
+      L.finish();
+      t.units = [...units.values()]; t.au = t.units.length === 1 ? t.units[0] : null;
+      if (t.units.length) await rmauGrantAdmins(t, say);
+      prState.results = { rows, units: t.units, admins: t.adminResults || [] };
+      const vOk = rows.filter((r) => r.vault && r.vault.state === "added").length, nOk = rows.filter((r) => r.nest && r.nest.state === "disabled").length;
+      toast(`<span>${vOk}</span> placed in a vault · <span>${nOk}</span> nesting disabled${isDemo ? " (simulated)" : ""}`);
+      rows.forEach((r) => { const k = prState.ticks.get(r.id); if (k) { if (r.vault && r.vault.state !== "failed") k.vault = false; if (r.nest && r.nest.state !== "failed") k.nest = false; } });
+    } catch (e) {
+      console.error("Protect 3.0 failed:", e);
+      say(`<div style="color:var(--off)">✗ ${esc(e.message || e)}<br><span class="muted">Creating a restricted management administrative unit needs the Privileged Role Administrator role.</span></div>`);
+      prState.results = { rows, units: t.units || [], admins: t.adminResults || [] };
+    } finally { prState.busy = false; t.busy = false; }
+    renderProtect();
+  }
+  $("prBody").addEventListener("click", async (e) => {
+    if (!rmauStandalone) return;
+    const f = e.target.closest("[data-pr-filter]"); if (f) { prState.filter = f.dataset.prFilter; renderProtect(); return; }
+    if (e.target.id === "prGo") { await prApply(e.target); return; }
+    if (e.target.id === "prReport") { const R = prState.results; if (R) showReport("🔒 Protect exclusions", "CA-Protect-Exclusions", Protect.report(R, { tenant: tenantName, generatedBy: Brand.generatedBy("Generated") })); return; }
+    if (e.target.id === "prDismiss") { prState.results = null; prState.runEl = null; renderProtect(); return; }
+    const mg = e.target.closest("[data-pr-migrate]"); if (mg) { cgGoTab("migrate", [rmauCands().find((g) => g.id === mg.dataset.prMigrate)?.name].filter(Boolean)); return; }
+    const un = e.target.closest("[data-pr-unadd]"); if (un) { cgManual.protect.delete(un.dataset.prUnadd); prState.ticks.delete(un.dataset.prUnadd); renderProtect(); return; }
+  });
+  $("prBody").addEventListener("change", (e) => {
+    if (!rmauStandalone || !prState.ticks) return;
+    const tk = e.target.closest("[data-pr-tick]");
+    if (tk) { const k = prState.ticks.get(tk.dataset.prId) || {}; k[tk.dataset.prTick] = tk.checked; prState.ticks.set(tk.dataset.prId, k); renderProtect(); return; }
+    const row = e.target.closest("[data-pr-row]");
+    if (row) {
+      const t = cgRmau, ctx = prCtx(t), g = rmauCands().find((x) => x.id === row.dataset.prRow); if (!g) return;
+      const c = Protect.classify(g, ctx);
+      prState.ticks.set(g.id, row.checked ? { vault: c.canVault, nest: c.canNest } : { vault: false, nest: false });
+      renderProtect(); return;
+    }
+    if (e.target.closest("[data-pr-all]")) {
+      const t = cgRmau, ctx = prCtx(t), on = e.target.checked;
+      rmauCands().forEach((g) => { const c = Protect.classify(g, ctx); if (c.canVault || c.canNest) prState.ticks.set(g.id, on ? { vault: c.canVault, nest: c.canNest } : { vault: false, nest: false }); });
+      renderProtect(); return;
+    }
+    if (e.target.id === "cgRmauAck" && cgRmau) cgRmau.ack = e.target.checked;
+  });
+  $("prBody").addEventListener("toggle", (e) => { if (e.target.classList && e.target.classList.contains("pr-settings")) prState.settingsOpen = e.target.open; }, true);
+
   async function cgRmauScan() {
     if (rmauBusy) return;                     // already scanning — don't start a second pass
     rmauBusy = true;
@@ -4947,6 +5113,7 @@ max@contoso.com,"Global, DevOps"</pre>
   let rmauBusy = false;
   const rmauBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgRmauStatus">Scanning… this keeps running if you switch tabs.</p><div id="cgRmauBar" style="width:100%"></div></div>';
   function renderCgRmau() {
+    if (rmauStandalone) return renderProtect();   // T20 3.0 — same state, its own screen
     // Same manners as Sign-in failures: nothing scans until asked, a scan in
     // flight survives navigating away and back, and the result stays until
     // an explicit rescan.
@@ -5201,10 +5368,21 @@ max@contoso.com,"Global, DevOps"</pre>
         }
       }
       L.finish();
-      // 3) the scoped administrators, so somebody can still manage the members.
-      // One failure must not cost the others: each is resolved and granted on
-      // its own, and every outcome reaches the report. The directory role is
-      // activated once, outside the loop.
+      await rmauGrantAdmins(t, say);
+      t.results = results;
+      const ok = results.filter((r) => r.state === "added").length;
+      toast(`<span>${ok}</span> exclusion group${ok === 1 ? "" : "s"} protected${isDemo ? " (simulated)" : ""}`);
+    } catch (e) {
+      console.error("RMAU apply failed:", e);
+      say(`<div style="color:var(--off)">✗ ${esc(e.message || e)}<br><span class="muted">Creating a restricted management administrative unit needs the Privileged Role Administrator role.</span></div>`);
+    } finally { t.busy = false; btn.disabled = false; }
+    if (t.results) renderCgRmau();
+  }
+  // 3) the scoped administrators, so somebody can still manage the members.
+  // One failure must not cost the others: each is resolved and granted on
+  // its own, and every outcome reaches the report. The directory role is
+  // activated once, outside the loop. Shared by ⑥ Protect and T20 3.0.
+  async function rmauGrantAdmins(t, say) {
       const admins = CaGroups.adminList(t.admin);
       t.adminResults = [];
       if (admins.length) {
@@ -5250,14 +5428,6 @@ max@contoso.com,"Global, DevOps"</pre>
         const bad = t.adminResults.filter((a) => !a.ok);
         t.adminError = bad.length ? `${bad.length} of ${t.adminResults.length} grants could not be made` : null;
       }
-      t.results = results;
-      const ok = results.filter((r) => r.state === "added").length;
-      toast(`<span>${ok}</span> exclusion group${ok === 1 ? "" : "s"} protected${isDemo ? " (simulated)" : ""}`);
-    } catch (e) {
-      console.error("RMAU apply failed:", e);
-      say(`<div style="color:var(--off)">✗ ${esc(e.message || e)}<br><span class="muted">Creating a restricted management administrative unit needs the Privileged Role Administrator role.</span></div>`);
-    } finally { t.busy = false; btn.disabled = false; }
-    if (t.results) renderCgRmau();
   }
 
   $("cgBody").addEventListener("click", async (e) => {
@@ -5732,7 +5902,15 @@ max@contoso.com,"Global, DevOps"</pre>
     targets.forEach((r, i) => {
       const v = res[`n${i}`];
       r.nestedGroups = v && v.body && Array.isArray(v.body.value) ? v.body.value.map((g) => ({ id: g.id, name: g.displayName, dynamic: (g.groupTypes || []).includes("DynamicMembership") })) : [];
-      const c = res[`c${i}`], n = c && c.status < 400 ? Number(typeof c.body === "object" && c.body !== null ? (c.body.value ?? c.body) : c.body) : NaN;
+      // Inside a $batch a text/plain answer (which $count is) arrives as
+      // { "$content-type": "text/plain", "$content": "<base64>" } — "0" is
+      // "MA==". Read that shape too, or every unread group stays "not read"
+      // and the Empty chip counts only the groups whose members were read.
+      const c = res[`c${i}`];
+      let raw = c && !c.error ? c.body : null;
+      if (raw && typeof raw === "object" && typeof raw.$content === "string") { try { raw = atob(raw.$content); } catch { raw = null; } }
+      else if (raw && typeof raw === "object") raw = raw.value ?? null;
+      const n = raw == null ? NaN : Number(String(raw).trim());
       r.directTotal = Number.isFinite(n) ? n : null;
     });
   }

@@ -118,6 +118,28 @@ const PROMOTE = {
 
   items: [
     {
+      n: 148,
+      title: "🔒 Protect exclusions 3.0 — two locks per group (T20) + Empty count fix (T12)",
+      tools: ["Protect exclusions", "Conditional Access groups"],
+      builds: [25311],
+      risk: "medium",
+      what: "New js/protect.js (pure: classify / defaultTicks / render / report). js/app.js: renderCgRmau() dispatches to renderProtect() when rmauStandalone; prState { filter, ticks, forScan, results }; prCtx() builds the ctx from cgRmau + cgRes rows (nesting via loadNestingStates on the candidate rows, nested groups via loadNestedGroups); prApply() = per group: POST members/$ref into the persona unit (rmauTarget) + prDisableNesting() (PATCH v1.0 + read back, unsupported → noted tenant-wide); rmauGrantAdmins(t, say) extracted from cgRmauApply and shared. Settings drawer reuses the ⑥ ids (cgRmauAu/Name/Admin/Ack/Q) so the existing rmauChange/rmauInput handlers serve it; cgFindPanel('protect') kept. ⑥ inside T12 unchanged. Also loadNestedGroups: the $count body inside a $batch arrives as {$content-type, $content(base64)} — parsed now; before, directTotal was always null (c.status is not set on batch successes either).",
+      why: "A new write screen over two existing engines. The risks: a tick applied to the wrong lock (row/header tick logic), a fallback unit created when nothing needs it, the nesting PATCH on a tenant that refuses it (it is caught and reported, never retried as a recreate). Graduates after one real run on each kind of tenant.",
+      test: [
+        "Green tenant (property supported): open T20, scan — five tiles, chips, every row shows both locks; a group in a vault with nesting allowed sits under Vault only with only the nesting tick on.",
+        "Tick two open groups → Protect: ledger shows 'placing in <unit>… · nesting: setting…' then ✓ per row; the table re-renders with 🔒 in <unit> and 🚫 disabled; Change report has both columns; the scoped admin (if given) is granted on every unit written to.",
+        "Perfetti Van Melle (no property): banner once, Nesting column reads 'not reported', nesting ticks disabled with '— n/a', tiles switch to the 4-tile variant (In a vault / Not in a vault / Nesting n/a / Nested groups inside); Protect still places groups in vaults.",
+        "A role-assignable group: 'cannot — role-assignable' + 'impossible', the ⑦ Migrate it first button opens Migrate scoped to it. A group in a vault AND role-assignable: 🧊 frozen.",
+        "A group with nested groups inside and nesting allowed: 'allowed · 2 nested groups inside', nesting tick disabled '— blocked'.",
+        "Header tick: on → every row that lacks a lock gets its ticks; off → nothing ticked; the bar count follows. Settings closed by default; Protect with the acknowledgement unticked opens the drawer and toasts.",
+        "⟳ Re-check keeps the ticks; a fresh scan (▶) resets them to the defaults. The directory search panel still adds a group by hand (tagged 'by hand', ✕ removes it).",
+        "👥 CA groups → ⑥ Protect: unchanged layout and behaviour (the dispatch only fires on the standalone screen).",
+        "T12 Empty chip on Perfetti Van Melle: must count every exclusion group with 0 direct members right after the scan (rows read '0 · empty' without pressing read).",
+        "?demo=1: T20 renders, ticks toggle, Protect runs a simulated ledger (units are 'missing' in demo, so nesting is the lock that applies).",
+      ],
+      files: ["js/protect.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 147,
       title: "🛡 Restricted AUs: archived (migrated …) groups leave the chips and Bulk add (T27 1.8.2)",
       tools: ["Restricted AUs"],
