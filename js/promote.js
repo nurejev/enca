@@ -118,6 +118,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 145,
+      title: "👥 Finished writes consume their ticks (T12 5.9.4)",
+      tools: ["Conditional Access groups"],
+      builds: [25308],
+      risk: "low",
+      what: "js/app.js: after the migrate run, results.filter(ok) names leave cgSel; after Archived delete, done names leave cgSel; renderCaGroups prunes cgSel (and cgOpen) of names absent from cgRes.rows.",
+      why: "Selection state only; no reads or writes change.",
+      test: [
+        "Tick two role-assignable groups → Migrate → done → Close: the list shows them unticked and the bar is gone; tick two others → Migrate: the header says '2 groups carried from the list' and Not migrated does not list the earlier pair.",
+        "Archived groups: delete two → after the re-scan the bar count excludes them.",
+        "Tick a group, then delete it via Archived groups in another way (or it vanishes on rescan): the bar count drops and the drawer closes.",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 144,
       title: "👥 Nesting-disabled read goes to v1.0 like the create's verify (T12 5.9.3)",
       tools: ["Conditional Access groups"],

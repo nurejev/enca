@@ -3355,6 +3355,9 @@
 
   function renderCaGroups() {
     if (!cgRes) return;
+    // a tick on a name the scan no longer has (deleted, renamed aside) would
+    // keep counting in the bar and be carried into the next action
+    if (cgSel.size) { const have = new Set(cgRes.rows.map((r) => r.name)); [...cgSel].forEach((n) => { if (!have.has(n)) cgSel.delete(n); }); if (cgOpen && !have.has(cgOpen)) cgOpen = null; }
     $("cgHead").innerHTML = CaGroups.renderSummary(cgRes, tenantName);
     [...document.querySelectorAll("#cgTabs button")].forEach(b =>
       b.classList.toggle("active", b.dataset.cgtab === cgTab));
@@ -4794,6 +4797,11 @@ max@contoso.com,"Global, DevOps"</pre>
     t.done = picked.length;
     t.results = results; t.busy = false; btn.disabled = false;
     runBadge(null);                      // finished: the badge must not linger
+    // The ticks are by NAME and the new group takes the old name, so a
+    // migrated group stayed ticked through the re-scan and rode into the next
+    // Migrate as "carried from the list" — where it was then listed as
+    // "already a plain group". A finished write consumes its ticks.
+    results.filter((r) => r.ok).forEach((r) => cgSel.delete(r.name));
     cgRes = null;                        // the scan is stale now
     renderCgMigrate();
   }
@@ -5688,6 +5696,7 @@ max@contoso.com,"Global, DevOps"</pre>
       failed.forEach((f) => L2.push(`- ❌ **${f.name}** — ${f.error}`));
     }
     showReport("🧹 Archived groups removed", "CA-Groups-Housekeeping", L2.join("\n"));
+    done.forEach((r) => cgSel.delete(r.name));   // deleted rows leave the selection too
     toast(failed.length ? `Deleted ${done.length}, <span>${failed.length} failed</span>` : `<span>${done.length}</span> archived group${done.length === 1 ? "" : "s"} deleted`);
     cgRes = null; await openCaGroups(true, shownScreen !== "screen-cagroups"); cgTab = "groups"; renderCaGroups();
   });

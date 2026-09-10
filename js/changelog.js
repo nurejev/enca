@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25308, date: "2026-09-10", title: "A finished migration unticks its groups",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "Groups migrated earlier kept turning up in the next Migrate under Not migrated as already a plain group. The ticks are by name, and the new group takes the old name, so a migrated group stayed ticked through the re-scan and was carried along. A completed Migrate or Archived-groups delete now drops its groups from the selection, and a tick on a group the scan no longer has is dropped on every render." },
+    ],
+  },
+  {
     build: 25307, date: "2026-09-10", title: "Nesting disabled: read where it is answered",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "The 🚫 Nesting disabled chip stayed empty on a tenant whose groups had just been recreated with nesting disabled. The list read the property through the beta endpoint, which answers without it on some tenants; the create verifies through v1.0, where it is returned. The list now reads through v1.0 as well, so the chip, the row marker and the drawer line agree with what the create read back." },
