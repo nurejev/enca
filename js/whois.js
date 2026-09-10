@@ -59,6 +59,7 @@ const WhoIs = (() => {
         block: ((vm.grant && vm.grant.controls) || []).some((c) => /^block/i.test(String(c))),
         // risk-based = needs Entra ID P2 on every targeted user
         risk: !!(((p.conditions || {}).userRiskLevels || []).length || ((p.conditions || {}).signInRiskLevels || []).length || ((p.conditions || {}).insiderRiskLevels || []).length),
+        userRisk: ((p.conditions || {}).userRiskLevels || []).map(lc), signInRisk: ((p.conditions || {}).signInRiskLevels || []).map(lc),
       };
     });
   }
@@ -177,6 +178,42 @@ const WhoIs = (() => {
     return { rows, total: recs.length, passed: recs.filter((r) => !failedIds.has(r.id)).length, blocked, interrupted, perPolicy, ro };
   }
 
+  // ------------------------------------------------------------- risk --
+  // Identity Protection, two sources. The sign-in records already carry the
+  // risk fields (the read has no $select), so risky sign-ins cost nothing
+  // extra; the USER's risk state and the detections behind it are an
+  // optional read (IdentityRiskyUser.Read.All + IdentityRiskEvent.Read.All)
+  // held on user.risk — null = not read, { err } = refused, else the record.
+  const RISK_ORDER = { none: 0, hidden: 0, low: 1, medium: 2, high: 3 };
+  const riskLevelOf = (r) => {
+    const a = lc(r.riskLevelAggregated), d = lc(r.riskLevelDuringSignIn);
+    return (RISK_ORDER[a] || 0) >= (RISK_ORDER[d] || 0) ? (a || d || "none") : d;
+  };
+  function riskOf(records, userId, user, lookup) {
+    const recs = (records || []).filter((r) => !userId || r.userId === userId);
+    const rows = recs.filter((r) => (RISK_ORDER[riskLevelOf(r)] || 0) > 0 || /^(atRisk|confirmedCompromised)$/i.test(String(r.riskState || "")))
+      .map((r) => ({
+        id: r.id, when: r.createdDateTime, app: r.appDisplayName || r.resourceDisplayName || "(app)",
+        level: riskLevelOf(r), state: r.riskState || "", detail: r.riskDetail || "",
+        types: r.riskEventTypes_v2 || r.riskEventTypes || [],
+        ip: r.ipAddress || "", city: (r.location || {}).city || "", country: (r.location || {}).countryOrRegion || "",
+        caStatus: r.conditionalAccessStatus || "",
+      })).sort((a, b) => String(b.when).localeCompare(String(a.when)));
+    const byLevel = { high: 0, medium: 0, low: 0 };
+    rows.forEach((r) => { if (r.level in byLevel) byLevel[r.level]++; });
+    const worst = rows.reduce((m, r) => (RISK_ORDER[r.level] || 0) > (RISK_ORDER[m] || 0) ? r.level : m, "none");
+    const ur = user && user.risk && !user.risk.err ? user.risk : null;
+    const atRisk = !!ur && /^(atRisk|confirmedCompromised)$/i.test(String(ur.state || ""));
+    // the risk-based policies that reach her, and whether they fire on what
+    // Identity Protection says about her right now
+    const policies = (lookup || []).filter((P) => P.risk && P.state !== "off").map((P) => ({
+      id: P.id, name: P.name, seq: P.seq, state: P.state, userRisk: P.userRisk, signInRisk: P.signInRisk,
+      firesNow: atRisk && P.userRisk.includes(lc(ur.level)),
+      firesOnSignIn: P.signInRisk.some((l) => byLevel[l] > 0),
+    }));
+    return { read: !!(user && user.risk), err: user && user.risk && user.risk.err || "", user: ur, atRisk, signIns: rows, byLevel, worst, total: recs.length, policies };
+  }
+
   // ---------------------------------------------------------- analyze --
   function analyze({ user, vms, records, cat, dgPresent, days }) {
     const lookup = buildLookup(vms);
@@ -214,7 +251,8 @@ const WhoIs = (() => {
       const prompt = ro ? ro.policies.filter((p) => !p.failure && p.interrupted) : [];
       forecast = { worst: block.length ? "block" : prompt.length ? "prompt" : (ro && ro.policies.length) ? "clean" : "nodata", block, prompt, roCount: counts.ro };
     }
-    return { user, days: days || null, ladder, exclusions, rows, counts, stage, log, forecast, bypasses: exclusions.filter((x) => x.bypass) };
+    const risk = riskOf(records, user.id, user, lookup);
+    return { user, days: days || null, ladder, exclusions, rows, counts, stage, log, forecast, risk, bypasses: exclusions.filter((x) => x.bypass) };
   }
 
   // ----------------------------------------------------------- render --
@@ -295,6 +333,29 @@ const WhoIs = (() => {
             : `<div class="wo-vt"><span class="k">If report-only went live</span><span class="v muted">No data</span><span class="s">${c.ro ? `${c.ro} report-only ${c.ro === 1 ? "policy reaches" : "policies reach"} her, none evaluated a sign-in in the window` : "no report-only policy reaches her"}</span></div>`
       : `<div class="wo-vt"><span class="k">If report-only went live</span><span class="v muted">—</span><span class="s">sign-in log not read</span></div>`;
 
+    // ---- identity risk tile: the user's Identity Protection state first,
+    // the risky sign-ins in the window second, and the risk policy that
+    // fires on it named — because "at risk" only matters through CA.
+    const rk = res.risk || { read: false, signIns: [], byLevel: {}, policies: [] };
+    const RS_LABEL = { atRisk: "At risk", confirmedCompromised: "Compromised", remediated: "Remediated", dismissed: "Dismissed", confirmedSafe: "Confirmed safe", none: "No risk" };
+    const capL = (s) => s ? s[0].toUpperCase() + s.slice(1) : "";
+    const siBits = rk.signIns.length ? `${rk.signIns.length} risky sign-in${rk.signIns.length === 1 ? "" : "s"} · ${esc(rangeLabel)} (${["high", "medium", "low"].filter((l) => rk.byLevel[l]).map((l) => `${rk.byLevel[l]} ${l}`).join(", ")})` : (log ? `no risky sign-in in ${esc(rangeLabel)}` : "");
+    const fires = rk.policies.filter((p) => p.firesNow);
+    const firesHtml = fires.length ? ` · fires ${fires.map((p) => polLink(p)).join(", ")}${fires.some((p) => p.state === "ro") ? " (report-only)" : ""}` : "";
+    let riskTile;
+    if (!rk.read) riskTile = `<div class="wo-vt${rk.signIns.length ? " warn" : ""}"><span class="k">Identity risk</span><span class="v${rk.signIns.length ? "" : " muted"}">${rk.signIns.length ? `${capL(rk.worst)} sign-in risk` : "Not read"}</span><span class="s">${siBits ? `${siBits} · ` : ""}user risk state <button class="btn sm" data-wo-risk>read</button></span></div>`;
+    else if (rk.err) riskTile = `<div class="wo-vt${rk.signIns.length ? " warn" : ""}"><span class="k">Identity risk</span><span class="v muted">${rk.signIns.length ? `${capL(rk.worst)} sign-in risk` : "—"}</span><span class="s">${siBits ? `${siBits} · ` : ""}${esc(rk.err)}</span></div>`;
+    else {
+      const ur = rk.user, st = String(ur.state || "none"), lvl = lc(ur.level) || "none";
+      const cls = rk.atRisk ? (lvl === "high" || st === "confirmedCompromised" ? "bad" : "warn") : rk.signIns.length ? "warn" : "ok";
+      const v = rk.atRisk ? `${st === "confirmedCompromised" ? "Compromised" : `${capL(lvl)} user risk`}` : (RS_LABEL[st] || capL(st));
+      const since = ur.updated ? ` · since ${esc(fmtWhen(ur.updated))}` : "";
+      const s = rk.atRisk
+        ? `${esc(RS_LABEL[st] || st)}${since}${ur.detail && ur.detail !== "none" ? ` · ${esc(ur.detail)}` : ""}${firesHtml}${siBits ? ` · ${siBits}` : ""}`
+        : `${st === "none" ? "not flagged by Identity Protection" : `was ${esc(lvl)}${since}${ur.detail && ur.detail !== "none" ? ` · ${esc(ur.detail)}` : ""}`}${siBits ? ` · ${siBits}` : ""}`;
+      riskTile = `<div class="wo-vt ${cls}"><span class="k">Identity risk</span><span class="v">${v}</span><span class="s">${s}</span></div>`;
+    }
+
     const head = `<div class="list-card wo-card">
       <div class="wo-who">
         <div class="avatar wo-av">${esc((u.name || "?").split(/\s+/).map((x) => x[0]).join("").slice(0, 2).toUpperCase())}</div>
@@ -309,7 +370,7 @@ const WhoIs = (() => {
           <button class="btn sm" data-wo-groupuse title="Open 🔗 User or Group analyzer — everything outside Conditional Access that points at her">🔗 Analyzer</button>
         </div>
       </div>
-      <div class="wo-verdicts">${stageTile}${polTile}${logTile}${fcTile}</div>
+      <div class="wo-verdicts wo-5">${stageTile}${polTile}${riskTile}${logTile}${fcTile}</div>
     </div>`;
 
     // ---- deployment ladder
@@ -334,7 +395,16 @@ const WhoIs = (() => {
     const chips = [
       ["reach", `Reaches her ${pill(c.reach, "green")}`], ["exc", `Excluded ${pill(c.excluded, "red")}`], ["na", `Not targeted ${pill(c.na, "zero")}`], ["all", `All ${pill(c.total, "zero")}`],
     ].map(([k, l]) => `<button class="fchip${filter === k ? " active" : ""}" data-wo-filter="${k}">${l}</button>`).join("");
-    const shown = res.rows.filter((r) => filter === "all" || (filter === "reach" ? r.s === "inc" : filter === "exc" ? r.s === "exc" : r.s === "na"));
+    // Second chip row: the policy STATE. The two rows compose (reaches her ×
+    // enforced), and the counts on the state chips follow the first row so
+    // they say how many of what you are looking at are in each state.
+    const byAssign = res.rows.filter((r) => filter === "all" || (filter === "reach" ? r.s === "inc" : filter === "exc" ? r.s === "exc" : r.s === "na"));
+    const sfilter = opts.stateFilter || "any";
+    const sCount = (st) => byAssign.filter((r) => r.state === st).length;
+    const stateChips = [
+      ["any", `Any state ${pill(byAssign.length, "zero")}`], ["on", `${dot("on")}Enforced ${pill(sCount("on"), "green")}`], ["ro", `${dot("ro")}Report-only ${pill(sCount("ro"), "amber")}`], ["off", `${dot("off")}Off ${pill(sCount("off"), "zero")}`],
+    ].map(([k, l]) => `<button class="fchip${sfilter === k ? " active" : ""}" data-wo-sfilter="${k}">${l}</button>`).join("");
+    const shown = byAssign.filter((r) => sfilter === "any" || r.state === sfilter);
     const via = (r) => r.s === "inc" ? whyHtml(r.inc)
       : r.s === "exc" ? `<span class="wo-ex"><b>EXCLUDED</b> · ${whyHtml(r.exc)}</span><div class="mini muted">would reach her via ${whyHtml(r.inc)}</div>`
         : '<span class="mini muted">not targeted</span>';
@@ -343,13 +413,38 @@ const WhoIs = (() => {
         : `${r.log.blocked ? `${pill(r.log.blocked, "red")} blocked` : ""}${r.log.blocked && r.log.interrupted ? " · " : ""}${r.log.interrupted ? `${pill(r.log.interrupted, "amber")} interrupted` : ""}`;
     const tbl = `<div class="list-card wo-card">
       <h3 class="wo-h">📋 Policies and how they reach her</h3>
-      <div class="chip-filter" style="margin:8px 0 10px">${chips}</div>
+      <div class="chip-filter" style="margin:8px 0 6px">${chips}</div>
+      <div class="chip-filter" style="margin:0 0 10px">${stateChips}</div>
       <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Policy</th><th>State</th><th>Reaches her via</th><th>Controls</th><th>Log · ${esc(rangeLabel)}</th><th>Forecast</th></tr></thead><tbody>
         ${shown.map((r) => `<tr class="${r.s === "exc" ? "wo-exrow" : r.state === "off" ? "wo-dim" : ""}"><td>${polLink(r)}</td><td>${stateHtml(r.state)}</td><td class="wo-via">${via(r)}</td><td>${controlsHtml(r)}</td><td class="wo-cnt">${logCell(r)}</td><td>${r.state === "ro" && r.s === "inc" ? forecastHtml(r.forecast) : r.state === "off" && r.s === "inc" ? '<span class="mini muted">becomes real when switched On</span>' : '<span class="mini muted">—</span>'}</td></tr>`).join("")
           || `<tr><td colspan="6" class="mini muted" style="padding:14px">Nothing in this filter.</td></tr>`}
       </tbody></table></div>
       <p class="mini muted" style="margin-top:8px">Same include/exclude resolution as ⚖ Compare users — groups expanded transitively, directory roles, guest type. Log and Forecast are this user's own rows from 🚦 Sign-in failures and 🎚 Report-only impact. Policy names open the policy card.</p>
     </div>`;
+
+    // ---- identity risk: detections + risky sign-ins, only when there is
+    // something to say (the tile already covers "nothing")
+    let riskHtml = "";
+    {
+      const dets = (rk.user && rk.user.detections) || [];
+      const rsi = rk.signIns.slice(0, 20);
+      const polRows = rk.policies.length ? `<p class="mini" style="margin:0 0 8px">Risk-based policies reaching her: ${rk.policies.map((p) => `${polLink(p)}${p.state === "ro" ? " (report-only)" : ""} <span class="muted">— ${[p.userRisk.length ? `user risk ${p.userRisk.join("/")}` : "", p.signInRisk.length ? `sign-in risk ${p.signInRisk.join("/")}` : ""].filter(Boolean).join(", ")}${p.firesNow ? ' · <b class="wo-res blk">fires now</b>' : p.firesOnSignIn ? ' · <span class="wo-res int">fired on a sign-in in the window</span>' : ""}</span>`).join("<br>")}</p>` : "";
+      if (dets.length || rsi.length || (rk.read && !rk.err && rk.policies.length)) {
+        const typeLabel = (t) => esc(String(t || "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase());
+        const lvlCls = (l) => l === "high" ? "blk" : l === "medium" ? "int" : "wb";
+        riskHtml = `<div class="list-card wo-card">
+          <h3 class="wo-h">🛡 Identity risk${rsi.length ? ` <span class="mini muted">— ${rk.signIns.length} risky sign-in${rk.signIns.length === 1 ? "" : "s"} · ${esc(rangeLabel)}</span>` : ""}</h3>
+          ${polRows}
+          ${dets.length ? `<div class="mini muted" style="margin:6px 0 4px">Risk detections${rk.user.detWindow ? ` · last ${rk.user.detWindow} days` : ""}</div><div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>When</th><th>Detection</th><th>Level</th><th>State</th><th>Activity</th><th>Where</th></tr></thead><tbody>
+            ${dets.map((d) => `<tr><td class="num">${esc(fmtWhen(d.when))}</td><td>${typeLabel(d.type)}${d.info ? `<div class="mini muted">${esc(d.info)}</div>` : ""}</td><td><span class="wo-res ${lvlCls(d.level)}">${capL(esc(d.level))}</span></td><td>${esc(d.state)}${d.detail && d.detail !== "none" ? `<div class="mini muted">${esc(d.detail)}</div>` : ""}</td><td>${esc(d.activity)}${d.source ? `<div class="mini muted">${esc(d.source)}</div>` : ""}</td><td>${esc([d.city, d.country].filter(Boolean).join(", "))}${d.ip ? `<div class="mini muted">${esc(d.ip)}</div>` : ""}</td></tr>`).join("")}
+          </tbody></table></div>` : rk.read && !rk.err ? `<p class="mini muted" style="margin:6px 0">No risk detections on record for her${rk.user.detWindow ? ` in the last ${rk.user.detWindow} days` : ""}.</p>` : ""}
+          ${rsi.length ? `<div class="mini muted" style="margin:10px 0 4px">Risky sign-ins · ${esc(rangeLabel)}</div><div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>When</th><th>App</th><th>Risk</th><th>State</th><th>Detections</th><th>Where</th><th>CA</th><th></th></tr></thead><tbody>
+            ${rsi.map((r) => `<tr><td class="num">${esc(fmtWhen(r.when))}</td><td>${esc(r.app)}</td><td><span class="wo-res ${lvlCls(r.level)}">${capL(esc(r.level))}</span></td><td>${esc(r.state)}${r.detail && r.detail !== "none" ? `<div class="mini muted">${esc(r.detail)}</div>` : ""}</td><td class="mini">${(r.types || []).map(typeLabel).join(", ") || "—"}</td><td>${esc([r.city, r.country].filter(Boolean).join(", "))}${r.ip ? `<div class="mini muted">${esc(r.ip)}</div>` : ""}</td><td class="mini">${esc(r.caStatus || "—")}</td><td><button class="fchip" data-wo-replay="${esc(r.id)}" title="Prefill 🧪 What-If from this sign-in">🧪 Replay</button></td></tr>`).join("")}
+          </tbody></table></div>${rk.signIns.length > rsi.length ? `<p class="mini muted" style="margin-top:6px">${rk.signIns.length - rsi.length} more — export CSV for all.</p>` : ""}` : ""}
+          <p class="mini muted" style="margin-top:8px">User risk and detections are Identity Protection's (needs Entra ID P2 to be populated); sign-in risk is read off her own sign-in records. Nothing here changes the tenant — dismiss or confirm in the Entra portal.</p>
+        </div>`;
+      }
+    }
 
     // ---- sign-ins + forecast
     let logHtml = "";
@@ -382,7 +477,7 @@ const WhoIs = (() => {
     } else {
       logHtml = `<div class="list-card wo-card"><div class="run-prompt" style="padding:24px 20px"><p class="mini muted">The sign-in half was not read — ${esc(opts.logSkipped || "sign-in log not available")}.</p></div></div>`;
     }
-    return head + ladderHtml + tbl + logHtml;
+    return head + ladderHtml + tbl + riskHtml + logHtml;
   }
 
   // ------------------------------------------------------------- csv --
@@ -410,6 +505,13 @@ const WhoIs = (() => {
     L.push(`- **Deployment stage:** ${res.stage.kind === "none" ? (res.ladder.hasDg ? "not in any deploy group" : "the active baseline has no deploy groups") : res.stage.groups.map((g) => `${e(g.name)} (${e(g.how)})`).join(", ")}`);
     L.push(`- **Policies reaching her:** ${c.reach} of ${c.total} — ${c.on} enforced, ${c.ro} report-only, ${c.off} off${c.excluded ? `; excluded from ${c.excluded}` : ""}`);
     if (log) L.push(`- **Sign-ins CA stopped (${e(meta.rangeLabel || "window")}):** ${log.rows.length} — ${log.blocked} blocked, ${log.interrupted} interrupted, of ${log.total} sign-ins read`);
+    if (res.risk) {
+      const rk = res.risk;
+      const si = rk.signIns.length ? `${rk.signIns.length} risky sign-in(s) in the window (${["high", "medium", "low"].filter((l) => rk.byLevel[l]).map((l) => `${rk.byLevel[l]} ${l}`).join(", ")})` : "no risky sign-in in the window";
+      if (!rk.read) L.push(`- **Identity risk:** user risk not read — ${si}`);
+      else if (rk.err) L.push(`- **Identity risk:** user risk not read (${e(rk.err)}) — ${si}`);
+      else L.push(`- **Identity risk:** ${rk.atRisk ? `${e(rk.user.state)}, level ${e(rk.user.level)}${rk.user.updated ? ` since ${e(rk.user.updated)}` : ""}${rk.user.detail && rk.user.detail !== "none" ? ` (${e(rk.user.detail)})` : ""}` : String(rk.user.state || "none") === "none" ? "not flagged" : `${e(rk.user.state)}${rk.user.updated ? ` (${e(rk.user.updated)})` : ""}`}${rk.policies.filter((p) => p.firesNow).length ? ` — fires ${rk.policies.filter((p) => p.firesNow).map((p) => e(p.name)).join(", ")}` : ""} — ${si}`);
+    }
     if (fc) L.push(`- **If report-only went live:** ${fc.worst === "block" ? `LOCKED OUT by ${fc.block.map((p) => e(p.name)).join(", ")}` : fc.worst === "prompt" ? `extra prompts from ${fc.prompt.map((p) => e(p.name)).join(", ")}` : fc.worst === "clean" ? "no change" : "no data"}`);
     L.push("", "## Deployment groups", "", "| Group | Status | How |", "| --- | --- | --- |");
     res.ladder.deploy.concat(res.ladder.persona).forEach((r) => L.push(`| ${e(r.name)} | ${r.inMember ? "IN" : r.exists === false ? "not in tenant" : "not in"} | ${e(r.how || "")} |`));
@@ -423,6 +525,19 @@ const WhoIs = (() => {
       const fcs = r.forecast ? (r.forecast.nodata ? "no data" : `${r.forecast.failure} block / ${r.forecast.interrupted} prompt / ${r.forecast.success} ok`) : "";
       L.push(`| ${e(r.seq)} | ${e(r.name)} | ${STATE_LABEL[r.state]} | ${r.s === "inc" ? "✓" : r.s === "exc" ? "✗" : "·"} | ${why} | ${e((r.controls || []).join(` ${r.op || ","} `))} | ${r.log ? r.log.blocked : ""} | ${r.log ? r.log.interrupted : ""} | ${fcs} |`);
     });
+    if (res.risk && ((res.risk.user && res.risk.user.detections || []).length || res.risk.signIns.length)) {
+      const rk = res.risk;
+      L.push("", "## Identity risk", "");
+      if ((rk.user && rk.user.detections || []).length) {
+        L.push("| When | Detection | Level | State | Activity | Where |", "| --- | --- | --- | --- | --- | --- |");
+        rk.user.detections.forEach((d) => L.push(`| ${e(d.when)} | ${e(d.type)} | ${e(d.level)} | ${e(d.state)} | ${e(d.activity)} | ${e([d.city, d.country].filter(Boolean).join(", "))} ${e(d.ip)} |`));
+        L.push("");
+      }
+      if (rk.signIns.length) {
+        L.push("| When | App | Risk | State | Detections | Where | CA |", "| --- | --- | --- | --- | --- | --- | --- |");
+        rk.signIns.forEach((r) => L.push(`| ${e(r.when)} | ${e(r.app)} | ${e(r.level)} | ${e(r.state)} | ${e((r.types || []).join(", "))} | ${e([r.city, r.country].filter(Boolean).join(", "))} ${e(r.ip)} | ${e(r.caStatus)} |`));
+      }
+    }
     if (log) {
       L.push("", `## Sign-ins Conditional Access stopped (${e(meta.rangeLabel || "window")})`, "");
       if (!log.rows.length) L.push(`None — ${log.total} sign-ins, ${log.passed} passed.`);

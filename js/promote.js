@@ -118,6 +118,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 140,
+      title: "🕵 Who is Anna to CA 0.5: identity risk tile + card, state filter (T36)",
+      tools: ["Who is Anna to CA"],
+      builds: [25303],
+      risk: "low",
+      what: "js/whois.js: riskOf(records, userId, user, lookup) → { read, err, user, atRisk, signIns, byLevel, worst, policies[firesNow, firesOnSignIn] }; lookup keeps userRisk / signInRisk levels per policy; render adds the fifth tile (.wo-verdicts.wo-5, 5 → 3 → 2 columns) and a 🛡 Identity risk card between the policies table and the sign-ins; toMd gains the at-a-glance line and a section. js/app.js: WO_RISK scopes, woReadRisk(u) — GET /identityProtection/riskyUsers/{id} (404 = never flagged) + riskDetections filtered on userId and the last 30 days, additionalInfo parsed — run in woExtras when the scopes are held, else from the tile's read button (preConsent, then WhoIs.analyze re-derived from the kept records). State filter: woSfilter, data-wo-sfilter, opts.stateFilter. Demo: DEMO_DATA.riskyUsers (Alex at risk medium with two detections, Eva remediated), si-3 carries the risk fields.",
+      why: "Read-only and additive. The judgement calls: user risk comes from the risky-user record (state + level), sign-in risk from riskLevelAggregated over riskLevelDuringSignIn per record; 'fires now' is a plain level match against the policy's userRiskLevels while the state is atRisk / confirmedCompromised — it does not evaluate the rest of the policy. The detections window is 30 days regardless of the sign-in window, on purpose.",
+      test: [
+        "Real tenant, P2, an account that holds Security Reader: open a user who is at risk in the Entra portal — the tile must read '<Level> user risk · At risk · since <date>', and if a user-risk CA policy includes that level, 'fires <policy>'.",
+        "The same user: the 🛡 card must list the same detections the portal's Risk detections blade shows for the last 30 days, with the same level and state; a risky sign-in in the window must appear with its detection types and the CA outcome.",
+        "A remediated / dismissed user: tile green, 'Remediated · was <level> · since <date> · <riskDetail>'.",
+        "A user never flagged: 'No risk · not flagged by Identity Protection'; a 404 from riskyUsers must NOT surface as an error.",
+        "Sign in WITHOUT the two scopes: the tile reads 'Not read' with a read button; clicking it asks consent once and fills the tile; decline → tile unchanged, no error toast.",
+        "A P1-only tenant: the tile must say it needs P2 rather than showing an empty record as 'No risk'.",
+        "State filter: Reaches her × Report-only must show only the report-only policies reaching her, the chip counts matching the tile's enforced / report-only / off split; Excluded × Any state still lists the exclusions.",
+        "Export MD: the report carries the Identity risk line under At a glance and, for a user with detections or risky sign-ins, an Identity risk section with both tables.",
+        "?demo=1: Alex — Medium user risk, fires CA010 and CA201, one risky sign-in, two detections; Eva — Remediated; Milan — No risk. Markdown export carries the Identity risk line and section.",
+      ],
+      files: ["js/whois.js", "js/app.js", "js/demo.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 139,
       title: "🔎 Suggest boxes keep the pick + T12 refresh returns home (bugs of 2026-09-10)",
       tools: ["Who is Anna to CA", "Compare users", "What-If", "User or Group analyzer", "Who is the wave to CA", "Gap analyse", "CA validator", "Licence gap", "Sign-in failures", "Report-only impact", "Session controls", "Conditional Access groups"],

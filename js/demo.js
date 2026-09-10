@@ -253,6 +253,17 @@ const DEMO_DATA = {
   ],
 
   // Sample sign-in records (raw Graph shape) for the Sign-in failures tool.
+  // Identity Protection, for 🕵 Who is Anna to CA: Alex is at risk (the
+  // medium-risk sign-in from Boston below is his), Eva was remediated.
+  riskyUsers: {
+    "u-admin": { level: "medium", state: "atRisk", detail: "none", updated: "2026-07-20T19:05:00Z", detWindow: 30, detections: [
+      { when: "2026-07-20T19:03:12Z", type: "unfamiliarFeatures", level: "medium", state: "atRisk", detail: "none", activity: "signin", source: "IdentityProtection", ip: "192.0.2.199", city: "Boston", country: "US", info: "" },
+      { when: "2026-07-20T19:03:12Z", type: "anonymizedIPAddress", level: "medium", state: "atRisk", detail: "none", activity: "signin", source: "IdentityProtection", ip: "192.0.2.199", city: "Boston", country: "US", info: "" },
+    ] },
+    "u-emp1": { level: "low", state: "remediated", detail: "userPerformedSecuredPasswordReset", updated: "2026-07-02T08:10:00Z", detWindow: 30, detections: [
+      { when: "2026-07-01T22:41:00Z", type: "leakedCredentials", level: "high", state: "remediated", detail: "userPerformedSecuredPasswordReset", activity: "user", source: "IdentityProtection", ip: "", city: "", country: "", info: "" },
+    ] },
+  },
   signIns: [
     {
       id: "si-1", createdDateTime: "2026-07-21T14:12:03Z",
@@ -292,7 +303,7 @@ const DEMO_DATA = {
       clientAppUsed: "Browser",
       deviceDetail: { operatingSystem: "MacOs", browser: "Safari 18", isCompliant: false, isManaged: false, trustType: "" },
       status: { errorCode: 50074, failureReason: "Strong Authentication is required." },
-      conditionalAccessStatus: "failure", riskLevelDuringSignIn: "medium",
+      conditionalAccessStatus: "failure", riskLevelDuringSignIn: "medium", riskLevelAggregated: "medium", riskState: "atRisk", riskDetail: "none", riskEventTypes_v2: ["unfamiliarFeatures", "anonymizedIPAddress"],
       appliedConditionalAccessPolicies: [
         { id: "d1", displayName: "Require MFA for all admins", result: "failure", enforcedGrantControls: ["RequireAuthenticationStrength:Phishing-resistant MFA"], enforcedSessionControls: [] },
       ],

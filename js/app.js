@@ -14705,9 +14705,14 @@ This is a directory write. Nothing else changes.`)) return;
   // read — a single user's window is small, so it never needs the 10,000
   // cap — unless the shared window is already in memory and uncapped, in
   // which case it is filtered from there and the tenant is not read twice.
-  let woRes = null, woBusy = false, woDays = 7, woFilter = "reach", woSeedList = "", woLogSkipped = "";
+  let woRes = null, woBusy = false, woDays = 7, woFilter = "reach", woSfilter = "any", woSeedList = "", woLogSkipped = "";
   const woProg = makeProgress("wo");
   const WO_METHODS = ["UserAuthenticationMethod.Read.All"];
+  // Identity Protection: the user's risk record + the detections behind it.
+  // Optional, like the methods read — consent asked on the click, or read
+  // straight away when the token already carries the scopes.
+  const WO_RISK = ["IdentityRiskyUser.Read.All", "IdentityRiskEvent.Read.All"];
+  const WO_RISK_DAYS = 30;
 
   function openWhoIs() {
     crumb("🕵 Who is Anna to CA");
@@ -14715,7 +14720,7 @@ This is a directory write. Nothing else changes.`)) return;
     mountLogSourceSeg("woToolbar", "#woRun");
     $("woHead").innerHTML = `<h3>🕵 Who is Anna to CA <span class="tag new">BETA</span></h3>
       <p style="margin-bottom:6px">One user, the whole Conditional Access picture: which <b>deployment group</b> she sits in and how she got there, every policy that <b>reaches</b> her (or misses her, and why), what the <b>sign-in log</b> says actually happened to her, and what happens to her the day <b>report-only</b> goes live.</p>
-      <p class="mini muted" style="margin:0">Memberships and policies come from what ENCA already holds. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Registered MFA methods are an optional extra read. Read-only.</p>`;
+      <p class="mini muted" style="margin:0">Memberships and policies come from what ENCA already holds. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Registered MFA methods and her Identity Protection <b>risk</b> (risky-user state, detections) are optional extra reads. Read-only.</p>`;
     if (!policies.length) { $("woBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
     if (isDemo) $("woUserList").innerHTML = (DEMO_DATA.analyzeUsers || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
     else if (!$("woUserList").children.length) {
@@ -14800,12 +14805,13 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   async function woExtras(u) {
-    u.dept = ""; u.title = ""; u.licence = null; u.methods = null;
+    u.dept = ""; u.title = ""; u.licence = null; u.methods = null; u.risk = null;
     if (isDemo) {
       const d = (DEMO_DATA.analyzeUsers || []).find((x) => x.id === u.id) || {};
       u.dept = d.department || ""; u.title = d.jobTitle || "";
       try { u.licence = LicGap.licenceOf(d, LicGap.liveSkuSets(DEMO_DATA.skus || [])); } catch { u.licence = null; }
       u.methods = u.id === "u-svc" ? [] : ["Microsoft Authenticator", "phone"];
+      u.risk = (DEMO_DATA.riskyUsers || {})[u.id] || { level: "none", state: "none", detail: "none", updated: "", detections: [], detWindow: WO_RISK_DAYS };
       return;
     }
     try {
@@ -14816,6 +14822,27 @@ This is a directory write. Nothing else changes.`)) return;
       u.licence = LicGap.licenceOf(m, live);
     } catch (e) { console.warn("whois: user detail not read", e.message); }
     if (Graph.hasScopes(WO_METHODS)) await woReadMethods(u);
+    if (Graph.hasScopes(WO_RISK)) await woReadRisk(u);
+  }
+  // Two reads: the risky-user record (404 = never flagged, which is an
+  // answer, not an error) and the detections of the last WO_RISK_DAYS days —
+  // longer than the sign-in window on purpose, because a user is "at risk"
+  // for as long as nobody remediates, however old the detection.
+  async function woReadRisk(u) {
+    const say = (e) => /licen|premium|P2/i.test(String(e && e.message || "")) ? "needs Entra ID P2 (Identity Protection) — not read" : /403|Forbidden|Authorization/i.test(String(e && e.message || "")) ? "not allowed — needs IdentityRiskyUser.Read.All + IdentityRiskEvent.Read.All (Security Reader)" : `not read — ${String(e && e.message || e).slice(0, 120)}`;
+    let rec = null;
+    try { rec = await Graph.gget(`/identityProtection/riskyUsers/${u.id}`); }
+    catch (e) { if (!/404|NotFound|not found/i.test(String(e.message || ""))) { console.warn("whois: risky user not read", e.message); u.risk = { err: say(e) }; return; } }
+    const out = { level: (rec && rec.riskLevel) || "none", state: (rec && rec.riskState) || "none", detail: (rec && rec.riskDetail) || "none", updated: (rec && rec.riskLastUpdatedDateTime) || "", processing: !!(rec && rec.isProcessing), detections: [], detWindow: WO_RISK_DAYS };
+    try {
+      const since = new Date(Date.now() - WO_RISK_DAYS * 86400000).toISOString();
+      const ds = await Graph.ggetAll(`/identityProtection/riskDetections?$filter=${encodeURIComponent(`userId eq '${u.id}' and detectedDateTime ge ${since}`)}&$top=100`);
+      out.detections = (ds || []).map((d) => {
+        let info = ""; try { const j = JSON.parse(d.additionalInfo || "[]"); info = (Array.isArray(j) ? j : []).map((x) => `${x.Key}: ${x.Value}`).join(" · "); } catch {}
+        return { when: d.detectedDateTime || d.activityDateTime, type: d.riskEventType || d.riskType || "", level: String(d.riskLevel || "").toLowerCase(), state: d.riskState || "", detail: d.riskDetail || "", activity: d.activity || "", source: d.source || "", ip: d.ipAddress || "", city: (d.location || {}).city || "", country: (d.location || {}).countryOrRegion || "", info };
+      }).sort((x, y) => String(y.when).localeCompare(String(x.when)));
+    } catch (e) { console.warn("whois: risk detections not read", e.message); out.detErr = say(e); }
+    u.risk = out;
   }
   const WO_METHOD_LABEL = {
     "#microsoft.graph.microsoftAuthenticatorAuthenticationMethod": "Microsoft Authenticator",
@@ -14883,6 +14910,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("woBody").innerHTML = woProg.panel(`Reading <b>${esc(u.name)}</b>'s sign-ins…`);
       const records = await woSignIns(u, force);
       woRes = WhoIs.analyze({ user: u, vms: policies, records, cat, dgPresent, days: woDays });
+      Object.assign(woRes, { records, cat, dgPresent });   // kept so the optional risk read can re-derive without re-reading
       woBusy = false;
       $("woRescan").style.display = ""; $("woMd").style.display = ""; $("woCsv").style.display = "";
       renderWhoIs();
@@ -14895,11 +14923,12 @@ This is a directory write. Nothing else changes.`)) return;
 
   function renderWhoIs() {
     const R = woRes; if (!R) return;
-    $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, logSkipped: woLogSkipped });
+    $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, stateFilter: woSfilter, logSkipped: woLogSkipped });
   }
   $("woBody").addEventListener("click", async (e) => {
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const f = e.target.closest("[data-wo-filter]"); if (f) { woFilter = f.dataset.woFilter; renderWhoIs(); return; }
+    const sf = e.target.closest("[data-wo-sfilter]"); if (sf) { woSfilter = sf.dataset.woSfilter; renderWhoIs(); return; }
     const R = woRes; if (!R) return;
     if (e.target.closest("[data-wo-compare]")) {
       // Compare adds by term; hand it the UPN and let it resolve, so the
@@ -14916,6 +14945,15 @@ This is a directory write. Nothing else changes.`)) return;
       if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...WO_METHODS])) return;
       await woReadMethods(R.user);
       if (R.user.methods === null) toast("Could not read the registered methods — needs UserAuthenticationMethod.Read.All and Authentication Administrator or Global Reader");
+      renderWhoIs();
+    }
+    if (e.target.closest("[data-wo-risk]")) {
+      if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...WO_RISK])) return;
+      const b = e.target.closest("[data-wo-risk]"); b.disabled = true; b.textContent = "reading…";
+      await woReadRisk(R.user);
+      // the risk half of the result is derived, so re-derive it
+      woRes = WhoIs.analyze({ user: R.user, vms: policies, records: R.records, cat: R.cat, dgPresent: R.dgPresent, days: woDays });
+      if (R.user.risk && R.user.risk.err) toast(`Identity risk: <span>${esc(R.user.risk.err)}</span>`);
       renderWhoIs();
     }
   });

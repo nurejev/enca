@@ -1705,6 +1705,8 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-fact .btn.sm{padding:1px 8px}
 .wo-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-self:start}
 .wo-verdicts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.wo-verdicts.wo-5{grid-template-columns:repeat(5,1fr)}
+@media (max-width:1200px){.wo-verdicts.wo-5{grid-template-columns:repeat(3,1fr)}}
 .wo-vt{border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--soft2);display:grid;gap:2px;align-content:start}
 .wo-vt .k{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 .wo-vt .v{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums}
@@ -1745,7 +1747,7 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-callout.ok{border-color:var(--on);background:var(--ok-bg2)}
 .wo-split{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;margin-top:14px}
 .wo-split .wo-card{margin-top:0}
-@media (max-width:860px){.wo-verdicts{grid-template-columns:repeat(2,1fr)}.wo-split{grid-template-columns:1fr}.wo-who{grid-template-columns:auto 1fr}.wo-actions{grid-column:1/-1;justify-content:flex-start}}
+@media (max-width:860px){.wo-verdicts,.wo-verdicts.wo-5{grid-template-columns:repeat(2,1fr)}.wo-split{grid-template-columns:1fr}.wo-who{grid-template-columns:auto 1fr}.wo-actions{grid-column:1/-1;justify-content:flex-start}}
 
 /* ---------- 🌊 Who is the wave to CA (T37) ---------- */
 .wo-grp{display:grid;grid-template-columns:1fr auto auto;gap:6px 14px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:13px}

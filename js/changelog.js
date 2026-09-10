@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25303, date: "2026-09-10", title: "Who is Anna to CA: identity risk + state filter",
+    items: [
+      { kind: "new", tool: "Who is Anna to CA", text: "A fifth tile, Identity risk: whether Identity Protection has her at risk and at which level — low, medium, high, or confirmed compromised — since when and why, or remediated, dismissed, confirmed safe or never flagged. When a risk-based policy reaching her fires on that level, the tile names it. Risky sign-ins in the window are counted per level off her own sign-in records, and a 🛡 Identity risk card lists the risk detections of the last 30 days (type, level, state, activity, where) and the risky sign-ins (level, state, detection types, what CA did, Replay into What-If). The user record and the detections are an optional read — IdentityRiskyUser.Read.All and IdentityRiskEvent.Read.All, asked on the click, or read straight away when already granted; without Entra ID P2 the tile says so instead of guessing." },
+      { kind: "improved", tool: "Who is Anna to CA", text: "The policies table has a second chip row for the policy STATE — Any state, Enforced, Report-only, Off — that combines with Reaches her / Excluded / Not targeted, the counts following the row above." },
+    ],
+  },
+  {
     build: 25302, date: "2026-09-10", title: "Picking from a list stays picked",
     items: [
       { kind: "fixed", tool: "Who is Anna to CA", text: "Choosing a user from the search box no longer reopens the suggestion list over the name you just picked. Picking from the list fires the same event as typing, so the pick re-ran the search and the browser reopened the dropdown — it looked like the choice did not take. The same guard now sits on every suggest box: Compare users, What-If, User or Group analyzer, Who is the wave to CA, Gap analyse's named picks, CA validator's target, Licence gap's admin groups, Sign-in failures, Report-only impact, Session controls and ⑥ Protect's scoped administrators." },
