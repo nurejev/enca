@@ -118,6 +118,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 139,
+      title: "🔎 Suggest boxes keep the pick + T12 refresh returns home (bugs of 2026-09-10)",
+      tools: ["Who is Anna to CA", "Compare users", "What-If", "User or Group analyzer", "Who is the wave to CA", "Gap analyse", "CA validator", "Licence gap", "Sign-in failures", "Report-only impact", "Session controls", "Conditional Access groups"],
+      builds: [25302],
+      risk: "low",
+      what: "js/app.js: dlPicked(listId, value) + dlSet(listId, html) next to esc(). Every datalist input handler returns early when the value is one of the options on offer (a pick, not typing) and writes its options through dlSet, which is a no-op when the html is unchanged (the result-driven lists in 🚦 🎚 🛂). ⑥ Protect's cgRmauAdmin gets the fragment-aware guard from ruSuggest. loadFromGraph(isRefresh) remembers shownScreen (HISTORY_SCREENS only) and returns there instead of screen-list; screen-cagroups re-scans via openCaGroups(true); cgRefresh no longer scans twice. 🧹 Archived groups passes an onItem tick into Assign.apply so the row reads 'taking it out of N policies… n of N'.",
+      why: "The datalist guard is the same pattern T12 3.4 and T27 0.7 already carry, now applied everywhere in one place — the risk is a box whose value legitimately equals an option while the person keeps typing (they would have to type a whole UPN that is already listed; Enter still runs). The refresh return touches every tool that re-reads after a write: a screen that renders from its own state comes back as it was, which is what the tab already did.",
+      test: [
+        "🕵 Who is Anna to CA: type 'iva', pick the UPN from the dropdown — the list must close and stay closed; Enter or Read user runs with the picked UPN.",
+        "⚖ Compare users: pick a user from the list — the user is added (change) and the list does not reopen over the emptied box; type two letters again and suggestions return.",
+        "🧪 What-If user box, 🔗 User or Group analyzer, 🌊 wave box, 🔍 Gap analyse named pick, ⚡ CA validator target, 🎫 Licence gap admin groups: pick from the list — no reopen; typing more letters still re-queries.",
+        "🚦 Sign-in failures, 🎚 Report-only impact, 🛂 Session controls: focus the search box, pick a suggestion — the dropdown closes; typing still filters and the suggestions stay.",
+        "👥 ⑥ Protect: in the scoped-administrator box pick a name, type ', ' and pick a second — neither pick reopens the list (the second still replaces the line: known, ruSuggest has the prefix restore, this box does not).",
+        "👥 from the list: open a group's drawer → Policies → 🎯 Assign → add it to one policy → Apply → close: you must land back on the groups list, re-scanned, with the policy count on the row updated — not on 🗂 List Policies. Same via Compare → Policies ticks.",
+        "🗂 List Policies → 🎚 Set state on one policy: still lands on the list (from = screen-list). 🗣 User impact brief ⟳ Re-read: still comes back to the brief.",
+        "🧹 Archived groups on a group named by many policies: the working row must count 'taking it out of N policies… 1 of N … N of N', then 'verifying…', then ✓.",
+        "?demo=1: T36 pick from the seeded list — no reopen; T12 Archived groups delete renders the finished ledger.",
+      ],
+      files: ["js/app.js", "js/changelog.js", "js/promote.js", "js/version.js", "index.html"],
+    },
+    {
       n: 138,
       title: "✅ Run ledger for every batch write (R50)",
       tools: ["Conditional Access groups", "List Policies"],

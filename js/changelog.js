@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25302, date: "2026-09-10", title: "Picking from a list stays picked",
+    items: [
+      { kind: "fixed", tool: "Who is Anna to CA", text: "Choosing a user from the search box no longer reopens the suggestion list over the name you just picked. Picking from the list fires the same event as typing, so the pick re-ran the search and the browser reopened the dropdown — it looked like the choice did not take. The same guard now sits on every suggest box: Compare users, What-If, User or Group analyzer, Who is the wave to CA, Gap analyse's named picks, CA validator's target, Licence gap's admin groups, Sign-in failures, Report-only impact, Session controls and ⑥ Protect's scoped administrators." },
+      { kind: "fixed", tool: "Conditional Access groups", text: "A policy write from the list — Assign from the drawer, the Compare → Policies ticks, a restore — brings you back to the groups list. The re-read afterwards always landed on List Policies; it now returns to the tool it was pressed from, and re-scans the groups so the rows show the policies as they are now." },
+      { kind: "improved", tool: "Conditional Access groups", text: "Archived groups counts the policy removals off as they go — taking it out of 112 policies… 10 of 112 — instead of one line that sat still for two minutes." },
+    ],
+  },
+  {
     build: 25301, date: "2026-09-09", title: "One run ledger for every write",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "Every batch write shows the run ledger: the whole list before the first write, the row being written marked amber, ✓ green or ✗ red per row with the reason inline, the box scrolling to keep the working row in view, a count and a clock in the header, and Stop after this one. ⑦ Migrate (one row per group, its steps as notes), 🧹 Archived groups, ⑥ Protect, ② Create, ⑤ Import CSV and the Compare → Policies ticks use it. A dialog with failures stays open so the ✗ rows are read where they happened; Create keeps its ledger until you close, and the list re-reads the tenant then. R50." },

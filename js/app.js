@@ -170,6 +170,28 @@
   const toolNo = (t) => (t && t.t) ? `T${String(t.t).padStart(2, "0")}` : "";
   const toolNoOf = (id) => toolNo((typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[id]) || null);
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  // ---- <datalist> pick guard --------------------------------------------
+  // Selecting an option from a <datalist> fires `input` exactly like typing
+  // does. A handler that answers by re-querying and rewriting the options
+  // makes the browser reopen the dropdown over a field that was just filled,
+  // so the pick looks like it did not take (T36, 2026-09-10 — and T12 3.4 and
+  // T27 0.7 before it, each fixed on its own). Two halves, for every suggest
+  // box: dlPicked() says the value is one of the options on offer, i.e. it
+  // came from the list and not the keyboard, so the handler leaves the options
+  // alone; dlSet() writes the options only when they actually change, so a
+  // repaint that derives the same list (the result-driven boxes) is a no-op.
+  function dlPicked(listId, value) {
+    const dl = $(listId); if (!dl) return false;
+    const v = String(value == null ? "" : value).trim();
+    return !!v && [...dl.options].some((o) => o.value === v);
+  }
+  function dlSet(listId, html) {
+    const dl = $(listId); if (!dl) return;
+    // The remembered html goes stale when something writes innerHTML directly
+    // (the seeded tenant lists do), so trust it only while the count agrees.
+    if (dl._dlHtml === html && dl._dlN === dl.options.length) return;
+    dl.innerHTML = html; dl._dlHtml = html; dl._dlN = dl.options.length;
+  }
   // Deleting the 30th row in a list re-renders the panel, and the page jumps to
   // the top — so working through a list means scrolling back down after every
   // single action. Capture the scroll position, re-render, put it back. The
@@ -1638,6 +1660,12 @@
 
   // ---------- data loading ----------
   async function loadFromGraph(isRefresh) {
+    // A refresh used to land on the policy list whatever tool asked for it —
+    // 👥 Conditional Access groups reloads after every policy write (Assign
+    // from the drawer, the Compare → Policies ticks, a restore), so each one
+    // dropped you into 🗂 List Policies. Remember where the read was pressed
+    // and go back there; T12 re-scans, because its rows carry the policies.
+    const from = isRefresh && HISTORY_SCREENS.has(shownScreen) ? shownScreen : null;
     show("screen-loading");
     let phase = "loading the Conditional Access policies from your tenant";
     try {
@@ -1685,7 +1713,8 @@
       policiesReadAt = Date.now();
       refreshViews();
       renderPermissions();
-      show(isRefresh ? "screen-list" : "screen-home");
+      if (from === "screen-cagroups") { cgRes = null; await openCaGroups(true); }
+      else show(from || (isRefresh ? "screen-list" : "screen-home"));
       toast(isRefresh
         ? `Refreshed from Entra — <span>${policies.length}</span> Conditional Access policies`
         : `Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
@@ -4235,6 +4264,13 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id !== "cgRmauAdmin") return;
     if (cgRmau) cgRmau.admin = e.target.value;
     clearTimeout(rmauSugTimer);
+    {
+      // A pick from the list, not typing: leave the options alone or the
+      // dropdown reopens over the filled field (same guard as ruSuggest).
+      const frag = String(e.target.value).split(/[,;\n]/).pop().trim();
+      const dlNow = rmauBody().querySelector("#cgRmauAdminList");
+      if (frag && dlNow && [...dlNow.options].some((o) => o.value === frag)) return;
+    }
     rmauSugTimer = setTimeout(async () => {
       // The box takes a list, so complete the fragment after the last
       // separator — otherwise typing a second name searches for the whole line.
@@ -5600,9 +5636,15 @@ max@contoso.com,"Global, DevOps"</pre>
               if ((u.includeGroups || []).some((g) => String(g).toLowerCase() === r.id.toLowerCase())) inc.push(pol.id);
               if ((u.excludeGroups || []).some((g) => String(g).toLowerCase() === r.id.toLowerCase())) exc.push(pol.id);
             }
+            // 112 policies at one PATCH each is a couple of minutes, and a
+            // row that only says "taking it out of 112 policies…" for that
+            // long looks stuck — count them off as they go.
+            const total = inc.length + exc.length; let n = 0;
+            const tick = (i, phase, res) => { if (phase === "end") { n++; say(`&nbsp;&nbsp;· taking it out of ${total} polic${total === 1 ? "y" : "ies"}… ${n} of ${total}${res && !res.ok ? ` · ${esc(res.name)} refused` : ""}`); } };
             const bad = [];
-            if (inc.length) bad.push(...(await Assign.apply(inc, 5, [r.id])).filter((q) => !q.ok));
-            if (exc.length) bad.push(...(await Assign.apply(exc, 6, [r.id])).filter((q) => !q.ok));
+            if (inc.length) bad.push(...(await Assign.apply(inc, 5, [r.id], null, "groups", tick)).filter((q) => !q.ok));
+            if (exc.length) bad.push(...(await Assign.apply(exc, 6, [r.id], null, "groups", tick)).filter((q) => !q.ok));
+            say(`&nbsp;&nbsp;· out of ${total} polic${total === 1 ? "y" : "ies"} — verifying…`);
             if (bad.length) throw new Error(`still named by ${bad.map((q) => q.name).join(", ")} — not deleted, so no policy points at nothing`);
             // verify
             const after = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,conditions");
@@ -6723,9 +6765,8 @@ This is a directory write. Nothing else changes.`)) return;
     const btn = $("cgRefresh");
     btn.disabled = true; btn.textContent = "⟳ Refreshing…";
     try {
-      if (isDemo) loadDemo(); else await loadFromGraph(true);
-      cgRes = null;
-      await openCaGroups(true);
+      // loadFromGraph(true) re-scans T12 itself when pressed from here
+      if (isDemo) { loadDemo(); cgRes = null; await openCaGroups(true); } else await loadFromGraph(true);
       toast("Groups <span>re-scanned</span>");
     } catch (e) { toast(`Refresh failed: <span>${esc(e.message || e)}</span>`); }
     finally { btn.disabled = false; btn.textContent = "⟳ Refresh"; }
@@ -8537,7 +8578,7 @@ This is a directory write. Nothing else changes.`)) return;
     const t = text.trim();
     if (t.length < 2 || t === vaSugLast) return;
     vaSugLast = t;
-    if (vaSugCache.has(t)) { $("vaTargetList").innerHTML = vaSugCache.get(t); return; }
+    if (vaSugCache.has(t)) { dlSet("vaTargetList", vaSugCache.get(t)); return; }
     let opts = [];
     try {
       if (isDemo) {
@@ -8558,11 +8599,12 @@ This is a directory write. Nothing else changes.`)) return;
     } catch (e) { console.warn("validator: suggest failed", e.message); return; }
     const html = opts.map((o) => `<option value="${esc(o.v)}" label="${esc(o.l)}"></option>`).join("");
     vaSugCache.set(t, html);
-    $("vaTargetList").innerHTML = html;
+    dlSet("vaTargetList", html);
   }
   $("vaTarget").addEventListener("input", (e) => {
     const v = e.target.value;
     clearTimeout(vaSugTimer);
+    if (dlPicked("vaTargetList", v)) return;   // a pick, not typing
     vaSugTimer = setTimeout(() => vaSuggest(v), 250);
   });
   function vaClearTarget() { vaTargetObj = null; $("vaTarget").value = ""; runValidatorScan(); }
@@ -10939,10 +10981,10 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function openUserImpact() { crumb("🗣 User impact brief"); show("screen-userimpact"); renderUserImpact(); }
   $("toolUserImpact").addEventListener("click", openUserImpact);
-  // loadFromGraph() lands on the policy list when it is a refresh, so come back
-  // here afterwards — a re-read pressed in this tool should not move you to a
-  // different one. Only on success: a failed read shows the sign-in screen, and
-  // navigating over that would hide it.
+  // loadFromGraph(true) now returns to the screen it was pressed from, but the
+  // brief is rendered from the policies, so re-open to redraw it. Only on
+  // success: a failed read shows the sign-in screen, and navigating over that
+  // would hide it.
   $("uiRescan").addEventListener("click", async (e) => {
     const btn = e.target.closest("#uiRescan"), label = btn.innerHTML;
     btn.disabled = true; btn.textContent = "Reading…";
@@ -11703,6 +11745,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("lgAdmInput").addEventListener("input", (e) => {
     const v = e.target.value.trim();
     clearTimeout(lgAdmTimer);
+    if (dlPicked("lgAdmList", v)) return;   // a pick, not typing — `change` takes it
     if (v.length < 2 || isDemo) return;
     lgAdmTimer = setTimeout(async () => {
       try {
@@ -11716,7 +11759,7 @@ This is a directory write. Nothing else changes.`)) return;
         // The CA-referenced groups stay in the list alongside the live hits.
         for (const [, hit] of lgAdmMap) if (!rows.some((r) => r.includes(`value="${esc(hit.name)}"`)))
           rows.push(`<option value="${esc(hit.name)}" label="👥"></option>`);
-        $("lgAdmList").innerHTML = rows.join("");
+        dlSet("lgAdmList", rows.join(""));
       } catch (err) { console.warn("licence gap: group suggest failed", err.message); }
     }, 250);
   });
@@ -12104,11 +12147,12 @@ This is a directory write. Nothing else changes.`)) return;
       if (!o.v || seen.has(k)) return;
       seen.add(k); out.push(`<option value="${esc(o.v)}" label="${esc(o.l || "")}"></option>`);
     });
-    dl.innerHTML = out.join("");
+    dlSet("siSearchList", out.join(""));
   }
   $("siSearch").addEventListener("focus", () => siFillSuggest());
   $("siSearch").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(siSugTimer);
+    if (dlPicked("siSearchList", v)) return;   // a pick, not typing — the filter handler below already has it
     siSugTimer = setTimeout(async () => {
       const t = v.trim();
       if (isDemo || t.length < 2) { siFillSuggest(); return; }
@@ -12541,8 +12585,8 @@ This is a directory write. Nothing else changes.`)) return;
     const sugg = perPolicy
       ? r.policies.flatMap((p) => [p.name, ...riTargetNames(p.id)])
       : r.users.map((u) => u.upn);
-    $("riSearchList").innerHTML = [...new Set(sugg.filter(Boolean))].slice(0, 300)
-      .map((v) => `<option value="${esc(v)}">`).join("");
+    dlSet("riSearchList", [...new Set(sugg.filter(Boolean))].slice(0, 300)
+      .map((v) => `<option value="${esc(v)}">`).join(""));
 
     // ---- Per policy: is flipping THIS one on safe? -----------------------
     if (riView === "policies") {
@@ -14221,12 +14265,13 @@ This is a directory write. Nothing else changes.`)) return;
   let wiSugTimer = null;
   $("wiUser").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(wiSugTimer);
+    if (dlPicked("wiUserList", v)) return;   // a pick, not typing
     wiSugTimer = setTimeout(async () => {
       const t = v.trim(); if (t.length < 2 || isDemo) return;
       try {
         const f = t.replace(/'/g, "''");
         const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
-        $("wiUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+        dlSet("wiUserList", ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join(""));
       } catch (err) { console.warn("what-if: suggest failed", err.message); }
     }, 250);
   });
@@ -14551,6 +14596,7 @@ This is a directory write. Nothing else changes.`)) return;
   let cuSugTimer = null;
   $("cuUser").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(cuSugTimer);
+    if (dlPicked("cuUserList", v)) return;   // a pick, not typing — `change` adds the user
     cuSugTimer = setTimeout(async () => {
       const t = v.trim();
       if (isDemo) return;
@@ -14558,7 +14604,7 @@ This is a directory write. Nothing else changes.`)) return;
       try {
         const f = t.replace(/'/g, "''");
         const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
-        $("cuUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+        dlSet("cuUserList", ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join(""));
       } catch (err) { console.warn("compare: suggest failed", err.message); }
     }, 250);
   });
@@ -14687,6 +14733,7 @@ This is a directory write. Nothing else changes.`)) return;
   let woSugTimer = null;
   $("woUser").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(woSugTimer);
+    if (dlPicked("woUserList", v)) return;   // a pick from the list, not typing — leave the options alone
     woSugTimer = setTimeout(async () => {
       const t = v.trim();
       if (isDemo) return;
@@ -14694,7 +14741,7 @@ This is a directory write. Nothing else changes.`)) return;
       try {
         const f = t.replace(/'/g, "''");
         const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
-        $("woUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+        dlSet("woUserList", ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join(""));
       } catch (err) { console.warn("whois: suggest failed", err.message); }
     }, 250);
   });
@@ -14953,14 +15000,15 @@ This is a directory write. Nothing else changes.`)) return;
   let wvSugTimer = null;
   $("wvTerm").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(wvSugTimer);
+    if (dlPicked("wvTermList", v)) return;   // a pick, not typing
     wvSugTimer = setTimeout(async () => {
       const t = v.trim();
-      if (isDemo) { $("wvTermList").innerHTML = Object.keys(DEMO_DATA.scopeGroups || {}).filter((n) => n.toLowerCase().includes(t.toLowerCase())).map((n) => `<option value="${esc(n)}"></option>`).join(""); return; }
+      if (isDemo) { dlSet("wvTermList", Object.keys(DEMO_DATA.scopeGroups || {}).filter((n) => n.toLowerCase().includes(t.toLowerCase())).map((n) => `<option value="${esc(n)}"></option>`).join("")); return; }
       if (t.length < 2) return;
       try {
         const f = t.replace(/'/g, "''");
         const r = await Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=id,displayName&$top=10`);
-        $("wvTermList").innerHTML = ((r && r.value) || []).map((g) => `<option value="${esc(g.displayName)}"></option>`).join("");
+        dlSet("wvTermList", ((r && r.value) || []).map((g) => `<option value="${esc(g.displayName)}"></option>`).join(""));
       } catch (err) { console.warn("wave: suggest failed", err.message); }
     }, 250);
   });
@@ -15223,7 +15271,7 @@ This is a directory write. Nothing else changes.`)) return;
     R.events.forEach((e) => { add(e.upn || e.name, e.upn ? e.name : "user"); add(e.app, "app"); add(e.file, "file"); add(e.policy, "Defender policy"); if (e.route) add(e.route.policyName, "CA policy"); });
     R.rows.forEach((r) => add(r.name, r.seq ? `CA policy ${r.seq}` : "CA policy"));
     R.mdaPolicies.forEach((m) => add(m.name, "Defender policy"));
-    $("scSearchList").innerHTML = opts.slice(0, 200).join("");
+    dlSet("scSearchList", opts.slice(0, 200).join(""));
   }
   $("scBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-scrun]")) { runSessionCtl(); return; }
@@ -15323,6 +15371,7 @@ This is a directory write. Nothing else changes.`)) return;
   let guSugTimer = null;
   $("guTerm").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(guSugTimer);
+    if (dlPicked("guTermList", v)) return;   // a pick, not typing
     guSugTimer = setTimeout(async () => {
       const t = v.trim();
       if (isDemo || t.length < 2) { if (guSeedList && t.length < 2) $("guTermList").innerHTML = guSeedList; return; }
@@ -15332,9 +15381,9 @@ This is a directory write. Nothing else changes.`)) return;
           Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=displayName&$top=8`).catch(() => ({ value: [] })),
           Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=8`).catch(() => ({ value: [] })),
         ]);
-        $("guTermList").innerHTML =
+        dlSet("guTermList",
           ((g.value || []).map((x) => `<option value="${esc(x.displayName)}" label="group"></option>`).join("")) +
-          ((u.value || []).map((x) => `<option value="${esc(x.userPrincipalName)}" label="${esc(x.displayName || "")}"></option>`).join(""));
+          ((u.value || []).map((x) => `<option value="${esc(x.userPrincipalName)}" label="${esc(x.displayName || "")}"></option>`).join("")));
       } catch (err) { console.warn("User or Group analyzer: suggest failed", err.message); }
     }, 250);
   });
@@ -17070,6 +17119,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("anNamedSearch").addEventListener("input", (e) => {
     const v = e.target.value.trim();
     clearTimeout(anNamedTimer);
+    if (dlPicked("anNamedList", v)) return;   // a pick, not typing — Enter or ＋ adds it
     if (v.length < 2 || isDemo) return;
     anNamedTimer = setTimeout(async () => {
       try {
@@ -17089,7 +17139,7 @@ This is a directory write. Nothing else changes.`)) return;
           anNamedMap.set((x.displayName || "").toLowerCase(), { kind: "group", id: x.id, name: x.displayName });
           rows.push(`<option value="${esc(x.displayName || "")}" label="👥 group"></option>`);
         });
-        $("anNamedList").innerHTML = rows.join("");
+        dlSet("anNamedList", rows.join(""));
       } catch (err) { console.warn("gap analyse: pick suggest failed", err.message); }
     }, 250);
   });
