@@ -1149,13 +1149,20 @@ const CaGroups = (() => {
   // an exclusion group. The second kind is marked `unused` and never
   // pre-selected — it is here to be SEEN, not to be acted on by default.
   const EXCLUSION_NAME = /-Exclusions?$|-Exclusion-|BreakGlass/i;
+  // A break-glass group is the one exception to "exclusion = excluded by a
+  // policy": it is INCLUDED by the break-glass policy and excluded everywhere
+  // else. The account-only ones (Emergency_Access1/2, BG-…) may be included
+  // by a single policy and excluded by none — and they are exactly what the
+  // BreakGlass vault exists for, so they are candidates on any reference.
+  const BREAKGLASS_NAME = /break-?glass|emergency[_-]?access|\bBG-/i;
   function rmauCandidates(res) {
     return (res ? res.rows : [])
       .filter((r) => r.id)
       .filter((r) => (r.refs?.exclude || []).length
+        || (BREAKGLASS_NAME.test(r.name || "") && (r.refs?.include || []).length)
         || (EXCLUSION_NAME.test(r.name || "")
             && (r.template || (r.sources || []).some((x) => x === "template" || x === "catalog"))))
-      .map((r) => ({ ...r, unused: !(r.refs?.exclude || []).length }))
+      .map((r) => ({ ...r, unused: !((r.refs?.exclude || []).length || (BREAKGLASS_NAME.test(r.name || "") && (r.refs?.include || []).length)), breakGlass: BREAKGLASS_NAME.test(r.name || "") }))
       .sort((a, b) => (b.refs.exclude.length - a.refs.exclude.length) || String(a.name).localeCompare(String(b.name)));
   }
 

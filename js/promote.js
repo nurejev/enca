@@ -118,6 +118,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 152,
+      title: "🔒 Break-glass groups are candidates on any policy reference (T20 3.0.2 / ⑥)",
+      tools: ["Protect exclusions", "Conditional Access groups"],
+      builds: [25316],
+      risk: "low",
+      what: "js/cagroups.js rmauCandidates: BREAKGLASS_NAME (/break-?glass|emergency[_-]?access|\\bBG-/i) + refs.include.length qualifies a row; rows carry breakGlass; unused is false for them. js/protect.js: Used by cell reads 'included by n · break-glass' for them; the sub-label says break-glass group.",
+      why: "Widens the candidate list by name pattern + include reference only; nothing pre-ticked, nothing written by the change itself.",
+      test: [
+        "Perfetti Van Melle: T20 lists Emergency_Access1 and Emergency_Access2 as 🔒 in CAB-SEC-RMAU-BreakGlass with Used by 'included by 1 · break-glass'; CAB-SEC-U-BreakGlass keeps 'excluded by 124 / included by 4'.",
+        "👥 CA groups → ⑥ Protect shows the same two rows.",
+        "A tenant whose break-glass group is named without the pattern (e.g. SG-Emergency): not listed — add it by hand via the directory search, as before.",
+      ],
+      files: ["js/cagroups.js", "js/protect.js", "index.html", "js/version.js"],
+    },
+    {
       n: 151,
       title: "🛂🌊🚦🎚 Hunting read narrates every query + one read for two askers",
       tools: ["Session controls", "Who is the wave to CA", "Sign-in failures", "Report-only impact"],

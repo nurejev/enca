@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25316, date: "2026-09-10", title: "Protect exclusions: break-glass groups on any reference",
+    items: [
+      { kind: "fixed", tool: "Protect exclusions", text: "Break-glass account groups were missing from the list. A candidate was a group some policy excludes, and Emergency_Access1 / Emergency_Access2 are included by the break-glass policy and excluded by none — so they never showed, even already in the BreakGlass vault. A group named like a break-glass group is a candidate on any reference now, tagged break-glass, with Used by reading included by n; ⑥ Protect inside CA groups follows the same rule." },
+    ],
+  },
+  {
     build: 25315, date: "2026-09-10", title: "The hunting read says what it is doing",
     items: [
       { kind: "fixed", tool: "Session controls", text: "On a large tenant with Hunting + non-interactive the panel sat on “waiting for the first page” with an empty bar for minutes: a day is dozens of hunting queries of a minute each, and only a finished day moved the bar. Every query is now named — the day, the time slice, rows so far, slices halved for size — the bar moves inside a day and the clock runs on its own. Same for 🌊 Who is the wave to CA, 🚦 Sign-in failures and 🎚 Report-only impact." },

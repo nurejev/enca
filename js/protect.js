@@ -144,8 +144,8 @@ const Protect = (() => {
     const anyTick = (id) => { const t = tk(id); return !!(t.vault || t.nest); };
     const tbody = shown.map((r) => `<tr class="${anyTick(r.g.id) ? "pr-sel" : ""}">
         <td><input type="checkbox" data-pr-row="${esc(r.g.id)}"${anyTick(r.g.id) ? " checked" : ""}${(r.c.canVault || r.c.canNest) ? "" : " disabled"}></td>
-        <td><b>${esc(r.g.name)}</b>${r.g.manual ? ' <span class="tag" title="Added by hand — stays across a rescan">by hand</span>' : ""}${r.g.dynamic ? ' <span class="tag">dynamic</span>' : ""}<div class="mini muted">${esc(r.g.label || (r.c.dest && r.c.dest.code ? `${r.c.dest.code} · ${r.c.dest.by === "map" ? "mapped" : "by CA number"}` : "exclusion group"))}${r.g.manual ? ' <button class="btn sm" data-pr-unadd="' + esc(r.g.id) + '" title="Take it off this list">✕</button>' : ""}</div></td>
-        <td class="mini">${(r.g.refs && r.g.refs.exclude || []).length ? `${r.g.refs.exclude.length} polic${r.g.refs.exclude.length === 1 ? "y" : "ies"}` : '<span class="muted">not referenced</span>'}</td>
+        <td><b>${esc(r.g.name)}</b>${r.g.manual ? ' <span class="tag" title="Added by hand — stays across a rescan">by hand</span>' : ""}${r.g.dynamic ? ' <span class="tag">dynamic</span>' : ""}<div class="mini muted">${esc(r.g.label || (r.c.dest && r.c.dest.code ? `${r.c.dest.code} · ${r.c.dest.by === "map" ? "mapped" : "by CA number"}` : r.g.breakGlass ? "break-glass group" : "exclusion group"))}${r.g.manual ? ' <button class="btn sm" data-pr-unadd="' + esc(r.g.id) + '" title="Take it off this list">✕</button>' : ""}</div></td>
+        <td class="mini">${(() => { const ex = (r.g.refs && r.g.refs.exclude || []).length, inc = (r.g.refs && r.g.refs.include || []).length; return ex ? `excluded by ${ex}${r.g.breakGlass && inc ? `<div class="muted">included by ${inc}</div>` : ""}` : r.g.breakGlass && inc ? `included by ${inc}<div class="muted">break-glass</div>` : '<span class="muted">not referenced</span>'; })()}</td>
         <td>${vaultCell(r)}</td>
         <td>${nestCell(r)}</td>
         <td>${applyCell(r)}</td>
