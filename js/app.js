@@ -6779,7 +6779,11 @@ This is a directory write. Nothing else changes.`)) return;
   function cgModel() {
     const byId = new Map((policies || []).map((p) => [p.id, p]));
     const cat = (typeof Baseline !== "undefined" && Baseline.active) ? (() => { try { return Baseline.active(); } catch { return null; } })() : null;
-    return { rows: cgRes.rows, ctx: { prot: cgProt, cat, stateOf: (id) => ((byId.get(id) || {}).raw || {}).state || "", seqOf: (id) => (byId.get(id) || {}).seq || "", nameOf: (id) => (byId.get(id) || {}).name || "" } };
+    return { rows: cgRes.rows, ctx: { prot: cgProt, cat, stateOf: (id) => ((byId.get(id) || {}).raw || {}).state || "", // the BASELINE's number (CA002 in "CA002-BLOCK-…"), not ENCA's running seq
+      // (CA068 = the 68th policy alphabetically): the group is named for the
+      // former, and a row saying "CA002-Exclusion · excluded by CA068" reads as
+      // a mismatch. No number in the name → the full name is shown instead.
+      seqOf: (id) => { const m = String((byId.get(id) || {}).name || "").match(/\bCA\d{3,4}[A-Za-z]?\b/); return m ? m[0] : ""; }, nameOf: (id) => (byId.get(id) || {}).name || "" } };
   }
   // read members (+ nesting) of some rows, headless; demo rows get the demo shape
   async function cgReadRows(rows) {

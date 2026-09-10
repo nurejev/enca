@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25313, date: "2026-09-10", title: "CA groups: the baseline's policy number",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "Used by showed ENCA's running number (CA068, the 68th policy alphabetically) instead of the baseline's own (CA002 from the policy name), so CAB-SEC-U-CA002-Exclusion read as excluded by CA068. The list, the drawer's Policies tab and the matrices now show the number from the policy name, and the full name when it has none." },
+    ],
+  },
+  {
     build: 25312, date: "2026-09-10", title: "Protect exclusions: nothing ticked for you",
     items: [
       { kind: "fixed", tool: "Protect exclusions", text: "3.0 pre-ticked every assigned exclusion group, so the bar said Protect 83 while one row was visibly ticked. Ticks now start empty: tick a row for both locks it lacks, one box for one lock, or the header box for every row that lacks something — and a selection carried over from CA groups arrives ticked." },

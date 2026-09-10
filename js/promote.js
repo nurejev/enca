@@ -118,6 +118,20 @@ const PROMOTE = {
 
   items: [
     {
+      n: 149,
+      title: "👥 Used by shows the baseline's CA number, not ENCA's seq (T12 5.9.6)",
+      tools: ["Conditional Access groups"],
+      builds: [25313],
+      risk: "low",
+      what: "js/app.js cgModel().ctx.seqOf parses /\\bCA\\d{3,4}[A-Za-z]?\\b/ from the policy name instead of returning vm.seq. Every GroupsView cell that prints a policy number goes through it (Used by, drawer Policies tab, compare views).",
+      why: "Display only. On a tenant whose policy names carry no CA number, the cells show the full policy name (as they already did when seqOf was empty).",
+      test: [
+        "Perfetti Van Melle: CAB-SEC-U-CA002-Exclusion reads 'excluded by CA002'; the drawer's Policies tab shows 'CA002 CA002-BLOCK-…'.",
+        "A tenant with unnumbered policy names: Used by shows the full names, nothing blank.",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 148,
       title: "🔒 Protect exclusions 3.0 — two locks per group (T20) + Empty count fix (T12)",
       tools: ["Protect exclusions", "Conditional Access groups"],
