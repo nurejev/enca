@@ -10476,7 +10476,7 @@ This is a directory write. Nothing else changes.`)) return;
     const detail = (text, frac) => { st.detail = text || ""; if (frac != null) st.frac = Math.max(0, Math.min(0.999, frac)); paint(); };
     const stop = () => { if (clock) { clearInterval(clock); clock = null; } };
     // Capped, narrated pager — the record cap is also the bar's 100%.
-    const fetchAll = async (url, cap, label) => {
+    const fetchAll = async (url, cap, label, onPage) => {
       start(cap, label, "page");
       let out = [], next = url;
       while (next && out.length < cap) {
@@ -10484,6 +10484,7 @@ This is a directory write. Nothing else changes.`)) return;
         const j = await Graph.gget(next);
         out = out.concat(j.value || []);
         tick(out.length);
+        if (onPage) { try { onPage(out); } catch (e) { console.warn("onPage", e); } }
         next = j["@odata.nextLink"] || null;
       }
       st.capped = !!next;
@@ -12479,12 +12480,20 @@ This is a directory write. Nothing else changes.`)) return;
     const readSlice = async (from, to, cap) => {
       if (prog.check) prog.check();
       cap = cap || Signins.HUNT_CAP;
-      const q = Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly });
+      const q = Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly, slim: huntSlim });
       let rows;
       queries++;
-      say(from, to, `query ${queries} running${cap < Signins.HUNT_CAP ? ` (cap ${cap.toLocaleString()})` : ""}`);
+      say(from, to, `query ${queries} running${cap < Signins.HUNT_CAP ? ` (cap ${cap.toLocaleString()})` : ""}${huntSlim ? "" : " · full rows"}`);
       try { rows = await huntRun(q, days); }
       catch (e) {
+        // The slim query uses mv-apply / make_list_if; a schema or engine
+        // that refuses it must not fail the read — fall back to full rows
+        // for the rest of the session and say so on the line.
+        if (huntSlim && /semantic|syntax|mv-apply|make_list_if|SEM0|not recognized|unknown function/i.test(String(e.message || ""))) {
+          console.warn("hunting: slim query refused, reading full rows", e.message);
+          huntSlim = false;
+          return readSlice(from, to, cap);
+        }
         if (isSizeError(e)) {
           if (to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
           if (cap > HUNT_MIN_CAP) { lowered++; capped = true; await readSlice(from, to, Math.max(HUNT_MIN_CAP, Math.floor(cap / 2))); return; }
@@ -12500,11 +12509,29 @@ This is a directory write. Nothing else changes.`)) return;
       prog.st.n = out.length;
       say(from, to, `${rows.length.toLocaleString()} rows`);
     };
-    for (let i = 0; i < slices.length; i++) {
-      dayStart = slices[i][0]; dayCovered = 0;
-      await readSlice(slices[i][0], slices[i][1]);
-      prog.tick(out.length, i + 1);
-    }
+    // Two days at a time (25328). Each hunting query is a round trip of
+    // seconds to a minute that the browser only waits on; two in flight
+    // roughly halve the wall clock without troubling the per-tenant call
+    // limits, and the order of the result does not matter. After every
+    // finished day opts.onPartial(records so far, done, total) lets the
+    // caller show what it already has.
+    let next = 0, done = 0;
+    const worker = async () => {
+      while (next < slices.length) {
+        const i = next++;
+        if (prog.check) prog.check();
+        dayStart = slices[i][0]; dayCovered = 0;
+        await readSlice(slices[i][0], slices[i][1]);
+        done++;
+        prog.tick(out.length, done);
+        if (opts.onPartial) { try { opts.onPartial(out.slice(), done, slices.length); } catch (e) { console.warn("onPartial", e); } }
+      }
+    };
+    // allSettled, not all: on a stop or a failure the other worker's query
+    // is still in flight, and the read must not report done while it is
+    const settled = await Promise.allSettled([worker(), worker()]);
+    const bad = settled.find((r) => r.status === "rejected");
+    if (bad) throw bad.reason;
     prog.detail("");
     return { records: out, capped, splits };
   }
@@ -12517,7 +12544,8 @@ This is a directory write. Nothing else changes.`)) return;
   // wait. The second asker now joins the read in flight and mirrors its
   // progress into its own panel, then both get the same cache entry.
   let logInflight = null;   // { days, source, promise, prog }
-  async function readSignInWindow(days, prog, force) {
+  let huntSlim = true;      // the mv-apply slimming of the policy JSON (25328); off after one refusal
+  async function readSignInWindow(days, prog, force, onPartial) {
     if (!force && logCacheUsable(days)) return { ...logCache, reused: true };
     if (!force && logInflight && logInflight.days === days && logInflight.source === logSource) {
       const other = logInflight;
@@ -12532,11 +12560,13 @@ This is a directory write. Nothing else changes.`)) return;
     let records, capped;
     const run = (async () => {
       if (logSource === "entra") {
-        records = await prog.fetchAll(ReportImpact.query(days), SI_MAX, "sign-ins");
+        // partial every 5 pages: 5,000 sign-ins is worth a first look
+        let pages = 0;
+        records = await prog.fetchAll(ReportImpact.query(days), SI_MAX, "sign-ins", onPartial ? (sofar) => { if (++pages % 5 === 0) onPartial(sofar.slice(), pages, null); } : null);
         capped = !!prog.st.capped;
       } else {
         if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the source back to the Entra sign-in log, or grant it");
-        ({ records, capped } = await readSignInsHunting(days, prog));
+        ({ records, capped } = await readSignInsHunting(days, prog, { onPartial }));
       }
       logCache = { days, source: logSource, records, capped, at: Date.now() };
     })();
@@ -12898,7 +12928,12 @@ This is a directory write. Nothing else changes.`)) return;
   let riBusy = false, riCapped = false;
   const riOpen = new Set();
   // Same shared fetch-progress visual as Sign-in failures and Change audit.
-  const riProg = makeProgress("ri"); riProg.by = "🎚 Report-only impact";
+  const riProg = makeProgress("ri"); riProg.by = "🎚 Report-only impact"; riProg.stoppable = true;
+  // Progressive (25328): the forecast is rebuilt from what has been read so
+  // far after every finished day (or every five pages on the Entra source)
+  // and shown under a "still reading" strip, so a 40-minute read gives a
+  // first answer after the first day. riPartial = { done, total, recs }.
+  let riPartial = null, riPartialAt = 0;
   const riBusyPanel = () => riProg.panel(
     "Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.",
     `The bar runs to the ${SI_MAX.toLocaleString()}-sign-in cap — most tenants finish well before the end of it.`);
@@ -12914,12 +12949,12 @@ This is a directory write. Nothing else changes.`)) return;
     show("screen-impact");
     mountLogSourceSeg("riToolbar", "#riViewSeg");
     $("riRescan").style.display = riRes && !riBusy ? "" : "none";
-    if (riBusy) { $("riBody").innerHTML = riBusyPanel(); return; }
+    if (riBusy) { if (riRes && riPartial) renderImpact(); else $("riBody").innerHTML = riBusyPanel(); return; }
     if (riRes) { renderImpact(); return; }
     const ro = riTenantRo();
     $("riHead").innerHTML = `<h3>🎚 Report-only impact</h3>
       <p style="margin-bottom:4px">What happens the day a report-only policy goes live. Per policy: who would be <b>denied</b>, who is <b>interrupted</b> for an extra step (MFA, compliant device, terms of use…), who <b>passes unchanged</b>. Per user: the combined effect of everything in report-only at once.</p>
-      <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
+      <p class="mini muted" style="margin:0">Reads the window from the <b>sign-in source</b> chosen in the toolbar — the Entra sign-in log (AuditLog.Read.All), Defender hunting, or Hunting + non-interactive — and shows the forecast as the days land. On the Entra log report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
     $("riChips").innerHTML = "";
     $("riBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-rirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
   }
@@ -12931,18 +12966,29 @@ This is a directory write. Nothing else changes.`)) return;
   async function runImpact(force) {
     if (riBusy) return;
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
-    riBusy = true; riCapped = false;
+    riBusy = true; riCapped = false; riPartial = null; riProg.begin();
     $("riRescan").style.display = "none";
     $("riBody").innerHTML = riBusyPanel();
+    const onPartial = (recs, done, total) => {
+      if (!riBusy) return;   // a late day from a stopped read
+      // at most one rebuild every 3 seconds — a build over 100k records is
+      // a few hundred milliseconds and the reader needs time to look
+      const now = Date.now();
+      riPartial = { done, total, recs };
+      if (now - riPartialAt < 3000 && done !== total) return;
+      riPartialAt = now;
+      riRes = ReportImpact.build(recs, riTenantRo());
+      renderImpact();
+    };
     try {
       let records, reused = false;
       if (isDemo) {
         records = demoSignIns();
       } else {
-        const w = await readSignInWindow(riDays, riProg, force);
+        const w = await readSignInWindow(riDays, riProg, force, onPartial);
         records = w.records; riCapped = w.capped; reused = w.reused;
       }
-      riReused = reused;
+      riReused = reused; riPartial = null;
       riRes = ReportImpact.build(records, riTenantRo());
       riOpen.clear(); riFilter = "all";
       riBusy = false;
@@ -12950,8 +12996,20 @@ This is a directory write. Nothing else changes.`)) return;
       renderImpact();
       if (!riRes.policies.length) toast("No report-only policy was evaluated in this window");
     } catch (e) {
-      console.error("Report-only impact read failed:", e);
       riBusy = false;
+      if (e && e.stopped && riPartial && riPartial.recs && riPartial.recs.length) {
+        // Stopped by the reader: what was read is a real, partial window —
+        // shown as such, never cached as the whole one.
+        const pt = riPartial; riPartial = { ...pt, stopped: true };
+        riReused = false; riCapped = true;
+        riRes = ReportImpact.build(pt.recs, riTenantRo());
+        riOpen.clear(); riFilter = "all";
+        $("riRescan").style.display = "";
+        renderImpact();
+        return;
+      }
+      if (e && e.stopped) { riPartial = null; openImpact(); return; }
+      console.error("Report-only impact read failed:", e);
       $("riBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read the sign-in log: ${esc(e.message || e)}<br>
         <span class="muted">This needs AuditLog.Read.All and a reader role such as Reports Reader, Security Reader or Security Administrator. The sign-in log also needs an Entra ID P1/P2 licence.</span></p>
         <div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-rirun>Try again</button></div>`;
@@ -12971,6 +13029,12 @@ This is a directory write. Nothing else changes.`)) return;
     return `<div class="ri-bar">${seg(p.failure, "bad", "would deny")}${seg(p.interrupted, "warn", "interrupted")}${seg(p.success, "ok", "pass unchanged")}${seg(p.notApplied, "na", "out of scope")}<span style="flex:${t ? 0 : 1}"></span></div>`;
   };
 
+  const riPartialStrip = () => {
+    const pt = riPartial; if (!pt) return "";
+    const where = pt.total ? `${pt.done} of ${pt.total} day${pt.total === 1 ? "" : "s"}` : `${pt.recs.length.toLocaleString()} sign-ins`;
+    if (pt.stopped) return `<div class="wo-callout" style="margin:0 0 10px"><b>Stopped by you</b> — this is ${where}${pt.total ? " of the window" : ""}, ${pt.recs.length.toLocaleString()} sign-ins. A verdict on a partial window is a verdict on a partial window: a policy that looks safe here may have its denials in the days not read. ⟳ Rescan reads it whole.</div>`;
+    return `<div class="list-card" style="margin:0 0 10px;padding:10px 16px">${riProg.panel(`<b>Still reading</b> — showing ${where} so far, ${pt.recs.length.toLocaleString()} sign-ins. The numbers below grow as days land; the verdicts are not final until the bar is.`)}</div>`;
+  };
   function renderImpact() {
     const r = riRes; if (!r) return;
     $("riHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
@@ -13022,8 +13086,8 @@ This is a directory write. Nothing else changes.`)) return;
     // ---- Per policy: is flipping THIS one on safe? -----------------------
     if (riView === "policies") {
       const pols = searched.filter((p) => riFilter === "all" || p.verdict === riFilter);
-      if (!pols.length) { $("riBody").innerHTML = riEmpty(true, q, searched.length); return; }
-      $("riBody").innerHTML = pols.map((p) => {
+      if (!pols.length) { $("riBody").innerHTML = riPartialStrip() + riEmpty(true, q, searched.length); return; }
+      $("riBody").innerHTML = riPartialStrip() + pols.map((p) => {
         const [ic, vlab] = RI_V[p.verdict];
         const open = riOpen.has("p:" + p.key);
         const users = p.users.filter((u) => u.failure || u.interrupted);
@@ -13060,9 +13124,9 @@ This is a directory write. Nothing else changes.`)) return;
 
     // ---- Per user: what changes for this person? -------------------------
     const users = searched.filter((u) => riFilter === "all" || u.worst === riFilter);
-    if (!users.length) { $("riBody").innerHTML = riEmpty(false, q, searched.length); return; }
+    if (!users.length) { $("riBody").innerHTML = riPartialStrip() + riEmpty(false, q, searched.length); return; }
     const W = { block: ["🔴", "locked out of something"], prompt: ["🟡", "new prompts"], clean: ["🟢", "unaffected"] };
-    $("riBody").innerHTML = `<div class="list-card"><table class="plist au-sum">
+    $("riBody").innerHTML = riPartialStrip() + `<div class="list-card"><table class="plist au-sum">
       <thead><tr><th>User</th><th style="width:140px">Going live means</th><th style="width:100px">Would deny</th><th style="width:100px">Interrupted</th><th>Policies involved</th><th style="width:110px">Last seen</th></tr></thead>
       <tbody>${users.slice(0, 200).map((u) => {
         const [ic, lab] = W[u.worst];

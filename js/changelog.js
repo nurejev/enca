@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25328, date: "2026-09-10", title: "The hunting read is ten times lighter, and the forecast shows up as it goes",
+    items: [
+      { kind: "improved", tool: "Sign-in failures", text: "The Defender hunting read that 🚦 🎚 🕵 🌊 🛂 share is slimmed in the query. On a 140-policy tenant every sign-in row carried 140 policy entries, 130 of them “not applied” — 30 KB of JSON per row that nothing reads except one count — and that is what pushed a 7-day Hunting + non-interactive read to 459 queries of 15-minute slices: 40 minutes for 93,500 rows. Those entries are now dropped server-side (mv-apply); the report-only not-applied ones survive as a list of ids so the out-of-scope counts stay exact; success, failure and the report-only verdicts stay whole. A row shrinks ten to twenty times, a day fits in one or two queries, and two days are read at once. A hunting schema that refuses the slim query falls back to full rows and says so on the progress line." },
+      { kind: "improved", tool: "Report-only impact", text: "The forecast arrives as the days land. After every finished day (every five pages on the Entra log) the verdicts are rebuilt from what has been read so far and shown under a still-reading strip with the bar — a first answer in a minute on a tenant that used to make you wait for the whole window. ■ Stop keeps what was read and shows it as a partial window, said to be one — a policy that looks safe here may have its denials in the days not read — and never caches it as the whole. The header says which sign-in source it reads." },
+    ],
+  },
+  {
     build: 25327, date: "2026-09-10", title: "Help catches up with the day",
     items: [
       { kind: "improved", tool: "Help", text: "Four sections were rewritten against what the tools do now. 🕵 Who is Anna to CA: five tiles, baseline policy numbers, the 🛡 Identity risk card that lists only the risk policies reaching her, 💻 Devices, 🔐 MFA on her sign-ins, the stopped table's why, the out-of-scope forecast verdict, folding cards. 🌊 Who is the wave: 🛡 Read identity risk for the whole wave, ■ Stop, folding. 🛂 Session controls: the two halves that fail on their own, ↻ Read the sign-in window again, ■ Stop, and where routing comes from. 🔒 Protect exclusions: it still described 2.x with one vault per run — now the two locks per group, nothing pre-ticked, a greyed tick that says why, persona and deploy groups resolving by name, dynamic groups that never nest, break-glass on any reference." },

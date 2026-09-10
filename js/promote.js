@@ -118,6 +118,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 163,
+      title: "🚦 Hunting read slimmed + two days at a time; 🎚 forecast as the days land, ■ Stop (T17 2.1, T26 1.5)",
+      tools: ["Sign-in failures", "Report-only impact", "Who is Anna to CA", "Who is the wave to CA", "Session controls"],
+      builds: [25328],
+      risk: "medium",
+      what: "js/signins.js huntingQuery: SLIM block (todynamic → placeholder for empty → mv-apply summarize make_list_if: keep entries whose result is not notApplied/notEnabled/reportOnlyNotApplied (or 2/3/8), RoNotApplied = ids with reportOnlyNotApplied/8) projected as ConditionalAccessPolicies + RoNotApplied; slim:false gives the old query; fromHunting appends the RoNotApplied ids as reportOnlyNotApplied entries (roNotApplied()). js/app.js readSignInsHunting: huntSlim flag (falls back to full rows on a semantic/syntax refusal), two workers over the day slices (Promise.allSettled), opts.onPartial(records, done, total) after each day; readSignInWindow(days, prog, force, onPartial) — Entra source: fetchAll onPage every 5 pages; makeProgress.fetchAll gains onPage. 🎚: riProg.stoppable, riPartial {done,total,recs,stopped}, onPartial rebuilds ReportImpact.build at most every 3 s and renders under riPartialStrip(); a stop with partial records renders them as a partial window (riCapped), no cache; openImpact shows the partial while busy.",
+      why: "Medium: the KQL is new and UNTESTED on a real tenant (no hunting schema in the sandbox) — the fallback covers a refusal, not a wrong answer. What could be wrong: (a) mv-apply dropping rows with an empty policy array (the dynamic([{}]) placeholder is there for that — verify the row count against the full query on one day); (b) result values in the hunting JSON being neither the word nor the number assumed (test 2); (c) RoNotApplied ids arriving as a string of JSON, parsed — if the column is dynamic the parse still works. Counts downstream (🎚 out-of-scope, 🕵 roEval) depend on (c).",
+      test: [
+        "Perfetti, Hunting + non-interactive, 1 day: the progress line no longer shows dozens of halved slices; the read finishes in a handful of queries. Compare the total sign-in count with the same day read with slim off (temporarily set huntSlim = false in devtools) — they must match, including rows with no policy at all.",
+        "🎚 on that day: a report-only policy's out-of-scope count (Evaluated N× but never in scope) must equal the full-row read's; a policy with real verdicts must have the same block / prompt / pass numbers.",
+        "🕵 Ivan Gerdes on the hunting source: the forecast card still says 'out of scope on her sign-ins — evaluated N×' for the six policies (roEval built from the RoNotApplied ids).",
+        "🛂 routing on the hunting source: sessions routed count unchanged (success entries with session controls are kept).",
+        "🎚 7 days on a large tenant: the still-reading strip appears after the first day with growing numbers; ■ Stop after two days renders a partial window with the amber callout; ⟳ Rescan reads it whole; 🚦 afterwards does NOT reuse the partial window (no cache was written).",
+        "Entra source, 🎚: the strip appears after 5 pages (5,000 sign-ins) and updates every 5 pages.",
+        "A tenant whose hunting refuses the slim query (simulate: break the KQL in devtools): the line says '· full rows' and the read completes on the old query.",
+      ],
+      files: ["js/signins.js", "js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 162,
       title: "🌐 Graph retries 502 and says it in one line; 🛂 re-reads only the sign-in window (T38 0.6.1)",
       tools: ["Session controls", "Sign-in failures", "Report-only impact", "Who is Anna to CA", "Who is the wave to CA"],

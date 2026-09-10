@@ -121,14 +121,34 @@ const Signins = (() => {
   // enforced mode on a large tenant reads hundreds of rows, not a day's
   // hundreds of thousands. ConditionalAccessStatus is an int in the hunting
   // schema (1 = failure) but a word in the pre-October one, so both are matched.
-  function huntingQuery({ from, to, table, interactiveOnly, userId, cap, enforcedOnly }) {
+  // SLIM ROWS (25328). On a 140-policy tenant every sign-in row carries 140
+  // policy entries, ~130 of them "notApplied" / "reportOnlyNotApplied" —
+  // 30 KB of JSON per row that nothing downstream reads except one count.
+  // That is what blew past the hunting result-size cap and drove a 7-day
+  // read to 459 queries of 15-minute slices (Perfetti, 2026-09-10: 40
+  // minutes for 93,500 rows). The entries are dropped server-side; the
+  // report-only-not-applied ones survive as a list of ids (RoNotApplied) so
+  // the "out of scope" verdicts keep their counts; success, failure, the
+  // three report-only verdicts and everything with a control stay whole.
+  // A row with no policies at all is kept (the placeholder keeps mv-apply
+  // from swallowing it). Rows shrink 10–20×, a day fits in one or two
+  // queries again.
+  const SLIM = `| extend _P = todynamic(ConditionalAccessPolicies)
+| extend _P = iff(array_length(_P) > 0, _P, dynamic([{}]))
+| mv-apply _X = _P to typeof(dynamic) on (
+    summarize _Kept = make_list_if(_X, isnotempty(_X.id) and tostring(_X.result) !in~ ("notApplied", "notEnabled", "reportOnlyNotApplied", "2", "3", "8")),
+              _RoNA = make_list_if(tostring(_X.id), tostring(_X.result) in~ ("reportOnlyNotApplied", "8"))
+  )
+| extend ConditionalAccessPolicies = tostring(_Kept), RoNotApplied = tostring(_RoNA)`;
+  function huntingQuery({ from, to, table, interactiveOnly, userId, cap, enforcedOnly, slim }) {
     const T = table || "EntraIdSignInEvents";
     return `${T}
 | where Timestamp between (datetime(${from}) .. datetime(${to}))
 ${interactiveOnly ? '| where LogonType !has "non"' : ""}
 ${userId ? `| where AccountObjectId == "${String(userId).replace(/"/g, "")}"` : ""}
 ${enforcedOnly ? `| where tostring(ConditionalAccessStatus) in~ ("1", "failure") or toint(ErrorCode) in (${[...INTERRUPT].join(", ")})` : ""}
-| project ${HUNT_COLS}
+${slim === false ? "" : SLIM}
+| project ${HUNT_COLS}${slim === false ? "" : ", RoNotApplied"}
 | order by Timestamp desc
 | take ${cap || HUNT_CAP}`;
   }
@@ -137,6 +157,8 @@ ${enforcedOnly ? `| where tostring(ConditionalAccessStatus) in~ ("1", "failure")
   const CA_STATUS_N = { 0: "success", 1: "failure", 2: "notApplied" };
   const RESULT_N = { 0: "success", 1: "failure", 2: "notApplied", 3: "notEnabled", 4: "unknown", 5: "unknownFutureValue", 6: "reportOnlySuccess", 7: "reportOnlyFailure", 8: "reportOnlyNotApplied", 9: "reportOnlyInterrupted" };
   const pick = (o, ...ks) => { for (const k of ks) { if (o && o[k] != null) return o[k]; } return undefined; };
+  // the ids the slim query set aside (see SLIM) — a string of JSON, or absent
+  const roNotApplied = (r) => { try { const v = typeof r.RoNotApplied === "string" ? JSON.parse(r.RoNotApplied || "[]") : (r.RoNotApplied || []); return Array.isArray(v) ? v.map(String).filter(Boolean) : []; } catch { return []; } };
   function fromHunting(rows) {
     return (rows || []).map((r) => {
       let pols = [];
@@ -168,7 +190,7 @@ ${enforcedOnly ? `| where tostring(ConditionalAccessStatus) in~ ("1", "failure")
           result: (() => { const v = pick(p, "result", "Result"); return typeof v === "number" ? (RESULT_N[v] || String(v)) : String(v || ""); })(),
           enforcedGrantControls: pick(p, "enforcedGrantControls", "EnforcedGrantControls") || [],
           enforcedSessionControls: pick(p, "enforcedSessionControls", "EnforcedSessionControls") || [],
-        })),
+        })).concat(roNotApplied(r).map((id) => ({ id, displayName: "", result: "reportOnlyNotApplied", enforcedGrantControls: [], enforcedSessionControls: [] }))),
         source: "hunting",
       };
     });
