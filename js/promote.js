@@ -118,6 +118,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 154,
+      title: "👥 ⑦ Migrate repoint runs all four passes past a refusal (T12 5.9.8)",
+      tools: ["Conditional Access groups"],
+      builds: [25318],
+      risk: "medium",
+      what: "js/app.js migrate run: apply() collects refusals instead of throwing; the two remove passes still run; one Error afterwards naming the refusing policies. refsMoved = references minus refusing policies.",
+      why: "A write-order change in the destructive tool. Safety property kept: a policy that refuses the add also refuses the remove (same PATCH), so it keeps the old group and never names nothing; a policy that took the add and refused the remove keeps BOTH groups (covered twice, never uncovered). Test on the unpatchable policies before promoting.",
+      test: [
+        "Migrate a role-assignable group referenced by one of the four unpatchable REQ-PVM-ReqApp-* policies plus several normal ones: the normal policies must all end with the NEW group only; the unpatchable one keeps the OLD group; the ledger's repoint step is ✗ naming exactly that policy; the report's Policies column reads references minus 1.",
+        "Migrate a group with no refusing policy: unchanged behaviour, ✓ repointed n.",
+        "After such a run, T12's 🧹 Archived, still in policies chip counts exactly the refusing policies' group(s).",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js"],
+    },
+    {
       n: 153,
       title: "👥 Archived originals still in policies are called out (T12 5.9.7)",
       tools: ["Conditional Access groups"],

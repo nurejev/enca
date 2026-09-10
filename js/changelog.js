@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25318, date: "2026-09-10", title: "Migrate: the repoint finishes past a refusal",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "⑦ Migrate's repoint has four passes — add the new group to the includes, to the excludes, remove the old group from the includes, from the excludes — and it stopped at the first policy Graph refused, leaving the old group in every policy of the later passes. All four passes now run; the refusals are collected and named together, so the only policies left naming the archived original are the ones that refused, and the message says which and what to do next (fix the policy in the portal, then 🎯 Assign)." },
+    ],
+  },
+  {
     build: 25317, date: "2026-09-10", title: "CA groups: archived originals still in policies",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "A renamed-aside original a policy still names is a migration whose repoint did not finish — the policy targets the old, frozen group. Such a row now says so under its name, counts as Needs attention, has its own chip (🧹 Archived, still in policies), and the drawer's Protection tab says what to do: swap the group with 🎯 Assign, then delete the original via 🧹 Archived groups." },

@@ -4755,17 +4755,34 @@ max@contoso.com,"Global, DevOps"</pre>
         }
         // add first, remove last: at no point is a policy without the group
         res.refsAdded = 0; res.refsRemoved = 0;
+        // All four passes run whatever the earlier ones refused: a policy
+        // Graph will not update (the REQ-PVM-ReqApp-* kind) refuses the add
+        // AND the remove, and stopping at the first refusal used to leave the
+        // old group in every OTHER policy of the later passes too — 2026-09-10,
+        // seven archived originals still named by up to 46 policies. The
+        // refusals are collected and thrown together, naming each policy, so
+        // what is left behind is exactly the policies that refused.
+        const refused = [];
         const apply = async (ids, action, id, what) => {
           if (!ids.length || isDemo) return;
           const r = await Assign.apply(ids, action, [id]);
           const bad = r.filter((q) => !q.ok);
           if (what === "add") res.refsAdded += r.length - bad.length; else res.refsRemoved += r.length - bad.length;
-          if (bad.length) throw new Error(`policy update failed on ${bad.length} (${bad.map((q) => q.name).join(", ")}) — the old group is still assigned, so nothing is uncovered`);
+          bad.forEach((q) => refused.push({ what, name: q.name, error: q.error || "" }));
         };
         await apply(incIds, 2, created.id, "add");
         await apply(excIds, 3, created.id, "add");
+        // remove the old group only from policies that took the new one —
+        // a policy that refused the add keeps the old group, so it is never
+        // left naming nothing
+        const refusedAdd = new Set(refused.filter((q) => q.what === "add").map((q) => q.name));
         await apply(incIds, 5, x.id, "remove");
         await apply(excIds, 6, x.id, "remove");
+        if (refused.length) {
+          const names = [...new Set(refused.map((q) => q.name))];
+          res.refsMoved = incIds.length + excIds.length - names.length;
+          throw new Error(`${names.length} polic${names.length === 1 ? "y" : "ies"} refused the update (${names.join(", ")}) — ${refusedAdd.size ? `${refusedAdd.size} of them kept the OLD group, so nothing is uncovered; ` : ""}every other policy was repointed. Fix the refusing policies in the portal (open the card for the reason), then 🎯 Assign: add ${x.name}, remove ${x.archiveName}.`);
+        }
         res.refsMoved = incIds.length + excIds.length;
         step("repoint", "done", `${res.refsMoved} polic${res.refsMoved === 1 ? "y" : "ies"}: new group added, old group removed`);
         if (res.refsMoved) say(`<div>&nbsp;&nbsp;✓ ${res.refsMoved} policy assignment${res.refsMoved === 1 ? "" : "s"} repointed</div>`);
