@@ -713,6 +713,12 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .help-fold{font-size:11px;font-weight:400;color:var(--muted)}
 .help-toc a.sub{padding-left:16px;position:relative;opacity:.85}
 .help-toc a.sub::before{content:"\21b3";position:absolute;left:5px;color:var(--muted)}
+/* One tile, several tools behind a TAB STRIP (build 25339). The strip is not
+   markup: it is mounted into each member screen's own toolbar, the way the
+   sign-in source segment already is, so a member keeps its own search box,
+   range picker and exports. order:-1 keeps it first however the toolbar wraps. */
+.tool-tabs{order:-1}
+.tool-tabs button .tag{margin-left:5px;font-size:9px;padding:0 4px;vertical-align:1px}
 /* CA validator simulation report */
 .va-card{padding:0;margin-bottom:10px;overflow:hidden}
 .va-h{display:flex;align-items:center;gap:8px;padding:12px 16px;cursor:pointer;user-select:none}

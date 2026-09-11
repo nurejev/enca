@@ -182,11 +182,75 @@
   // want that verb — so the command palette reads this map too and offers the
   // old name, saying which tool it lives in now.
   const FOLDED = {
-    toolDocument:     { into: "toolPolicies", label: "📄 Create documentation",        where: "the action bar",     build: 25338 },
-    toolJson:         { into: "toolPolicies", label: "🗄 Backup (JSON)",               where: "the action bar",     build: 25338 },
-    toolState:        { into: "toolPolicies", label: "🎚 Set Policy state",            where: "the action bar",     build: 25338 },
-    toolBaselineJoey: { into: "toolBaseline", label: "🧩 Baseline (Joey Verlinden)",   where: "the catalog picker", build: 25338 },
+    toolDocument:     { into: "toolPolicies", label: "📄 Create documentation",       where: "the action bar",            build: 25338 },
+    toolJson:         { into: "toolPolicies", label: "🗄 Backup (JSON)",              where: "the action bar",            build: 25338 },
+    toolState:        { into: "toolPolicies", label: "🎚 Set Policy state",           where: "the action bar",            build: 25338 },
+    toolBaselineJoey: { into: "toolBaseline", label: "🧩 Baseline (Joey Verlinden)",  where: "the catalog picker",        build: 25338,
+                        open: () => { crumb("🧬 Baseline"); openBaseline("joey"); } },
+    toolImpact:       { into: "toolSignins",  label: "🎚 Report-only impact",         where: "the Report-only impact tab", build: 25339,
+                        open: () => openImpact() },
+    toolSessionCtl:   { into: "toolSignins",  label: "🛂 Session controls",           where: "the Session controls tab",   build: 25339,
+                        open: () => openSessionCtl() },
   };
+  // Land on a folded tool. Its own entry point when it has one — the right tab,
+  // the right catalog — otherwise the host tile, which is the correct answer for
+  // a member whose capability is a button on the host's own screen.
+  function openFolded(id) {
+    const f = FOLDED[id]; if (!f) return false;
+    if (f.open) { f.open(); return true; }
+    const tile = $(f.into); if (tile) { tile.click(); return true; }
+    return false;
+  }
+
+  // ---------- hosts with tabs ----------
+  // A HOST is one tile whose tools sit behind a tab strip. The strip is NOT
+  // markup: it is mounted into each member screen's own toolbar, the way the
+  // sign-in source segment already is. That is deliberate — the members have
+  // genuinely different toolbars (🚦 ranges and filters, 🎚 its two views, 🛂 a
+  // hunting window and its own exports), and moving three screens' markup into
+  // one panel to make them look like tabs would throw away per-screen scroll
+  // memory, the history entries and every id other modules deep-link to, in
+  // exchange for nothing the reader can see.
+  //
+  // betaOnly hides a tab on the production host instead of deleting a file, so
+  // the carve-out in the promotion port becomes one guard here (see §7 of the
+  // consolidation plan): isProdHost() is the same test the BETA ribbon uses.
+  const TAB_HOSTS = {
+    signins: {
+      tile: "toolSignins", label: "🚦 Sign-in log",
+      tabs: [
+        { key: "failures", icon: "🚦", name: "Failures",          toolbar: "siToolbar", open: () => openSignins() },
+        { key: "impact",   icon: "🎚", name: "Report-only impact", toolbar: "riToolbar", open: () => openImpact() },
+        { key: "session",  icon: "🛂", name: "Session controls",   toolbar: "scToolbar", open: () => openSessionCtl(), beta: true, betaOnly: true },
+      ],
+    },
+  };
+  const tabShown = (t) => !t.betaOnly || !isProdHost();
+  function toolTabsSeg(hostKey) {
+    const h = TAB_HOSTS[hostKey]; if (!h) return "";
+    return `<div class="seg tool-tabs" title="One tool, ${h.tabs.filter(tabShown).length} views of it — they read the same window, so switching costs no second read">`
+      + h.tabs.filter(tabShown).map((t) => `<button data-tabgo="${hostKey}:${t.key}">${t.icon} ${esc(t.name)}`
+          + (t.beta ? ' <span class="tag new">BETA</span>' : "") + `</button>`).join("")
+      + `</div>`;
+  }
+  // Put the strip into this tab's toolbar once, then re-paint which is active.
+  function mountToolTabs(hostKey, tabKey) {
+    const h = TAB_HOSTS[hostKey]; if (!h) return;
+    const t = h.tabs.find((x) => x.key === tabKey); if (!t) return;
+    const tb = $(t.toolbar); if (!tb) return;
+    let seg = tb.querySelector(".tool-tabs");
+    if (!seg) {
+      const wrap = document.createElement("div"); wrap.innerHTML = toolTabsSeg(hostKey); seg = wrap.firstChild;
+      tb.insertBefore(seg, tb.firstChild);
+    }
+    [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.tabgo === `${hostKey}:${tabKey}`));
+  }
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-tabgo]"); if (!b) return;
+    const [hostKey, key] = String(b.dataset.tabgo).split(":");
+    const h = TAB_HOSTS[hostKey], t = h && h.tabs.find((x) => x.key === key);
+    if (t) t.open();
+  });
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   // ---- <datalist> pick guard --------------------------------------------
   // Selecting an option from a <datalist> fires `input` exactly like typing
@@ -1157,8 +1221,9 @@
     e.preventDefault();
     document.querySelectorAll(".modal-bg.open").forEach((m) => m.classList.remove("open"));
     const want = a.dataset.tool;
-    const tile = $(want) || $((FOLDED[want] || {}).into || "");
-    if (tile) tile.click(); else toast("That tool is not available here");
+    const tile = $(want);
+    if (tile) { tile.click(); return; }
+    if (!openFolded(want)) toast("That tool is not available here");
   });
 
   // ---------- What's new / changelog ----------
@@ -2137,11 +2202,9 @@
     ["toolCompare", "⚖ Compare users"],
     ["toolWhoIs", "🕵 Who is Anna to CA"],
     ["toolWave", "🌊 Who is the wave to CA"],
-    ["toolSessionCtl", "🛂 Session controls"],
     ["toolSpGap", "🫥 Apps with no service principal"],
     ["toolAudit", "🕓 Change audit"],
-    ["toolSignins", "🚦 Sign-in failures"],
-    ["toolImpact", "🎚 Report-only impact"],
+    ["toolSignins", "🚦 Sign-in log"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolDevCheck", "🖥 Device reality check"],
     ["toolLicGap", "🎫 Licence gap"],
@@ -10931,7 +10994,7 @@ This is a directory write. Nothing else changes.`)) return;
       const qn = q.trim().toLowerCase();
       const exact = no && (qn === no.toLowerCase() || qn === String(+no.slice(1)) || qn === `t${+no.slice(1)}`);
       const sc = exact ? 200 : cpScore(f.label, q);
-      if (sc) out.push({ kind: "tool", id: f.into, label: f.label,
+      if (sc) out.push({ kind: "tool", id: f.into, label: f.label, go: () => openFolded(old),
         hint: `${no ? `${no} · ` : ""}in ${labelFor(f.into)} — ${f.where}`, score: sc - 1 });
     }
     // Policies only exist after sign-in; before that the palette is tools only,
@@ -10968,6 +11031,7 @@ This is a directory write. Nothing else changes.`)) return;
   function cpRun(it) {
     if (!it) return;
     cpClose();
+    if (it.go) { it.go(); return; }              // a folded tool: its own tab, not just the host
     if (it.kind === "tool") { const el = $(it.id); if (el) el.click(); return; }
     showDetail(it.id);
   }
@@ -12767,8 +12831,9 @@ This is a directory write. Nothing else changes.`)) return;
   const siModeLabel = () => siMode === "reportonly" ? "report-only failures" : "enforced failures & interrupts";
 
   function openSignins() {
-    crumb("🚦 Sign-in failures");
+    crumb("🚦 Sign-in log");
     show("screen-signins");
+    mountToolTabs("signins", "failures");
     mountLogSourceSeg("siToolbar", "#siModeSeg");
     $("siRescan").style.display = siRes && !siBusy ? "" : "none";
     if (siBusy) { $("siBody").innerHTML = siBusyPanel(); return; }
@@ -12937,7 +13002,7 @@ This is a directory write. Nothing else changes.`)) return;
         <h3>🚦 Sign-in failures</h3>
         <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure or interrupt"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
         <p class="mini muted" style="margin:0">${siMode === "reportonly"
-          ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the numbers to check before flipping a policy on."
+          ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the individual sign-ins, newest first. For the per-policy verdict — <i>is this one safe to enable?</i> — use the <a href=\"#\" class=\"md-tool\" data-tool=\"toolImpact\">🎚 Report-only impact</a> tab, which answers from the same window."
           : "Enforced: <b>failed</b> — the user did not satisfy the policy's controls and was blocked; <b>interrupted</b> — a policy's control stopped the sign-in mid-flow (MFA prompt shown and abandoned, MFA enrolment, device auth, terms of use). Both are a prompt to look, not proof the policy is wrong."}</p>
       </div>
       <div style="text-align:right">
@@ -13077,8 +13142,9 @@ This is a directory write. Nothing else changes.`)) return;
     .map((p) => ({ id: p.id, name: p.name }));
 
   function openImpact() {
-    crumb("🎚 Report-only impact");
+    crumb("🚦 Sign-in log");
     show("screen-impact");
+    mountToolTabs("signins", "impact");
     mountLogSourceSeg("riToolbar", "#riViewSeg");
     $("riRescan").style.display = riRes && !riBusy ? "" : "none";
     if (riBusy) { if (riRes && riPartial) renderImpact(); else $("riBody").innerHTML = riBusyPanel(); return; }
@@ -13090,7 +13156,6 @@ This is a directory write. Nothing else changes.`)) return;
     $("riChips").innerHTML = "";
     $("riBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-rirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
   }
-  $("toolImpact").addEventListener("click", () => openImpact());
   $("riRescan").addEventListener("click", () => runImpact(true));
   $("riDays").addEventListener("change", (e) => { riDays = +e.target.value; if (riRes) runImpact(); });
 
@@ -15912,8 +15977,9 @@ This is a directory write. Nothing else changes.`)) return;
   const SC_HUNT = ["ThreatHunting.Read.All"];
 
   function openSessionCtl() {
-    crumb("🛂 Session controls");
+    crumb("🚦 Sign-in log");
     show("screen-sessionctl");
+    mountToolTabs("signins", "session");
     $("scHead").innerHTML = `<h3>🛂 Session controls <span class="tag new">BETA</span></h3>
       <p style="margin-bottom:6px">What did a session control actually <b>do</b>? The sign-in log stops at “policy applied — Conditional Access App Control”. Everything after that — the download that was blocked, the file that was protected, the step-up that fired — is written by <b>Defender for Cloud Apps</b>. This tool reads that log and joins it back to the Conditional Access policy that routed the session.</p>
       <p class="mini muted" style="margin:0">Reads Defender advanced hunting through Microsoft Graph (<b>ThreatHunting.Read.All</b>, needs Security Reader or a Defender RBAC role with hunting access; 30-day retention) for what Defender did, and the Entra sign-in window 🚦 / 🎚 already read (<b>AuditLog.Read.All</b>) for which policy routed the session. Read-only.</p>`;
@@ -15924,7 +15990,6 @@ This is a directory write. Nothing else changes.`)) return;
     const pre = SessionCtl.analyze({ vms: policies, events: [], records: null, days: scDays });
     $("scBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-scrun>▶ Read Defender activity</button><p class="mini muted">${pre.tiles.appcontrol} polic${pre.tiles.appcontrol === 1 ? "y carries" : "ies carry"} Conditional Access App Control, ${pre.tiles.other} carry other session controls. Nothing is written.</p></div>`;
   }
-  $("toolSessionCtl").addEventListener("click", () => openSessionCtl());
   $("scRescan").addEventListener("click", () => runSessionCtl(true));
   $("scDays").addEventListener("change", (e) => { scDays = +e.target.value; if (scRes) runSessionCtl(); });
   let scQTimer = null;

@@ -118,6 +118,29 @@ const PROMOTE = {
 
   items: [
     {
+      n: 174,
+      title: "🚦 Sign-in log: 🎚 Report-only impact and 🛂 Session controls folded in as tabs (T17 2.2; T26 T38 folded) — R53",
+      tools: ["Sign-in log", "Report-only impact", "Session controls", "All tools"],
+      builds: [25339],
+      risk: "medium",
+      what: "js/app.js: TAB_HOSTS (a host id → {tile, label, tabs[{key, icon, name, toolbar, open, beta, betaOnly}]}) with toolTabsSeg / mountToolTabs / a data-tabgo click handler — the strip is inserted as the first child of the member screen's own toolbar, exactly the way mountLogSourceSeg already inserts the source segment, and tabShown hides a betaOnly tab when isProdHost(). openSignins, openImpact and openSessionCtl all crumb 🚦 Sign-in log and mount the strip on their own tab; the toolImpact and toolSessionCtl tile handlers are removed, their TOOL_TABS rows collapse into one host row, and FOLDED gains an optional open() so a folded tool lands on its TAB (openFolded, used by the md-tool handler and by the palette through a go() on the item; toolBaselineJoey gains one too, opening Baseline on his catalog). renderSignins' report-only note now points at the 🎚 tab. index.html: the two tiles removed, T17 renamed Sign-in log with a blurb naming the three tabs, id=scToolbar added to the session-controls toolbar, the two Help sections moved under the host as h5 sub-sections, two rows added to the 🔢 Tool numbers folded list, roadmap R53. css: .tool-tabs { order:-1 } and the BETA chip inside a tab button. js/version.js: build 25339, T17 2.2, T26 1.5.2 folded, T38 0.6.2 folded.",
+      why: "Medium, and the risk is navigation rather than data: no Graph read, no query and no renderer changed — readSignInWindow, logCache, Signins.build, ReportImpact.build and the hunting slicing are untouched. What could break is a route: a deep link that used to click a tile, the crumb-to-tab mapping in the browser-style tab bar, or Back across three screens that now share one crumb. The betaOnly guard is the other thing to prove: on production the 🛂 tab must not render at all, and the port must carry the guard rather than deleting the tile.",
+      test: [
+        "Home page: 33 tiles. 🎚 Report-only impact and 🛂 Session controls are gone; 🚦 reads Sign-in log with T17 v2.2 and a blurb naming the three tabs.",
+        "Open 🚦: the tab strip is the first thing in the toolbar — Failures · Report-only impact · Session controls BETA — with Failures active. Read the log, then click Report-only impact: it must NOT re-read (the head says the window was re-used, one network read in devtools for the two tabs), and the range and source pickers show the same window.",
+        "Change the range on the 🎚 tab to 30 days, run it, switch back to 🚦 Failures: 🚦 keeps its own range (7) and says so — the pickers are deliberately per tab, only the window cache is shared.",
+        "Switch the sign-in source to Defender hunting on either tab: the segment repaints on both, the cache is dropped, and the tool that is open re-reads. The other tab re-reads when opened.",
+        "🚦 in Report-only mode: under the verdict it says these are individual sign-ins and links the 🎚 Report-only impact tab; the link switches tab (it does not open a second tool).",
+        "One tab in the browser-style tab bar for all three screens, labelled 🚦 Sign-in log. Open 🎚 from ⌘K, then press Back: it must walk back through the screens it came from and never leave the site. The side nav and the + menu list Sign-in log once and no dead row.",
+        "⌘K: 'report-only' offers 🎚 Report-only impact with the hint 'T26 · in 🚦 Sign-in log — the Report-only impact tab' and Enter lands on THAT tab, not on Failures; 'session' does the same for T38; '26' and '38' find them by number.",
+        "Deep links: 📖 Baseline guide's go-live step (data-tool toolImpact) and 🕵's report-only callout must land on the 🎚 tab. 🧩 in ⌘K must open 🧬 Baseline already showing Joey Verlinden's table.",
+        "PRODUCTION GUARD — the one that must be proven before the port: serve the built tree from a host equal to BRANDING.host (or stub isProdHost) and confirm the strip shows only two tabs, the 🛂 tab is absent rather than present-and-broken, and nothing in the Session controls Help h5 is reachable from a link.",
+        "?demo=1: all three tabs render against the demo records; 🛂 shows its pre-read policy panel with no Defender consent asked until ▶.",
+      ],
+      carveout: "Same beta-number rewrite as item 173 (the 'folded into this tool — build 25339' spans, the two new 🔢 Tool numbers bullets, the 'Until build 25339' clause in the 🚦 Help section, R53's data-shipped and its tag). Do NOT delete js/sessionctl.js, the screen-sessionctl markup or the scToolbar id on main any more: the 🛂 tab is hidden by tabShown/isProdHost, which is what makes the guard visible instead of remembered. Prove the port with: grep -n '25339' index.html (must be empty on main) and, on the deployed production page, document.querySelectorAll('.tool-tabs button').length === 2.",
+      files: ["index.html", "js/app.js", "js/changelog.js", "js/promote.js", "js/version.js", "css/app.css"],
+    },
+    {
       n: 173,
       title: "🗂 One door per room: four tiles folded, 39 to 35 (T01 2.11, T10 2.6; T02 T04 T05 T11 folded) — R52",
       tools: ["Policies", "Baseline", "All tools"],

@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25338"></script>
+<script src="js/popup-guard.js?v=25339"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25338" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25338">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25339" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25339">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25338"></script>
+<script src="js/selfhost-boot.js?v=25339"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25338"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25338"></script>
+<script src="js/counter.js?v=25339"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25339"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25338" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25339" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25338" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25339" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -212,10 +212,6 @@
         <div class="tool-ic">🌊</div><h3>Who is the wave to CA <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
         <p>The same picture for a whole <b>deployment group</b>: who is in the wave and how they got in, which policies target it and how many members an exclusion takes back out, what the sign-in log did to its members, and — per report-only policy — whether it can go live <b>for this wave</b> without locking somebody out. The members that need a look, each one a click into 🕵 Who is Anna to CA.</p>
       </div>
-      <div class="tool" id="toolSessionCtl">
-        <div class="tool-ic">🛂</div><h3>Session controls <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
-        <p>What did a session control actually <b>do</b>? The sign-in log stops at “App Control applied”; the blocked download, the protected file and the step-up are written by Defender for Cloud Apps. Reads that log through Defender advanced hunting and joins every action back to the Conditional Access policy that routed the session — and says when a policy routes but never acts (Monitor only) or a Defender policy has no router. <span class="tag grant">extra permissions</span></p>
-      </div>
       <div class="tool" id="toolSpGap">
         <div class="tool-ic">🫥</div><h3>Apps with no service principal <span class="tag new">BETA</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
         <p>Apps that signed in over the last 30 days and have <b>no service principal</b> in this tenant. Such an app is not in the Conditional Access app picker — it can be neither included nor excluded by name; only a policy on All resources reaches it. One Graph call lists them; for each one: which policies would apply the moment it exists, whether a policy already excludes the id (a phantom exclusion), and what Entra recorded on its newest sign-in.</p>
@@ -245,12 +241,8 @@
         <p>Who changed which Conditional Access resource, when, and exactly what changed — a field-level diff of every policy, named location and authentication strength edit from the Entra audit log.</p>
       </div>
       <div class="tool" id="toolSignins">
-        <div class="tool-ic">🚦</div><h3>Sign-in failures <span class="tag upd">UPDATED</span></h3>
-        <p>Which sign-ins Conditional Access failed <b>or interrupted</b> and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. Enforced and report-only, with CSV export and a one-click replay in What-If.</p>
-      </div>
-      <div class="tool" id="toolImpact">
-        <div class="tool-ic">🎚</div><h3>Report-only impact <span class="tag upd">UPDATED</span></h3>
-        <p>What happens the day a report-only policy goes live — per policy: who would be denied, who just gets an extra prompt, who passes unchanged; per user: the combined effect of everything in report-only. The evidence for the go-live decision, from the sign-in log.</p>
+        <div class="tool-ic">🚦</div><h3>Sign-in log <span class="tag upd">UPDATED</span></h3>
+        <p>One read of the sign-in window, three questions of it. <b>🚦 Failures</b> — which sign-ins Conditional Access failed <b>or interrupted</b> and which policy did it, per policy: who, on which app, from where, with the controls that weren't met, CSV export and a one-click replay in What-If. <b>🎚 Report-only impact</b> — what happens the day a staged policy goes live, per policy and per user. <b>🛂 Session controls</b> — what a session control actually <i>did</i>, from Defender. Tabs over one window and one consent, so switching costs no second read.</p>
       </div>
     </div>
     <div class="tool-sec"><h3>🧬 Compare against a baseline</h3><p>Measure this tenant against a reference set of policies.</p></div>
@@ -1002,7 +994,7 @@
   <!-- ============ SESSION CONTROLS ============ -->
   <section id="screen-sessionctl" class="screen">
     <div class="list-card readme" id="scHead" style="margin-top:0"></div>
-    <div class="toolbar" style="margin-top:14px">
+    <div class="toolbar" id="scToolbar" style="margin-top:14px">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="scSearch" list="scSearchList" placeholder="Filter user, app, file, policy…" autocomplete="off" spellcheck="false">
@@ -1578,6 +1570,10 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R52</span> <a href="#" class="md-tool" data-tool="toolPolicies">🗂 One door per room</a> <span class="tag grant">live · beta 25338</span></h4>
             <p class="mini" style="margin:0">39 tiles, far fewer questions. Four of them were a second door onto a screen that already had one: 📄 Create documentation, 🗄 Backup (JSON) and 🎚 Set Policy state all opened 🗂 List Policies with one action pre-selected and a toast naming a button that was already on its action bar, and 🧩 Baseline (Joey Verlinden) was <code>openBaseline("joey")</code> against the same screen the catalog picker already switches. Folded: 39 tiles to 35, nothing removed, every deep link still landing. T02, T04, T05 and T11 keep their numbers, keep their Help sections under their new hosts, and the mapping is published in 🔢 Tool numbers. Phase 1 of the tool consolidation review; the tabbed hosts (🚦 Sign-in log, 🕒 Changes, 🧩 Policy building blocks, 🛡 Checks) are phase 2.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25339">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R53</span> <a href="#" class="md-tool" data-tool="toolSignins">🚦 One tool per data source</a> <span class="tag grant">live · beta 25339</span></h4>
+            <p class="mini" style="margin:0">Phase 2 of the consolidation review: where several tools read the SAME thing, they become tabs over one read. First the sign-in window — 🚦 Sign-in failures, 🎚 Report-only impact and 🛂 Session controls were three tiles over one <code>readSignInWindow</code>, one cache and one consent, and the only sign of it was a line saying the window had been re-used. Now 🚦 Sign-in log with three tabs. The tab strip is mounted into each member's own toolbar rather than moving three screens into one panel, so every screen keeps its scroll memory, its history entry and the ids other tools deep-link to; a beta-only member is a guarded tab instead of a deleted file. 🕓 Changes, 🧩 Policy building blocks and 🛡 Checks follow.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -1886,20 +1882,6 @@
       </ul>
       <p class="help-x">Read-only. Members are read transitively, first 500. The reads are bounded by the groups the policies name, not by the members: every referenced group (first 999 members each) and the baseline's deploy / persona groups are read once, plus the directory roles, and every member is then resolved against every policy with the same rule 🕵 Who is Anna to CA uses — so the two tools cannot disagree about a member. <b>Sign-in source:</b> the same segment as 🚦, 🎚 and 🕵 — Entra sign-in log, Defender hunting, or Hunting + non-interactive — and the window is read once and shared; a capped window is said so. Licence per member is the same verdict 🎫 Licence gap uses.</p>
     </section>
-        <section class="help-sec">
-      <h4>🛂 Session controls <span class="tag new">BETA</span></h4>
-      <p>“Is CA308 blocking downloads?” has no answer in any log Entra keeps. A session control such as Conditional Access App Control only <i>routes</i> the browser session to Defender for Cloud Apps; what happens inside the session — a download blocked, a file labelled on the way out, a step-up authentication — is decided by a Defender session policy and written to Defender's activity log. This tool reads that log and joins it back to the routing policy.</p>
-      <ul>
-        <li><b>At a glance</b> — policies with a session control, sessions routed to Defender in the window (from the sign-in log: an applied policy carrying App Control), downloads blocked, and the other actions: protected, step-ups, audited, logins.</li>
-        <li><b>Per Conditional Access policy</b> — state, which session control (App Control: Monitor only / Block downloads / Use custom policy; sign-in frequency; persistent browser; token protection; CAE; app-enforced restrictions; Global Secure Access), how many sessions it routed, what Defender did behind it, which Defender policies matched, and a verdict: <b>Acting</b>, <b>Watching</b> (routed and logged, nothing acted), <b>Monitor only</b> (routes, never blocks), <b>Routed, nothing acted</b>, <b>Nothing routed</b>, Off, Report-only (session controls are not applied in report-only).</li>
-        <li><b>What Defender did</b> — every session-control event: when, user, app and object, action (Blocked / Protected / Step-up / Login routed / Audited), the Defender policy, and the Conditional Access policy that routed the session. Filters per action and a search box; user names open 🕵 Who is Anna to CA.</li>
-        <li><b>Defender session policies seen</b> — every policy name the activities carried, with its counts and the CA policy that routed to it — or the warning that none did.</li>
-        <li><b>Schema panel</b> — the action types and raw field names the hunting rows carried. The words a blocked download uses differ per app and are documented nowhere; if a block shows as plain “Activity”, that list is what makes the classifier exact.</li>
-        <li><b>Two halves that fail on their own.</b> The Defender half is minutes of hunting; the routing half is the shared sign-in window. When only the sign-in window fails — a gateway hiccup, a refused scope — the activities are still shown, the note says routing cannot be said, and <b>↻ Read the sign-in window again</b> re-reads the log alone and joins it to the activity already in hand, instead of a Rescan that repeats the hunt.</li>
-        <li><b>■ Stop</b> — during the hunt, the slices already read are kept and shown as a <b>partial</b> window, named as such, without reading the sign-in log; during the sign-in read, the Defender half stays and routing is marked missing. The stop lands after the query in flight — a running hunting query cannot be cancelled.</li>
-      </ul>
-      <p class="help-x">Read-only. Defender activity comes from advanced hunting through Microsoft Graph — <code>POST /security/runHuntingQuery</code> over <code>CloudAppEvents</code> filtered to the session / access control audit source, delegated <b>ThreatHunting.Read.All</b>, the signed-in user needing Security Reader, Global Reader, Security Operator, Security Administrator or a Defender RBAC role with hunting access; 30-day retention; the window is read in 4-hour slices of up to 5,000 events each, a slice that takes more than 2 minutes is halved down to 30 minutes and then skipped with a note. <b>Routing comes from the sign-in window</b> 🚦 Sign-in failures, 🎚 Report-only impact, 🕵 and 🌊 share, from whichever <b>sign-in source</b> is chosen there — Entra sign-in log (AuditLog.Read.All) or Defender hunting. Join: same user, same app, newest routing sign-in within 8 hours; a user-only fallback is labelled; no match is shown as <i>no match</i>. Monitor only logs the Login activity only — a policy on Monitor only never blocks anything, and the tool says so.</p>
-    </section>
 
     <section class="help-sec">
       <h4>🫥 Apps with no service principal <span class="tag new">BETA</span></h4>
@@ -1987,8 +1969,10 @@
             <li><code>T04</code> 🗄 Backup (JSON) → <b>🗂 Policies</b>, action bar (build 25338)</li>
             <li><code>T05</code> 🎚 Set Policy state → <b>🗂 Policies</b>, action bar (build 25338)</li>
             <li><code>T11</code> 🧩 Baseline (Joey Verlinden) → <b>🧬 Baseline</b>, catalog picker (build 25338)</li>
+            <li><code>T26</code> 🎚 Report-only impact → <b>🚦 Sign-in log</b>, Report-only impact tab (build 25339)</li>
+            <li><code>T38</code> 🛂 Session controls → <b>🚦 Sign-in log</b>, Session controls tab (build 25339)</li>
           </ul>
-          Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link written against the old tile still lands on the host.</li>
+          Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The version beside it is the opposite kind of thing</b> — the number never changes, the version always does. They sit together so they are read together: “T21 v0.5” says which tool and how far along it is.</li>
         <li><b>❓ Help, 📋 What's new and 🗺 Roadmap carry none</b>, deliberately. They are the app describing itself rather than tools that read your tenant, report on it or write to it — which is also why they carry no version. They go by name.</li>
       </ul>
@@ -2012,7 +1996,8 @@
     </section>
 
     <section class="help-sec">
-      <h4>🚦 Sign-in failures</h4>
+      <h4>🚦 Sign-in log</h4>
+      <p><b>One window, three questions.</b> Until build 25339 these were three tiles — 🚦 Sign-in failures, 🎚 Report-only impact and 🛂 Session controls — and the first two already read the SAME window through the same cache and the same consent, so the second tile you opened re-used what the first had read and said so in a line nobody should have needed to see. They are one tool with tabs now; <b>T17</b>, <b>T26</b> and <b>T38</b> keep their numbers (see 🔢 Tool numbers) and their sections below. The range picker, the sign-in source and the search box stay per tab, because the three ask different things of the same records.</p>
       <p>Which sign-ins Conditional Access failed and which policy did it — read from the Entra sign-in log, grouped per policy.</p>
       <p><b>Sign-in source.</b> 🚦, 🎚 Report-only impact, 🕵 Who is Anna to CA and 🌊 Who is the wave to CA share one segment that says where sign-ins are read from: the <b>Entra sign-in log</b> (interactive only, capped at 10,000, <code>AuditLog.Read.All</code>), <b>Defender hunting</b> (the same interactive sign-ins from <code>EntraIdSignInEvents</code> through advanced hunting on Microsoft Graph — <code>ThreatHunting.Read.All</code>, no cap, 30 days) or <b>Hunting + non-interactive</b>, which adds the token refreshes and background client sign-ins the Graph list never returns — where sign-in-frequency re-prompts, legacy-protocol blocks of service accounts and token-protection failures live. Chosen once per tenant; one cached window per source. Hunting needs Entra ID P2 for the table to be populated and a Defender role with hunting access. With non-interactive rows in the result, the interactive / non-interactive counts are chips that filter the list. Large tenants: the rows are <b>slimmed in the query</b> — on a 140-policy tenant a sign-in carries 140 policy entries, 130 of them “not applied”, and those are dropped server-side (the report-only ones survive as a list of ids, so the out-of-scope counts stay exact); a row shrinks ten to twenty times and a day fits in one or two queries. The window is read <b>two days at a time</b>; a day that still exceeds the hunting result size is halved down to 15 minutes, and a 15-minute slice that still exceeds it is read with a lower row cap and reported as capped — the read never fails on size. <b>Enforced</b> on the hunting source reads only the CA failures and interrupts, filtered in the query, so even a large tenant's non-interactive traffic is a small read; <b>Report-only</b> needs the whole window.</p>
       <ul>
@@ -2023,10 +2008,8 @@
         <li><b>Export CSV</b> — one line per sign-in × failing policy, ready for a pivot table or a SIEM. <b>Export MD</b> — the per-policy summary with sign-in tables, for a review or a ticket.</li>
       </ul>
       <p class="help-x">Read-only. Needs <code>AuditLog.Read.All</code> (requested when you run it) and a reader role such as Reports Reader, Security Reader or Security Administrator, plus an Entra ID P1/P2 licence for the sign-in log. Retention is licence-bound (≈30 days), so this is a rolling window.</p>
-    </section>
 
-    <section class="help-sec">
-      <h4>🎚 Report-only impact</h4>
+      <h5>🎚 Report-only impact <span class="help-fold">folded into this tool — build 25339</span></h5>
       <p>The go-live forecast. Every policy sitting in <b>report-only</b> is judged against the sign-in log: who would be <b>denied</b> the day it is enforced, who is <b>interrupted</b> for an extra step, and who passes unchanged. Report-only writes a verdict into each sign-in without acting on it, so this is evidence rather than simulation.</p>
       <ul>
         <li><b>Per policy</b> — is it safe to switch THIS one on. <b>Per user</b> — what happens to THIS person when everything staged goes live at once, which is the question nobody can answer policy by policy.</li>
@@ -2041,7 +2024,21 @@
         <li><b>Export MD</b> — the forecast with every affected user, for the change record or the go-live approval.</li>
       </ul>
       <p class="help-x">Read-only. Needs <code>AuditLog.Read.All</code> (requested when you run it) and a reader role such as Reports Reader, Security Reader or Security Administrator. Audit retention is licence-bound — roughly 30 days on Entra ID P1/P2 — so the window is what Microsoft still holds, not all history.</p>
+
+      <h5>🛂 Session controls <span class="tag new">BETA</span> <span class="help-fold">folded into this tool — build 25339</span></h5>
+      <p>“Is CA308 blocking downloads?” has no answer in any log Entra keeps. A session control such as Conditional Access App Control only <i>routes</i> the browser session to Defender for Cloud Apps; what happens inside the session — a download blocked, a file labelled on the way out, a step-up authentication — is decided by a Defender session policy and written to Defender's activity log. This tool reads that log and joins it back to the routing policy.</p>
+      <ul>
+        <li><b>At a glance</b> — policies with a session control, sessions routed to Defender in the window (from the sign-in log: an applied policy carrying App Control), downloads blocked, and the other actions: protected, step-ups, audited, logins.</li>
+        <li><b>Per Conditional Access policy</b> — state, which session control (App Control: Monitor only / Block downloads / Use custom policy; sign-in frequency; persistent browser; token protection; CAE; app-enforced restrictions; Global Secure Access), how many sessions it routed, what Defender did behind it, which Defender policies matched, and a verdict: <b>Acting</b>, <b>Watching</b> (routed and logged, nothing acted), <b>Monitor only</b> (routes, never blocks), <b>Routed, nothing acted</b>, <b>Nothing routed</b>, Off, Report-only (session controls are not applied in report-only).</li>
+        <li><b>What Defender did</b> — every session-control event: when, user, app and object, action (Blocked / Protected / Step-up / Login routed / Audited), the Defender policy, and the Conditional Access policy that routed the session. Filters per action and a search box; user names open 🕵 Who is Anna to CA.</li>
+        <li><b>Defender session policies seen</b> — every policy name the activities carried, with its counts and the CA policy that routed to it — or the warning that none did.</li>
+        <li><b>Schema panel</b> — the action types and raw field names the hunting rows carried. The words a blocked download uses differ per app and are documented nowhere; if a block shows as plain “Activity”, that list is what makes the classifier exact.</li>
+        <li><b>Two halves that fail on their own.</b> The Defender half is minutes of hunting; the routing half is the shared sign-in window. When only the sign-in window fails — a gateway hiccup, a refused scope — the activities are still shown, the note says routing cannot be said, and <b>↻ Read the sign-in window again</b> re-reads the log alone and joins it to the activity already in hand, instead of a Rescan that repeats the hunt.</li>
+        <li><b>■ Stop</b> — during the hunt, the slices already read are kept and shown as a <b>partial</b> window, named as such, without reading the sign-in log; during the sign-in read, the Defender half stays and routing is marked missing. The stop lands after the query in flight — a running hunting query cannot be cancelled.</li>
+      </ul>
+      <p class="help-x">Read-only. Defender activity comes from advanced hunting through Microsoft Graph — <code>POST /security/runHuntingQuery</code> over <code>CloudAppEvents</code> filtered to the session / access control audit source, delegated <b>ThreatHunting.Read.All</b>, the signed-in user needing Security Reader, Global Reader, Security Operator, Security Administrator or a Defender RBAC role with hunting access; 30-day retention; the window is read in 4-hour slices of up to 5,000 events each, a slice that takes more than 2 minutes is halved down to 30 minutes and then skipped with a note. <b>Routing comes from the sign-in window</b> 🚦 Sign-in failures, 🎚 Report-only impact, 🕵 and 🌊 share, from whichever <b>sign-in source</b> is chosen there — Entra sign-in log (AuditLog.Read.All) or Defender hunting. Join: same user, same app, newest routing sign-in within 8 hours; a user-only fallback is labelled; no match is shown as <i>no match</i>. Monitor only logs the Login activity only — a policy on Monitor only never blocks anything, and the tool says so.</p>
     </section>
+
 
     <section class="help-sec">
       <h4>🚪 Exclusion analyzer</h4>
@@ -3037,66 +3034,66 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25338"></script>
-<script src="js/selfhost.js?v=25338"></script>
-<script src="js/version.js?v=25338"></script>
-<script src="js/fork.js?v=25338"></script>
-<script src="js/promote.js?v=25338"></script>
-<script src="js/authConfig.js?v=25338"></script>
-<script src="js/labels.js?v=25338"></script>
-<script src="js/graph.js?v=25338"></script>
-<script src="js/model.js?v=25338"></script>
-<script src="js/render.js?v=25338"></script>
-<script src="js/analyze.js?v=25338"></script>
-<script src="js/whatif.js?v=25338"></script>
-<script src="js/mslearn.js?v=25338"></script>
-<script src="js/gapcheck.js?v=25338"></script>
-<script src="js/cisdata.js?v=25338"></script>
-<script src="js/cischeck.js?v=25338"></script>
-<script src="js/exclusions.js?v=25338"></script>
-<script src="js/validator.js?v=25338"></script>
-<script src="js/whatifeval.js?v=25338"></script>
-<script src="js/compare.js?v=25338"></script>
-<script src="js/whois.js?v=25338"></script>
-<script src="js/wave.js?v=25338"></script>
-<script src="js/sessionctl.js?v=25338"></script>
-<script src="js/spgap.js?v=25338"></script>
-<script src="js/groupuse.js?v=25338"></script>
-<script src="js/iso3166.js?v=25338"></script>
-<script src="js/locations.js?v=25338"></script>
-<script src="js/authcontexts.js?v=25338"></script>
-<script src="js/authstrengths.js?v=25338"></script>
-<script src="js/recycle.js?v=25338"></script>
-<script src="js/rmau.js?v=25338"></script>
-<script src="js/camap.js?v=25338"></script>
-<script src="js/rmaudoc.js?v=25338"></script>
-<script src="js/termsofuse.js?v=25338"></script>
-<script src="js/audit.js?v=25338"></script>
-<script src="js/drift.js?v=25338"></script>
-<script src="js/guide.js?v=25338"></script>
-<script src="js/userimpact.js?v=25338"></script>
-<script src="js/smsvoice.js?v=25338"></script>
-<script src="js/memberof.js?v=25338"></script>
-<script src="js/devcheck.js?v=25338"></script>
-<script src="js/licgap.js?v=25338"></script>
-<script src="js/teamsdev.js?v=25338"></script>
-<script src="js/signins.js?v=25338"></script>
-<script src="js/reportimpact.js?v=25338"></script>
-<script src="js/changelog.js?v=25338"></script>
-<script src="js/baselineData.js?v=25338"></script>
-<script src="js/baselineJoeyData.js?v=25338"></script>
-<script src="js/baselineLive.js?v=25338"></script>
-<script src="js/baseline.js?v=25338"></script>
-<script src="js/baselineCleanup.js?v=25338"></script>
-<script src="js/groupTemplates.js?v=25338"></script>
-<script src="js/assign.js?v=25338"></script>
-<script src="js/cagroups.js?v=25338"></script>
-<script src="js/groupsview.js?v=25338"></script>
-<script src="js/runledger.js?v=25338"></script>
-<script src="js/protect.js?v=25338"></script>
-<script src="js/import.js?v=25338"></script>
-<script src="js/export.js?v=25338"></script>
-<script src="js/demo.js?v=25338"></script>
-<script src="js/app.js?v=25338"></script>
+<script src="js/branding.js?v=25339"></script>
+<script src="js/selfhost.js?v=25339"></script>
+<script src="js/version.js?v=25339"></script>
+<script src="js/fork.js?v=25339"></script>
+<script src="js/promote.js?v=25339"></script>
+<script src="js/authConfig.js?v=25339"></script>
+<script src="js/labels.js?v=25339"></script>
+<script src="js/graph.js?v=25339"></script>
+<script src="js/model.js?v=25339"></script>
+<script src="js/render.js?v=25339"></script>
+<script src="js/analyze.js?v=25339"></script>
+<script src="js/whatif.js?v=25339"></script>
+<script src="js/mslearn.js?v=25339"></script>
+<script src="js/gapcheck.js?v=25339"></script>
+<script src="js/cisdata.js?v=25339"></script>
+<script src="js/cischeck.js?v=25339"></script>
+<script src="js/exclusions.js?v=25339"></script>
+<script src="js/validator.js?v=25339"></script>
+<script src="js/whatifeval.js?v=25339"></script>
+<script src="js/compare.js?v=25339"></script>
+<script src="js/whois.js?v=25339"></script>
+<script src="js/wave.js?v=25339"></script>
+<script src="js/sessionctl.js?v=25339"></script>
+<script src="js/spgap.js?v=25339"></script>
+<script src="js/groupuse.js?v=25339"></script>
+<script src="js/iso3166.js?v=25339"></script>
+<script src="js/locations.js?v=25339"></script>
+<script src="js/authcontexts.js?v=25339"></script>
+<script src="js/authstrengths.js?v=25339"></script>
+<script src="js/recycle.js?v=25339"></script>
+<script src="js/rmau.js?v=25339"></script>
+<script src="js/camap.js?v=25339"></script>
+<script src="js/rmaudoc.js?v=25339"></script>
+<script src="js/termsofuse.js?v=25339"></script>
+<script src="js/audit.js?v=25339"></script>
+<script src="js/drift.js?v=25339"></script>
+<script src="js/guide.js?v=25339"></script>
+<script src="js/userimpact.js?v=25339"></script>
+<script src="js/smsvoice.js?v=25339"></script>
+<script src="js/memberof.js?v=25339"></script>
+<script src="js/devcheck.js?v=25339"></script>
+<script src="js/licgap.js?v=25339"></script>
+<script src="js/teamsdev.js?v=25339"></script>
+<script src="js/signins.js?v=25339"></script>
+<script src="js/reportimpact.js?v=25339"></script>
+<script src="js/changelog.js?v=25339"></script>
+<script src="js/baselineData.js?v=25339"></script>
+<script src="js/baselineJoeyData.js?v=25339"></script>
+<script src="js/baselineLive.js?v=25339"></script>
+<script src="js/baseline.js?v=25339"></script>
+<script src="js/baselineCleanup.js?v=25339"></script>
+<script src="js/groupTemplates.js?v=25339"></script>
+<script src="js/assign.js?v=25339"></script>
+<script src="js/cagroups.js?v=25339"></script>
+<script src="js/groupsview.js?v=25339"></script>
+<script src="js/runledger.js?v=25339"></script>
+<script src="js/protect.js?v=25339"></script>
+<script src="js/import.js?v=25339"></script>
+<script src="js/export.js?v=25339"></script>
+<script src="js/demo.js?v=25339"></script>
+<script src="js/app.js?v=25339"></script>
 </body>
 </html>
