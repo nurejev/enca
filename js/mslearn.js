@@ -124,6 +124,24 @@ const MSLearn = (() => {
   let INCLUDE_DISABLED = false;
   const isActive = (p) => p.state === "enabled" || p.state === "enabledForReportingButNotEnforced" || (INCLUDE_DISABLED && p.state === "disabled");
   const allUsers = (p) => (U(p).includeUsers || []).includes("All");
+  // The tenant's authentication methods policy (ctx.authMethods): which
+  // passwordless methods are on, and which external authentication methods.
+  const methodCfgs = (am) => (am && am.authenticationMethodConfigurations) || [];
+  const cfgOn = (c) => String(c.state || "").toLowerCase() === "enabled";
+  const passwordlessMethods = (am) => {
+    const on = [];
+    for (const c of methodCfgs(am)) {
+      if (!cfgOn(c)) continue;
+      const t = String(c["@odata.type"] || c.id || "").toLowerCase();
+      if (t.includes("fido2")) on.push("passkey / FIDO2");
+      else if (t.includes("x509certificate")) on.push("certificate-based authentication");
+      else if (t.includes("microsoftauthenticator")) on.push("Microsoft Authenticator (phone sign-in)");
+    }
+    return on;
+  };
+  const eamMethods = (am) => methodCfgs(am)
+    .filter((c) => cfgOn(c) && String(c["@odata.type"] || "").toLowerCase().includes("externalauthenticationmethod"))
+    .map((c) => c.displayName || c.id || "external method");
   const allApps = (p) => appsInc(p).includes("All");
   const hasMfa = (p) => grants(p).includes("mfa") || G(p).authenticationStrength != null;
   const hasBlock = (p) => grants(p).includes("block");
@@ -642,6 +660,57 @@ const MSLearn = (() => {
         return {
           detail: `Policy targets "All resources" with ${excl.length} app exclusion(s). Since the June-2026 rollout a sign-in that requests only the baseline scopes is evaluated against Windows Azure Active Directory and receives this policy's controls even for an excluded app — the directory-enumeration path the old exemption opened is closed, and an excluded app that cannot take a CA challenge is the thing that breaks.${tenant}`,
           impactedResources: ["Windows Azure Active Directory (00000002-0000-0000-c000-000000000000)", "Excluded apps that request only baseline scopes", "Public clients (desktop CLIs, VS Code, Azure CLI) requesting only User.Read or openid/profile"],
+        };
+      },
+    },
+    // ── User risk remediation ──────────────────────────────────────────
+    // Learn (id-protection/concept-identity-protection-policies): Require
+    // risk remediation covers password-based AND passwordless users, overrides
+    // Require password change when a user is in both, is not supported for
+    // guests, and carries an authentication strength + sign-in frequency
+    // every time by itself. Microsoft has NOT deprecated password change —
+    // these checks say what each control can and cannot do, nothing more.
+    {
+      id: "user-risk-password-change-only",
+      title: "User risk: Require password change cannot remediate a passwordless user",
+      appliesWhen: "User-risk policy grants Require password change and not Require risk remediation",
+      requirement: "Require password change remediates user risk by having the user complete MFA and change their password. A user who signs in without a password — passkey / FIDO2, Windows Hello for Business, certificate, Authenticator phone sign-in — has no password to change and cannot complete that flow; at high risk they stay blocked until an administrator dismisses the risk. Require risk remediation chooses the flow per user (secure password change, or session revocation and a fresh strong sign-in) and overrides password change when a user is in both.",
+      severity: "medium",
+      docUrl: "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-policies#require-risk-remediation-control",
+      remediation: "Move the user-risk policy to Require risk remediation (an authentication strength and sign-in frequency every time are applied with it), keeping the same users, All resources and the risk level. Not supported for guests and external users — keep them on a separate policy or exclude them. Legacy ID Protection risk policies retire on 1 October 2026; a Conditional Access policy is the place for this either way.",
+      detect: (p, ctx) => {
+        if (!isActive(p)) return null;
+        if (!((p.conditions?.userRiskLevels) || []).length) return null;
+        const g = grants(p);
+        if (!g.includes("passwordChange") || g.includes("riskRemediation")) return null;
+        const am = ctx?.authMethods;
+        const on = am ? passwordlessMethods(am) : null;
+        const tenant = on === null ? " The tenant's authentication methods policy was not read, so whether passwordless sign-in is enabled here is unknown."
+          : on.length ? ` Passwordless methods enabled in this tenant: ${on.join(", ")} — users signing in with them cannot complete a password change.`
+          : " No passwordless method is enabled in the authentication methods policy today, so the gap is latent — it opens with the first passkey or certificate rollout.";
+        return {
+          detail: `Policy "${p.displayName}" remediates user risk with Require password change only.${tenant}`,
+          impactedResources: ["Passkey / FIDO2 and certificate users", "Windows Hello for Business sign-ins", "Authenticator phone sign-in users", "High-risk users left blocked until an admin dismisses the risk"],
+        };
+      },
+    },
+    {
+      id: "user-risk-remediation-eam",
+      title: "User risk: Require risk remediation cannot be satisfied by an external authentication method",
+      appliesWhen: "User-risk policy grants Require risk remediation and the tenant has an external authentication method (Duo, Okta, Ping …) enabled",
+      requirement: "Require risk remediation always carries an authentication strength, and external authentication methods are incompatible with authentication strengths (Learn: use the Require multifactor authentication grant control for EAM). A user whose only MFA method is the external one cannot pass the remediation challenge and stays blocked.",
+      severity: "high",
+      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/policy-guests-mfa-strength#create-a-conditional-access-policy",
+      remediation: "Keep users whose MFA is the external method on a separate user-risk policy that uses the built-in Require multifactor authentication control (with Require password change, or Block), and exclude that group from the risk-remediation policy; or register a Microsoft method (Authenticator, passkey) for them so the strength can be met. Verify on the tenant which combination the portal accepts before rolling it out.",
+      detect: (p, ctx) => {
+        if (!isActive(p)) return null;
+        if (!((p.conditions?.userRiskLevels) || []).length) return null;
+        if (!grants(p).includes("riskRemediation")) return null;
+        const eam = ctx?.authMethods ? eamMethods(ctx.authMethods) : [];
+        if (!eam.length) return null;   // no EAM enabled, or the policy was not read: nothing to say
+        return {
+          detail: `Policy "${p.displayName}" grants Require risk remediation, which carries an authentication strength. External authentication method(s) enabled in this tenant: ${eam.join(", ")} — a strength cannot be satisfied by them, so a high-risk user whose MFA is only the external method cannot self-remediate.`,
+          impactedResources: eam.map((m) => `${m} users`).concat(["High-risk users blocked until an admin dismisses the risk"]),
         };
       },
     },

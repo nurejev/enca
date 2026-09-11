@@ -1740,6 +1740,18 @@
   // Read once per tenant load and shared by 🛡 and 📘. null = could not read
   // (permission, or the API moved) — the checks say "not read" rather than
   // guessing; undefined = not fetched yet. GapCheck.baselineScopes() classifies.
+  // The tenant's authentication methods policy, read once per tenant load
+  // (base scopes cover it) for the checks that need to know which methods are
+  // on — passwordless, external authentication methods. null = not read.
+  let authMethodsCache;
+  async function readAuthMethods() {
+    if (authMethodsCache !== undefined) return authMethodsCache;
+    if (isDemo) { authMethodsCache = DEMO_DATA.authMethodsPolicy || null; return authMethodsCache; }
+    try { authMethodsCache = await Graph.gget("/policies/authenticationMethodsPolicy"); }
+    catch (e) { console.warn("Authentication methods policy not read:", e.message); authMethodsCache = null; }
+    return authMethodsCache;
+  }
+
   let caSettingsCache;
   async function readCaSettings() {
     if (caSettingsCache !== undefined) return caSettingsCache;
@@ -1780,7 +1792,7 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; anReport = null; anCov = null; caSettingsCache = undefined;
+      isDemo = false; anReport = null; anCov = null; caSettingsCache = undefined; authMethodsCache = undefined;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
@@ -1833,7 +1845,7 @@
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; anReport = null; anCov = null; caSettingsCache = undefined;
+    isDemo = true; anReport = null; anCov = null; caSettingsCache = undefined; authMethodsCache = undefined;
     // The demo gets its own drawer for the group → persona mapping, so playing
     // with it here can never land in a real tenant's saved state.
     try { Baseline.use("demo"); } catch {}
@@ -16616,6 +16628,7 @@ This is a directory write. Nothing else changes.`)) return;
     else partners = await Graph.serviceProviderPartners();
 
     ctx.caSettings = await readCaSettings();
+    ctx.authMethods = await readAuthMethods();
     const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners });
     mlGroups = MSLearn.group(findings);
     mlFilter = "all"; mlExpanded.clear();

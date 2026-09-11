@@ -248,6 +248,13 @@ const DEMO_DATA = {
   },
   // Baseline scopes setting as the portal API returns it when nothing was ever
   // selected — Microsoft's default, which since June 2026 means enforced.
+  // Authentication methods policy, trimmed to what the checks read: state per
+  // method. Passkeys on, no external authentication method.
+  authMethodsPolicy: { authenticationMethodConfigurations: [
+    { "@odata.type": "#microsoft.graph.fido2AuthenticationMethodConfiguration", id: "Fido2", state: "enabled" },
+    { "@odata.type": "#microsoft.graph.microsoftAuthenticatorAuthenticationMethodConfiguration", id: "MicrosoftAuthenticator", state: "enabled" },
+    { "@odata.type": "#microsoft.graph.smsAuthenticationMethodConfiguration", id: "Sms", state: "disabled" },
+  ] },
   caSettings: { "@odata.context": "https://graph.microsoft.com/beta/$metadata#identity/conditionalAccess/settings/$entity", advancedSettings: null },
   namedLocations: [
     { "@odata.type": "#microsoft.graph.ipNamedLocation", id: "loc-hq", displayName: "HQ egress", isTrusted: true, ipRanges: [{ cidrAddress: "203.0.113.0/24" }] },

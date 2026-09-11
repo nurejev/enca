@@ -118,6 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 169,
+      title: "📘 User-risk checks: password change vs passwordless users; risk remediation vs external methods (T07 2.6)",
+      tools: ["MS Learn checks"],
+      builds: [25334],
+      risk: "medium",
+      what: "js/mslearn.js: user-risk-password-change-only (medium — user-risk policy with passwordChange and no riskRemediation; detail names the enabled passwordless methods from ctx.authMethods: fido2 / x509 / Microsoft Authenticator, or says not read / latent) and user-risk-remediation-eam (high — riskRemediation policy while an externalAuthenticationMethodConfiguration is enabled; returns null when none or not read). Helpers passwordlessMethods() / eamMethods(). js/app.js readAuthMethods() cached per tenant load (base scopes), passed as ctx.authMethods to MSLearn.run; demo DEMO_DATA.authMethodsPolicy (passkey + Authenticator on, no EAM).",
+      why: "Medium: new findings on every tenant still on the classic password-change policy (most). Facts from Learn: risk remediation covers passwordless users, overrides password change, not for guests, auto-applies strength + SIF every time; EAM is incompatible with authentication strengths. Deliberately NOT ported from upstream: its “password change is deprecated” wording (Microsoft does not say it) and its unconditional EAM finding (fires on every risk-remediation policy in every tenant — here it needs an EAM actually enabled). Its companion-policy template “Require MFA + Require risk remediation” is not recommended here until someone confirms the portal accepts that pair (Learn says MFA and strength cannot be combined, and risk remediation selects a strength).",
+      test: [
+        "Demo tenant (?demo=1), 📘: CA201 (Internals, medium user risk, passwordChange, report-only) shows the medium finding naming passkey / FIDO2 and Microsoft Authenticator (phone sign-in); no EAM finding.",
+        "Real tenant with the classic high-risk policy (passwordChange + mfa): medium finding present; switch the grant to Require risk remediation → it disappears.",
+        "Tenant with an external authentication method enabled (Duo lab) and a risk-remediation policy: High finding naming the method; disable the EAM → no finding.",
+        "Tenant where /policies/authenticationMethodsPolicy is refused: the password-change finding still appears and says the policy was not read; no EAM finding.",
+        "In the portal, try to create a policy with Require multifactor authentication AND Require risk remediation together and record whether it saves — decides whether the remediation text can name that pair.",
+      ],
+      files: ["js/mslearn.js", "js/app.js", "js/demo.js", "index.html", "js/version.js"],
+    },
+    {
       n: 168,
       title: "🚪 Excluded apps: covered elsewhere, or not; phantom (no service principal) exclusions (T09 1.9)",
       tools: ["Exclusion analyzer"],

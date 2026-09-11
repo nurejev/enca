@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25334, date: "2026-09-11", title: "User risk: what each remediation control can and cannot do",
+    items: [
+      { kind: "new", tool: "MS Learn checks", text: "Two checks on user-risk policies. A policy that remediates with Require password change ALONE cannot help a user who signs in without a password — passkey, Windows Hello for Business, certificate, Authenticator phone sign-in — so at high risk they stay blocked until an admin dismisses it; the finding names the passwordless methods the tenant actually has enabled, or says the gap is latent when none is. And a policy on Require risk remediation always carries an authentication strength, which an external authentication method (Duo, Okta, Ping …) cannot satisfy — raised only when the tenant has such a method enabled. Neither calls password change deprecated: Microsoft has not, and the CIS benchmark still names it. The tenant's authentication methods policy is read once per load for these." },
+    ],
+  },
+  {
     build: 25333, date: "2026-09-11", title: "Exclusion analyzer: an excluded app is either covered somewhere else, or it is not",
     items: [
       { kind: "new", tool: "Exclusion analyzer", text: "Every app excluded from an All-resources policy is now checked against the rest of the tenant: does another ENABLED policy with a grant control reach that app for the same users? If nothing does, the app has no Conditional Access at all, and the risk review says so as a High — Microsoft's own guidance is a baseline policy on all users and all resources without resource exclusions. If something does, an info row names the covering policy so the pair can be kept in step. Report-only and Off policies never count as cover, and neither does a policy scoped to a pilot group when the exclusion sits on an All-users policy. The header, the row chips and the Markdown report carry the count." },
