@@ -128,7 +128,7 @@ const Guide = (() => {
     {
       id: "model", icon: "🧭", title: "Understand the model first",
       why: "The baseline is organised by PERSONA, and the persona lives in the CA number: CA000–CA099 applies to everyone (Global), then each hundred-range covers one kind of identity — Admins, Internals, Externals, guests, service accounts, workload identities, DevOps, factory workers. A sign-in gets its persona's policies PLUS the Global range. Read the ranges below against the catalog before creating anything: every later step hangs off this structure.",
-      links: [["toolBaseline", "🧬 Baseline Policies"], ["toolHelp", "❓ Help"]],
+      links: [["toolBaseline", "🧬 Baseline"], ["toolHelp", "❓ Help"]],
       render: (ctx) => {
         const per = catalogByPersona();
         return [...per.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => `${v.label} — ${v.total} polic${v.total === 1 ? "y" : "ies"}`);
@@ -152,12 +152,12 @@ const Guide = (() => {
     {
       id: "policies", icon: "🗂", title: "Policies — imported Off", check: ["policies"],
       why: "Now the policies, and they land OFF on purpose: an imported policy is untested in THIS tenant, and Off is the only state with a guaranteed blast radius of zero. The Baseline tool shows the gap against the catalog; Import creates what is missing. Nothing is enabled yet — that is the next step's job, and doing it here is how lockouts happen.",
-      links: [["toolBaseline", "🧬 Baseline Policies"], ["toolPolicies", "🗂 List Policies"]],
+      links: [["toolBaseline", "🧬 Baseline"], ["toolPolicies", "🗂 Policies"]],
     },
     {
       id: "golive", icon: "🚀", title: "Go live the boring way", check: ["states"],
       why: "Off → report-only → evidence → enforced, persona by persona, Global last (it touches everyone). Report-only records what WOULD happen without doing it; 🎚 Report-only impact turns that log into the go-live forecast — who would be denied, who just gets a prompt. Enforce a policy when its forecast has become boring, and keep the break-glass accounts excluded from every single one before the first switch is flipped.",
-      links: [["toolImpact", "🎚 Report-only impact"], ["toolPolicies", "🗂 List Policies"]],
+      links: [["toolImpact", "🎚 Report-only impact"], ["toolPolicies", "🗂 Policies"]],
     },
   ];
 

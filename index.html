@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25337"></script>
+<script src="js/popup-guard.js?v=25338"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25337" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25337">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25338" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25338">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25337"></script>
+<script src="js/selfhost-boot.js?v=25338"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25337"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25337"></script>
+<script src="js/counter.js?v=25338"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25338"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25337" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25338" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25337" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25338" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -182,16 +182,8 @@
         <p>Take a snapshot of the Conditional Access configuration today, compare a later run against it, and see exactly what moved — policies added, removed, switched Off, exclusions widened, locations retrusted. The history is a file you keep, so it has no 30-day limit, and no infrastructure is needed. Ranked by severity, because a widened exclusion matters more than a rename.</p>
       </div>
       <div class="tool" id="toolPolicies">
-        <div class="tool-ic">🗂</div><h3>List Policies <span class="tag upd">UPDATED</span></h3>
-        <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona.</p>
-      </div>
-      <div class="tool" id="toolDocument">
-        <div class="tool-ic">📄</div><h3>Create documentation <span class="tag upd">UPDATED</span></h3>
-        <p>Select policies (or take all) and generate documentation — Word, PDF, PNG or a PNG bundle, with optional auditor-ready pages for the restricted units protecting exclusion groups. On a baseline tenant it documents the baseline catalog only.</p>
-      </div>
-      <div class="tool" id="toolJson">
-        <div class="tool-ic">🗄</div><h3>Backup (JSON) <span class="tag upd">UPDATED</span></h3>
-        <p>Select policies (or take all) and download their raw JSON definitions in a zip. On a baseline tenant it backs up the baseline catalog only.</p>
+        <div class="tool-ic">🗂</div><h3>Policies <span class="tag upd">UPDATED</span></h3>
+        <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona. One screen, and the action bar does the rest: <b>📄 Create documentation</b> (Word, PDF, PNG or a PNG bundle, with auditor-ready pages for the restricted units protecting exclusion groups), <b>🗄 Backup (JSON)</b> to a zip with its dependencies, <b>🔍 Gap analyse</b>, <b>👥 Assign groups or roles</b> and <b>🎚 Set policy state</b> — the three reads falling back to every visible policy when nothing is selected, the two writes asking for an explicit pick. On a baseline tenant the document and the backup are scoped to the baseline catalog. <span class="tag block">writes to tenant</span></p>
       </div>
     </div>
     <div class="tool-sec"><h3>🔍 Analyse &amp; simulate</h3><p>Work out what your policies actually do, and to whom.</p></div>
@@ -268,12 +260,8 @@
         <p>Check the baseline against known CA bypasses and the Swiss-cheese model — MFA coverage, FOCI token sharing, break-glass coverage, known bypass apps, persona × control matrix.</p>
       </div>
       <div class="tool" id="toolBaseline">
-        <div class="tool-ic">🧬</div><h3>Baseline Policies <span class="tag upd">UPDATED</span></h3>
-        <p>Match this tenant against the CloudFellows R26.6 (v3.x) baseline: which baseline policies are present, outdated or missing — then import the gap. The ★ active baseline for this tenant — what every group and vault tool works against — is chosen here, after a dry run shows what the switch would change.</p>
-      </div>
-      <div class="tool" id="toolBaselineJoey">
-        <div class="tool-ic">🧩</div><h3>Baseline (Joey Verlinden) <span class="tag upd">UPDATED</span></h3>
-        <p>Match this tenant against the community Conditional Access Baseline by Joey Verlinden — read <b>live from his repository</b> (latest release, with the commit it read), the bundled 2026.6.1 snapshot as the fallback. Make it the <b>★ active baseline</b> and the group checks, group creation, persona vaults and exclusion restore all work against it.</p>
+        <div class="tool-ic">🧬</div><h3>Baseline <span class="tag upd">UPDATED</span></h3>
+        <p>Match this tenant against a Conditional Access baseline: which baseline policies are present, outdated or missing — then import the gap. <b>Both catalogs are one picker in the toolbar</b> — <b>🧬 CloudFellows</b> R26.6 (v3.x) and <b>🧩 Joey Verlinden</b>, the community baseline read <b>live from his repository</b> (latest release, with the commit it read) with the bundled 2026.6.1 snapshot as the fallback. The ★ active baseline for this tenant — what every group, vault and exclusion-restore tool works against — is chosen here, after a dry run shows what the switch would change.</p>
       </div>
       <div class="tool" id="toolMsLearn">
         <div class="tool-ic">📘</div><h3>MS Learn checks <span class="tag upd">UPDATED</span></h3>
@@ -317,10 +305,6 @@
       <div class="tool" id="toolRmau">
         <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag upd">UPDATED</span></h3>
         <p>Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. One vault per persona of the active baseline (CloudFellows or Joey Verlinden). List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
-      </div>
-      <div class="tool" id="toolState">
-        <div class="tool-ic">🎚</div><h3>Set Policy state</h3>
-        <p>Switch selected policies between On, Report-only and Off. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolImport">
         <div class="tool-ic">📥</div><h3>Import <span class="tag upd">UPDATED</span></h3>
@@ -1590,6 +1574,10 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R51</span> <a href="#" class="md-tool" data-tool="toolSpGap">🫥 Apps with no service principal</a> <span class="tag grant">live · beta 25335</span></h4>
             <p class="mini" style="margin:0">Conditional Access can only name what exists. An app that signs in but has no service principal here is not in the app picker — neither includable nor excludable, reached only by a policy on All resources. One Graph call (<code>signInEventsAppSummary</code>, 30 days) diffed against the tenant's service principals; per app the 🧪 What-If verdict for the moment it exists, the phantom exclusions already naming it, and the newest sign-in as evidence. Idea from Jhope188's CA Policy Analyzer v1.17.0, rebuilt on ENCA's own What-If engine and sign-in window — and without its generated PowerShell.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25338">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R52</span> <a href="#" class="md-tool" data-tool="toolPolicies">🗂 One door per room</a> <span class="tag grant">live · beta 25338</span></h4>
+            <p class="mini" style="margin:0">39 tiles, far fewer questions. Four of them were a second door onto a screen that already had one: 📄 Create documentation, 🗄 Backup (JSON) and 🎚 Set Policy state all opened 🗂 List Policies with one action pre-selected and a toast naming a button that was already on its action bar, and 🧩 Baseline (Joey Verlinden) was <code>openBaseline("joey")</code> against the same screen the catalog picker already switches. Folded: 39 tiles to 35, nothing removed, every deep link still landing. T02, T04, T05 and T11 keep their numbers, keep their Help sections under their new hosts, and the mapping is published in 🔢 Tool numbers. Phase 1 of the tool consolidation review; the tabbed hosts (🚦 Sign-in log, 🕒 Changes, 🧩 Policy building blocks, 🛡 Checks) are phase 2.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -1718,8 +1706,9 @@
     <section class="help-sec" id="helpPromote" style="display:none"></section>
 
     <section class="help-sec">
-      <h4>🗂 List Policies</h4>
-      <p>Browse every Conditional Access policy, grouped by persona (the CA-number range in the name: Global 000–099, Admins 100–199, Internals 200–299, and so on).</p>
+      <h4>🗂 Policies</h4>
+      <p>Browse every Conditional Access policy, grouped by persona (the CA-number range in the name: Global 000–099, Admins 100–199, Internals 200–299, and so on) — and act on what you have picked without leaving the screen.</p>
+      <p><b>One door.</b> Until build 25338 there were four tiles onto this one screen: 🗂 List Policies, 📄 Create documentation, 🗄 Backup (JSON) and 🎚 Set Policy state. Each of them opened <i>this</i> view, pre-selected one action and showed a toast naming a button that was already on the action bar. They are one tile now, and the three verbs are below as sub-sections — <b>T02</b>, <b>T04</b> and <b>T05</b> keep their numbers (see 🔢 Tool numbers). Nothing was removed and no route changed: the action bar, the per-card quick actions and every deep link from another tool work exactly as before.</p>
       <ul>
         <li><b>Cards / List / Settings matrix</b> — Cards show each policy in full; List is a compact one-line-per-policy view; the Settings matrix is a policies × settings grid for spotting differences at a glance. The matrix has a <b>full-screen</b> button.</li>
         <li><b>Search</b> — filter by CA number, policy name or persona.</li>
@@ -1729,11 +1718,9 @@
         <li><b>🧹 Housekeeping</b> — appears only when there is something to clean: policies that are <b>Off</b> while a <i>higher version of the same CA number</i> also exists, i.e. the old versions a <b>match &amp; replace</b> import left behind as your rollback. It lists each one next to the policy that superseded it; the ones you tick go through the normal delete flow (JSON backup + typed <code>DELETE</code>).</li>
               <li><b>The policy ID is on the expanded card too.</b> The compact card carried it and the expanded one did not, so opening a policy to look at it properly took away the one string that identifies it — on the card that gets exported, screenshotted and pasted into a ticket. Two policies can share a name, a version and a persona; the portal is reached by id. One click selects the whole GUID.</li>
 </ul>
-      <p class="help-x">Read-only. Nothing changes until you open a write tool from the action bar.</p>
-    </section>
+      <p class="help-x">Browsing is read-only; the two writing actions on the bar — 👥 Assign groups or roles and 🎚 Policy state — each confirm before they touch the tenant.</p>
 
-    <section class="help-sec">
-      <h4>📄 Create documentation</h4>
+      <h5>📄 Create documentation <span class="help-fold">folded into this tool — build 25338</span></h5>
       <p>Turn all or selected policies into shareable documentation carrying your tenant's branding. For a full control hand-off, the same document can include the restricted administrative units that protect the exclusion groups.</p>
       <ul>
         <li><b>Word (.docx)</b> — an editable document, one section per policy.</li>
@@ -1746,7 +1733,17 @@
       <p><b>On a baseline tenant</b> (the 🧪 badge in the header) this documents the <b>baseline catalog</b>, not the tenant — the same rule 🗄 Backup follows, through the same code. The export is scoped to the <b>persona CAxxx policies</b>, the modal says how many of the tenant's own are being left out, and the scope is carried into the file itself: a line on the PDF cover, a quote under the Markdown header, the Word title, a <code>SCOPE.txt</code> beside the images in the PNG bundle. A document is read by somebody who was not in the room when it was made, and a policy that is absent leaves no trace of its absence.</p>
       <p>The <b>restricted-unit appendix is not filtered</b> there: on a baseline tenant those units are the baseline's own persona vaults, so they are documented as they stand — scoped administrators included. The modal says so at the point of choosing, rather than leaving you to work out why one half of the document is narrowed and the other is not. <b>PNG is the exception</b>: loose images have no cover, header or companion file, so they cannot state their own scope — the modal warns when you pick it on a baseline tenant, and the PNG bundle is the one to reach for instead.</p>
       <p class="help-x">Read-only and produces a download. Nothing is written to the tenant. Restricted-unit pages use all loaded tenant policies for their impact references, even when only a subset of policy pages is selected, so the document cannot understate what widening an exclusion would affect.</p>
+
+      <h5>🗄 Backup (JSON) <span class="help-fold">folded into this tool — build 25338</span></h5>
+      <p>Select policies (or take all) and download their raw JSON in a zip — dependencies (groups, named locations, auth strengths/contexts) and any Terms-of-use PDFs are included, so the backup is importable.</p>
+      <p><b>On a baseline tenant</b> (the 🧪 badge in the header) this tool backs up the <b>baseline catalog</b>, not the tenant. That tenant is where the baseline is built, so the backup is scoped to the <b>persona CAxxx policies</b> and the dependencies <i>those</i> policies reference; the tenant's own Conditional Access, and anything only it depends on, is left out. The confirmation says how many policies were skipped, the zip is named <code>ConditionalAccess-BASELINE-…</code> instead of <code>-JSON-</code>, and it carries a <code>BackupScope.json</code> stating what was left out — a zip is read long after the tenant that produced it is out of reach. There is no “include everything” option: a customer import is the place a stray tenant policy would surface, and by then nobody is looking.</p>
+      <p class="help-x">Read-only download.</p>
+
+      <h5>🎚 Set Policy state <span class="tag block">writes to tenant</span> <span class="help-fold">folded into this tool — build 25338</span></h5>
+      <p>Switch selected policies between <b>On</b> (enabled), <b>Report-only</b> (logged, not enforced) and <b>Off</b> (disabled).</p>
+      <p class="help-x">Writes the new state to the tenant after you confirm.</p>
     </section>
+
 
     <section class="help-sec">
       <h4>🗣 User impact brief</h4>
@@ -1980,10 +1977,18 @@
 
     <section class="help-sec">
       <h4>🔢 Tool numbers</h4>
-      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T31</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T39</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
         <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number.</li>
+        <li><b>Folded tools keep their number, and the mapping is published here.</b> A rule that says a number is never reused is only worth something if you can still find out what the number means. Four numbers no longer have a tile of their own:
+          <ul>
+            <li><code>T02</code> 📄 Create documentation → <b>🗂 Policies</b>, action bar (build 25338)</li>
+            <li><code>T04</code> 🗄 Backup (JSON) → <b>🗂 Policies</b>, action bar (build 25338)</li>
+            <li><code>T05</code> 🎚 Set Policy state → <b>🗂 Policies</b>, action bar (build 25338)</li>
+            <li><code>T11</code> 🧩 Baseline (Joey Verlinden) → <b>🧬 Baseline</b>, catalog picker (build 25338)</li>
+          </ul>
+          Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link written against the old tile still lands on the host.</li>
         <li><b>The version beside it is the opposite kind of thing</b> — the number never changes, the version always does. They sit together so they are read together: “T21 v0.5” says which tool and how far along it is.</li>
         <li><b>❓ Help, 📋 What's new and 🗺 Roadmap carry none</b>, deliberately. They are the app describing itself rather than tools that read your tenant, report on it or write to it — which is also why they carry no version. They go by name.</li>
       </ul>
@@ -2053,8 +2058,8 @@
     </section>
 
     <section class="help-sec">
-      <h4>🧬 Baseline Policies — CloudFellows R26.6</h4>
-      <p>Matches this tenant against the CloudFellows baseline catalog and shows the gap. It was published as the <i>Limon-IT baseline</i> until beta 25151 (production 287); the release designation, the catalog and the CAB-SEC / CAD-SEC group names are unchanged — only the name it goes by.</p>
+      <h4>🧬 Baseline</h4>
+      <p>Matches this tenant against a baseline catalog and shows the gap. <b>Both catalogs live behind the picker in the toolbar</b> — 🧬 CloudFellows R26.6 and 🧩 Joey Verlinden — which is what T11 🧩 Baseline (Joey Verlinden) was a second tile for until build 25338; it keeps its number and its section below. The CloudFellows catalog was published as the <i>Limon-IT baseline</i> until beta 25151 (production 287); the release designation, the catalog and the CAB-SEC / CAD-SEC group names are unchanged — only the name it goes by.</p>
       <ul>
         <li><b>Status filters</b> — <b>Missing</b> (not in tenant), <b>Outdated</b> (older version present), <b>Up to date</b>, <b>Not in baseline</b> (in tenant but not the catalog). The count chips on the summary card are the same filter: click one to see those rows, click it again for all. An active baseline with missing policies <b>opens on Missing</b>, because what is still to do is the question the screen answers.</li>
         <li><b>★ Active by match</b> — a tenant that never chose a baseline gets the one it holds most of, by name: 26 policies carrying Joey Verlinden's names and none carrying CloudFellows' makes his the active baseline for the session, and the card says so with the counts. It is not saved — the next read decides again — until <b>📌 Keep</b> or an explicit ★ Switch writes the choice; a saved choice is never overridden by a match.</li>
@@ -2066,10 +2071,8 @@
         <li><b>It takes every policy, not your current selection</b> — a pre-requirement that captured whatever happened to be ticked would be worse than none, because it would look complete. Each artefact is attempted independently, so one failing does not cost you the other two, and the run always ends in a report saying which of the three were captured. Anything that could not be read is <b>named</b>: an unreadable snapshot area, a dependency that failed to fetch. If any step failed the report says so and tells you not to start the update — a failed pre-requirement is not a formality, it is the copy you would have restored from.</li>
 </ul>
       <p class="help-x">Read-only comparison. Only Import (below) writes.</p>
-    </section>
 
-    <section class="help-sec">
-      <h4>🧩 Baseline (Joey Verlinden)</h4>
+      <h5>🧩 Baseline (Joey Verlinden) <span class="help-fold">folded into this tool — build 25338</span></h5>
       <p>The same comparison view against the community Conditional Access Baseline by Joey Verlinden — a different catalog, the same table. Since beta 25243 (roadmap R36) it is a <b>first-class baseline</b>: not only compared against, but the one every downstream tool can work against.</p>
       <ul>
         <li><b>★ Active baseline</b> — the summary card says which of the two baselines this tenant works against. The button under it runs a <b>dry run first</b>: it reads the tenant's groups and administrative units and shows what the switch would change — how many groups ① Check / ② Create would expect and how many exist, which persona vaults 🛡 Restricted AUs would expect and which are present, which groups would stop or start being routed by ⑥ Protect and ＋ Bulk add, and the conventions that change (exclusion-group shape, break-glass name, fallback unit). Only under that card is the ★ Switch button; nothing is written by either step. The choice is kept per tenant in the browser (like the R28 group personas), defaults to CloudFellows, and is <b>never</b> changed by merely looking at a comparison — looking at Joey's table must not change where a write puts a group.</li>
@@ -2080,6 +2083,7 @@
       </ul>
       <p class="help-x">Read-only itself; the writes it steers are the other tools', with their own confirmations.</p>
     </section>
+
 
     <section class="help-sec">
       <h4>📘 MS Learn checks</h4>
@@ -2106,12 +2110,6 @@
       <p class="help-x">Read-only. The benchmark catalog carries its own revision stamp, shown in the header and the report, so the CIS content is versioned separately from the app. Recommendation numbers and titles are referenced from the CIS Benchmark (© Center for Internet Security); the assessment logic is implemented from the published Graph audit procedures — the benchmark text itself is not reproduced.</p>
     </section>
 
-    <section class="help-sec">
-      <h4>🗄 Backup (JSON)</h4>
-      <p>Select policies (or take all) and download their raw JSON in a zip — dependencies (groups, named locations, auth strengths/contexts) and any Terms-of-use PDFs are included, so the backup is importable.</p>
-      <p><b>On a baseline tenant</b> (the 🧪 badge in the header) this tool backs up the <b>baseline catalog</b>, not the tenant. That tenant is where the baseline is built, so the backup is scoped to the <b>persona CAxxx policies</b> and the dependencies <i>those</i> policies reference; the tenant's own Conditional Access, and anything only it depends on, is left out. The confirmation says how many policies were skipped, the zip is named <code>ConditionalAccess-BASELINE-…</code> instead of <code>-JSON-</code>, and it carries a <code>BackupScope.json</code> stating what was left out — a zip is read long after the tenant that produced it is out of reach. There is no “include everything” option: a customer import is the place a stray tenant policy would surface, and by then nobody is looking.</p>
-      <p class="help-x">Read-only download.</p>
-    </section>
 
     <section class="help-sec">
       <h4>👥 Conditional Access groups <span class="tag block">writes to tenant</span></h4>
@@ -2285,11 +2283,6 @@
       <p class="help-x">Reads only and asks for no extra consent beyond the optional entitlement-management scope — rewriting a membership rule changes who a Conditional Access policy hits, and that decision belongs to a person in the portal. Lives in the Temporary tools section and is removed once the retirement has passed.</p>
     </section>
 
-    <section class="help-sec">
-      <h4>🎚 Set Policy state <span class="tag block">writes to tenant</span></h4>
-      <p>Switch selected policies between <b>On</b> (enabled), <b>Report-only</b> (logged, not enforced) and <b>Off</b> (disabled).</p>
-      <p class="help-x">Writes the new state to the tenant after you confirm.</p>
-    </section>
 
     <section class="help-sec">
       <h4>🖥 Device reality check <span class="tag new">NEW</span></h4>
@@ -3044,66 +3037,66 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25337"></script>
-<script src="js/selfhost.js?v=25337"></script>
-<script src="js/version.js?v=25337"></script>
-<script src="js/fork.js?v=25337"></script>
-<script src="js/promote.js?v=25337"></script>
-<script src="js/authConfig.js?v=25337"></script>
-<script src="js/labels.js?v=25337"></script>
-<script src="js/graph.js?v=25337"></script>
-<script src="js/model.js?v=25337"></script>
-<script src="js/render.js?v=25337"></script>
-<script src="js/analyze.js?v=25337"></script>
-<script src="js/whatif.js?v=25337"></script>
-<script src="js/mslearn.js?v=25337"></script>
-<script src="js/gapcheck.js?v=25337"></script>
-<script src="js/cisdata.js?v=25337"></script>
-<script src="js/cischeck.js?v=25337"></script>
-<script src="js/exclusions.js?v=25337"></script>
-<script src="js/validator.js?v=25337"></script>
-<script src="js/whatifeval.js?v=25337"></script>
-<script src="js/compare.js?v=25337"></script>
-<script src="js/whois.js?v=25337"></script>
-<script src="js/wave.js?v=25337"></script>
-<script src="js/sessionctl.js?v=25337"></script>
-<script src="js/spgap.js?v=25337"></script>
-<script src="js/groupuse.js?v=25337"></script>
-<script src="js/iso3166.js?v=25337"></script>
-<script src="js/locations.js?v=25337"></script>
-<script src="js/authcontexts.js?v=25337"></script>
-<script src="js/authstrengths.js?v=25337"></script>
-<script src="js/recycle.js?v=25337"></script>
-<script src="js/rmau.js?v=25337"></script>
-<script src="js/camap.js?v=25337"></script>
-<script src="js/rmaudoc.js?v=25337"></script>
-<script src="js/termsofuse.js?v=25337"></script>
-<script src="js/audit.js?v=25337"></script>
-<script src="js/drift.js?v=25337"></script>
-<script src="js/guide.js?v=25337"></script>
-<script src="js/userimpact.js?v=25337"></script>
-<script src="js/smsvoice.js?v=25337"></script>
-<script src="js/memberof.js?v=25337"></script>
-<script src="js/devcheck.js?v=25337"></script>
-<script src="js/licgap.js?v=25337"></script>
-<script src="js/teamsdev.js?v=25337"></script>
-<script src="js/signins.js?v=25337"></script>
-<script src="js/reportimpact.js?v=25337"></script>
-<script src="js/changelog.js?v=25337"></script>
-<script src="js/baselineData.js?v=25337"></script>
-<script src="js/baselineJoeyData.js?v=25337"></script>
-<script src="js/baselineLive.js?v=25337"></script>
-<script src="js/baseline.js?v=25337"></script>
-<script src="js/baselineCleanup.js?v=25337"></script>
-<script src="js/groupTemplates.js?v=25337"></script>
-<script src="js/assign.js?v=25337"></script>
-<script src="js/cagroups.js?v=25337"></script>
-<script src="js/groupsview.js?v=25337"></script>
-<script src="js/runledger.js?v=25337"></script>
-<script src="js/protect.js?v=25337"></script>
-<script src="js/import.js?v=25337"></script>
-<script src="js/export.js?v=25337"></script>
-<script src="js/demo.js?v=25337"></script>
-<script src="js/app.js?v=25337"></script>
+<script src="js/branding.js?v=25338"></script>
+<script src="js/selfhost.js?v=25338"></script>
+<script src="js/version.js?v=25338"></script>
+<script src="js/fork.js?v=25338"></script>
+<script src="js/promote.js?v=25338"></script>
+<script src="js/authConfig.js?v=25338"></script>
+<script src="js/labels.js?v=25338"></script>
+<script src="js/graph.js?v=25338"></script>
+<script src="js/model.js?v=25338"></script>
+<script src="js/render.js?v=25338"></script>
+<script src="js/analyze.js?v=25338"></script>
+<script src="js/whatif.js?v=25338"></script>
+<script src="js/mslearn.js?v=25338"></script>
+<script src="js/gapcheck.js?v=25338"></script>
+<script src="js/cisdata.js?v=25338"></script>
+<script src="js/cischeck.js?v=25338"></script>
+<script src="js/exclusions.js?v=25338"></script>
+<script src="js/validator.js?v=25338"></script>
+<script src="js/whatifeval.js?v=25338"></script>
+<script src="js/compare.js?v=25338"></script>
+<script src="js/whois.js?v=25338"></script>
+<script src="js/wave.js?v=25338"></script>
+<script src="js/sessionctl.js?v=25338"></script>
+<script src="js/spgap.js?v=25338"></script>
+<script src="js/groupuse.js?v=25338"></script>
+<script src="js/iso3166.js?v=25338"></script>
+<script src="js/locations.js?v=25338"></script>
+<script src="js/authcontexts.js?v=25338"></script>
+<script src="js/authstrengths.js?v=25338"></script>
+<script src="js/recycle.js?v=25338"></script>
+<script src="js/rmau.js?v=25338"></script>
+<script src="js/camap.js?v=25338"></script>
+<script src="js/rmaudoc.js?v=25338"></script>
+<script src="js/termsofuse.js?v=25338"></script>
+<script src="js/audit.js?v=25338"></script>
+<script src="js/drift.js?v=25338"></script>
+<script src="js/guide.js?v=25338"></script>
+<script src="js/userimpact.js?v=25338"></script>
+<script src="js/smsvoice.js?v=25338"></script>
+<script src="js/memberof.js?v=25338"></script>
+<script src="js/devcheck.js?v=25338"></script>
+<script src="js/licgap.js?v=25338"></script>
+<script src="js/teamsdev.js?v=25338"></script>
+<script src="js/signins.js?v=25338"></script>
+<script src="js/reportimpact.js?v=25338"></script>
+<script src="js/changelog.js?v=25338"></script>
+<script src="js/baselineData.js?v=25338"></script>
+<script src="js/baselineJoeyData.js?v=25338"></script>
+<script src="js/baselineLive.js?v=25338"></script>
+<script src="js/baseline.js?v=25338"></script>
+<script src="js/baselineCleanup.js?v=25338"></script>
+<script src="js/groupTemplates.js?v=25338"></script>
+<script src="js/assign.js?v=25338"></script>
+<script src="js/cagroups.js?v=25338"></script>
+<script src="js/groupsview.js?v=25338"></script>
+<script src="js/runledger.js?v=25338"></script>
+<script src="js/protect.js?v=25338"></script>
+<script src="js/import.js?v=25338"></script>
+<script src="js/export.js?v=25338"></script>
+<script src="js/demo.js?v=25338"></script>
+<script src="js/app.js?v=25338"></script>
 </body>
 </html>

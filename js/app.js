@@ -169,6 +169,24 @@
   // pages that deliberately carry none.
   const toolNo = (t) => (t && t.t) ? `T${String(t.t).padStart(2, "0")}` : "";
   const toolNoOf = (id) => toolNo((typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[id]) || null);
+  // A tool that has been FOLDED into another keeps its T-number (js/version.js
+  // rule) and its open function, but its tile is gone — so every in-app link
+  // written as data-tool="toolX" would resolve to nothing and toast "not
+  // available here". This map is what keeps those links working: an old id
+  // resolves to the tile that now hosts it. Add a row in the same build that
+  // removes a tile, and keep the row for good — the links live in rendered
+  // reports, Help prose and other modules, and some of them are years old.
+  //
+  // It is also what keeps the folded tool SEARCHABLE. Take the tile away and
+  // ⌘K stops answering "documentation" — the one word somebody types when they
+  // want that verb — so the command palette reads this map too and offers the
+  // old name, saying which tool it lives in now.
+  const FOLDED = {
+    toolDocument:     { into: "toolPolicies", label: "📄 Create documentation",        where: "the action bar",     build: 25338 },
+    toolJson:         { into: "toolPolicies", label: "🗄 Backup (JSON)",               where: "the action bar",     build: 25338 },
+    toolState:        { into: "toolPolicies", label: "🎚 Set Policy state",            where: "the action bar",     build: 25338 },
+    toolBaselineJoey: { into: "toolBaseline", label: "🧩 Baseline (Joey Verlinden)",   where: "the catalog picker", build: 25338 },
+  };
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   // ---- <datalist> pick guard --------------------------------------------
   // Selecting an option from a <datalist> fires `input` exactly like typing
@@ -1138,7 +1156,8 @@
     const a = e.target.closest("a.md-tool"); if (!a) return;
     e.preventDefault();
     document.querySelectorAll(".modal-bg.open").forEach((m) => m.classList.remove("open"));
-    const tile = $(a.dataset.tool);
+    const want = a.dataset.tool;
+    const tile = $(want) || $((FOLDED[want] || {}).into || "");
     if (tile) tile.click(); else toast("That tool is not available here");
   });
 
@@ -1297,10 +1316,14 @@
     // this runs on some paths, so what the list contains depended on timing.
     // Excluded outright: the contents list is of TOOLS, and the queue is a
     // beta-channel note about the gap between builds.
-    const secs = [...document.querySelectorAll("#screen-help .help-sec > h4")]
+    // h5s are in the list too, indented: a FOLDED tool's section is an h5 under
+    // its host (📄 Create documentation under 🗂 Policies, build 25338), and
+    // dropping it from the contents would hide exactly the thing the fold is
+    // accused of hiding — the verb that no longer has a tile of its own.
+    const secs = [...document.querySelectorAll("#screen-help .help-sec > h4, #screen-help .help-sec > h5")]
       .filter((h) => !h.closest("#helpPromote"));
     secs.forEach((h, i) => { h.id = h.id || `help-sec-${i}`; });
-    $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}">${h.textContent.replace(/\s+(BETA|NEW|writes to tenant)\b/gi, "").trim()}</a>`).join("");
+    $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}"${h.tagName === "H5" ? ' class="sub"' : ""}>${h.textContent.replace(/\s+(BETA|NEW|writes to tenant|folded into this tool — build \d+)\b/gi, "").trim()}</a>`).join("");
     // Scroll-spy: highlight the chip for the section currently in view, and keep
     // that chip scrolled into view within the sticky ToC so it stays reachable.
     const links = new Map([...$("helpToc").querySelectorAll("a")].map((a) => [a.getAttribute("href").slice(1), a]));
@@ -2105,8 +2128,7 @@
   const TOOL_TABS = [
     ["toolSmsVoice", "📵 SMS & voice retirement"],
     ["toolMemberOf", "🧷 memberOf retirement"],
-    ["toolPolicies", "🗂 List Policies"],
-    ["toolDocument", "📄 Create documentation"],
+    ["toolPolicies", "🗂 Policies"],
     ["toolAnalyze", "🔍 Gap analyse"],
     ["toolGapCheck", "🛡 Best-practice & bypass checks"],
     ["toolValidator", "⚡ CA validator"],
@@ -2124,11 +2146,9 @@
     ["toolDevCheck", "🖥 Device reality check"],
     ["toolLicGap", "🎫 Licence gap"],
     ["toolTeamsDev", "📞 Teams devices"],
-    ["toolBaseline", "🧬 Baseline Policies"],
-    ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
+    ["toolBaseline", "🧬 Baseline"],
     ["toolMsLearn", "📘 MS Learn checks"],
     ["toolCis", "📐 CIS Benchmark"],
-    ["toolJson", "🗄 Backup (JSON)"],
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
     ["toolLocations", "🌐 Named locations"],
@@ -2140,7 +2160,6 @@
     ["toolDrift", "📉 Drift watch"],
     ["toolGuide", "📖 Baseline guide"],
     ["toolUserImpact", "🗣 User impact brief"],
-    ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
   // Help is a tool too, but always sits last (after the + in the tab bar).
@@ -2346,32 +2365,27 @@
   // Keep the view (cards / list / matrix) the user last chose — reopening the
   // tool used to force cards. Only the analyze mode (a different tool sharing
   // this screen) resets to cards.
-  $("toolPolicies").addEventListener("click", () => { crumb("🗂 List Policies"); setToolMode("document"); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list"); });
-  // Document tool: opens the policy overview first — select policies (or none
-  // for all), then click "Create documentation" in the toolbar to choose the format.
-  $("toolDocument").addEventListener("click", () => {
-    crumb("📄 Create documentation"); setToolMode("document"); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list");
-    toast("Documentation mode — select policies (or none for all), then click <span>Create documentation</span>");
-  });
+  // T02 📄 Create documentation, T04 🗄 Backup and T05 🎚 Set policy state were
+  // three more tiles onto THIS screen — each one called setToolMode and showed a
+  // toast naming a button that was already on the action bar. Folded into this
+  // one door (25338): no mode is pre-highlighted any more, because there is no
+  // longer a tool you "came from" — the highlight means the action you last ran
+  // here. Their open functions (openExport, runBackup, openStateModal) are
+  // unchanged and still reached from the bar, the per-policy card actions and
+  // the deep links other tools use.
+  $("toolPolicies").addEventListener("click", () => { crumb("🗂 Policies"); setToolMode(""); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list"); });
   $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); });
   $("toolMsLearn").addEventListener("click", () => { crumb("📘 MS Learn checks"); openMsLearn(); });
   $("toolCis").addEventListener("click", () => { crumb("📐 CIS Benchmark"); openCis(); });
   $("toolGapCheck").addEventListener("click", () => { crumb("🛡 Best-practice & bypass checks"); openGapCheck(); });
   $("toolExclusions").addEventListener("click", () => { crumb("🚪 Exclusion analyzer"); openExclusions(); });
   $("toolValidator").addEventListener("click", () => { openValidator(); });   // openValidator sets its own crumb
-  $("toolBaseline").addEventListener("click", () => { crumb("🧬 Baseline Policies"); openBaseline("limonit"); });
-  $("toolBaselineJoey").addEventListener("click", () => { crumb("🧩 Baseline (Joey Verlinden)"); openBaseline("joey"); });
-  // Backup tool: opens the policy overview in backup mode — select policies
-  // (or leave unselected for all), then click "Backup (JSON)" in the toolbar.
-  $("toolJson").addEventListener("click", () => {
-    crumb("🗄 Backup (JSON)"); setToolMode("backup"); setView("cards"); show("screen-list");
-    toast("Backup mode — select policies (or none for all), then click <span>Backup (JSON)</span>");
-  });
-  // Set-state tool (BETA): select policies, choose On / Report-only / Off, apply.
-  $("toolState").addEventListener("click", () => {
-    crumb("🎚 Set Policy state"); setToolMode("state"); setView("cards"); show("screen-list");
-    toast("Set-state mode — select policies, then click <span>Set Policy state</span>");
-  });
+  // One tile, both catalogs: the picker in the toolbar (#blCatalog, rendered from
+  // Baseline.catalogs()) is what T11 🧩 Baseline (Joey Verlinden) used to be a
+  // second tile for — openBaseline("joey") is still the deep-link target and has
+  // six callers. Opens on the tenant's active catalog rather than always
+  // CloudFellows, which is what the ★ choice is for.
+  $("toolBaseline").addEventListener("click", () => { crumb("🧬 Baseline"); openBaseline(Baseline.activeCatalogId() || "limonit"); });
   function openStateModal() {
     if (!selected.size) { toast("Select at least one policy first"); return; }
     const ps = exportOrder([...selected].map(id => policies.find(p => p.id === id)));
@@ -8302,7 +8316,7 @@ This is a directory write. Nothing else changes.`)) return;
     const a = e.target.closest("[data-open-baseline]"); if (!a) return;
     e.preventDefault();
     const id = a.dataset.openBaseline || Baseline.activeCatalogId();
-    crumb(id === "joey" ? "🧩 Baseline (Joey Verlinden)" : "🧬 Baseline Policies");
+    crumb("🧬 Baseline");
     openBaseline(id);
   });
   $("blChips").addEventListener("click", (e) => {
@@ -10907,6 +10921,18 @@ This is a directory write. Nothing else changes.`)) return;
       const exact = no && (qn === no.toLowerCase() || qn === String(+no.slice(1)) || qn === `t${+no.slice(1)}`);
       const sc = exact ? 200 : cpScore(label, q);
       if (sc) out.push({ kind: "tool", id, label, hint: no ? `Tool · ${no}` : "Tool", score: sc });
+    }
+    // A FOLDED tool has no tile, so the loop above cannot offer it — and the
+    // whole point of the fold was that the capability is still there. Offer the
+    // old name, resolve it to the host, and say where it went in the hint.
+    for (const [old, f] of Object.entries(FOLDED)) {
+      if (!$(f.into)) continue;
+      const no = toolNoOf(old);
+      const qn = q.trim().toLowerCase();
+      const exact = no && (qn === no.toLowerCase() || qn === String(+no.slice(1)) || qn === `t${+no.slice(1)}`);
+      const sc = exact ? 200 : cpScore(f.label, q);
+      if (sc) out.push({ kind: "tool", id: f.into, label: f.label,
+        hint: `${no ? `${no} · ` : ""}in ${labelFor(f.into)} — ${f.where}`, score: sc - 1 });
     }
     // Policies only exist after sign-in; before that the palette is tools only,
     // and the footer says why rather than looking broken.

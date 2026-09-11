@@ -705,6 +705,14 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .help-sec{border-top:1px solid var(--line);padding:14px 0 2px}
 .help-sec:first-of-type{border-top:0}
 .help-sec h4{margin:0 0 6px;font-size:15px;scroll-margin-top:120px}
+/* A folded tool's Help section becomes an h5 under the tool that now hosts it —
+   it keeps its own emoji and name so Ctrl+F and the contents chip still find
+   "Create documentation" after the tile is gone. Ruled off on the left so the
+   eye can see where the host's own prose ends. */
+.help-sec h5{margin:16px 0 6px;font-size:14px;scroll-margin-top:120px;padding-left:10px;border-left:3px solid var(--border)}
+.help-fold{font-size:11px;font-weight:400;color:var(--muted)}
+.help-toc a.sub{padding-left:16px;position:relative;opacity:.85}
+.help-toc a.sub::before{content:"\21b3";position:absolute;left:5px;color:var(--muted)}
 /* CA validator simulation report */
 .va-card{padding:0;margin-bottom:10px;overflow:hidden}
 .va-h{display:flex;align-items:center;gap:8px;padding:12px 16px;cursor:pointer;user-select:none}
