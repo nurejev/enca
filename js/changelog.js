@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25347, date: "2026-09-11", title: "🕵 Who is … to CA — a user, a group, or several side by side",
+    items: [
+      { kind: "improved", tool: "Who is … to CA", text: "🕵 Who is Anna to CA, 🌊 Who is the wave to CA and ⚖ Compare users are ONE TOOL with a subject picker, and the tile is 🕵 Who is … to CA. They were three tiles over one picture, and the code has always said so: 🌊 resolves every member of a group through 🕵's own policy ladder, and 🕵 resolves its user through ⚖'s resolver. Pick the subject — a user, a group, or several users side by side — and the rest of the tool is the same tool. Nothing inside any of the three changed: the wave read and its member table, the risk read, the retired-control check, the forecast, the assignment matrix, the membership diff, the optional What-If scenario per user." },
+      { kind: "improved", tool: "Who is … to CA", text: "What makes one tool honest here rather than merely tidier: since build 25345 all three subjects share one scope check, so they cannot disagree about the same person and the same policy. Three subjects on one screen giving three answers would have been worse than three tiles. Clicking a member's name in the group subject still drills into the user subject, which is the same route it always was." },
+      { kind: "improved", tool: "All tools", text: "T36, T37 and T18 keep their numbers and their Help sections, listed in 🔢 Tool numbers with the subject that holds them, and ⌘K finds each by its own name and number. 21 tiles, from 39 this morning." },
+    ],
+  },
+  {
     build: 25346, date: "2026-09-11", title: "🧪 What-If and ⚡ CA validator are two directions of one question",
     items: [
       { kind: "improved", tool: "What-If", text: "⚡ CA validator is the ⚡ Every simulation MODE of 🧪 What-If. They ask one question from two ends: 🧪 evaluates one described sign-in against every policy, ⚡ turns it around and enumerates every sign-in a policy implies. The consolidation plan set a condition on folding them — the two modes must not be able to disagree about the same policy and the same person, because two evaluators on one screen is worse than two tools — and it holds as of the two builds before this one: 25344 removed the dead second simulator so both go through WhatIfEval.evaluate, and 25345 gave them one scope check. Everything inside ⚡ is untouched: the target narrowing, the control filter, the compact and full views, the export." },

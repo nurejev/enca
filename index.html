@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25346"></script>
+<script src="js/popup-guard.js?v=25347"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25346" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25346">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25347" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25347">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25346"></script>
+<script src="js/selfhost-boot.js?v=25347"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25346"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25346"></script>
+<script src="js/counter.js?v=25347"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25347"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25346" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25347" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25346" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25347" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -188,17 +188,9 @@
         <div class="tool-ic">🧪</div><h3>What-If <span class="tag upd">UPDATED</span></h3>
         <p>Two ways round the same question, one evaluator behind both. <b>🧪 One sign-in</b> — describe a sign-in (user, app, platform, client, location, device state, risk) and see which policies would apply with the controls required, and which would not and why. <b>⚡ Every simulation</b> — turn it around: per policy, every sign-in the policy <i>implies</i> and the control each one should or should not enforce, optionally narrowed to one user or persona group. Ported from Jasper Baes' CA Validator.</p>
       </div>
-      <div class="tool" id="toolCompare">
-        <div class="tool-ic">⚖</div><h3>Compare users <span class="tag upd">UPDATED</span></h3>
-        <p>Two or more users side by side: which policies include, exclude or ignore each of them, the group and role memberships behind the differences, and optionally one What-If sign-in run for every user.</p>
-      </div>
       <div class="tool" id="toolWhoIs">
-        <div class="tool-ic">🕵</div><h3>Who is Anna to CA <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
-        <p>One user, the whole picture: which <b>deployment group</b> she is in and how she got there (direct, or nested via which parent), every policy that reaches her — or misses her, and why — the sign-ins Conditional Access actually stopped, whether Identity Protection has her <b>at risk</b> and which policy fires on it, and what happens to her the day report-only goes live. The answer to “why can't Anna sign in” and “is Anna in the wave yet” on one screen.</p>
-      </div>
-      <div class="tool" id="toolWave">
-        <div class="tool-ic">🌊</div><h3>Who is the wave to CA <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
-        <p>The same picture for a whole <b>deployment group</b>: who is in the wave and how they got in, which policies target it and how many members an exclusion takes back out, what the sign-in log did to its members, and — per report-only policy — whether it can go live <b>for this wave</b> without locking somebody out. The members that need a look, each one a click into 🕵 Who is Anna to CA.</p>
+        <div class="tool-ic">🕵</div><h3>Who is … to CA <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
+        <p>Pick the subject; the picture is the same one. <b>🕵 A user</b> — which deployment group she is in and how she got there (direct, or nested via which parent), every policy that reaches her or misses her and why, her sign-ins, her risk, what goes live next. <b>🌊 A group</b> — the same for a whole wave: who is in it and how, which policies target it, how many members an exclusion takes back out, and every member's forecast. <b>⚖ Compare users</b> — two or more side by side, where Conditional Access treats them differently and which group or role membership is behind it. One subject resolver and one policy ladder under all three.</p>
       </div>
       <div class="tool" id="toolSpGap">
         <div class="tool-ic">🫥</div><h3>Apps with no service principal <span class="tag new">BETA</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
@@ -839,6 +831,7 @@
   <!-- ============ COMPARE USERS ============ -->
   <section id="screen-compare" class="screen">
     <div class="list-card readme" id="cuHead" style="margin-top:0"></div>
+    <div class="toolbar" id="cuToolbar" style="margin-top:14px"></div>
     <div class="list-card wi-form">
       <div class="wi-grid">
         <label class="wi-f"><span>Add user <b class="req">*</b></span>
@@ -1856,19 +1849,9 @@
       <p class="help-x">Read-only — it never writes. A Conditional Access policy name opens its card, as in List Policies.</p>
     </section>
 
-    <section class="help-sec">
-      <h4>⚖ Compare users</h4>
-      <p>Why does it work for her but not for him? Put two or more users side by side and see where Conditional Access treats them differently.</p>
-      <ul>
-        <li><b>Policy assignment</b> — per enabled or report-only policy, whether each user is <b>included</b> (✓), <b>excluded</b> (✗ — hover for the group, role or direct exclusion behind it) or <b>not targeted</b> (·). Rows where the users differ are flagged; <b>Differences only</b> (default) hides the rest.</li>
-        <li><b>Memberships</b> — the groups and directory roles each user holds, same ✓/· grid. Assignment differences almost always trace back to a row here.</li>
-        <li><b>What-If scenario</b> (optional) — describe one sign-in (resource, platform, client, IP/country, device state, risk) and it is evaluated once per user with the What-If engine: a verdict per user, then the per-policy matrix of who it would actually hit.</li>
-        <li><b>Export MD</b> — the whole comparison as Markdown tables, differences marked <b>≠</b>.</li>
-      </ul>
-      <p class="help-x">Read-only. Resolution is per user (a few Graph calls each), so it stays fast on any tenant size. Assignment looks at user scoping only — conditions like location or platform only enter through the scenario run.</p>
-    </section>
         <section class="help-sec">
-      <h4>🕵 Who is Anna to CA <span class="tag new">BETA</span></h4>
+      <h4>🕵 Who is … to CA <span class="tag new">BETA</span></h4>
+      <p><b>One question, three subjects.</b> 🕵 Who is Anna to CA, 🌊 Who is the wave to CA and ⚖ Compare users were three tiles over one picture. The code always said so: 🌊 resolves every member of a group through 🕵's own policy ladder, and 🕵 resolves its user through ⚖'s resolver. Pick the subject from the strip — <b>a user</b>, <b>a group</b>, or <b>several users side by side</b> — from build 25347; <b>T36</b>, <b>T37</b> and <b>T18</b> keep their numbers (see 🔢 Tool numbers) and their sections below. Since build 25345 all three also share one scope check, so the three subjects cannot disagree about the same person and the same policy.</p>
       <p>The question a service desk gets is never “which policies target group X” — it is <b>why can't Anna sign in</b>, <b>why does she keep getting the Authenticator prompt</b>, or <b>is Anna in the wave yet</b>. Answering it used to take four tools. This one takes a UPN and puts the whole Conditional Access picture for that one person on a single screen — and everything on it is <b>hers</b>: her policies, her devices, her sign-ins, never a tenant-wide list.</p>
       <ul>
         <li><b>At a glance</b> — five tiles: her <b>deployment stage</b> (which of the active baseline's <code>CAD-SEC-U-DG-*</code> groups she is in), how many policies <b>reach</b> her (enforced / report-only / off, and how many exclude her), how many sign-ins Conditional Access <b>stopped</b> in the window, what happens to her <b>if everything in report-only went live</b> — locked out, extra prompts, no change, nothing for her, or no data — and her <b>identity risk</b>.</li>
@@ -1885,9 +1868,8 @@
         <li><b>Buttons out</b> — ⚖ Compare (adds her, ready for a colleague), 🧪 What-If (user filled in), 🔗 Analyzer (everything outside Conditional Access that points at her), 🌊 the wave she is in, Markdown brief for the ticket with every card, CSV of the policy table.</li>
       </ul>
       <p class="help-x">Read-only. Memberships and policies come from what ENCA already holds — the same include/exclude resolution as ⚖ Compare users. <b>Sign-in source:</b> the segment in the toolbar is shared with 🚦 Sign-in failures, 🎚 Report-only impact and 🌊 the wave — Entra sign-in log (interactive, AuditLog.Read.All), Defender hunting, or Hunting + non-interactive (ThreatHunting.Read.All, Entra ID P2) — see 🚦 for the trade-offs. On the Entra source only this user's sign-ins are read (server-filtered, so no record cap), or the window another tool already read is reused when it was not capped. Registered MFA methods and identity risk are optional extra reads, offered as buttons and never required. Licence comes from the same verdict 🎫 Licence gap uses.</p>
-    </section>
-        <section class="help-sec">
-      <h4>🌊 Who is the wave to CA <span class="tag new">BETA</span></h4>
+
+      <h5>🌊 Who is the wave to CA <span class="tag new">BETA</span> <span class="help-fold">folded into this tool — build 25347</span></h5>
       <p>A rollout goes wave by wave — <code>CAD-SEC-U-DG-GLO</code>, then <code>-INT</code>, then <code>-ADM</code>. The question before the next policy is switched from report-only to On is <b>can this wave take it</b>, and until now the answer was per policy (🎚 Report-only impact) or per user (🕵 Who is Anna to CA), never per wave. Pick a deployment group — the active baseline's deploy and persona groups are offered with their member counts, or type any group — and get:</p>
       <ul>
         <li><b>At a glance</b> — how many policies target the group (enforced / report-only / off, and how many reach members some other way), the sign-ins Conditional Access stopped for its members in the window, how many members would be locked out if everything in report-only went live, and the <b>quiet</b> ones — signed in, nothing stopped, no forecast change.</li>
@@ -1901,6 +1883,16 @@
         <li><b>Every card folds</b> on its heading, remembered per card.</li>
       </ul>
       <p class="help-x">Read-only. Members are read transitively, first 500. The reads are bounded by the groups the policies name, not by the members: every referenced group (first 999 members each) and the baseline's deploy / persona groups are read once, plus the directory roles, and every member is then resolved against every policy with the same rule 🕵 Who is Anna to CA uses — so the two tools cannot disagree about a member. <b>Sign-in source:</b> the same segment as 🚦, 🎚 and 🕵 — Entra sign-in log, Defender hunting, or Hunting + non-interactive — and the window is read once and shared; a capped window is said so. Licence per member is the same verdict 🎫 Licence gap uses.</p>
+
+      <h5>⚖ Compare users <span class="help-fold">folded into this tool — build 25347</span></h5>
+      <p>Why does it work for her but not for him? Put two or more users side by side and see where Conditional Access treats them differently.</p>
+      <ul>
+        <li><b>Policy assignment</b> — per enabled or report-only policy, whether each user is <b>included</b> (✓), <b>excluded</b> (✗ — hover for the group, role or direct exclusion behind it) or <b>not targeted</b> (·). Rows where the users differ are flagged; <b>Differences only</b> (default) hides the rest.</li>
+        <li><b>Memberships</b> — the groups and directory roles each user holds, same ✓/· grid. Assignment differences almost always trace back to a row here.</li>
+        <li><b>What-If scenario</b> (optional) — describe one sign-in (resource, platform, client, IP/country, device state, risk) and it is evaluated once per user with the What-If engine: a verdict per user, then the per-policy matrix of who it would actually hit.</li>
+        <li><b>Export MD</b> — the whole comparison as Markdown tables, differences marked <b>≠</b>.</li>
+      </ul>
+      <p class="help-x">Read-only. Resolution is per user (a few Graph calls each), so it stays fast on any tenant size. Assignment looks at user scoping only — conditions like location or platform only enter through the scenario run.</p>
     </section>
 
     <section class="help-sec">
@@ -2016,6 +2008,8 @@
             <li><code>T21</code> 📐 CIS Benchmark → <b>🛡 Checks</b>, CIS 5.2.2 tab (build 25342)</li>
             <li><code>T30</code> 🖥 Device reality check → <b>🛡 Checks</b>, Intune reality tab (build 25342)</li>
             <li><code>T13</code> ⚡ CA validator → <b>🧪 What-If</b>, Every simulation mode (build 25346)</li>
+            <li><code>T37</code> 🌊 Who is the wave to CA → <b>🕵 Who is … to CA</b>, A group subject (build 25347)</li>
+            <li><code>T18</code> ⚖ Compare users → <b>🕵 Who is … to CA</b>, Compare users subject (build 25347)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The version beside it is the opposite kind of thing</b> — the number never changes, the version always does. They sit together so they are read together: “T21 v0.5” says which tool and how far along it is.</li>
@@ -3016,68 +3010,68 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25346"></script>
-<script src="js/selfhost.js?v=25346"></script>
-<script src="js/version.js?v=25346"></script>
-<script src="js/fork.js?v=25346"></script>
-<script src="js/promote.js?v=25346"></script>
-<script src="js/authConfig.js?v=25346"></script>
-<script src="js/labels.js?v=25346"></script>
-<script src="js/graph.js?v=25346"></script>
-<script src="js/model.js?v=25346"></script>
-<script src="js/render.js?v=25346"></script>
-<script src="js/analyze.js?v=25346"></script>
-<script src="js/whatif.js?v=25346"></script>
-<script src="js/mslearn.js?v=25346"></script>
-<script src="js/gapcheck.js?v=25346"></script>
-<script src="js/cisdata.js?v=25346"></script>
-<script src="js/cischeck.js?v=25346"></script>
-<script src="js/exclusions.js?v=25346"></script>
-<script src="js/cascope.js?v=25346"></script>
-<script src="js/validator.js?v=25346"></script>
-<script src="js/whatifeval.js?v=25346"></script>
-<script src="js/compare.js?v=25346"></script>
-<script src="js/whois.js?v=25346"></script>
-<script src="js/wave.js?v=25346"></script>
-<script src="js/sessionctl.js?v=25346"></script>
-<script src="js/spgap.js?v=25346"></script>
-<script src="js/groupuse.js?v=25346"></script>
-<script src="js/iso3166.js?v=25346"></script>
-<script src="js/causes.js?v=25346"></script>
-<script src="js/locations.js?v=25346"></script>
-<script src="js/authcontexts.js?v=25346"></script>
-<script src="js/authstrengths.js?v=25346"></script>
-<script src="js/recycle.js?v=25346"></script>
-<script src="js/rmau.js?v=25346"></script>
-<script src="js/camap.js?v=25346"></script>
-<script src="js/rmaudoc.js?v=25346"></script>
-<script src="js/termsofuse.js?v=25346"></script>
-<script src="js/audit.js?v=25346"></script>
-<script src="js/drift.js?v=25346"></script>
-<script src="js/guide.js?v=25346"></script>
-<script src="js/userimpact.js?v=25346"></script>
-<script src="js/smsvoice.js?v=25346"></script>
-<script src="js/memberof.js?v=25346"></script>
-<script src="js/devcheck.js?v=25346"></script>
-<script src="js/licgap.js?v=25346"></script>
-<script src="js/teamsdev.js?v=25346"></script>
-<script src="js/signins.js?v=25346"></script>
-<script src="js/reportimpact.js?v=25346"></script>
-<script src="js/changelog.js?v=25346"></script>
-<script src="js/baselineData.js?v=25346"></script>
-<script src="js/baselineJoeyData.js?v=25346"></script>
-<script src="js/baselineLive.js?v=25346"></script>
-<script src="js/baseline.js?v=25346"></script>
-<script src="js/baselineCleanup.js?v=25346"></script>
-<script src="js/groupTemplates.js?v=25346"></script>
-<script src="js/assign.js?v=25346"></script>
-<script src="js/cagroups.js?v=25346"></script>
-<script src="js/groupsview.js?v=25346"></script>
-<script src="js/runledger.js?v=25346"></script>
-<script src="js/protect.js?v=25346"></script>
-<script src="js/import.js?v=25346"></script>
-<script src="js/export.js?v=25346"></script>
-<script src="js/demo.js?v=25346"></script>
-<script src="js/app.js?v=25346"></script>
+<script src="js/branding.js?v=25347"></script>
+<script src="js/selfhost.js?v=25347"></script>
+<script src="js/version.js?v=25347"></script>
+<script src="js/fork.js?v=25347"></script>
+<script src="js/promote.js?v=25347"></script>
+<script src="js/authConfig.js?v=25347"></script>
+<script src="js/labels.js?v=25347"></script>
+<script src="js/graph.js?v=25347"></script>
+<script src="js/model.js?v=25347"></script>
+<script src="js/render.js?v=25347"></script>
+<script src="js/analyze.js?v=25347"></script>
+<script src="js/whatif.js?v=25347"></script>
+<script src="js/mslearn.js?v=25347"></script>
+<script src="js/gapcheck.js?v=25347"></script>
+<script src="js/cisdata.js?v=25347"></script>
+<script src="js/cischeck.js?v=25347"></script>
+<script src="js/exclusions.js?v=25347"></script>
+<script src="js/cascope.js?v=25347"></script>
+<script src="js/validator.js?v=25347"></script>
+<script src="js/whatifeval.js?v=25347"></script>
+<script src="js/compare.js?v=25347"></script>
+<script src="js/whois.js?v=25347"></script>
+<script src="js/wave.js?v=25347"></script>
+<script src="js/sessionctl.js?v=25347"></script>
+<script src="js/spgap.js?v=25347"></script>
+<script src="js/groupuse.js?v=25347"></script>
+<script src="js/iso3166.js?v=25347"></script>
+<script src="js/causes.js?v=25347"></script>
+<script src="js/locations.js?v=25347"></script>
+<script src="js/authcontexts.js?v=25347"></script>
+<script src="js/authstrengths.js?v=25347"></script>
+<script src="js/recycle.js?v=25347"></script>
+<script src="js/rmau.js?v=25347"></script>
+<script src="js/camap.js?v=25347"></script>
+<script src="js/rmaudoc.js?v=25347"></script>
+<script src="js/termsofuse.js?v=25347"></script>
+<script src="js/audit.js?v=25347"></script>
+<script src="js/drift.js?v=25347"></script>
+<script src="js/guide.js?v=25347"></script>
+<script src="js/userimpact.js?v=25347"></script>
+<script src="js/smsvoice.js?v=25347"></script>
+<script src="js/memberof.js?v=25347"></script>
+<script src="js/devcheck.js?v=25347"></script>
+<script src="js/licgap.js?v=25347"></script>
+<script src="js/teamsdev.js?v=25347"></script>
+<script src="js/signins.js?v=25347"></script>
+<script src="js/reportimpact.js?v=25347"></script>
+<script src="js/changelog.js?v=25347"></script>
+<script src="js/baselineData.js?v=25347"></script>
+<script src="js/baselineJoeyData.js?v=25347"></script>
+<script src="js/baselineLive.js?v=25347"></script>
+<script src="js/baseline.js?v=25347"></script>
+<script src="js/baselineCleanup.js?v=25347"></script>
+<script src="js/groupTemplates.js?v=25347"></script>
+<script src="js/assign.js?v=25347"></script>
+<script src="js/cagroups.js?v=25347"></script>
+<script src="js/groupsview.js?v=25347"></script>
+<script src="js/runledger.js?v=25347"></script>
+<script src="js/protect.js?v=25347"></script>
+<script src="js/import.js?v=25347"></script>
+<script src="js/export.js?v=25347"></script>
+<script src="js/demo.js?v=25347"></script>
+<script src="js/app.js?v=25347"></script>
 </body>
 </html>

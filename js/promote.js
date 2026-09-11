@@ -118,6 +118,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 182,
+      title: "🕵 Who is … to CA: 🌊 the wave and ⚖ Compare users folded in as subjects (T36 1.0; T37 T18 folded) — 21 tiles",
+      tools: ["Who is … to CA", "Who is the wave to CA", "Compare users"],
+      builds: [25347],
+      risk: "low",
+      what: "js/app.js: TAB_HOSTS gains whois (user → woToolbar, group → wvToolbar, compare → cuToolbar); openWhoIs, openWave and openCompare all crumb 🕵 Who is … to CA and mount their subject; the toolWave and toolCompare tile handlers and TOOL_TABS rows go and toolWhoIs is relabelled; FOLDED gains both with their open functions. index.html: the two tiles removed, T36 renamed with a blurb naming all three subjects, a new empty toolbar id=cuToolbar above the Compare form (its controls are a form, like What-If's), the two Help sections moved under the host as h5, two rows in 🔢 Tool numbers. js/version.js: build 25347, T36 1.0, T37 0.8.1 and T18 1.0.2 folded.",
+      why: "Low: no read, no resolver and no renderer changed — these three already shared the subject resolver and the policy ladder, and since 25345 the scope check too. The risk is routing, and one route in particular: clicking a member name in the group subject drills into the user subject (it sets woUser and clicks the host tile, which now lands on the user subject rather than on a separate tool).",
+      test: [
+        "Home page: 21 tiles. 🌊 and ⚖ gone as tiles; 🕵 reads Who is … to CA with T36 v1.0 and a blurb naming all three subjects.",
+        "The strip: 🕵 A user · 🌊 A group · ⚖ Compare users, the right one active on each of the three screens, each keeping its own controls (🕵's user box and range, 🌊's group picker and sign-in source, ⚖'s add-user form and scenario checkbox).",
+        "THE ROUTE THAT MATTERS: run 🌊 on a wave, then click a member's name in 👥 Members. It must land on the 🕵 A user subject with that user resolved and run — not on the home page, and not on a blank user subject.",
+        "Run all three on a real tenant and compare with 25346: same include reason per policy in 🕵, same member table and forecast in 🌊, same assignment matrix and membership diff in ⚖. 👥 Members' ⤢ Full screen and the wrapping Flags chips still work from inside the subject.",
+        "State survives switching subjects: run 🕵 on a user, switch to ⚖, add two users and run, switch back to 🕵 — the first result is still there.",
+        "One browser tab labelled 🕵 Who is … to CA for all three screens; Back walks them; the side nav and + menu list it once with no dead row. ⌘K: 'wave' and 'compare' each offer the tool with the hint naming its subject and land on it; 37 and 18 find them by number.",
+        "?demo=1: all three subjects render — Eva as a user, DG-INT as a group, Eva and Milan compared.",
+      ],
+      files: ["index.html", "js/app.js", "js/changelog.js", "js/promote.js", "js/version.js"],
+    },
+    {
       n: 181,
       title: "⚡ CA validator folded into 🧪 What-If as the Every simulation mode (T14 1.4; T13 folded) — 23 tiles",
       tools: ["What-If", "CA validator"],

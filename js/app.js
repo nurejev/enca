@@ -211,6 +211,10 @@
                         open: () => openDevCheck() },
     toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
                         open: () => openValidator() },
+    toolWave:         { into: "toolWhoIs",    label: "🌊 Who is the wave to CA",       where: "the A group subject",        build: 25347,
+                        open: () => openWave() },
+    toolCompare:      { into: "toolWhoIs",    label: "⚖ Compare users",               where: "the Compare users subject",  build: 25347,
+                        open: () => openCompare() },
   };
   // Land on a folded tool. Its own entry point when it has one — the right tab,
   // the right catalog — otherwise the host tile, which is the correct answer for
@@ -285,6 +289,21 @@
     // the two modes cannot disagree about the same policy and the same person
     // — which is exactly the condition the consolidation plan set for folding
     // these two together, and it now holds.
+    // ONE QUESTION, THREE SUBJECTS. 🌊 resolves every member of a group through
+    // 🕵's own policy ladder (WhoIs.stateFor), and 🕵 resolves its user through
+    // ⚖'s resolver (Comparer.resolveUser) — they were built as siblings and the
+    // code has always said so. The strip is the subject picker the plan asked
+    // for: a user, a group, or several users side by side. Since 25345 all
+    // three share one scope check as well, so the three subjects cannot
+    // disagree about the same person and the same policy.
+    whois: {
+      tile: "toolWhoIs", label: "🕵 Who is … to CA",
+      tabs: [
+        { key: "user",    icon: "🕵", name: "A user",         toolbar: "woToolbar", open: () => openWhoIs() },
+        { key: "group",   icon: "🌊", name: "A group",        toolbar: "wvToolbar", open: () => openWave() },
+        { key: "compare", icon: "⚖", name: "Compare users",  toolbar: "cuToolbar", open: () => openCompare() },
+      ],
+    },
     whatif: {
       tile: "toolWhatIf", label: "🧪 What-If",
       tabs: [
@@ -2298,9 +2317,7 @@
     ["toolGapCheck", "🛡 Checks"],
     ["toolWhatIf", "🧪 What-If"],
     ["toolGroupUse", "🔗 User or Group analyzer"],
-    ["toolCompare", "⚖ Compare users"],
-    ["toolWhoIs", "🕵 Who is Anna to CA"],
-    ["toolWave", "🌊 Who is the wave to CA"],
+    ["toolWhoIs", "🕵 Who is … to CA"],
     ["toolSpGap", "🫥 Apps with no service principal"],
     ["toolAudit", "🕓 Changes"],
     ["toolSignins", "🚦 Sign-in log"],
@@ -15336,8 +15353,9 @@ This is a directory write. Nothing else changes.`)) return;
   // ---------- Compare users ----------
   let cuUsers = [], cuResult = null, cuLocations = null, cuSeedList = "";
   function openCompare() {
-    crumb("⚖ Compare users");
+    crumb("🕵 Who is … to CA");
     show("screen-compare");
+    mountToolTabs("whois", "compare");
     $("cuHead").innerHTML = `<h3>⚖ Compare users</h3>
       <p style="margin-bottom:6px">Add two or more users and see where Conditional Access treats them differently: per-policy <b>assignment</b> (included, excluded — and why — or not targeted), the <b>group and role memberships</b> behind the differences, and optionally one <b>What-If sign-in</b> evaluated for every user.</p>
       <p class="mini muted" style="margin:0">Assignment compares user scoping only — location, platform, client and risk conditions only come in through the optional scenario. Read-only.</p>`;
@@ -15356,7 +15374,6 @@ This is a directory write. Nothing else changes.`)) return;
     renderCuChips();
     if (cuResult) renderCompare();   // keep the last run when returning to the tab
   }
-  $("toolCompare").addEventListener("click", () => openCompare());
 
   function renderCuChips() {
     $("cuChips").innerHTML = cuUsers.map((u, i) => `<span class="cu-chip">${esc(u.name)}${u.guest ? ' <span class="tag new">guest</span>' : ""}
@@ -15508,8 +15525,9 @@ This is a directory write. Nothing else changes.`)) return;
   const WO_RISK_DAYS = 30;
 
   function openWhoIs() {
-    crumb("🕵 Who is Anna to CA");
+    crumb("🕵 Who is … to CA");
     show("screen-whois");
+    mountToolTabs("whois", "user");
     mountLogSourceSeg("woToolbar", "#woRun");
     $("woHead").innerHTML = `<h3>🕵 Who is Anna to CA <span class="tag new">BETA</span></h3>
       <p style="margin-bottom:6px">One user, the whole Conditional Access picture: which <b>deployment group</b> she sits in and how she got there, every policy that <b>reaches</b> her (or misses her, and why), what the <b>sign-in log</b> says actually happened to her, and what happens to her the day <b>report-only</b> goes live.</p>
@@ -15788,8 +15806,9 @@ This is a directory write. Nothing else changes.`)) return;
       <p class="mini muted" style="margin:0">Members are read transitively (first ${WV_MEMBER_CAP}); every member is resolved against every policy with the same rule 🕵 Who is Anna to CA uses. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Read-only.</p>`;
   }
   async function openWave() {
-    crumb("🌊 Who is the wave to CA");
+    crumb("🕵 Who is … to CA");
     show("screen-wave");
+    mountToolTabs("whois", "group");
     mountLogSourceSeg("wvToolbar2", "#wvRun");
     $("wvHead").innerHTML = wvHeadHtml();
     if (!policies.length) { $("wvBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
@@ -15798,7 +15817,6 @@ This is a directory write. Nothing else changes.`)) return;
     if (wvRes) { renderWave(); return; }
     $("wvBody").innerHTML = '<div class="run-prompt"><p class="mini muted">Pick a deployment group above — or type any group name — and press <b>Read wave</b>. Nothing is written.</p></div>';
   }
-  $("toolWave").addEventListener("click", () => openWave());
 
   // The picker: the active baseline's deploy groups first, persona groups
   // after, each with its transitive member count when the tenant has it.
