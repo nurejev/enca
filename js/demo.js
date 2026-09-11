@@ -133,6 +133,20 @@ const DEMO_DATA = {
       },
       grantControls: { operator: "OR", builtInControls: ["block"] },
     },
+    {
+      // 🕵 / 🌊 0.7: the retired "Require approved client app" control —
+      // read-only since 30 June 2026; Eva satisfies it through Teams on an
+      // unmanaged iPhone, Milan through a compliant laptop.
+      id: "d12", displayName: "CA212-GRANT-Internals-DAP-AllApps-iOSorAndroid-ApprovedApp-v1.0",
+      state: "enabled", modifiedDateTime: "2026-05-27T09:00:00Z",
+      conditions: {
+        users: { includeGroups: ["g-CAB-SEC-U-Persona-Internals"], excludeGroups: ["g-CAB-SEC-U-BreakGlass"] },
+        applications: { includeApplications: ["All"] },
+        platforms: { includePlatforms: ["iOS", "android"] },
+        clientAppTypes: ["mobileAppsAndDesktopClients", "exchangeActiveSync", "other"],
+      },
+      grantControls: { operator: "OR", builtInControls: ["compliantDevice", "approvedApplication"] },
+    },
   ],
   names: {
     "62e90394-69f5-4237-9190-012177145e10": "Global Administrator",
@@ -459,6 +473,21 @@ const DEMO_DATA = {
       appliedConditionalAccessPolicies: [
         { id: "d10", displayName: "CA310-SESSION-Guests-DP-AllApps-AnyPlatform-BlockDownloadUnmanaged-v1.0", result: "success", enforcedGrantControls: [], enforcedSessionControls: ["CloudAppSecurity"] },
         { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlyInterrupted", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
+      ],
+    },
+    {
+      id: "si-14", createdDateTime: "2026-07-21T07:40:12Z",
+      userDisplayName: "Eva Employee", userPrincipalName: "eva@contoso.com", userId: "u-emp1",
+      appDisplayName: "Microsoft Teams", appId: "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe",
+      resourceDisplayName: "Microsoft Teams",
+      ipAddress: "203.0.113.24", location: { city: "Amsterdam", countryOrRegion: "NL" },
+      clientAppUsed: "Mobile Apps and Desktop clients",
+      deviceDetail: { operatingSystem: "Ios 17", browser: "", isCompliant: false, isManaged: false, trustType: "Workplace", displayName: "Eva's iPhone" },
+      status: { errorCode: 0, failureReason: "" },
+      conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      appliedConditionalAccessPolicies: [
+        { id: "d12", displayName: "CA212-GRANT-Internals-DAP-AllApps-iOSorAndroid-ApprovedApp-v1.0", result: "success", enforcedGrantControls: ["RequireApprovedApp"], enforcedSessionControls: [] },
+        { id: "d7", displayName: "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0", result: "success", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
       ],
     },
   ],

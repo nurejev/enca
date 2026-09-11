@@ -62,6 +62,12 @@ const WhoIs = (() => {
         excGuests: !!u.excludeGuestsOrExternalUsers || (u.excludeUsers || []).includes("GuestsOrExternalUsers"),
         controls: (vm.grant && vm.grant.controls) || [],
         op: (vm.grant && vm.grant.op) || "",
+        // the raw grant ids — the labels above are for reading, these are
+        // for deciding: approvedApplication is the control Microsoft retired
+        // on 30 June 2026 (the policy is read-only since), compliantApplication
+        // its replacement, compliantDevice the other half of the usual OR
+        builtIn: (((p.grantControls || {}).builtInControls) || []).map((x) => String(x)),
+        retired: (((p.grantControls || {}).builtInControls) || []).some((x) => /^approvedApplication$/i.test(String(x))),
         session: (vm.session || []).map((x) => (x && typeof x === "object") ? x.t : x).filter(Boolean),
         block: ((vm.grant && vm.grant.controls) || []).some((c) => /^block/i.test(String(c))),
         // risk-based = needs Entra ID P2 on every targeted user
@@ -284,6 +290,38 @@ const WhoIs = (() => {
     return { ...tot, devices: tot.devices.size, freshDevices: tot.freshDevices.size, policies: [...tot.policies.values()].sort((x, y) => y.n - x.n), apps: rows };
   }
 
+  // ---------------------------------------------------------- retired --
+  // "Require approved client app" was retired on 30 June 2026: a policy that
+  // carries it is READ-ONLY (enforced until disabled, never editable), and
+  // the day it is replaced by "Require app protection policy" — or the
+  // control is simply removed — everyone who satisfied the policy THROUGH
+  // the approved app (a mobile app on a device that is not compliant) is
+  // blocked unless an Intune app protection policy already reaches them.
+  // From her own records: per retired policy that reaches her, the sign-ins
+  // it let through on the approved-app path; and whether any sign-in shows
+  // an app protection policy already satisfied (a compliantApplication grant
+  // met on a non-compliant device) — the evidence the replacement will pass.
+  const isMobile = (rec) => /android|ios|ipad|iphone/i.test(String((rec.deviceDetail || {}).operatingSystem || ""));
+  function retiredOf(recs, lookup, rows) {
+    const reach = (rows || []).filter((r) => r.s === "inc" && r.state !== "off");
+    const retired = reach.filter((r) => r.retired);
+    const appPols = new Set((lookup || []).filter((P) => (P.builtIn || []).some((x) => /^compliantApplication$/i.test(x))).map((P) => P.id));
+    const out = retired.map((P) => {
+      const hasDev = (P.builtIn || []).some((x) => /^(compliantDevice|domainJoinedDevice)$/i.test(x));
+      const hasApp = (P.builtIn || []).some((x) => /^compliantApplication$/i.test(x));
+      const hits = recs.filter((r) => (r.appliedConditionalAccessPolicies || []).some((ap) => ap.id === P.id && /^(success|reportOnlySuccess)$/i.test(String(ap.result || "")))
+        && !(hasDev && (r.deviceDetail || {}).isCompliant === true));   // through the device half → not the approved-app path
+      const apps = new Map(), devices = new Set(); let last = "";
+      hits.forEach((r) => { const a = r.appDisplayName || r.resourceDisplayName || "(app)"; apps.set(a, (apps.get(a) || 0) + 1); const dd = r.deviceDetail || {}; devices.add(dd.displayName || dd.deviceId || `${dd.operatingSystem || ""}|${dd.browser || ""}`); if (String(r.createdDateTime || "") > last) last = r.createdDateTime || ""; });
+      return { id: P.id, name: P.name, seq: P.seq, state: P.state, hasDev, hasApp, viaApp: hits.length, mobile: hits.filter(isMobile).length, apps: [...apps.entries()].sort((a, b) => b[1] - a[1]).map(([a, n]) => ({ app: a, n })), devices: devices.size, last };
+    });
+    // evidence of an app protection policy already working for her
+    const appOk = recs.filter((r) => (r.appliedConditionalAccessPolicies || []).some((ap) => appPols.has(ap.id) && /^(success|reportOnlySuccess)$/i.test(String(ap.result || "")) && [...(ap.enforcedGrantControls || [])].some((c) => /compliantapp|appprotection|RequireCompliantApp/i.test(String(c)))) && (r.deviceDetail || {}).isCompliant !== true).length;
+    const relies = out.filter((x) => x.viaApp > 0);
+    const verdict = !retired.length ? "none" : !relies.length ? "clear" : appOk ? "ready" : "exposed";
+    return { policies: out, relies, appOk, verdict, appPolicies: appPols.size };
+  }
+
   // ------------------------------------------------------------- risk --
   // Identity Protection, two sources. The sign-in records already carry the
   // risk fields (the read has no $select), so risky sign-ins cost nothing
@@ -366,7 +404,8 @@ const WhoIs = (() => {
       forecast = { worst: block.length ? "block" : prompt.length ? "prompt" : (ro && ro.policies.length) ? "clean" : (scoped.length && !silent.length) ? "scoped" : "nodata", block, prompt, scoped, silent, roCount: counts.ro };
     }
     const risk = riskOf(records, user.id, user, lookup);
-    return { user, days: days || null, ladder, exclusions, rows, counts, stage, log, forecast, risk, bypasses: exclusions.filter((x) => x.bypass) };
+    const retired = records ? retiredOf(records.filter((r) => !user.id || r.userId === user.id), lookup, rows) : null;
+    return { user, days: days || null, ladder, exclusions, rows, counts, stage, log, forecast, risk, retired, bypasses: exclusions.filter((x) => x.bypass) };
   }
 
   // ----------------------------------------------------------- render --
@@ -386,7 +425,8 @@ const WhoIs = (() => {
   };
   const fmtWhen = (iso) => { try { const d = new Date(iso); return d.toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" }); } catch { return String(iso || ""); } };
   const controlsHtml = (r) => {
-    const c = (r.controls || []).map((x) => `<span class="ctrl${/^block/i.test(String(x)) ? " block" : ""}">${esc(x)}</span>`);
+    const c = (r.controls || []).map((x) => `<span class="ctrl${/^block/i.test(String(x)) ? " block" : ""}${/approved client app/i.test(String(x)) ? " ret" : ""}" ${/approved client app/i.test(String(x)) ? 'title="Retired by Microsoft on 30 June 2026 — the policy is read-only: it enforces until disabled and cannot be edited"' : ""}>${esc(x)}</span>`);
+    if (r.retired) c.push('<span class="tag block" title="Carries the retired Require approved client app control — read-only since 30 June 2026, recreate rather than edit">read-only · retired control</span>');
     const s = (r.session || []).map((x) => `<span class="ctrl">${esc(x)}</span>`);
     return c.concat(s).join(r.op && c.length > 1 ? `<span class="mini muted"> ${esc(r.op)} </span>` : "") || '<span class="mini muted">—</span>';
   };
@@ -592,6 +632,29 @@ const WhoIs = (() => {
     }
     // ---- MFA prompts: the complaint "I keep getting the Authenticator
     // prompt on X" — which policy demands it, and were they fresh prompts
+    // ---- retired control: who breaks when approved client app goes
+    let retHtml = "";
+    if (res.retired && res.retired.policies.length) {
+      const rt = res.retired;
+      const V = {
+        exposed: ["bad", "Blocked the day the control goes", `she satisfies ${rt.relies.length === 1 ? "this policy" : "these policies"} through the approved app on a device that is not compliant, and no sign-in shows an app protection policy working for her yet — assign one (and let the apps pick it up) before the control is replaced or removed.`],
+        ready:   ["ok", "Ready for the replacement", `she satisfies ${rt.relies.length === 1 ? "this policy" : "these policies"} through the approved app, and ${rt.appOk} sign-in${rt.appOk === 1 ? "" : "s"} already show an app protection policy satisfied on a non-compliant device — swapping the control for Require app protection policy passes for her.`],
+        clear:   ["ok", "Not affected", "no sign-in in the window went through the approved-app path — she uses a compliant device, or none of these apps on a phone."],
+      };
+      const [cls, head, why] = V[rt.verdict] || V.clear;
+      retHtml = `<div class="list-card wo-card">
+        <h3 class="wo-h" data-wo-fold="retired">📵 Retired control: Require approved client app <span class="mini muted">— ${rt.policies.length} polic${rt.policies.length === 1 ? "y" : "ies"} reaching her, read-only since 30 June 2026</span></h3>
+        <div class="wo-callout${cls === "bad" ? " bad" : " ok"}"><b>${head}</b> — ${why}</div>
+        <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Policy</th><th>Grant</th><th class="num">Through the approved app</th><th>Apps</th><th class="num">Devices</th><th>Last</th></tr></thead><tbody>
+          ${rt.policies.map((x) => `<tr class="${x.viaApp ? "" : "wo-dim"}"><td>${polLink(x)}${x.state === "ro" ? ' <span class="mini muted">(report-only)</span>' : ""}</td>
+            <td class="mini">${x.hasDev ? "compliant device <b>or</b> approved app" : "approved app only"}${x.hasApp ? " <b>or</b> app protection policy" : ""}</td>
+            <td class="num">${x.viaApp ? `<b>${x.viaApp}</b>${x.mobile !== x.viaApp ? ` <span class="mini muted">(${x.mobile} mobile)</span>` : ""}` : "0"}</td>
+            <td class="mini">${x.apps.slice(0, 4).map((a) => `${esc(a.app)} ×${a.n}`).join(", ")}${x.apps.length > 4 ? ` +${x.apps.length - 4}` : ""}</td>
+            <td class="num">${x.devices || ""}</td><td class="num">${x.last ? esc(fmtWhen(x.last)) : "—"}</td></tr>`).join("")}
+        </tbody></table></div>
+        <p class="mini muted" style="margin-top:8px">“Through the approved app” = the policy applied with success on a sign-in whose device was not compliant — the only way that grant is met. Removing the control without a replacement turns such a policy into compliant-device-only; replacing it with Require app protection policy needs an Intune APP policy assigned to her and picked up by the app. ${rt.appPolicies ? `${rt.appPolicies} polic${rt.appPolicies === 1 ? "y" : "ies"} in the tenant already grant${rt.appPolicies === 1 ? "s" : ""} on app protection policy.` : "No policy in the tenant grants on app protection policy yet."} Report-only cannot evaluate that control — its report-only failures are not denials.</p>
+      </div>`;
+    }
     let mfaHtml = "";
     if (log && log.mfa) {
       const mf = log.mfa;
@@ -652,7 +715,7 @@ const WhoIs = (() => {
     } else {
       logHtml = `<div class="list-card wo-card"><div class="run-prompt" style="padding:24px 20px"><p class="mini muted">The sign-in half was not read — ${esc(opts.logSkipped || "sign-in log not available")}.</p></div></div>`;
     }
-    return head + ladderHtml + tbl + riskHtml + devHtml + mfaHtml + logHtml;
+    return head + ladderHtml + tbl + riskHtml + retHtml + devHtml + mfaHtml + logHtml;
   }
 
   // ------------------------------------------------------------- csv --
@@ -727,6 +790,13 @@ const WhoIs = (() => {
         L.push(`${mf.required} of ${mf.total} sign-ins required MFA: ${mf.fresh} fresh prompts, ${mf.claim} satisfied by the token, ${mf.unknown} not known. Fresh prompts came from ${mf.freshDevices} device(s).`, "");
         L.push("| App | Policies that demanded MFA | Required | Fresh | By token | Devices | Last fresh prompt |", "| --- | --- | --- | --- | --- | --- | --- |");
         mf.apps.forEach((a) => L.push(`| ${e(a.app)} | ${a.policies.map((p) => `${e(p.seq || p.name)} (${e(p.controls.join(", "))}) ×${p.n}${p.fresh ? `, ${p.fresh} fresh` : ""}`).join("; ") || "none — outside Conditional Access"} | ${a.required} | ${a.fresh} | ${a.claim} | ${a.devices} | ${e(a.lastFresh)} |`));
+      }
+      if (res.retired && res.retired.policies.length) {
+        const rt = res.retired;
+        L.push("", "## Retired control: Require approved client app", "");
+        L.push(`**${{ exposed: "Blocked the day the control goes", ready: "Ready for the replacement", clear: "Not affected" }[rt.verdict] || "Not affected"}** — ${rt.relies.length} of ${rt.policies.length} reaching polic${rt.policies.length === 1 ? "y" : "ies"} satisfied through the approved app; ${rt.appOk} sign-in(s) with an app protection policy already satisfied.`, "");
+        L.push("| Policy | Grant | Through the approved app | Apps | Devices | Last |", "| --- | --- | --- | --- | --- | --- |");
+        rt.policies.forEach((x) => L.push(`| ${e(x.seq || x.name)} | ${x.hasDev ? "compliant device or approved app" : "approved app only"}${x.hasApp ? " or app protection policy" : ""} | ${x.viaApp} | ${e(x.apps.slice(0, 4).map((a) => `${a.app} ×${a.n}`).join(", "))} | ${x.devices} | ${e(x.last)} |`));
       }
       L.push("", `## Sign-ins Conditional Access stopped (${e(meta.rangeLabel || "window")})`, "");
       if (!log.rows.length) L.push(`None — ${log.total} sign-ins, ${log.passed} passed.`);

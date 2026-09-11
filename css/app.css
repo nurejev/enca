@@ -1756,6 +1756,7 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-cnt{white-space:nowrap}
 .wo-tbl .ctrl{display:inline-block;background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:0 6px;font-size:11px;font-weight:600;margin:1px 2px 1px 0;white-space:nowrap}
 .wo-tbl .ctrl.block{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--off)}
+.ctrl.ret{text-decoration:line-through;text-decoration-color:var(--off);text-decoration-thickness:2px}
 .wo-res{font-weight:600;font-size:12px;white-space:nowrap}
 .wo-res.blk,.wo-res.wb{color:var(--off)} .wo-res.int,.wo-res.wp{color:var(--report)} .wo-res.nc{color:var(--on)}
 .wo-fbar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--soft);width:140px;margin-bottom:3px}

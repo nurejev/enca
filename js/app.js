@@ -13146,6 +13146,7 @@ This is a directory write. Nothing else changes.`)) return;
           </div>
           ${riBar(p)}
           <div class="au-sub">${esc(ReportImpact.verdictLine(p))}${p.notApplied ? ` Out of scope for ${p.notApplied.toLocaleString()} evaluation${p.notApplied === 1 ? "" : "s"}.` : ""}</div>
+          ${(() => { const vm = riVm(p.id); const bi = ((((vm || {}).raw || {}).grantControls || {}).builtInControls) || []; return bi.some((x) => /^compliantApplication$/i.test(String(x))) && p.failure ? `<div class="au-sub" style="color:var(--report)"><b>Report-only cannot evaluate Require app protection policy</b> — Microsoft documents that this control reports Report-only: Failure in report-only mode even where it passes once enforced. The ${p.failure.toLocaleString()} would-deny above ${p.failure === 1 ? "is" : "are"} not evidence; enable the policy for a pilot group to see the real answer.</div>` : ""; })()}
           ${riTargets(p.id)}
           ${detail}
         </div>`;

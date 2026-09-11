@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25335"></script>
+<script src="js/popup-guard.js?v=25336"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25335" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25335">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25336" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25336">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25335"></script>
+<script src="js/selfhost-boot.js?v=25336"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25335"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25335"></script>
+<script src="js/counter.js?v=25336"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25336"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25335" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25336" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25335" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25336" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1864,6 +1864,7 @@
         <li><b>Policies</b> — every policy, including the Off ones: state, <b>reaches her via</b> (All users, a group with its path, a role, guest type — or EXCLUDED and by what), the controls, this user's blocked / interrupted counts from the log, and for report-only policies the forecast. Filter chips: reaches her, excluded, not targeted, all; and by state.</li>
         <li><b>🛡 Identity risk</b> — what Identity Protection says about her now (at risk and at which level, remediated, dismissed, never flagged), the risk detections of the last 30 days, the risky sign-ins in the window, and <b>only the risk-based policies that reach her</b> — user risk, sign-in risk, insider risk — with the one that <b>fires now</b> on her current level named. A risk policy that does not reach her (not targeted, or she is excluded) is counted in one line and stays in the policies table, not here. The user-risk read is optional (IdentityRiskyUser.Read.All + IdentityRiskEvent.Read.All), offered as a button, and needs Entra ID P2 to be populated. Nothing here changes the tenant — dismissing or confirming a risk is done in the Entra portal.</li>
         <li><b>💻 Devices she signs in from</b> — one row per device in the window with what Conditional Access saw of it on the last sign-in: <b>Compliant</b>, <b>Managed, not compliant</b>, <b>Registered, not managed</b> or <b>Unmanaged</b>; sign-in and stopped counts, the apps, when it was last seen. A callout says when a compliant-device grant reaches her and sign-ins came from devices that cannot meet it. State is per sign-in, not per device — a laptop made compliant yesterday shows compliant on the sign-ins since.</li>
+        <li><b>📵 Retired control: Require approved client app</b> — Microsoft retired that grant on 30 June 2026: a policy carrying it is read-only (it enforces until disabled, cannot be edited — the policies table marks it) and the day it is replaced by <i>Require app protection policy</i> or the control is simply removed, whoever satisfied it <i>through the approved app</i> — a mobile app on a device that is not compliant — is blocked unless an Intune app protection policy already reaches them. The card lists, per retired policy that reaches her, the sign-ins it let through on that path (apps, devices, last), and gives the verdict: <b>blocked the day the control goes</b> (no app protection policy seen for her yet — assign one first), <b>ready for the replacement</b> (a sign-in already shows an app protection policy satisfied on a non-compliant device), or <b>not affected</b> (compliant device, or no mobile app in the window).</li>
         <li><b>🔐 MFA on her sign-ins</b> — the answer to “she keeps getting the prompt on app X — which policy is it?”. A prompt the user <i>completes</i> is a successful sign-in, so it never appears in the stopped list; this card does: per app, the applied policies that <b>demanded MFA</b> (result success with an MFA or authentication-strength grant), how many sign-ins required it, and — from the record's own authentication steps — how many were a <b>fresh prompt</b> versus a claim already in the token, from how many devices, with the last fresh prompt. Then it says why: fresh prompts spread over many devices (a non-persistent VDI pool is one prompt per host), a sign-in frequency or non-persistent browser session reaching her, or every requirement satisfied by the token — in which case the prompt she sees is per-user MFA, security defaults or the app, not Conditional Access. Hunting rows carry the requirement but not the steps and count as <i>not known</i>; the Entra log source tells them apart.</li>
         <li><b>Sign-ins Conditional Access stopped</b> — her rows from the log the way 🚦 Sign-in failures shows them: when, app, client, device state and place; under each policy the <b>control it demanded</b>; under the result the error code <b>in words</b> — MFA demanded and not completed (50074), compliant device required and this one is not (53000), device authentication demanded (50097) — and a one-click 🧪 Replay in What-If.</li>
         <li><b>If everything in report-only went live</b> — worst case first, per policy, from the report-only verdicts on her own sign-ins, with the reason a denial would happen (“needs a compliant device — device NOT compliant”). Three outcomes that look alike are told apart: <b>out of scope on her sign-ins</b> (the policy was evaluated on every one of her sign-ins and its conditions never matched — no legacy client, no risk, not that app — so going live changes nothing for her as she signs in today), <b>no data</b> (the policy appears on none of her records at all: created after the window, or the source dropped its verdicts — never safety), and a real verdict.</li>
@@ -1879,6 +1880,7 @@
         <li><b>At a glance</b> — how many policies target the group (enforced / report-only / off, and how many reach members some other way), the sign-ins Conditional Access stopped for its members in the window, how many members would be locked out if everything in report-only went live, and the <b>quiet</b> ones — signed in, nothing stopped, no forecast change.</li>
         <li><b>Go-live readiness per report-only policy</b> — for each report-only policy that targets the wave: members with traffic, how many would be locked out (named), prompted, unchanged, and how many were silent. Verdict: <b>Not yet</b> (somebody would be denied), <b>Friction only</b> (prompts, nobody denied), <b>Ready</b> (evaluated, nobody stopped) or <b>No data</b>. Silent members are counted as no data, never as safety.</li>
         <li><b>Policies and how they reach the wave</b> — targets via a direct include of the group or a parent group, All users, or “reaches N members another way” (a role, another group, guest type); how many members an exclusion takes back out and through which group; the controls; blocked / interrupted counts and distinct members from the log. Policy numbers are the baseline's, as in 🕵.</li>
+        <li><b>📵 Retired control across the wave</b> — the same check per member: how many satisfy a reaching approved-client-app policy through the app on a non-compliant device, how many of those already show an app protection policy working, and the red rows — the members who are blocked the day the control goes unless an Intune APP policy reaches them first. Every name opens 🕵.</li>
         <li><b>🛡 Identity risk across the wave</b> — on demand, the <b>Read identity risk</b> button in the head: Identity Protection's user risk for every member (one read each, twenty to a batch; IdentityRiskyUser.Read.All, Entra ID P2), joined to the risky sign-ins the members already have from the window and to the risk-based policies aimed at the wave. Three tiles — members at risk by level, members with a risky sign-in, risk policies <b>firing now</b> on whom — the risk policies with how many members each reaches, and a table of the members that are flagged, remediated or had a risky sign-in. Before the read, a callout already names the members with a risky sign-in in the window.</li>
         <li><b>Members</b> — every member with how they got in (direct, via which child group, dynamic rule) and flags: in an exclusion group while the policy is On (a standing bypass), in two waves at once, blocked in the window, would be locked out, no Entra ID P1, disabled. Filter chips per flag; every name opens 🕵 Who is Anna to CA for that person.</li>
         <li><b>How the wave is built</b> — direct members, each child group with its member count and dynamic rule, and callouts: two waves at once (both personas' policies apply, the stricter wins), standing bypasses, coverage (is every member also in the Global deploy group), disabled accounts.</li>
@@ -2028,6 +2030,7 @@
         <li><b>The sign-ins behind the verdict</b>, shown the way 🚦 Sign-in failures shows them: the controls the policy demanded, then the client, operating system, location and device state of the actual sign-in — up to three per user and policy, which is enough to see a pattern without holding the window in memory twice. Where the sign-in <i>also</i> failed for an enforced reason, the failure reason and error code are there too (<code>Device authentication is required. (50097)</code>). Where it does not, the row says the sign-in itself succeeded and this policy only recorded what it would have done — an absence that is information, not a gap.</li>
         <li><b>A verdict is only as good as its window.</b> The range and the number of sign-ins read are stated up front, and a truncated read says so — a policy with <b>no evidence</b> is called out rather than counted as safe, because "nobody was affected" and "nobody signed in" look identical in a summary and only one of them is a reason to go live.</li>
         <li><b>Sign-in source.</b> The segment in the toolbar is shared with 🚦 Sign-in failures, 🕵 Who is Anna to CA and 🌊 the wave: the <b>Entra sign-in log</b> (interactive only, capped at 10,000, AuditLog.Read.All), <b>Defender hunting</b> (the same sign-ins from <code>EntraIdSignInEvents</code> through advanced hunting on Graph — ThreatHunting.Read.All, no cap, 30 days, Entra ID P2 for the table to be populated) or <b>Hunting + non-interactive</b>, which adds the token refreshes and background client sign-ins the Graph list never returns. A forecast that counts non-interactive sign-ins is a different number — the header says which source the verdicts came from. The hunting read is one query per day, halved on size, and narrates every query; two tools asking for the same window at once share one read. Full detail under 🚦.</li>
+        <li><b>Require app protection policy cannot be evaluated in report-only.</b> Microsoft documents that the control reports <i>Report-only: Failure</i> in report-only mode even where it passes once enforced, so a staged policy with that grant shows would-deny counts that are not denials. The tool says so under such a policy; enable it for a pilot group to get the real answer.</li>
         <li><b>The forecast arrives as the days land.</b> After every finished day (every five pages on the Entra log) the verdicts are rebuilt from what has been read so far and shown under a <i>still reading</i> strip, so a large tenant gives a first answer in a minute instead of after the whole window. <b>■ Stop</b> keeps what was read and marks the result as a partial window — a verdict on a partial window is said to be one; ⟳ Rescan reads it whole.</li>
         <li><b>One read, five tools.</b> 🚦 Sign-in failures in report-only mode, 🕵, 🌊 and 🛂 issue the same window read as this tool — the whole window, because report-only verdicts cannot be filtered server-side. Whichever runs second reuses what the first read and says so, rather than spending another multi-minute pass over ten thousand records; <b>⟳ Rescan</b> always re-reads the tenant. Enforced-failure mode keeps its own server-filtered read, since that is a different and much cheaper query.</li>
         <li><b>Export MD</b> — the forecast with every affected user, for the change record or the go-live approval.</li>
@@ -3041,66 +3044,66 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25335"></script>
-<script src="js/selfhost.js?v=25335"></script>
-<script src="js/version.js?v=25335"></script>
-<script src="js/fork.js?v=25335"></script>
-<script src="js/promote.js?v=25335"></script>
-<script src="js/authConfig.js?v=25335"></script>
-<script src="js/labels.js?v=25335"></script>
-<script src="js/graph.js?v=25335"></script>
-<script src="js/model.js?v=25335"></script>
-<script src="js/render.js?v=25335"></script>
-<script src="js/analyze.js?v=25335"></script>
-<script src="js/whatif.js?v=25335"></script>
-<script src="js/mslearn.js?v=25335"></script>
-<script src="js/gapcheck.js?v=25335"></script>
-<script src="js/cisdata.js?v=25335"></script>
-<script src="js/cischeck.js?v=25335"></script>
-<script src="js/exclusions.js?v=25335"></script>
-<script src="js/validator.js?v=25335"></script>
-<script src="js/whatifeval.js?v=25335"></script>
-<script src="js/compare.js?v=25335"></script>
-<script src="js/whois.js?v=25335"></script>
-<script src="js/wave.js?v=25335"></script>
-<script src="js/sessionctl.js?v=25335"></script>
-<script src="js/spgap.js?v=25335"></script>
-<script src="js/groupuse.js?v=25335"></script>
-<script src="js/iso3166.js?v=25335"></script>
-<script src="js/locations.js?v=25335"></script>
-<script src="js/authcontexts.js?v=25335"></script>
-<script src="js/authstrengths.js?v=25335"></script>
-<script src="js/recycle.js?v=25335"></script>
-<script src="js/rmau.js?v=25335"></script>
-<script src="js/camap.js?v=25335"></script>
-<script src="js/rmaudoc.js?v=25335"></script>
-<script src="js/termsofuse.js?v=25335"></script>
-<script src="js/audit.js?v=25335"></script>
-<script src="js/drift.js?v=25335"></script>
-<script src="js/guide.js?v=25335"></script>
-<script src="js/userimpact.js?v=25335"></script>
-<script src="js/smsvoice.js?v=25335"></script>
-<script src="js/memberof.js?v=25335"></script>
-<script src="js/devcheck.js?v=25335"></script>
-<script src="js/licgap.js?v=25335"></script>
-<script src="js/teamsdev.js?v=25335"></script>
-<script src="js/signins.js?v=25335"></script>
-<script src="js/reportimpact.js?v=25335"></script>
-<script src="js/changelog.js?v=25335"></script>
-<script src="js/baselineData.js?v=25335"></script>
-<script src="js/baselineJoeyData.js?v=25335"></script>
-<script src="js/baselineLive.js?v=25335"></script>
-<script src="js/baseline.js?v=25335"></script>
-<script src="js/baselineCleanup.js?v=25335"></script>
-<script src="js/groupTemplates.js?v=25335"></script>
-<script src="js/assign.js?v=25335"></script>
-<script src="js/cagroups.js?v=25335"></script>
-<script src="js/groupsview.js?v=25335"></script>
-<script src="js/runledger.js?v=25335"></script>
-<script src="js/protect.js?v=25335"></script>
-<script src="js/import.js?v=25335"></script>
-<script src="js/export.js?v=25335"></script>
-<script src="js/demo.js?v=25335"></script>
-<script src="js/app.js?v=25335"></script>
+<script src="js/branding.js?v=25336"></script>
+<script src="js/selfhost.js?v=25336"></script>
+<script src="js/version.js?v=25336"></script>
+<script src="js/fork.js?v=25336"></script>
+<script src="js/promote.js?v=25336"></script>
+<script src="js/authConfig.js?v=25336"></script>
+<script src="js/labels.js?v=25336"></script>
+<script src="js/graph.js?v=25336"></script>
+<script src="js/model.js?v=25336"></script>
+<script src="js/render.js?v=25336"></script>
+<script src="js/analyze.js?v=25336"></script>
+<script src="js/whatif.js?v=25336"></script>
+<script src="js/mslearn.js?v=25336"></script>
+<script src="js/gapcheck.js?v=25336"></script>
+<script src="js/cisdata.js?v=25336"></script>
+<script src="js/cischeck.js?v=25336"></script>
+<script src="js/exclusions.js?v=25336"></script>
+<script src="js/validator.js?v=25336"></script>
+<script src="js/whatifeval.js?v=25336"></script>
+<script src="js/compare.js?v=25336"></script>
+<script src="js/whois.js?v=25336"></script>
+<script src="js/wave.js?v=25336"></script>
+<script src="js/sessionctl.js?v=25336"></script>
+<script src="js/spgap.js?v=25336"></script>
+<script src="js/groupuse.js?v=25336"></script>
+<script src="js/iso3166.js?v=25336"></script>
+<script src="js/locations.js?v=25336"></script>
+<script src="js/authcontexts.js?v=25336"></script>
+<script src="js/authstrengths.js?v=25336"></script>
+<script src="js/recycle.js?v=25336"></script>
+<script src="js/rmau.js?v=25336"></script>
+<script src="js/camap.js?v=25336"></script>
+<script src="js/rmaudoc.js?v=25336"></script>
+<script src="js/termsofuse.js?v=25336"></script>
+<script src="js/audit.js?v=25336"></script>
+<script src="js/drift.js?v=25336"></script>
+<script src="js/guide.js?v=25336"></script>
+<script src="js/userimpact.js?v=25336"></script>
+<script src="js/smsvoice.js?v=25336"></script>
+<script src="js/memberof.js?v=25336"></script>
+<script src="js/devcheck.js?v=25336"></script>
+<script src="js/licgap.js?v=25336"></script>
+<script src="js/teamsdev.js?v=25336"></script>
+<script src="js/signins.js?v=25336"></script>
+<script src="js/reportimpact.js?v=25336"></script>
+<script src="js/changelog.js?v=25336"></script>
+<script src="js/baselineData.js?v=25336"></script>
+<script src="js/baselineJoeyData.js?v=25336"></script>
+<script src="js/baselineLive.js?v=25336"></script>
+<script src="js/baseline.js?v=25336"></script>
+<script src="js/baselineCleanup.js?v=25336"></script>
+<script src="js/groupTemplates.js?v=25336"></script>
+<script src="js/assign.js?v=25336"></script>
+<script src="js/cagroups.js?v=25336"></script>
+<script src="js/groupsview.js?v=25336"></script>
+<script src="js/runledger.js?v=25336"></script>
+<script src="js/protect.js?v=25336"></script>
+<script src="js/import.js?v=25336"></script>
+<script src="js/export.js?v=25336"></script>
+<script src="js/demo.js?v=25336"></script>
+<script src="js/app.js?v=25336"></script>
 </body>
 </html>

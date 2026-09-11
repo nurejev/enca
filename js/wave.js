@@ -99,6 +99,27 @@ const Wave = (() => {
       const ids = new Set(memberRows.map((r) => r.id));
       const recs = records.filter((r) => ids.has(r.userId));
       recs.forEach((r) => { const m = byId.get(r.userId); if (m) m.signIns++; });
+      // the retired approved-client-app control (0.7): per member, sign-ins
+      // that satisfied a reaching retired policy through the approved app
+      // (success on a non-compliant device), and whether an app protection
+      // policy already shows as satisfied for them
+      const retiredPols = lookup.filter((P) => P.retired && P.state !== "off");
+      const appPols = new Set(lookup.filter((P) => (P.builtIn || []).some((x) => /^compliantApplication$/i.test(x))).map((P) => P.id));
+      if (retiredPols.length) recs.forEach((r) => {
+        const m = byId.get(r.userId); if (!m) return;
+        const dd = r.deviceDetail || {};
+        (r.appliedConditionalAccessPolicies || []).forEach((ap) => {
+          if (!/^(success|reportOnlySuccess)$/i.test(String(ap.result || ""))) return;
+          const P = retiredPols.find((x) => x.id === ap.id);
+          if (P) {
+            const hasDev = (P.builtIn || []).some((x) => /^(compliantDevice|domainJoinedDevice)$/i.test(x));
+            if (hasDev && dd.isCompliant === true) return;
+            m.retired = m.retired || { n: 0, pols: new Set(), apps: new Set() };
+            m.retired.n++; m.retired.pols.add(P.seq || P.name); const a = r.appDisplayName || r.resourceDisplayName; if (a) m.retired.apps.add(a);
+          }
+          if (appPols.has(ap.id) && dd.isCompliant !== true && [...(ap.enforcedGrantControls || [])].some((c) => /compliantapp|appprotection|RequireCompliantApp/i.test(String(c)))) m.appOk = (m.appOk || 0) + 1;
+        });
+      });
       // risky sign-ins per member, off the same records — the wave's half of
       // 🛡 identity risk before anything is read (0.6)
       const RO_ = { none: 0, hidden: 0, low: 1, medium: 2, high: 3 };
@@ -187,11 +208,21 @@ const Wave = (() => {
     const coverage = glo ? { name: glo.name, missing: memberRows.filter((m) => !groupMembers.get(glo.id).has(m.id)).length } : null;
 
     // the risk-based policies aimed at this wave, with how many members each reaches
+    const retiredPolicies = lookup.filter((P) => P.retired && P.state !== "off").map((P) => ({
+      id: P.id, name: P.name, seq: P.seq, state: P.state, hasDev: (P.builtIn || []).some((x) => /^(compliantDevice|domainJoinedDevice)$/i.test(x)), hasApp: (P.builtIn || []).some((x) => /^compliantApplication$/i.test(x)),
+      reach: memberRows.filter((m) => m.states.find((s) => s.P.id === P.id).st.s === "inc").length,
+    })).filter((p) => p.reach);
+    const retired = retiredPolicies.length ? {
+      policies: retiredPolicies,
+      relies: memberRows.filter((m) => m.retired),
+      exposed: memberRows.filter((m) => m.retired && !m.appOk),
+      ready: memberRows.filter((m) => m.retired && m.appOk),
+    } : null;
     const riskPolicies = lookup.filter((P) => P.risk && P.state !== "off").map((P) => ({
       id: P.id, name: P.name, seq: P.seq, state: P.state, userRisk: P.userRisk, signInRisk: P.signInRisk, insiderRisk: P.insiderRisk || [],
       reach: memberRows.filter((m) => m.states.find((s) => s.P.id === P.id).st.s === "inc").length,
     })).filter((p) => p.reach);
-    return { group, isDyn, days, riskPolicies, members: memberRows, mcounts, children: (children || []).map((c) => ({ id: c.id, name: c.name, rule: c.rule, n: c.memberIds.size })), rows, counts, log, waveOverlap, alsoIn, bypassGroups, coverage, memberCap: memberCap || 0, capped: !!a.capped, dgGroups: dgGroups || [] };
+    return { group, isDyn, days, riskPolicies, retired, members: memberRows, mcounts, children: (children || []).map((c) => ({ id: c.id, name: c.name, rule: c.rule, n: c.memberIds.size })), rows, counts, log, waveOverlap, alsoIn, bypassGroups, coverage, memberCap: memberCap || 0, capped: !!a.capped, dgGroups: dgGroups || [] };
   }
 
   // ----------------------------------------------------------- render --
@@ -307,6 +338,27 @@ const Wave = (() => {
       }
     }
 
+    // ---- retired control: approved client app (0.7)
+    let retHtml = "";
+    if (res.retired && log) {
+      const rt = res.retired;
+      retHtml = `<div class="list-card wo-card">
+        <h3 class="wo-h" data-wo-fold="retired">📵 Retired control: Require approved client app <span class="mini muted">— ${rt.policies.length} polic${rt.policies.length === 1 ? "y" : "ies"} aimed at the wave, read-only since 30 June 2026</span></h3>
+        <div class="wo-verdicts wo-3" style="margin:0 0 10px">
+          <div class="wo-vt ${rt.exposed.length ? "bad" : "ok"}"><span class="k">Blocked the day the control goes</span><span class="v">${rt.exposed.length}</span><span class="s">satisfy it through the approved app, no app protection policy seen — assign one first</span></div>
+          <div class="wo-vt ok"><span class="k">Ready for the replacement</span><span class="v">${rt.ready.length}</span><span class="s">through the approved app, and an app protection policy already satisfied</span></div>
+          <div class="wo-vt ok"><span class="k">Not affected</span><span class="v">${res.members.length - rt.relies.length}</span><span class="s">compliant device, or no mobile app in the window</span></div>
+        </div>
+        <p class="mini" style="margin:0 0 8px">${rt.policies.map((P) => `<span class="pol-link" data-polid="${esc(P.id)}">${P.seq ? `<b>${esc(P.seq)}</b> ` : ""}${esc(P.name)}</span> <span class="muted">— ${P.hasDev ? "compliant device or approved app" : "approved app only"}${P.hasApp ? " or app protection policy" : ""} · reaches ${P.reach}</span>`).join("<br>")}</p>
+        ${rt.relies.length ? `<div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Member</th><th class="num">Through the approved app</th><th>Policies</th><th>Apps</th><th>App protection seen</th></tr></thead><tbody>
+          ${rt.relies.sort((a, b) => (!!b.appOk - !!a.appOk) || b.retired.n - a.retired.n).slice(0, 80).map((m) => `<tr${m.appOk ? "" : ' class="wo-exrow"'}><td><a href="#" class="wv-member" data-wv-open="${esc(m.upn)}"><b>${esc(m.name)}</b></a><div class="mini muted">${esc(m.upn)}</div></td>
+            <td class="num">${m.retired.n}</td><td class="mini">${esc([...m.retired.pols].join(", "))}</td><td class="mini">${esc([...m.retired.apps].slice(0, 4).join(", "))}${m.retired.apps.size > 4 ? ` +${m.retired.apps.size - 4}` : ""}</td>
+            <td>${m.appOk ? `<span class="wo-res nc">yes · ${m.appOk}</span>` : '<span class="wo-res blk">no</span>'}</td></tr>`).join("")}
+        </tbody></table></div>${rt.relies.length > 80 ? `<p class="mini muted" style="margin-top:6px">${rt.relies.length - 80} more — export CSV for all.</p>` : ""}` : '<p class="mini muted">Nobody in the wave went through the approved-app path in the window.</p>'}
+        <p class="mini muted" style="margin-top:8px">“Through the approved app” = a reaching retired policy applied with success on a sign-in whose device was not compliant. Removing the control without a replacement makes such a policy compliant-device-only for these members; replacing it with Require app protection policy needs an Intune APP policy assigned to them and picked up by the app — the red rows are the ones with no such evidence yet. Report-only cannot evaluate that control; its report-only failures are not denials.</p>
+      </div>`;
+    }
+
     // ---- readiness
     const roRows = res.rows.filter((r) => r.state === "ro" && r.target && r.target.kind !== "other");
     const fbar = (fc) => { const t = fc.evaluated || 1; const w = (n) => Math.round(n / t * 100); return `<div class="wo-fbar" style="width:180px"><i class="b" style="width:${w(fc.blocked.length)}%"></i><i class="p" style="width:${w(fc.prompted.length)}%"></i><i class="n" style="width:${w(fc.unchanged)}%"></i></div>`; };
@@ -368,7 +420,7 @@ const Wave = (() => {
       ${mc.disabled ? `<div class="wo-callout"><b>${mc.disabled} disabled account${mc.disabled === 1 ? "" : "s"}</b> in the wave — they count toward the licence obligation and toward nothing else.</div>` : ""}
     </div>`;
 
-    return head + riskHtml + readiness + ptable + `<div class="wo-split">${mtable}${built}</div>`;
+    return head + riskHtml + retHtml + readiness + ptable + `<div class="wo-split">${mtable}${built}</div>`;
   }
 
   // ------------------------------------------------------------- csv --
@@ -392,6 +444,14 @@ const Wave = (() => {
     if (res.waveOverlap.length) L.push(`- **Two waves at once:** ${res.waveOverlap.map((x) => `${x.n} also in ${e(x.name)}`).join(", ")}`);
     if (mc.bypass) L.push(`- **Standing bypasses:** ${mc.bypass} members in an exclusion group while the policy is On`);
     if (res.coverage) L.push(`- **Coverage:** ${res.coverage.missing ? `${res.coverage.missing} members are NOT in ${e(res.coverage.name)}` : `all members are also in ${e(res.coverage.name)}`}`);
+    if (res.retired && log) {
+      const rt = res.retired;
+      L.push(`- **Retired control (approved client app):** ${rt.policies.length} reaching polic${rt.policies.length === 1 ? "y" : "ies"}; ${rt.exposed.length} members blocked the day the control goes (no app protection policy seen), ${rt.ready.length} ready, ${res.members.length - rt.relies.length} not affected`);
+      if (rt.relies.length) {
+        L.push("", "## Retired control: members going through the approved app", "", "| Member | UPN | Sign-ins | Policies | Apps | App protection seen |", "| --- | --- | --- | --- | --- | --- |");
+        rt.relies.forEach((m) => L.push(`| ${e(m.name)} | ${e(m.upn)} | ${m.retired.n} | ${e([...m.retired.pols].join(", "))} | ${e([...m.retired.apps].join(", "))} | ${m.appOk ? `yes (${m.appOk})` : "NO"} |`));
+      }
+    }
     if (res.risk) {
       const rk = res.risk;
       L.push(`- **Identity risk:** ${rk.atRisk.length} at risk, ${rk.remediated.length} remediated/dismissed, ${rk.risky.length} with a risky sign-in in the window${rk.fires.length ? `; firing: ${rk.fires.map((P) => `${e(P.seq || P.name)} on ${P.members.length}`).join(", ")}` : ""}${rk.errs ? `; ${rk.errs} not read` : ""}`);

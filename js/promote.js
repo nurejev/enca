@@ -118,6 +118,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 171,
+      title: "📵 Retired approved-client-app check in 🕵 and 🌊; 🎚 says app protection policy is not evaluable in report-only (T36 0.9, T37 0.7, T26 1.5.1)",
+      tools: ["Who is Anna to CA", "Who is the wave to CA", "Report-only impact"],
+      builds: [25336],
+      risk: "low",
+      what: "js/whois.js buildLookup: builtIn (raw grantControls.builtInControls) + retired (approvedApplication); retiredOf(recs, lookup, rows) → { policies [{viaApp, mobile, apps, devices, last, hasDev, hasApp}], relies, appOk, verdict none|clear|ready|exposed } — viaApp = the policy applied with success/reportOnlySuccess on a record whose device is not compliant (a compliant device means the device half met it); appOk = any record where a compliantApplication policy succeeded on a non-compliant device with a compliant-app grant enforced. res.retired; 📵 card between risk and devices (fold key 'retired'); controlsHtml strikes the retired control and adds a read-only chip; toMd section. js/wave.js analyze: m.retired {n, pols, apps} and m.appOk per member from the shared records, res.retired {policies with reach, relies, exposed, ready}; card after 🛡 with three tiles and the member table; toMd. js/app.js renderImpact: a compliantApplication report-only policy with failures gets the not-evaluable note. css .ctrl.ret strike-through. js/demo.js: policy d12 (CA212, compliantDevice OR approvedApplication, Internals, iOS/Android) + Eva's si-14 iOS Teams success through RequireApprovedApp.",
+      why: "Read-only, display. The enforcedGrantControls string for the app-protection path is matched by words (compliantapp / appprotection / RequireCompliantApp) — test 3 confirms the real value.",
+      test: [
+        "Perfetti, 🕵 on a MAM-only Android user (Outlook/Teams, phone not enrolled): the 📵 card lists CA138 (compliant device or approved app) with sign-ins through the approved app, verdict 'Blocked the day the control goes' unless an APP-satisfied sign-in exists; the policies table shows CA137/138/139 with the struck-through control and the read-only chip.",
+        "🕵 on an Intune-enrolled user: verdict 'Not affected' — zero through the approved app.",
+        "A user on CA136 (app protection policy, report-only or on): after the control is met, her record's enforcedGrantControls must match the words the code looks for (compliantapp / appprotection / RequireCompliantApp) — read one such row in the schema panel or Graph; if the value differs, widen the regex in whois.js and wave.js.",
+        "🌊 DG-INT: the three tiles add up to the member count; every red row is a member with no APP-satisfied sign-in; names open 🕵.",
+        "🎚 with CA136 report-only: under its verdict the note 'Report-only cannot evaluate Require app protection policy' appears when it has would-deny counts.",
+        "?demo=1: Eva — 📵 card, CA212 through the approved app 1 (1 mobile), verdict blocked; Milan — not affected; Alex — no card. 🌊 DG-INT — 1 blocked, 0 ready, 1 not affected.",
+      ],
+      files: ["js/whois.js", "js/wave.js", "js/app.js", "js/demo.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 170,
       title: "🫥 Apps with no service principal — new tool (T39 0.1, R51)",
       tools: ["Apps with no service principal"],
