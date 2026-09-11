@@ -126,11 +126,31 @@ const GroupsView = (() => {
     if (c.kind === "exclusion" || c.kind === "breakglass") return '<span class="res wp">not protected</span>';
     return '<span class="mini muted">n/a</span>';
   }
+  // Which row carries the 📞 Rule action. The tool's OWN alias list decides —
+  // TeamsDev.ALIASES, the same list isAlias() uses inside it — so a tenant
+  // that named the group CAB-SEC-U-SharedDevices still gets the action. The
+  // substring test is only the fallback for a tenant whose name is not on that
+  // list at all; ⌘K reaches the tool either way.
+  const isTeamsShared = (name) => {
+    const n = String(name || "").toLowerCase();
+    try {
+      if (typeof TeamsDev !== "undefined" && TeamsDev.ALIASES) {
+        if (TeamsDev.ALIASES.some((x) => String(x).toLowerCase() === n)) return true;
+      }
+    } catch { /* the module is not loaded in a fork that dropped it */ }
+    return /teamsshareddevices|shareddevices/i.test(n);
+  };
   function rowActions(r, c) {
     const a = [];
     if (!r.id && r.template) a.push(`<button class="btn sm primary" data-cgg-act="create" data-cgg-name="${esc(r.name)}">＋ Create</button>`);
     if (r.status === "dangling") a.push(`<button class="btn sm" data-cgg-act="restore" data-cgg-name="${esc(r.name)}" title="Restore the reference in 👥 Assign">🔁 Restore</button>`);
     if (r.id && c.kind === "deploy") a.push(`<button class="btn sm" data-cgg-act="wave" data-cgg-name="${esc(r.name)}" title="Open 🌊 Who is the wave to CA">🌊</button>`);
+    // 📞 T35, folded in at build 25349. It was a tile for one action on ONE row:
+    // ② Create already makes this group with the Teams rule, and T35 rebuilds
+    // that rule from the licences the tenant actually holds. So it is offered
+    // where the group is — and nowhere else, because on any other row the
+    // button would mean nothing.
+    if (r.id && isTeamsShared(r.name)) a.push(`<button class="btn sm" data-cgg-act="teamsdev" data-cgg-name="${esc(r.name)}" title="📞 Rebuild the membership rule from the device licences this tenant holds">📞 Rule</button>`);
     a.push(`<button class="btn sm" data-cgg-act="menu" data-cgg-name="${esc(r.name)}" title="More actions for this group">⋯</button>`);
     return a.join(" ");
   }

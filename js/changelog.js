@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25349, date: "2026-09-11", title: "📞 Teams devices is a row action, not a tile. 19 tiles",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "📞 Teams devices is the 📞 Rule action on the CAB-SEC-U-TeamsSharedDevices row. ② Create already makes that group as a dynamic group with the Teams rule; T35 rebuilds the rule from the device licences the tenant actually holds and replaces it. That is one action on ONE row — not a tool of its own — so it is offered where the group is and nowhere else, because on any other row the button would mean nothing. The licence read, the rule derivation, the preview and the write are untouched." },
+      { kind: "improved", tool: "Conditional Access groups", text: "Which row gets the action is decided by the tool's OWN alias list — the same one it uses internally — so a tenant that named the group CAB-SEC-U-SharedDevices gets it too; a substring test is the fallback, and ⌘K reaches the tool by name or by number either way. Its screen now carries a ← Groups button back to the list it came from, and the host's crumb, so it reads as part of 👥 rather than as a tool you fell into." },
+      { kind: "improved", tool: "All tools", text: "THE CONSOLIDATION IS COMPLETE at 19 tiles, from 39 this morning. Twenty tools folded, none removed: every one keeps its T-number, its own Help section under its host, a row in 🔢 Tool numbers and its own name in the palette. What is deliberately NOT folded, and says so where it lives: 🔒 Protect exclusions (its two-locks screen is not the same as ⑥'s), 🛡 Restricted AUs, 🗣 User impact brief, one findings table across 🛡's four packs, and one changes renderer across 🕓's two." },
+    ],
+  },
+  {
     build: 25348, date: "2026-09-11", title: "🎫 Licence gap is the funnel's last stage, opened up",
     items: [
       { kind: "improved", tool: "Gap analyse", text: "🎫 Licence gap is the 🎫 Licences TAB of 🔍 Gap analyse. The coverage funnel's final stage already reported the same obligation through the same helper — every user a policy targets needs Entra ID P1, a risk condition needs P2 — and 🎫 was that stage with the ways to close it attached. Nothing inside it changed: the obligation read, the per-user verdicts, the remedies, the export." },

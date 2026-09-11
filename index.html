@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25348"></script>
+<script src="js/popup-guard.js?v=25349"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25348" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25348">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25349" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25349">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25348"></script>
+<script src="js/selfhost-boot.js?v=25349"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25348"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25348"></script>
+<script src="js/counter.js?v=25349"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25349"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25348" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25349" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25348" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25349" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -203,10 +203,6 @@
       <div class="tool" id="toolExclusions">
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer <span class="tag upd">UPDATED</span></h3>
         <p>Every exclusion across all policies — users, groups (expanded to members, with the nested groups they came through), roles, guest types, apps and locations — in an exclusion × policy matrix, with a risk review that flags an exclusion group fed by nesting.</p>
-      </div>
-      <div class="tool" id="toolTeamsDev">
-        <div class="tool-ic">📞</div><h3>Teams devices <span class="tag new">BETA</span></h3>
-        <p>Is the shared-device exclusion group (<b>CAB-SEC-U-TeamsSharedDevices</b>) catching every Teams Room, Shared Space phone and Phone resource account — and nobody else? Builds the membership rule from the device licences this tenant actually has, previews who it matches, flags Teams groups whose rule catches people, and replaces the rule after you confirm. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolAudit">
         <div class="tool-ic">🕓</div><h3>Changes <span class="tag upd">UPDATED</span></h3>
@@ -1331,6 +1327,7 @@
   <section id="screen-teamsdev" class="screen">
     <div class="list-card readme" id="tdHead" style="margin-top:0"></div>
     <div class="toolbar" id="tdToolbar" style="margin-top:14px">
+      <button class="btn" id="tdBack" title="Back to the group list this came from">← Groups</button>
       <div style="display:flex;gap:8px;align-items:center;flex:1;flex-wrap:wrap;min-width:0">
         <input id="tdPrefix" class="txt" style="flex:1;min-width:280px;letter-spacing:normal;font-weight:400" placeholder="UPN prefixes the rule should also match, e.g. mtr-, cap- (optional, comma-separated)" autocomplete="off" spellcheck="false" title="Accounts a service plan cannot isolate — a device SKU whose plans every user also holds — can still be caught by the start of their user principal name. Each prefix becomes a -startsWith clause in the rule.">
       </div>
@@ -2021,6 +2018,7 @@
             <li><code>T37</code> 🌊 Who is the wave to CA → <b>🕵 Who is … to CA</b>, A group subject (build 25347)</li>
             <li><code>T18</code> ⚖ Compare users → <b>🕵 Who is … to CA</b>, Compare users subject (build 25347)</li>
             <li><code>T31</code> 🎫 Licence gap → <b>🔍 Gap analyse</b>, Licences tab (build 25348)</li>
+            <li><code>T35</code> 📞 Teams devices → <b>👥 Conditional Access groups</b>, the 📞 Rule action on the TeamsSharedDevices row (build 25349)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The version beside it is the opposite kind of thing</b> — the number never changes, the version always does. They sit together so they are read together: “T21 v0.5” says which tool and how far along it is.</li>
@@ -2132,6 +2130,7 @@
 
     <section class="help-sec">
       <h4>👥 Conditional Access groups <span class="tag block">writes to tenant</span></h4>
+      <p><b>📞 Teams devices is a row action here, not a tile.</b> ② Create already makes <code>CAB-SEC-U-TeamsSharedDevices</code> as a dynamic group with the Teams rule; T35 rebuilds that rule from the device licences the tenant actually holds, and replaces it. One action on ONE row, so from build 25349 it is offered where the group is — the <b>📞 Rule</b> button on that row — and nowhere else, because on any other row it would mean nothing. Which row gets it is decided by the tool's own alias list, so a tenant that named the group <code>CAB-SEC-U-SharedDevices</code> still gets the action. <b>T35</b> keeps its number (see 🔢 Tool numbers) and its section below, ⌘K still finds it by name and number, and its screen carries a <b>← Groups</b> button back to the list it came from.</p>
       <p>The group side of the baseline, in one tool. <b>One read, then everything is a row.</b> On open the tool reads the tenant once — the groups your policies reference (scope <b>Used by CA policies</b>), plus everything the ★ active baseline expects (<b>Baseline + templates</b>), or every security group in the tenant, first 5,000 (<b>All groups</b>) — with their policies, protection, role-assignable state and <b>nested groups</b> — and shows them as a <b>list</b>. Members and nesting are read per group when you first look at it, kept for the session, and a write re-reads only the group it touched.</p>
       <ul>
         <li><b>The list</b> — group, status (present / missing / referenced but gone), members (count, direct vs nested, or a read button), the policies that use it with their state, protection (which restricted unit, or not protected). Filter chips: needs attention, missing, gone, empty, not protected, role-assignable, ↪ has nested groups (always shown — a nested group inside an exclusion or break-glass group is needs attention, because whoever manages the nested group decides who bypasses the policy), not in the baseline; the search matches group names, object IDs and members. Sorted attention first; click a column header to sort by it, again to flip, a third time to go back. Each row offers what applies to it — ＋ Create on a missing group, 🔁 Restore on a dangling reference, 🌊 on a deploy group, ⋯ for everything else.</li>
@@ -2175,6 +2174,20 @@
           <br><b>Select all / deselect all</b> above the list, and the restricted-AU placement is <b>optional</b> — untick it to convert in stages, verify the members, then place the groups from ⑥ Protect when ready (they are ordinary groups by then, so Protect handles them like any other). A converted-but-unplaced group is editable by any tenant-wide Groups Administrator until you do.
           <br>The archived originals keep their members and stay role-assignable — they are your rollback until you delete them from <b>🧹 Archived groups</b>. Needs <code>Group.ReadWrite.All</code>, <code>RoleManagement.ReadWrite.Directory</code>, <code>AdministrativeUnit.ReadWrite.All</code> and <code>Policy.ReadWrite.ConditionalAccess</code>, plus <b>Privileged Role Administrator</b>.</li>
       <p class="help-x">Writes only on Create / Recreate / Make dynamic / Assign / Import members / Protect / Migrate, each behind a confirmation.</p>
+
+      <h5>📞 Teams devices <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span> <span class="help-fold">folded into this tool — build 25349</span></h5>
+      <p>Teams Rooms, panels, common-area phones and the resource accounts behind auto attendants and call queues sign in as users — and cannot answer an MFA prompt, accept terms of use, survive a sign-in frequency or work without device code flow. The baseline keeps them out of those controls by excluding <b>one dynamic group</b>, <code>CAB-SEC-U-TeamsSharedDevices</code>, from every global policy. Whether that works depends entirely on the group's <b>membership rule</b>, and the rule shipped so far names three Teams <b>Rooms</b> plans: a tenant whose phones sit on <b>Teams Shared Space</b> (Microsoft Teams Shared Devices until April 2026) and whose call queues use <b>Teams Phone Resource Account</b> licences has none of them in the group.</p>
+      <ul>
+        <li><b>Why the rule cannot just list the SKUs</b> — dynamic membership sees <i>service plans</i> (<code>user.assignedPlans</code>), never a licence SKU, and a device SKU is mostly plans every E3/E5 user also holds: Teams Phone (<code>MCOEV</code>), Teams, Skype for Business, Intune, Entra P1. A rule naming any of those puts <b>people</b> in the exclusion group. The tool reads the tenant's <b>subscribed SKUs</b>, recognises the device SKUs by part number, and keeps only the plans that <b>no other subscription</b> in the tenant carries — the plans that can isolate device accounts <i>here</i>. A bundled catalog of Microsoft's device-only plans is the fallback when the SKUs cannot be read, and gives every referenced plan a name.</li>
+        <li><b>Licences</b> — every device SKU with how many of its seats are assigned and which plan isolates it. A SKU whose plans are all shared with user SKUs is marked <b>not isolatable</b>: type the UPN prefix those accounts share (<code>mtr-</code>, <code>cap-</code>) in the box and rescan, and it is added to the rule as a <code>-startsWith</code> clause — or keep those accounts in an assigned group the same policies exclude. <b>Teams Phone Standard</b> and the calling plans are listed as <i>user licences, left out</i>: people hold them, and they keep MFA.</li>
+        <li><b>And not a person</b> — a device match alone is not enough: a DECT handset or a Shared Space licence assigned to somebody's own account matches every device plan and would put that person in the exclusion group, out of MFA. So the rule has a second half, <code>-and (user.assignedPlans -all (servicePlanId -ne … ))</code>: the account must hold <b>none</b> of the plans that mark a user suite — E1/E3/E5, F1/F3, A3/A5, Business. Those markers are derived the same way in reverse (plans the tenant's suites carry that no device SKU carries, the smallest set covering every suite), with the SharePoint plans as the static fallback since no device SKU has ever carried SharePoint. The accounts this keeps out are <b>counted and named</b> — a device licence on a person is a licensing problem the rule avoids but cannot fix.</li>
+        <li><b>Recommended rule</b> — the rule text, each plan named, its length against Microsoft's 3,072-character limit, and a <b>preview</b>: how many accounts in the directory match it today, with the first few by name. The preview is the same filter the rule expresses, run as a Graph query, so the number is what Entra will produce — before anything is written.</li>
+        <li><b>Groups</b> — every group that looks like a Teams device group: the canonical name and its aliases, any dynamic group whose rule names a Teams plan, anything called Teams / shared / rooms. Per group: dynamic or assigned, rule state, member count, which Conditional Access policies include or exclude it, and a verdict — <b>current</b>, <b>update the rule</b> (with the missing plans named), <b>matches PEOPLE</b> (the rule names a plan real users hold — the group is excluding humans from MFA), <b>assigned</b> (nothing keeps it current) or <b>read by hand</b>.</li>
+        <li><b>Conditional Access reach</b> — which active policies reach the accounts in the target group (All users, or the group included, and the group not excluded), against Microsoft's not-supported list for Teams devices: MFA and authentication strength, hybrid join, approved client app, password change, terms of use, sign-in frequency, persistent browser, app-enforced restrictions, app control, token protection, customised CAE, blocked device code flow, insider risk. Excluding the group is one click per policy in 📘 MS Learn checks.</li>
+        <li><b>✏️ Replace the rule</b> — writes the recommended rule onto the target group (an assigned group is converted to dynamic membership by the same write) after a confirmation that shows the old and new rule side by side; the new rule can be edited in the dialog first. <b>＋ Create</b> makes the group with the rule when the tenant has none — and reminds you it is excluded from nothing until you do that next.</li>
+        <li><b>📄 Export MD</b> — licences, rule, groups and reach as Markdown for the change record.</li>
+      </ul>
+      <p class="help-x">Reads are covered by the baseline <code>Directory.Read.All</code>. The write asks for <code>Group.ReadWrite.All</code> once, on the click, and needs a role that can edit the group (Groups Administrator, or the restricted unit's scoped role when the group is protected). Entra re-evaluates a changed rule in the background: accounts the old rule matched and the new one does not leave the group and lose its exclusions; new matches join. The catalog reflects Microsoft's licensing reference as read on 2 September 2026 — the tenant's own SKUs are always preferred over it.</p>
     </section>
 
         <section class="help-sec">
@@ -2263,21 +2276,6 @@
 
 
 
-    <section class="help-sec">
-      <h4>📞 Teams devices <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
-      <p>Teams Rooms, panels, common-area phones and the resource accounts behind auto attendants and call queues sign in as users — and cannot answer an MFA prompt, accept terms of use, survive a sign-in frequency or work without device code flow. The baseline keeps them out of those controls by excluding <b>one dynamic group</b>, <code>CAB-SEC-U-TeamsSharedDevices</code>, from every global policy. Whether that works depends entirely on the group's <b>membership rule</b>, and the rule shipped so far names three Teams <b>Rooms</b> plans: a tenant whose phones sit on <b>Teams Shared Space</b> (Microsoft Teams Shared Devices until April 2026) and whose call queues use <b>Teams Phone Resource Account</b> licences has none of them in the group.</p>
-      <ul>
-        <li><b>Why the rule cannot just list the SKUs</b> — dynamic membership sees <i>service plans</i> (<code>user.assignedPlans</code>), never a licence SKU, and a device SKU is mostly plans every E3/E5 user also holds: Teams Phone (<code>MCOEV</code>), Teams, Skype for Business, Intune, Entra P1. A rule naming any of those puts <b>people</b> in the exclusion group. The tool reads the tenant's <b>subscribed SKUs</b>, recognises the device SKUs by part number, and keeps only the plans that <b>no other subscription</b> in the tenant carries — the plans that can isolate device accounts <i>here</i>. A bundled catalog of Microsoft's device-only plans is the fallback when the SKUs cannot be read, and gives every referenced plan a name.</li>
-        <li><b>Licences</b> — every device SKU with how many of its seats are assigned and which plan isolates it. A SKU whose plans are all shared with user SKUs is marked <b>not isolatable</b>: type the UPN prefix those accounts share (<code>mtr-</code>, <code>cap-</code>) in the box and rescan, and it is added to the rule as a <code>-startsWith</code> clause — or keep those accounts in an assigned group the same policies exclude. <b>Teams Phone Standard</b> and the calling plans are listed as <i>user licences, left out</i>: people hold them, and they keep MFA.</li>
-        <li><b>And not a person</b> — a device match alone is not enough: a DECT handset or a Shared Space licence assigned to somebody's own account matches every device plan and would put that person in the exclusion group, out of MFA. So the rule has a second half, <code>-and (user.assignedPlans -all (servicePlanId -ne … ))</code>: the account must hold <b>none</b> of the plans that mark a user suite — E1/E3/E5, F1/F3, A3/A5, Business. Those markers are derived the same way in reverse (plans the tenant's suites carry that no device SKU carries, the smallest set covering every suite), with the SharePoint plans as the static fallback since no device SKU has ever carried SharePoint. The accounts this keeps out are <b>counted and named</b> — a device licence on a person is a licensing problem the rule avoids but cannot fix.</li>
-        <li><b>Recommended rule</b> — the rule text, each plan named, its length against Microsoft's 3,072-character limit, and a <b>preview</b>: how many accounts in the directory match it today, with the first few by name. The preview is the same filter the rule expresses, run as a Graph query, so the number is what Entra will produce — before anything is written.</li>
-        <li><b>Groups</b> — every group that looks like a Teams device group: the canonical name and its aliases, any dynamic group whose rule names a Teams plan, anything called Teams / shared / rooms. Per group: dynamic or assigned, rule state, member count, which Conditional Access policies include or exclude it, and a verdict — <b>current</b>, <b>update the rule</b> (with the missing plans named), <b>matches PEOPLE</b> (the rule names a plan real users hold — the group is excluding humans from MFA), <b>assigned</b> (nothing keeps it current) or <b>read by hand</b>.</li>
-        <li><b>Conditional Access reach</b> — which active policies reach the accounts in the target group (All users, or the group included, and the group not excluded), against Microsoft's not-supported list for Teams devices: MFA and authentication strength, hybrid join, approved client app, password change, terms of use, sign-in frequency, persistent browser, app-enforced restrictions, app control, token protection, customised CAE, blocked device code flow, insider risk. Excluding the group is one click per policy in 📘 MS Learn checks.</li>
-        <li><b>✏️ Replace the rule</b> — writes the recommended rule onto the target group (an assigned group is converted to dynamic membership by the same write) after a confirmation that shows the old and new rule side by side; the new rule can be edited in the dialog first. <b>＋ Create</b> makes the group with the rule when the tenant has none — and reminds you it is excluded from nothing until you do that next.</li>
-        <li><b>📄 Export MD</b> — licences, rule, groups and reach as Markdown for the change record.</li>
-      </ul>
-      <p class="help-x">Reads are covered by the baseline <code>Directory.Read.All</code>. The write asks for <code>Group.ReadWrite.All</code> once, on the click, and needs a role that can edit the group (Groups Administrator, or the restricted unit's scoped role when the group is protected). Entra re-evaluates a changed rule in the background: accounts the old rule matched and the new one does not leave the group and lose its exclusions; new matches join. The catalog reflects Microsoft's licensing reference as read on 2 September 2026 — the tenant's own SKUs are always preferred over it.</p>
-    </section>
     <section class="help-sec">
       <h4>📵 SMS &amp; voice retirement <span class="tag new">BETA</span></h4>
       <p>A <b>temporary</b> tool. Microsoft retires its own SMS and voice MFA delivery on <b>1 February 2027</b>; from 1 September 2026 users still enabled for SMS or voice are auto-enabled for passkeys and nudged at sign-in, and after the retirement a user whose <b>only</b> MFA method is a phone number gets a blocking passkey-registration prompt with no opt-out. This tool reads the sms and voice authentication-method configurations (state, registration campaign, include and exclude targets), expands the scope to the actual users, and joins the registration-details report so every user carries a verdict.</p>
@@ -3007,68 +3005,68 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25348"></script>
-<script src="js/selfhost.js?v=25348"></script>
-<script src="js/version.js?v=25348"></script>
-<script src="js/fork.js?v=25348"></script>
-<script src="js/promote.js?v=25348"></script>
-<script src="js/authConfig.js?v=25348"></script>
-<script src="js/labels.js?v=25348"></script>
-<script src="js/graph.js?v=25348"></script>
-<script src="js/model.js?v=25348"></script>
-<script src="js/render.js?v=25348"></script>
-<script src="js/analyze.js?v=25348"></script>
-<script src="js/whatif.js?v=25348"></script>
-<script src="js/mslearn.js?v=25348"></script>
-<script src="js/gapcheck.js?v=25348"></script>
-<script src="js/cisdata.js?v=25348"></script>
-<script src="js/cischeck.js?v=25348"></script>
-<script src="js/exclusions.js?v=25348"></script>
-<script src="js/cascope.js?v=25348"></script>
-<script src="js/validator.js?v=25348"></script>
-<script src="js/whatifeval.js?v=25348"></script>
-<script src="js/compare.js?v=25348"></script>
-<script src="js/whois.js?v=25348"></script>
-<script src="js/wave.js?v=25348"></script>
-<script src="js/sessionctl.js?v=25348"></script>
-<script src="js/spgap.js?v=25348"></script>
-<script src="js/groupuse.js?v=25348"></script>
-<script src="js/iso3166.js?v=25348"></script>
-<script src="js/causes.js?v=25348"></script>
-<script src="js/locations.js?v=25348"></script>
-<script src="js/authcontexts.js?v=25348"></script>
-<script src="js/authstrengths.js?v=25348"></script>
-<script src="js/recycle.js?v=25348"></script>
-<script src="js/rmau.js?v=25348"></script>
-<script src="js/camap.js?v=25348"></script>
-<script src="js/rmaudoc.js?v=25348"></script>
-<script src="js/termsofuse.js?v=25348"></script>
-<script src="js/audit.js?v=25348"></script>
-<script src="js/drift.js?v=25348"></script>
-<script src="js/guide.js?v=25348"></script>
-<script src="js/userimpact.js?v=25348"></script>
-<script src="js/smsvoice.js?v=25348"></script>
-<script src="js/memberof.js?v=25348"></script>
-<script src="js/devcheck.js?v=25348"></script>
-<script src="js/licgap.js?v=25348"></script>
-<script src="js/teamsdev.js?v=25348"></script>
-<script src="js/signins.js?v=25348"></script>
-<script src="js/reportimpact.js?v=25348"></script>
-<script src="js/changelog.js?v=25348"></script>
-<script src="js/baselineData.js?v=25348"></script>
-<script src="js/baselineJoeyData.js?v=25348"></script>
-<script src="js/baselineLive.js?v=25348"></script>
-<script src="js/baseline.js?v=25348"></script>
-<script src="js/baselineCleanup.js?v=25348"></script>
-<script src="js/groupTemplates.js?v=25348"></script>
-<script src="js/assign.js?v=25348"></script>
-<script src="js/cagroups.js?v=25348"></script>
-<script src="js/groupsview.js?v=25348"></script>
-<script src="js/runledger.js?v=25348"></script>
-<script src="js/protect.js?v=25348"></script>
-<script src="js/import.js?v=25348"></script>
-<script src="js/export.js?v=25348"></script>
-<script src="js/demo.js?v=25348"></script>
-<script src="js/app.js?v=25348"></script>
+<script src="js/branding.js?v=25349"></script>
+<script src="js/selfhost.js?v=25349"></script>
+<script src="js/version.js?v=25349"></script>
+<script src="js/fork.js?v=25349"></script>
+<script src="js/promote.js?v=25349"></script>
+<script src="js/authConfig.js?v=25349"></script>
+<script src="js/labels.js?v=25349"></script>
+<script src="js/graph.js?v=25349"></script>
+<script src="js/model.js?v=25349"></script>
+<script src="js/render.js?v=25349"></script>
+<script src="js/analyze.js?v=25349"></script>
+<script src="js/whatif.js?v=25349"></script>
+<script src="js/mslearn.js?v=25349"></script>
+<script src="js/gapcheck.js?v=25349"></script>
+<script src="js/cisdata.js?v=25349"></script>
+<script src="js/cischeck.js?v=25349"></script>
+<script src="js/exclusions.js?v=25349"></script>
+<script src="js/cascope.js?v=25349"></script>
+<script src="js/validator.js?v=25349"></script>
+<script src="js/whatifeval.js?v=25349"></script>
+<script src="js/compare.js?v=25349"></script>
+<script src="js/whois.js?v=25349"></script>
+<script src="js/wave.js?v=25349"></script>
+<script src="js/sessionctl.js?v=25349"></script>
+<script src="js/spgap.js?v=25349"></script>
+<script src="js/groupuse.js?v=25349"></script>
+<script src="js/iso3166.js?v=25349"></script>
+<script src="js/causes.js?v=25349"></script>
+<script src="js/locations.js?v=25349"></script>
+<script src="js/authcontexts.js?v=25349"></script>
+<script src="js/authstrengths.js?v=25349"></script>
+<script src="js/recycle.js?v=25349"></script>
+<script src="js/rmau.js?v=25349"></script>
+<script src="js/camap.js?v=25349"></script>
+<script src="js/rmaudoc.js?v=25349"></script>
+<script src="js/termsofuse.js?v=25349"></script>
+<script src="js/audit.js?v=25349"></script>
+<script src="js/drift.js?v=25349"></script>
+<script src="js/guide.js?v=25349"></script>
+<script src="js/userimpact.js?v=25349"></script>
+<script src="js/smsvoice.js?v=25349"></script>
+<script src="js/memberof.js?v=25349"></script>
+<script src="js/devcheck.js?v=25349"></script>
+<script src="js/licgap.js?v=25349"></script>
+<script src="js/teamsdev.js?v=25349"></script>
+<script src="js/signins.js?v=25349"></script>
+<script src="js/reportimpact.js?v=25349"></script>
+<script src="js/changelog.js?v=25349"></script>
+<script src="js/baselineData.js?v=25349"></script>
+<script src="js/baselineJoeyData.js?v=25349"></script>
+<script src="js/baselineLive.js?v=25349"></script>
+<script src="js/baseline.js?v=25349"></script>
+<script src="js/baselineCleanup.js?v=25349"></script>
+<script src="js/groupTemplates.js?v=25349"></script>
+<script src="js/assign.js?v=25349"></script>
+<script src="js/cagroups.js?v=25349"></script>
+<script src="js/groupsview.js?v=25349"></script>
+<script src="js/runledger.js?v=25349"></script>
+<script src="js/protect.js?v=25349"></script>
+<script src="js/import.js?v=25349"></script>
+<script src="js/export.js?v=25349"></script>
+<script src="js/demo.js?v=25349"></script>
+<script src="js/app.js?v=25349"></script>
 </body>
 </html>

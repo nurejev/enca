@@ -118,6 +118,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 184,
+      title: "📞 Teams devices folded into 👥 CA groups as a row action (T12 5.11; T35 folded) — 19 tiles, consolidation complete",
+      tools: ["Conditional Access groups", "Teams devices"],
+      builds: [25349],
+      risk: "low",
+      what: "js/groupsview.js: rowActions gains a 📞 Rule button on the TeamsSharedDevices row only, gated by a new isTeamsShared(name) that reads TeamsDev.ALIASES (the tool's own list, the same one isAlias uses) with a substring fallback and a try/catch for a fork that dropped the module. js/app.js: the cggClick dispatcher gains case teamsdev calling openTeamsDev; openTeamsDev crumbs 👥 Conditional Access groups; the toolTeamsDev tile handler is replaced by a tdBack handler calling openCaGroups; the TOOL_TABS row goes; FOLDED gains toolTeamsDev. index.html: the 📞 tile removed, a ← Groups button first in tdToolbar, the 📞 Help section moved under T12 as an h5 with a paragraph on why it is a row action, one row in 🔢 Tool numbers. js/version.js: build 25349, T12 5.11, T35 0.4.1 folded.",
+      why: "Low: nothing inside T35 changed and T12 gained one conditional button in a cell it already renders. The reason this was left until last is that T12 is the largest write tool in the app and its rows and drawer were rewritten as recently as 25337 — so the change was kept to one added line in rowActions and one case in the dispatcher, with the row-matching logic in its own named function rather than inline.",
+      test: [
+        "Home page: 19 tiles, 📞 gone as a tile.",
+        "Perfetti, 👥 CA groups with scope Baseline + templates: the CAB-SEC-U-TeamsSharedDevices row shows a 📞 Rule button and NO OTHER ROW DOES. Click it: 📞 Teams devices opens with its licence read, and the tab bar still says 👥 Conditional Access groups.",
+        "← Groups on that screen returns to the group list with the scan intact (openCaGroups reuses cgRes) — not a re-scan, and not the home page.",
+        "A tenant where the group is named CAB-SEC-U-SharedDevices (or any other name on TeamsDev.ALIASES): the action must still appear on that row. If no tenant to hand has an aliased name, say the step was skipped — the fallback substring test covers anything containing sharedevices, and ⌘K covers the rest.",
+        "A tenant with NO such group at all: no row carries the button, nothing throws, and ⌘K for 'teams devices' still opens the tool.",
+        "The rule itself is unchanged: run it and confirm it names device-only plans (SPECIALTY_DEVICES, MCOEV_VIRTUALUSER, Teams_Room_*) and never MCOEV or TEAMS1, and that the preview and the write behave as at 25348.",
+        "⌘K: 'teams devices' offers 📞 Teams devices with the hint naming the row action and lands on it; 35 finds it by number.",
+        "?demo=1: the demo group list shows the row with its 📞 Rule button, the tool opens, and ← Groups comes back.",
+      ],
+      files: ["index.html", "js/app.js", "js/groupsview.js", "js/changelog.js", "js/promote.js", "js/version.js"],
+    },
+    {
       n: 183,
       title: "🎫 Licence gap folded into 🔍 Gap analyse as the Licences tab (T03 1.10; T31 folded) — 20 tiles",
       tools: ["Gap analyse", "Licence gap"],

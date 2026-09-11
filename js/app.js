@@ -217,6 +217,8 @@
                         open: () => openCompare() },
     toolLicGap:       { into: "toolAnalyze",  label: "🎫 Licence gap",                 where: "the Licences tab",           build: 25348,
                         open: () => openLicGap() },
+    toolTeamsDev:     { into: "toolCaGroups", label: "📞 Teams devices",               where: "the 📞 Rule action on the TeamsSharedDevices row", build: 25349,
+                        open: () => openTeamsDev() },
   };
   // Land on a folded tool. Its own entry point when it has one — the right tab,
   // the right catalog — otherwise the host tile, which is the correct answer for
@@ -2347,7 +2349,6 @@
     ["toolAudit", "🕓 Changes"],
     ["toolSignins", "🚦 Sign-in log"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
-    ["toolTeamsDev", "📞 Teams devices"],
     ["toolBaseline", "🧬 Baseline"],
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
@@ -7345,6 +7346,7 @@ This is a directory write. Nothing else changes.`)) return;
         case "rmau": cgGoTab("rmau", [name]); return;
         case "migrate": cgGoTab("migrate", [name]); return;
         case "nesting": openNesting(name, act); return;   // ⑧ Disable nesting, from the drawer's Protection tab
+        case "teamsdev": openTeamsDev(); return;   // 📞 T35, folded in at 25349
         case "menu": showGroupRow(name); return;
       }
       return;
@@ -19998,8 +20000,11 @@ This is a directory write. Nothing else changes.`)) return;
     }
   }
 
-  function openTeamsDev() { crumb("📞 Teams devices"); show("screen-teamsdev"); renderTeamsDev(); }
-  $("toolTeamsDev").addEventListener("click", openTeamsDev);
+  // Reached from the 📞 Rule action on the TeamsSharedDevices row in 👥 CA
+  // groups (build 25349) — it is one action on one row, not a tool of its own,
+  // so it carries the host's crumb and a way back to the list it came from.
+  function openTeamsDev() { crumb("👥 Conditional Access groups"); show("screen-teamsdev"); renderTeamsDev(); }
+  $("tdBack").addEventListener("click", () => { openCaGroups(); });
   $("tdRun").addEventListener("click", tdRun);
   $("tdPrefix").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); tdRun(); } });
   $("tdBody").addEventListener("click", async (e) => {
