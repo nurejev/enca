@@ -118,6 +118,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 180,
+      title: "One scope check (js/cascope.js) — and ⚡ CA validator stops reporting guest-scoped policies as out of scope (T13 1.7, T36 0.9.1)",
+      tools: ["CA validator", "Who is Anna to CA", "All tools"],
+      builds: [25345],
+      risk: "medium",
+      what: "NEW js/cascope.js — CaScope.of(policy, subject, opts) returning { state inc|exc|na, applies, included, excluded, byAll, inc, exc, via }, plus CaScope.prep(raw) which normalises a policy's users block and reads the guest type BOTH ways a tenant reports it (the includeGuestsOrExternalUsers boolean and the GuestsOrExternalUsers token in the user list, the token kept out of the id comparison). A group subject is handled as its own case: reached by All users or a named include, taken out only by an exclude, no roles and no guest type. opts.guests defaults TRUE; opts.howOf supplies direct-versus-nested. js/whois.js: stateFor is a two-line delegation (its logic was the base). js/validator.js: appliesTo is a delegation and keeps its field names. js/app.js: resolveValidatorTarget selects userType and userTarget carries guest; the ⚡ target bar prints a guest note with the build number when the target is a guest. index.html: the cascope.js script tag before validator.js.",
+      why: "MEDIUM, and the risk is the intended behaviour change: ⚡ will report simulations it used to skip. On a tenant with guest-scoped policies and a guest target, the simulation count goes UP and new rows appear — that is the fix, not a regression, and the target bar says so on screen. Everything else must be byte-identical: a member target, a group target and both 🕵 and 🌊 run through the same code path as before because stateFor WAS the base. Test 1 is the equivalence run and test 2 is the fix; do them on the same tenant, in that order.",
+      test: [
+        "EQUIVALENCE, member and group. On a real tenant, run ⚡ against a MEMBER user and against a persona GROUP and compare with 25344: same simulation count and the same per-policy in-scope / out-of-scope split. ONE WORD IS EXPECTED TO CHANGE — a target that sits in a policy's exclusion group WITHOUT being in its include scope (a break-glass account against a persona policy is the case) used to read excluded and now reads not targeted, which is what 🕵 has always said; the verdict is the same either way. Verified over 120 policy-by-subject comparisons on the demo: applies never differs, and the reason differs only in that one shape. Then 🕵 on two or three users and 🌊 on a wave: identical output, because stateFor WAS the base.",
+        "THE FIX. A tenant with a policy assigned to Guests and external users (the demo has CA310) and a GUEST target: ⚡ must now show that policy in scope with its simulations, the target bar must carry the guest chip and the note, and the simulation count must be higher than 25344 gave for the same guest. On 25344 the same target reported it out of scope.",
+        "A guest target on a tenant with NO guest-scoped policy: nothing changes, and the note still appears (it explains the tool, not a finding) — confirm it does not read as though something were wrong.",
+        "Guest EXCLUSION: a policy that includes All users and excludes Guests and external users, against a guest target — must read as excluded, not as out of scope, because excluded is the bypass and out of scope is not.",
+        "Both spellings of the guest type: a tenant policy carrying includeGuestsOrExternalUsers as a nested object AND one carrying GuestsOrExternalUsers in includeUsers must both fire. If the tenant only has one shape, say which was skipped.",
+        "In the console: CaScope.of on a hand-built policy for each branch — All, named user, group, nested group, role, guest, and the same six as exclusions — returns the state you expect; CaScope.of(..., { guests: false }) reproduces 25344's blind answer, which is the switch to reach for if this ever has to be reverted without a rollback.",
+        "?demo=1: ⚡ against a group still works (demo resolves group targets only), 🕵 on Eva and 🌊 on DG-INT render unchanged.",
+      ],
+      files: ["js/cascope.js", "js/whois.js", "js/validator.js", "js/app.js", "index.html", "js/changelog.js", "js/promote.js", "js/version.js"],
+    },
+    {
       n: 179,
       title: "195 lines of dead simulator removed from js/whatif.js; no behaviour change (T14 1.3.2)",
       tools: ["What-If", "All tools"],

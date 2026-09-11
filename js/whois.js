@@ -90,28 +90,14 @@ const WhoIs = (() => {
 
   // Assignment state of one policy for the user — Comparer.stateFor with the
   // INCLUDE reason added, because "reaches her via DG-INT" is the whole point.
+  // One scope check, shared with ⚡ CA validator — js/cascope.js, build 25345.
+  // buildLookup above already produces exactly the shape CaScope reads, and
+  // howOf is passed in because direct-versus-nested is this tool's question,
+  // not the scope check's. The three states and the named reason are what they
+  // were; "s" is kept as the field name because every caller here reads it.
   function stateFor(P, u) {
-    const name = (id) => u.names[id] || id;
-    let why = null;
-    if (P.includeAll) why = { kind: "all", text: "All users" };
-    else if (P.incUsers.has(u.id)) why = { kind: "user", text: "named directly" };
-    else {
-      const g = P.incGroups.find((x) => u.groupIds.has(x));
-      if (g) why = { kind: "group", id: g, text: name(g), how: howOf(u, g) };
-      else {
-        const r = P.incRoles.find((x) => u.roleIds.has(x));
-        if (r) why = { kind: "role", id: r, text: name(r) };
-        else if (P.incGuests && u.guest) why = { kind: "guest", text: "guest / external user type" };
-      }
-    }
-    if (!why) return { s: "na" };
-    if (P.excUsers.has(u.id)) return { s: "exc", inc: why, exc: { kind: "user", text: "named directly in the exclusions" } };
-    const g = P.excGroups.find((x) => u.groupIds.has(x));
-    if (g) return { s: "exc", inc: why, exc: { kind: "group", id: g, text: name(g), how: howOf(u, g) } };
-    const r = P.excRoles.find((x) => u.roleIds.has(x));
-    if (r) return { s: "exc", inc: why, exc: { kind: "role", id: r, text: name(r) } };
-    if (P.excGuests && u.guest) return { s: "exc", inc: why, exc: { kind: "guest", text: "guest / external user type" } };
-    return { s: "inc", inc: why };
+    const r = CaScope.of(P, u, { howOf });
+    return r.state === "na" ? { s: "na" } : { s: r.state, inc: r.inc, exc: r.exc };
   }
 
   // ------------------------------------------------- deployment groups --

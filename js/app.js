@@ -8936,12 +8936,12 @@ This is a directory write. Nothing else changes.`)) return;
       return { kind: "group", id, name: dn[id] || t };
     }
     if (t.includes("@")) {   // a UPN → user
-      const u = await Graph.gget(`/users/${encodeURIComponent(t)}?$select=id,displayName,userPrincipalName`);
+      const u = await Graph.gget(`/users/${encodeURIComponent(t)}?$select=id,displayName,userPrincipalName,userType`);
       return await userTarget(u);
     }
     if (guid) {              // GUID → try group, then user
       try { const g = await Graph.gget(`/groups/${t}?$select=id,displayName`); return await groupTarget(g); }
-      catch { const u = await Graph.gget(`/users/${t}?$select=id,displayName,userPrincipalName`); return await userTarget(u); }
+      catch { const u = await Graph.gget(`/users/${t}?$select=id,displayName,userPrincipalName,userType`); return await userTarget(u); }
     }
     // plain text → group by display name (exact)
     const esc2 = t.replace(/'/g, "''");
@@ -8969,7 +8969,11 @@ This is a directory write. Nothing else changes.`)) return;
         else groupIds.add(o.id);
       });
     } catch (e) { console.warn("validator: membership lookup failed", e.message); }
-    return { kind: "user", id: u.id, name: u.displayName || u.userPrincipalName, upn: u.userPrincipalName, groupIds, roleIds };
+    // guest is read here and nowhere else: the shared scope check needs it to
+    // answer a policy assigned to "Guests and external users", which this tool
+    // could not see at all before 25345.
+    return { kind: "user", id: u.id, name: u.displayName || u.userPrincipalName, upn: u.userPrincipalName,
+      groupIds, roleIds, guest: String(u.userType || "").toLowerCase() === "guest" };
   }
 
   const VA_CTRL_ORDER = ["block", "mfa", "authenticationStrength", "compliantDevice", "domainJoinedDevice", "passwordChange", "riskRemediation"];
@@ -9028,7 +9032,7 @@ This is a directory write. Nothing else changes.`)) return;
         ${r.target ? `<div class="mini">${r.outOfScope} not in scope for this target</div>` : ""}
         ${r.skipped.length ? `<div class="mini">${r.skipped.length} with no controls</div>` : ""}
       </div></div>
-      ${r.target ? `<div class="va-targetbar">🎯 Running against ${r.target.kind === "user" ? "user" : "persona group"} <b>${esc(r.target.name)}</b>${r.target.upn ? ` <span class="mini muted">${esc(r.target.upn)}</span>` : ""} — showing only the policies that apply. <button class="fchip" data-vacleartarget="1">✕ Clear</button></div>` : ""}`;
+      ${r.target ? `<div class="va-targetbar">🎯 Running against ${r.target.kind === "user" ? "user" : "persona group"} <b>${esc(r.target.name)}</b>${r.target.upn ? ` <span class="mini muted">${esc(r.target.upn)}</span>` : ""} — showing only the policies that apply. <button class="fchip" data-vacleartarget="1">✕ Clear</button>${r.target.guest ? ` <span class="tag new">🆕 guest</span><div class="mini" style="margin-top:4px">This target is a <b>guest / external user</b>, and since build 25345 that counts: policies assigned to <b>Guests and external users</b> are in scope for them. Before 25345 this tool read only users, groups and roles, so every such policy was reported out of scope and its simulations were skipped — which is why the simulation count is higher here than it used to be on a guest.</div>` : ""}</div>` : ""}`;
 
     // control filter chips
     const counts = {};

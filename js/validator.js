@@ -170,26 +170,16 @@ const Validator = (() => {
   // covers every persona; only an exclusion takes it back out. groupIds carries
   // the target's own id plus any group it is nested into, so an exclusion on a
   // parent group is honoured.
+  // One scope check, shared with 🕵 Who is Anna to CA — js/cascope.js, build
+  // 25345. This tool's own copy read includeUsers / Groups / Roles and NOT the
+  // guest / external user type, so a policy assigned to "Guests and external
+  // users" was reported out of scope for a guest it actually reaches, and every
+  // guest simulation on every guest-scoped policy was skipped. CaScope counts
+  // it (opts.guests defaults true), which is why a guest target now produces
+  // simulations where it produced none. The returned field names are unchanged.
   function appliesTo(p, target) {
-    const u = p.conditions?.users || {};
-    const incU = new Set(u.includeUsers || []), excU = new Set(u.excludeUsers || []);
-    const incG = new Set(u.includeGroups || []), excG = new Set(u.excludeGroups || []);
-    const incR = new Set(u.includeRoles || []), excR = new Set(u.excludeRoles || []);
-    const gids = (target.groupIds && target.groupIds.size) ? target.groupIds : new Set([target.id]);
-    const rids = target.roleIds || new Set();
-    let included = false, excluded = false, via = null, byAll = false;
-    if (target.kind === "group") {
-      byAll = incU.has("All");
-      included = byAll || [...incG].some((x) => gids.has(x));
-      via = [...excG].find((x) => gids.has(x)) || null;
-      excluded = !!via;
-    } else {
-      byAll = incU.has("All");
-      included = byAll || incU.has(target.id) || [...incG].some((x) => gids.has(x)) || [...incR].some((x) => rids.has(x));
-      via = (excU.has(target.id) ? target.id : null) || [...excG].find((x) => gids.has(x)) || [...excR].find((x) => rids.has(x)) || null;
-      excluded = !!via;
-    }
-    return { applies: included && !excluded, included, excluded, via, byAll };
+    const r = CaScope.of(p, target);
+    return { applies: r.applies, included: r.included, excluded: r.excluded, via: r.via, byAll: r.byAll, inc: r.inc, exc: r.exc };
   }
 
   function simulatePolicy(p, names, target) {
