@@ -2116,6 +2116,7 @@
     ["toolWhoIs", "🕵 Who is Anna to CA"],
     ["toolWave", "🌊 Who is the wave to CA"],
     ["toolSessionCtl", "🛂 Session controls"],
+    ["toolSpGap", "🫥 Apps with no service principal"],
     ["toolAudit", "🕓 Change audit"],
     ["toolSignins", "🚦 Sign-in failures"],
     ["toolImpact", "🎚 Report-only impact"],
@@ -15958,6 +15959,92 @@ This is a directory write. Nothing else changes.`)) return;
   $("scMd").addEventListener("click", () => { const R = scRes; if (!R) return; showReport("🛂 Session controls", "CA-SessionControls", SessionCtl.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(scDays) })); });
   $("scCsv").addEventListener("click", () => { const R = scRes; if (!R) return; downloadText("CA-SessionControls", "csv", "text/csv", SessionCtl.toCsv(R)); });
 
+  // ---------- 🫥 Apps with no service principal (T39, BETA) ----------
+  // One Graph call for the 30-day app summary, one paged read of the
+  // service principals, the diff in js/spgap.js. Impact per app comes from
+  // WhatIfEval (the 🧪 engine) — no second evaluator. Evidence is the shared
+  // sign-in window, read only on request. Reads only; the CSV is the list
+  // for whoever registers the apps, by hand, on purpose.
+  let sgRes = null, sgBusy = false, sgFilter = "all", sgQ = "", sgRecords = null;
+  const sgProg = makeProgress("sg"); sgProg.by = "🫥 Apps with no service principal";
+
+  function openSpGap() {
+    crumb("🫥 Apps with no service principal");
+    show("screen-spgap");
+    $("sgHead").innerHTML = `<h3>🫥 Apps with no service principal <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:6px">Apps that signed in over the last 30 days and have <b>no service principal</b> in this tenant. Such an app is not in the Conditional Access app picker — it can be neither included nor excluded by name; only a policy on <b>All resources</b> reaches it, and only once it exists. For each one: which policies would apply the moment it does, whether a policy already excludes the id, and what Entra recorded on its newest sign-in.</p>
+      <p class="mini muted" style="margin:0">Reads <b>auditLogs/signInEventsAppSummary</b> (AuditLog.Read.All, asked once on the run click; a fixed 30-day window, at most 1,000 apps) and the tenant's service principals. Evidence comes from the shared sign-in window on request.</p>`;
+    if (!policies.length) { $("sgBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
+    if (sgBusy) { $("sgBody").innerHTML = sgProg.panel("Reading…"); return; }
+    if (sgRes) { renderSpGap(); return; }
+    $("sgBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-sgrun>▶ Read the 30-day app summary</button><p class="mini muted">One call for the summary, one paged read of the service principals. Nothing is written.</p></div>`;
+  }
+  $("toolSpGap").addEventListener("click", () => openSpGap());
+  $("sgBody").addEventListener("click", (e) => { if (e.target.closest("[data-sgrun]")) runSpGap(); });
+  $("sgRescan").addEventListener("click", () => runSpGap());
+  $("sgEvidence").addEventListener("click", () => readSpGapEvidence());
+  let sgQTimer = null;
+  $("sgSearch").addEventListener("input", (e) => { clearTimeout(sgQTimer); sgQTimer = setTimeout(() => { sgQ = e.target.value; if (sgRes) renderSpGap(); }, 200); });
+  $("sgChips").addEventListener("click", (e) => { const c = e.target.closest("[data-sgf]"); if (!c) return; sgFilter = c.dataset.sgf; if (sgRes) renderSpGap(); });
+
+  async function runSpGap() {
+    if (sgBusy) return;
+    sgBusy = true; sgRes = null; sgProg.begin();
+    ["sgRescan", "sgEvidence", "sgMd", "sgCsv"].forEach((id) => { $(id).style.display = "none"; });
+    $("sgBody").innerHTML = sgProg.panel("Reading the 30-day app summary…", "auditLogs/signInEventsAppSummary — one row per app that signed in over the last 30 days.");
+    try {
+      let summary = [], spIds = new Set();
+      if (isDemo) {
+        summary = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signInAppSummary) || [];
+        spIds = new Set(((typeof DEMO_DATA !== "undefined" && DEMO_DATA.servicePrincipalAppIds) || []).map((x) => String(x).toLowerCase()));
+        sgRecords = logCacheUsable(7) ? logCache.records : null;
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { sgBusy = false; openSpGap(); return; }
+        summary = await Graph.ggetAll("/auditLogs/signInEventsAppSummary");
+        $("sgBody").innerHTML = sgProg.panel("Reading the service principals…", `${summary.length.toLocaleString()} app${summary.length === 1 ? "" : "s"} in the summary.`);
+        const sps = await Graph.ggetAll("/servicePrincipals?$select=appId&$top=999");
+        spIds = new Set(sps.map((x) => String(x.appId || "").toLowerCase()).filter(Boolean));
+        // a window another tool already read is evidence for free
+        sgRecords = (logCache && logCacheUsable(logCache.days)) ? logCache.records : null;
+      }
+      sgRes = SpGap.analyze({ summary, spIds, raws: policies.map((p) => p.raw), names: (id) => id, records: sgRecords, truncated: summary.length >= 1000 });
+      sgBusy = false;
+      ["sgRescan", "sgMd", "sgCsv"].forEach((id) => { $(id).style.display = ""; });
+      $("sgEvidence").style.display = sgRes.hasEvidence ? "none" : "";
+      renderSpGap();
+      if (!sgRes.apps.length) toast("Every app that signed in has a service principal here");
+    } catch (e) {
+      console.error("Apps with no service principal failed:", e);
+      sgBusy = false;
+      $("sgBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">${esc(e.message || e)}<br><span class="muted">This needs AuditLog.Read.All and a Reports Reader / Security Reader role; the summary endpoint is Graph beta.</span></p>`;
+    } finally { sgBusy = false; sgProg.stop(); }
+  }
+  // Evidence on request: the shared 7-day window (reused when another tool
+  // already read it), then the newest sign-in per app.
+  async function readSpGapEvidence() {
+    if (!sgRes || sgBusy) return;
+    sgBusy = true; sgProg.begin();
+    $("sgBody").innerHTML = sgProg.panel("Reading the sign-in window…", "Shared with 🚦 Sign-in failures, 🎚 Report-only impact and 🕵.");
+    try {
+      if (isDemo) sgRecords = demoSignIns();
+      else if (await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { const w = await readSignInWindow(7, sgProg); sgRecords = w.records; }
+      else sgRecords = null;
+      sgRes.apps.forEach((a) => { a.evidence = SpGap.evidenceOf(sgRecords, a.appId); });
+      sgRes.hasEvidence = !!(sgRecords && sgRecords.length);
+      $("sgEvidence").style.display = sgRes.hasEvidence ? "none" : "";
+    } catch (e) { if (!(e && e.stopped)) { console.warn("evidence read failed", e.message); toast("The sign-in window could not be read"); } }
+    finally { sgBusy = false; sgProg.stop(); renderSpGap(); }
+  }
+  function renderSpGap() {
+    const R = sgRes; if (!R) return;
+    const t = R.tiles;
+    const chip = (k, label, n) => `<button class="fchip${sgFilter === k ? " active" : ""}" data-sgf="${k}">${esc(label)}${n != null ? ` <span class="pill zero">${n}</span>` : ""}</button>`;
+    $("sgChips").innerHTML = chip("all", "All", t.total) + chip("uncovered", "No Conditional Access", t.uncovered) + chip("maybe", "Depends", t.maybe) + chip("enforced", "Enforced", t.enforced) + chip("blocked", "Blocked", t.blocked) + chip("phantom", "Phantom exclusions", t.phantom);
+    $("sgBody").innerHTML = SpGap.renderTiles(R) + `<div style="margin-top:14px">${SpGap.renderTable(R, sgFilter, sgQ)}</div>`;
+  }
+  $("sgMd").addEventListener("click", () => { const R = sgRes; if (!R) return; showReport("🫥 Apps with no service principal", "CA-AppsNoServicePrincipal", SpGap.toMd(R, tenantName)); });
+  $("sgCsv").addEventListener("click", () => { const R = sgRes; if (!R) return; downloadText("CA-AppsNoServicePrincipal", "csv", "text/csv", SpGap.toCsv(R)); });
+
   // ---------- User or Group analyzer (BETA) ----------
   // "Where is this group actually used?" The source registry, the matching and
   // the exports live in js/groupuse.js; this is screen, consent and rendering.
@@ -19632,7 +19719,7 @@ This is a directory write. Nothing else changes.`)) return;
     siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
     drHead: "toolDrift", ugHead: "toolGuide", dvHead: "toolDevCheck", lgHead: "toolLicGap",
-    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev", woHead: "toolWhoIs", wvHead: "toolWave", scHead: "toolSessionCtl", anIntro: "toolAnalyze",
+    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev", woHead: "toolWhoIs", wvHead: "toolWave", scHead: "toolSessionCtl", sgHead: "toolSpGap", anIntro: "toolAnalyze",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;

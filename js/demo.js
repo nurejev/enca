@@ -255,6 +255,17 @@ const DEMO_DATA = {
     { "@odata.type": "#microsoft.graph.microsoftAuthenticatorAuthenticationMethodConfiguration", id: "MicrosoftAuthenticator", state: "enabled" },
     { "@odata.type": "#microsoft.graph.smsAuthenticationMethodConfiguration", id: "Sms", state: "disabled" },
   ] },
+  // 30-day app summary (signInEventsAppSummary) and the app ids that have a
+  // service principal here — two of the summary rows do not: a Microsoft
+  // first-party client nobody registered, and an unknown multi-tenant app.
+  signInAppSummary: [
+    { appId: "00000002-0000-0ff1-ce00-000000000000", signInCount: 4120 },
+    { appId: "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe", signInCount: 2210 },
+    { appId: "29d9ed98-a469-4536-ade2-f981bc1d605e", signInCount: 37 },
+    { appId: "7f3a1c2e-5b8d-4e6f-9a0b-1c2d3e4f5a6b", signInCount: 12 },
+    { appId: "00000000-0000-0000-0000-000000000000", signInCount: 3 },
+  ],
+  servicePrincipalAppIds: ["00000002-0000-0ff1-ce00-000000000000", "00000003-0000-0ff1-ce00-000000000000", "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe", "797f4846-ba00-4fd7-ba43-dac1f8f63013"],
   caSettings: { "@odata.context": "https://graph.microsoft.com/beta/$metadata#identity/conditionalAccess/settings/$entity", advancedSettings: null },
   namedLocations: [
     { "@odata.type": "#microsoft.graph.ipNamedLocation", id: "loc-hq", displayName: "HQ egress", isTrusted: true, ipRanges: [{ cidrAddress: "203.0.113.0/24" }] },

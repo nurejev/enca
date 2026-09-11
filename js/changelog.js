@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25335, date: "2026-09-11", title: "A new tool: the apps Conditional Access cannot even name",
+    items: [
+      { kind: "new", tool: "Apps with no service principal", text: "T39, BETA. Conditional Access can only name what exists: an app that signs in but has no service principal in the tenant is not in the app picker — it can be neither included nor excluded by name, and only a policy on All resources reaches it, once it exists. One Graph call lists every app that signed in over the last 30 days; the tool diffs it against the service principals and, for each app left over, says which policies would apply the moment it exists (the 🧪 What-If verdict for an All-users sign-in — would apply with its grant, may apply with the condition the scenario cannot decide, or nothing at all), which policies already exclude the id — a phantom exclusion that protects nothing today and goes live on consent — and, after 📖 Read evidence, what Entra recorded on its newest sign-in. Five tiles, filter chips, Markdown and a CSV with one row per app id for whoever registers them, on purpose. Microsoft first-party ids are named from the built-in map; anything else is Unknown app with its id. The idea is from Jhope188's CA Policy Analyzer v1.17.0; the evaluator is ENCA's own What-If engine, and there is no generated PowerShell." },
+    ],
+  },
+  {
     build: 25334, date: "2026-09-11", title: "User risk: what each remediation control can and cannot do",
     items: [
       { kind: "new", tool: "MS Learn checks", text: "Two checks on user-risk policies. A policy that remediates with Require password change ALONE cannot help a user who signs in without a password — passkey, Windows Hello for Business, certificate, Authenticator phone sign-in — so at high risk they stay blocked until an admin dismisses it; the finding names the passwordless methods the tenant actually has enabled, or says the gap is latent when none is. And a policy on Require risk remediation always carries an authentication strength, which an external authentication method (Duo, Okta, Ping …) cannot satisfy — raised only when the tenant has such a method enabled. Neither calls password change deprecated: Microsoft has not, and the CIS benchmark still names it. The tenant's authentication methods policy is read once per load for these." },

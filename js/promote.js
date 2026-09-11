@@ -118,6 +118,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 170,
+      title: "🫥 Apps with no service principal — new tool (T39 0.1, R51)",
+      tools: ["Apps with no service principal"],
+      builds: [25335],
+      risk: "medium",
+      what: "js/spgap.js (pure): analyze({ summary, spIds, raws, names, records }) diffs auditLogs/signInEventsAppSummary rows against the service-principal appIds, per app impactOf() via WhatIfEval.evaluate with an All-users scenario (will / may with why / wont), phantomIn from excludeApplications, evidenceOf() = newest raw sign-in record for the appId with its applied policies; verdict blocked / enforced / maybe / uncovered; renderTiles (wo-vt tiles), renderTable, toMd, toCsv. js/app.js sg* block after the T38 block: preConsent(SI_READ), ggetAll summary + servicePrincipals?$select=appId, evidence on request via the shared readSignInWindow(7) or a window already in logCache, chips/search, MD/CSV. index.html tile (Analyse section, BETA + only here), screen-spgap, Help section, roadmap R51, script tag. Demo: DEMO_DATA.signInAppSummary + servicePrincipalAppIds (two apps without an SP).",
+      why: "Medium: a new tool with one new Graph endpoint (beta, documented on Learn: AuditLog.Read.All, Reports Reader / Security Reader, fixed 30 days, $filter on appId/signInCount). Two things to confirm on a real tenant before it graduates: (1) the summary really tops out at 1,000 rows (upstream's observation — the tool says “capped” at 1,000 and nothing more); (2) how a sign-in from an app with no SP shows in appliedConditionalAccessPolicies (the evidence column). The impact column is only as good as the What-If engine's scenario: All users, no device, no location — every conditional policy lands in “may apply” by design, never in “would apply”. Deliberately not ported: upstream's generated Register-MissingServicePrincipals.ps1.",
+      test: [
+        "Demo tenant (?demo=1): the tool lists Microsoft Authentication Broker (37 sign-ins, Microsoft tag, excluded by nothing) and an Unknown app 7f3a1c2e… (12); Exchange Online and Teams do NOT appear (they have a service principal); the all-zero id is dropped. Tiles read 2 apps.",
+        "Real tenant, Reports Reader: ▶ reads in seconds; devtools shows one GET auditLogs/signInEventsAppSummary and the servicePrincipals pages. Compare the app count with Get-MgBetaAuditLogSignInEventAppSummary | ? { -not (Get-MgServicePrincipal -Filter \"appId eq '$($_.AppId)'\") }.",
+        "Consent to one of the listed apps in the portal (or New-MgServicePrincipal -AppId), ⟳ Rescan: it disappears.",
+        "Exclude one of the listed ids from a policy: the row shows the policy under Excluded by, the Phantom tile counts 1, and 🚪 Exclusion analyzer flags the same id as a phantom exclusion.",
+        "📖 Read evidence: the newest sign-in column fills for apps in the last 7 days with the CA status and the applied policies; an app older than 7 days reads “not in the loaded window”. Open 🚦 first with a 7-day window, then this tool: evidence is there without a second read.",
+        "Tenant where AuditLog.Read.All is refused: the tool explains and stops; nothing else breaks.",
+        "A tenant with more than 1,000 apps in the summary: the tile says capped and the footer says the tenant has more.",
+        "Export MD renders in the report viewer; CSV has one row per app with the appId first.",
+      ],
+      files: ["js/spgap.js", "js/app.js", "js/demo.js", "index.html", "js/version.js"],
+    },
+    {
       n: 169,
       title: "📘 User-risk checks: password change vs passwordless users; risk remediation vs external methods (T07 2.6)",
       tools: ["MS Learn checks"],

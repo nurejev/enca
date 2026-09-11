@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25334"></script>
+<script src="js/popup-guard.js?v=25335"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25334" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25334">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25335" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25335">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25334"></script>
+<script src="js/selfhost-boot.js?v=25335"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25334"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25334"></script>
+<script src="js/counter.js?v=25335"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25335"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25334" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25335" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25334" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25335" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -223,6 +223,10 @@
       <div class="tool" id="toolSessionCtl">
         <div class="tool-ic">🛂</div><h3>Session controls <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
         <p>What did a session control actually <b>do</b>? The sign-in log stops at “App Control applied”; the blocked download, the protected file and the step-up are written by Defender for Cloud Apps. Reads that log through Defender advanced hunting and joins every action back to the Conditional Access policy that routed the session — and says when a policy routes but never acts (Monitor only) or a Defender policy has no router. <span class="tag grant">extra permissions</span></p>
+      </div>
+      <div class="tool" id="toolSpGap">
+        <div class="tool-ic">🫥</div><h3>Apps with no service principal <span class="tag new">BETA</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
+        <p>Apps that signed in over the last 30 days and have <b>no service principal</b> in this tenant. Such an app is not in the Conditional Access app picker — it can be neither included nor excluded by name; only a policy on All resources reaches it. One Graph call lists them; for each one: which policies would apply the moment it exists, whether a policy already excludes the id (a phantom exclusion), and what Entra recorded on its newest sign-in.</p>
       </div>
       <div class="tool" id="toolGroupUse">
         <div class="tool-ic">🔗</div><h3>User or Group analyzer <span class="tag upd">UPDATED</span></h3>
@@ -1037,6 +1041,24 @@
     <div id="scBody" style="margin-top:14px"></div>
   </section>
 
+  <section id="screen-spgap" class="screen">
+    <div class="list-card readme" id="sgHead" style="margin-top:0"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="sgSearch" placeholder="Filter app, id, policy…" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="chip-filter" id="sgChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="sgEvidence" style="display:none" title="Read a 7-day sign-in window (shared with 🚦 🎚 🕵) and show the newest sign-in per app">📖 Read evidence</button>
+        <button class="btn" id="sgRescan" style="display:none" title="Read the 30-day app summary and the service principals again">⟳ Rescan</button>
+        <button class="btn" id="sgMd" style="display:none">Export MD</button>
+        <button class="btn lemon" id="sgCsv" style="display:none" title="One row per app id — for whoever registers them, deliberately">⤓ Export CSV</button>
+      </div>
+    </div>
+    <div id="sgBody" style="margin-top:14px"></div>
+  </section>
+
   <!-- ============ NAMED LOCATIONS ============ -->
   <section id="screen-locations" class="screen">
     <div class="list-card readme" id="loHead" style="margin-top:0"></div>
@@ -1564,6 +1586,10 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R50</span> <a href="#" class="md-tool" data-tool="toolCaGroups">✅ One run ledger for every write</a> <span class="tag grant">live · beta 25301</span></h4>
             <p class="mini" style="margin:0">Every tool that walks a list and writes — 139 policies, 6 groups, 4 ticks — shows the same box: the whole list before the first write, the row being written marked, ✓ or ✗ as each lands with the reason inline, the box scrolling to keep the working row in view, a count and a clock, Stop between writes. In 🎯 Assign, 🎚 Set policy state, and 👥 Migrate, Protect, Create, Import CSV, Archived groups and the Compare ticks.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25335">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R51</span> <a href="#" class="md-tool" data-tool="toolSpGap">🫥 Apps with no service principal</a> <span class="tag grant">live · beta 25335</span></h4>
+            <p class="mini" style="margin:0">Conditional Access can only name what exists. An app that signs in but has no service principal here is not in the app picker — neither includable nor excludable, reached only by a policy on All resources. One Graph call (<code>signInEventsAppSummary</code>, 30 days) diffed against the tenant's service principals; per app the 🧪 What-If verdict for the moment it exists, the phantom exclusions already naming it, and the newest sign-in as evidence. Idea from Jhope188's CA Policy Analyzer v1.17.0, rebuilt on ENCA's own What-If engine and sign-in window — and without its generated PowerShell.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -1874,6 +1900,20 @@
         <li><b>■ Stop</b> — during the hunt, the slices already read are kept and shown as a <b>partial</b> window, named as such, without reading the sign-in log; during the sign-in read, the Defender half stays and routing is marked missing. The stop lands after the query in flight — a running hunting query cannot be cancelled.</li>
       </ul>
       <p class="help-x">Read-only. Defender activity comes from advanced hunting through Microsoft Graph — <code>POST /security/runHuntingQuery</code> over <code>CloudAppEvents</code> filtered to the session / access control audit source, delegated <b>ThreatHunting.Read.All</b>, the signed-in user needing Security Reader, Global Reader, Security Operator, Security Administrator or a Defender RBAC role with hunting access; 30-day retention; the window is read in 4-hour slices of up to 5,000 events each, a slice that takes more than 2 minutes is halved down to 30 minutes and then skipped with a note. <b>Routing comes from the sign-in window</b> 🚦 Sign-in failures, 🎚 Report-only impact, 🕵 and 🌊 share, from whichever <b>sign-in source</b> is chosen there — Entra sign-in log (AuditLog.Read.All) or Defender hunting. Join: same user, same app, newest routing sign-in within 8 hours; a user-only fallback is labelled; no match is shown as <i>no match</i>. Monitor only logs the Login activity only — a policy on Monitor only never blocks anything, and the tool says so.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🫥 Apps with no service principal <span class="tag new">BETA</span></h4>
+      <p>Conditional Access can only name what exists. An app that signs in but has <b>no service principal</b> in the tenant — a multi-tenant SaaS nobody consented to, a Microsoft first-party client that was never registered here — is not in the app picker: it can be neither included nor excluded by name, and only a policy on <i>All resources</i> reaches it. Microsoft Graph gives one row per app for the past 30 days in a single call; this tool diffs that list against the tenant's service principals and reports what is left.</p>
+      <ul>
+        <li><b>Five tiles</b> — apps with no service principal, how many have <b>no Conditional Access at all</b> (nothing enabled reaches them, not even All resources), how many depend on conditions, how many are reached the moment they exist (enforced or blocked), and how many are <b>phantom exclusions</b>.</li>
+        <li><b>Once it exists</b> — the 🧪 What-If verdict for an All-users sign-in to this app with nothing else known: <i>would apply</i> (the policy and its grant), <i>may apply</i> (a policy whose other conditions — location, risk, platform, client app, a group scope — the scenario cannot decide, with the reason), or nothing.</li>
+        <li><b>Excluded by</b> — a policy that already excludes the id. That exclusion protects nothing today and goes live the moment the app is consented; 🚪 Exclusion analyzer flags the same ids from the policy side.</li>
+        <li><b>Newest sign-in</b> — after 📖 Read evidence: when, who, the client, the Conditional Access status and the policies Entra recorded as applied. Evidence, never a prediction; where it disagrees with “would apply”, the sign-in is right.</li>
+        <li><b>Names</b> — the tenant has no service principal to name these apps by, so Microsoft's first-party ids resolve from ENCA's built-in map (tagged <i>Microsoft</i>); anything else is “Unknown app” with its id.</li>
+        <li><b>Exports</b> — Markdown for the report, CSV with one row per app id for whoever registers them. ENCA does not generate PowerShell: registering a service principal is a decision per app, made in the portal or by a script someone wrote on purpose.</li>
+      </ul>
+      <p class="help-x">Read-only. <code>GET /beta/auditLogs/signInEventsAppSummary</code> (delegated <b>AuditLog.Read.All</b>, asked once on the run click; Reports Reader or Security Reader; a fixed 30-day window, at most 1,000 apps — the tool says when it hit that cap) and <code>GET /servicePrincipals</code>. The sign-in evidence is the shared sign-in window. An app that signs in only non-interactively still appears in the summary; whether it appears in the evidence depends on the sign-in source chosen in 🚦.</p>
     </section>
 
     <section class="help-sec">
@@ -3001,65 +3041,66 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25334"></script>
-<script src="js/selfhost.js?v=25334"></script>
-<script src="js/version.js?v=25334"></script>
-<script src="js/fork.js?v=25334"></script>
-<script src="js/promote.js?v=25334"></script>
-<script src="js/authConfig.js?v=25334"></script>
-<script src="js/labels.js?v=25334"></script>
-<script src="js/graph.js?v=25334"></script>
-<script src="js/model.js?v=25334"></script>
-<script src="js/render.js?v=25334"></script>
-<script src="js/analyze.js?v=25334"></script>
-<script src="js/whatif.js?v=25334"></script>
-<script src="js/mslearn.js?v=25334"></script>
-<script src="js/gapcheck.js?v=25334"></script>
-<script src="js/cisdata.js?v=25334"></script>
-<script src="js/cischeck.js?v=25334"></script>
-<script src="js/exclusions.js?v=25334"></script>
-<script src="js/validator.js?v=25334"></script>
-<script src="js/whatifeval.js?v=25334"></script>
-<script src="js/compare.js?v=25334"></script>
-<script src="js/whois.js?v=25334"></script>
-<script src="js/wave.js?v=25334"></script>
-<script src="js/sessionctl.js?v=25334"></script>
-<script src="js/groupuse.js?v=25334"></script>
-<script src="js/iso3166.js?v=25334"></script>
-<script src="js/locations.js?v=25334"></script>
-<script src="js/authcontexts.js?v=25334"></script>
-<script src="js/authstrengths.js?v=25334"></script>
-<script src="js/recycle.js?v=25334"></script>
-<script src="js/rmau.js?v=25334"></script>
-<script src="js/camap.js?v=25334"></script>
-<script src="js/rmaudoc.js?v=25334"></script>
-<script src="js/termsofuse.js?v=25334"></script>
-<script src="js/audit.js?v=25334"></script>
-<script src="js/drift.js?v=25334"></script>
-<script src="js/guide.js?v=25334"></script>
-<script src="js/userimpact.js?v=25334"></script>
-<script src="js/smsvoice.js?v=25334"></script>
-<script src="js/memberof.js?v=25334"></script>
-<script src="js/devcheck.js?v=25334"></script>
-<script src="js/licgap.js?v=25334"></script>
-<script src="js/teamsdev.js?v=25334"></script>
-<script src="js/signins.js?v=25334"></script>
-<script src="js/reportimpact.js?v=25334"></script>
-<script src="js/changelog.js?v=25334"></script>
-<script src="js/baselineData.js?v=25334"></script>
-<script src="js/baselineJoeyData.js?v=25334"></script>
-<script src="js/baselineLive.js?v=25334"></script>
-<script src="js/baseline.js?v=25334"></script>
-<script src="js/baselineCleanup.js?v=25334"></script>
-<script src="js/groupTemplates.js?v=25334"></script>
-<script src="js/assign.js?v=25334"></script>
-<script src="js/cagroups.js?v=25334"></script>
-<script src="js/groupsview.js?v=25334"></script>
-<script src="js/runledger.js?v=25334"></script>
-<script src="js/protect.js?v=25334"></script>
-<script src="js/import.js?v=25334"></script>
-<script src="js/export.js?v=25334"></script>
-<script src="js/demo.js?v=25334"></script>
-<script src="js/app.js?v=25334"></script>
+<script src="js/branding.js?v=25335"></script>
+<script src="js/selfhost.js?v=25335"></script>
+<script src="js/version.js?v=25335"></script>
+<script src="js/fork.js?v=25335"></script>
+<script src="js/promote.js?v=25335"></script>
+<script src="js/authConfig.js?v=25335"></script>
+<script src="js/labels.js?v=25335"></script>
+<script src="js/graph.js?v=25335"></script>
+<script src="js/model.js?v=25335"></script>
+<script src="js/render.js?v=25335"></script>
+<script src="js/analyze.js?v=25335"></script>
+<script src="js/whatif.js?v=25335"></script>
+<script src="js/mslearn.js?v=25335"></script>
+<script src="js/gapcheck.js?v=25335"></script>
+<script src="js/cisdata.js?v=25335"></script>
+<script src="js/cischeck.js?v=25335"></script>
+<script src="js/exclusions.js?v=25335"></script>
+<script src="js/validator.js?v=25335"></script>
+<script src="js/whatifeval.js?v=25335"></script>
+<script src="js/compare.js?v=25335"></script>
+<script src="js/whois.js?v=25335"></script>
+<script src="js/wave.js?v=25335"></script>
+<script src="js/sessionctl.js?v=25335"></script>
+<script src="js/spgap.js?v=25335"></script>
+<script src="js/groupuse.js?v=25335"></script>
+<script src="js/iso3166.js?v=25335"></script>
+<script src="js/locations.js?v=25335"></script>
+<script src="js/authcontexts.js?v=25335"></script>
+<script src="js/authstrengths.js?v=25335"></script>
+<script src="js/recycle.js?v=25335"></script>
+<script src="js/rmau.js?v=25335"></script>
+<script src="js/camap.js?v=25335"></script>
+<script src="js/rmaudoc.js?v=25335"></script>
+<script src="js/termsofuse.js?v=25335"></script>
+<script src="js/audit.js?v=25335"></script>
+<script src="js/drift.js?v=25335"></script>
+<script src="js/guide.js?v=25335"></script>
+<script src="js/userimpact.js?v=25335"></script>
+<script src="js/smsvoice.js?v=25335"></script>
+<script src="js/memberof.js?v=25335"></script>
+<script src="js/devcheck.js?v=25335"></script>
+<script src="js/licgap.js?v=25335"></script>
+<script src="js/teamsdev.js?v=25335"></script>
+<script src="js/signins.js?v=25335"></script>
+<script src="js/reportimpact.js?v=25335"></script>
+<script src="js/changelog.js?v=25335"></script>
+<script src="js/baselineData.js?v=25335"></script>
+<script src="js/baselineJoeyData.js?v=25335"></script>
+<script src="js/baselineLive.js?v=25335"></script>
+<script src="js/baseline.js?v=25335"></script>
+<script src="js/baselineCleanup.js?v=25335"></script>
+<script src="js/groupTemplates.js?v=25335"></script>
+<script src="js/assign.js?v=25335"></script>
+<script src="js/cagroups.js?v=25335"></script>
+<script src="js/groupsview.js?v=25335"></script>
+<script src="js/runledger.js?v=25335"></script>
+<script src="js/protect.js?v=25335"></script>
+<script src="js/import.js?v=25335"></script>
+<script src="js/export.js?v=25335"></script>
+<script src="js/demo.js?v=25335"></script>
+<script src="js/app.js?v=25335"></script>
 </body>
 </html>
