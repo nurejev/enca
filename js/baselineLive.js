@@ -62,7 +62,7 @@ const BaselineLive = (() => {
   const CONTROL_NAMES = {
     block: "Block access", mfa: "Require MFA", compliantDevice: "Require compliant device",
     domainJoinedDevice: "Require Entra hybrid joined device", approvedApplication: "Require approved client app",
-    compliantApplication: "Require app protection policy", passwordChange: "Require password change",
+    compliantApplication: "Require app protection policy", passwordChange: "Require password change", riskRemediation: "Require risk remediation",
   };
   const PLATFORM_NAMES = { android: "Android", iOS: "iOS", windows: "Windows", macOS: "macOS", linux: "Linux", windowsPhone: "Windows Phone", all: "Any platform" };
   const isGuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || "");

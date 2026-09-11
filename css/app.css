@@ -178,8 +178,25 @@ footer{position:sticky;top:100vh}
 .seg button{border:0;background:none;padding:8px 16px;font-weight:600;font-size:13px;color:var(--muted)}
 .seg button.active{background:var(--green);color:#fff}
 .chip-filter{display:flex;gap:6px;flex-wrap:wrap}
-.fchip{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--muted)}
-.fchip.active{background:var(--soft);color:var(--green);border-color:var(--accent2)}
+/* Filter chips read as buttons: ink text, a firm border, lemon when on
+   (the same lemon the primary buttons use, so "on" needs no learning).
+   Tones: warn = a live bypass (red), sec = an unguarded one (amber) —
+   carried on the chip even when idle, in both themes. */
+.fchip{border:1px solid var(--chip-bd,#b9cfbf);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--ink)}
+.fchip.active{background:var(--lemon);color:var(--green-deep);border-color:var(--lemon)}
+.fchip.active .pill{background:rgba(18,51,31,.16);color:var(--green-deep)}
+.fchip.warn{background:var(--chip-warn-bg,#f7e3df);border-color:var(--chip-warn-bd,#e2a297);color:var(--chip-warn-fg,#8f3527)}
+.fchip.sec{background:var(--chip-sec-bg,#fdf3c9);border-color:var(--chip-sec-bd,#e8cf78);color:var(--chip-sec-fg,#8a6508)}
+.fchip.warn .pill{background:var(--chip-pill,rgba(255,255,255,.6));color:var(--chip-warn-fg,#8f3527)}
+.fchip.sec .pill{background:var(--chip-pill,rgba(255,255,255,.6));color:var(--chip-sec-fg,#8a6508)}
+.fchip.warn.active,.fchip.sec.active{background:var(--lemon);color:var(--green-deep);border-color:var(--lemon)}
+.fchip.warn.active .pill,.fchip.sec.active .pill{background:rgba(18,51,31,.16);color:var(--green-deep)}
+/* The recessed switch (③ Compare's Members / Show nesting / Nested only):
+   a track with a raised lemon key, so all three read as buttons. */
+.seg.sw{display:inline-flex;background:var(--sw-track,#e4eee6);border-color:var(--chip-bd,#b9cfbf);padding:3px;border-radius:12px;gap:2px;overflow:visible}
+.seg.sw button{color:var(--ink);border-radius:9px;padding:4px 12px;font-size:11.5px}
+.seg.sw button.active{background:var(--lemon);color:var(--green-deep);box-shadow:0 1px 2px rgba(18,51,31,.25)}
+.seg.sw button.active::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green-deep);margin-right:7px;vertical-align:1px}
 
 /* ---------- policy list ---------- */
 .list-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
@@ -242,6 +259,9 @@ table.plist tr:hover td{background:var(--hover)}
 .cg-row:hover{background:var(--ok-bg2)}
 .cg-err{color:var(--off);font-weight:600}
 .cg-matrix td.cellv{text-align:center;color:var(--on);font-size:15px}
+.cg-mwrap{max-height:calc(100vh - 220px);min-height:200px;margin-top:10px}
+.cg-matrix th.cg-incol{writing-mode:horizontal-tb;text-align:center;padding:8px 10px;font-size:11px;color:var(--muted)}
+.cg-matrix td.cg-incol{font-size:12px;color:var(--ink)}
 /* a member cell you can remove from: the dot stays, an × appears on hover */
 .cg-matrix td.cg-mem{cursor:pointer;position:relative}
 .cg-matrix td.cg-mem .cg-rm{display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:var(--bad-bg2);color:var(--off);font-weight:700;font-size:14px}
@@ -305,7 +325,6 @@ table.plist tr:hover td{background:var(--hover)}
 .wf-dot.maybe{background:var(--report)}
 .wf-chip.maybe{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--report)}
 /* the trigger + panel on the policy card */
-.wf-toggle{margin:2px 0 0}
 .wf-panel{border-top:1px solid var(--border);margin-top:10px;padding-top:12px}
 /* per-policy quick actions under the detail card */
 .pcard-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
@@ -314,7 +333,6 @@ table.plist tr:hover td{background:var(--hover)}
 /* simulator */
 .wf-sim{font-size:13px}
 .wf-sub{font-size:14px;margin-bottom:6px}
-.wf-scrow{margin-bottom:10px}
 .wf-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
 @media(max-width:820px){.wf-cols{grid-template-columns:1fr}}
 .wf-colh{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
@@ -326,17 +344,7 @@ table.plist tr:hover td{background:var(--hover)}
 .wf-pol-why{font-size:11.5px;color:var(--muted);margin-top:3px}
 .wf-dot{width:9px;height:9px;border-radius:50%;flex:none}
 .wf-dot.on{background:var(--on)}.wf-dot.ro{background:var(--report)}.wf-dot.off{background:var(--na)}
-.wf-simform{display:flex;flex-direction:column;gap:12px;margin-bottom:12px}
-.wf-simform .fld{display:flex;flex-direction:column;gap:4px;min-width:0}
-.wf-simform label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
-.wf-simform input,.wf-simform select{width:100%;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:8px 11px;font-size:13px;min-height:38px}
-.wf-userrow{display:flex;gap:8px}
-.wf-userrow input{flex:1}
-.wf-userrow .btn{white-space:nowrap}
 /* the five condition dropdowns share the row evenly and wrap gracefully */
-.wf-conds{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
-@media(max-width:820px){.wf-conds{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:520px){.wf-conds{grid-template-columns:1fr}}
 
 /* rendered Markdown report inside the viewer overlay */
 .md-view{max-height:72vh;overflow:auto;padding-right:6px;font-size:13.5px;line-height:1.65}
@@ -685,6 +693,26 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .help-sec{border-top:1px solid var(--line);padding:14px 0 2px}
 .help-sec:first-of-type{border-top:0}
 .help-sec h4{margin:0 0 6px;font-size:15px;scroll-margin-top:120px}
+/* A folded tool's Help section becomes an h5 under the tool that now hosts it —
+   it keeps its own emoji and name so Ctrl+F and the contents chip still find
+   "Create documentation" after the tile is gone. Ruled off on the left so the
+   eye can see where the host's own prose ends. */
+.help-sec h5{margin:16px 0 6px;font-size:14px;scroll-margin-top:120px;padding-left:10px;border-left:3px solid var(--border)}
+.help-fold{font-size:11px;font-weight:400;color:var(--muted)}
+.help-toc a.sub{padding-left:16px;position:relative;opacity:.85}
+.help-toc a.sub::before{content:"\21b3";position:absolute;left:5px;color:var(--muted)}
+/* One tile, several tools behind a TAB STRIP (build 25339). The strip is not
+   markup: it is mounted into each member screen's own toolbar, the way the
+   sign-in source segment already is, so a member keeps its own search box,
+   range picker and exports. order:-1 keeps it first however the toolbar wraps. */
+/* The strip takes its OWN LINE, always. order:-1 alone put it first in the
+   flow but not on a line of its own, so at desktop width it sat shoulder to
+   shoulder with the filter chips — four tabs and five chips reading as one
+   nine-item row, where only four of them change the tool. flex-basis:100%
+   makes it a full-width track: tabs left, empty rail right, the same shape as
+   the tool tabs in the header. (25343, T08 option A.) */
+.tool-tabs{order:-1;flex-basis:100%}
+.tool-tabs button .tag{margin-left:5px;font-size:9px;padding:0 4px;vertical-align:1px}
 /* CA validator simulation report */
 .va-card{padding:0;margin-bottom:10px;overflow:hidden}
 .va-h{display:flex;align-items:center;gap:8px;padding:12px 16px;cursor:pointer;user-select:none}
@@ -947,6 +975,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
    Auto (no data-theme attribute). Explicit: html[data-theme="dark"|"light"].
    The theme button in the header cycles Auto → Light → Dark. */
 :root[data-theme="dark"]{
+  --chip-bd:#3c6b48;--chip-warn-bg:#3a1f1f;--chip-warn-bd:#6d2f28;--chip-warn-fg:#ffb3a8;--chip-sec-bg:#3a3118;--chip-sec-bd:#7a5d16;--chip-sec-fg:#f5c451;--chip-pill:rgba(0,0,0,.25);--sw-track:#0f2015;
   /* Greens, ink and lemon are lifted verbatim from limon-it.nl's dark theme so
      the tools and the site read as one product. The rule the site follows and
      this now follows too: the GREEN is the surface, the LEMON is the signal —
@@ -970,6 +999,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]):not([data-theme="dark"]){
+  --chip-bd:#3c6b48;--chip-warn-bg:#3a1f1f;--chip-warn-bd:#6d2f28;--chip-warn-fg:#ffb3a8;--chip-sec-bg:#3a3118;--chip-sec-bd:#7a5d16;--chip-sec-fg:#f5c451;--chip-pill:rgba(0,0,0,.25);--sw-track:#0f2015;
   /* Greens, ink and lemon are lifted verbatim from limon-it.nl's dark theme so
      the tools and the site read as one product. The rule the site follows and
      this now follows too: the GREEN is the surface, the LEMON is the signal —
@@ -1426,6 +1456,21 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .pq-test[open] summary::before{transform:rotate(90deg)}
 .pq-steps{margin:6px 0 0;padding-left:20px;line-height:1.65}
 .pq-steps li{margin-bottom:5px}
+/* promotion-queue groups (25260): the header row carries the batch tick,
+   member rows sit indented under it with their own */
+.pq-group td{background:var(--soft);border-top:2px solid var(--border)}
+.pq-member td:nth-child(2){padding-left:22px;position:relative}
+.pq-member td:nth-child(2)::before{content:"└";position:absolute;left:8px;color:var(--muted)}
+/* 25319: the queue is folded. A row is one line and opens on click; a batch
+   row (one tool's run, or a hand-named group) shows its members on click.
+   The chevron is the only visible hint, so it turns when open. */
+.pq-table tr.pq-row,.pq-table tr.pq-group{cursor:pointer}
+.pq-table tr.pq-row:hover td{background:var(--soft)}
+.pq-table tr.pq-group:hover td{filter:brightness(1.04)}
+.pq-tog{display:inline-block;color:var(--accent2);transition:transform .15s;user-select:none;font-size:15px;width:12px}
+.pq-tog.open{transform:rotate(90deg)}
+.pq-detail{margin:6px 0 2px 16px;cursor:auto}
+.pq-table td{vertical-align:top}
 /* Shipped-before. Outside the timeline on purpose: these are delivered, and
    leaving them in the "Now" column makes a roadmap read as busier than it is. */
 .rm-shipped{margin-top:34px;padding-top:22px;border-top:1px solid var(--border)}
@@ -1669,6 +1714,14 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-card{padding:18px 20px;margin-top:14px}
 .wo-card:first-child{margin-top:0}
 .wo-h{font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* 25323: every card in 🕵 / 🌊 folds on its heading. The chevron is the only
+   hint; a folded card keeps its heading (and the counts in it) and hides
+   the rest. Remembered per tool + card in localStorage. */
+.wo-h[data-wo-fold]{cursor:pointer;user-select:none}
+.wo-h[data-wo-fold]::after{content:"\25be";margin-left:auto;color:var(--muted);font-size:13px;transition:transform .15s}
+.wo-card.wo-folded .wo-h[data-wo-fold]::after{transform:rotate(-90deg)}
+.wo-card.wo-folded > :not(.wo-h){display:none}
+.wo-card.wo-folded .wo-h{margin-bottom:0}
 .wo-who{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center}
 .wo-av{width:48px;height:48px;font-size:17px}
 .wo-name{font-size:17px;font-weight:700;letter-spacing:-.01em}
@@ -1678,6 +1731,9 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-fact .btn.sm{padding:1px 8px}
 .wo-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-self:start}
 .wo-verdicts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.wo-verdicts.wo-5{grid-template-columns:repeat(5,1fr)}
+.wo-verdicts.wo-3{grid-template-columns:repeat(3,1fr)}
+@media (max-width:1200px){.wo-verdicts.wo-5{grid-template-columns:repeat(3,1fr)}}
 .wo-vt{border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--soft2);display:grid;gap:2px;align-content:start}
 .wo-vt .k{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 .wo-vt .v{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums}
@@ -1708,6 +1764,27 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-cnt{white-space:nowrap}
 .wo-tbl .ctrl{display:inline-block;background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:0 6px;font-size:11px;font-weight:600;margin:1px 2px 1px 0;white-space:nowrap}
 .wo-tbl .ctrl.block{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--off)}
+/* The Flags cell wraps (25343). One chip per policy instead of one nowrap
+   span holding a comma list: the cell grows DOWN, so the column can never
+   force the table past its card again. The cap is what guarantees it — the
+   count line underneath takes the full row so it reads as a summary of the
+   chips above it, not as another chip. */
+.flagcell{display:flex;flex-wrap:wrap;gap:3px;max-width:280px}
+.flagcell .flagsay{width:100%;margin-top:2px;font-size:11px}
+/* A table that now fits keeps overflow-x for a phone, but stops declaring a
+   min-width that guarantees a scrollbar on a laptop. */
+.gu-tw.wo-fit table.plist{min-width:0}
+/* 👥 Members, full screen: the card itself fills the window rather than its
+   contents being moved into the shared full-screen modal — the wave re-renders
+   wvBody whole on every filter click, and a parked element would not survive
+   that. Folded state must not win here: somebody who folded the card and then
+   asked for full screen wants to see the table. */
+.wo-card.wo-full{position:fixed;inset:var(--sticky-nav,106px) 14px 14px;z-index:60;
+  margin:0;overflow:auto;box-shadow:0 24px 60px rgba(18,51,31,.28)}
+.wo-card.wo-full.wo-folded > :not(.wo-h){display:block}
+.wo-card.wo-full .gu-tw{border:0}
+@media (max-width:600px){ .wo-card.wo-full{inset:var(--sticky-nav,106px) 6px 6px} }
+.ctrl.ret{text-decoration:line-through;text-decoration-color:var(--off);text-decoration-thickness:2px}
 .wo-res{font-weight:600;font-size:12px;white-space:nowrap}
 .wo-res.blk,.wo-res.wb{color:var(--off)} .wo-res.int,.wo-res.wp{color:var(--report)} .wo-res.nc{color:var(--on)}
 .wo-fbar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--soft);width:140px;margin-bottom:3px}
@@ -1718,7 +1795,7 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-callout.ok{border-color:var(--on);background:var(--ok-bg2)}
 .wo-split{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;margin-top:14px}
 .wo-split .wo-card{margin-top:0}
-@media (max-width:860px){.wo-verdicts{grid-template-columns:repeat(2,1fr)}.wo-split{grid-template-columns:1fr}.wo-who{grid-template-columns:auto 1fr}.wo-actions{grid-column:1/-1;justify-content:flex-start}}
+@media (max-width:860px){.wo-verdicts,.wo-verdicts.wo-5{grid-template-columns:repeat(2,1fr)}.wo-split{grid-template-columns:1fr}.wo-who{grid-template-columns:auto 1fr}.wo-actions{grid-column:1/-1;justify-content:flex-start}}
 
 /* ---------- 🌊 Who is the wave to CA (T37) ---------- */
 .wo-grp{display:grid;grid-template-columns:1fr auto auto;gap:6px 14px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
@@ -1728,3 +1805,203 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wv-member{color:inherit;text-decoration:none;border-bottom:1px dotted var(--faint)}
 .wv-member:hover{color:var(--accent2)}
 #wvPicker .fchip{display:inline-flex;align-items:center;gap:6px}
+
+/* sign-in source segment (🚦 🎚 🕵 🌊) */
+.logsrc-seg button{font-size:12px;padding:0 12px}
+
+/* clickable verdict tiles (🛂) — the tile is a button, the parts under it too */
+button.wo-tile{text-align:left;font:inherit;color:inherit;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+button.wo-tile:hover{border-color:var(--accent2)}
+button.wo-tile.on{box-shadow:inset 0 0 0 2px var(--accent2)}
+.wo-sub{border:0;background:none;padding:0;font:inherit;font-size:12px;color:var(--muted);cursor:pointer;border-bottom:1px dotted var(--faint)}
+.wo-sub:hover{color:var(--accent2)}
+.wo-sub.on{color:var(--ink);font-weight:600;border-bottom-color:var(--accent2)}
+
+/* ③ Members nesting view */
+.cg-matrix td.cg-nested{color:var(--report);cursor:default;position:relative}
+.cg-matrix td.cg-nested .cg-via{display:none}
+.cg-matrix.cg-nesting td.cg-nested .cg-via{display:block;font-size:9px;line-height:1;color:var(--muted);max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0 auto}
+.cg-matrix.cg-nesting td.cellv{min-width:96px}
+.cg-matrix th.vert.cg-allnested span{color:var(--report)}
+.cg-nest{margin:4px 0 0 12px}
+.cg-nestrow{border:0;background:none;padding:2px 0;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;text-align:left}
+.cg-nestrow:hover b{color:var(--accent2)}
+.cg-nestlist{list-style:none;margin:4px 0 6px 22px;padding:0;font-size:12.5px;display:grid;gap:2px}
+
+/* ---------- 👥 CA groups 5.0: list + drawer ---------- */
+.cgg-wrap{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr);gap:14px;align-items:start;margin-top:10px}
+@media (max-width:980px){.cgg-wrap{grid-template-columns:1fr}}
+.cgg-list{padding:0}
+.cgg-tbl td{vertical-align:middle;padding:8px 10px}
+.cgg-tbl th{padding:8px 10px}
+.cgg-row{cursor:pointer}
+.cgg-row.open td{background:var(--ok-bg2)}
+.cgg-row.sel td{box-shadow:inset 3px 0 0 var(--accent2)}
+.cgg-chk{width:14px;height:14px;cursor:pointer}
+.cgg-acts{white-space:nowrap;text-align:right}
+.cgg-drawer{position:sticky;top:calc(var(--sticky-nav,106px) + var(--cg-tb,64px) + 10px);padding:16px 18px;overflow:visible;max-height:calc(100vh - var(--sticky-nav,106px) - var(--cg-tb,64px) - 90px);overflow-y:auto}
+.cgg-drawer.cgg-empty{padding:26px 18px;text-align:center}
+.cgg-drhead{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
+.cgg-dtabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:10px 0 12px}
+.cgg-dtabs button{border:0;background:none;padding:8px 10px;font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer}
+.cgg-dtabs button.on{color:var(--green);border-bottom-color:var(--green)}
+.cgg-add{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.cgg-add .txt{flex:1;letter-spacing:normal;font-weight:400}
+.cgg-find{display:flex;gap:8px;align-items:center;margin:2px 0 8px;flex-wrap:wrap}
+.cgg-find .txt{flex:1;min-width:180px;letter-spacing:normal;font-weight:400}
+.cgg-find .seg.sw{flex:none}
+.cgg-findn{margin:0 0 4px}
+.cgg-tenant{margin-top:10px;padding:10px 12px;border:1px dashed var(--border);border-radius:10px;background:var(--soft2)}
+.cgg-tenant .cgg-tree li:first-child{border-top:0}
+.cgg-tree{list-style:none;padding:0;margin:0;font-size:13px}
+.cgg-tree li{padding:6px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.cgg-tree li:first-child{border-top:0}
+.cgg-tree li.c{padding-left:22px;position:relative}
+.cgg-tree li.c::before{content:"└";position:absolute;left:8px;color:var(--faint)}
+.cgg-tree li.g{background:var(--soft2);margin:0 -6px;padding:6px;border-radius:8px}
+.cgg-nest{border:0;background:none;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;padding:0}
+.cgg-x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 6px;line-height:1}
+.cgg-x:hover{color:var(--off)}
+/* The actions bar floats over the page bottom; in the sheet it is the header */
+.cgg-overlay[hidden],.cgg-sheet[hidden],.cgg-bar[hidden],#cgBody[hidden]{display:none!important}
+.cgg-bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:43;width:max-content;max-width:calc(100vw - 32px)}
+.cgg-bulk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--green);color:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 12px 36px rgba(0,0,0,.28)}
+/* dialog for the writes */
+/* The dialog covers the TOOL, not the app: it starts below the header and
+   the tool tabs (z-index under both), so every other tool stays one click
+   away while a migration runs. */
+.cgg-overlay{position:fixed;left:0;right:0;bottom:0;top:var(--sticky-nav,106px);z-index:44;background:rgba(10,24,14,.55);display:flex;align-items:flex-start;justify-content:center;padding:18px 16px 24px;overflow:hidden}
+.cgg-dialog{background:var(--bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.45);width:min(1180px,100%);max-height:calc(100vh - var(--sticky-nav,106px) - 42px);display:flex;flex-direction:column}
+.cgg-dhd{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface);border-radius:16px 16px 0 0;margin:0}
+.cgg-dhd b{font-size:15px}.cgg-dhd .btn{margin-left:auto}
+.cgg-dbd{padding:14px 18px 20px;overflow-y:auto;flex:1;min-height:0}
+.cgg-dbd > #cgBody > :first-child{margin-top:0}
+body.cgg-modal-open{overflow:hidden}
+/* sheet for ③ Compare */
+.cgg-sheet{position:fixed;left:16px;right:16px;bottom:0;z-index:44;max-height:min(72vh,820px);background:var(--bg);border:1px solid var(--border);border-bottom:0;border-radius:16px 16px 0 0;box-shadow:0 -16px 50px rgba(0,0,0,.35);display:flex;flex-direction:column}
+.cgg-shd .cgg-bar{position:static;transform:none;width:auto;max-width:none}
+.cgg-shd .cgg-bulk{border-radius:15px 15px 0 0;box-shadow:none}
+.cgg-sbd{padding:12px 16px 20px;overflow-y:auto;flex:1;min-height:0}
+.cgg-sbd > #cgBody > :first-child{margin-top:0}
+#screen-cagroups.sheet-open{padding-bottom:min(72vh,820px)}
+/* full-height sheet: the tool area below the header and the tabs */
+/* "full" = as tall as the content needs, up to the tool area, and as wide as
+   the matrix needs — two narrow columns do not earn the whole window */
+.cgg-sheet.full{top:auto;bottom:0;max-height:calc(100vh - var(--sticky-nav,106px) - 8px);left:50%;right:auto;transform:translateX(-50%);width:max-content;min-width:min(760px,96vw);max-width:calc(100vw - 20px)}
+.cgg-sheet.full .cgg-sbd{flex:1;min-height:0}
+.cgg-sheet.full .cg-mwrap{max-height:none;width:max-content;max-width:100%}
+.cgg-sheet.full .mtable{min-width:0}
+#screen-cagroups.sheet-full{padding-bottom:0}
+/* the list fits its card: fixed layout, wrapping cells, the ⋯ column always in view */
+.cgg-list .gu-tw{overflow-x:visible}
+.cgg-tbl{width:100%;table-layout:fixed;min-width:0}
+.cgg-tbl td{overflow-wrap:anywhere}
+.cgg-tbl th{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cgg-tbl th:nth-child(1){width:30px}.cgg-tbl th:nth-child(3){width:84px}.cgg-tbl th:nth-child(4){width:13%}.cgg-tbl th:nth-child(5){width:19%}.cgg-tbl th:nth-child(6){width:13%}.cgg-tbl th:nth-child(7){width:150px}
+.cgg-tbl td.cgg-acts{text-align:right}
+.cgg-tbl td.cgg-acts .btn{margin:2px 0 2px 4px;white-space:nowrap}
+@media (max-width:1280px){.cgg-tbl th:nth-child(7){width:96px}.cgg-tbl td.cgg-acts .btn{display:block;margin-left:auto}}
+.cgg-bulk .btn{background:rgba(255,255,255,.14);border-color:transparent;color:#fff;padding:5px 12px;min-height:0;font-size:12.5px}
+.cgg-bulk .btn:hover{background:rgba(255,255,255,.26)}
+.cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
+/* dark: --green is the pale accent there, so the bar takes the deep
+   green surface with a light border and light text, like a card */
+:root[data-theme="dark"] .cgg-bulk{background:#1e4729;color:var(--ink);border:1px solid #3c6b48}
+:root[data-theme="dark"] .cgg-bulk .btn{color:var(--ink);background:rgba(255,255,255,.1)}
+:root[data-theme="dark"] .cgg-bulk .btn:hover{background:rgba(255,255,255,.2)}
+:root[data-theme="dark"] .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk{background:#1e4729;color:var(--ink);border:1px solid #3c6b48}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn{color:var(--ink);background:rgba(255,255,255,.1)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn:hover{background:rgba(255,255,255,.2)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
+}
+.cgg-back{display:flex;gap:10px;align-items:center;margin:8px 0 10px}
+
+/* 🚪 Exclusions: nesting marks */
+.ex-ent .ex-nest{font-style:normal;font-weight:700;color:var(--off);margin-left:5px;font-size:11px}
+.ex-ent.allnested{border-color:var(--off)}
+.mtable .cell.ro.nest{color:var(--off)}
+.wo-nest{color:var(--off);font-weight:700}
+
+/* ③ Compare: narrow group columns like 🚪's matrix; a filler column takes the slack */
+.cg-matrix thead th.pcol,.cg-matrix td.cellv{width:46px;min-width:46px;max-width:46px}
+.cg-matrix th.cg-fill,.cg-matrix td.cg-fill{width:auto;border-right:0;background:transparent}
+.cg-matrix thead th.pcol .ph{max-height:180px}
+.cg-polmatrix td.ucol .uname.pol-link{cursor:pointer}
+.cg-polmatrix td.ucol .uname.pol-link:hover{color:var(--accent2)}
+
+/* 🧹 Archived groups: the table fits the dialog, names wrap, no sideways scroll */
+#arcBody .gu-tw{overflow-x:visible}
+#arcBody table.plist{min-width:0;width:100%;table-layout:fixed}
+#arcBody table.plist td{overflow-wrap:anywhere;vertical-align:top}
+#arcBody table.plist th:nth-child(1){width:30px}#arcBody table.plist th:nth-child(3){width:20%}#arcBody table.plist th:nth-child(4){width:70px}#arcBody table.plist th:nth-child(5){width:22%}#arcBody table.plist th:nth-child(6){width:22%}
+.cg-matrix thead th.cg-fill{background:var(--soft)}
+.cg-matrix tbody td.cg-fill{background:transparent}
+.cg-polmatrix td.cg-fixcell{background:var(--warn-bg2,var(--warn-bg));padding:2px 4px}
+.cg-polmatrix td.cg-fixcell .chk input{margin:0}
+/* the tick cells read as buttons: dashed until ticked, filled when ticked */
+.cg-polmatrix td.cg-fixcell{background:transparent;padding:3px}
+.cg-polmatrix td.cg-fixcell label{display:flex;align-items:center;justify-content:center;gap:4px;margin:0;padding:4px 4px;border:1px dashed var(--report);border-radius:7px;cursor:pointer;color:var(--report);font-weight:700;font-size:11px;white-space:nowrap}
+.cg-polmatrix td.cg-fixcell label:has(input:checked){background:var(--lemon);border-style:solid;border-color:var(--lemon);color:var(--green-deep)}
+.cg-polmatrix td.cg-fixcell input{margin:0;width:13px;height:13px}
+.cg-polmatrix tr.cmp-diff td.ucol .uupn{color:var(--report)}
+.cgg-tbl th.cgg-sort{cursor:pointer;user-select:none}
+.cgg-tbl th.cgg-sort:hover{color:var(--accent2)}
+.cgg-tbl th.cgg-sort.on{color:var(--ink)}
+.cgg-tbl th:first-child,.cgg-tbl td:first-child{vertical-align:middle;text-align:center;padding-left:8px;padding-right:0}
+.cgg-tbl .cgg-chk{margin:0;vertical-align:middle;width:15px;height:15px}
+
+/* ===== run ledger — one progress box for every batch write ===== */
+.rl{border:1px solid var(--border);border-radius:12px;background:var(--bg);overflow:hidden;margin-top:10px}
+.rl-hd{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);background:var(--surface)}
+.rl-hd b{font-size:13px}
+.rl-hd .n{margin-left:auto;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--muted)}
+.rl-hd .n b{color:var(--ink)}
+.rl-bar{height:6px;background:var(--soft)}
+.rl-bar i{display:block;height:100%;background:var(--accent2);transition:width .3s}
+.rl-bar i.has-fail{background:linear-gradient(90deg,var(--accent2) 0 92%,var(--off) 92% 100%)}
+.rl-list{max-height:280px;overflow-y:auto;font-size:12.5px;scrollbar-width:thin}
+.rl-row{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:6px 12px;border-top:1px solid var(--border)}
+.rl-row:first-child{border-top:0}
+.rl-row .ic{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;border:1.5px solid var(--border);color:var(--muted);box-sizing:border-box}
+.rl-row.done .ic{background:var(--on);border-color:var(--on);color:#fff}
+.rl-row.fail .ic{background:var(--off);border-color:var(--off);color:#fff}
+.rl-row.part .ic{background:var(--report);border-color:var(--report);color:#fff}
+.rl-row.part .st{color:var(--report)}.rl-row.part .lbl small{color:var(--report)}.rl-row.part .lbl{white-space:normal}
+.rl-bar i.has-part{background:linear-gradient(90deg,var(--accent2) 0 92%,var(--report) 92% 100%)}
+.rl-ft .k.h i{background:var(--report)}
+.rl-row.skip .ic{background:var(--soft);border-color:var(--border);color:var(--muted)}
+.rl-row.work{background:var(--warn-bg)}
+.rl-row.work .ic{border-color:var(--report);border-top-color:transparent;animation:rlspin 1s linear infinite}
+@keyframes rlspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.rl-row.work .ic{animation:none;border-top-color:var(--report)}}
+.rl-row .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rl-row .lbl small{color:var(--muted);margin-left:6px}
+.rl-row.fail .lbl small{color:var(--off)}
+.rl-row.fail .lbl{white-space:normal}
+.rl-row.pend{color:var(--muted)}
+.rl-row .st{font-size:11px;color:var(--muted);white-space:nowrap}
+.rl-row.done .st{color:var(--on)}.rl-row.fail .st{color:var(--off)}.rl-row.work .st{color:var(--report);font-weight:700}
+.rl-ft{display:flex;gap:10px;align-items:center;padding:7px 12px;border-top:1px solid var(--border);background:var(--surface);font-size:12px;color:var(--muted);flex-wrap:wrap}
+.rl-ft .k{display:inline-flex;align-items:center;gap:5px}
+.rl-ft .k i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.rl-ft .k.d i{background:var(--on)}.rl-ft .k.f i{background:var(--off)}.rl-ft .k.p i{background:var(--border)}
+.rl-ft .rl-actions{margin-left:auto;display:inline-flex;gap:6px}
+.rl-ft .stop{margin-left:auto}
+.rl-ft .rl-actions:not(:empty) + .stop{margin-left:0}
+.rl.finished .rl-hd{background:var(--ok-bg)}
+.rl.finished.has-fail .rl-hd{background:var(--bad-bg)}
+
+/* ---- T20 🔒 Protect exclusions 3.0 — two locks per row ---- */
+.pr-table td{vertical-align:top}
+.pr-table tr.pr-sel td{background:var(--ok-bg2)}
+.pr-tick{display:flex;gap:6px;align-items:center;font-size:12px;margin:2px 0;cursor:pointer}
+.pr-tick.dis{opacity:.5;cursor:default}
+.pr-settings{margin-top:14px;border:1px solid var(--border);border-radius:10px;padding:10px 14px;background:var(--soft2)}
+.pr-settings summary{cursor:pointer;font-weight:600;font-size:13px}
+.pr-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}
+.pr-barwrap{position:sticky;bottom:14px;z-index:5;display:flex;justify-content:center;margin-top:14px}
+.pr-barwrap .cgg-bulk{width:100%}
+.pr-barwrap .cgg-bulk .btn.primary[disabled]{opacity:.5}
+@media (max-width:860px){.pr-settings-grid{grid-template-columns:1fr}}

@@ -125,8 +125,11 @@ const Graph = (() => {
       r = await send(res.accessToken);
     }
 
-    // throttling — wait out Retry-After and retry
-    for (let attempt = 0; (r.status === 429 || r.status === 503 || r.status === 504) && attempt < MAX_RETRIES; attempt++) {
+    // throttling — wait out Retry-After and retry. 502 joined the list in
+    // 25326: Graph's edge answered a sign-in page read with nginx's "502 Bad
+    // Gateway" HTML wrapped in a JSON error, once, mid-window — transient by
+    // definition, and a whole 30-day read died on it.
+    for (let attempt = 0; (r.status === 429 || r.status === 502 || r.status === 503 || r.status === 504) && attempt < MAX_RETRIES; attempt++) {
       const ra = parseInt(r.headers.get("Retry-After"), 10);
       const waitMs = Number.isFinite(ra) ? ra * 1000 : Math.min(2 ** attempt * 1000, 20000);
       onThrottle(waitMs, attempt + 1);
@@ -164,8 +167,17 @@ const Graph = (() => {
   // failed write is undiagnosable.
   async function graphError(r) {
     let msg = `Graph request failed (${r.status})`;
+    // A gateway error page — nginx's "502 Bad Gateway" with its MSIE padding
+    // comments — arrives as e.message inside a JSON error. Nobody needs the
+    // HTML; say what it was and that it is Microsoft's edge, not the tenant.
+    const GATEWAY = { 502: "Bad Gateway", 503: "Service Unavailable", 504: "Gateway Timeout" };
+    const gatewayText = (status, html) => {
+      const t = /<title>\s*([^<]*?)\s*<\/title>/i.exec(String(html || ""));
+      return `Microsoft's gateway answered with an error page instead of data — ${(t && t[1]) || `${status} ${GATEWAY[status] || ""}`.trim()}. That is the Graph edge, not this tenant or this account: transient, retried ${MAX_RETRIES} times over about a minute before giving up. Run it again.`;
+    };
     try {
       const e = (await r.json()).error || {};
+      if (/<html|<title>|<body|<\/h1>/i.test(String(e.message || ""))) e.message = gatewayText(r.status, e.message);
       const bits = [e.message, e.code && `code: ${e.code}`,
         (e.details || []).map((d) => d.message || d.code).filter(Boolean).join("; "),
         e.innerError && (e.innerError.code || e.innerError["request-id"]) &&
@@ -182,7 +194,10 @@ const Graph = (() => {
           + "auth context (e.g. phishing-resistant MFA), or temporarily remove the policy "
           + "requirement on the Conditional Access create/update/delete actions.";
       }
-    } catch { /* no JSON body */ }
+    } catch {
+      // no JSON body — a bare gateway page, or nothing at all
+      if (GATEWAY[r.status]) msg += ": " + gatewayText(r.status, "");
+    }
     return new Error(msg);
   }
 
@@ -244,7 +259,7 @@ const Graph = (() => {
       body: init && init.body ? JSON.stringify(init.body) : undefined,
     });
     let r = await send(await token(ARM_SCOPES));
-    for (let attempt = 0; (r.status === 429 || r.status === 503 || r.status === 504) && attempt < MAX_RETRIES; attempt++) {
+    for (let attempt = 0; (r.status === 429 || r.status === 502 || r.status === 503 || r.status === 504) && attempt < MAX_RETRIES; attempt++) {
       const ra = parseInt(r.headers.get("Retry-After"), 10);
       const waitMs = Number.isFinite(ra) ? ra * 1000 : Math.min(2 ** attempt * 1000, 20000);
       onThrottle(waitMs, attempt + 1);
@@ -299,19 +314,27 @@ const Graph = (() => {
   //
   // Returns { [id]: { body } | { error } } — one entry per request, never
   // throws for an individual failure, so one bad object cannot sink the run.
-  async function gbatch(requests, onProgress) {
+  // opts.base: an absolute Graph base for the batch endpoint — the inner
+  // relative URLs resolve against the version the batch was posted to, so a
+  // batch to v1.0 reads v1.0 resources. Needed for disableNesting, which only
+  // v1.0 returns on some tenants (see NEST_V1 in js/cagroups.js).
+  async function gbatch(requests, onProgress, opts = {}) {
     const out = {};
+    const endpoint = opts.base ? `${opts.base}/$batch` : "/$batch";
     const parts = chunk(requests || [], 20);
     let done = 0;
     for (const part of parts) {
       const body = {
         requests: part.map((r) => ({
           id: String(r.id), method: r.method || "GET", url: r.url,
-          headers: { ConsistencyLevel: "eventual" },
+          // a POST with a body (checkMemberGroups) needs its content type
+          // stated inside the batch, or Graph answers 400 for that id alone
+          headers: r.body ? { ConsistencyLevel: "eventual", "Content-Type": "application/json" } : { ConsistencyLevel: "eventual" },
+          ...(r.body ? { body: r.body } : {}),
         })),
       };
       let j = null;
-      try { j = await gpost("/$batch", body); }
+      try { j = await gpost(endpoint, body); }
       catch (e) { part.forEach((r) => out[r.id] = { error: e.message || String(e) }); done += part.length; onProgress?.(done, requests.length); continue; }
 
       // Individual 429s inside a batch carry their own Retry-After; retry those
@@ -319,7 +342,7 @@ const Graph = (() => {
       const retry = [];
       for (const resp of (j.responses || [])) {
         if (resp.status >= 200 && resp.status < 300) out[resp.id] = { body: resp.body };
-        else if (resp.status === 429 || resp.status === 503) retry.push(resp);
+        else if (resp.status === 429 || resp.status === 502 || resp.status === 503 || resp.status === 504) retry.push(resp);
         else out[resp.id] = { error: (resp.body && resp.body.error && resp.body.error.message) || `HTTP ${resp.status}`,
           code: (resp.body && resp.body.error && resp.body.error.code) || "", status: resp.status };
       }
@@ -346,12 +369,14 @@ const Graph = (() => {
     return r.json();
   }
 
-  async function ggetAll(url) {
+  // cap: stop paging once that many rows are in hand (the caller says so)
+  async function ggetAll(url, cap) {
     let out = [], next = url;
     while (next) {
       const j = await gget(next);
       out = out.concat(j.value || []);
       next = j["@odata.nextLink"] || null;
+      if (cap && out.length >= cap) break;
     }
     return out;
   }
@@ -442,7 +467,11 @@ const Graph = (() => {
       } catch {}
     }
 
-    return (id, fallbackMap) => (fallbackMap && fallbackMap[id]) || names[id] || id;
+    // Order: the caller's label map (All / Office365 …), the tenant's own
+    // display name, then the first-party fallback map for an id with no
+    // service principal here, then the id itself.
+    const firstParty = (id) => (typeof firstPartyAppName === "function" ? firstPartyAppName(id) : null);
+    return (id, fallbackMap) => (fallbackMap && fallbackMap[id]) || names[id] || firstParty(id) || id;
   }
 
   async function loadTenant(onStatus) {

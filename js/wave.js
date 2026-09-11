@@ -99,6 +99,36 @@ const Wave = (() => {
       const ids = new Set(memberRows.map((r) => r.id));
       const recs = records.filter((r) => ids.has(r.userId));
       recs.forEach((r) => { const m = byId.get(r.userId); if (m) m.signIns++; });
+      // the retired approved-client-app control (0.7): per member, sign-ins
+      // that satisfied a reaching retired policy through the approved app
+      // (success on a non-compliant device), and whether an app protection
+      // policy already shows as satisfied for them
+      const retiredPols = lookup.filter((P) => P.retired && P.state !== "off");
+      const appPols = new Set(lookup.filter((P) => (P.builtIn || []).some((x) => /^compliantApplication$/i.test(x))).map((P) => P.id));
+      if (retiredPols.length) recs.forEach((r) => {
+        const m = byId.get(r.userId); if (!m) return;
+        const dd = r.deviceDetail || {};
+        (r.appliedConditionalAccessPolicies || []).forEach((ap) => {
+          if (!/^(success|reportOnlySuccess)$/i.test(String(ap.result || ""))) return;
+          const P = retiredPols.find((x) => x.id === ap.id);
+          if (P) {
+            const hasDev = (P.builtIn || []).some((x) => /^(compliantDevice|domainJoinedDevice)$/i.test(x));
+            if (hasDev && dd.isCompliant === true) return;
+            m.retired = m.retired || { n: 0, pols: new Set(), apps: new Set() };
+            m.retired.n++; m.retired.pols.add(P.seq || P.name); const a = r.appDisplayName || r.resourceDisplayName; if (a) m.retired.apps.add(a);
+          }
+          if (appPols.has(ap.id) && dd.isCompliant !== true && [...(ap.enforcedGrantControls || [])].some((c) => /compliantapp|appprotection|RequireCompliantApp/i.test(String(c)))) m.appOk = (m.appOk || 0) + 1;
+        });
+      });
+      // risky sign-ins per member, off the same records — the wave's half of
+      // 🛡 identity risk before anything is read (0.6)
+      const RO_ = { none: 0, hidden: 0, low: 1, medium: 2, high: 3 };
+      recs.forEach((r) => {
+        const m = byId.get(r.userId); if (!m) return;
+        const a = lc(r.riskLevelAggregated || ""), d = lc(r.riskLevelDuringSignIn || "");
+        const lvl = (RO_[a] || 0) >= (RO_[d] || 0) ? a : d;
+        if (RO_[lvl]) { m.riskySignIns = m.riskySignIns || { high: 0, medium: 0, low: 0 }; m.riskySignIns[lvl]++; }
+      });
       const rows = recs.map((r) => Signins.parse(r, "enforced")).filter(Boolean).sort((x, y) => String(y.when).localeCompare(String(x.when)));
       rows.forEach((r) => { const m = byId.get(r.userId); if (!m) return; m.log.rows.push(r); m.log[r.interrupted ? "interrupted" : "blocked"]++; });
       const perPolicy = new Map();
@@ -177,7 +207,22 @@ const Wave = (() => {
     const glo = (dgGroups || []).find((g) => /-DG-GLO$/i.test(g.name) && g.id && g.id !== gid && groupMembers.has(g.id));
     const coverage = glo ? { name: glo.name, missing: memberRows.filter((m) => !groupMembers.get(glo.id).has(m.id)).length } : null;
 
-    return { group, isDyn, days, members: memberRows, mcounts, children: (children || []).map((c) => ({ id: c.id, name: c.name, rule: c.rule, n: c.memberIds.size })), rows, counts, log, waveOverlap, alsoIn, bypassGroups, coverage, memberCap: memberCap || 0, capped: !!a.capped, dgGroups: dgGroups || [] };
+    // the risk-based policies aimed at this wave, with how many members each reaches
+    const retiredPolicies = lookup.filter((P) => P.retired && P.state !== "off").map((P) => ({
+      id: P.id, name: P.name, seq: P.seq, state: P.state, hasDev: (P.builtIn || []).some((x) => /^(compliantDevice|domainJoinedDevice)$/i.test(x)), hasApp: (P.builtIn || []).some((x) => /^compliantApplication$/i.test(x)),
+      reach: memberRows.filter((m) => m.states.find((s) => s.P.id === P.id).st.s === "inc").length,
+    })).filter((p) => p.reach);
+    const retired = retiredPolicies.length ? {
+      policies: retiredPolicies,
+      relies: memberRows.filter((m) => m.retired),
+      exposed: memberRows.filter((m) => m.retired && !m.appOk),
+      ready: memberRows.filter((m) => m.retired && m.appOk),
+    } : null;
+    const riskPolicies = lookup.filter((P) => P.risk && P.state !== "off").map((P) => ({
+      id: P.id, name: P.name, seq: P.seq, state: P.state, userRisk: P.userRisk, signInRisk: P.signInRisk, insiderRisk: P.insiderRisk || [],
+      reach: memberRows.filter((m) => m.states.find((s) => s.P.id === P.id).st.s === "inc").length,
+    })).filter((p) => p.reach);
+    return { group, isDyn, days, riskPolicies, retired, members: memberRows, mcounts, children: (children || []).map((c) => ({ id: c.id, name: c.name, rule: c.rule, n: c.memberIds.size })), rows, counts, log, waveOverlap, alsoIn, bypassGroups, coverage, memberCap: memberCap || 0, capped: !!a.capped, dgGroups: dgGroups || [] };
   }
 
   // ----------------------------------------------------------- render --
@@ -189,13 +234,80 @@ const Wave = (() => {
     const c = (r.controls || []).map((x) => `<span class="ctrl${/^block/i.test(String(x)) ? " block" : ""}">${esc(x)}</span>`);
     return c.concat((r.session || []).map((x) => `<span class="ctrl">${esc(x)}</span>`)).join(r.op && c.length > 1 ? `<span class="mini muted"> ${esc(r.op)} </span>` : "") || '<span class="mini muted">—</span>';
   };
+  // ONE CHIP PER POLICY, in a cell that wraps (25343). Until this build every
+  // flag rendered its whole list into a SINGLE `.ctrl` span joined with commas
+  // — and `.wo-tbl .ctrl` carries white-space:nowrap, so that one span could
+  // not break anywhere. A member in five exclusions forced the Flags column
+  // past the card, .gu-tw started scrolling sideways, and the sentence ended
+  // at "CA114 exclu…". Nothing was missing; it just could not be read.
+  //
+  // A chip per policy is short enough that nowrap costs nothing and the CELL
+  // wraps instead: the column goes tall, never wide. The word "exclusion"
+  // comes off the chips and onto one count line underneath — five chips said
+  // it five times — and the per-chip title carries the full sentence.
+  // The count line appears only when there is more than one chip. One red chip
+  // with "1 exclusion, On" underneath restates what the chip already says, and
+  // in the narrow Members card (it shares the row with 🧩 How the wave is
+  // built) that line wraps to three. Two or more chips is where a count earns
+  // its place — "5 exclusions, all On" is the sentence you cannot get by
+  // counting chips in your head.
+  const flagCell = (chips, say) => `<div class="flagcell">${chips.join("")}`
+    + (say && chips.length > 1 ? `<span class="mini muted flagsay">${esc(say)}</span>` : "") + `</div>`;
+  const flagChip = (label, title, cls) =>
+    `<span class="ctrl${cls ? ` ${cls}` : ""}" title="${esc(title)}">${esc(label)}</span>`;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
   const FLAG = {
-    bypass: (m) => `<span class="ctrl block" title="in an exclusion group while the policy is On">${esc(m.exclusions.filter((x) => x.on).map((x) => `${x.policy} exclusion`).join(", "))}</span>`,
-    excluded: (m) => `<span class="ctrl" title="in an exclusion group of a policy that is not On">${esc(m.exclusions.map((x) => `${x.policy} exclusion (${x.on ? "On" : "not On"})`).join(", "))}</span>`,
-    twowaves: (m) => `<span class="ctrl" title="also in another deploy group">also ${esc(m.waves.map(short).join(", "))}</span>`,
+    bypass: (m) => {
+      const on = m.exclusions.filter((x) => x.on);
+      return flagCell(
+        on.map((x) => flagChip(x.policy, `in the ${x.policy} exclusion group while the policy is On`, "block")),
+        `${plural(on.length, "exclusion")}, ${on.length === 1 ? "On" : "all On"}`);
+    },
+    excluded: (m) => {
+      const on = m.exclusions.filter((x) => x.on).length;
+      const off = m.exclusions.length - on;
+      // The chip carries the state: a red chip is a live bypass, a plain one is
+      // an exclusion on a policy that is not enforcing yet. Saying "(not On)"
+      // on every chip is what made the old cell unreadable.
+      return flagCell(
+        m.exclusions.map((x) => flagChip(x.policy,
+          `in the ${x.policy} exclusion group — the policy is ${x.on ? "On" : "not On"}`,
+          x.on ? "block" : "")),
+        `${plural(m.exclusions.length, "exclusion")}${on && off ? ` — ${on} On, ${off} not On` : on ? ", On" : ", none On"}`);
+    },
+    twowaves: (m) => flagCell(
+      m.waves.map((w) => flagChip(short(w), `also in ${w}`)),
+      `also in ${plural(m.waves.length, "wave")}`),
     nop1: () => '<span class="ctrl">no P1</span>', disabled: () => '<span class="ctrl">disabled</span>', guest: () => '<span class="ctrl">guest</span>',
     blocked: () => "", lockout: () => "",
   };
+
+  // ---- 🛡 identity risk for the whole wave (0.6, on Mihai's ask): the
+  // user-risk record per member (read on demand — it is one call per member
+  // and needs IdentityRiskyUser.Read.All), joined to the risky sign-ins the
+  // members already have from the shared window, and to the risk policies
+  // aimed at the wave: which would FIRE on a member as she stands now.
+  // riskById: userId → { level, state, detail, updated } | null (never
+  // flagged) | { err }. Mutates res (members get .risk) and sets res.risk.
+  function applyRisk(res, riskById, meta = {}) {
+    const RS = { atRisk: 1, confirmedCompromised: 1 };
+    let errs = 0;
+    res.members.forEach((m) => {
+      const r = riskById.has(m.id) ? riskById.get(m.id) : undefined;
+      if (r && r.err) { errs++; m.risk = { err: r.err }; return; }
+      m.risk = r || { level: "none", state: "none", detail: "none", updated: "" };
+      m.risk.atRisk = !!RS[m.risk.state];
+      m.risk.fires = m.risk.atRisk ? res.riskPolicies.filter((P) => P.userRisk.includes(lc(m.risk.level)) && m.states.find((s) => s.P.id === P.id).st.s === "inc") : [];
+    });
+    const atRisk = res.members.filter((m) => m.risk && m.risk.atRisk);
+    const remediated = res.members.filter((m) => m.risk && /^(remediated|dismissed|confirmedSafe)$/i.test(String(m.risk.state || "")));
+    const risky = res.members.filter((m) => m.riskySignIns);
+    const fires = new Map();
+    atRisk.forEach((m) => (m.risk.fires || []).forEach((P) => { const e = fires.get(P.id) || fires.set(P.id, { ...P, members: [] }).get(P.id); e.members.push(m); }));
+    res.risk = { read: true, at: meta.at || new Date().toISOString(), errs, atRisk, remediated, risky, fires: [...fires.values()], notRead: res.members.length - res.members.filter((m) => m.risk && !m.risk.err).length };
+    return res.risk;
+  }
 
   function render(res, opts = {}) {
     const g = res.group, c = res.counts, mc = res.mcounts, log = res.log, filter = opts.filter || "look";
@@ -224,6 +336,7 @@ const Wave = (() => {
         <div class="wo-actions">
           <button class="btn sm" data-wv-cagroups title="Open 👥 Conditional Access groups">👥 CA groups</button>
           <button class="btn sm" data-wv-groupuse title="Open 🔗 User or Group analyzer on this group">🔗 Analyzer</button>
+          ${res.risk ? "" : `<button class="btn sm" data-wv-risk title="Read Identity Protection's user risk for every member (IdentityRiskyUser.Read.All) and join it to the risky sign-ins already in the window">🛡 Read identity risk</button>`}
         </div>
       </div>
       <div class="wo-verdicts">
@@ -234,12 +347,65 @@ const Wave = (() => {
       </div>
     </div>`;
 
+    // ---- 🛡 identity risk card: only once read (the button in the head)
+    let riskHtml = "";
+    {
+      const rk = res.risk;
+      const rsum = (m) => m.riskySignIns ? ["high", "medium", "low"].filter((l) => m.riskySignIns[l]).map((l) => `<span class="wo-res ${l === "high" ? "blk" : l === "medium" ? "int" : "wb"}">${m.riskySignIns[l]} ${l}</span>`).join(" ") : '<span class="muted">—</span>';
+      const RS_LABEL = { atRisk: "At risk", confirmedCompromised: "Compromised", remediated: "Remediated", dismissed: "Dismissed", confirmedSafe: "Confirmed safe", none: "No risk" };
+      const risky = res.members.filter((m) => m.riskySignIns);
+      if (rk) {
+        const listed = res.members.filter((m) => (m.risk && m.risk.atRisk) || m.riskySignIns || (m.risk && /^(remediated|dismissed|confirmedSafe)$/i.test(String(m.risk.state || ""))))
+          .sort((a, b) => ((b.risk && b.risk.atRisk) - (a.risk && a.risk.atRisk)) || (!!b.riskySignIns - !!a.riskySignIns) || a.name.localeCompare(b.name));
+        riskHtml = `<div class="list-card wo-card">
+          <h3 class="wo-h" data-wo-fold="risk">🛡 Identity risk across the wave <span class="mini muted">— user risk read ${esc(String(rk.at).slice(0, 16).replace("T", " "))}${rk.errs ? ` · ${rk.errs} not read` : ""}</span></h3>
+          <div class="wo-verdicts wo-3" style="margin:0 0 10px">
+            <div class="wo-vt ${rk.atRisk.length ? "bad" : "ok"}"><span class="k">Members at risk</span><span class="v">${rk.atRisk.length}</span><span class="s">${rk.atRisk.length ? ["high", "medium", "low"].map((l) => [l, rk.atRisk.filter((m) => lc(m.risk.level) === l).length]).filter(([, n]) => n).map(([l, n]) => `${n} ${l}`).join(" · ") : "Identity Protection flags nobody in the wave"}</span></div>
+            <div class="wo-vt ${rk.risky.length ? "warn" : "ok"}"><span class="k">Risky sign-ins · ${esc(rangeLabel)}</span><span class="v">${rk.risky.length}</span><span class="s">member${rk.risky.length === 1 ? "" : "s"} with a risky sign-in in the window</span></div>
+            <div class="wo-vt ${rk.fires.length ? "bad" : "ok"}"><span class="k">Risk policies firing now</span><span class="v">${rk.fires.length}</span><span class="s">${rk.fires.length ? rk.fires.map((P) => `${esc(P.seq || P.name)} on ${P.members.length}`).join(" · ") : `${res.riskPolicies.length} risk-based polic${res.riskPolicies.length === 1 ? "y aims" : "ies aim"} at the wave, none fires on anyone as they stand`}</span></div>
+          </div>
+          ${res.riskPolicies.length ? `<p class="mini" style="margin:0 0 8px">Risk-based policies aimed at the wave: ${res.riskPolicies.map((P) => `<span class="pol-link" data-polid="${esc(P.id)}">${P.seq ? `<b>${esc(P.seq)}</b> ` : ""}${esc(P.name)}</span>${P.state === "ro" ? " (report-only)" : ""} <span class="muted">— ${[P.userRisk.length ? `user risk ${P.userRisk.join("/")}` : "", P.signInRisk.length ? `sign-in risk ${P.signInRisk.join("/")}` : "", P.insiderRisk.length ? `insider risk ${P.insiderRisk.join("/")}` : ""].filter(Boolean).join(", ")} · reaches ${P.reach}</span>`).join("<br>")}</p>` : '<p class="mini muted" style="margin:0 0 8px">No risk-based policy reaches this wave.</p>'}
+          ${listed.length ? `<div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Member</th><th>User risk</th><th>Since</th><th>Risky sign-ins</th><th>Fires</th></tr></thead><tbody>
+            ${listed.slice(0, 60).map((m) => `<tr${m.risk && m.risk.atRisk ? ' class="wo-exrow"' : ""}><td><a href="#" class="wv-member" data-wv-open="${esc(m.upn)}"><b>${esc(m.name)}</b></a><div class="mini muted">${esc(m.upn)}</div></td>
+              <td>${m.risk && m.risk.err ? `<span class="muted">not read — ${esc(m.risk.err)}</span>` : `<span class="wo-res ${m.risk && m.risk.atRisk ? (lc(m.risk.level) === "high" ? "blk" : "int") : "nc"}">${RS_LABEL[(m.risk || {}).state] || esc((m.risk || {}).state || "No risk")}</span>${m.risk && m.risk.atRisk ? ` <span class="mini">${esc(m.risk.level)}</span>` : ""}${m.risk && m.risk.detail && m.risk.detail !== "none" ? `<div class="mini muted">${esc(m.risk.detail)}</div>` : ""}`}</td>
+              <td class="mini">${m.risk && m.risk.updated ? esc(String(m.risk.updated).slice(0, 10)) : "—"}</td>
+              <td>${rsum(m)}</td>
+              <td class="mini">${m.risk && m.risk.fires && m.risk.fires.length ? m.risk.fires.map((P) => `<span class="pol-link" data-polid="${esc(P.id)}">${esc(P.seq || P.name)}</span>`).join(", ") : '<span class="muted">—</span>'}</td></tr>`).join("")}
+          </tbody></table></div>${listed.length > 60 ? `<p class="mini muted" style="margin-top:6px">${listed.length - 60} more — export CSV for all.</p>` : ""}` : '<p class="mini muted">Nobody in the wave is flagged, remediated or has a risky sign-in in the window.</p>'}
+          <p class="mini muted" style="margin-top:8px">User risk is Identity Protection's (needs Entra ID P2 to be populated); risky sign-ins are the members' own records in the shared window. Click a member for her full picture in 🕵 Who is Anna to CA. Nothing here changes the tenant.</p>
+        </div>`;
+      } else if (risky.length) {
+        riskHtml = `<div class="wo-callout"><b>${risky.length} member${risky.length === 1 ? "" : "s"} had a risky sign-in in the window</b> — ${risky.slice(0, 6).map((m) => `<a href="#" class="wv-member" data-wv-open="${esc(m.upn)}">${esc(m.name)}</a> (${rsum(m)})`).join(", ")}${risky.length > 6 ? ` +${risky.length - 6}` : ""}. Press <b>🛡 Read identity risk</b> for what Identity Protection says about them now and which risk policies fire.</div>`;
+      }
+    }
+
+    // ---- retired control: approved client app (0.7)
+    let retHtml = "";
+    if (res.retired && log) {
+      const rt = res.retired;
+      retHtml = `<div class="list-card wo-card">
+        <h3 class="wo-h" data-wo-fold="retired">📵 Retired control: Require approved client app <span class="mini muted">— ${rt.policies.length} polic${rt.policies.length === 1 ? "y" : "ies"} aimed at the wave, read-only since 30 June 2026</span></h3>
+        <div class="wo-verdicts wo-3" style="margin:0 0 10px">
+          <div class="wo-vt ${rt.exposed.length ? "bad" : "ok"}"><span class="k">Blocked the day the control goes</span><span class="v">${rt.exposed.length}</span><span class="s">satisfy it through the approved app, no app protection policy seen — assign one first</span></div>
+          <div class="wo-vt ok"><span class="k">Ready for the replacement</span><span class="v">${rt.ready.length}</span><span class="s">through the approved app, and an app protection policy already satisfied</span></div>
+          <div class="wo-vt ok"><span class="k">Not affected</span><span class="v">${res.members.length - rt.relies.length}</span><span class="s">compliant device, or no mobile app in the window</span></div>
+        </div>
+        <p class="mini" style="margin:0 0 8px">${rt.policies.map((P) => `<span class="pol-link" data-polid="${esc(P.id)}">${P.seq ? `<b>${esc(P.seq)}</b> ` : ""}${esc(P.name)}</span> <span class="muted">— ${P.hasDev ? "compliant device or approved app" : "approved app only"}${P.hasApp ? " or app protection policy" : ""} · reaches ${P.reach}</span>`).join("<br>")}</p>
+        ${rt.relies.length ? `<div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Member</th><th class="num">Through the approved app</th><th>Policies</th><th>Apps</th><th>App protection seen</th></tr></thead><tbody>
+          ${rt.relies.sort((a, b) => (!!b.appOk - !!a.appOk) || b.retired.n - a.retired.n).slice(0, 80).map((m) => `<tr${m.appOk ? "" : ' class="wo-exrow"'}><td><a href="#" class="wv-member" data-wv-open="${esc(m.upn)}"><b>${esc(m.name)}</b></a><div class="mini muted">${esc(m.upn)}</div></td>
+            <td class="num">${m.retired.n}</td><td class="mini">${esc([...m.retired.pols].join(", "))}</td><td class="mini">${esc([...m.retired.apps].slice(0, 4).join(", "))}${m.retired.apps.size > 4 ? ` +${m.retired.apps.size - 4}` : ""}</td>
+            <td>${m.appOk ? `<span class="wo-res nc">yes · ${m.appOk}</span>` : '<span class="wo-res blk">no</span>'}</td></tr>`).join("")}
+        </tbody></table></div>${rt.relies.length > 80 ? `<p class="mini muted" style="margin-top:6px">${rt.relies.length - 80} more — export CSV for all.</p>` : ""}` : '<p class="mini muted">Nobody in the wave went through the approved-app path in the window.</p>'}
+        <p class="mini muted" style="margin-top:8px">“Through the approved app” = a reaching retired policy applied with success on a sign-in whose device was not compliant. Removing the control without a replacement makes such a policy compliant-device-only for these members; replacing it with Require app protection policy needs an Intune APP policy assigned to them and picked up by the app — the red rows are the ones with no such evidence yet. Report-only cannot evaluate that control; its report-only failures are not denials.</p>
+      </div>`;
+    }
+
     // ---- readiness
     const roRows = res.rows.filter((r) => r.state === "ro" && r.target && r.target.kind !== "other");
     const fbar = (fc) => { const t = fc.evaluated || 1; const w = (n) => Math.round(n / t * 100); return `<div class="wo-fbar" style="width:180px"><i class="b" style="width:${w(fc.blocked.length)}%"></i><i class="p" style="width:${w(fc.prompted.length)}%"></i><i class="n" style="width:${w(fc.unchanged)}%"></i></div>`; };
     const VERDICT = { notyet: '<span class="wo-res wb">Not yet</span>', friction: '<span class="wo-res wp">Friction only</span>', ready: '<span class="wo-res nc">Ready</span>', nodata: '<span class="mini muted">No data</span>' };
     const readiness = `<div class="list-card wo-card">
-      <h3 class="wo-h">🧭 Go-live readiness per report-only policy — this wave only</h3>
+      <h3 class="wo-h" data-wo-fold="readiness">🧭 Go-live readiness per report-only policy — this wave only</h3>
       ${!log ? '<p class="mini muted">Needs the sign-in log.</p>' : !roRows.length ? '<p class="mini muted">No report-only policy targets this wave.</p>' : `<div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Policy</th><th>Members with traffic</th><th>Forecast</th><th>Verdict</th></tr></thead><tbody>
         ${roRows.map((r) => { const fc = r.forecast; return `<tr><td>${polLink(r)}<div class="mini muted">${esc(r.target.text)}</div></td><td class="num">${fc.withTraffic} / ${fc.reach}${fc.silent ? `<div class="mini muted">${fc.silent} silent</div>` : ""}</td>
           <td>${fc.evaluated ? fbar(fc) : ""}${fc.blocked.length ? `<span class="wo-res wb">${fc.blocked.length} locked out</span> · ` : ""}${fc.prompted.length ? `<span class="wo-res wp">${fc.prompted.length} prompted</span> · ` : ""}${fc.evaluated ? `<span class="wo-res nc">${fc.unchanged} no change</span>` : '<span class="mini muted">no member sign-in was evaluated by it</span>'}</td>
@@ -254,7 +420,7 @@ const Wave = (() => {
       .map(([k, l]) => `<button class="fchip${pfilter === k ? " active" : ""}" data-wv-pfilter="${k}">${l}</button>`).join("");
     const pshown = res.rows.filter((r) => pfilter === "all" || (pfilter === "targets" ? r.target && r.target.kind !== "other" : r.target && r.target.kind === "other"));
     const ptable = `<div class="list-card wo-card">
-      <h3 class="wo-h">📋 Policies and how they reach the wave</h3>
+      <h3 class="wo-h" data-wo-fold="policies">📋 Policies and how they reach the wave</h3>
       <div class="chip-filter" style="margin:8px 0 10px">${pchips}</div>
       <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Policy</th><th>State</th><th>Targets via</th><th>Excluded members</th><th>Controls</th><th>Log · ${esc(rangeLabel)}</th></tr></thead><tbody>
         ${pshown.map((r) => `<tr class="${r.state === "off" ? "wo-dim" : ""}"><td>${polLink(r)}</td><td>${stateHtml(r.state)}</td><td class="wo-via">${r.target ? (r.target.kind === "other" ? `<span style="color:var(--warn-fg)">${esc(r.target.text)}</span>` : `<b>${esc(r.target.text)}</b>`) : '<span class="mini muted">does not target it</span>'}${r.target && r.target.kind !== "other" && r.reach < mc.total - r.exc.length ? `<div class="mini muted">reaches ${r.reach} of ${mc.total}</div>` : ""}</td>
@@ -270,10 +436,11 @@ const Wave = (() => {
       .map(([k, l]) => `<button class="fchip${filter === k ? " active" : ""}" data-wv-filter="${k}">${l}</button>`).join("");
     const mshown = res.members.filter((m) => filter === "all" ? true : filter === "look" ? m.needsLook : filter === "bypass" ? m.exclusions.length : m.flags.includes(filter));
     const maxRows = opts.maxRows || 100;
-    const mtable = `<div class="list-card wo-card">
-      <h3 class="wo-h">👥 Members ${pill(mc.total, "zero")} <span class="mini muted">— click a name for 🕵 Who is … to CA</span></h3>
+    const mtable = `<div class="list-card wo-card${opts.memFull ? " wo-full" : ""}">
+      <h3 class="wo-h" data-wo-fold="members">👥 Members ${pill(mc.total, "zero")} <span class="mini muted">— click a name for 🕵 Who is … to CA</span>
+        <span style="margin-left:auto"><button class="btn sm" data-wv-memfull title="${opts.memFull ? "Put the table back in the page" : "Give the table the whole window — 500 members is five columns of it"}">${opts.memFull ? "⤡ Exit full screen" : "⤢ Full screen"}</button></span></h3>
       <div class="chip-filter" style="margin:8px 0 10px">${mchips}</div>
-      <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Member</th><th>In wave via</th><th>Flags</th><th>${esc(rangeLabel)}</th><th>Forecast</th></tr></thead><tbody>
+      <div class="gu-tw wo-fit"><table class="plist wo-tbl"><thead><tr><th>Member</th><th>In wave via</th><th>Flags</th><th>${esc(rangeLabel)}</th><th>Forecast</th></tr></thead><tbody>
         ${mshown.slice(0, maxRows).map((m) => `<tr><td><a href="#" class="wv-member" data-wv-open="${esc(m.upn)}"><b>${esc(m.name)}</b></a><div class="mini muted">${esc(m.upn)}</div></td><td class="wo-via">${esc(m.how)}${m.roles.length ? `<div class="mini muted">${esc(m.roles.join(", "))}</div>` : ""}</td>
           <td>${m.flags.map((f) => FLAG[f] ? FLAG[f](m) : "").join("") || '<span class="mini muted">—</span>'}</td>
           <td>${!log ? '<span class="mini muted">—</span>' : m.log.blocked || m.log.interrupted ? `${m.log.blocked ? `<span class="wo-res blk">${m.log.blocked} blocked</span>` : ""}${m.log.blocked && m.log.interrupted ? " · " : ""}${m.log.interrupted ? `<span class="wo-res int">${m.log.interrupted} int.</span>` : ""}` : m.signIns ? `<span class="mini muted">${m.signIns} passed</span>` : '<span class="mini muted">no sign-ins</span>'}</td>
@@ -285,7 +452,7 @@ const Wave = (() => {
 
     // ---- how the wave is built
     const built = `<div class="list-card wo-card">
-      <h3 class="wo-h">🧩 How the wave is built</h3>
+      <h3 class="wo-h" data-wo-fold="built">🧩 How the wave is built</h3>
       ${mc.direct != null ? `<div class="wo-grp"><span><b>Direct members</b></span><span class="muted">${mc.direct}</span><span class="mini muted">added by hand — 🔗 Analyzer for who</span></div>` : '<p class="mini muted">Direct list not read.</p>'}
       ${res.children.map((ch) => `<div class="wo-grp"><span>${esc(ch.name)}</span><span class="muted">nested · ${ch.n} member${ch.n === 1 ? "" : "s"}</span><span class="mini muted">${ch.rule ? `dynamic · <span class="uupn">${esc(ch.rule)}</span>` : "assigned"}</span></div>`).join("")}
       ${res.isDyn ? `<div class="wo-grp"><span><b>Dynamic rule</b></span><span class="muted">all ${mc.total}</span><span class="mini muted uupn">${esc(g.membershipRule || "")}</span></div>` : ""}
@@ -295,7 +462,7 @@ const Wave = (() => {
       ${mc.disabled ? `<div class="wo-callout"><b>${mc.disabled} disabled account${mc.disabled === 1 ? "" : "s"}</b> in the wave — they count toward the licence obligation and toward nothing else.</div>` : ""}
     </div>`;
 
-    return head + readiness + ptable + `<div class="wo-split">${mtable}${built}</div>`;
+    return head + riskHtml + retHtml + readiness + ptable + `<div class="wo-split">${mtable}${built}</div>`;
   }
 
   // ------------------------------------------------------------- csv --
@@ -319,6 +486,23 @@ const Wave = (() => {
     if (res.waveOverlap.length) L.push(`- **Two waves at once:** ${res.waveOverlap.map((x) => `${x.n} also in ${e(x.name)}`).join(", ")}`);
     if (mc.bypass) L.push(`- **Standing bypasses:** ${mc.bypass} members in an exclusion group while the policy is On`);
     if (res.coverage) L.push(`- **Coverage:** ${res.coverage.missing ? `${res.coverage.missing} members are NOT in ${e(res.coverage.name)}` : `all members are also in ${e(res.coverage.name)}`}`);
+    if (res.retired && log) {
+      const rt = res.retired;
+      L.push(`- **Retired control (approved client app):** ${rt.policies.length} reaching polic${rt.policies.length === 1 ? "y" : "ies"}; ${rt.exposed.length} members blocked the day the control goes (no app protection policy seen), ${rt.ready.length} ready, ${res.members.length - rt.relies.length} not affected`);
+      if (rt.relies.length) {
+        L.push("", "## Retired control: members going through the approved app", "", "| Member | UPN | Sign-ins | Policies | Apps | App protection seen |", "| --- | --- | --- | --- | --- | --- |");
+        rt.relies.forEach((m) => L.push(`| ${e(m.name)} | ${e(m.upn)} | ${m.retired.n} | ${e([...m.retired.pols].join(", "))} | ${e([...m.retired.apps].join(", "))} | ${m.appOk ? `yes (${m.appOk})` : "NO"} |`));
+      }
+    }
+    if (res.risk) {
+      const rk = res.risk;
+      L.push(`- **Identity risk:** ${rk.atRisk.length} at risk, ${rk.remediated.length} remediated/dismissed, ${rk.risky.length} with a risky sign-in in the window${rk.fires.length ? `; firing: ${rk.fires.map((P) => `${e(P.seq || P.name)} on ${P.members.length}`).join(", ")}` : ""}${rk.errs ? `; ${rk.errs} not read` : ""}`);
+      const listed = res.members.filter((m) => (m.risk && m.risk.atRisk) || m.riskySignIns);
+      if (listed.length) {
+        L.push("", "## Identity risk", "", "| Member | UPN | User risk | Level | Since | Risky sign-ins | Fires |", "| --- | --- | --- | --- | --- | --- | --- |");
+        listed.forEach((m) => L.push(`| ${e(m.name)} | ${e(m.upn)} | ${e((m.risk || {}).state || "")} | ${e((m.risk || {}).level || "")} | ${e(String((m.risk || {}).updated || "").slice(0, 10))} | ${m.riskySignIns ? ["high", "medium", "low"].filter((l) => m.riskySignIns[l]).map((l) => `${m.riskySignIns[l]} ${l}`).join(", ") : ""} | ${((m.risk || {}).fires || []).map((P) => e(P.seq || P.name)).join(", ")} |`));
+      }
+    }
     const roRows = res.rows.filter((r) => r.state === "ro" && r.forecast);
     if (roRows.length) {
       L.push("", "## Go-live readiness per report-only policy", "", "| Policy | With traffic | Locked out | Prompted | No change | Silent | Verdict |", "| --- | --- | --- | --- | --- | --- | --- |");
@@ -337,5 +521,5 @@ const Wave = (() => {
     return L.join("\n");
   }
 
-  return { analyze, render, toMd, toCsv };
+  return { analyze, applyRisk, render, toMd, toCsv };
 })();

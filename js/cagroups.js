@@ -160,9 +160,13 @@ const CaGroups = (() => {
   //                          policy points at, which is far less Graph traffic.
   //   "all"                — additionally expect every bundled template and
   //                          baseline-catalog group, so missing ones show up.
+  const TENANT_CAP = 5000;
   async function scan(raws, opts) {
     const o = opts || {};
-    const scope = o.scope === "all" ? "all" : "policies";
+    // policies: only what the policies reference. all: plus what the baseline
+    // and templates expect. tenant: plus every security group in the directory
+    // (first 5,000) — the view for "what else is out there".
+    const scope = o.scope === "tenant" ? "tenant" : o.scope === "all" ? "all" : "policies";
     const tpl = templateNames();
     const cat = catalogGroupNames(raws);
     const refs = policyRefs(raws);
@@ -179,7 +183,7 @@ const CaGroups = (() => {
       if (!e) { e = { name: n, sources: new Set(), template: tpl.get(n) || null }; expected.set(n, e); }
       e.sources.add(src);
     };
-    if (scope === "all") {
+    if (scope !== "policies") {
       tpl.forEach((t, n) => want(n, "template"));
       cat.forEach((n) => want(n, "catalog"));
     }
@@ -244,11 +248,27 @@ const CaGroups = (() => {
       }));
     }
 
+    // tenant scope: every other security group, as "not in the baseline"
+    let tenantCapped = false;
+    if (scope === "tenant") {
+      o.onStatus?.("Reading every security group in the tenant…", 0, 0);
+      const seen = new Set(rows.filter((r) => r.id).map((r) => r.id));
+      try {
+        const all = await Graph.ggetAll("/groups?$filter=securityEnabled eq true and mailEnabled eq false&$select=id,displayName,description,isAssignableToRole,groupTypes,membershipRule,securityEnabled,mailEnabled&$top=999", TENANT_CAP);
+        tenantCapped = all.length >= TENANT_CAP;
+        for (const g of all) {
+          if (seen.has(g.id)) continue;
+          seen.add(g.id);
+          rows.push(row({ name: g.displayName, group: g, template: tpl.get(g.displayName) || null, sources: ["tenant"], status: "extra", refs: null }));
+        }
+      } catch (e) { console.warn("CaGroups: tenant read failed", e.message); }
+    }
+
     rows.sort((a, b) => STATUS[a.status].order - STATUS[b.status].order || a.name.localeCompare(b.name));
     const counts = rows.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
     const expectedTotal = rows.filter((r) => r.status === "present" || r.status === "missing").length;
     return {
-      rows, counts, expectedTotal, scope,
+      rows, counts, expectedTotal, scope, tenantCapped,
       baseline: (activeCat() || {}).id || null,
       other: otherBaseline(raws),
       present: counts.present || 0,
@@ -644,12 +664,48 @@ const CaGroups = (() => {
           disabled: m.accountEnabled === false,
         }));
         r.memberError = null;
+        await loadNesting(r);
       } catch (e) {
         r.members = []; r.memberTotal = null; r.memberError = e.message || String(e);
       }
       o.onProgress?.(i, targets.length);
     }
     return rows;
+  }
+
+  // HOW each member got in. The transitive read above flattens nesting away,
+  // which is right for "who is in scope" and wrong for "why is she in scope":
+  // a user in an exclusion group through SG-Finance-All cannot be removed
+  // from the exclusion group, only from SG-Finance-All. So the direct list
+  // is read, the direct member GROUPS are read with their own transitive
+  // users, and every member carries via: the child groups it came through.
+  // Best effort: a failed read leaves the flat picture intact and says so.
+  const NEST_CAP = 40;
+  async function loadNesting(r) {
+    r.directIds = null; r.children = null; r.nestError = null;
+    try {
+      const dm = await Graph.ggetAll(`/groups/${r.id}/members?$select=id,displayName,membershipRule,groupTypes&$top=999`);
+      r.directIds = new Set(dm.filter((o) => /user$/i.test(o["@odata.type"] || "")).map((o) => o.id));
+      const cg = dm.filter((o) => /group$/i.test(o["@odata.type"] || ""));
+      r.childTotal = cg.length;
+      r.children = [];
+      if (cg.length) {
+        const part = cg.slice(0, NEST_CAP);
+        const res = await Graph.gbatch(part.map((g, i) => ({ id: i, url: `/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id,displayName,userPrincipalName,accountEnabled&$top=999` })));
+        r.children = part.map((g, i) => {
+          const v = (res[i] && res[i].body && res[i].body.value) || [];
+          return { id: g.id, name: g.displayName || g.id, dynamic: !!g.membershipRule || (g.groupTypes || []).includes("DynamicMembership"), rule: g.membershipRule || "",
+            error: res[i] && res[i].error ? res[i].error : null,
+            members: v.slice(0, MEMBER_CAP).map((m) => ({ id: m.id, name: m.displayName || m.id, upn: m.userPrincipalName || "", disabled: m.accountEnabled === false })), memberTotal: v.length };
+        });
+      }
+      const via = new Map();
+      r.children.forEach((c) => c.members.forEach((m) => (via.get(m.id) || via.set(m.id, []).get(m.id)).push(c.name)));
+      r.members.forEach((m) => { m.direct = r.directIds.has(m.id); m.via = via.get(m.id) || []; });
+    } catch (e) {
+      r.nestError = e.message || String(e); r.directIds = null; r.children = null;
+      r.members.forEach((m) => { delete m.direct; delete m.via; });
+    }
   }
 
   // members × groups. Only groups that were actually scanned become columns,
@@ -660,13 +716,15 @@ const CaGroups = (() => {
     cols.forEach((c) => {
       (c.members || []).forEach((m) => {
         let u = users.get(m.id);
-        if (!u) { u = { ...m, groups: new Set() }; users.set(m.id, u); }
+        if (!u) { u = { id: m.id, name: m.name, upn: m.upn, disabled: m.disabled, groups: new Set(), how: {} }; users.set(m.id, u); }
         u.groups.add(c.name);
+        // how she is in THIS group: direct, or via which child groups (null = not read)
+        u.how[c.name] = c.directIds ? { direct: !!m.direct, via: m.via || [] } : null;
       });
     });
     const list = [...users.values()].sort((a, b) =>
       b.groups.size - a.groups.size || a.name.localeCompare(b.name));
-    return { cols, users: list, empty: cols.filter((c) => (c.memberTotal || 0) === 0) };
+    return { cols, users: list, empty: cols.filter((c) => (c.memberTotal || 0) === 0), nested: cols.some((c) => (c.children || []).length) };
   }
 
   // ---- rendering ----------------------------------------------------------
@@ -680,7 +738,9 @@ const CaGroups = (() => {
         <h3>👥 Conditional Access groups — ${esc(tenant || "this tenant")}</h3>
         <p style="margin-bottom:10px">${onlyPolicies
           ? `Only the groups your Conditional Access policies actually reference. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody. Switch the scope to <b>Baseline + templates</b> to also check which expected groups are missing.`
-          : `The groups your Conditional Access baseline depends on: every group the active baseline defines, plus every group your own policies point at. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody.`}</p>
+          : res.scope === "tenant"
+            ? `Every security group in the tenant${res.tenantCapped ? " (the first 5,000)" : ""} — the baseline's, the ones your policies point at, and everything else, listed as <b>not in the baseline</b>. Nested groups and members of the extras are read when you open them.`
+            : `The groups your Conditional Access baseline depends on: every group the active baseline defines, plus every group your own policies point at. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody. Switch the scope to <b>All groups</b> to see every security group in the tenant next to them.`}</p>
         ${typeof Baseline !== "undefined" && Baseline.activeChip ? `<p style="margin:0 0 8px">${Baseline.activeChip()}</p>` : ""}
         ${res.other ? `<p class="mini" style="margin:0 0 8px;color:var(--report)">⚠ ${res.other.hits} of this tenant's policies carry names from the <b>${esc(res.other.catalog.label)}</b> baseline, which is not the active one — its groups are not expected here. <a href="#" data-open-baseline="${esc(res.other.catalog.id)}">Open that baseline</a> to make it active.</p>` : ""}
         <div class="bl-chips">${["missing", "dangling", "present", "extra"].map(chip).join("")}</div>
@@ -773,25 +833,116 @@ const CaGroups = (() => {
   }
 
   // members × groups, users as rows — same shape as the exclusion matrix
-  function renderMatrix(m, q) {
+  // nesting: true shows HOW — ● direct, ◐ via a child group (named in the
+  // tooltip, not removable here: the membership lives in the child). A
+  // nested-only filter keeps the rows that came in through a child.
+  // The label under a ◐: nested-group names share a long prefix
+  // (Externen_Leeuwendaal_…), so the TAIL is what tells them apart.
+  const tail = (n, len = 12) => { n = String(n || ""); return n.length <= len ? n : "…" + n.slice(-len + 1); };
+  // opts: { hideEmpty } — a column with no members is dropped from the grid
+  function renderMatrix(m, q, nesting, opts = {}) {
     if (!m.cols.length) return '<p class="mini" style="padding:20px">No members loaded yet — run the member scan.</p>';
-    const users = q ? m.users.filter((u) => u.name.toLowerCase().includes(q) || (u.upn || "").toLowerCase().includes(q)) : m.users;
-    if (!users.length) return '<p class="mini" style="padding:20px">No members match the search.</p>';
-    return `<div class="tablewrap"><table class="mtable cg-matrix">
+    const cols = opts.hideEmpty ? m.cols.filter((c) => (c.memberTotal || 0) > 0) : m.cols;
+    let users = q ? m.users.filter((u) => u.name.toLowerCase().includes(q) || (u.upn || "").toLowerCase().includes(q)) : m.users;
+    if (nesting === "only") users = users.filter((u) => Object.values(u.how || {}).some((h) => h && !h.direct));
+    if (!users.length) return `<p class="mini" style="padding:20px">${nesting === "only" ? "No member came in through a nested group." : "No members match the search."}</p>`;
+    if (!cols.length) return '<p class="mini" style="padding:20px">Every loaded group is empty — nothing to show with empty groups hidden.</p>';
+    // a column whose every member came in through nesting: nothing in it can
+    // be removed from here, and the header says so
+    const allNested = (c) => c.directIds && (c.members || []).length > 0 && (c.members || []).every((mm) => !mm.direct);
+    const cell = (u, c) => {
+      if (!u.groups.has(c.name)) return '<td class="cellv"></td>';
+      const h = nesting ? u.how[c.name] : null;
+      if (c.dynamic) return '<td class="cellv ok" title="member — dynamic group, membership is rule-managed">●</td>';
+      if (h && !h.direct) return `<td class="cellv ok cg-nested" title="member of ${esc(c.name)} via ${esc(h.via.join(", ") || "a nested group")} — remove from that group, not here">◐<span class="mini cg-via" title="${esc(h.via.join(", "))}">${esc(tail(h.via[0] || "nested"))}${h.via.length > 1 ? ` +${h.via.length - 1}` : ""}</span></td>`;
+      return `<td class="cellv ok cg-mem" data-cgrm-user="${esc(u.id)}" data-cgrm-group="${esc(c.name)}" title="${h ? "direct " : ""}member of ${esc(c.name)} — click to remove">●<span class="cg-rm" aria-hidden="true">×</span></td>`;
+    };
+    // The same grid every matrix view uses (.matrix-wrap + .mtable): card
+    // surface, sticky header row, sticky first column, vertical policy-style
+    // headers. The old tablewrap / stick / vert classes never had CSS.
+    return `<div class="matrix-wrap cg-mwrap"><table class="mtable cg-matrix${nesting ? " cg-nesting" : ""}">
       <thead><tr>
-        <th class="stick">Member (${users.length})</th>
-        ${m.cols.map((c) => `<th class="vert" title="${esc(c.name)}"><span>${esc(c.name)}</span></th>`).join("")}
-        <th style="width:60px">In</th>
+        <th class="ucol">Member (${users.length})</th>
+        ${cols.map((c) => { const an = nesting && allNested(c); return `<th class="pcol${an ? " cg-allnested" : ""}"><div class="ph" title="${esc(c.name)}${c.memberTotal != null ? ` — ${c.memberTotal} member${c.memberTotal === 1 ? "" : "s"}` : ""}${c.children ? ` — ${c.children.length} nested group${c.children.length === 1 ? "" : "s"}` : ""}${an ? " — every member came in through a nested group; nothing here is removable from this group" : ""}">${an ? "◐ " : ""}${esc(c.name)}</div></th>`; }).join("")}
+        <th class="pcol cg-incol" title="How many of the loaded groups this member is in">In</th><th class="cg-fill"></th>
       </tr></thead>
       <tbody>${users.map((u) => `<tr>
-        <td class="stick">${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""}<div class="mini muted">${esc(u.upn || "")}</div></td>
-        ${m.cols.map((c) => u.groups.has(c.name)
-          ? (c.dynamic
-            ? '<td class="cellv ok" title="member — dynamic group, membership is rule-managed">●</td>'
-            : `<td class="cellv ok cg-mem" data-cgrm-user="${esc(u.id)}" data-cgrm-group="${esc(c.name)}" title="member of ${esc(c.name)} — click to remove">●<span class="cg-rm" aria-hidden="true">×</span></td>`)
-          : '<td class="cellv"></td>').join("")}
-        <td class="mini"><b>${u.groups.size}</b></td>
+        <td class="ucol"><span class="uname">${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""}</span><div class="uupn">${esc(u.upn || "")}</div></td>
+        ${cols.map((c) => cell(u, c)).join("")}
+        <td class="cellv cg-incol"><b>${u.groups.size}</b></td><td class="cg-fill"></td>
       </tr>`).join("")}</tbody></table></div>`;
+  }
+
+  // Groups × POLICIES: which policies include or exclude each of the picked
+  // groups. Rows where the groups differ come first and are marked — after a
+  // migration, that is the list of policies the new group is still missing.
+  // refs are what the scan read: {include:[{id,name}], exclude:[{id,name}]}.
+  function policyMatrix(rows, stateOf) {
+    const cols = rows.filter((r) => r.id);
+    const pols = new Map();
+    const touch = (p) => { const k = String(p.id || p); if (!pols.has(k)) pols.set(k, { id: k, name: p.name || (p.displayName) || k, seq: p.seq || null, cells: new Map() }); return pols.get(k); };
+    cols.forEach((g) => {
+      ((g.refs && g.refs.include) || []).forEach((p) => { touch(p).cells.set(g.name, "inc"); });
+      ((g.refs && g.refs.exclude) || []).forEach((p) => { touch(p).cells.set(g.name, "exc"); });
+    });
+    const list = [...pols.values()].map((p) => {
+      const vals = cols.map((g) => p.cells.get(g.name) || "");
+      const diff = cols.length > 1 && new Set(vals).size > 1;
+      return { ...p, state: stateOf ? stateOf(p.id) : null, vals, diff };
+    });
+    list.sort((a, b) => (b.diff - a.diff) || String(a.seq || a.name).localeCompare(String(b.seq || b.name)));
+    // per group: what it is missing compared with the union of the others
+    const missing = cols.map((g) => ({ name: g.name, inc: list.filter((p) => p.cells.get(g.name) !== "inc" && [...p.cells.values()].includes("inc")).map((p) => p), exc: list.filter((p) => p.cells.get(g.name) !== "exc" && [...p.cells.values()].includes("exc")).map((p) => p) }));
+    return { cols, pols: list, diffs: list.filter((p) => p.diff).length, missing };
+  }
+  function renderPolicyMatrix(pm, q) {
+    if (!pm.cols.length) return '<p class="mini" style="padding:20px">Pick groups first.</p>';
+    const rows = q ? pm.pols.filter((p) => `${p.seq || ""} ${p.name}`.toLowerCase().includes(q)) : pm.pols;
+    if (!rows.length) return '<p class="mini" style="padding:20px">No policy references the picked groups.</p>';
+    const ST = { enabled: ["on", "On"], enabledForReportingButNotEnforced: ["ro", "Report-only"], disabled: ["off", "Off"] };
+    // a missing cell on a differing row is a tick: add this group to this
+    // policy the way the other group is on it. A row where the picked groups
+    // are named differently (one included, one excluded) is a conflict —
+    // nothing to tick, that needs a person.
+    const cell = (p, g, v) => {
+      if (v === "inc") return '<td class="cellv ok" title="included">● in</td>';
+      if (v === "exc") return '<td class="cellv no" title="excluded">✗ ex</td>';
+      const others = [...p.cells.values()];
+      const want = others.includes("exc") && !others.includes("inc") ? "exc" : others.includes("inc") && !others.includes("exc") ? "inc" : null;
+      if (want && g.id) return `<td class="cellv cg-fixcell" title="Tick to add ${esc(g.name)} as ${want === "exc" ? "an exclusion" : "an inclusion"} on this policy"><label class="chk" style="margin:0;justify-content:center"><input type="checkbox" data-cgfix="${esc(p.id)}|${esc(g.id)}|${want}"> <span class="mini">+${want === "exc" ? "ex" : "in"}</span></label></td>`;
+      if (!want && others.some(Boolean)) return '<td class="cellv" title="the picked groups are named differently on this policy — one included, one excluded"><span class="mini" style="color:var(--report)">?</span></td>';
+      return '<td class="cellv" title="not referenced">·</td>';
+    };
+    const fixable = pm.pols.filter((p) => p.diff).length;
+    const summary = pm.cols.length > 1 ? `<p class="mini" style="margin:0 0 8px">${pm.diffs ? `<b style="color:var(--off)">${pm.diffs} polic${pm.diffs === 1 ? "y differs" : "ies differ"}</b> between the picked groups — those rows come first. ` : `<b style="color:var(--on)">The picked groups are referenced identically.</b> `}${pm.missing.filter((g) => g.inc.length || g.exc.length).map((g) => `<span style="display:inline-block;margin-right:12px"><b>${esc(g.name)}</b> is missing: ${g.exc.length ? `<span style="color:var(--off)">${g.exc.length} exclusion${g.exc.length === 1 ? "" : "s"}</span>` : ""}${g.exc.length && g.inc.length ? " · " : ""}${g.inc.length ? `<span style="color:var(--report)">${g.inc.length} inclusion${g.inc.length === 1 ? "" : "s"}</span>` : ""}</span>`).join("")}</p>` : "";
+    const fixbar = fixable ? `<div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 8px;align-items:center;flex-wrap:wrap">
+        <button class="btn sm" data-cgfixall>☑ Tick every missing cell</button>
+        <button class="btn sm primary" data-cgfixgo disabled>🎯 Add the ticked groups to those policies (0)</button>
+        <span class="mini muted">Each tick is one policy update — the group is added the way the other group already is on that policy. Nothing is removed.</span></div>` : "";
+    return `${summary}${fixbar}<div class="matrix-wrap cg-mwrap"><table class="mtable cg-matrix cg-polmatrix">
+      <thead><tr><th class="ucol">Policy (${rows.length})</th>${pm.cols.map((g) => `<th class="pcol"><div class="ph" title="${esc(g.name)}">${esc(g.name)}</div></th>`).join("")}<th class="pcol cg-incol" title="Policy state">State</th><th class="cg-fill"></th></tr></thead>
+      <tbody>${rows.map((p) => { const st = ST[p.state] || null; return `<tr class="${p.diff ? "cmp-diff" : ""}">
+        <td class="ucol"><span class="uname pol-link" data-polid="${esc(p.id)}" title="Open the policy card">${esc(p.seq ? `${p.seq} ${p.name}` : p.name)}</span>${p.diff ? '<div class="uupn" style="color:var(--report)">differs</div>' : ""}</td>
+        ${pm.cols.map((g, i) => cell(p, g, p.vals[i])).join("")}
+        <td class="cellv cg-incol">${st ? `<span class="wo-state ${st[0]}">${st[1]}</span>` : ""}</td><td class="cg-fill"></td>
+      </tr>`; }).join("")}</tbody></table></div>`;
+  }
+
+  // The nested groups behind the loaded columns, each with its members.
+  function renderNesting(m, open) {
+    const cols = m.cols.filter((c) => c.directIds);
+    if (!cols.length) return '<p class="mini muted" style="margin:10px 0">Nesting was not read for the loaded groups (older scan or a failed read) — re-read the members.</p>';
+    const withKids = cols.filter((c) => (c.children || []).length);
+    if (!withKids.length) return `<p class="mini muted" style="margin:10px 0">None of the ${cols.length} loaded group${cols.length === 1 ? " has" : "s have"} a nested group — every member is a direct member.</p>`;
+    return `<div class="cg-panel" style="margin-top:12px">
+      <h4>NESTED GROUPS <span class="mini muted" style="text-transform:none;letter-spacing:0;font-weight:400">— the groups inside the loaded groups, and who they bring in</span></h4>
+      ${withKids.map((c) => `<div style="margin-top:8px"><b>${esc(c.name)}</b> <span class="mini muted">${(c.directIds || new Set()).size} direct · ${c.children.length} nested group${c.children.length === 1 ? "" : "s"}${c.childTotal > c.children.length ? ` (first ${c.children.length} of ${c.childTotal})` : ""}</span>
+        ${c.children.map((k) => { const key = `${c.id}|${k.id}`; const isOpen = open && open.has(key); return `<div class="cg-nest">
+          <button class="cg-nestrow" data-cgnest="${esc(key)}"><span>${isOpen ? "▾" : "▸"}</span> <b>${esc(k.name)}</b> <span class="mini muted">${k.error ? `could not read: ${esc(k.error)}` : `${k.memberTotal} member${k.memberTotal === 1 ? "" : "s"}`}${k.dynamic ? ` · dynamic${k.rule ? `: <code>${esc(k.rule)}</code>` : ""}` : ""}</span></button>
+          ${isOpen ? `<ul class="cg-nestlist">${k.members.map((u) => `<li>${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""} <span class="mini muted">${esc(u.upn)}</span></li>`).join("") || '<li class="mini muted">no members</li>'}${k.memberTotal > k.members.length ? `<li class="mini muted">… ${k.memberTotal - k.members.length} more</li>` : ""}</ul>` : ""}
+        </div>`; }).join("")}</div>`).join("")}
+      <p class="mini muted" style="margin-top:8px">A member shown ◐ in the matrix came in through one of these. Removing her from the loaded group does nothing — the membership lives in the nested group, which is where − Remove has to happen.</p>
+    </div>`;
   }
 
   // ---- markdown -----------------------------------------------------------
@@ -998,13 +1149,20 @@ const CaGroups = (() => {
   // an exclusion group. The second kind is marked `unused` and never
   // pre-selected — it is here to be SEEN, not to be acted on by default.
   const EXCLUSION_NAME = /-Exclusions?$|-Exclusion-|BreakGlass/i;
+  // A break-glass group is the one exception to "exclusion = excluded by a
+  // policy": it is INCLUDED by the break-glass policy and excluded everywhere
+  // else. The account-only ones (Emergency_Access1/2, BG-…) may be included
+  // by a single policy and excluded by none — and they are exactly what the
+  // BreakGlass vault exists for, so they are candidates on any reference.
+  const BREAKGLASS_NAME = /break-?glass|emergency[_-]?access|\bBG-/i;
   function rmauCandidates(res) {
     return (res ? res.rows : [])
       .filter((r) => r.id)
       .filter((r) => (r.refs?.exclude || []).length
+        || (BREAKGLASS_NAME.test(r.name || "") && (r.refs?.include || []).length)
         || (EXCLUSION_NAME.test(r.name || "")
             && (r.template || (r.sources || []).some((x) => x === "template" || x === "catalog"))))
-      .map((r) => ({ ...r, unused: !(r.refs?.exclude || []).length }))
+      .map((r) => ({ ...r, unused: !((r.refs?.exclude || []).length || (BREAKGLASS_NAME.test(r.name || "") && (r.refs?.include || []).length)), breakGlass: BREAKGLASS_NAME.test(r.name || "") }))
       .sort((a, b) => (b.refs.exclude.length - a.refs.exclude.length) || String(a.name).localeCompare(String(b.name)));
   }
 
@@ -1069,8 +1227,12 @@ const CaGroups = (() => {
       const b = await Graph.gget(`/roleManagement/directory/roleEligibilitySchedules?$filter=principalId eq '${groupId}'&$expand=roleDefinition($select=displayName)`);
       out.eligible = ((b && b.value) || []).map((r) => (r.roleDefinition && r.roleDefinition.displayName) || r.roleDefinitionId);
     } catch (e) {
-      // PIM is licence-gated; "not licensed" is not the same as "failed to read".
-      if (!/not licensed|does not have|Insufficient privileges/i.test(e.message || "")) { out.ok = false; out.error = out.error || (e.message || String(e)); }
+      // PIM is licence-gated; "not licensed" is not the same as "failed to
+      // read": a P1 tenant answers AadPremiumLicenseRequired ("needs Entra ID
+      // P2 or Governance") and cannot hold eligible assignments at all, so
+      // the active list above is the whole answer.
+      if (!/not licensed|does not have|Insufficient privileges|AadPremiumLicenseRequired|Entra ID P2|Premium P2|Governance license/i.test(e.message || "")) { out.ok = false; out.error = out.error || (e.message || String(e)); }
+      else out.pimUnlicensed = true;
     }
     return out;
   }
@@ -1144,12 +1306,22 @@ const CaGroups = (() => {
       `**When:** ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, "",
       `Role-assignable groups were used to keep CA exclusion membership out of reach of tenant-wide group administrators. A restricted management administrative unit does that and lets you name who may manage them. The two cannot be combined: a role-assignable group admits only Global Administrator or Privileged Role Administrator, and a restricted AU blocks exactly those two.`, ""];
     L.push(`## Result`, "");
-    L.push(`| Group | Outcome | New id | Members | Policies |`, `| --- | --- | --- | ---: | ---: |`);
+    // Nesting is the one property the role-assignable flag gave for free, so
+    // the report says per group whether the new one has it — as verified by
+    // the create, never as requested.
+    const nestOf = (r) => !r.newId ? "—" : r.nesting === "disabled" ? "disabled" : r.nesting === "unsupported" ? "not available in this tenant" : r.nesting === "failed" ? `ALLOWED — ${r.nestingError || "could not be set"}` : r.nesting === "n/a" ? "allowed (not requested)" : "not confirmed";
+    L.push(`| Group | Outcome | New id | Members | Policies | Nesting |`, `| --- | --- | --- | ---: | ---: | --- |`);
     for (const r of (results || [])) {
       const mem = r.membersMoved != null && r.memberTotal != null ? `${r.membersMoved}/${r.memberTotal}` : (r.membersMoved != null ? String(r.membersMoved) : "—");
-      L.push(`| ${r.name} | ${r.ok ? "migrated" : "FAILED"} | ${r.newId || "—"} | ${mem} | ${r.refsMoved != null ? r.refsMoved : "—"} |`);
+      L.push(`| ${r.name} | ${r.ok ? "migrated" : "FAILED"} | ${r.newId || "—"} | ${mem} | ${r.refsMoved != null ? r.refsMoved : "—"} | ${nestOf(r)} |`);
     }
     L.push("");
+    const nestOpen = (results || []).filter((r) => r.ok && r.newId && r.nesting !== "disabled");
+    if (nestOpen.length) {
+      L.push(nestOpen.some((r) => r.nesting === "unsupported")
+        ? `_Nesting could not be disabled here: this directory does not recognise the disableNesting property yet. Nesting stays in sight instead — the groups list reads every group's nested groups on each scan, and a nested group inside an exclusion is Needs attention._`
+        : `_${nestOpen.length} new group${nestOpen.length === 1 ? " allows" : "s allow"} nesting — **CA groups → the group's Protection tab → 🚫 Disable nesting** finishes the job once you are ready._`, "");
+    }
     const skipped = (plan && plan.skipped) || [];
     if (skipped.length) {
       L.push(`## Not migrated (${skipped.length})`, "");
@@ -1172,7 +1344,7 @@ const CaGroups = (() => {
 
   return {
     STATUS, MEMBER_CAP, scan, loadMembers, matrix, creatable, missingNoTemplate, otherBaseline, activeCatalogs,
-    renderSummary, chips, renderTable, renderMatrix, toMd, filtered,
+    renderSummary, chips, renderTable, renderMatrix, renderNesting, policyMatrix, renderPolicyMatrix, toMd, filtered,
     NESTING, NEST_WRITE_SCOPES, nestingState, nestingPlan, nestingReport, adminList,
     NESTING_GA, NEST_V1, nestingUnsupported, nestingSupported, noteNestingUnsupported, NESTING_UNSUPPORTED_TEXT,
     ARCHIVE_SUFFIX, findArchived,

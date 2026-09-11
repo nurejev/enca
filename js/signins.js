@@ -46,6 +46,25 @@ const Signins = (() => {
   //   50158  external security challenge — terms of use / third-party MFA
   //   500121 authentication failed during the strong auth request
   const INTERRUPT = new Set([50074, 50076, 50072, 50079, 50097, 50158, 500121]);
+  // The same codes in words, for a row whose record carries no failureReason
+  // (hunting rows never do; Graph rows for interrupts usually say "Strong
+  // Authentication is required", which is the code again). What the code
+  // MEANS for the person reading it — the prompt that was shown and not
+  // completed — not the portal's wording.
+  const CODE_TEXT = {
+    50074: "MFA was demanded — the prompt was shown and not completed",
+    50076: "MFA was demanded by policy, a per-user change or a new location — not completed",
+    50072: "MFA enrolment was demanded — the user has no method registered yet",
+    50079: "MFA enrolment was demanded — the user has no method registered yet",
+    50097: "device authentication was demanded — a compliant or joined device, or sign-in frequency needing the device's session",
+    50158: "an external challenge was demanded — terms of use, or a third-party MFA provider",
+    500121: "the MFA request failed — wrong code, denied, or timed out",
+    53000: "a compliant device was required and this one is not",
+    53001: "a domain-joined device was required and this one is not",
+    53003: "blocked by Conditional Access",
+    530032: "blocked by a security policy on the tenant",
+  };
+  const codeText = (code) => CODE_TEXT[Number(code)] || "";
   const isInterrupt = (rec) => INTERRUPT.has((rec.status || {}).errorCode);
 
   // The error code narrows WHICH control stopped the sign-in — a 50097 next
@@ -80,6 +99,104 @@ const Signins = (() => {
     const codes = [...INTERRUPT].map((c) => `status/errorCode eq ${c}`).join(" or ");
     return `/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since} and (${codes})`)}&$orderby=createdDateTime desc&$top=999`;
   }
+
+  // ---- Defender advanced hunting as a second source --------------------
+  // EntraIdSignInEvents (AADSignInEventsBeta until 19 October 2026) holds
+  // the same sign-ins as the Graph list PLUS the non-interactive ones —
+  // token refreshes and background client sign-ins the Graph list ENCA reads
+  // never shows — with no 10,000 cap and 30 days of retention. Needs Entra
+  // ID P2 for the table to be populated at all, and ThreatHunting.Read.All.
+  //
+  // The rows are shaped into the SAME record the Graph list returns, so
+  // parse / build / ReportImpact never learn which source fed them. One
+  // day per query keeps every result under the 50 MB response cap; a day
+  // that hits the row cap is reported as capped, never silently trimmed.
+  const HUNT_COLS = "Timestamp, Application, ApplicationId, LogonType, ErrorCode, CorrelationId, SessionId, AccountDisplayName, AccountObjectId, AccountUpn, ResourceDisplayName, ResourceId, OSPlatform, DeviceTrustType, IsManaged, IsCompliant, RiskLevelDuringSignIn, ClientAppUsed, Browser, ConditionalAccessPolicies, ConditionalAccessStatus, IPAddress, Country, City, RequestId, ReportId, DeviceName, EntraIdDeviceId, AuthenticationRequirement, RiskLevelAggregated, RiskState";
+  const HUNT_CAP = 20000;
+  // from / to: ISO instants for one slice. The caller slices the window —
+  // a day at first, halving on "result size exceeded" — so the query only
+  // ever names an explicit range.
+  // enforcedOnly: the CA failures and interrupts, filtered server-side —
+  // KQL can OR across columns where the Graph signIns filter cannot, so
+  // enforced mode on a large tenant reads hundreds of rows, not a day's
+  // hundreds of thousands. ConditionalAccessStatus is an int in the hunting
+  // schema (1 = failure) but a word in the pre-October one, so both are matched.
+  // SLIM ROWS (25328). On a 140-policy tenant every sign-in row carries 140
+  // policy entries, ~130 of them "notApplied" / "reportOnlyNotApplied" —
+  // 30 KB of JSON per row that nothing downstream reads except one count.
+  // That is what blew past the hunting result-size cap and drove a 7-day
+  // read to 459 queries of 15-minute slices (Perfetti, 2026-09-10: 40
+  // minutes for 93,500 rows). The entries are dropped server-side; the
+  // report-only-not-applied ones survive as a list of ids (RoNotApplied) so
+  // the "out of scope" verdicts keep their counts; success, failure, the
+  // three report-only verdicts and everything with a control stay whole.
+  // A row with no policies at all is kept (the placeholder keeps mv-apply
+  // from swallowing it). Rows shrink 10–20×, a day fits in one or two
+  // queries again.
+  const SLIM = `| extend _P = todynamic(ConditionalAccessPolicies)
+| extend _P = iff(array_length(_P) > 0, _P, dynamic([{}]))
+| mv-apply _X = _P to typeof(dynamic) on (
+    summarize _Kept = make_list_if(_X, isnotempty(_X.id) and tostring(_X.result) !in~ ("notApplied", "notEnabled", "reportOnlyNotApplied", "2", "3", "8")),
+              _RoNA = make_list_if(tostring(_X.id), tostring(_X.result) in~ ("reportOnlyNotApplied", "8"))
+  )
+| extend ConditionalAccessPolicies = tostring(_Kept), RoNotApplied = tostring(_RoNA)`;
+  function huntingQuery({ from, to, table, interactiveOnly, userId, cap, enforcedOnly, slim }) {
+    const T = table || "EntraIdSignInEvents";
+    return `${T}
+| where Timestamp between (datetime(${from}) .. datetime(${to}))
+${interactiveOnly ? '| where LogonType !has "non"' : ""}
+${userId ? `| where AccountObjectId == "${String(userId).replace(/"/g, "")}"` : ""}
+${enforcedOnly ? `| where tostring(ConditionalAccessStatus) in~ ("1", "failure") or toint(ErrorCode) in (${[...INTERRUPT].join(", ")})` : ""}
+${slim === false ? "" : SLIM}
+| project ${HUNT_COLS}${slim === false ? "" : ", RoNotApplied"}
+| order by Timestamp desc
+| take ${cap || HUNT_CAP}`;
+  }
+  const RISK_N = { 0: "none", 1: "none", 10: "low", 50: "medium", 100: "high" };
+  const RISK_STATE_N = { 0: "none", 1: "confirmedSafe", 2: "remediated", 3: "dismissed", 4: "atRisk", 5: "confirmedCompromised" };
+  const CA_STATUS_N = { 0: "success", 1: "failure", 2: "notApplied" };
+  const RESULT_N = { 0: "success", 1: "failure", 2: "notApplied", 3: "notEnabled", 4: "unknown", 5: "unknownFutureValue", 6: "reportOnlySuccess", 7: "reportOnlyFailure", 8: "reportOnlyNotApplied", 9: "reportOnlyInterrupted" };
+  const pick = (o, ...ks) => { for (const k of ks) { if (o && o[k] != null) return o[k]; } return undefined; };
+  // the ids the slim query set aside (see SLIM) — a string of JSON, or absent
+  const roNotApplied = (r) => { try { const v = typeof r.RoNotApplied === "string" ? JSON.parse(r.RoNotApplied || "[]") : (r.RoNotApplied || []); return Array.isArray(v) ? v.map(String).filter(Boolean) : []; } catch { return []; } };
+  function fromHunting(rows) {
+    return (rows || []).map((r) => {
+      let pols = [];
+      try { const v = typeof r.ConditionalAccessPolicies === "string" ? JSON.parse(r.ConditionalAccessPolicies || "[]") : (r.ConditionalAccessPolicies || []); pols = Array.isArray(v) ? v : []; } catch { pols = []; }
+      const status = r.ConditionalAccessStatus;
+      const caStatus = typeof status === "number" || /^\d+$/.test(String(status)) ? (CA_STATUS_N[Number(status)] || "") : String(status || "").replace(/^policies applied$/i, "success").replace(/^policies not applied$/i, "notApplied");
+      const interactive = !/non/i.test(String(r.LogonType || ""));
+      const trust = { workplace: "Workplace", azuread: "AzureAd", serverad: "ServerAd" }[String(r.DeviceTrustType || "").toLowerCase()] || (r.DeviceTrustType || "");
+      const risk = typeof r.RiskLevelDuringSignIn === "number" ? (RISK_N[r.RiskLevelDuringSignIn] || "none") : String(r.RiskLevelDuringSignIn || "none").toLowerCase();
+      const riskAgg = typeof r.RiskLevelAggregated === "number" ? (RISK_N[r.RiskLevelAggregated] || "none") : String(r.RiskLevelAggregated || "none").toLowerCase();
+      const riskState = typeof r.RiskState === "number" ? (RISK_STATE_N[r.RiskState] || "none") : String(r.RiskState || "none");
+      return {
+        id: r.RequestId || r.ReportId || r.CorrelationId || "",
+        createdDateTime: r.Timestamp, correlationId: r.CorrelationId || "", sessionId: r.SessionId || "",
+        userDisplayName: r.AccountDisplayName || "", userPrincipalName: r.AccountUpn || "", userId: r.AccountObjectId || "",
+        appDisplayName: r.Application || "", appId: r.ApplicationId || "", resourceDisplayName: r.ResourceDisplayName || "", resourceId: r.ResourceId || "",
+        ipAddress: r.IPAddress || "", location: { city: r.City || "", countryOrRegion: r.Country || "" },
+        clientAppUsed: r.ClientAppUsed || "",
+        deviceDetail: { deviceId: r.EntraIdDeviceId || r.AadDeviceId || "", displayName: r.DeviceName || "", operatingSystem: r.OSPlatform || "", browser: r.Browser || "", isCompliant: Number(r.IsCompliant) === 1 || r.IsCompliant === true, isManaged: Number(r.IsManaged) === 1 || r.IsManaged === true, trustType: trust },
+        status: { errorCode: Number(r.ErrorCode) || 0, failureReason: "" },
+        conditionalAccessStatus: caStatus, riskLevelDuringSignIn: risk, riskLevelAggregated: riskAgg, riskState,
+        // hunting has the requirement but not the per-step detail, so fresh
+        // MFA vs an MFA claim reused from the token cannot be told apart here
+        authenticationRequirement: /multi/i.test(String(r.AuthenticationRequirement || "")) ? "multiFactorAuthentication" : (r.AuthenticationRequirement ? "singleFactorAuthentication" : ""),
+        signInEventTypes: [interactive ? "interactiveUser" : "nonInteractiveUser"], interactive,
+        appliedConditionalAccessPolicies: pols.map((p) => ({
+          id: pick(p, "id", "Id", "policyId", "PolicyId") || "",
+          displayName: pick(p, "displayName", "DisplayName", "name", "Name") || "",
+          result: (() => { const v = pick(p, "result", "Result"); return typeof v === "number" ? (RESULT_N[v] || String(v)) : String(v || ""); })(),
+          enforcedGrantControls: pick(p, "enforcedGrantControls", "EnforcedGrantControls") || [],
+          enforcedSessionControls: pick(p, "enforcedSessionControls", "EnforcedSessionControls") || [],
+        })).concat(roNotApplied(r).map((id) => ({ id, displayName: "", result: "reportOnlyNotApplied", enforcedGrantControls: [], enforcedSessionControls: [] }))),
+        source: "hunting",
+      };
+    });
+  }
+  // interactive unless the record says otherwise (the Graph list ENCA reads is interactive-only)
+  const isInteractive = (rec) => rec.interactive != null ? !!rec.interactive : !((rec.signInEventTypes || []).some((t) => /noninteractive/i.test(String(t))));
 
   const shapePol = (p) => ({
     id: p.id || "",
@@ -139,6 +256,7 @@ const Signins = (() => {
       caStatus: rec.conditionalAccessStatus || "",
       signInRisk: rec.riskLevelDuringSignIn || "",
       interrupted: fails.some((p) => p.result === "interrupted"),
+      interactive: isInteractive(rec),
       policies: fails,
     };
   }
@@ -147,6 +265,8 @@ const Signins = (() => {
   function build(records, mode) {
     const rows = (records || []).map((r) => parse(r, mode)).filter(Boolean)
       .sort((a, b) => String(b.when).localeCompare(String(a.when)));
+    const nonInteractive = rows.filter((r) => !r.interactive).length;
+    const recNonInteractive = (records || []).filter((r) => !isInteractive(r)).length;
     const byPolicy = new Map();
     for (const r of rows) {
       for (const p of r.policies) {
@@ -182,6 +302,7 @@ const Signins = (() => {
       rows,
       total: rows.length,
       interrupted: rows.filter((r) => r.interrupted).length,
+      nonInteractive, recTotal: (records || []).length, recNonInteractive,
       policies,
       users: Object.entries(by((r) => r.upn || r.user)).sort((a, b) => b[1] - a[1]),
       apps: Object.entries(by((r) => r.app)).sort((a, b) => b[1] - a[1]),
@@ -214,5 +335,5 @@ const Signins = (() => {
     return L.join("\r\n");
   }
 
-  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, failuresOf, parse, build, toCsv };
+  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText };
 })();

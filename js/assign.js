@@ -210,23 +210,27 @@ const Assign = (() => {
   // row rather than from one shared selection, and the action is fixed to
   // ADD-to-exclude: restoring a reference must never rewrite the exclusions a
   // policy already has, whatever else is in that list.
-  async function applyMapped(items, onStatus) {
+  async function applyMapped(items, onStatus, onItem, shouldStop) {
     const results = [];
     for (let i = 0; i < (items || []).length; i++) {
       const it = items[i];
       let name = it.policy || it.policyId;
+      if (shouldStop && shouldStop()) { results.push({ name, ok: false, stopped: true, error: "stopped", group: it.group }); continue; }
+      onItem?.(i, "start");
       try {
         const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${it.id}`);
         name = fresh.displayName || name;
         onStatus?.(`Updating ${name} (${i + 1}/${items.length})…`);
         const { users } = newUsersBlock(fresh, 3, [it.groupId], "groups");
-        if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false, group: it.group }); continue; }
+        if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false, group: it.group }); onItem?.(i, "end", results[results.length - 1]); continue; }
         await Graph.gpatch(`/identity/conditionalAccess/policies/${it.id}`, { conditions: { users } });
         results.push({ name, ok: true, changed: true, group: it.group });
+        onItem?.(i, "end", results[results.length - 1]);
         await pause(80);
       } catch (e) {
         console.error(`Assign restore: ${name} failed`, e);
         results.push({ name, ok: false, error: e.message || String(e), group: it.group });
+        onItem?.(i, "end", results[results.length - 1]);
       }
     }
     return results;
@@ -427,14 +431,39 @@ const Assign = (() => {
         break;
       }
     }
-    return {
-      users: {
-        includeUsers, excludeUsers: cur.excludeUsers,
-        includeGroups, excludeGroups,
-        includeRoles: cur.includeRoles, excludeRoles: cur.excludeRoles,
-      },
-      notes,
+    // The guest / external-user blocks ride along untouched: a PATCH of
+    // conditions.users that omits them would drop them from the policy.
+    const users = {
+      includeUsers, excludeUsers: cur.excludeUsers,
+      includeGroups, excludeGroups,
+      includeRoles: cur.includeRoles, excludeRoles: cur.excludeRoles,
     };
+    if (u.includeGuestsOrExternalUsers) users.includeGuestsOrExternalUsers = u.includeGuestsOrExternalUsers;
+    if (u.excludeGuestsOrExternalUsers) users.excludeGuestsOrExternalUsers = u.excludeGuestsOrExternalUsers;
+    return { users, notes };
+  }
+
+  // Why Graph refused a PATCH with a generic 400. Graph validates the WHOLE
+  // policy on any update, so a policy the portal saved with a combination the
+  // API no longer accepts refuses every change — including adding a group.
+  // Name the combinations that are known to do this, so the fix is in reach.
+  function diagnose(raw) {
+    const out = [];
+    const c = raw.conditions || {}, g = raw.grantControls || {}, sc = raw.sessionControls || {};
+    const built = g.builtInControls || [];
+    const plats = (c.platforms && c.platforms.includePlatforms) || [];
+    const apps = (c.applications && c.applications.includeApplications) || [];
+    const cats = c.clientAppTypes || [];
+    if (built.some((b) => /approvedApplication|compliantApplication/.test(b)) && (!plats.length || plats.some((p) => /windows|macOS|linux|all/i.test(p))))
+      out.push("app-protection grant (approved app / app protection policy) without a platform condition limited to iOS and Android");
+    if (cats.includes("exchangeActiveSync") && cats.length > 1 && !(apps.length === 1 && /00000002-0000-0ff1-ce00-000000000000|Office365/i.test(apps[0])))
+      out.push("Exchange ActiveSync among the client app types together with other client types or non-Exchange apps");
+    if (c.devices && c.devices.deviceStates) out.push("the retired deviceStates condition (replace with a device filter)");
+    if (sc.applicationEnforcedRestrictions && sc.applicationEnforcedRestrictions.isEnabled && !apps.some((a) => /Office365|00000003-0000-0ff1-ce00-000000000000|00000002-0000-0ff1-ce00-000000000000/i.test(a)))
+      out.push("app-enforced restrictions without Office 365 / SharePoint / Exchange as the target");
+    if (c.users && c.users.includeUsers && c.users.includeUsers.includes("GuestsOrExternalUsers")) out.push("the retired GuestsOrExternalUsers include (replace with the guest / external user types block)");
+    if (g.termsOfUse && g.termsOfUse.length && !built.length && g.operator === "AND") out.push("terms of use with AND and no other control");
+    return out;
   }
 
   // Roles version. Deliberately a separate function rather than more branches
@@ -496,25 +525,40 @@ const Assign = (() => {
 
   const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  async function apply(policyIds, action, groupIds, onStatus, target) {
+  // onItem(i, phase, result): "start" before the write, "end" with the
+  // result — what the run ledger draws. shouldStop() lets a Stop button end
+  // the run between writes; the rows not reached are reported as such.
+  async function apply(policyIds, action, groupIds, onStatus, target, onItem, shouldStop) {
     const results = [];
     for (let i = 0; i < policyIds.length; i++) {
+      if (shouldStop && shouldStop()) { results.push({ name: policyIds[i], ok: false, stopped: true, error: "stopped" }); continue; }
       let name = policyIds[i];
+      onItem?.(i, "start");
       try {
         const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${policyIds[i]}`);
         name = fresh.displayName || name;
         onStatus?.(`Updating ${name} (${i + 1}/${policyIds.length})…`);
         const { users } = newUsersBlock(fresh, action, groupIds, target);
-        if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false }); continue; }
+        if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false }); onItem?.(i, "end", results[results.length - 1]); continue; }
         await Graph.gpatch(`/identity/conditionalAccess/policies/${policyIds[i]}`, { conditions: { users } });
         results.push({ name, ok: true, changed: true });
+        onItem?.(i, "end", results[results.length - 1]);
         // Gentle pacing between writes only. A tenant-wide run is 100+ PATCHes;
         // spacing them slightly keeps us under Graph's burst limit so the
         // Retry-After back-off in graphFetch rarely has to fire at all.
         await pause(80);
       } catch (e) {
         console.error(`Assign: ${name} failed`, e);
-        results.push({ name, ok: false, error: e.message || String(e) });
+        let error = e.message || String(e);
+        if (/\(400\)/.test(error)) {
+          try {
+            const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${policyIds[i]}`);
+            const why = diagnose(fresh);
+            error = `Graph refuses to update this policy at all — it validates the whole policy on any change, and this one carries ${why.length ? why.join("; ") : "a setting the API no longer accepts (the portal saved it; the API validates it)"}. Open the policy in the Entra portal, adjust that setting, save — then retry here. (${error})`;
+          } catch { /* keep the raw error */ }
+        }
+        results.push({ name, ok: false, error, unpatchable: /refuses to update/.test(error) });
+        onItem?.(i, "end", results[results.length - 1]);
       }
     }
     return results;

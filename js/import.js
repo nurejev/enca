@@ -830,11 +830,15 @@ const Importer = (() => {
   // groups (created by ensureDependencies, members copied across by the
   // caller), Off, and a same-policy-other-name it supersedes is switched Off
   // like a replace.
+  // opts.onItem(i, "start" | "end", result) lets the caller drive a run
+  // ledger; opts.shouldStop() is checked between policies.
   async function importPolicies(items, maps, onStatus, opts = {}) {
     const replace = opts.mode === "replace", switching = opts.mode === "switch";
     const results = [], warnings = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
+      if (opts.shouldStop && opts.shouldStop()) { results.push({ name: it.name, ok: false, stopped: true, error: "stopped before this policy — nothing changed" }); continue; }
+      opts.onItem?.(i, "start");
       onStatus?.(`Importing ${it.name} (${i + 1}/${items.length})…`);
       try {
         const gid = it.personaGroup && !switching ? maps.personaGroupIds?.[it.personaGroup] : null;
@@ -899,6 +903,7 @@ const Importer = (() => {
         }
         results.push({ name: it.name, ok: false, error: (e.message || String(e)) + hint });
       }
+      opts.onItem?.(i, "end", results[results.length - 1]);
     }
     return { results, warnings };
   }

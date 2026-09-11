@@ -157,10 +157,8 @@ const AuthStrengths = (() => {
   }
 
   // ---- policy usage ----------------------------------------------------
-  function usedBy(strengthId, raws) {
-    return (raws || []).filter((p) => (p.grantControls?.authenticationStrength?.id || "").toLowerCase() === String(strengthId).toLowerCase())
-      .map((p) => ({ id: p.id, name: p.displayName, state: p.state }));
-  }
+  // Shared with the three other dependency tools — js/causes.js, build 25341.
+  const usedBy = (strengthId, raws) => CaUses.by("strength", strengthId, raws);
 
   function summarize(list, raws) {
     const l = list || [];

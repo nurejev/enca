@@ -124,6 +124,24 @@ const MSLearn = (() => {
   let INCLUDE_DISABLED = false;
   const isActive = (p) => p.state === "enabled" || p.state === "enabledForReportingButNotEnforced" || (INCLUDE_DISABLED && p.state === "disabled");
   const allUsers = (p) => (U(p).includeUsers || []).includes("All");
+  // The tenant's authentication methods policy (ctx.authMethods): which
+  // passwordless methods are on, and which external authentication methods.
+  const methodCfgs = (am) => (am && am.authenticationMethodConfigurations) || [];
+  const cfgOn = (c) => String(c.state || "").toLowerCase() === "enabled";
+  const passwordlessMethods = (am) => {
+    const on = [];
+    for (const c of methodCfgs(am)) {
+      if (!cfgOn(c)) continue;
+      const t = String(c["@odata.type"] || c.id || "").toLowerCase();
+      if (t.includes("fido2")) on.push("passkey / FIDO2");
+      else if (t.includes("x509certificate")) on.push("certificate-based authentication");
+      else if (t.includes("microsoftauthenticator")) on.push("Microsoft Authenticator (phone sign-in)");
+    }
+    return on;
+  };
+  const eamMethods = (am) => methodCfgs(am)
+    .filter((c) => cfgOn(c) && String(c["@odata.type"] || "").toLowerCase().includes("externalauthenticationmethod"))
+    .map((c) => c.displayName || c.id || "external method");
   const allApps = (p) => appsInc(p).includes("All");
   const hasMfa = (p) => grants(p).includes("mfa") || G(p).authenticationStrength != null;
   const hasBlock = (p) => grants(p).includes("block");
@@ -331,12 +349,12 @@ const MSLearn = (() => {
     },
     {
       id: "token-prot-platform",
-      title: "Token protection: Windows + desktop clients only",
+      title: "Token protection: Windows (or MDM-managed Apple, preview) + desktop clients only",
       appliesWhen: "Policy uses the token protection session control",
-      requirement: "Token protection only works on Windows: the policy must target the Windows device platform and only 'Mobile apps and desktop clients' — including Browser blocks MSAL.js apps such as Teams Web.",
+      requirement: "Token protection works on Windows, and in preview on macOS 14+ / iOS 16+ devices that are MDM-managed with the Microsoft Enterprise SSO plug-in. The policy must name those platforms explicitly and target only 'Mobile apps and desktop clients' — including Browser blocks MSAL.js apps such as Teams Web (browser support exists only as a preview for Azure Resource Manager web apps).",
       severity: "high",
-      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#deployment",
-      remediation: "Set Device platforms → Include → Windows only, and Client apps → Mobile apps and desktop clients only (leave Browser unchecked).",
+      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#supported-resources",
+      remediation: "Set Device platforms → Include → Windows (add macOS / iOS only for MDM-managed Apple devices with the Enterprise SSO plug-in, preview), and Client apps → Mobile apps and desktop clients only (leave Browser unchecked).",
       fix: (d) => {
         const ch = [];
         const plat = d.conditions.platforms || (d.conditions.platforms = { includePlatforms: [], excludePlatforms: [] });
@@ -352,8 +370,15 @@ const MSLearn = (() => {
         if (!isActive(p) || !hasTokenProtection(p)) return null;
         const issues = [];
         const plat = p.conditions?.platforms;
-        if (!plat || !(plat.includePlatforms || []).includes("windows"))
-          issues.push("The policy does not explicitly target the Windows platform (token protection is Windows-only).");
+        const SUPPORTED = ["windows", "macos", "ios"];   // Apple in preview, MDM-managed only
+        const inc = (plat?.includePlatforms || []).map((x) => String(x).toLowerCase());
+        if (!plat || !inc.length || inc.includes("all"))
+          issues.push("The policy does not name its device platforms — token protection is supported on Windows, and in preview on MDM-managed macOS / iOS; every other platform is blocked.");
+        else {
+          const other = inc.filter((x) => !SUPPORTED.includes(x));
+          if (other.length) issues.push(`The policy targets ${other.join(", ")} — token protection is not supported there and those users are blocked.`);
+          if (inc.some((x) => x === "macos" || x === "ios")) issues.push("Apple platforms are included: token protection there is a PREVIEW and requires MDM-managed devices with the Microsoft Enterprise SSO plug-in — unmanaged Macs, iPhones and Apple's native Mail / Calendar are blocked.");
+        }
         const cat = p.conditions?.clientAppTypes || [];
         if (!cat.length || cat.includes("browser") || cat.includes("all"))
           issues.push('The policy includes "Browser" client apps (or has no client apps condition) — MSAL.js-based apps like Teams Web will be blocked.');
@@ -370,7 +395,7 @@ const MSLearn = (() => {
       appliesWhen: "Policy uses the token protection session control",
       requirement: "Unsupported registration types must be excluded via device filters: Surface Hub, Teams Rooms, Entra-joined AVD hosts and Cloud PCs, Autopilot self-deploying, bulk-enrolled devices and Azure VMs.",
       severity: "high",
-      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#known-limitations",
+      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows#known-limitations",
       remediation: 'Add a device filter in EXCLUDE mode whose rule matches the unsupported types, e.g. device.systemLabels -contains "CloudPC" -or device.systemLabels -contains "AzureVirtualDesktop" -or device.profileType -eq "SecureVM". Two gotchas: systemLabels is multi-valued so it takes -contains (not -eq/-ne), and profileType is an enum limited to RegisteredDevice / SecureVM / Printer / Shared / IoT — Autopilot self-deploying is not a profileType, exclude those devices another way.',
       fix: (d) => {
         const dev = d.conditions.devices || (d.conditions.devices = {});
@@ -615,18 +640,77 @@ const MSLearn = (() => {
     // ── Behavior changes & hybrid identity ────────────────────────────
     {
       id: "all-resources-exclusion-change",
-      title: "All resources: low-privilege scope exemption ending March 2026",
+      title: "All resources with app exclusions: baseline scopes are enforced against Windows Azure Active Directory",
       appliesWhen: 'Policy targets "All resources" and has app exclusions',
-      requirement: "Microsoft is removing the legacy behavior where low-privilege scopes (User.Read, openid, profile, email, offline_access) were auto-exempted from All-resources policies that carry app exclusions. From March 2026 these scopes are enforced.",
-      severity: "high",
-      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#conditional-access-for-all-resources",
-      remediation: "Review every All-resources policy with app exclusions in report-only mode; consider removing the app exclusions and creating separate targeted policies instead.",
-      detect: (p) => {
+      requirement: "Until the rollout that began 15 June 2026, an All-resources policy with ANY app exclusion silently exempted sign-ins that requested only the baseline scopes (openid, profile, email, offline_access, User.Read, User.Read.All, User.ReadBasic.All, People.Read, People.Read.All, GroupMember.Read.All, Member.Read.Hidden). Those sign-ins are now evaluated against Windows Azure Active Directory (00000002-0000-0000-c000-000000000000) as the audience and get the policy's controls — unless the tenant's Baseline scopes setting keeps the legacy behaviour (Customize behavior for a placeholder app the policy excludes, or Disable enforcement, which Microsoft advises against).",
+      severity: "medium",
+      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-enforcement-resource-exclusions",
+      remediation: "Prefer All-resources policies with NO app exclusions — give an exempted app its own targeted policy instead. Where an exclusion must stay, check whether the app requests only baseline scopes (Learn shows the sign-in log query on conditionalAccessAudiences) and whether it can take a Conditional Access challenge; if it cannot, keep the legacy behaviour for that ONE policy with Customize behavior, never with Disable enforcement.",
+      detect: (p, ctx) => {
         if (!isActive(p) || !allApps(p)) return null;
-        if (!(A(p).excludeApplications || []).length) return null;
+        const excl = A(p).excludeApplications || [];
+        if (!excl.length) return null;
+        const bs = (typeof GapCheck !== "undefined" && GapCheck.baselineScopes) ? GapCheck.baselineScopes(ctx?.caSettings) : { mode: "unread", scope: null };
+        const custom = bs.mode === "custom" && excl.some((a) => String(a).toLowerCase() === String(bs.scope).toLowerCase());
+        const tenant = bs.mode === "disabled" ? " This tenant has Disable enforcement set, so the exclusions on this policy leak the baseline scopes TODAY."
+          : custom ? " This policy excludes the tenant's placeholder app (Customize behavior), so the legacy exemption still applies to it by design — a documented exception, not an accident, as long as somebody owns it."
+          : bs.mode === "custom" ? " The tenant uses Customize behavior, but this policy does not exclude the placeholder app, so it enforces."
+          : bs.mode === "unread" ? " The tenant's Baseline scopes setting was not read; check it in the Entra admin center."
+          : " The tenant enforces (Microsoft default or Enable enforcement).";
         return {
-          detail: 'Policy targets "All resources" with app exclusions. From March 2026 the previously auto-exempted low-privilege scopes (User.Read, openid, profile, email, offline_access) are enforced — users who accessed excluded-app scenarios without CA challenges may start being prompted or blocked. Review sign-in logs for impact.',
-          impactedResources: ["Apps using User.Read", "Apps using openid/profile scopes", "Native clients and SPAs with basic Graph access"],
+          detail: `Policy targets "All resources" with ${excl.length} app exclusion(s). Since the June-2026 rollout a sign-in that requests only the baseline scopes is evaluated against Windows Azure Active Directory and receives this policy's controls even for an excluded app — the directory-enumeration path the old exemption opened is closed, and an excluded app that cannot take a CA challenge is the thing that breaks.${tenant}`,
+          impactedResources: ["Windows Azure Active Directory (00000002-0000-0000-c000-000000000000)", "Excluded apps that request only baseline scopes", "Public clients (desktop CLIs, VS Code, Azure CLI) requesting only User.Read or openid/profile"],
+        };
+      },
+    },
+    // ── User risk remediation ──────────────────────────────────────────
+    // Learn (id-protection/concept-identity-protection-policies): Require
+    // risk remediation covers password-based AND passwordless users, overrides
+    // Require password change when a user is in both, is not supported for
+    // guests, and carries an authentication strength + sign-in frequency
+    // every time by itself. Microsoft has NOT deprecated password change —
+    // these checks say what each control can and cannot do, nothing more.
+    {
+      id: "user-risk-password-change-only",
+      title: "User risk: Require password change cannot remediate a passwordless user",
+      appliesWhen: "User-risk policy grants Require password change and not Require risk remediation",
+      requirement: "Require password change remediates user risk by having the user complete MFA and change their password. A user who signs in without a password — passkey / FIDO2, Windows Hello for Business, certificate, Authenticator phone sign-in — has no password to change and cannot complete that flow; at high risk they stay blocked until an administrator dismisses the risk. Require risk remediation chooses the flow per user (secure password change, or session revocation and a fresh strong sign-in) and overrides password change when a user is in both.",
+      severity: "medium",
+      docUrl: "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-policies#require-risk-remediation-control",
+      remediation: "Move the user-risk policy to Require risk remediation (an authentication strength and sign-in frequency every time are applied with it), keeping the same users, All resources and the risk level. Not supported for guests and external users — keep them on a separate policy or exclude them. Legacy ID Protection risk policies retire on 1 October 2026; a Conditional Access policy is the place for this either way.",
+      detect: (p, ctx) => {
+        if (!isActive(p)) return null;
+        if (!((p.conditions?.userRiskLevels) || []).length) return null;
+        const g = grants(p);
+        if (!g.includes("passwordChange") || g.includes("riskRemediation")) return null;
+        const am = ctx?.authMethods;
+        const on = am ? passwordlessMethods(am) : null;
+        const tenant = on === null ? " The tenant's authentication methods policy was not read, so whether passwordless sign-in is enabled here is unknown."
+          : on.length ? ` Passwordless methods enabled in this tenant: ${on.join(", ")} — users signing in with them cannot complete a password change.`
+          : " No passwordless method is enabled in the authentication methods policy today, so the gap is latent — it opens with the first passkey or certificate rollout.";
+        return {
+          detail: `Policy "${p.displayName}" remediates user risk with Require password change only.${tenant}`,
+          impactedResources: ["Passkey / FIDO2 and certificate users", "Windows Hello for Business sign-ins", "Authenticator phone sign-in users", "High-risk users left blocked until an admin dismisses the risk"],
+        };
+      },
+    },
+    {
+      id: "user-risk-remediation-eam",
+      title: "User risk: Require risk remediation cannot be satisfied by an external authentication method",
+      appliesWhen: "User-risk policy grants Require risk remediation and the tenant has an external authentication method (Duo, Okta, Ping …) enabled",
+      requirement: "Require risk remediation always carries an authentication strength, and external authentication methods are incompatible with authentication strengths (Learn: use the Require multifactor authentication grant control for EAM). A user whose only MFA method is the external one cannot pass the remediation challenge and stays blocked.",
+      severity: "high",
+      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/policy-guests-mfa-strength#create-a-conditional-access-policy",
+      remediation: "Keep users whose MFA is the external method on a separate user-risk policy that uses the built-in Require multifactor authentication control (with Require password change, or Block), and exclude that group from the risk-remediation policy; or register a Microsoft method (Authenticator, passkey) for them so the strength can be met. Verify on the tenant which combination the portal accepts before rolling it out.",
+      detect: (p, ctx) => {
+        if (!isActive(p)) return null;
+        if (!((p.conditions?.userRiskLevels) || []).length) return null;
+        if (!grants(p).includes("riskRemediation")) return null;
+        const eam = ctx?.authMethods ? eamMethods(ctx.authMethods) : [];
+        if (!eam.length) return null;   // no EAM enabled, or the policy was not read: nothing to say
+        return {
+          detail: `Policy "${p.displayName}" grants Require risk remediation, which carries an authentication strength. External authentication method(s) enabled in this tenant: ${eam.join(", ")} — a strength cannot be satisfied by them, so a high-risk user whose MFA is only the external method cannot self-remediate.`,
+          impactedResources: eam.map((m) => `${m} users`).concat(["High-risk users blocked until an admin dismisses the risk"]),
         };
       },
     },

@@ -96,33 +96,19 @@ const Locations = (() => {
   // Pass the location object (an id still works, but then only direct hits are
   // found because the trusted flag isn't known).
   // Returns [{id,name,state,how,implicit}]
+  // One implementation of "which policies use this", shared with the three
+  // other dependency tools — js/causes.js, build 25341. This tool's own copy
+  // was the richest of the four (the All-trusted-locations implication, `how`,
+  // `implicit`), so the shared version carries all of it; trustedness lives on
+  // the location object we hold, which is why it is passed in.
   function usedBy(loc, raws) {
     const id = typeof loc === "string" ? loc : (loc && loc.id);
     const trusted = typeof loc === "object" && isTrusted(loc);
-    const out = [];
-    for (const p of raws || []) {
-      const l = p.conditions?.locations || {};
-      const inc = l.includeLocations || [], exc = l.excludeLocations || [];
-      const dInc = inc.includes(id), dExc = exc.includes(id);
-      const tInc = trusted && inc.includes("AllTrusted");
-      const tExc = trusted && exc.includes("AllTrusted");
-      if (!(dInc || dExc || tInc || tExc)) continue;
-      const how = dInc && dExc ? "included + excluded"
-        : dInc ? "included" : dExc ? "excluded"
-        : tInc && tExc ? "included + excluded via All trusted locations"
-        : tInc ? "included via All trusted locations" : "excluded via All trusted locations";
-      out.push({ id: p.id, name: p.displayName, state: p.state, how, implicit: !(dInc || dExc) });
-    }
-    return out;
+    return CaUses.by("location", id, raws, { trusted });
   }
   // How many policies use "All trusted locations"? Those follow every trusted
   // IP location, so flipping isTrusted changes their behaviour too.
-  function trustedConsumers(raws) {
-    return (raws || []).filter((p) => {
-      const l = p.conditions?.locations || {};
-      return (l.includeLocations || []).includes("AllTrusted") || (l.excludeLocations || []).includes("AllTrusted");
-    }).map((p) => ({ id: p.id, name: p.displayName, state: p.state }));
-  }
+  const trustedConsumers = (raws) => CaUses.trustedConsumers(raws);
 
   // ---- findings (roadmap R37) -------------------------------------------
   // Everything below is computed from data the tool ALREADY reads — the

@@ -258,7 +258,7 @@ const TeamsDev = (() => {
     { key: "strength", label: "authentication strength (no Teams device supports it)", test: (p) => !!((p.grantControls || {}).authenticationStrength) },
     { key: "hybrid", label: "require hybrid-joined device", test: (p) => (((p.grantControls || {}).builtInControls) || []).includes("domainJoinedDevice") },
     { key: "approvedApp", label: "require approved client app / app protection policy", test: (p) => { const b = ((p.grantControls || {}).builtInControls) || []; return b.includes("approvedApplication") || b.includes("compliantApplication"); } },
-    { key: "pwd", label: "require password change", test: (p) => (((p.grantControls || {}).builtInControls) || []).includes("passwordChange") },
+    { key: "pwd", label: "require password change / risk remediation", test: (p) => { const b = ((p.grantControls || {}).builtInControls) || []; return b.includes("passwordChange") || b.includes("riskRemediation"); } },
     { key: "tou", label: "terms of use acceptance", test: (p) => (((p.grantControls || {}).termsOfUse) || []).length > 0 },
     { key: "sif", label: "sign-in frequency (devices sign out on the interval)", test: (p) => !!(((p.sessionControls || {}).signInFrequency || {}).isEnabled) },
     { key: "pbs", label: "persistent browser session", test: (p) => !!(((p.sessionControls || {}).persistentBrowser || {}).isEnabled) },

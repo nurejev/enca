@@ -76,7 +76,21 @@ const DEMO_DATA = {
         persistentBrowser: { isEnabled: true, mode: "never" },
         signInFrequency: { isEnabled: true, frequencyInterval: "everyTime" },
         secureSignInSession: { isEnabled: true },
+        cloudAppSecurity: { isEnabled: true, cloudAppSecurityType: "monitorOnly" },
       },
+    },
+    {
+      id: "d10", displayName: "CA310-SESSION-Guests-DP-AllApps-AnyPlatform-BlockDownloadUnmanaged-v1.0",
+      state: "enabled", modifiedDateTime: "2026-08-20T09:00:00Z",
+      conditions: {
+        users: { includeGroups: ["g-CAB-SEC-U-Persona-Guests"], excludeGroups: ["g-CAB-SEC-U-BreakGlass", "g-CAB-SEC-U-CA310-Exclusion"] },
+        applications: { includeApplications: ["All"] },
+        clientAppTypes: ["browser"],
+        devices: { deviceFilter: { mode: "exclude", rule: "device.isCompliant -eq True" } },
+      },
+      // Routes guest browser sessions to Defender for Cloud Apps, where a
+      // session policy blocks downloads — the 🛂 Session controls demo.
+      sessionControls: { cloudAppSecurity: { isEnabled: true, cloudAppSecurityType: "mcasConfigured" } },
     },
     // Three baseline-numbered policies, so the demo can show what a tenant
     // deployed from the catalog looks like — and, between them, all three
@@ -118,6 +132,20 @@ const DEMO_DATA = {
         platforms: { includePlatforms: ["all"], excludePlatforms: ["windows", "macOS", "iOS", "android", "linux"] },
       },
       grantControls: { operator: "OR", builtInControls: ["block"] },
+    },
+    {
+      // 🕵 / 🌊 0.7: the retired "Require approved client app" control —
+      // read-only since 30 June 2026; Eva satisfies it through Teams on an
+      // unmanaged iPhone, Milan through a compliant laptop.
+      id: "d12", displayName: "CA212-GRANT-Internals-DAP-AllApps-iOSorAndroid-ApprovedApp-v1.0",
+      state: "enabled", modifiedDateTime: "2026-05-27T09:00:00Z",
+      conditions: {
+        users: { includeGroups: ["g-CAB-SEC-U-Persona-Internals"], excludeGroups: ["g-CAB-SEC-U-BreakGlass", "g-CAB-SEC-U-CA212-Exclusion"] },
+        applications: { includeApplications: ["All"] },
+        platforms: { includePlatforms: ["iOS", "android"] },
+        clientAppTypes: ["mobileAppsAndDesktopClients", "exchangeActiveSync", "other"],
+      },
+      grantControls: { operator: "OR", builtInControls: ["compliantDevice", "approvedApplication"] },
     },
   ],
   names: {
@@ -202,8 +230,14 @@ const DEMO_DATA = {
     "CAB-SEC-U-BreakGlass": ["u-break1", "u-break2"],
     // CA200's exclusion group exists and is referenced; CA201's exists but the
     // policy has lost the reference. CA204's is deliberately absent.
-    "CAB-SEC-U-CA200-Exclusion": [],
+    // 25343: Eva sits in THREE exclusion groups so the 🌊 Flags cell has
+    // something to wrap — one on a report-only policy (not On) and two on
+    // enforced ones (a live bypass each), which is exactly the mix the chip
+    // colours and the count line exist to tell apart. Milan has one.
+    "CAB-SEC-U-CA200-Exclusion": ["u-emp1"],
     "CAB-SEC-U-CA201-Exclusion": ["u-old"],
+    "CAB-SEC-U-CA212-Exclusion": ["u-emp1", "u-emp2"],
+    "CAB-SEC-U-CA310-Exclusion": ["u-emp1"],
     "CAB-SEC-U-Persona-Admins": ["u-admin"],
     "CAB-SEC-U-Persona-Internals": ["u-emp1", "u-emp2", "u-old"],
     "CAB-SEC-U-Persona-Guests": ["u-guest1"],
@@ -232,6 +266,27 @@ const DEMO_DATA = {
     },
     "au-2": { members: [], scoped: [] },
   },
+  // Baseline scopes setting as the portal API returns it when nothing was ever
+  // selected — Microsoft's default, which since June 2026 means enforced.
+  // Authentication methods policy, trimmed to what the checks read: state per
+  // method. Passkeys on, no external authentication method.
+  authMethodsPolicy: { authenticationMethodConfigurations: [
+    { "@odata.type": "#microsoft.graph.fido2AuthenticationMethodConfiguration", id: "Fido2", state: "enabled" },
+    { "@odata.type": "#microsoft.graph.microsoftAuthenticatorAuthenticationMethodConfiguration", id: "MicrosoftAuthenticator", state: "enabled" },
+    { "@odata.type": "#microsoft.graph.smsAuthenticationMethodConfiguration", id: "Sms", state: "disabled" },
+  ] },
+  // 30-day app summary (signInEventsAppSummary) and the app ids that have a
+  // service principal here — two of the summary rows do not: a Microsoft
+  // first-party client nobody registered, and an unknown multi-tenant app.
+  signInAppSummary: [
+    { appId: "00000002-0000-0ff1-ce00-000000000000", signInCount: 4120 },
+    { appId: "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe", signInCount: 2210 },
+    { appId: "29d9ed98-a469-4536-ade2-f981bc1d605e", signInCount: 37 },
+    { appId: "7f3a1c2e-5b8d-4e6f-9a0b-1c2d3e4f5a6b", signInCount: 12 },
+    { appId: "00000000-0000-0000-0000-000000000000", signInCount: 3 },
+  ],
+  servicePrincipalAppIds: ["00000002-0000-0ff1-ce00-000000000000", "00000003-0000-0ff1-ce00-000000000000", "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe", "797f4846-ba00-4fd7-ba43-dac1f8f63013"],
+  caSettings: { "@odata.context": "https://graph.microsoft.com/beta/$metadata#identity/conditionalAccess/settings/$entity", advancedSettings: null },
   namedLocations: [
     { "@odata.type": "#microsoft.graph.ipNamedLocation", id: "loc-hq", displayName: "HQ egress", isTrusted: true, ipRanges: [{ cidrAddress: "203.0.113.0/24" }] },
     { "@odata.type": "#microsoft.graph.ipNamedLocation", id: "loc-branch", displayName: "Branch office (unmarked)", isTrusted: false, ipRanges: [{ cidrAddress: "198.51.100.0/24" }] },
@@ -239,6 +294,17 @@ const DEMO_DATA = {
   ],
 
   // Sample sign-in records (raw Graph shape) for the Sign-in failures tool.
+  // Identity Protection, for 🕵 Who is Anna to CA: Alex is at risk (the
+  // medium-risk sign-in from Boston below is his), Eva was remediated.
+  riskyUsers: {
+    "u-admin": { level: "medium", state: "atRisk", detail: "none", updated: "2026-07-20T19:05:00Z", detWindow: 30, detections: [
+      { when: "2026-07-20T19:03:12Z", type: "unfamiliarFeatures", level: "medium", state: "atRisk", detail: "none", activity: "signin", source: "IdentityProtection", ip: "192.0.2.199", city: "Boston", country: "US", info: "" },
+      { when: "2026-07-20T19:03:12Z", type: "anonymizedIPAddress", level: "medium", state: "atRisk", detail: "none", activity: "signin", source: "IdentityProtection", ip: "192.0.2.199", city: "Boston", country: "US", info: "" },
+    ] },
+    "u-emp1": { level: "low", state: "remediated", detail: "userPerformedSecuredPasswordReset", updated: "2026-07-02T08:10:00Z", detWindow: 30, detections: [
+      { when: "2026-07-01T22:41:00Z", type: "leakedCredentials", level: "high", state: "remediated", detail: "userPerformedSecuredPasswordReset", activity: "user", source: "IdentityProtection", ip: "", city: "", country: "", info: "" },
+    ] },
+  },
   signIns: [
     {
       id: "si-1", createdDateTime: "2026-07-21T14:12:03Z",
@@ -278,7 +344,7 @@ const DEMO_DATA = {
       clientAppUsed: "Browser",
       deviceDetail: { operatingSystem: "MacOs", browser: "Safari 18", isCompliant: false, isManaged: false, trustType: "" },
       status: { errorCode: 50074, failureReason: "Strong Authentication is required." },
-      conditionalAccessStatus: "failure", riskLevelDuringSignIn: "medium",
+      conditionalAccessStatus: "failure", riskLevelDuringSignIn: "medium", riskLevelAggregated: "medium", riskState: "atRisk", riskDetail: "none", riskEventTypes_v2: ["unfamiliarFeatures", "anonymizedIPAddress"],
       appliedConditionalAccessPolicies: [
         { id: "d1", displayName: "Require MFA for all admins", result: "failure", enforcedGrantControls: ["RequireAuthenticationStrength:Phishing-resistant MFA"], enforcedSessionControls: [] },
       ],
@@ -325,7 +391,14 @@ const DEMO_DATA = {
       deviceDetail: { operatingSystem: "Windows 11", browser: "Edge 126", isCompliant: true, isManaged: true, trustType: "AzureAd" },
       status: { errorCode: 0, failureReason: "" },
       conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      // 🕵 0.7 MFA card: a FRESH Authenticator prompt for Eva on Teams
+      authenticationRequirement: "multiFactorAuthentication",
+      authenticationDetails: [
+        { authenticationStepDateTime: "2026-07-21T10:02:05Z", authenticationMethod: "Password", authenticationMethodDetail: "Password in the cloud", succeeded: true, authenticationStepResultDetail: "Correct password", authenticationStepRequirement: "Primary authentication" },
+        { authenticationStepDateTime: "2026-07-21T10:02:11Z", authenticationMethod: "Microsoft Authenticator", authenticationMethodDetail: "Microsoft Authenticator (mobile app notification)", succeeded: true, authenticationStepResultDetail: "MFA successfully completed", authenticationStepRequirement: "Multi-factor authentication" },
+      ],
       appliedConditionalAccessPolicies: [
+        { id: "d7", displayName: "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0", result: "success", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
         { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlySuccess", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
         { id: "d5", displayName: "Block elevated insider risk", result: "reportOnlyNotApplied", enforcedGrantControls: [], enforcedSessionControls: [] },
       ],
@@ -382,10 +455,76 @@ const DEMO_DATA = {
       deviceDetail: { operatingSystem: "Windows 11", browser: "Edge 126", isCompliant: true, isManaged: true, trustType: "AzureAd" },
       status: { errorCode: 0, failureReason: "" },
       conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      // 🕵 0.7 MFA card: MFA required but satisfied by the claim in the token
+      authenticationRequirement: "multiFactorAuthentication",
+      authenticationDetails: [
+        { authenticationStepDateTime: "2026-07-19T16:55:37Z", authenticationMethod: "Previously satisfied", authenticationMethodDetail: "", succeeded: true, authenticationStepResultDetail: "MFA requirement satisfied by claim in the token", authenticationStepRequirement: "Multi-factor authentication" },
+      ],
       appliedConditionalAccessPolicies: [
+        { id: "d7", displayName: "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0", result: "success", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
         { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlySuccess", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
         { id: "d5", displayName: "Block elevated insider risk", result: "reportOnlyNotApplied", enforcedGrantControls: [], enforcedSessionControls: [] },
       ],
     },
+    {
+      id: "si-11", createdDateTime: "2026-07-21T08:12:40Z",
+      userDisplayName: "Gary Guest", userPrincipalName: "gary_ext#EXT#@contoso.com", userId: "u-guest1",
+      appDisplayName: "Office 365 SharePoint Online", appId: "00000003-0000-0ff1-ce00-000000000000",
+      resourceDisplayName: "Office 365 SharePoint Online",
+      ipAddress: "198.51.100.77", location: { city: "Lisbon", countryOrRegion: "PT" },
+      clientAppUsed: "Browser",
+      deviceDetail: { operatingSystem: "Windows 10", browser: "Chrome 127", isCompliant: false, isManaged: false, trustType: "" },
+      status: { errorCode: 0, failureReason: "" },
+      conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      appliedConditionalAccessPolicies: [
+        { id: "d10", displayName: "CA310-SESSION-Guests-DP-AllApps-AnyPlatform-BlockDownloadUnmanaged-v1.0", result: "success", enforcedGrantControls: [], enforcedSessionControls: ["CloudAppSecurity"] },
+        { id: "d7", displayName: "Require MFA for all users — staged", result: "reportOnlyInterrupted", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
+      ],
+    },
+    {
+      id: "si-14", createdDateTime: "2026-07-21T07:40:12Z",
+      userDisplayName: "Eva Employee", userPrincipalName: "eva@contoso.com", userId: "u-emp1",
+      appDisplayName: "Microsoft Teams", appId: "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe",
+      resourceDisplayName: "Microsoft Teams",
+      ipAddress: "203.0.113.24", location: { city: "Amsterdam", countryOrRegion: "NL" },
+      clientAppUsed: "Mobile Apps and Desktop clients",
+      deviceDetail: { operatingSystem: "Ios 17", browser: "", isCompliant: false, isManaged: false, trustType: "Workplace", displayName: "Eva's iPhone" },
+      status: { errorCode: 0, failureReason: "" },
+      conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      appliedConditionalAccessPolicies: [
+        { id: "d12", displayName: "CA212-GRANT-Internals-DAP-AllApps-iOSorAndroid-ApprovedApp-v1.0", result: "success", enforcedGrantControls: ["RequireApprovedApp"], enforcedSessionControls: [] },
+        { id: "d7", displayName: "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0", result: "success", enforcedGrantControls: ["Mfa"], enforcedSessionControls: [] },
+      ],
+    },
+  ],
+
+  // ---- a NON-INTERACTIVE sign-in (a token refresh the Graph list never
+  // returns) — what the Defender hunting source adds ----
+  demoNonInteractive: [
+    {
+      id: "si-12", createdDateTime: "2026-07-21T03:14:09Z",
+      userDisplayName: "Eva Employee", userPrincipalName: "eva@contoso.com", userId: "u-emp1",
+      appDisplayName: "Microsoft Office", appId: "d3590ed6-52b3-4102-aeff-aad2292ab01c",
+      resourceDisplayName: "Office 365 Exchange Online",
+      ipAddress: "203.0.113.24", location: { city: "Amsterdam", countryOrRegion: "NL" },
+      clientAppUsed: "Mobile Apps and Desktop clients",
+      deviceDetail: { operatingSystem: "iOS", browser: "", isCompliant: false, isManaged: false, trustType: "" },
+      status: { errorCode: 50074, failureReason: "Strong Authentication is required." },
+      conditionalAccessStatus: "success", riskLevelDuringSignIn: "none",
+      signInEventTypes: ["nonInteractiveUser"],
+      appliedConditionalAccessPolicies: [
+        { id: "d1", displayName: "Require MFA for all admins", result: "notApplied", enforcedGrantControls: [], enforcedSessionControls: [] },
+        { id: "d6", displayName: "Unmanaged devices — limited web session", result: "success", enforcedGrantControls: ["Mfa"], enforcedSessionControls: ["SignInFrequency"] },
+      ],
+    },
+  ],
+
+  // ---- 🛂 Session controls: Defender advanced hunting rows (CloudAppEvents,
+  // session-control audit source) as runHuntingQuery returns them ----
+  sessionEvents: [
+    { Timestamp: "2026-07-21T08:12:44Z", ActionType: "Log on", ActivityType: "Logon", Application: "Microsoft SharePoint Online", ApplicationId: 20892, AccountObjectId: "u-guest1", AccountDisplayName: "Gary Guest", AccountId: "gary_ext#EXT#@contoso.com", ObjectName: "", ObjectType: "", IPAddress: "198.51.100.77", DeviceType: "Desktop", OSPlatform: "Windows", UserAgent: "Chrome/127", IsExternalUser: true, AccountType: "Regular", AuditSource: "Defender for Cloud Apps session control", SessionData: { InLineSessionId: "sess-4411" }, RawEventData: { PolicyName: "Monitor sessions – guests", DeviceTag: "Unmanaged" }, AdditionalFields: {} },
+    { Timestamp: "2026-07-21T08:19:02Z", ActionType: "Download file blocked", ActivityType: "Download", Application: "Microsoft SharePoint Online", ApplicationId: 20892, AccountObjectId: "u-guest1", AccountDisplayName: "Gary Guest", AccountId: "gary_ext#EXT#@contoso.com", ObjectName: "Q3-forecast.xlsx", ObjectType: "File", IPAddress: "198.51.100.77", DeviceType: "Desktop", OSPlatform: "Windows", UserAgent: "Chrome/127", IsExternalUser: true, AccountType: "Regular", AuditSource: "Defender for Cloud Apps session control", SessionData: { InLineSessionId: "sess-4411" }, RawEventData: { PolicyName: "Block download – unmanaged (guests)", ActionResult: "Blocked", FileSize: 2201344, DeviceTag: "Unmanaged" }, AdditionalFields: {} },
+    { Timestamp: "2026-07-21T08:21:15Z", ActionType: "Download file protected", ActivityType: "Download", Application: "Microsoft SharePoint Online", ApplicationId: 20892, AccountObjectId: "u-guest1", AccountDisplayName: "Gary Guest", AccountId: "gary_ext#EXT#@contoso.com", ObjectName: "Contract-final.pdf", ObjectType: "File", IPAddress: "198.51.100.77", DeviceType: "Desktop", OSPlatform: "Windows", UserAgent: "Chrome/127", IsExternalUser: true, AccountType: "Regular", AuditSource: "Defender for Cloud Apps session control", SessionData: { InLineSessionId: "sess-4411" }, RawEventData: { PolicyName: "Protect on download – Confidential", ActionResult: "Protected", SensitivityLabel: "Confidential" }, AdditionalFields: {} },
+    { Timestamp: "2026-07-21T14:03:30Z", ActionType: "Download file blocked", ActivityType: "Download", Application: "Microsoft SharePoint Online", ApplicationId: 20892, AccountObjectId: "u-emp1", AccountDisplayName: "Eva Employee", AccountId: "eva@contoso.com", ObjectName: "Salaries-2026.xlsx", ObjectType: "File", IPAddress: "203.0.113.24", DeviceType: "Desktop", OSPlatform: "Windows", UserAgent: "Edge/126", IsExternalUser: false, AccountType: "Regular", AuditSource: "Defender for Cloud Apps session control", SessionData: { InLineSessionId: "sess-4590" }, RawEventData: { PolicyName: "Block download – unmanaged (guests)", ActionResult: "Blocked" }, AdditionalFields: {} },
   ],
 };

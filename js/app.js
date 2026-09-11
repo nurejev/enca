@@ -103,8 +103,8 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
+    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -169,7 +169,262 @@
   // pages that deliberately carry none.
   const toolNo = (t) => (t && t.t) ? `T${String(t.t).padStart(2, "0")}` : "";
   const toolNoOf = (id) => toolNo((typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[id]) || null);
+  // A tool that has been FOLDED into another keeps its T-number (js/version.js
+  // rule) and its open function, but its tile is gone — so every in-app link
+  // written as data-tool="toolX" would resolve to nothing and toast "not
+  // available here". This map is what keeps those links working: an old id
+  // resolves to the tile that now hosts it. Add a row in the same build that
+  // removes a tile, and keep the row for good — the links live in rendered
+  // reports, Help prose and other modules, and some of them are years old.
+  //
+  // It is also what keeps the folded tool SEARCHABLE. Take the tile away and
+  // ⌘K stops answering "documentation" — the one word somebody types when they
+  // want that verb — so the command palette reads this map too and offers the
+  // old name, saying which tool it lives in now.
+  const FOLDED = {
+    toolDocument:     { into: "toolPolicies", label: "📄 Create documentation",       where: "the action bar",            build: 25338 },
+    toolJson:         { into: "toolPolicies", label: "🗄 Backup (JSON)",              where: "the action bar",            build: 25338 },
+    toolState:        { into: "toolPolicies", label: "🎚 Set Policy state",           where: "the action bar",            build: 25338 },
+    toolBaselineJoey: { into: "toolBaseline", label: "🧩 Baseline (Joey Verlinden)",  where: "the catalog picker",        build: 25338,
+                        open: () => { crumb("🧬 Baseline"); openBaseline("joey"); } },
+    toolImpact:       { into: "toolSignins",  label: "🎚 Report-only impact",         where: "the Report-only impact tab", build: 25339,
+                        open: () => openImpact() },
+    toolSessionCtl:   { into: "toolSignins",  label: "🛂 Session controls",           where: "the Session controls tab",   build: 25339,
+                        open: () => openSessionCtl() },
+    toolDrift:        { into: "toolAudit",    label: "📉 Drift watch",                where: "the Snapshot file tab",      build: 25340,
+                        open: () => openDrift() },
+    toolGuide:        { into: "toolBaseline", label: "📖 Baseline guide",              where: "the Deployment guide tab",   build: 25340,
+                        open: () => openGuide() },
+    toolAuthStr:      { into: "toolLocations", label: "💪 Authentication strengths",   where: "the Strengths tab",          build: 25341,
+                        open: () => openAuthStr() },
+    toolAuthCtx:      { into: "toolLocations", label: "🎫 Authentication contexts",    where: "the Contexts tab",           build: 25341,
+                        open: () => openAuthCtx() },
+    toolTou:          { into: "toolLocations", label: "📜 Terms of use",               where: "the Terms of use tab",       build: 25341,
+                        open: () => openTou() },
+    toolRecycle:      { into: "toolLocations", label: "♻ Recycle bin",                where: "the Deleted tab",            build: 25341,
+                        open: () => openRecycle() },
+    toolMsLearn:      { into: "toolGapCheck", label: "📘 MS Learn checks",            where: "the Microsoft Learn tab",    build: 25342,
+                        open: () => openMsLearn() },
+    toolCis:          { into: "toolGapCheck", label: "📐 CIS Benchmark",              where: "the CIS 5.2.2 tab",          build: 25342,
+                        open: () => openCis(), betaOnly: true },
+    toolDevCheck:     { into: "toolGapCheck", label: "🖥 Device reality check",       where: "the Intune reality tab",     build: 25342,
+                        open: () => openDevCheck() },
+    toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
+                        open: () => openValidator() },
+    toolWave:         { into: "toolWhoIs",    label: "🌊 Who is the wave to CA",       where: "the A group subject",        build: 25347,
+                        open: () => openWave() },
+    toolCompare:      { into: "toolWhoIs",    label: "⚖ Compare users",               where: "the Compare users subject",  build: 25347,
+                        open: () => openCompare() },
+    toolLicGap:       { into: "toolAnalyze",  label: "🎫 Licence gap",                 where: "the Licences tab",           build: 25348,
+                        open: () => openLicGap() },
+    toolTeamsDev:     { into: "toolCaGroups", label: "📞 Teams devices",               where: "the 📞 Rule action on the TeamsSharedDevices row", build: 25349,
+                        open: () => openTeamsDev() },
+  };
+  // Land on a folded tool. Its own entry point when it has one — the right tab,
+  // the right catalog — otherwise the host tile, which is the correct answer for
+  // a member whose capability is a button on the host's own screen.
+  // betaOnly here mirrors the tab's own flag in TAB_HOSTS: a folded tool whose
+  // tab is hidden on the production host must not be reachable through a
+  // data-tool link or the palette either, or the guard is a door with a
+  // window next to it.
+  function openFolded(id) {
+    const f = FOLDED[id]; if (!f) return false;
+    if (f.betaOnly && isProdHost()) return false;
+    if (f.open) { f.open(); return true; }
+    const tile = $(f.into); if (tile) { tile.click(); return true; }
+    return false;
+  }
+
+  // ---------- hosts with tabs ----------
+  // A HOST is one tile whose tools sit behind a tab strip. The strip is NOT
+  // markup: it is mounted into each member screen's own toolbar, the way the
+  // sign-in source segment already is. That is deliberate — the members have
+  // genuinely different toolbars (🚦 ranges and filters, 🎚 its two views, 🛂 a
+  // hunting window and its own exports), and moving three screens' markup into
+  // one panel to make them look like tabs would throw away per-screen scroll
+  // memory, the history entries and every id other modules deep-link to, in
+  // exchange for nothing the reader can see.
+  //
+  // betaOnly hides a tab on the production host instead of deleting a file, so
+  // the carve-out in the promotion port becomes one guard here (see §7 of the
+  // consolidation plan): isProdHost() is the same test the BETA ribbon uses.
+  const TAB_HOSTS = {
+    signins: {
+      tile: "toolSignins", label: "🚦 Sign-in log",
+      tabs: [
+        { key: "failures", icon: "🚦", name: "Failures",          toolbar: "siToolbar", open: () => openSignins() },
+        { key: "impact",   icon: "🎚", name: "Report-only impact", toolbar: "riToolbar", open: () => openImpact() },
+        { key: "session",  icon: "🛂", name: "Session controls",   toolbar: "scToolbar", open: () => openSessionCtl(), beta: true },
+      ],
+    },
+    // "What changed" asked of two sources. Audit.diff is already the one engine
+    // (drift.js imports it); what the tabs fold away is the second TILE, not a
+    // second diff. The two bodies stay as they are on purpose — a rolling
+    // 30-day timeline of who edited what, and a two-point comparison against a
+    // file you kept, are different shapes of answer; the plan's one-renderer
+    // item (§5) is a separate change from this one.
+    changes: {
+      tile: "toolAudit", label: "🕓 Changes",
+      tabs: [
+        { key: "audit",    icon: "🕓", name: "Audit log",     toolbar: "auToolbar", open: () => openAudit() },
+        { key: "snapshot", icon: "📉", name: "Snapshot file", toolbar: "drToolbar", open: () => openDrift() },
+      ],
+    },
+    // The four kinds of object a policy REFERENCES, plus the bin they land in
+    // when deleted. Every one of these tools is the same screen: a list, which
+    // policies use each row, and create / edit / delete — and until 25341 each
+    // carried its own copy of "which policies use this" (see js/causes.js).
+    // ♻ Deleted is here rather than in 🗂 Policies because the recycle bin
+    // restores deleted NAMED LOCATIONS as well as deleted policies, so it is a
+    // dependency screen that happens to also hold policies.
+    // RULE PACKS. Four tools that all answer "what is wrong with this
+    // baseline, judged against a reference" — bypass patterns, Microsoft's
+    // documented limits, CIS 5.2.2, and the Intune compliance policy behind a
+    // require-compliant-device grant. A reviewer wants one place to open, not
+    // four, and each pack asks for its own scopes on its own ▶ run rather
+    // than on tab open (none of these open functions consents, which is what
+    // makes that true).
+    //
+    // What is NOT here: the plan's single findings table with a Source
+    // column. The four present genuinely different shapes — a persona ×
+    // control matrix, findings with buildable fixes, a four-tier CIS score
+    // with an L1/L2 filter, a per-policy-per-platform grid — and flattening
+    // them into one table loses information rather than sharing it. That is
+    // its own decision, not something to slip in behind a tab strip.
+    // ONE QUESTION, TWO DIRECTIONS. 🧪 evaluates one described sign-in against
+    // every policy; ⚡ turns it around and enumerates every sign-in a policy
+    // implies. They have shared the evaluator since 25344 removed the fork
+    // (WhatIfEval.evaluate) and the scope check since 25345 (CaScope.of), so
+    // the two modes cannot disagree about the same policy and the same person
+    // — which is exactly the condition the consolidation plan set for folding
+    // these two together, and it now holds.
+    // ONE QUESTION, THREE SUBJECTS. 🌊 resolves every member of a group through
+    // 🕵's own policy ladder (WhoIs.stateFor), and 🕵 resolves its user through
+    // ⚖'s resolver (Comparer.resolveUser) — they were built as siblings and the
+    // code has always said so. The strip is the subject picker the plan asked
+    // for: a user, a group, or several users side by side. Since 25345 all
+    // three share one scope check as well, so the three subjects cannot
+    // disagree about the same person and the same policy.
+    // The coverage funnel and its last stage. 🎫 Licence gap computes the same
+    // obligation the funnel's final stage already reports through
+    // LicGap.licenceOf, and then says how to close it — so it is that stage
+    // opened up, not a second tool.
+    //
+    // This host is the one that needs UNMOUNTING: 🔍 Gap analyse is screen-list
+    // in the analyze view, and screen-list is also 🗂 Policies. Without the
+    // unmount the Gap strip would sit in the Policies toolbar, offering to
+    // switch a tool you are not in.
+    gap: {
+      tile: "toolAnalyze", label: "🔍 Gap analyse",
+      tabs: [
+        { key: "coverage", icon: "🔍", name: "Coverage",  toolbar: "plToolbar", open: () => $("toolAnalyze").click() },
+        { key: "licences", icon: "🎫", name: "Licences",  toolbar: "lgToolbar", open: () => openLicGap() },
+      ],
+    },
+    whois: {
+      tile: "toolWhoIs", label: "🕵 Who is … to CA",
+      tabs: [
+        { key: "user",    icon: "🕵", name: "A user",         toolbar: "woToolbar", open: () => openWhoIs() },
+        { key: "group",   icon: "🌊", name: "A group",        toolbar: "wvToolbar", open: () => openWave() },
+        { key: "compare", icon: "⚖", name: "Compare users",  toolbar: "cuToolbar", open: () => openCompare() },
+      ],
+    },
+    whatif: {
+      tile: "toolWhatIf", label: "🧪 What-If",
+      tabs: [
+        { key: "one", icon: "🧪", name: "One sign-in",       toolbar: "wiToolbar", open: () => openWhatIf() },
+        { key: "every", icon: "⚡", name: "Every simulation", toolbar: "vaToolbar", open: () => openValidator() },
+      ],
+    },
+    checks: {
+      tile: "toolGapCheck", label: "🛡 Checks",
+      tabs: [
+        { key: "bypass", icon: "🛡", name: "Bypass & Swiss cheese", toolbar: "gcToolbar", open: () => openGapCheck() },
+        { key: "mslearn", icon: "📘", name: "Microsoft Learn",      toolbar: "mlToolbar", open: () => openMsLearn() },
+        { key: "cis",     icon: "📐", name: "CIS 5.2.2",            toolbar: "ciToolbar", open: () => openCis(), beta: true, betaOnly: true },
+        { key: "intune",  icon: "🖥", name: "Intune reality",       toolbar: "dvToolbar", open: () => openDevCheck() },
+      ],
+    },
+    blocks: {
+      tile: "toolLocations", label: "🧩 Policy building blocks",
+      tabs: [
+        { key: "locations", icon: "🌐", name: "Locations",   toolbar: "loToolbar", open: () => openLocations() },
+        { key: "strengths", icon: "💪", name: "Strengths",   toolbar: "asToolbar", open: () => openAuthStr() },
+        { key: "contexts",  icon: "🎫", name: "Contexts",    toolbar: "acToolbar", open: () => openAuthCtx() },
+        { key: "terms",     icon: "📜", name: "Terms of use", toolbar: "tuToolbar", open: () => openTou(), beta: true },
+        { key: "deleted",   icon: "♻", name: "Deleted",     toolbar: "rcToolbar", open: () => openRecycle() },
+      ],
+    },
+    baseline: {
+      tile: "toolBaseline", label: "🧬 Baseline",
+      tabs: [
+        { key: "baseline", icon: "🧬", name: "Baseline",         toolbar: "blToolbar", open: () => { crumb("🧬 Baseline"); openBaseline(Baseline.activeCatalogId() || "limonit"); } },
+        { key: "guide",    icon: "📖", name: "Deployment guide", toolbar: "ugToolbar", open: () => openGuide(), beta: true },
+      ],
+    },
+  };
+  const tabShown = (t) => !t.betaOnly || !isProdHost();
+  function toolTabsSeg(hostKey) {
+    const h = TAB_HOSTS[hostKey]; if (!h) return "";
+    return `<div class="seg tool-tabs" title="One tool, ${h.tabs.filter(tabShown).length} views of it — they read the same window, so switching costs no second read">`
+      + h.tabs.filter(tabShown).map((t) => `<button data-tabgo="${hostKey}:${t.key}">${t.icon} ${esc(t.name)}`
+          + (t.beta ? ' <span class="tag new">BETA</span>' : "") + `</button>`).join("")
+      + `</div>`;
+  }
+  // Put the strip into this tab's toolbar once, then re-paint which is active.
+  // A strip with ONE tab left is not a tab strip, it is a button that does
+  // nothing — which is what 🧬 Baseline would show on the production host,
+  // where the beta-only 📖 Deployment guide tab is hidden. So a host whose
+  // visible tabs come down to one shows no strip at all: the tile is already
+  // the name of that tool.
+  function mountToolTabs(hostKey, tabKey) {
+    const h = TAB_HOSTS[hostKey]; if (!h) return;
+    if (h.tabs.filter(tabShown).length < 2) return;
+    const t = h.tabs.find((x) => x.key === tabKey); if (!t) return;
+    const tb = $(t.toolbar); if (!tb) return;
+    let seg = tb.querySelector(".tool-tabs");
+    if (!seg) {
+      const wrap = document.createElement("div"); wrap.innerHTML = toolTabsSeg(hostKey); seg = wrap.firstChild;
+      tb.insertBefore(seg, tb.firstChild);
+    }
+    [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.tabgo === `${hostKey}:${tabKey}`));
+  }
+  // Take the strip back out. Needed for exactly one host: screen-list is both
+  // 🗂 Policies and 🔍 Gap analyse, so opening it as Policies has to remove a
+  // strip that belongs to the other tool.
+  function unmountToolTabs(hostKey) {
+    const h = TAB_HOSTS[hostKey]; if (!h) return;
+    h.tabs.forEach((t) => { const tb = $(t.toolbar); const seg = tb && tb.querySelector(".tool-tabs"); if (seg) seg.remove(); });
+  }
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-tabgo]"); if (!b) return;
+    const [hostKey, key] = String(b.dataset.tabgo).split(":");
+    const h = TAB_HOSTS[hostKey], t = h && h.tabs.find((x) => x.key === key);
+    if (t) t.open();
+  });
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  // ---- <datalist> pick guard --------------------------------------------
+  // Selecting an option from a <datalist> fires `input` exactly like typing
+  // does. A handler that answers by re-querying and rewriting the options
+  // makes the browser reopen the dropdown over a field that was just filled,
+  // so the pick looks like it did not take (T36, 2026-09-10 — and T12 3.4 and
+  // T27 0.7 before it, each fixed on its own). Two halves, for every suggest
+  // box: dlPicked() says the value is one of the options on offer, i.e. it
+  // came from the list and not the keyboard, so the handler leaves the options
+  // alone; dlSet() writes the options only when they actually change, so a
+  // repaint that derives the same list (the result-driven boxes) is a no-op.
+  function dlPicked(listId, value) {
+    const dl = $(listId); if (!dl) return false;
+    const v = String(value == null ? "" : value).trim();
+    return !!v && [...dl.options].some((o) => o.value === v);
+  }
+  function dlSet(listId, html) {
+    const dl = $(listId); if (!dl) return;
+    // The remembered html goes stale when something writes innerHTML directly
+    // (the seeded tenant lists do), so trust it only while the count agrees.
+    if (dl._dlHtml === html && dl._dlN === dl.options.length) return;
+    dl.innerHTML = html; dl._dlHtml = html; dl._dlN = dl.options.length;
+  }
   // Deleting the 30th row in a list re-renders the panel, and the page jumps to
   // the top — so working through a list means scrolling back down after every
   // single action. Capture the scroll position, re-render, put it back. The
@@ -647,6 +902,258 @@
       : `${tools.length} tools on this build`;
   })();
 
+  // ---------- promotion queue (beta channel only) ----------
+  // What is on this channel and not yet in production, numbered so it can be
+  // referred to out loud: "push number 3 to main". Rendered only on a
+  // non-production host — the same test the BETA ribbon uses — so a customer
+  // on the production site never sees a list of things they do not have.
+  (function renderPromotionQueue() {
+    try {
+      const host = (location.hostname || "").toLowerCase();
+      const prod = ((typeof BRANDING !== "undefined" && BRANDING.host) || "").toLowerCase();
+      if (!prod || host === prod) return;                 // production: stay hidden
+      if (typeof PROMOTE === "undefined") return;
+      const el = document.getElementById("helpPromote");
+      if (!el) return;
+
+      const RISK = {
+        high:   { label: "high",   cls: "block", note: "a real problem in production until it lands" },
+        medium: { label: "medium", cls: "new",   note: "missing capability, nothing broken" },
+        low:    { label: "low",    cls: "",      note: "convenience or documentation" },
+      };
+      const esc2 = (x) => String(x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const items = (PROMOTE.items || []).slice().sort((a, b) => a.n - b.n);
+      // Ticks for the promotion order. Persisted per item NUMBER, so a tick
+      // survives a reload and dies with its item: numbers no longer in the
+      // queue are pruned on render, because a shipped item must not stay
+      // ticked and reappear in an order.
+      const PQ_KEY = "enca.pqPick";
+      const readPicks = () => { try { return JSON.parse(localStorage.getItem(PQ_KEY) || "[]").map(Number); } catch { return []; } };
+      const writePicks = (ns) => { try { localStorage.setItem(PQ_KEY, JSON.stringify(ns)); } catch { /* private mode — ticks live for the session only */ } };
+      const picked = (() => {
+        const raw = new Set(readPicks());
+        const live = new Set(items.map((i) => i.n));
+        const kept = [...raw].filter((n) => live.has(n));
+        if (kept.length !== raw.size) writePicks(kept);
+        return new Set(kept);
+      })();
+
+      // Blocks in number order, and FOLDED. The table is read to decide what
+      // to promote, and at twenty-odd rows of what / why / test it stopped
+      // being readable as a list. So (25319, on Mihai's ask — the way the
+      // TUNO queue does it): a row is one line — tick, number, title, risk,
+      // builds — and opens on click to show its what, why, carve-out, test
+      // steps and files. Items on the SAME TOOL sit under one tool row, also
+      // folded, because most of the queue is one tool's run of versions
+      // (T12 5.0 → 5.9.8 is eleven rows) and the decision is usually "push
+      // the tool's batch", not eleven decisions. A hand-named `group` still
+      // wins over the tool: it is the deliberate batch, with a reason.
+      //
+      // An item's home is its first tool; an item that touches three or more
+      // tools files under "Several tools", because calling a 12-tool fix a
+      // 🕵 Who is Anna change would hide it from everyone else. A block of
+      // one renders plain — a header over a single row is noise.
+      const gcount = {};
+      items.forEach((i) => { if (i.group) gcount[i.group] = (gcount[i.group] || 0) + 1; });
+      const SEVERAL = "Several tools";
+      const homeOf = (it) => {
+        if (it.group && gcount[it.group] > 1) return { id: "g:" + it.group, named: true };
+        const ts = it.tools || [];
+        const t = ts.length >= 3 ? SEVERAL : (ts[0] || SEVERAL);
+        return { id: "t:" + t, named: false, title: t };
+      };
+      const blocks = [];
+      const byId = {};
+      for (const it of items) {
+        const h = homeOf(it);
+        if (!byId[h.id]) {
+          const g = h.named
+            ? Object.assign({ id: it.group, title: it.group }, (PROMOTE.groups || {})[it.group] || {})
+            : { id: h.id, title: h.title };
+          byId[h.id] = { key: h.id, named: h.named, group: g, items: [] };
+          blocks.push(byId[h.id]);
+        }
+        byId[h.id].items.push(it);
+      }
+      // Which blocks are open: remembered per block key so a reload lands on
+      // the batch being worked, and a block with a ticked member opens by
+      // itself — a tick is a selection, and a selection you cannot see is a
+      // trap when the next thing you press is Export.
+      const PQ_OPEN = "enca.pqOpen";
+      const readOpen = () => { try { return new Set(JSON.parse(localStorage.getItem(PQ_OPEN) || "[]")); } catch { return new Set(); } };
+      const writeOpen = (s) => { try { localStorage.setItem(PQ_OPEN, JSON.stringify([...s])); } catch { /* private mode */ } };
+      const openKeys = readOpen();
+      blocks.forEach((bl) => { if (bl.items.length > 1 && bl.items.some((i) => picked.has(i.n))) openKeys.add(bl.key); });
+      const buildsShort = (bs) => {
+        bs = (bs || []).slice().sort((a, b) => a - b);
+        if (bs.length <= 3) return bs.join(", ");
+        return `${bs[0]} … ${bs[bs.length - 1]} <span class="muted">(${bs.length})</span>`;
+      };
+      const riskTag = (risk) => { const r = RISK[risk] || RISK.low; return `<span class="tag ${r.cls}" title="${r.note}">${r.label}</span>`; };
+      const detailFor = (it) => `
+                <div class="mini" style="margin-top:2px">${esc2(it.what)}</div>
+                <div class="mini" style="margin-top:4px;color:var(--report)"><b>Why:</b> ${esc2(it.why)}</div>
+                ${it.carveout ? `<div class="mini" style="margin-top:4px;color:var(--off)"><b>⚠ Carve-out on port:</b> ${esc2(it.carveout)}</div>` : ""}
+                ${(it.test || []).length ? `<details class="pq-test"><summary class="mini"><b>How to test it</b> — ${(it.test).length} step${(it.test).length === 1 ? "" : "s"}</summary>
+                  <ol class="mini pq-steps">${(it.test).map((t) => `<li>${esc2(t)}</li>`).join("")}</ol></details>`
+                  : `<div class="mini" style="margin-top:4px;color:var(--off)"><b>How to test it:</b> not written — this item is not finished, and promoting it means promoting something nobody has said how to check.</div>`}
+                <div class="mini muted" style="margin-top:4px">${(it.files || []).map((f) => `<code>${esc2(f)}</code>`).join(" ")}</div>`;
+      const rowFor = (it, bl) => {
+            const inGroup = !!bl, key = bl ? bl.key : "";
+            const hidden = bl && !openKeys.has(key);
+            return `<tr class="pq-row${inGroup ? " pq-member" : ""}" data-pqrow="${it.n}"${inGroup ? ` data-pqof="${esc2(key)}"` : ""}${hidden ? " hidden" : ""}>
+              <td><input type="checkbox" data-pqpick="${it.n}" ${picked.has(it.n) ? "checked" : ""} title="${inGroup ? `Untick to hold item ${it.n} back from its batch` : `Include item ${it.n} in the promotion order`}"></td>
+              <td><b style="font-size:15px">${it.n}</b></td>
+              <td><span class="pq-tog" data-pqtog="${it.n}" title="Open — what changed, why, how to test it">▸</span> <b>${esc2(it.title)}</b>
+                ${(it.tools || []).length > 1 ? `<span class="mini muted"> · ${(it.tools || []).map(esc2).join(" · ")}</span>` : ""}
+                <div class="pq-detail" data-pqdetail="${it.n}" hidden>${detailFor(it)}</div></td>
+              <td>${riskTag(it.risk)}</td>
+              <td class="mini">${buildsShort(it.builds)}</td>
+            </tr>`;
+      };
+      const headFor = (bl) => {
+            // One row per batch: the tick promotes every member, the click
+            // shows them. Members keep their own ticks so one can be held back.
+            const g = bl.group, ns = bl.items.map((i) => i.n), on = ns.filter((n) => picked.has(n)).length;
+            const worst = ["high", "medium", "low"].find((r) => bl.items.some((i) => (i.risk || "low") === r)) || "low";
+            const counts = ["high", "medium", "low"].map((r) => [r, bl.items.filter((i) => (i.risk || "low") === r).length]).filter(([, c]) => c).map(([r, c]) => `${c} ${r}`).join(" · ");
+            const builds = bl.items.flatMap((i) => i.builds || []);
+            const open = openKeys.has(bl.key);
+            return `<tr class="pq-group${bl.named ? " pq-named" : ""}" data-pqhead="${esc2(bl.key)}">
+                <td><input type="checkbox" data-pqgroup="${esc2(bl.key)}" ${on === ns.length ? "checked" : ""} title="Tick to include all ${ns.length} items of this batch in the promotion order"></td>
+                <td><span class="pq-tog${open ? " open" : ""}" data-pqtogblock="${esc2(bl.key)}" title="${open ? "Fold the batch away" : "Show the items"}">▸</span></td>
+                <td><b>${esc2(g.title)}</b> <span class="tag">${bl.named ? "group" : "tool"} · ${ns.length} items</span>
+                  <span class="mini muted"> · items ${ns.join(", ")}</span>
+                  <div class="mini muted" style="margin-top:2px"><span data-pqgroupstate="${esc2(bl.key)}"></span></div>
+                  ${g.why ? `<div class="mini" style="margin-top:4px;color:var(--report)"><b>Why together:</b> ${esc2(g.why)}</div>` : ""}</td>
+                <td>${riskTag(worst)}<div class="mini muted" style="margin-top:4px">${counts}</div></td>
+                <td class="mini">${buildsShort(builds)}</td>
+              </tr>`;
+      };
+      el.innerHTML = `
+        <h4>🚚 Waiting for production <span class="tag new">BETA CHANNEL</span></h4>
+        <p>Production is <b>${esc2(PROMOTE.productionBuild)}</b>; this site is <b>${esc2(APP_BUILD.label)}</b>.
+          <b>This is the gap, and only the gap</b> — what exists here and not there. Nothing that has already
+          shipped appears below; for that, read <b>📋 What's new</b>. Each row is one promotable <b>change to the
+          tools</b> with a <b>stable number</b>, so <i>“push number 3 to main”</i> means exactly one thing.
+          Roadmap cards, changelog entries and this table itself are not listed: they describe the work rather
+          than being it, and they travel with whatever promotion happens next.</p>
+        <p class="mini muted" style="margin:-6px 0 10px"><b>The list is folded.</b> A row is one line — click it to open what
+          changed, why, the <b>test checklist</b> and the files. Items on the <b>same tool</b> sit under one tool row, folded
+          too, because most of this queue is one tool's run of versions and the usual decision is the tool's batch: the batch
+          row's tick takes every item, and each item keeps its own tick so one can be held back. A hand-named <b>group</b> —
+          a tool and its Help section, a feature and the fixes it grew — works the same way and says why it belongs together.
+          <i>Why</i> says what would have to be true for an item to graduate; <b>How to test it</b> says how to find out, one
+          falsifiable step at a time, and names the tenant a check needs when nobody has it to hand.</p>
+        ${items.length ? `<div class="tb-actions" style="margin:0 0 8px">
+          <span class="mini" id="pqPickCount"><b>${picked.size}</b> of ${items.length} ticked for promotion</span>
+          <button class="btn sm" id="pqExport" ${picked.size ? "" : "disabled"}>⭳ Export promotion order</button>
+          <button class="btn sm" id="pqClear" ${picked.size ? "" : "disabled"}>Clear ticks</button>
+          <button class="btn sm" id="pqFold" title="Fold every batch and every row">Fold all</button>
+          <span class="mini muted">tick what you have verified, export, and hand the file to the working session — it is the order, not the verification</span>
+        </div>` : ""}
+        <div class="cg-tablewrap"><table class="cg-table pq-table">
+          <thead><tr><th style="width:34px" title="Tick to include in the promotion order"></th><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:150px">Beta builds</th></tr></thead>
+          <tbody>${blocks.map((bl) => bl.items.length > 1 ? headFor(bl) + bl.items.map((it) => rowFor(it, bl)).join("") : rowFor(bl.items[0], null)).join("")}</tbody></table></div>
+        ${(PROMOTE.staying || []).length ? `
+          <h4 style="margin-top:18px">Staying on this channel</h4>
+          <p class="mini muted" style="margin:0 0 6px">Also part of the gap, but permanently: these exist here and are not going to production.</p>
+          <ul>${PROMOTE.staying.map((sv) => `<li><b>${esc2(sv.title)}</b> — ${esc2(sv.why)}</li>`).join("")}</ul>` : ""}
+        <p class="mini muted" style="margin-top:14px"><b>Promoting one of these is four steps, not one:</b> remove the row and bump the production build here; set the roadmap card on <b>main</b> to <code>live · build NNN</code>; set the <b>same card on this channel</b> to <code>live · beta NNNNN · production NNN</code>; and add the changelog entry on both. The third is the one that gets missed — each channel carries its own roadmap, so promoting touches main's copy and this one keeps claiming the work is beta-only. A shipped card here that says <code>live · beta NNNNN</code> with no production clause is either a tool that genuinely has not been promoted, or that step being skipped.</p>
+        <p class="help-x">This list is written by hand — the app is static files in a browser and cannot read git or diff two branches. It is maintained alongside <b>📋 What's new</b>; if an entry looks stale, trust the changelog and the build numbers over this table.</p>`;
+      el.style.display = "";
+
+      // ---- the tick wiring ----
+      const syncBar = () => {
+        const ns = readPicks();
+        const c = el.querySelector("#pqPickCount"), ex = el.querySelector("#pqExport"), cl = el.querySelector("#pqClear");
+        if (c) c.innerHTML = `<b>${ns.length}</b> of ${items.length} ticked for promotion`;
+        if (ex) ex.disabled = !ns.length;
+        if (cl) cl.disabled = !ns.length;
+      };
+      // A group's tick reflects its members: checked when all are ticked,
+      // indeterminate when some are, and the state line says how many.
+      const syncGroups = () => {
+        const ns = new Set(readPicks());
+        el.querySelectorAll("[data-pqgroup]").forEach((gcb) => {
+          const gid = gcb.dataset.pqgroup;
+          const members = [...el.querySelectorAll(`tr[data-pqof="${gid}"] [data-pqpick]`)].map((cb) => Number(cb.dataset.pqpick));
+          const on = members.filter((n) => ns.has(n)).length;
+          gcb.checked = on === members.length && members.length > 0;
+          gcb.indeterminate = on > 0 && on < members.length;
+          const st = el.querySelector(`[data-pqgroupstate="${gid}"]`);
+          if (st) st.textContent = on === members.length ? "Whole batch ticked." : on ? `${on} of ${members.length} ticked — the order will name the ones held back.` : "";
+        });
+      };
+      syncGroups();
+      // ---- fold / unfold ----
+      // A click anywhere on a row that is not its tick opens it; the batch
+      // row shows or hides its members. Open state is remembered per batch.
+      const setBlock = (key, open) => {
+        el.querySelectorAll(`tr[data-pqof="${key}"]`).forEach((tr) => { tr.hidden = !open; });
+        const tg = el.querySelector(`[data-pqtogblock="${key}"]`);
+        if (tg) { tg.classList.toggle("open", open); tg.title = open ? "Fold the batch away" : "Show the items"; }
+        const s = readOpen(); open ? s.add(key) : s.delete(key); writeOpen(s);
+      };
+      const setRow = (n, open) => {
+        const d = el.querySelector(`[data-pqdetail="${n}"]`), tg = el.querySelector(`[data-pqtog="${n}"]`);
+        if (d) d.hidden = !open;
+        if (tg) tg.classList.toggle("open", open);
+      };
+      el.querySelectorAll("tr[data-pqhead]").forEach((tr) => tr.addEventListener("click", (ev) => {
+        if (ev.target.closest("input, a, button, details, .pq-detail")) return;
+        const key = tr.dataset.pqhead;
+        setBlock(key, !readOpen().has(key));
+      }));
+      el.querySelectorAll("tr[data-pqrow]").forEach((tr) => tr.addEventListener("click", (ev) => {
+        if (ev.target.closest("input, a, button, details, .pq-detail, code")) return;
+        const n = tr.dataset.pqrow, d = el.querySelector(`[data-pqdetail="${n}"]`);
+        setRow(n, !!(d && d.hidden));
+      }));
+      const foldBtn = el.querySelector("#pqFold");
+      if (foldBtn) foldBtn.addEventListener("click", () => {
+        el.querySelectorAll("tr[data-pqhead]").forEach((tr) => setBlock(tr.dataset.pqhead, false));
+        el.querySelectorAll("tr[data-pqrow]").forEach((tr) => setRow(tr.dataset.pqrow, false));
+      });
+      el.querySelectorAll("[data-pqpick]").forEach((cb) => cb.addEventListener("change", () => {
+        const n = Number(cb.dataset.pqpick);
+        const ns = new Set(readPicks());
+        cb.checked ? ns.add(n) : ns.delete(n);
+        writePicks([...ns]);
+        syncBar(); syncGroups();
+      }));
+      el.querySelectorAll("[data-pqgroup]").forEach((gcb) => gcb.addEventListener("change", () => {
+        // From indeterminate a click lands on checked, which is the right
+        // reading: "take the whole group" is the common case.
+        const gid = gcb.dataset.pqgroup;
+        const ns = new Set(readPicks());
+        el.querySelectorAll(`tr[data-pqof="${gid}"] [data-pqpick]`).forEach((cb) => {
+          const n = Number(cb.dataset.pqpick);
+          cb.checked = gcb.checked;
+          gcb.checked ? ns.add(n) : ns.delete(n);
+        });
+        writePicks([...ns]);
+        syncBar(); syncGroups();
+      }));
+      const exBtn = el.querySelector("#pqExport");
+      if (exBtn) exBtn.addEventListener("click", () => {
+        try {
+          const o = PROMOTE.buildOrder(readPicks(), APP_BUILD);
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(new Blob([o.text], { type: "text/markdown" }));
+          a.download = o.filename;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        } catch (e) { toast(`Export refused: <span>${esc(e.message || e)}</span>`); }
+      });
+      const clBtn = el.querySelector("#pqClear");
+      if (clBtn) clBtn.addEventListener("click", () => {
+        writePicks([]);
+        el.querySelectorAll("[data-pqpick]").forEach((cb) => { cb.checked = false; });
+        syncBar(); syncGroups();
+      });
+    } catch (e) { console.warn("promotion queue not rendered:", e.message); }
+  })();
 
   // ---------- theme: Auto (device) → Light → Dark ----------
   // Auto leaves data-theme off so the CSS prefers-color-scheme block decides;
@@ -864,8 +1371,10 @@
     const a = e.target.closest("a.md-tool"); if (!a) return;
     e.preventDefault();
     document.querySelectorAll(".modal-bg.open").forEach((m) => m.classList.remove("open"));
-    const tile = $(a.dataset.tool);
-    if (tile) tile.click(); else toast("That tool is not available here");
+    const want = a.dataset.tool;
+    const tile = $(want);
+    if (tile) { tile.click(); return; }
+    if (!openFolded(want)) toast("That tool is not available here");
   });
 
   // ---------- What's new / changelog ----------
@@ -1023,10 +1532,14 @@
     // this runs on some paths, so what the list contains depended on timing.
     // Excluded outright: the contents list is of TOOLS, and the queue is a
     // beta-channel note about the gap between builds.
-    const secs = [...document.querySelectorAll("#screen-help .help-sec > h4")]
+    // h5s are in the list too, indented: a FOLDED tool's section is an h5 under
+    // its host (📄 Create documentation under 🗂 Policies, build 25338), and
+    // dropping it from the contents would hide exactly the thing the fold is
+    // accused of hiding — the verb that no longer has a tile of its own.
+    const secs = [...document.querySelectorAll("#screen-help .help-sec > h4, #screen-help .help-sec > h5")]
       .filter((h) => !h.closest("#helpPromote"));
     secs.forEach((h, i) => { h.id = h.id || `help-sec-${i}`; });
-    $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}">${h.textContent.replace(/\s+(BETA|NEW|writes to tenant)\b/gi, "").trim()}</a>`).join("");
+    $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}"${h.tagName === "H5" ? ' class="sub"' : ""}>${h.textContent.replace(/\s+(BETA|NEW|writes to tenant|folded into this tool — build \d+)\b/gi, "").trim()}</a>`).join("");
     // Scroll-spy: highlight the chip for the section currently in view, and keep
     // that chip scrolled into view within the sticky ToC so it stays reachable.
     const links = new Map([...$("helpToc").querySelectorAll("a")].map((a) => [a.getAttribute("href").slice(1), a]));
@@ -1152,7 +1665,7 @@
     // without it the only way out would be the tab bar.
     const seg = $("plViewSeg");
     if (seg) seg.style.display = isAn ? "none" : "";
-    $("anBack").style.display = isAn ? "inline-flex" : "none";
+    $("anBack").style.display = "none";   // the tab bar leads back; a second Back button read as a stray control
     updateSelbar();
   }
   // Pin the action bar just below the toolbar. The toolbar wraps to two or
@@ -1457,7 +1970,43 @@
   }
 
   // ---------- data loading ----------
+  // The tenant's Baseline scopes setting (Entra admin center → Conditional
+  // Access → Baseline scopes, aka.ms/BaselineScopesSettingsUX) — the opt-in /
+  // opt-out for the June-2026 enforcement of baseline scopes on All-resources
+  // policies with app exclusions. Portal API, not documented on Learn:
+  // GET /identity/conditionalAccess/settings (beta) →
+  // { advancedSettings: { baselineScopes: { resourceAppId } } | null }.
+  // Read once per tenant load and shared by 🛡 and 📘. null = could not read
+  // (permission, or the API moved) — the checks say "not read" rather than
+  // guessing; undefined = not fetched yet. GapCheck.baselineScopes() classifies.
+  // The tenant's authentication methods policy, read once per tenant load
+  // (base scopes cover it) for the checks that need to know which methods are
+  // on — passwordless, external authentication methods. null = not read.
+  let authMethodsCache;
+  async function readAuthMethods() {
+    if (authMethodsCache !== undefined) return authMethodsCache;
+    if (isDemo) { authMethodsCache = DEMO_DATA.authMethodsPolicy || null; return authMethodsCache; }
+    try { authMethodsCache = await Graph.gget("/policies/authenticationMethodsPolicy"); }
+    catch (e) { console.warn("Authentication methods policy not read:", e.message); authMethodsCache = null; }
+    return authMethodsCache;
+  }
+
+  let caSettingsCache;
+  async function readCaSettings() {
+    if (caSettingsCache !== undefined) return caSettingsCache;
+    if (isDemo) { caSettingsCache = DEMO_DATA.caSettings || { advancedSettings: null }; return caSettingsCache; }
+    try { caSettingsCache = await Graph.gget("/identity/conditionalAccess/settings"); }
+    catch (e) { console.warn("Baseline scopes setting not read:", e.message); caSettingsCache = null; }
+    return caSettingsCache;
+  }
+
   async function loadFromGraph(isRefresh) {
+    // A refresh used to land on the policy list whatever tool asked for it —
+    // 👥 Conditional Access groups reloads after every policy write (Assign
+    // from the drawer, the Compare → Policies ticks, a restore), so each one
+    // dropped you into 🗂 List Policies. Remember where the read was pressed
+    // and go back there; T12 re-scans, because its rows carry the policies.
+    const from = isRefresh && HISTORY_SCREENS.has(shownScreen) ? shownScreen : null;
     show("screen-loading");
     let phase = "loading the Conditional Access policies from your tenant";
     try {
@@ -1482,7 +2031,7 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; anReport = null; anCov = null;
+      isDemo = false; anReport = null; anCov = null; caSettingsCache = undefined; authMethodsCache = undefined;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
@@ -1498,13 +2047,19 @@
       // where the tenant identity lives, instead of it being a hidden mode.
       $("baselineBadge").style.display = isBaselineTenant() ? "inline-block" : "none";
       tenantId = account?.tenantId || "";
+      loadLogSource();
       setAccountBox(account?.username || "", account?.name || "");
       showSideNav();
       selected = new Set();
       policiesReadAt = Date.now();
       refreshViews();
       renderPermissions();
-      show(isRefresh ? "screen-list" : "screen-home");
+      // The read is async: if another tool was opened while it ran (shownScreen
+      // is no longer the loading screen), stay there — a refresh must never
+      // pull you back to the tool that asked for it. T12 still re-scans, quietly.
+      const moved = shownScreen !== "screen-loading";
+      if (from === "screen-cagroups") { cgRes = null; await openCaGroups(true, moved); }
+      else if (!moved) show(from || (isRefresh ? "screen-list" : "screen-home"));
       toast(isRefresh
         ? `Refreshed from Entra — <span>${policies.length}</span> Conditional Access policies`
         : `Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
@@ -1529,7 +2084,7 @@
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; anReport = null; anCov = null;
+    isDemo = true; anReport = null; anCov = null; caSettingsCache = undefined; authMethodsCache = undefined;
     // The demo gets its own drawer for the group → persona mapping, so playing
     // with it here can never land in a real tenant's saved state.
     try { Baseline.use("demo"); } catch {}
@@ -1541,6 +2096,7 @@
     policiesReadAt = Date.now();
     $("tenantName").textContent = tenantName;
     tenantId = "";
+    loadLogSource();
     setAccountBox("demo@contoso.onmicrosoft.com", "Demo Mode");
     showSideNav();
     refreshViews();
@@ -1788,38 +2344,21 @@
   const TOOL_TABS = [
     ["toolSmsVoice", "📵 SMS & voice retirement"],
     ["toolMemberOf", "🧷 memberOf retirement"],
-    ["toolPolicies", "🗂 List Policies"],
-    ["toolDocument", "📄 Create documentation"],
+    ["toolPolicies", "🗂 Policies"],
     ["toolAnalyze", "🔍 Gap analyse"],
-    ["toolGapCheck", "🛡 Best-practice & bypass checks"],
-    ["toolValidator", "⚡ CA validator"],
+    ["toolGapCheck", "🛡 Checks"],
     ["toolWhatIf", "🧪 What-If"],
     ["toolGroupUse", "🔗 User or Group analyzer"],
-    ["toolCompare", "⚖ Compare users"],
-    ["toolWhoIs", "🕵 Who is Anna to CA"],
-    ["toolWave", "🌊 Who is the wave to CA"],
-    ["toolAudit", "🕓 Change audit"],
-    ["toolSignins", "🚦 Sign-in failures"],
-    ["toolImpact", "🎚 Report-only impact"],
+    ["toolWhoIs", "🕵 Who is … to CA"],
+    ["toolAudit", "🕓 Changes"],
+    ["toolSignins", "🚦 Sign-in log"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
-    ["toolDevCheck", "🖥 Device reality check"],
-    ["toolLicGap", "🎫 Licence gap"],
-    ["toolTeamsDev", "📞 Teams devices"],
-    ["toolBaseline", "🧬 Baseline Policies"],
-    ["toolBaselineJoey", "🧩 Baseline (Joey Verlinden)"],
-    ["toolMsLearn", "📘 MS Learn checks"],
-    ["toolJson", "🗄 Backup (JSON)"],
+    ["toolBaseline", "🧬 Baseline"],
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
-    ["toolLocations", "🌐 Named locations"],
-    ["toolAuthCtx", "🎫 Authentication contexts"],
-    ["toolAuthStr", "💪 Authentication strengths"],
-    ["toolTou", "📜 Terms of use"],
-    ["toolRecycle", "♻ Recycle bin"],
+    ["toolLocations", "🧩 Policy building blocks"],
     ["toolRmau", "🛡 Restricted AUs"],
-    ["toolDrift", "📉 Drift watch"],
     ["toolUserImpact", "🗣 User impact brief"],
-    ["toolState", "🎚 Set Policy state"],
     ["toolImport", "📥 Import"],
   ];
   // Help is a tool too, but always sits last (after the + in the tab bar).
@@ -2025,31 +2564,24 @@
   // Keep the view (cards / list / matrix) the user last chose — reopening the
   // tool used to force cards. Only the analyze mode (a different tool sharing
   // this screen) resets to cards.
-  $("toolPolicies").addEventListener("click", () => { crumb("🗂 List Policies"); setToolMode("document"); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list"); });
-  // Document tool: opens the policy overview first — select policies (or none
-  // for all), then click "Create documentation" in the toolbar to choose the format.
-  $("toolDocument").addEventListener("click", () => {
-    crumb("📄 Create documentation"); setToolMode("document"); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list");
-    toast("Documentation mode — select policies (or none for all), then click <span>Create documentation</span>");
-  });
-  $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); });
-  $("toolMsLearn").addEventListener("click", () => { crumb("📘 MS Learn checks"); openMsLearn(); });
-  $("toolGapCheck").addEventListener("click", () => { crumb("🛡 Best-practice & bypass checks"); openGapCheck(); });
+  // T02 📄 Create documentation, T04 🗄 Backup and T05 🎚 Set policy state were
+  // three more tiles onto THIS screen — each one called setToolMode and showed a
+  // toast naming a button that was already on the action bar. Folded into this
+  // one door (25338): no mode is pre-highlighted any more, because there is no
+  // longer a tool you "came from" — the highlight means the action you last ran
+  // here. Their open functions (openExport, runBackup, openStateModal) are
+  // unchanged and still reached from the bar, the per-policy card actions and
+  // the deep links other tools use.
+  $("toolPolicies").addEventListener("click", () => { crumb("🗂 Policies"); setToolMode(""); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list"); unmountToolTabs("gap"); });
+  $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); mountToolTabs("gap", "coverage"); });
+  $("toolGapCheck").addEventListener("click", () => openGapCheck());
   $("toolExclusions").addEventListener("click", () => { crumb("🚪 Exclusion analyzer"); openExclusions(); });
-  $("toolValidator").addEventListener("click", () => { openValidator(); });   // openValidator sets its own crumb
-  $("toolBaseline").addEventListener("click", () => { crumb("🧬 Baseline Policies"); openBaseline("limonit"); });
-  $("toolBaselineJoey").addEventListener("click", () => { crumb("🧩 Baseline (Joey Verlinden)"); openBaseline("joey"); });
-  // Backup tool: opens the policy overview in backup mode — select policies
-  // (or leave unselected for all), then click "Backup (JSON)" in the toolbar.
-  $("toolJson").addEventListener("click", () => {
-    crumb("🗄 Backup (JSON)"); setToolMode("backup"); setView("cards"); show("screen-list");
-    toast("Backup mode — select policies (or none for all), then click <span>Backup (JSON)</span>");
-  });
-  // Set-state tool (BETA): select policies, choose On / Report-only / Off, apply.
-  $("toolState").addEventListener("click", () => {
-    crumb("🎚 Set Policy state"); setToolMode("state"); setView("cards"); show("screen-list");
-    toast("Set-state mode — select policies, then click <span>Set Policy state</span>");
-  });
+  // One tile, both catalogs: the picker in the toolbar (#blCatalog, rendered from
+  // Baseline.catalogs()) is what T11 🧩 Baseline (Joey Verlinden) used to be a
+  // second tile for — openBaseline("joey") is still the deep-link target and has
+  // six callers. Opens on the tenant's active catalog rather than always
+  // CloudFellows, which is what the ★ choice is for.
+  $("toolBaseline").addEventListener("click", () => { crumb("🧬 Baseline"); openBaseline(Baseline.activeCatalogId() || "limonit"); });
   function openStateModal() {
     if (!selected.size) { toast("Select at least one policy first"); return; }
     const ps = exportOrder([...selected].map(id => policies.find(p => p.id === id)));
@@ -2067,18 +2599,22 @@
     if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) return;
     const ps = exportOrder([...selected].map(id => policies.find(p => p.id === id)));
     $("stGo").disabled = true;
+    let host = $("stLedger"); if (!host) { host = document.createElement("div"); host.id = "stLedger"; $("stGo").closest(".modal").insertBefore(host, $("stGo").closest(".row")); }
+    const L = RunLedger.create(host, { unit: "policies", items: ps.map((p) => ({ label: p.name })) });
     try {
       const results = [];
       for (let i = 0; i < ps.length; i++) {
-        toast(`Updating ${i + 1}/${ps.length}…`);
+        if (L.stopped) { results.push({ name: ps[i].name, ok: false, stopped: true }); continue; }
+        L.start(i);
         try {
           if (!isDemo) await Graph.gpatch(`/identity/conditionalAccess/policies/${ps[i].id}`, { state });
-          results.push({ name: ps[i].name, ok: true });
-        } catch (e) { console.error(e); results.push({ name: ps[i].name, ok: false }); }
+          results.push({ name: ps[i].name, ok: true }); L.done(i, "", state === "enabled" ? "On" : state === "disabled" ? "Off" : "Report-only");
+        } catch (e) { console.error(e); results.push({ name: ps[i].name, ok: false, error: e.message || String(e) }); L.fail(i, e.message || String(e)); }
       }
-      $("stateModal").classList.remove("open");
+      L.finish();
       const failed = results.filter(r => !r.ok).length;
-      toast(failed ? `State change done with <span>${failed} failure(s)</span> — see console`
+      if (!failed) { $("stateModal").classList.remove("open"); host.remove(); }
+      toast(failed ? `State change done with <span>${failed} failure(s)</span> — the reasons are on the rows`
         : `State of <span>${results.length}</span> policies set${isDemo ? " (simulated)" : ""}`);
       if (!isDemo && results.some(r => r.ok)) await loadFromGraph(true);
     } finally { $("stGo").disabled = false; }
@@ -2899,6 +3435,19 @@
       ...(placing || fixPlace ? ["AdministrativeUnit.ReadWrite.All"] : []),
       ...(fixNest ? CaGroups.NEST_WRITE_SCOPES : [])])) return;
     $("imGo").disabled = true;
+    // The run is visible IN the dialog — the run ledger every other write
+    // shows, not a toast per policy that vanishes behind the modal. Row 0 is
+    // the dependency pass (groups, locations, strengths…), then one row per
+    // policy; the ⟳ ticks and the report come after.
+    const imHost = $("imBody");
+    const imKeep = imHost.innerHTML;
+    imHost.innerHTML = "";
+    const L = RunLedger.create(imHost, { unit: "policies", items: [
+      { label: "Dependencies", sub: "groups, named locations, authentication strengths, contexts, terms of use — created if missing" },
+      ...chosen.map((p) => ({ label: p.name, sub: p.upgrade ? (imMode === "replace" ? "update in place — the current version is switched Off after" : "new version next to the current one") : "new policy, Off" })),
+    ], onStop: () => {} });
+    const depSay = (m) => L.note(0, m);
+    let stoppedEarly = false;
     try {
       let depLog = { created: [], reused: [], warnings: [] }, maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, personaGroupIds: {} }, res = { results: [], warnings: [] };
       // Only build the dependencies the CHOSEN policies need — importing one
@@ -2910,6 +3459,7 @@
         : imMode === "switch" ? chosen.map(p => p.name) : [];
       const switching = imMode === "switch" && imSwitch;
       if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
+      L.start(0);
       if (isDemo) {
         chosen.forEach(p => { if (p.personaGroup && !matchedNames.includes(p.name)) maps.personaGroupIds[p.personaGroup] = "g-" + p.personaGroup; });
         res.results = chosen.map(p => {
@@ -2940,14 +3490,26 @@
             else depLog.unplaced.push({ name: g.displayName, code, why: !code ? ((info && info.why) || "no persona could be read from the policies that use it") : `no restricted unit for ${code}` });
           }
         }
+        L.done(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused (simulated)`, "ready");
+        for (let i = 0; i < chosen.length; i++) { L.start(i + 1); await new Promise((r) => setTimeout(r, 40)); L.done(i + 1, "imported, Off (simulated)", "imported"); }
       } else {
-        const dep = await Importer.ensureDependencies(scoped, (m) => toast(esc(m)), { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
+        const dep = await Importer.ensureDependencies(scoped, depSay, { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
         if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
         // 🔀 the members come across BEFORE the policies land, so a policy
         // that is switched On afterwards already excludes the right people.
-        if (switching) depLog.copied = await imCopyCounterparts(scoped, maps, (m) => toast(esc(m)));
-        res = await Importer.importPolicies(chosen, maps, (m) => toast(esc(m)), { mode: imMode });
+        if (switching) depLog.copied = await imCopyCounterparts(scoped, maps, depSay);
+        L.done(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused${depLog.warnings.length ? ` · ${depLog.warnings.length} warning${depLog.warnings.length === 1 ? "" : "s"} — in the report` : ""}${switching && depLog.copied ? ` · members copied for ${depLog.copied.length} group${depLog.copied.length === 1 ? "" : "s"}` : ""}`, "ready");
+        res = await Importer.importPolicies(chosen, maps, (m) => { const i = chosen.findIndex((p) => m.startsWith(p.name + ":")); if (i >= 0) L.note(i + 1, m.slice(chosen[i].name.length + 1).trim()); }, {
+          mode: imMode, shouldStop: () => L.stopped,
+          onItem: (i, phase, r) => {
+            if (phase === "start") { L.start(i + 1); return; }
+            if (!r) return;
+            if (r.stopped) { L.skip(i + 1, "stopped"); stoppedEarly = true; return; }
+            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : "created"}, Off${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}`, "imported");
+            else L.fail(i + 1, r.error || "refused", "refused");
+          },
+        });
       }
       // R04: finish the job on the groups this import REUSED — but only if the
       // policies actually landed. An import that failed has no business having
@@ -2958,18 +3520,25 @@
       } else if (fixes.length) {
         depLog.warnings.push(`No policy was imported, so the ${fixes.length} group change${fixes.length === 1 ? "" : "s"} you ticked ${fixes.length === 1 ? "was" : "were"} NOT applied — nothing existing is altered by an import that did not happen.`);
       }
+      L.finish();
       // Change report — shown on screen and downloadable. A failed import is
       // the case you most need to read, so it should not require opening a file.
       const md = Importer.buildReport({ tenantName, fileName: imFileName, depLog, planItems: imPlan, results: res.results, warnings: res.warnings, mode: imMode, licence: imLic });
       const failed = res.results.filter(r => !r.ok).length;
-      $("importModal").classList.remove("open");
+      // a clean run closes the dialog; one with failures (or a stop) stays open
+      // so the ✗ rows are read where they happened — same manners as ⑦ / 🧹
+      if (!failed && !stoppedEarly) $("importModal").classList.remove("open");
+      else { $("imGo").style.display = "none"; imHost.insertAdjacentHTML("beforeend", `<p class="mini" style="margin-top:10px;color:var(--off)"><b>${failed} refused${stoppedEarly ? ", stopped early" : ""}</b> — the reasons are on the rows and in the report; Close when read.</p>`); }
       showReport("📥 Import report", "CA-Import-Report", md);
       toast(failed ? `Import done with <span>${failed} failure(s)</span>`
         : `Imported <span>${res.results.length}</span> policies (Off)${isDemo ? " (simulated)" : ""}`);
       if (!isDemo && res.results.some(r => r.ok)) await loadFromGraph(true);
     } catch (e) {
       console.error(e); toast(`Import failed: <span>${esc(e.message || e)}</span>`);
+      try { L.finish(); } catch {}
+      imHost.insertAdjacentHTML("beforeend", `<p class="mini" style="margin-top:10px;color:var(--off)">✗ ${esc(e.message || e)}</p>`);
     } finally { $("imGo").disabled = false; }
+    void imKeep;   // the plan list is rebuilt from imPlan on the next open, not restored from this run
   });
 
   // ---------- Conditional Access groups ----------
@@ -2982,7 +3551,15 @@
   // null again if the read fails — the Check tab shows "—" rather than
   // claiming nothing is protected.
   let cgProt = null;
-  let cgRes = null, cgTab = "check", cgFilter = "all", cgQuery = "", cgBusy = false, cgStop = false;
+  let cgRes = null, cgTab = "groups", cgFilter = "all", cgQuery = "", cgBusy = false, cgStop = false;
+  // ---- T12 5.0: the list + drawer shell (js/groupsview.js) ----
+  // The seven tabs stay as the engines' own screens, reached from the list's
+  // row and bulk actions with the selection carried across; nothing here
+  // scans twice. cgTab === "groups" is the landing view.
+  const cgSel = new Set();          // ticked group names
+  let cgOpen = null, cgDrTab = "members", cgGFilter = "all", cgHist = null, cgHistBusy = false;
+  const cgNestOpenDr = new Set();
+  let cgRmauPre = null, cgMigPre = null;   // names to pre-tick once ⑥ / ⑦ have scanned
   // Default scope: only the groups the tenant's CA policies actually reference.
   // "all" additionally expects every template / baseline group (finds missing).
   let cgScope = "policies";
@@ -2991,7 +3568,10 @@
 
   $("toolCaGroups").addEventListener("click", () => { openCaGroups(); });
 
-  async function openCaGroups(keepTab) {
+  // `quiet` re-scans WITHOUT taking the screen — for a refresh that finishes
+  // after you have moved to another tool: the list updates behind your back
+  // and is current when you come back, instead of dragging you back to it.
+  async function openCaGroups(keepTab, quiet) {
     // The crumb lives HERE, not on the tile handler, because the tile is only
     // one of the ways in. ⑦ Migrate it from Protect exclusions, the Restricted
     // AUs cannot-list, the import preflight and the migration corner badge all
@@ -3000,12 +3580,11 @@
     // tool you came from as active, with no CA groups tab opened at all.
     // crumb() is idempotent (registers the tab if missing, activates it), so
     // the in-tool refresh calls that also come through here are unaffected.
-    crumb("👥 Conditional Access groups");
-    show("screen-cagroups");
-    if (!keepTab) { cgTab = "check"; cgFilter = "all"; cgQuery = ""; $("cgSearch").value = ""; }
+    if (!quiet) { crumb("👥 Conditional Access groups"); show("screen-cagroups"); }
+    if (!keepTab) { cgTab = "groups"; cgFilter = "all"; cgQuery = ""; $("cgSearch").value = ""; }
     if (!cgRes) {
       $("cgHead").innerHTML = '<p class="mini">Scanning groups…</p>';
-      $("cgChips").innerHTML = ""; $("cgBody").innerHTML = "";
+      $("cgChips").innerHTML = ""; $("cgBody").innerHTML = ""; $("cgList").innerHTML = '<p class="mini muted" style="padding:20px">Re-reading the tenant…</p>'; $("cgBar").hidden = true;
       try {
         cgRes = isDemo ? demoGroupScan() : await CaGroups.scan(policies, {
           scope: cgScope,
@@ -3065,19 +3644,99 @@
       coverage: Math.round(((counts.present || 0) / expectedTotal) * 100), scanned: new Date() };
   }
 
+  // Where an engine screen lives. The list stays in #cgList; #cgBody — the
+  // element every engine renders into and listens on — is MOVED into a
+  // container: a dialog over the dimmed list for the writes (create, assign,
+  // import, protect, migrate — finish or cancel), a sheet rising from the
+  // actions bar for ③ Compare (look while you keep ticking rows). The
+  // close button sits in the container, outside #cgBody, so no engine
+  // re-render can wipe it — which is exactly what Migrate did to the old
+  // ← Groups bar after its scan.
+  const CG_LABEL = { check: "① Check", create: "② Create", members: "③ Members / Compare", assign: "④ Assign", csv: "⑤ Import members", rmau: "⑥ Protect", migrate: "⑦ Migrate" };
+  function cgPlaceEngine(hasBar) {
+    const body = $("cgBody"), list = $("cgList"), bar = $("cgBar"), ov = $("cgOverlay"), sh = $("cgSheet");
+    $("screen-cagroups").classList.toggle("sheet-open", cgTab === "members");
+    $("screen-cagroups").classList.toggle("sheet-full", cgTab === "members" && cgSheetFull);
+    sh.classList.toggle("full", cgSheetFull);
+    const home = () => { if (body.parentNode !== list.parentNode) list.insertAdjacentElement("afterend", body); if (bar.parentNode !== list.parentNode) body.insertAdjacentElement("afterend", bar); };
+    if (cgTab === "groups") {
+      home(); ov.hidden = true; sh.hidden = true; body.hidden = true; body.innerHTML = "";
+      bar.hidden = !hasBar; document.body.classList.remove("cgg-modal-open");
+    } else if (cgTab === "members") {
+      ov.hidden = true; document.body.classList.remove("cgg-modal-open");
+      body.hidden = false; sh.hidden = false;
+      if (body.parentNode !== $("cgSheetSlot")) $("cgSheetSlot").appendChild(body);
+      if (bar.parentNode !== $("cgSheetHd")) $("cgSheetHd").appendChild(bar);
+      bar.hidden = false;
+    } else {
+      sh.hidden = true;
+      if (bar.parentNode !== list.parentNode) list.insertAdjacentElement("afterend", bar);
+      bar.hidden = true;
+      body.hidden = false; ov.hidden = false;
+      if (body.parentNode !== $("cgOvSlot")) $("cgOvSlot").appendChild(body);
+      $("cgOvTitle").textContent = CG_LABEL[cgTab] || cgTab;
+      const n = cgSel.size || (cgOpen ? 1 : 0);
+      $("cgOvSub").textContent = n ? (cgSel.size ? `${n} group${n === 1 ? "" : "s"} carried from the list` : cgOpen) : "";
+      document.body.classList.remove("cgg-modal-open");
+    }
+  }
+  // The sheet is full-height by default — a 79 × 2 matrix in half a window
+  // is not readable — with a Half toggle for working the list beneath it.
+  let cgSheetFull = (() => { try { return localStorage.getItem("enca-cg-sheet") !== "half"; } catch { return true; } })();
+  function cgSheetSize(full) {
+    cgSheetFull = full; try { localStorage.setItem("enca-cg-sheet", full ? "full" : "half"); } catch { /* fine */ }
+    $("cgSheet").classList.toggle("full", full);
+    $("screen-cagroups").classList.toggle("sheet-full", full && cgTab === "members");
+    const b = $("cgBar").querySelector("[data-cgg-sheetsize]"); if (b) b.textContent = full ? "▁ Half" : "⤢ Full";
+  }
+  // Closing an engine that wrote (Migrate, Create, the deletes) finds the
+  // scan thrown away — re-scan so the list shows the tenant as it is now,
+  // rather than the stale rows under a dialog that just changed them.
+  function cgCloseEngine() {
+    if (cgTab === "groups") return;
+    cgTab = "groups"; cgQuery = ""; $("cgSearch").value = "";
+    if (!cgRes) { cgPlaceEngine(false); openCaGroups(true); return; }
+    renderCaGroups();
+  }
+
   function renderCaGroups() {
     if (!cgRes) return;
+    // a tick on a name the scan no longer has (deleted, renamed aside) would
+    // keep counting in the bar and be carried into the next action
+    if (cgSel.size) { const have = new Set(cgRes.rows.map((r) => r.name)); [...cgSel].forEach((n) => { if (!have.has(n)) cgSel.delete(n); }); if (cgOpen && !have.has(cgOpen)) cgOpen = null; }
     $("cgHead").innerHTML = CaGroups.renderSummary(cgRes, tenantName);
     [...document.querySelectorAll("#cgTabs button")].forEach(b =>
       b.classList.toggle("active", b.dataset.cgtab === cgTab));
-    $("cgChips").innerHTML = cgTab === "check" ? CaGroups.chips(cgRes, cgFilter) : "";
-    $("cgChips").style.display = cgTab === "check" ? "flex" : "none";
+    // The toolbar belongs to the list, which is always on screen now: the
+    // chips filter it, the search filters it (and the members matrix when
+    // the sheet is open — one query, both views).
+    $("cgChips").innerHTML = GroupsView.chips(cgModel(), cgGFilter);
+    $("cgChips").style.display = "flex";
     $("cgFull").style.display = cgTab === "members" ? "inline-flex" : "none";
-    $("cgArchived").style.display = cgTab === "check" ? "inline-flex" : "none";
-    $("cgSearch").placeholder = cgTab === "members"
-      ? "Search member name or UPN…" : "Search group name or object ID…";
-    $("cgSearch").style.display = cgTab === "create" || cgTab === "assign" || cgTab === "csv" || cgTab === "rmau" || cgTab === "migrate" ? "none" : "";
+    $("cgArchived").style.display = "inline-flex";
+    $("cgSearch").placeholder = cgTab === "members" ? "Search group, member or UPN…" : "Search group, object ID or member…";
+    $("cgSearch").style.display = "";
 
+    // The list, every time — ticks and the open row must show under a sheet
+    // and be intact when a dialog closes.
+    const model = cgModel();
+    const o = cgViewOpts();
+    $("cgList").innerHTML = GroupsView.render(model, o);
+    const barHtml = GroupsView.bulkBar(model, o);
+    $("cgBar").innerHTML = barHtml;
+    cgPlaceEngine(!!barHtml);
+
+    if (cgTab === "groups") {
+      if (cgRes.rows.some((r) => r.id && r.nesting === undefined)) {
+        loadNestingStates(cgRes.rows).then(() => { if (cgTab === "groups") renderCaGroups(); }).catch((e) => console.warn("nesting state read failed:", e.message));
+      }
+      if (cgRes.rows.some((r) => r.id && r.nestedGroups === undefined && !(r.sources || []).includes("tenant"))) {
+        loadNestedGroups(cgRes.rows).then(() => { if (cgTab === "groups") renderCaGroups(); }).catch((e) => console.warn("nested group read failed:", e.message));
+      }
+      // the drawer sticks below the toolbar, whatever height the chips wrap to
+      const tb = $("cgChips").closest(".toolbar"); if (tb && tb.offsetHeight) document.documentElement.style.setProperty("--cg-tb", `${tb.offsetHeight}px`);
+      return;
+    }
     if (cgTab === "check") {
       $("cgBody").innerHTML = CaGroups.renderTable(cgRes, cgFilter, cgQuery, cgProt);
       // disableNesting is invisible to the main scan, so fill it in after the
@@ -3442,24 +4101,22 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!adds.length) return;
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
     t.busy = true; btn.disabled = true; t.log = null;
-    const bar = $("cgCsvBar"), log = $("cgCsvLog");
-    bar.style.display = "block";
-    const lines = [];
+    const log = $("cgCsvLog");
+    const L = RunLedger.create(log, { unit: "members", items: adds.map((x) => ({ label: x.upn, sub: `→ ${x.group}` })) });
     t.results = t.plan.filter((x) => x.state !== "add").map((x) => ({ ...x, state: x.state === "already" ? "already" : x.state }));
     for (let i = 0; i < adds.length; i++) {
       const a = adds[i];
-      bar.firstElementChild.style.width = `${Math.round(((i + 1) / adds.length) * 100)}%`;
+      if (L.stopped) { t.results.push({ ...a, state: "skipped", error: "stopped" }); continue; }
+      L.start(i);
       try {
         if (!isDemo) await Graph.gpost(`/groups/${a.gid}/members/$ref`,
           { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${a.uid}` });
-        t.results.push({ ...a, state: "added" });
-        lines.push(`<div>✓ ${esc(a.upn)} → <b>${esc(a.group)}</b></div>`);
+        t.results.push({ ...a, state: "added" }); L.done(i, "", "added");
       } catch (err) {
-        t.results.push({ ...a, state: "failed", error: err.message || String(err) });
-        lines.push(`<div style="color:var(--off)">✗ ${esc(a.upn)} → <b>${esc(a.group)}</b> — ${esc(err.message || err)}</div>`);
+        t.results.push({ ...a, state: "failed", error: err.message || String(err) }); L.fail(i, err.message || String(err));
       }
-      log.innerHTML = lines.slice(-12).join("");
     }
+    L.finish();
     t.busy = false; t.stage = "done";
     const ok = t.results.filter((x) => x.state === "added").length;
     const failed = t.results.filter((x) => x.state === "failed").length;
@@ -3962,6 +4619,13 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id !== "cgRmauAdmin") return;
     if (cgRmau) cgRmau.admin = e.target.value;
     clearTimeout(rmauSugTimer);
+    {
+      // A pick from the list, not typing: leave the options alone or the
+      // dropdown reopens over the filled field (same guard as ruSuggest).
+      const frag = String(e.target.value).split(/[,;\n]/).pop().trim();
+      const dlNow = rmauBody().querySelector("#cgRmauAdminList");
+      if (frag && dlNow && [...dlNow.options].some((o) => o.value === frag)) return;
+    }
     rmauSugTimer = setTimeout(async () => {
       // The box takes a list, so complete the fragment after the last
       // separator — otherwise typing a second name searches for the whole line.
@@ -3990,10 +4654,16 @@ max@contoso.com,"Global, DevOps"</pre>
 
   function migBody() { return $("cgBody"); }
 
-  async function cgMigScan() {
+  // onlyIds: arriving from the groups list with a selection, check just
+  // those — each candidate costs three reads (directory roles, member count,
+  // restricted-AU membership), and 66 of them for one clicked group is the
+  // wait the list was built to remove. The panel says the scan was scoped
+  // and offers the full one.
+  async function cgMigScan(onlyIds) {
     if (cgMig && cgMig.busy) { toast("A migration is <span>still running</span> — let it finish first"); return; }
     if (cgMigBusy) return;
     cgMigBusy = true;
+    const only = onlyIds && onlyIds.length ? new Set(onlyIds) : null;
     migBody().innerHTML = migBusyPanel();
     const say = (m, i, n) => { const el = $("cgMigStatus"); if (el) el.textContent = m;
       const b = $("cgMigBar"); if (b) b.innerHTML = progInline(i, n); };
@@ -4003,7 +4673,7 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       // Only role-assignable baseline groups are candidates; the rest are listed
       // as skipped so the wizard is honest about what it is not doing.
-      const rows = (cgRes.rows || []).filter((r) => r.id || r.roleAssignable);
+      const rows = (cgRes.rows || []).filter((r) => (r.id || r.roleAssignable) && (!only || only.has(r.id)));
       // Groups added by hand ride along and are re-checked from scratch, like
       // any other candidate — a rescan is a fresh reading of the tenant, not a
       // reason to forget what somebody put on the list.
@@ -4029,6 +4699,9 @@ max@contoso.com,"Global, DevOps"</pre>
             cands[i].memberTotal = ms.length;
           } catch (e) { console.warn("member count failed for", cands[i].name, e.message); }
         }
+        // the list already read every restricted unit's members on open —
+        // reuse that instead of one memberOf call per candidate
+        if (cgProt) { const p = cgProt.get(cands[i].id); if (p) protectedIn.set(cands[i].id, { auId: p.auId, auName: p.auName }); continue; }
         try {
           const r = await Graph.gget(`/groups/${cands[i].id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`);
           const hit = ((r && r.value) || []).find((a) => a.isMemberManagementRestricted === true);
@@ -4042,8 +4715,9 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       const auChoice = aus.length ? aus[0].id : "new";
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME();
-      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null,
+      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null, scoped: only ? cands.length : 0, scopeIds: only ? [...only] : null,
         plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA }) };
+      if (cgMigPre && cgMigPre.length) { cgMig.sel = new Set(cgMigPre.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); cgMigPre = null; }
     } catch (e) {
       console.error("Migrate scan failed:", e);
       cgMigBusy = false;
@@ -4074,6 +4748,8 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     const t = cgMig;
     if (t.results) { renderCgMigResults(); return; }
+    // a run in flight: put its ledger back after the panel is drawn
+    if (t.busy && t.ledgerEl) setTimeout(() => { const l = $("cgMigLog"); if (l && !l.contains(t.ledgerEl)) { l.innerHTML = ""; l.appendChild(t.ledgerEl); } }, 0);
 
     const p = t.plan;
     const sel = t.sel || new Set(p.eligible.map((x) => x.id));
@@ -4099,6 +4775,7 @@ max@contoso.com,"Global, DevOps"</pre>
       "The scan reads the groups the baseline and your policies know about. A role-assignable group of your own — one that predates all of this, or that no policy references — is reached by searching for it here. It is then checked exactly like a scanned one: directory roles it holds, members it would move, and whether it already sits in a restricted unit.");
 
     migBody().innerHTML = `
+      ${t.scoped ? `<p class="mini" style="margin:0 0 10px"><span class="tag">scoped</span> Checked only the ${t.scoped} group${t.scoped === 1 ? "" : "s"} you came with from the list. <button class="btn sm" data-migrun>▶ Check every role-assignable group</button></p>` : ""}
       <div class="cg-panel">
         <h4>WHY MIGRATE</h4>
         <p class="mini" style="margin:0 0 8px">Your CA exclusion groups were made <b>role-assignable</b> to keep their membership away from tenant-wide group administrators. A <b>restricted management administrative unit</b> does that job better: it lets you <b>name</b> who may manage them, instead of leaving it to anyone holding Privileged Role Administrator. It also drops the role-assignable costs — the 500-per-tenant cap, no dynamic membership, and no control over nesting.</p>
@@ -4124,13 +4801,14 @@ max@contoso.com,"Global, DevOps"</pre>
         ${t.toAu === false
           ? `<p class="mini" style="margin:8px 0 0;color:var(--report)">The groups will be converted but left <b>unprotected</b> — an ordinary group any tenant-wide Groups Administrator can edit. That is fine as a staged migration: convert now, verify the members, then place them from <b>⑥ Protect</b> when ready.</p>`
           : `<p class="mini muted" style="margin:8px 0 0">Nesting off keeps the one property the role-assignable flag gave you for free: no group can be added as a member, so nobody widens an exclusion by nesting a group inside it.</p>`}
+        <p class="mini muted" style="margin:8px 0 0">Where the property cannot be set, nesting stays <b>in sight</b> instead: the groups list reads every group's nested groups on each scan, the ↪ chip filters to them, and a nested group inside an exclusion or break-glass group is Needs attention.</p>
         <label class="chk" style="display:block;margin-top:14px"><input type="checkbox" id="cgMigAck"${t.ack ? " checked" : ""}> I understand each group is <b>recreated</b>: the current group is renamed aside, a new one takes its name and members, every policy is repointed${t.toAu === false ? "" : ", and the new group is placed in the restricted AU — after which only an <b>AU-scoped role</b> can change its members"}.</label>
         <div class="row" style="justify-content:flex-start;margin-top:12px">
           <button class="btn primary" id="cgMigGo">Migrate</button>
           <button class="btn" id="cgMigRescan">⟳ Rescan</button>
         </div>
         <div id="cgMigBar2" style="${t.busy || (t.log || []).length ? "" : "display:none;"}width:100%;margin-top:12px">${t.busy ? progInline(t.done || 0, t.total || 0) : ""}</div>
-        <div id="cgMigLog" class="mini" style="margin-top:8px">${(t.log || []).join("")}</div>
+        <div id="cgMigLog" class="mini" style="margin-top:8px"></div>
         </div>
       </div>` : `<div class="cg-panel">
         <h4>NOTHING TO MIGRATE</h4>
@@ -4152,16 +4830,22 @@ max@contoso.com,"Global, DevOps"</pre>
     migBody().innerHTML = `<div class="cg-panel">
         <h4>MIGRATION ${ok === r.length ? "COMPLETE" : "FINISHED WITH FAILURES"}</h4>
         <p class="mini"><b style="color:var(--on)">${ok} of ${r.length} migrated</b>${ok === r.length ? "" : ` · <b style="color:var(--off)">${r.length - ok} failed</b>`}</p>
-        ${r.map((x) => `<div style="padding:8px 0;border-top:1px solid var(--border)">
-            <span class="tag ${x.ok ? "grant" : "block"}">${x.ok ? "migrated" : "failed"}</span> <b>${esc(x.name)}</b>
+        ${r.map((x) => {
+          const ICON = { done: "✓", undone: "↩", partial: "⚠", failed: "✗", skipped: "•" };
+          const COL = { done: "var(--on)", undone: "var(--report)", partial: "var(--report)", failed: "var(--off)", skipped: "var(--muted)" };
+          const ledger = (x.steps || []).length ? `<ol class="mini" style="margin:6px 0 0 4px;padding:0;list-style:none">${x.steps.map((s) => `<li style="padding:1px 0"><b style="color:${COL[s.s] || "inherit"}">${ICON[s.s] || "•"}</b> ${esc(s.label)}${s.note ? ` <span class="muted">— ${esc(s.note)}</span>` : ""}</li>`).join("")}</ol>` : "";
+          return `<div style="padding:8px 0;border-top:1px solid var(--border)">
+            <span class="tag ${x.ok ? "grant" : "block"}">${x.ok ? "migrated" : `failed at: ${esc((x.steps.find((s) => s.k === x.failedAt) || {}).label || x.failedAt || "")}`}</span> <b>${esc(x.name)}</b>
             ${x.membersMoved != null && x.memberTotal != null ? `<span class="tag">${x.membersMoved}/${x.memberTotal} members</span>` : ""}
             ${x.refsMoved != null ? `<span class="tag">${x.refsMoved} policies</span>` : ""}
             ${x.ok ? (x.inAu ? '<span class="tag ok">in the restricted AU</span>' : '<span class="tag block">not protected yet</span>') : ""}
-            ${x.error ? `<div class="mini" style="color:var(--off)">${esc(x.error)}</div>` : ""}
-            ${x.archiveName ? `<div class="mini muted">rollback: ${esc(x.archiveName)}</div>` : ""}
-          </div>`).join("")}
+            ${ledger}
+            ${x.error ? `<div class="mini" style="color:var(--off);margin-top:4px">${esc(x.error)}</div>` : ""}
+            ${x.state ? `<div class="mini" style="color:var(--report);margin-top:2px"><b>Where things stand:</b> ${esc(x.state)}</div>` : ""}
+            ${x.archiveName && x.ok ? `<div class="mini muted">rollback: ${esc(x.archiveName)}</div>` : ""}
+          </div>`; }).join("")}
         ${outside.length ? `<p class="mini" style="margin:12px 0 0;color:var(--report)">⚠ <b>${outside.length} group${outside.length === 1 ? " is" : "s are"} converted but not protected.</b> They are ordinary groups now, so any tenant-wide Groups Administrator can change their members until you place them in a restricted AU.</p>` : ""}
-        <p class="mini" style="margin:12px 0 0">Check the members of each new group before deleting anything. The archived groups are your rollback — remove them from <b>🧹 Archived groups</b> on the ① Check tab once you are satisfied.</p>
+        <p class="mini" style="margin:12px 0 0">Check the members of each new group before deleting anything. The archived groups are your rollback — remove them from <b>🧹 Archived groups</b> in the toolbar once you are satisfied; that dialog takes the old group out of any policy still naming it and checks its other uses before it deletes.</p>
         <div class="row" style="justify-content:flex-start;margin-top:12px">
           ${outside.length ? '<button class="btn primary" id="cgMigProtect">🔒 Protect them now (⑥)</button>' : ""}
           <button class="btn" id="cgMigMd">📄 Change report</button>
@@ -4171,11 +4855,17 @@ max@contoso.com,"Global, DevOps"</pre>
   }
 
   migBody().addEventListener("change", (e) => {
+    if (e.target.closest && e.target.closest("[data-cgfix]")) { cgFixSync(); return; }
     if (!cgMig) return;
     if (e.target.id === "cgMigAu") {
       cgMig.auChoice = e.target.value;
       const hit = cgMig.aus.find((a) => a.id === e.target.value);
       cgMig.auName = hit ? hit.name : RMAU_DEFAULT_NAME();
+      // the step list names the unit — it must follow the choice, or the
+      // plan says one unit while the dropdown says another
+      cgMig.plan = { ...cgMig.plan, eligible: cgMig.plan.eligible.map((x) => ({ ...x,
+        steps: x.steps.map((st) => st.key === "rmau" ? { ...st, text: `Add the new group to the restricted AU “${cgMig.auName}” — last, so the member copy is still possible` } : st) })) };
+      renderCgMigrate();
       return;
     }
     if (e.target.id === "cgMigNest") { cgMig.nesting = e.target.checked; return; }
@@ -4206,9 +4896,16 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.closest("[data-migrun]")) { cgMigScan(); return; }
     if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
     if (e.target.id === "cgAddRm") { await cgRemoveMember($("cgAddUser")?.value, $("cgAddGroup")?.value); return; }
+    const nm = e.target.closest("[data-cgnestmode]"); if (nm) { cgNesting = nm.dataset.cgnestmode; renderCgMembers(); return; }
+    const cv = e.target.closest("[data-cgcmpview]"); if (cv) { cgCmpView = cv.dataset.cgcmpview; cgFixLast = null; renderCgMembers(); return; }
+    if (e.target.closest("[data-cgfixall]")) { $("cgBody").querySelectorAll("[data-cgfix]").forEach((cb) => { cb.checked = true; }); cgFixSync(); return; }
+    if (e.target.closest("[data-cgfixgo]")) { await cgFixApply(e.target.closest("[data-cgfixgo]")); return; }
+    const nr = e.target.closest("[data-cgnest]"); if (nr) { const k = nr.dataset.cgnest; cgNestOpen.has(k) ? cgNestOpen.delete(k) : cgNestOpen.add(k); renderCgMembers(); return; }
     const rm = e.target.closest("[data-cgrm-user]");
     if (rm) { await cgRemoveMember(rm.dataset.cgrmUser, rm.dataset.cgrmGroup, true); return; }
-    if (e.target.id === "cgMigRescan") { cgMig = null; cgRes = null; cgMigScan(); return; }
+    // Rescan re-checks the same groups — it does not throw the list's own
+    // scan away, and it keeps the scope it was opened with
+    if (e.target.id === "cgMigRescan") { const ids = cgMig && cgMig.scopeIds; cgMig = null; cgMigScan(ids); return; }
     if (e.target.id === "cgMigAll") {
       const all = cgMig.plan.eligible.map((x) => x.id);
       const cur = cgMig.sel || new Set(all);
@@ -4256,19 +4953,23 @@ max@contoso.com,"Global, DevOps"</pre>
     // on the state and re-find the element on every write: the panel can be
     // destroyed and rebuilt as often as it likes, and progress survives it.
     t.log = []; t.done = 0; t.total = picked.length;
+    // The ledger element is kept on the state: navigating away re-renders
+    // the panel, and paint() puts the same element back, so progress
+    // survives the panel being destroyed and rebuilt.
+    const lhost = document.createElement("div");
+    const L = RunLedger.create(lhost, { unit: "groups", items: picked.map((x) => ({ label: x.name, sub: `${x.nRef || 0} polic${x.nRef === 1 ? "y" : "ies"}` })) });
+    t.ledgerEl = L.el; let cur = -1;
     const paint = () => {
-      const l = $("cgMigLog"); if (l) l.innerHTML = t.log.join("");
-      const b = $("cgMigBar2");
-      if (b) { b.style.display = "block"; b.innerHTML = progInline(t.done, t.total); }
+      const l = $("cgMigLog"); if (l && t.ledgerEl && !l.contains(t.ledgerEl)) { l.innerHTML = ""; l.appendChild(t.ledgerEl); }
+      const b = $("cgMigBar2"); if (b) b.style.display = "none";
       runBadge({ label: "⑦ Migrating", done: t.done, total: t.total,
         back: () => { openCaGroups().then(() => { cgTab = "migrate"; renderCaGroups(); }); } });
     };
     paint();
     const results = [];
-    const say = (html) => { t.log.push(html); paint(); };
-    const bar = { set innerHTML(v) { const b = $("cgMigBar2"); if (b) { b.style.display = "block"; b.innerHTML = v; } },
-                  style: { set display(v) { const b = $("cgMigBar2"); if (b) b.style.display = v; } } };
-    bar.style.display = "block";
+    const plain = (html) => String(html).replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim();
+    const say = (html) => { t.log.push(html); if (cur >= 0) L.note(cur, plain(html).replace(/^[✓•⚠✗·]\s*/, "")); paint(); };
+    const bar = { set innerHTML(v) { /* the ledger is the bar now */ }, style: { set display(v) { /* idem */ } } };
 
     // The AU must exist before the first group finishes, but create it once —
     // and not at all if the placement step was switched off.
@@ -4292,31 +4993,56 @@ max@contoso.com,"Global, DevOps"</pre>
     for (let i = 0; i < picked.length; i++) {
       const x = picked[i];
       t.done = i;
-      bar.innerHTML = progInline(i, picked.length);
-      const res = { name: x.name, ok: false, memberTotal: x.memberTotal, archiveName: x.archiveName };
+      if (L.stopped) { results.push({ name: x.name, ok: false, stopped: true, error: "stopped before this group — nothing changed for it", steps: [], state: "Nothing changed." }); continue; }
+      cur = i; L.start(i);
+      // The ledger: every step the run takes, with what it did — so a failure
+      // says exactly where it stopped, what is already changed and what to do.
+      const res = { name: x.name, ok: false, memberTotal: x.memberTotal, archiveName: x.archiveName, oldId: x.id, steps: [] };
+      const STEP = { rename: "Rename the old group aside", create: "Create the plain replacement", members: "Copy the members", repoint: "Repoint the policies", verify: "Verify no policy still names the old group", au: "Place the new group in the restricted AU" };
+      const step = (k, s, note) => { const e = res.steps.find((q) => q.k === k); if (e) { e.s = s; e.note = note || e.note; } else res.steps.push({ k, label: STEP[k], s, note: note || "" }); };
+      let stage = "rename";
       try {
         say(`<div><b>${esc(x.name)}</b></div>`);
         // 1. rename the old one aside
         if (!isDemo) await Graph.gpatch(`/groups/${x.id}`, { displayName: x.archiveName }, scopes);
+        step("rename", "done", `now named ${x.archiveName}`);
         say(`<div>&nbsp;&nbsp;✓ renamed to ${esc(x.archiveName)}</div>`);
-        // 2. create the replacement — plain, optionally nesting-proof
+        // 2. create the replacement — plain, optionally nesting-proof. A
+        // failed create rolls the rename back, so a group that failed here is
+        // exactly as it was.
+        stage = "create";
         let created;
-        if (isDemo) { created = { id: "demo-new-" + x.id }; }
+        if (isDemo) { created = { id: "demo-new-" + x.id, nesting: t.nesting ? "disabled" : "n/a" }; }
         else {
-          created = await Assign.createGroup({ displayName: x.name, roleAssignable: false, disableNesting: !!t.nesting }, { mustCreate: true });
+          try { created = await Assign.createGroup({ displayName: x.name, roleAssignable: false, disableNesting: !!t.nesting }, { mustCreate: true }); }
+          catch (ce) {
+            const back = await Graph.gpatch(`/groups/${x.id}`, { displayName: x.name }, scopes).then(() => true).catch(() => false);
+            step("rename", back ? "undone" : "done", back ? "rolled back — the old group has its name again" : `could NOT be rolled back — the old group is still named ${x.archiveName}`);
+            throw new Error(`${ce.message || ce}${back ? " — the rename was rolled back, nothing changed" : ""}`);
+          }
           if (!created || !created.id || created.id === x.id) {
-            await Graph.gpatch(`/groups/${x.id}`, { displayName: x.name }, scopes).catch(() => {});
+            const back = await Graph.gpatch(`/groups/${x.id}`, { displayName: x.name }, scopes).then(() => true).catch(() => false);
+            step("rename", back ? "undone" : "done", back ? "rolled back" : `could NOT be rolled back — still named ${x.archiveName}`);
             throw new Error("Create returned the existing group — the rename was rolled back and no policy was touched.");
           }
         }
         res.newId = created.id;
-        say(`<div>&nbsp;&nbsp;✓ created plain group${t.nesting ? " (nesting disabled)" : ""}</div>`);
+        // What createGroup VERIFIED, not what was asked for: disabled (read
+        // back), failed (still allowed — reason kept), unsupported (directory
+        // lacks the property), n/a (not requested). The report prints it.
+        res.nesting = created.nesting || (t.nesting ? "failed" : "n/a"); res.nestingError = created.nestingError || "";
+        const nestWord = res.nesting === "disabled" ? "nesting disabled" : res.nesting === "unsupported" ? "nesting not available in this tenant" : res.nesting === "failed" ? `nesting STILL ALLOWED — ${res.nestingError || "not confirmed"}` : "";
+        step("create", "done", `${x.name} (${created.id})${nestWord ? `, ${nestWord}` : ""}`);
+        say(`<div>&nbsp;&nbsp;✓ created plain group${nestWord ? ` (${nestWord})` : ""}</div>`);
+        stage = "members";
         // 3. members BEFORE the AU, or they can never be added
         if (!isDemo) {
           const mm = await moveGroupMembers(x.id, created.id);
-          res.membersMoved = mm.moved; res.memberTotal = mm.total;
+          res.membersMoved = mm.moved; res.memberTotal = mm.total; res.membersFailed = mm.failed;
+          step("members", mm.failed.length ? "partial" : "done", `${mm.moved} of ${mm.total} copied${mm.failed.length ? ` — ${mm.failed.length} failed: ${mm.failed.map((f) => f.name || f.id || f).slice(0, 5).join(", ")}` : ""}`);
           say(`<div>&nbsp;&nbsp;✓ ${mm.moved}/${mm.total} members copied${mm.failed.length ? ` — ${mm.failed.length} failed` : ""}</div>`);
-        } else { res.membersMoved = res.memberTotal || 0; }
+        } else { res.membersMoved = res.memberTotal || 0; step("members", "done", `${res.membersMoved} copied`); }
+        stage = "repoint";
         // 4./5. add the new group everywhere, then remove the old one
         //
         // The reference list came from the SCAN. A policy edited since then —
@@ -4340,18 +5066,40 @@ max@contoso.com,"Global, DevOps"</pre>
             incIds = inc; excIds = exc;
           } catch (e) { say(`<div style="color:var(--report)">&nbsp;&nbsp;⚠ could not re-read the policies (${esc(e.message || e)}) — using the scan's list</div>`); }
         }
-        const apply = async (ids, action, id) => {
+        // add first, remove last: at no point is a policy without the group
+        res.refsAdded = 0; res.refsRemoved = 0;
+        // All four passes run whatever the earlier ones refused: a policy
+        // Graph will not update (the REQ-PVM-ReqApp-* kind) refuses the add
+        // AND the remove, and stopping at the first refusal used to leave the
+        // old group in every OTHER policy of the later passes too — 2026-09-10,
+        // seven archived originals still named by up to 46 policies. The
+        // refusals are collected and thrown together, naming each policy, so
+        // what is left behind is exactly the policies that refused.
+        const refused = [];
+        const apply = async (ids, action, id, what) => {
           if (!ids.length || isDemo) return;
           const r = await Assign.apply(ids, action, [id]);
           const bad = r.filter((q) => !q.ok);
-          if (bad.length) throw new Error(`policy update failed on ${bad.length} — the old group is still assigned, so nothing is uncovered`);
+          if (what === "add") res.refsAdded += r.length - bad.length; else res.refsRemoved += r.length - bad.length;
+          bad.forEach((q) => refused.push({ what, name: q.name, error: q.error || "" }));
         };
-        await apply(incIds, 2, created.id);
-        await apply(excIds, 3, created.id);
-        await apply(incIds, 5, x.id);
-        await apply(excIds, 6, x.id);
+        await apply(incIds, 2, created.id, "add");
+        await apply(excIds, 3, created.id, "add");
+        // remove the old group only from policies that took the new one —
+        // a policy that refused the add keeps the old group, so it is never
+        // left naming nothing
+        const refusedAdd = new Set(refused.filter((q) => q.what === "add").map((q) => q.name));
+        await apply(incIds, 5, x.id, "remove");
+        await apply(excIds, 6, x.id, "remove");
+        if (refused.length) {
+          const names = [...new Set(refused.map((q) => q.name))];
+          res.refsMoved = incIds.length + excIds.length - names.length;
+          throw new Error(`${names.length} polic${names.length === 1 ? "y" : "ies"} refused the update (${names.join(", ")}) — ${refusedAdd.size ? `${refusedAdd.size} of them kept the OLD group, so nothing is uncovered; ` : ""}every other policy was repointed. Fix the refusing policies in the portal (open the card for the reason), then 🎯 Assign: add ${x.name}, remove ${x.archiveName}.`);
+        }
         res.refsMoved = incIds.length + excIds.length;
+        step("repoint", "done", `${res.refsMoved} polic${res.refsMoved === 1 ? "y" : "ies"}: new group added, old group removed`);
         if (res.refsMoved) say(`<div>&nbsp;&nbsp;✓ ${res.refsMoved} policy assignment${res.refsMoved === 1 ? "" : "s"} repointed</div>`);
+        stage = "verify";
         // VERIFY the removal. Entra keeps a group id in a policy after the group
         // is gone, so a removal that quietly did not take leaves a reference
         // that only breaks later, when the archived group is deleted — which is
@@ -4367,35 +5115,56 @@ max@contoso.com,"Global, DevOps"</pre>
             });
             if (left.length) {
               res.staleLeft = left.map((pol) => pol.displayName || pol.id);
+              step("verify", "partial", `still named by ${res.staleLeft.join(", ")}`);
               say(`<div style="color:var(--off)">&nbsp;&nbsp;⚠ the old group is STILL referenced by ${left.length} polic${left.length === 1 ? "y" : "ies"}: ${esc(res.staleLeft.join(", "))} — do NOT delete the archived group yet, or those policies will name an id that no longer exists</div>`);
             } else {
+              step("verify", "done", "no policy names the old group");
               say(`<div>&nbsp;&nbsp;✓ verified: no policy still references the old group</div>`);
             }
-          } catch (e) { say(`<div style="color:var(--report)">&nbsp;&nbsp;⚠ could not verify the removal (${esc(e.message || e)}) — check ① Check for a dangling reference before deleting the archive</div>`); }
+          } catch (e) { step("verify", "partial", `could not verify: ${e.message || e}`); say(`<div style="color:var(--report)">&nbsp;&nbsp;⚠ could not verify the removal (${esc(e.message || e)}) — check the list for a dangling reference before deleting the archive</div>`); }
         }
         // 6. LAST: into the restricted AU — or deliberately not
+        stage = "au";
         if (toAu) {
           if (!isDemo) {
             await Graph.gpost(`/administrativeUnits/${auId}/members/$ref`,
               { "@odata.id": `https://graph.microsoft.com/beta/groups/${created.id}` }, scopes);
           }
           res.inAu = true;
+          step("au", "done", t.auName || "");
           say(`<div>&nbsp;&nbsp;✓ placed in the restricted AU</div>`);
         } else {
           res.inAu = false;
+          step("au", "skipped", "left outside on purpose — ⑥ Protect adds it later");
           say(`<div>&nbsp;&nbsp;• left outside the restricted AU — add it from ⑥ Protect when ready</div>`);
         }
         res.ok = true;
+        L.done(i, res.inAu ? `migrated, in ${t.auName || "the restricted AU"}` : "migrated — not protected yet", "migrated");
       } catch (err) {
         res.error = err.message || String(err);
-        say(`<div style="color:var(--off)">&nbsp;&nbsp;✗ ${esc(res.error)}</div>`);
+        res.failedAt = stage;
+        L.fail(i, `${STEP[stage] || stage}: ${res.error}`);
+        step(stage, "failed", res.error);
+        // what the tenant looks like NOW, and what to do about it
+        res.state = stage === "rename" ? "Nothing changed."
+          : stage === "create" ? (res.steps.find((q) => q.k === "rename" && q.s === "undone") ? "Nothing changed — the old group has its name and every policy still points at it." : `The old group is still renamed to ${x.archiveName}; nothing else changed. Rename it back by hand, or run Migrate again for this group.`)
+          : stage === "members" ? `The new plain group exists with ${res.membersMoved || 0} of ${res.memberTotal ?? "?"} members; every policy still points at the OLD group (${x.archiveName}), so nobody is uncovered. Finish by hand: copy the missing members to the new group, then use ④ Assign to swap the policies from the old group to the new one — or delete the new group and rename the old one back.`
+          : stage === "repoint" ? `The new group has its members; the new group was ADDED to ${res.refsAdded || 0} polic${res.refsAdded === 1 ? "y" : "ies"} and the old group REMOVED from ${res.refsRemoved || 0} — the rest still point at the old group (${x.archiveName}), so nobody is uncovered. Finish with ④ Assign: add the new group and remove the old one on the policies still naming it.`
+          : stage === "verify" ? "The migration is done; the read-back could not confirm every policy dropped the old group — check the list for a dangling reference before deleting the archive."
+          : "The group is migrated but sits OUTSIDE the restricted AU — a tenant-wide Groups Administrator can change its members until ⑥ Protect files it.";
+        say(`<div style="color:var(--off)">&nbsp;&nbsp;✗ ${esc(res.error)}</div><div class="mini" style="color:var(--report)">&nbsp;&nbsp;→ ${esc(res.state)}</div>`);
       }
       results.push(res);
     }
-    bar.innerHTML = progInline(picked.length, picked.length);
+    L.finish();
     t.done = picked.length;
     t.results = results; t.busy = false; btn.disabled = false;
     runBadge(null);                      // finished: the badge must not linger
+    // The ticks are by NAME and the new group takes the old name, so a
+    // migrated group stayed ticked through the re-scan and rode into the next
+    // Migrate as "carried from the list" — where it was then listed as
+    // "already a plain group". A finished write consumes its ticks.
+    results.filter((r) => r.ok).forEach((r) => cgSel.delete(r.name));
     cgRes = null;                        // the scan is stale now
     renderCgMigrate();
   }
@@ -4409,6 +5178,172 @@ max@contoso.com,"Global, DevOps"</pre>
     renderCgRmau();
   }
   $("toolProtect").addEventListener("click", () => { openProtect(); });
+
+  // ---------- T20 3.0: two locks per group ----------
+  // The unit scan (cgRmau) is ⑥'s; the ticks, the filter and the run are
+  // this screen's. Ticks belong to one scan: a rescan resets them to what
+  // each row lacks. The nesting state comes from the same v1.0 read the
+  // groups list does (loadNestingStates), on the rows the table shows.
+  const prState = { filter: "all", ticks: null, forScan: null, results: null, busy: false, settingsOpen: false };
+  function prRows() {
+    const ids = new Set(rmauCands().map((g) => g.id));
+    return [...(cgRes ? cgRes.rows : []).filter((r) => r.id && ids.has(r.id)), ...[...cgManual.protect.values()].filter((g) => ids.has(g.id))];
+  }
+  function prCtx(t) {
+    const byId = new Map(prRows().map((r) => [r.id, r]));
+    const nOf = (id) => (byId.get(id) || {}).nesting;
+    const cands = rmauCands();
+    const known = cands.some((g) => nOf(g.id) === "disabled" || nOf(g.id) === "allowed");
+    const anyRead = cands.some((g) => nOf(g.id) !== undefined);
+    const nestAvail = !CaGroups.nestingSupported() ? false : known ? true : anyRead ? false : null;
+    return { status: t.status, statusError: t.statusError || null, nestingOf: nOf, nestedOf: (id) => ((byId.get(id) || {}).nestedGroups || []).length,
+      ineligible: cgAuIneligible, target: (g) => rmauTarget(t, g), nestAvail };
+  }
+  function renderProtect() {
+    if (rmauBusy) { rmauBody().innerHTML = rmauBusyPanel(); return; }
+    if (!cgRmau) {
+      rmauBody().innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-rmaurun>▶ Scan the exclusion groups</button>
+        <p class="mini muted">Reads the tenant's groups, the administrative units, each exclusion group's protection and whether nesting is disabled on it. Nothing is written. The result stays until you rescan.</p>
+      </div>`;
+      return;
+    }
+    const t = cgRmau, cands = rmauCands(), ctx = prCtx(t);
+    if (prState.forScan !== t || !prState.ticks) {
+      prState.forScan = t; prState.ticks = new Map(); prState.results = null; prState.runEl = null;
+      cands.forEach((g) => prState.ticks.set(g.id, Protect.defaultTicks(g, Protect.classify(g, ctx), t.pre)));
+    }
+    // a group whose nesting state arrived after the first render gets its default nest tick once
+    cands.forEach((g) => { const k = prState.ticks.get(g.id); if (k && k.nest === undefined) { const c = Protect.classify(g, ctx); if (c.nest !== "reading") k.nest = Protect.defaultTicks(g, c, t.pre).nest; } });
+    const unmatched = cands.filter((g) => !t.status.get(g.id) && !g.roleAssignable && !cgAuIneligible(g)).filter((g) => { const s = rmauTarget(t, g).source; return s === "unset" || s.startsWith("fallback"); }).length;
+    rmauBody().innerHTML = Protect.render(cands, ctx, {
+      filter: prState.filter, q: t.q, ticks: prState.ticks, busy: prState.busy, results: prState.results,
+      settings: { rmaus: t.rmaus, auChoice: t.auChoice, auName: t.auName, admin: t.admin, adminCount: CaGroups.adminList(t.admin).length, ack: t.ack, unmatched, open: prState.settingsOpen },
+      find: cgFindPanel("protect", t.find, "Not on the list? Search the whole directory", "The table holds what the policies point at. A group of your own — a break-glass group no policy references yet, an exclusion group named outside the baseline — is reached by searching for it here, and is then checked exactly like a scanned one."),
+    });
+    // the run ledger outlives the re-render that shows the result
+    if (prState.runEl) { const host = rmauBody().querySelector("#prLedger"); if (host) host.appendChild(prState.runEl); }
+    // the second lock is read after the first paint, like the groups list does
+    const rows = prRows();
+    const still = () => rmauStandalone && shownScreen === "screen-protect";
+    if (rows.some((r) => r.nesting === undefined)) loadNestingStates(rows).then(() => { if (still()) renderProtect(); }).catch((e) => console.warn("protect: nesting read failed", e.message));
+    if (rows.some((r) => r.nestedGroups === undefined && !(r.sources || []).includes("tenant"))) loadNestedGroups(rows).then(() => { if (still()) renderProtect(); }).catch((e) => console.warn("protect: nested-group read failed", e.message));
+  }
+  // one group's second lock: PATCH on v1.0 and read it back — never a recreate
+  async function prDisableNesting(g) {
+    if (isDemo) return { state: "disabled" };
+    if (!CaGroups.nestingSupported()) return { state: "unsupported", error: CaGroups.NESTING_UNSUPPORTED_TEXT };
+    try {
+      await Graph.gpatch(CaGroups.NEST_V1(`/groups/${g.id}`), { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
+      const back = await Graph.gget(CaGroups.NEST_V1(`/groups/${g.id}?$select=id,disableNesting`));
+      if (CaGroups.nestingState(back) === "disabled") return { state: "disabled" };
+      return { state: "failed", error: "Entra accepted the update but the property did not read back as set" };
+    } catch (e) {
+      if (CaGroups.noteNestingUnsupported(e)) return { state: "unsupported", error: CaGroups.NESTING_UNSUPPORTED_TEXT };
+      return { state: "failed", error: GroupUse.shortErr(e) };
+    }
+  }
+  async function prApply(btn) {
+    const t = cgRmau; if (!t || t.busy || prState.busy) return;
+    if (!rmauBody().querySelector("#cgRmauAck")?.checked) { prState.settingsOpen = true; renderProtect(); toast("Tick the <span>acknowledgement</span> under Settings first — this restricts who can manage these groups"); return; }
+    t.ack = true; t.admin = (rmauBody().querySelector("#cgRmauAdmin")?.value || "").trim();
+    const cands = rmauCands(), ctx = prCtx(t);
+    const jobs = cands.map((g) => { const c = Protect.classify(g, ctx), k = prState.ticks.get(g.id) || {}; return { g, c, doVault: !!(k.vault && c.canVault), doNest: !!(k.nest && c.canNest) }; }).filter((j) => j.doVault || j.doNest);
+    if (!jobs.length) return;
+    const scopes = [...AUTH_CONFIG.scopes, ...(jobs.some((j) => j.doVault) ? RMAU_WRITE : []), ...(jobs.some((j) => j.doNest) ? CaGroups.NEST_WRITE_SCOPES : []), ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
+    if (!isDemo && !await preConsent(scopes)) return;
+    prState.busy = true; t.busy = true; prState.results = null; renderProtect();
+    const host = document.createElement("div"); prState.runEl = host;
+    rmauBody().querySelector("#prLedger").appendChild(host);
+    const L = RunLedger.create(host, { unit: "groups", items: jobs.map((j) => ({ label: j.g.name, sub: [j.doVault ? `vault → ${(j.c.dest && j.c.dest.auName) || "new unit"}` : "", j.doNest ? "nesting off" : ""].filter(Boolean).join(" · ") })), onStop: () => {} });
+    const pre = document.createElement("div"); pre.className = "rl-pre mini"; host.prepend(pre);
+    const say = (h) => pre.insertAdjacentHTML("beforeend", h);
+    const rows = [];
+    try {
+      // the fallback unit is created only if something actually needs it
+      let fallback = null;
+      if (jobs.some((j) => j.doVault && j.c.dest.source === "fallbackNew")) {
+        const name = (rmauBody().querySelector("#cgRmauName")?.value || t.auName || RMAU_DEFAULT_NAME()).trim() || RMAU_DEFAULT_NAME();
+        if (isDemo) fallback = { id: "au-demo", name, created: true };
+        else {
+          const made = await Graph.gpost("/administrativeUnits", { displayName: name, description: "Restricted management administrative unit protecting Conditional Access exclusion groups. Membership changes require a role scoped to this administrative unit.", isMemberManagementRestricted: true });
+          fallback = { id: made.id, name, created: true };
+        }
+        say(`<div>✓ created restricted management administrative unit <b>${esc(fallback.name)}</b></div>`);
+      }
+      const auOf = (d) => d.source === "fallbackNew" ? fallback : { id: d.auId, name: d.auName, created: false };
+      const units = new Map();
+      for (let i = 0; i < jobs.length; i++) {
+        const j = jobs[i], res = { name: j.g.name, id: j.g.id, vault: null, nest: null };
+        if (L.stopped) { rows.push(res); continue; }
+        L.start(i);
+        const notes = [];
+        if (j.doVault) {
+          const au = auOf(j.c.dest); units.set(au.id, au);
+          L.note(i, `placing in ${au.name}…`);
+          try {
+            if (!isDemo) await Graph.gpost(`/administrativeUnits/${au.id}/members/$ref`, { "@odata.id": `https://graph.microsoft.com/beta/groups/${j.g.id}` });
+            res.vault = { state: "added", auName: au.name }; notes.push(`vault ✓ ${au.name}`);
+            t.status.set(j.g.id, { auId: au.id, auName: au.name });
+          } catch (err) {
+            const already = /added object references already exist/i.test(err.message || "");
+            res.vault = { state: already ? "already" : "failed", auName: au.name, error: already ? "" : (err.message || String(err)) };
+            notes.push(already ? `vault — already in ${au.name}` : `vault ✗ ${GroupUse.shortErr(err)}`);
+            if (already) t.status.set(j.g.id, { auId: au.id, auName: au.name });
+          }
+        }
+        if (j.doNest) {
+          L.note(i, `${notes.join(" · ")}${notes.length ? " · " : ""}nesting: setting…`);
+          res.nest = await prDisableNesting(j.g);
+          const row = prRows().find((r) => r.id === j.g.id); if (row && res.nest.state === "disabled") row.nesting = "disabled";
+          notes.push(res.nest.state === "disabled" ? "nesting ✓ disabled, read back" : res.nest.state === "unsupported" ? "nesting — not available in this tenant" : `nesting ✗ ${res.nest.error}`);
+        }
+        const bad = (res.vault && res.vault.state === "failed") || (res.nest && res.nest.state === "failed");
+        if (bad) L.fail(i, notes.join(" · "), "refused"); else L.done(i, notes.join(" · "), (res.vault && res.vault.state === "added") || (res.nest && res.nest.state === "disabled") ? "protected" : "unchanged");
+        rows.push(res);
+      }
+      L.finish();
+      t.units = [...units.values()]; t.au = t.units.length === 1 ? t.units[0] : null;
+      if (t.units.length) await rmauGrantAdmins(t, say);
+      prState.results = { rows, units: t.units, admins: t.adminResults || [] };
+      const vOk = rows.filter((r) => r.vault && r.vault.state === "added").length, nOk = rows.filter((r) => r.nest && r.nest.state === "disabled").length;
+      toast(`<span>${vOk}</span> placed in a vault · <span>${nOk}</span> nesting disabled${isDemo ? " (simulated)" : ""}`);
+      rows.forEach((r) => { const k = prState.ticks.get(r.id); if (k) { if (r.vault && r.vault.state !== "failed") k.vault = false; if (r.nest && r.nest.state !== "failed") k.nest = false; } });
+    } catch (e) {
+      console.error("Protect 3.0 failed:", e);
+      say(`<div style="color:var(--off)">✗ ${esc(e.message || e)}<br><span class="muted">Creating a restricted management administrative unit needs the Privileged Role Administrator role.</span></div>`);
+      prState.results = { rows, units: t.units || [], admins: t.adminResults || [] };
+    } finally { prState.busy = false; t.busy = false; }
+    renderProtect();
+  }
+  $("prBody").addEventListener("click", async (e) => {
+    if (!rmauStandalone) return;
+    const f = e.target.closest("[data-pr-filter]"); if (f) { prState.filter = f.dataset.prFilter; renderProtect(); return; }
+    if (e.target.id === "prGo") { await prApply(e.target); return; }
+    if (e.target.id === "prReport") { const R = prState.results; if (R) showReport("🔒 Protect exclusions", "CA-Protect-Exclusions", Protect.report(R, { tenant: tenantName, generatedBy: Brand.generatedBy("Generated") })); return; }
+    if (e.target.id === "prDismiss") { prState.results = null; prState.runEl = null; renderProtect(); return; }
+    const mg = e.target.closest("[data-pr-migrate]"); if (mg) { cgGoTab("migrate", [rmauCands().find((g) => g.id === mg.dataset.prMigrate)?.name].filter(Boolean)); return; }
+    const un = e.target.closest("[data-pr-unadd]"); if (un) { cgManual.protect.delete(un.dataset.prUnadd); prState.ticks.delete(un.dataset.prUnadd); renderProtect(); return; }
+  });
+  $("prBody").addEventListener("change", (e) => {
+    if (!rmauStandalone || !prState.ticks) return;
+    const tk = e.target.closest("[data-pr-tick]");
+    if (tk) { const k = prState.ticks.get(tk.dataset.prId) || {}; k[tk.dataset.prTick] = tk.checked; prState.ticks.set(tk.dataset.prId, k); renderProtect(); return; }
+    const row = e.target.closest("[data-pr-row]");
+    if (row) {
+      const t = cgRmau, ctx = prCtx(t), g = rmauCands().find((x) => x.id === row.dataset.prRow); if (!g) return;
+      const c = Protect.classify(g, ctx);
+      prState.ticks.set(g.id, row.checked ? { vault: c.canVault, nest: c.canNest } : { vault: false, nest: false });
+      renderProtect(); return;
+    }
+    if (e.target.closest("[data-pr-all]")) {
+      const t = cgRmau, ctx = prCtx(t), on = e.target.checked;
+      rmauCands().forEach((g) => { const c = Protect.classify(g, ctx); if (c.canVault || c.canNest) prState.ticks.set(g.id, on ? { vault: c.canVault, nest: c.canNest } : { vault: false, nest: false }); });
+      renderProtect(); return;
+    }
+    if (e.target.id === "cgRmauAck" && cgRmau) cgRmau.ack = e.target.checked;
+  });
+  $("prBody").addEventListener("toggle", (e) => { if (e.target.classList && e.target.classList.contains("pr-settings")) prState.settingsOpen = e.target.open; }, true);
 
   async function cgRmauScan() {
     if (rmauBusy) return;                     // already scanning — don't start a second pass
@@ -4468,6 +5403,8 @@ max@contoso.com,"Global, DevOps"</pre>
         if (st.status.get(g.id) || g.roleAssignable || cgAuIneligible(g)) return;
         if (g.manual || (!g.dynamic && !g.unused)) st.sel.add(g.id);
       });
+      // carried over from the groups list: tick exactly those, not the default set
+      if (cgRmauPre && cgRmauPre.length) { st.sel = new Set(cgRmauPre.filter((id) => st.status.has(id) && !st.status.get(id))); st.pre = new Set(cgRmauPre); cgRmauPre = null; }
       // Deliberately NOT defaulted to st.rmaus[0]: that is Global on most
       // tenants, so an unrecognised group would be filed into the Global vault
       // by nothing more than list order. Unset means "skip these" until someone
@@ -4539,6 +5476,7 @@ max@contoso.com,"Global, DevOps"</pre>
   let rmauBusy = false;
   const rmauBusyPanel = () => '<div class="run-prompt"><div class="spinner"></div><p class="mini muted" id="cgRmauStatus">Scanning… this keeps running if you switch tabs.</p><div id="cgRmauBar" style="width:100%"></div></div>';
   function renderCgRmau() {
+    if (rmauStandalone) return renderProtect();   // T20 3.0 — same state, its own screen
     // Same manners as Sign-in failures: nothing scans until asked, a scan in
     // flight survives navigating away and back, and the result stays until
     // an explicit rescan.
@@ -4729,10 +5667,11 @@ max@contoso.com,"Global, DevOps"</pre>
     const scopes = [...AUTH_CONFIG.scopes, ...RMAU_WRITE, ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
     if (!isDemo && !await preConsent(scopes)) return;
     t.busy = true; btn.disabled = true;
-    const bar = rmauBody().querySelector("#cgRmauBar"), log = rmauBody().querySelector("#cgRmauLog");
-    bar.style.display = "block";
-    const lines = [], results = [];
-    const say = (h) => { lines.push(h); log.innerHTML = lines.slice(-10).join(""); };
+    const log = rmauBody().querySelector("#cgRmauLog");
+    const results = [];
+    const L = RunLedger.create(log, { unit: "groups", items: picked.map((g) => ({ label: g.name })), onStop: false });
+    const idx = (g) => picked.indexOf(g);
+    const say = (h) => { const pre = log.querySelector(".rl-pre") || (() => { const d = document.createElement("div"); d.className = "rl-pre mini"; log.prepend(d); return d; })(); pre.insertAdjacentHTML("beforeend", h); };
     try {
       // 1) work out where each group goes BEFORE writing anything, so a group
       //    whose vault does not exist is reported rather than quietly filed
@@ -4746,7 +5685,7 @@ max@contoso.com,"Global, DevOps"</pre>
           error: unset
             ? "its name carries no CA number the baseline recognises, and no fallback unit was chosen"
             : `its persona unit ${x.dest.auName} does not exist — create it in 🛡 Restricted AUs, then protect this group` });
-        say(`<div style="color:var(--off)">⊘ <b>${esc(x.g.name)}</b> — ${unset ? "no persona and no fallback chosen" : `${esc(x.dest.auName)} does not exist yet`}</div>`);
+        L.skip(idx(x.g), unset ? "no persona and no fallback chosen" : `${x.dest.auName} does not exist yet`);
       }
       const doable = plan.filter((x) => x.dest.source !== "missing" && x.dest.source !== "unset");
 
@@ -4779,22 +5718,34 @@ max@contoso.com,"Global, DevOps"</pre>
       for (let i = 0; i < doable.length; i++) {
         const { g, dest } = doable[i];
         const au = auOf(dest);
-        bar.firstElementChild.style.width = `${Math.round(((i + 1) / doable.length) * 100)}%`;
+        L.start(idx(g));
         try {
           if (!isDemo) await Graph.gpost(`/administrativeUnits/${au.id}/members/$ref`,
             { "@odata.id": `https://graph.microsoft.com/beta/groups/${g.id}` });
           results.push({ name: g.name, excludeCount: g.refs.exclude.length, state: "added", auName: au.name });
-          say(`<div>✓ protected <b>${esc(g.name)}</b> → ${esc(au.name)}</div>`);
+          L.done(idx(g), `→ ${au.name}`, "protected");
         } catch (err) {
           const already = /added object references already exist|one or more added object references already exist/i.test(err.message || "");
           results.push({ name: g.name, excludeCount: g.refs.exclude.length, state: already ? "already" : "failed", auName: au.name, error: already ? "" : (err.message || String(err)) });
-          say(`<div style="color:var(--off)">${already ? "•" : "✗"} <b>${esc(g.name)}</b>${already ? ` — already in ${esc(au.name)}` : ` — ${esc(err.message || err)}`}</div>`);
+          if (already) L.done(idx(g), `already in ${au.name}`, "unchanged"); else L.fail(idx(g), err.message || String(err));
         }
       }
-      // 3) the scoped administrators, so somebody can still manage the members.
-      // One failure must not cost the others: each is resolved and granted on
-      // its own, and every outcome reaches the report. The directory role is
-      // activated once, outside the loop.
+      L.finish();
+      await rmauGrantAdmins(t, say);
+      t.results = results;
+      const ok = results.filter((r) => r.state === "added").length;
+      toast(`<span>${ok}</span> exclusion group${ok === 1 ? "" : "s"} protected${isDemo ? " (simulated)" : ""}`);
+    } catch (e) {
+      console.error("RMAU apply failed:", e);
+      say(`<div style="color:var(--off)">✗ ${esc(e.message || e)}<br><span class="muted">Creating a restricted management administrative unit needs the Privileged Role Administrator role.</span></div>`);
+    } finally { t.busy = false; btn.disabled = false; }
+    if (t.results) renderCgRmau();
+  }
+  // 3) the scoped administrators, so somebody can still manage the members.
+  // One failure must not cost the others: each is resolved and granted on
+  // its own, and every outcome reaches the report. The directory role is
+  // activated once, outside the loop. Shared by ⑥ Protect and T20 3.0.
+  async function rmauGrantAdmins(t, say) {
       const admins = CaGroups.adminList(t.admin);
       t.adminResults = [];
       if (admins.length) {
@@ -4840,14 +5791,6 @@ max@contoso.com,"Global, DevOps"</pre>
         const bad = t.adminResults.filter((a) => !a.ok);
         t.adminError = bad.length ? `${bad.length} of ${t.adminResults.length} grants could not be made` : null;
       }
-      t.results = results;
-      const ok = results.filter((r) => r.state === "added").length;
-      toast(`<span>${ok}</span> exclusion group${ok === 1 ? "" : "s"} protected${isDemo ? " (simulated)" : ""}`);
-    } catch (e) {
-      console.error("RMAU apply failed:", e);
-      say(`<div style="color:var(--off)">✗ ${esc(e.message || e)}<br><span class="muted">Creating a restricted management administrative unit needs the Privileged Role Administrator role.</span></div>`);
-    } finally { t.busy = false; btn.disabled = false; }
-    if (t.results) renderCgRmau();
   }
 
   $("cgBody").addEventListener("click", async (e) => {
@@ -4874,35 +5817,31 @@ max@contoso.com,"Global, DevOps"</pre>
       if (!picked.length) { toast("Nothing selected to create"); return; }
       if (!await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "Group-NestingSupport.ReadWrite.All"])) return;
       e.target.disabled = true;
-      const bar = $("cgCreateBar"), log = $("cgCreateLog");
-      bar.style.display = "block";
-      const lines = [];
+      const log = $("cgCreateLog");
+      const L = RunLedger.create(log, { unit: "groups", items: picked.map((r) => ({ label: r.name })) });
       let ok = 0, failed = 0;
       for (let i = 0; i < picked.length; i++) {
         const r = picked[i];
-        bar.firstElementChild.style.width = `${Math.round(((i + 1) / picked.length) * 100)}%`;
+        if (L.stopped) continue;
+        L.start(i);
         try {
           const g = isDemo
             ? { id: "g-" + r.name, name: r.name, created: true }
             : await Assign.createGroup({ ...r.template, disableNesting: nestWanted("cgCreateNest") });
           ok++;
-          lines.push(`<div>${g.created ? "✓ created" : "• already existed, reused"} <b>${esc(r.name)}</b>`
-            + (g.created && g.nesting === "disabled" ? ' <span class="mini" style="color:var(--on)">🚫 nesting disabled</span>' : "")
-            + (g.created && g.nesting === "unsupported" ? ` <span class="mini" style="color:var(--report)">• nesting not available in this tenant</span>` : "")
-            + (g.created && g.nesting === "failed" ? ` <span class="mini" style="color:var(--off)">⚠ nesting still allowed — ${esc(g.nestingError || "")}</span>` : "")
-            + `</div>`);
+          L.done(i, g.created ? (g.nesting === "disabled" ? "nesting disabled" : g.nesting === "unsupported" ? "nesting not available in this tenant" : g.nesting === "failed" ? `nesting still allowed — ${g.nestingError || ""}` : "") : "already existed, reused", g.created ? "created" : "reused");
         } catch (err) {
           failed++;
-          lines.push(`<div style="color:var(--off)">✗ <b>${esc(r.name)}</b> — ${esc(err.message || err)}</div>`);
+          L.fail(i, err.message || String(err));
         }
-        log.innerHTML = lines.join("");
       }
-      e.target.disabled = false;
+      L.finish();
+      e.target.disabled = true; e.target.textContent = "Done";
       toast(failed ? `${ok} created, <span>${failed} failed</span>` : `<span>${ok}</span> group${ok === 1 ? "" : "s"} created${isDemo ? " (simulated)" : ""}`);
-      // Re-scan so Check reflects reality rather than what we hoped happened.
+      // The ledger stays readable; the scan is stale now and Close re-reads
+      // the tenant, so the list shows what was really created.
       cgRes = null;
-      await openCaGroups(true);
-      cgTab = "check"; renderCaGroups();
+      log.insertAdjacentHTML("beforeend", '<p class="mini muted" style="margin-top:8px">Close this dialog to re-read the tenant — the list will show the groups as they are now.</p>');
       return;
     }
     if (e.target.id === "cgmCreate") { await cgManualCreate(e.target); return; }
@@ -4943,7 +5882,7 @@ max@contoso.com,"Global, DevOps"</pre>
     try {
       const g = isDemo ? { id: "g-" + name, name, created: true } : await Assign.createGroup(r.template);
       toast(g.created ? `Created <span>${esc(name)}</span>` : `<span>${esc(name)}</span> already existed — reused`);
-      cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
+      cgRes = null; await openCaGroups(true, shownScreen !== "screen-cagroups"); cgTab = "groups"; renderCaGroups();
     } catch (err) { console.error(err); toast(`Create failed: <span>${esc(err.message || err)}</span>`); if (btn) { btn.disabled = false; btn.textContent = "Create"; } }
   }
 
@@ -5017,7 +5956,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     showReport("⟳ Convert to dynamic", "CA-Group-Convert-Dynamic", md.join("\n"));
     toast(err ? `Convert stopped: <span>${esc(err.message || err)}</span>` : `<span>${esc(plan.name)}</span> is now dynamic${isDemo ? " (simulated)" : ""}`);
-    if (!isDemo && !err) { cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups(); }
+    if (!isDemo && !err) { cgRes = null; await openCaGroups(true, shownScreen !== "screen-cagroups"); cgTab = "groups"; renderCaGroups(); }
   });
 
   // Carry the user members of one group into another. Role-assignable groups
@@ -5116,27 +6055,39 @@ max@contoso.com,"Global, DevOps"</pre>
         </div>`;
       })()}
       <div class="gu-tw"><table class="plist">
-        <thead><tr><th></th><th>Archived group</th><th>Replaced by</th><th class="gu-num">Members</th><th>Still referenced</th></tr></thead>
+        <thead><tr><th></th><th>Archived group</th><th>Replaced by</th><th class="gu-num">Members</th><th>Still referenced</th><th>Other uses</th></tr></thead>
         <tbody>${arcRows.map((r, i) => `<tr>
           <td><input type="checkbox" data-arc="${i}" ${r.checked ? "checked" : ""}></td>
           <td><b>${esc(r.name)}</b><div class="mini muted">${esc(r.id)}</div>
             ${r.roleAssignable ? '<span class="tag block">role-assignable</span>' : ""}${r.dynamic ? '<span class="tag">dynamic</span>' : ""}</td>
           <td class="mini">${esc(r.liveName)}</td>
           <td class="gu-num${r.members ? "" : " gu-zero"}">${r.members == null ? "—" : r.members}</td>
-          <td class="mini">${r.refCount
-            ? `<span style="color:var(--off)">${r.refCount} polic${r.refCount === 1 ? "y" : "ies"}</span><div class="mini">${esc(
-                [...r.refs.include.map((p) => p.name), ...r.refs.exclude.map((p) => p.name)].slice(0, 3).join(", "))}</div>`
-            : '<span class="muted">no policy</span>'}</td></tr>`).join("")}</tbody></table></div>
-      ${stillUsed ? `<p class="mini" style="margin-top:10px;color:var(--off)">A group still referenced by a policy is <b>not</b> ticked by default —
-        deleting it would leave that policy pointing at nothing. Move the reference first (④ Assign), or tick it deliberately.</p>` : ""}
+          <td class="mini" style="max-width:260px">${r.refCount
+            ? (() => { const names = [...r.refs.include.map((p) => p.name), ...r.refs.exclude.map((p) => p.name)]; return `<span style="color:var(--off)">${r.refCount} polic${r.refCount === 1 ? "y" : "ies"}</span><div class="mini muted" title="${esc(names.join("\n"))}">${esc(names.slice(0, 2).join(", "))}${names.length > 2 ? ` +${names.length - 2} more` : ""}</div>`; })()
+            : '<span class="muted">no policy</span>'}</td>
+          <td class="mini" data-arcuses="${i}">${r.uses == null ? '<span class="muted">not checked</span>' : r.uses.length
+            ? `<span style="color:var(--off)">${r.uses.length} hit${r.uses.length === 1 ? "" : "s"}</span><div class="mini">${esc(r.uses.slice(0, 3).map((u) => `${u.sourceLabel}: ${u.name}`).join(" · "))}${r.uses.length > 3 ? " …" : ""}</div>`
+            : '<span style="color:var(--on)">none found</span>'}</td></tr>`).join("")}</tbody></table></div>
+      <div class="row" style="justify-content:flex-start;gap:10px;margin:10px 0 0;flex-wrap:wrap;align-items:center">
+        <button class="btn sm" id="arcUses" title="Run the User or Group analyzer on the ticked groups: app assignments, Intune, licensing, Teams, admin units — what a recreate does not move">🔗 Check other uses of the ticked groups</button>
+        <label class="chk mini" style="margin:0;display:inline-flex;align-items:center;gap:6px"><input type="checkbox" id="arcUnref" checked> Take a ticked group out of every policy still naming it before deleting it</label>
+      </div>
+      ${stillUsed ? `<p class="mini" style="margin-top:8px;color:var(--off)">A group still referenced by a policy is <b>not</b> ticked by Select all. Ticked with the box above on, it is removed from those policies first (the replacement is already on them), verified, and only then deleted — so no policy is left naming an id the directory no longer has.</p>` : ""}
       ${arcRows.some((r) => r.members) ? `<p class="mini" style="margin-top:6px;color:var(--report)">⚠ An archived group with members is one whose members were never carried across.
         Check the replacement has them before deleting.</p>` : ""}`;
+    arcSyncGo();
   }
   // The typed confirmation and the tick count both gate the button, so they
   // are decided in one place — a bulk toggle used to leave it stale.
+  // The button says why it is off, and every path that could change the
+  // answer re-evaluates it — a stale disabled button with DELETE typed and
+  // five rows ticked is the one thing this dialog must never show.
   function arcSyncGo() {
     const typed = ($("arcOk").value || "").trim().toUpperCase() === "DELETE";
-    $("arcGo").disabled = !typed || !arcRows.some((r) => r.checked);
+    const n = arcRows.filter((r) => r.checked).length;
+    $("arcGo").disabled = !typed || !n;
+    $("arcGo").textContent = n ? `Delete ${n} ticked` : "Delete ticked";
+    const why = $("arcWhy"); if (why) why.textContent = !n ? "tick the groups to delete" : !typed ? "type DELETE to enable" : "";
   }
   // Update the toolbar WITHOUT re-rendering the table: with 95 rows a full
   // re-render on every tick would throw away the scroll position inside the
@@ -5168,36 +6119,138 @@ max@contoso.com,"Global, DevOps"</pre>
     $("arcBody").querySelectorAll("[data-arc]").forEach((cb) => { cb.checked = !!arcRows[+cb.dataset.arc].checked; });
     arcSyncBar(); arcSyncGo();
   });
-  $("arcOk").addEventListener("input", arcSyncGo);
+  // "Use the analyzer to find out": the same sources 🔗 User or Group
+  // analyzer runs, minus the user-only ones and Azure (its own token), over
+  // the ticked archived groups in one pass. Hits are what a delete would
+  // leave dangling OUTSIDE Conditional Access — shown, never auto-removed.
+  $("arcBody").addEventListener("click", async (e) => {
+    if (e.target.id !== "arcUses") return;
+    const picked = arcRows.filter((r) => r.checked && r.id);
+    if (!picked.length) { toast("Tick the groups to check first"); return; }
+    const btn = e.target; btn.disabled = true; const label = btn.textContent;
+    try {
+      const srcs = GroupUse.SOURCES.filter((s) => !s.userOnly && s.area !== "azure");
+      const scopes = [...new Set(srcs.flatMap((s) => s.scopes || []))];
+      if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...scopes])) return;
+      const ids = new Set(picked.map((r) => r.id.toLowerCase()));
+      let rows = [];
+      if (isDemo) rows = [{ pid: picked[0].id.toLowerCase(), name: "Demo Intune compliance policy", sourceLabel: "Intune compliance", how: "assigned" }];
+      else {
+        const res = await GroupUse.analyze({ ids, principal: { type: "group", id: picked[0].id, name: picked[0].name }, isUser: false,
+          policies: policies.map((p) => p.raw), sourceIds: srcs.map((s) => s.id), batchIds: picked.map((r) => r.id),
+          onStatus: (m) => { btn.textContent = `🔗 ${m}`; } });
+        rows = res.rows.filter((h) => h.source !== "ca");   // CA references are the column to the left, and the delete handles them
+        if (res.failed.length) toast(`${res.failed.length} source${res.failed.length === 1 ? "" : "s"} could not be read: <span>${esc(res.failed.map((f) => f.label).join(", "))}</span>`);
+      }
+      picked.forEach((r) => { r.uses = rows.filter((h) => String(h.pid || "").toLowerCase() === r.id.toLowerCase()); });
+      renderArchived();
+      const hits = picked.reduce((n, r) => n + r.uses.length, 0);
+      toast(hits ? `<span>${hits}</span> other use${hits === 1 ? "" : "s"} found — see the last column` : "No other uses found for the ticked groups");
+    } catch (err) { toast(`Could not check: <span>${esc(err.message || err)}</span>`); }
+    finally { btn.disabled = false; btn.textContent = label; }
+  });
+  ["input", "change", "keyup", "paste"].forEach((ev) => $("arcOk").addEventListener(ev, () => setTimeout(arcSyncGo, 0)));
+  $("arcBody").addEventListener("click", () => setTimeout(arcSyncGo, 0));
   $("arcCancel").addEventListener("click", () => $("arcModal").classList.remove("open"));
   $("arcGo").addEventListener("click", async () => {
     const picked = arcRows.filter((r) => r.checked);
     if (!picked.length) return;
     if (!await preConsent([...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES])) return;
     const btn = $("arcGo"); btn.disabled = true;
-    const done = [], failed = [];
+    const unref = !!($("arcUnref") && $("arcUnref").checked);
+    if (unref && picked.some((r) => r.refCount > 0) && !isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) { btn.disabled = false; return; }
+    // The run is visible IN the dialog: a log that grows per step, the
+    // buttons locked, the count in the title — toasts alone were missed and
+    // the dialog looked stuck for a minute.
+    $("arcSub").innerHTML = "<b>Working…</b>";
+    $("arcBody").innerHTML = "";
+    const L = RunLedger.create($("arcBody"), { unit: "archived groups", items: picked.map((r) => ({ label: r.name, sub: r.refCount ? `named by ${r.refCount} polic${r.refCount === 1 ? "y" : "ies"}` : "" })) });
+    const plain = (h) => String(h).replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim().replace(/^[✓·✗]\s*/, "");
+    let cur = -1;
+    const say = (html) => { if (cur >= 0) L.note(cur, plain(html)); btn.textContent = `Working… ${L.items.filter((x) => x.state === "done" || x.state === "fail").length}/${picked.length}`; };
+    $("arcCancel").disabled = true; $("arcOk").disabled = true;
+    const done = [], failed = [], partial = [], unreffed = [];
     for (let i = 0; i < picked.length; i++) {
-      toast(`Deleting ${i + 1}/${picked.length}…`);
+      const r = picked[i];
+      if (L.stopped) { failed.push({ ...r, error: "stopped before this group — nothing changed" }); continue; }
+      cur = i; L.start(i);
       try {
-        if (!isDemo) await Graph.gdelete(`/groups/${picked[i].id}`, [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
-        done.push(picked[i]);
-      } catch (e) { failed.push({ ...picked[i], error: e.message || String(e) }); }
+        // 1. out of every policy still naming it — read live, not from the
+        // scan, so a reference added since is not missed
+        if (unref && r.refCount > 0) {
+          say(`&nbsp;&nbsp;· taking it out of ${r.refCount} polic${r.refCount === 1 ? "y" : "ies"}…`);
+          let inc = r.refs.include.map((p) => p.id), exc = r.refs.exclude.map((p) => p.id);
+          if (!isDemo) {
+            const live = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,conditions");
+            inc = []; exc = [];
+            for (const pol of live) {
+              const u = (pol.conditions && pol.conditions.users) || {};
+              if ((u.includeGroups || []).some((g) => String(g).toLowerCase() === r.id.toLowerCase())) inc.push(pol.id);
+              if ((u.excludeGroups || []).some((g) => String(g).toLowerCase() === r.id.toLowerCase())) exc.push(pol.id);
+            }
+            // 112 policies at one PATCH each is a couple of minutes, and a
+            // row that only says "taking it out of 112 policies…" for that
+            // long looks stuck — count them off as they go.
+            const total = inc.length + exc.length; let n = 0;
+            const tick = (i, phase, res) => { if (phase === "end") { n++; say(`&nbsp;&nbsp;· taking it out of ${total} polic${total === 1 ? "y" : "ies"}… ${n} of ${total}${res && !res.ok ? ` · ${esc(res.name)} refused` : ""}`); } };
+            const bad = [];
+            if (inc.length) bad.push(...(await Assign.apply(inc, 5, [r.id], null, "groups", tick)).filter((q) => !q.ok));
+            if (exc.length) bad.push(...(await Assign.apply(exc, 6, [r.id], null, "groups", tick)).filter((q) => !q.ok));
+            say(`&nbsp;&nbsp;· out of ${total} polic${total === 1 ? "y" : "ies"} — verifying…`);
+            if (bad.length) {
+              // PARTLY DONE, not failed: the group is out of the policies that
+              // accepted the PATCH and still in the ones that refused (the
+              // four unpatchable REQ-PVM-ReqApp-* policies on Perfetti). Say
+              // both numbers; the delete is not attempted, so nothing points
+              // at nothing. 25324, from a screenshot: 36 of 39 landed and the
+              // row read "refused" as if nothing had.
+              const okN = total - bad.length;
+              const err = new Error(`taken out of ${okN} of ${total} polic${total === 1 ? "y" : "ies"}; still named by ${bad.map((q) => q.name).join(", ")} (${bad.length} refused the change) — not deleted, so no policy points at nothing`);
+              err.partial = { removed: okN, total, refused: bad.map((q) => q.name) };
+              throw err;
+            }
+            // verify
+            const after = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,conditions");
+            const left = after.filter((pol) => { const u = (pol.conditions && pol.conditions.users) || {}; return [...(u.includeGroups || []), ...(u.excludeGroups || [])].some((g) => String(g).toLowerCase() === r.id.toLowerCase()); });
+            if (left.length) throw new Error(`the removal did not take on ${left.map((p) => p.displayName || p.id).join(", ")} — not deleted`);
+          }
+          unreffed.push({ ...r, policies: inc.length + exc.length });
+          say(`&nbsp;&nbsp;✓ out of ${inc.length + exc.length} polic${inc.length + exc.length === 1 ? "y" : "ies"}, verified`);
+        }
+        // 2. delete (soft, 30 days)
+        say("&nbsp;&nbsp;· deleting…");
+        if (!isDemo) await Graph.gdelete(`/groups/${r.id}`, [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
+        done.push(r);
+        L.done(i, unreffed.some((u) => u.id === r.id) ? `out of ${unreffed.find((u) => u.id === r.id).policies} polic${unreffed.find((u) => u.id === r.id).policies === 1 ? "y" : "ies"}, verified · soft-deleted, restorable for 30 days` : "soft-deleted, restorable for 30 days", "deleted");
+      } catch (e) {
+        if (e && e.partial) { partial.push({ ...r, error: e.message || String(e), partial: e.partial }); L.part(i, e.message || String(e), "partly done"); }
+        else { failed.push({ ...r, error: e.message || String(e) }); L.fail(i, e.message || String(e), "refused"); }
+      }
     }
-    $("arcModal").classList.remove("open");
-    const L = [`# Archived groups removed — ${tenantName || "tenant"}`, "", Brand.generatedBy("Generated"), "",
-      `- **Deleted:** ${done.length}${failed.length ? ` · **failed:** ${failed.length}` : ""}`,
+    L.finish();
+    $("arcCancel").disabled = false; $("arcOk").disabled = false; btn.textContent = "Delete ticked";
+    if (!failed.length && !partial.length) $("arcModal").classList.remove("open");
+    else $("arcSub").innerHTML = `<b style="color:${failed.length ? "var(--off)" : "var(--report)"}">${done.length} deleted${partial.length ? `, ${partial.length} partly done` : ""}${failed.length ? `, ${failed.length} refused` : ""}</b> — ${partial.length ? "partly done = out of most policies, still named by the ones that refused, not deleted; " : ""}the details are on the rows; Close when read.`;
+    const L2 = [`# Archived groups removed — ${tenantName || "tenant"}`, "", Brand.generatedBy("Generated"), "",
+      `- **Deleted:** ${done.length}${partial.length ? ` · **partly done:** ${partial.length}` : ""}${failed.length ? ` · **failed:** ${failed.length}` : ""}`,
       isDemo ? "- _Demo mode — simulated._" : "- Each deletion is a **soft delete**: Entra keeps the group for 30 days and it can be restored.", ""];
     if (done.length) {
-      L.push("| Group | Object ID | Replaced by |", "| --- | --- | --- |");
-      done.forEach((r) => L.push(`| ${r.name} | \`${r.id}\` | ${r.liveName} |`));
+      L2.push("| Group | Object ID | Replaced by | Taken out of | Other uses at delete |", "| --- | --- | --- | --- | --- |");
+      done.forEach((r) => { const u = unreffed.find((x) => x.id === r.id); L2.push(`| ${r.name} | \`${r.id}\` | ${r.liveName} | ${u ? `${u.policies} polic${u.policies === 1 ? "y" : "ies"}` : "—"} | ${r.uses == null ? "not checked" : r.uses.length ? r.uses.map((h) => `${h.sourceLabel}: ${h.name}`).join("; ") : "none"} |`); });
+    }
+    if (partial.length) {
+      L2.push("", "## Partly done — out of most policies, NOT deleted", "");
+      L2.push("| Group | Object ID | Taken out of | Still named by | Next |", "| --- | --- | --- | --- | --- |");
+      partial.forEach((f) => L2.push(`| ${f.name} | \`${f.id}\` | ${f.partial.removed} of ${f.partial.total} policies | ${f.partial.refused.join(", ")} | fix the refusing polic${f.partial.refused.length === 1 ? "y" : "ies"} in the portal, then run 🧹 again — the group is still there, nothing to restore |`));
     }
     if (failed.length) {
-      L.push("", "## Failed", "");
-      failed.forEach((f) => L.push(`- ❌ **${f.name}** — ${f.error}`));
+      L2.push("", "## Failed", "");
+      failed.forEach((f) => L2.push(`- ❌ **${f.name}** — ${f.error}`));
     }
-    showReport("🧹 Archived groups removed", "CA-Groups-Housekeeping", L.join("\n"));
+    showReport("🧹 Archived groups removed", "CA-Groups-Housekeeping", L2.join("\n"));
+    done.forEach((r) => cgSel.delete(r.name));   // deleted rows leave the selection too
     toast(failed.length ? `Deleted ${done.length}, <span>${failed.length} failed</span>` : `<span>${done.length}</span> archived group${done.length === 1 ? "" : "s"} deleted`);
-    cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
+    cgRes = null; await openCaGroups(true, shownScreen !== "screen-cagroups"); cgTab = "groups"; renderCaGroups();
   });
 
   // ---- disable group nesting (BETA) ----------------------------------------
@@ -5210,11 +6263,48 @@ max@contoso.com,"Global, DevOps"</pre>
   // disableNesting is invisible to a plain GET, so ask for it explicitly. One
   // batched pass over the groups that have an id; anything that errors stays
   // "unknown", which is a real answer here rather than a failure.
+  // Which groups sit INSIDE each group — direct group members only, one
+  // $batch over the referenced and baseline rows, on the scan rather than on a
+  // member read, because a nested group is the thing that widens an exclusion
+  // without anyone touching the exclusion. Tenant-scope extras are left for
+  // the member read: thousands of them would be thousands of requests.
+  async function loadNestedGroups(rows) {
+    const targets = rows.filter((r) => r.id && r.nestedGroups === undefined && !(r.sources || []).includes("tenant"));
+    if (!targets.length) return;
+    if (isDemo) { targets.forEach((r, i) => { r.nestedGroups = i % 5 === 1 ? [{ id: `g-nest-${r.id}`, name: `SG-Demo-${((r.name || "").match(/CA\d+/) || ["team"])[0]}`, dynamic: false }] : []; r.directTotal = (r.name.length + i) % 4; }); return; }
+    // two requests per group in the same batch: its nested groups, and a
+    // count of its direct members of every type — so "empty" is known for
+    // every group on the scan, not only for the ones whose members were read
+    const reqs = [];
+    targets.forEach((r, i) => {
+      reqs.push({ id: `n${i}`, url: `/groups/${r.id}/members/microsoft.graph.group?$select=id,displayName,groupTypes&$top=999` });
+      reqs.push({ id: `c${i}`, url: `/groups/${r.id}/members/$count` });
+    });
+    const res = await Graph.gbatch(reqs);
+    targets.forEach((r, i) => {
+      const v = res[`n${i}`];
+      r.nestedGroups = v && v.body && Array.isArray(v.body.value) ? v.body.value.map((g) => ({ id: g.id, name: g.displayName, dynamic: (g.groupTypes || []).includes("DynamicMembership") })) : [];
+      // Inside a $batch a text/plain answer (which $count is) arrives as
+      // { "$content-type": "text/plain", "$content": "<base64>" } — "0" is
+      // "MA==". Read that shape too, or every unread group stays "not read"
+      // and the Empty chip counts only the groups whose members were read.
+      const c = res[`c${i}`];
+      let raw = c && !c.error ? c.body : null;
+      if (raw && typeof raw === "object" && typeof raw.$content === "string") { try { raw = atob(raw.$content); } catch { raw = null; } }
+      else if (raw && typeof raw === "object") raw = raw.value ?? null;
+      const n = raw == null ? NaN : Number(String(raw).trim());
+      r.directTotal = Number.isFinite(n) ? n : null;
+    });
+  }
   async function loadNestingStates(rows) {
     const targets = rows.filter((r) => r.id && r.nesting === undefined);
     if (!targets.length) return;
     if (isDemo) { targets.forEach((r, i) => r.nesting = i % 4 === 0 ? "disabled" : "allowed"); return; }
-    const res = await Graph.gbatch(targets.map((r, i) => ({ id: i, url: `/groups/${r.id}?$select=id,disableNesting` })));
+    // v1.0, not the beta base: the same route confirmNesting() reads after a
+    // create. On 2026-09-10 a tenant whose creates had VERIFIED nesting
+    // disabled showed nothing in the list, because this batch went to beta
+    // and beta answered every group without the property.
+    const res = await Graph.gbatch(targets.map((r, i) => ({ id: i, url: `/groups/${r.id}?$select=id,disableNesting` })), null, { base: "https://graph.microsoft.com/v1.0" });
     targets.forEach((r, i) => {
       const v = res[i];
       r.nesting = v && v.body ? CaGroups.nestingState(v.body) : "unknown";
@@ -5414,7 +6504,7 @@ max@contoso.com,"Global, DevOps"</pre>
       $("nestRcModal").classList.remove("open");
       showReport("🚫 Disable nesting — recreated", "CA-Group-DisableNesting", CaGroups.nestingReport(p, log, tenantName));
       toast(log.failed.length ? `Recreated with <span>${log.failed.length} failure(s)</span>` : `<span>${p.name}</span> recreated with nesting disabled`);
-      cgRes = null; await openCaGroups(true); cgTab = "check"; renderCaGroups();
+      cgRes = null; await openCaGroups(true, shownScreen !== "screen-cagroups"); cgTab = "groups"; renderCaGroups();
     } catch (e) {
       console.error(e); toast(`Recreate failed: <span>${esc(e.message || e)}</span>`);
       btn.disabled = false;
@@ -5552,7 +6642,7 @@ max@contoso.com,"Global, DevOps"</pre>
         : `<span>${esc(g.name)}</span> already existed — reused`);
       // fold the new group into the scan so Check shows it without a refresh
       cgRes = null;
-      await openCaGroups(true);
+      await openCaGroups(true, shownScreen !== "screen-cagroups");
       cgTab = "create"; renderCaGroups();
     } catch (err) {
       console.error(err);
@@ -5608,6 +6698,10 @@ max@contoso.com,"Global, DevOps"</pre>
   // DOM vanishes the moment the matrix repaints — which is exactly when the
   // confirmation matters. Keep it in state and render it.
   let cgAddMsg = null;   // { html, bad }
+  // drawer Members tab (T12 5.10): the find box, the order, and the last
+  // tenant search { q, gid, busy | err | hits[], more } — dropped when another
+  // row opens, because the hits belong to one group and one query
+  let cgMemQ = "", cgMemSort = "", cgMemHits = null;
 
   function cgAddSuggest(e) {
     if (e.target.id !== "cgAddUser") return;
@@ -5668,11 +6762,11 @@ max@contoso.com,"Global, DevOps"</pre>
       row.memberTotal = (row.memberTotal || 0) + 1;
       say(`✓ <b>${esc(fresh.name)}</b> added to <b>${esc(gName)}</b>.`);
       if (uBox) uBox.value = "";
-      renderCgMembers();
+      cgRerenderMembers();
       if (!isDemo) {
         try {
           await CaGroups.loadMembers([row], {});
-          renderCgMembers();
+          cgRerenderMembers();
         } catch { /* the optimistic row stands */ }
       }
     } catch (e) {
@@ -5685,7 +6779,7 @@ max@contoso.com,"Global, DevOps"</pre>
   // matrix that can lock somebody out (a member taken out of an EXCLUSION
   // group is suddenly inside the policy). So it always confirms, names both
   // sides, and says what the group is used for before asking.
-  async function cgRemoveMember(who, gName, byId) {
+  async function cgRemoveMember(who, gName, byId, fallback) {
     const say = (html, bad) => {
       cgAddMsg = { html, bad: !!bad };
       const el = $("cgAddLog");
@@ -5698,7 +6792,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
     if (row.dynamic) { say(`<b>${esc(gName)}</b> is a dynamic group — its membership is decided by the rule, not by hand.`, true); return; }
     cgAddGroup = gName;
-    const member = (row.members || []).find((m) => byId ? m.id === who : (m.upn || "").toLowerCase() === who.toLowerCase() || (m.name || "").toLowerCase() === who.toLowerCase());
+    const member = (row.members || []).find((m) => byId ? m.id === who : (m.upn || "").toLowerCase() === who.toLowerCase() || (m.name || "").toLowerCase() === who.toLowerCase()) || (byId ? fallback : null);
     if (!member) { say(`<b>${esc(who)}</b> is not a member of <b>${esc(gName)}</b> (as read here) — nothing to remove.`, true); return; }
     // what the group does, so the reader knows which way the change cuts
     const isExcl = (typeof Baseline !== "undefined" && Baseline.active) ? (() => { try { return !!Baseline.active().isExclusionGroup(gName); } catch { return false; } })() : false;
@@ -5721,15 +6815,64 @@ This is a directory write. Nothing else changes.`)) return;
       row.memberTotal = Math.max(0, (row.memberTotal || 1) - 1);
       say(`✓ <b>${esc(member.name)}</b> removed from <b>${esc(gName)}</b>.${excBy.length ? ` <span style="color:var(--report)">Now inside ${excBy.map((p) => esc(p.seq || p.name)).join(", ")} again.</span>` : ""}`);
       const uBox = $("cgAddUser"); if (uBox && !byId) uBox.value = "";
-      renderCgMembers();
+      cgRerenderMembers();
       if (!isDemo) {
-        try { await CaGroups.loadMembers([row], {}); renderCgMembers(); } catch { /* the optimistic row stands */ }
+        try { await CaGroups.loadMembers([row], {}); cgRerenderMembers(); } catch { /* the optimistic row stands */ }
       }
+      return true;
     } catch (e) {
       say(`Remove failed: ${esc(e.message || e)}`, true);
     }
   }
 
+  // ③ nesting view: "how" instead of "who" — ● direct, ◐ through a nested
+  // group, plus the nested groups themselves with their members. Off by
+  // default so the matrix reads as it always did.
+  let cgNesting = "";          // "" | "show" | "only"
+  let cgCmpView = "members";   // "members" | "policies" — what the compare sheet compares
+  const cgNestOpen = new Set();
+  let cgHideEmpty = false, cgEmptiesOpen = false;
+  // The ticks in the Policies view: how many, and the write behind them —
+  // one Assign.apply per (group, include/exclude) pair, the scan's refs
+  // updated in place so the grid shows the result without a re-scan.
+  let cgFixLast = null;   // the last apply's outcome, shown above the grid until the next
+  let cgSort = null;      // {key, dir} for the groups list; null = attention first
+  function cgFixSync() {
+    const n = $("cgBody").querySelectorAll("[data-cgfix]:checked").length;
+    const b = $("cgBody").querySelector("[data-cgfixgo]"); if (b) { b.disabled = !n; b.textContent = `🎯 Add the ticked groups to those policies (${n})`; }
+  }
+  async function cgFixApply(btn) {
+    const ticks = [...$("cgBody").querySelectorAll("[data-cgfix]:checked")].map((cb) => { const [pid, gid, how] = cb.dataset.cgfix.split("|"); return { pid, gid, how }; });
+    if (!ticks.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) return;
+    btn.disabled = true; btn.textContent = "Updating…";
+    const byKey = new Map();
+    ticks.forEach((t) => { const k = `${t.gid}|${t.how}`; if (!byKey.has(k)) byKey.set(k, { gid: t.gid, how: t.how, pids: [] }); byKey.get(k).pids.push(t.pid); });
+    // the ledger sits above the grid while the writes run — one row per tick
+    const nameOf = (pid) => { const vm = policies.find((p) => p.id === pid); return vm ? (vm.seq ? `${vm.seq} ${vm.name}` : vm.name) : pid; };
+    const jobs = [...byKey.values()];
+    const rows = []; jobs.forEach((job) => { const g = cgRes.rows.find((r) => r.id === job.gid); job.pids.forEach((pid) => rows.push({ label: nameOf(pid), sub: `+${job.how === "exc" ? "ex" : "in"} ${g ? g.name : job.gid}` })); });
+    let host = $("cgFixLedger"); if (!host) { host = document.createElement("div"); host.id = "cgFixLedger"; btn.closest(".row").insertAdjacentElement("afterend", host); }
+    const L = RunLedger.create(host, { unit: "policy updates", items: rows });
+    let base = 0, ok = 0, bad = [];
+    for (const job of jobs) {
+      const row = cgRes.rows.find((r) => r.id === job.gid); if (!row) { base += job.pids.length; continue; }
+      const off = base;
+      const onItem = (i, phase, r) => { if (phase === "start") L.start(off + i); else if (r.ok) L.done(off + i, r.changed === false ? "already there" : "", "added"); else if (r.stopped) L.skip(off + i, "stopped"); else L.fail(off + i, r.error || "failed"); };
+      const res = isDemo ? await (async () => { const out = []; for (let i = 0; i < job.pids.length; i++) { onItem(i, "start"); await new Promise((r) => setTimeout(r, 40)); out.push({ pid: job.pids[i], ok: true, changed: true }); onItem(i, "end", out[i]); } return out; })() : await Assign.apply(job.pids, job.how === "exc" ? 3 : 2, [job.gid], null, undefined, onItem, () => L.stopped);
+      res.forEach((r, i) => {
+        const pid = job.pids[i], vm = policies.find((p) => p.id === pid);
+        if (r.ok) { ok++; const list = job.how === "exc" ? row.refs.exclude : row.refs.include; if (!list.some((p) => p.id === pid)) list.push({ id: pid, name: vm ? vm.name : (r.name || pid), seq: vm ? vm.seq : null }); row.refCount = row.refs.include.length + row.refs.exclude.length; }
+        else bad.push(`${r.name || pid}: ${r.error || "failed"}`);
+      });
+      base += job.pids.length;
+    }
+    L.finish();
+    cgFixLast = { ok, bad, ledger: L.el };
+    toast(bad.length ? `${ok} added, <span>${bad.length} failed</span> — the reasons are on the rows` : `<span>${ok}</span> polic${ok === 1 ? "y" : "ies"} updated`);
+    renderCgMembers();
+    if (cgTab === "members") renderCaGroups();
+  }
   function renderCgMembers() {
     const scanned = cgRes.rows.filter(r => r.members);
     if (cgMemberPick || (!scanned.length && !cgBusy)) {
@@ -5745,11 +6888,15 @@ This is a directory write. Nothing else changes.`)) return;
       </div>`;
       return;
     }
-    const m = CaGroups.matrix(cgRes.rows);
+    // The matrix is the groups you PICKED (ticked in the list, or chosen in the
+    // picker), not every group that was ever read this session — with nothing
+    // picked, everything read is shown, as before.
+    const m = CaGroups.matrix(cgMemberSel.size ? cgRes.rows.filter((r) => cgMemberSel.has(r.name)) : cgRes.rows);
+    // The empty groups as ONE line that opens, not a wall of names: on a
+    // baseline tenant half the exclusion groups are empty by design.
     const empties = m.empty.length
-      ? `<p class="mini" style="margin:10px 0;color:var(--report)">⚠ ${m.empty.length} group${m.empty.length === 1 ? " is" : "s are"} empty:
-         ${m.empty.map(c => `<b>${esc(c.name)}</b>`).join(", ")} — a policy scoped to an empty include group applies to nobody;
-         an empty exclude group excludes nobody.</p>` : "";
+      ? `<details class="cg-empties"${cgEmptiesOpen ? " open" : ""}><summary class="mini" style="margin:10px 0 4px;color:var(--report);cursor:pointer">⚠ ${m.empty.length} group${m.empty.length === 1 ? " is" : "s are"} empty — a policy scoped to an empty include group applies to nobody, an empty exclude group excludes nobody. <span class="muted">${cgHideEmpty ? "Hidden from the matrix." : "Show the names ▸"}</span></summary>
+         <p class="mini" style="margin:0 0 8px;color:var(--report)">${m.empty.map(c => `<b>${esc(c.name)}</b>`).join(", ")}</p></details>` : "";
     const errs = cgRes.rows.filter(r => r.memberError);
     // Add a member without leaving the matrix. Only the groups whose members
     // are actually loaded are offered — adding to a group you cannot see the
@@ -5777,13 +6924,48 @@ This is a directory write. Nothing else changes.`)) return;
         <div id="cgAddLog" class="mini" style="margin-top:8px">${cgAddMsg ? `<span style="${cgAddMsg.bad ? "color:var(--off)" : ""}">${cgAddMsg.html}</span>` : ""}</div>
       </div>`;
 
-    $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">
-        ${m.users.length} distinct member${m.users.length === 1 ? "" : "s"} across ${m.cols.length} group${m.cols.length === 1 ? "" : "s"}.
+    const nestedN = m.cols.reduce((n, c) => n + ((c.children || []).length), 0);
+    const nestedUsers = m.users.filter((u) => Object.values(u.how || {}).some((h) => h && !h.direct)).length;
+    const nestSeg = `<span class="seg sw" style="margin-left:8px;vertical-align:middle" title="Show how each member got in: ● direct, ◐ through a nested group">
+        <button class="${cgNesting === "" ? "active" : ""}" data-cgnestmode="">Members</button>
+        <button class="${cgNesting === "show" ? "active" : ""}" data-cgnestmode="show">Show nesting${nestedN ? ` (${nestedN})` : ""}</button>
+        <button class="${cgNesting === "only" ? "active" : ""}" data-cgnestmode="only">Nested only${nestedUsers ? ` (${nestedUsers})` : ""}</button>
+      </span>
+      ${m.empty.length ? `<label class="chk mini" style="display:inline-flex;align-items:center;gap:5px;margin-left:8px;vertical-align:middle"><input type="checkbox" id="cgHideEmpty"${cgHideEmpty ? " checked" : ""}> hide ${m.empty.length} empty group${m.empty.length === 1 ? "" : "s"}</label>` : ""}`;
+    // Two things to compare between the picked groups: WHO is in them, and
+    // WHICH POLICIES reference them — after a migration the second is the
+    // list of inclusions and exclusions the new group is still missing.
+    const picked = cgMemberSel.size ? cgRes.rows.filter((r) => cgMemberSel.has(r.name)) : cgRes.rows.filter((r) => r.members);
+    const pm = CaGroups.policyMatrix(picked, (id) => { const vm = policies.find((p) => p.id === id); return vm ? (vm.raw && vm.raw.state) || vm.state : null; });
+    const viewSeg = `<span class="seg sw" style="vertical-align:middle" title="Compare who is in the groups, or which policies reference them">
+        <button class="${cgCmpView === "members" ? "active" : ""}" data-cgcmpview="members">Members (${m.users.length})</button>
+        <button class="${cgCmpView === "policies" ? "active" : ""}" data-cgcmpview="policies">Policies (${pm.pols.length})${pm.diffs ? ` <span class="pill red" style="margin-left:4px">${pm.diffs} differ</span>` : ""}</button>
+      </span>`;
+    if (cgCmpView === "policies") {
+      setTimeout(() => { const h = $("cgFixLedger"); if (h && cgFixLast && cgFixLast.ledger && !h.contains(cgFixLast.ledger)) h.appendChild(cgFixLast.ledger); }, 0);
+      $("cgBody").innerHTML = `<div class="mini" style="margin:10px 0">${viewSeg}
+          <span style="margin-left:10px">${pm.pols.length} polic${pm.pols.length === 1 ? "y references" : "ies reference"} the ${pm.cols.length} picked group${pm.cols.length === 1 ? "" : "s"}.</span>
+          <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Pick more groups</button>
+        </div>
+        ${cgFixLast ? `<div id="cgFixLedger" style="margin:0 0 10px"></div>` : ""}
+        ${CaGroups.renderPolicyMatrix(pm, cgQuery)}
+        <p class="mini muted" style="margin-top:8px">● in = the policy includes the group, ✗ ex = excludes it, · = does not name it. A row marked <b>differs</b> names some of the picked groups and not the others — fix it with 🎯 Assign to policies (add the group that is missing). Policy names open the card.</p>`;
+      return;
+    }
+    // differences in policy references are the thing a migration can leave
+    // behind — say so on the members view too, with the way over
+    const diffNote = pm.diffs ? `<div class="wo-callout bad" style="margin:0 0 10px"><b>${pm.diffs} polic${pm.diffs === 1 ? "y references" : "ies reference"} some of these groups and not the others.</b> ${pm.missing.filter((g) => g.inc.length || g.exc.length).map((g) => `${esc(g.name)} is missing ${[g.exc.length ? `${g.exc.length} exclusion${g.exc.length === 1 ? "" : "s"}` : "", g.inc.length ? `${g.inc.length} inclusion${g.inc.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" and ")}`).join("; ")}. <button class="btn sm" data-cgcmpview="policies" style="margin-left:6px">Show the policies</button></div>` : "";
+    $("cgBody").innerHTML = `${diffNote}<div class="mini" style="margin:10px 0">${viewSeg}
+        <span style="margin-left:10px">${m.users.length} distinct member${m.users.length === 1 ? "" : "s"} across ${m.cols.length} group${m.cols.length === 1 ? "" : "s"}.</span>
         <button class="btn sm" data-cgmpick style="margin-left:8px">＋ Read more groups</button>
         <button class="btn sm" id="cgMemberGo" style="margin-left:6px">⟳ Re-read selected</button>
+        ${nestSeg}
       </div>${addBar}${empties}
       ${errs.length ? `<p class="mini" style="color:var(--off)">${errs.length} group${errs.length === 1 ? "" : "s"} could not be read: ${errs.map(r => esc(r.name)).join(", ")}</p>` : ""}
-      ${CaGroups.renderMatrix(m, cgQuery)}`;
+      ${CaGroups.renderMatrix(m, cgQuery, cgNesting, { hideEmpty: cgHideEmpty })}
+      ${cgNesting ? CaGroups.renderNesting(m, cgNestOpen) : ""}`;
+    const he = $("cgHideEmpty"); if (he) he.addEventListener("change", (e) => { cgHideEmpty = e.target.checked; renderCgMembers(); });
+    const de = $("cgBody").querySelector(".cg-empties"); if (de) de.addEventListener("toggle", () => { cgEmptiesOpen = de.open; });
     const gl = $("cgGroupSug");
     if (gl) gl.innerHTML = m.cols.map((c) => `<option value="${esc(c.name)}"></option>`).join("");
   }
@@ -5791,6 +6973,16 @@ This is a directory write. Nothing else changes.`)) return;
   // One group's members, on demand. Same reader as the bulk scan so a row
   // filled this way is indistinguishable from one filled by "read all" — it
   // counts towards the matrix and the Markdown export straight away.
+  // demo nesting: the last member of every group with 2+ members came in
+  // through a nested "SG-Demo-<n>" group
+  function cgDemoNesting(r) {
+    const ms = r.members || [];
+    if (ms.length < 2) { r.directIds = new Set(ms.map((m) => m.id)); r.children = []; r.childTotal = 0; ms.forEach((m) => { m.direct = true; m.via = []; }); return; }
+    const last = ms[ms.length - 1];
+    const child = { id: `g-nest-${r.id}`, name: `SG-Demo-${((r.name || "").match(/CA\d+/) || ["team"])[0]}`, dynamic: false, rule: "", error: null, members: [last], memberTotal: 1 };
+    r.directIds = new Set(ms.slice(0, -1).map((m) => m.id)); r.children = [child]; r.childTotal = 1;
+    ms.forEach((m) => { m.direct = m.id !== last.id; m.via = m.id === last.id ? [child.name] : []; });
+  }
   async function scanOneGroup(name, btn) {
     const r = cgRes && cgRes.rows.find(x => x.name === name);
     if (!r || !r.id) return;
@@ -5800,6 +6992,7 @@ This is a directory write. Nothing else changes.`)) return;
       if (isDemo) {
         r.memberTotal = 3;
         r.members = [1, 2, 3].map(k => ({ id: `u${k}-${r.id}`, name: `Demo user ${k}`, upn: `demo${k}@contoso.com`, disabled: k === 3 }));
+        cgDemoNesting(r);
       } else {
         await CaGroups.loadMembers([r], {});
       }
@@ -5824,6 +7017,7 @@ This is a directory write. Nothing else changes.`)) return;
         targets.forEach((r, i) => {
           r.memberTotal = i % 4; r.members = Array.from({ length: i % 4 }, (_, k) =>
             ({ id: `u${k}-${i}`, name: `Demo user ${k + 1}`, upn: `demo${k + 1}@contoso.com`, disabled: false }));
+          cgDemoNesting(r);
         });
       } else {
         await CaGroups.loadMembers(targets, {
@@ -5968,6 +7162,225 @@ This is a directory write. Nothing else changes.`)) return;
     $("depModal").classList.add("open");
   }
   // the same per-group scan, from inside the group's detail overlay
+  // ---- T12 5.0 list + drawer: model, reads, clicks ----
+  function cgModel() {
+    const byId = new Map((policies || []).map((p) => [p.id, p]));
+    const cat = (typeof Baseline !== "undefined" && Baseline.active) ? (() => { try { return Baseline.active(); } catch { return null; } })() : null;
+    return { rows: cgRes.rows, ctx: { prot: cgProt, cat, stateOf: (id) => ((byId.get(id) || {}).raw || {}).state || "", // the BASELINE's number (CA002 in "CA002-BLOCK-…"), not ENCA's running seq
+      // (CA068 = the 68th policy alphabetically): the group is named for the
+      // former, and a row saying "CA002-Exclusion · excluded by CA068" reads as
+      // a mismatch. No number in the name → the full name is shown instead.
+      seqOf: (id) => { const m = String((byId.get(id) || {}).name || "").match(/\bCA\d{3,4}[A-Za-z]?\b/); return m ? m[0] : ""; }, nameOf: (id) => (byId.get(id) || {}).name || "" } };
+  }
+  // read members (+ nesting) of some rows, headless; demo rows get the demo shape
+  async function cgReadRows(rows) {
+    const todo = rows.filter((r) => r.id);
+    if (!todo.length) return;
+    if (isDemo) {
+      todo.forEach((r, i) => { const n = (r.name.length + i) % 4; r.memberTotal = n; r.members = Array.from({ length: n }, (_, k) => ({ id: `u${k}-${r.id}`, name: `Demo user ${k + 1}`, upn: `demo${k + 1}@contoso.com`, disabled: k === 2 })); r.memberError = null; cgDemoNesting(r); });
+      return;
+    }
+    await CaGroups.loadMembers(todo, {});
+  }
+  const cgRerenderMembers = () => { if (cgTab === "groups") renderCaGroups(); else renderCgMembers(); };
+  const cgViewOpts = () => ({ filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, sort: cgSort, engine: cgTab === "members" ? "③ Members / Compare" : null, sheetFull: cgSheetFull, memQ: cgMemQ, memSort: cgMemSort, memHits: cgMemHits });
+  // The find box lives inside the drawer, and the drawer is innerHTML on every
+  // render — so typing re-renders the TREE under it, never the box itself, or
+  // the caret would be gone after the first letter.
+  function cgMemRefresh() {
+    const host = $("cgMemTree"), r = cgRes && cgOpen ? cgRes.rows.find((x) => x.name === cgOpen) : null;
+    if (!host || !r) return;
+    host.innerHTML = GroupsView.memberTree(r, GroupsView.classify(r, cgModel().ctx), cgViewOpts());
+  }
+  // "Is she in here?" when only the first 500 of a bigger group were read:
+  // ask Graph for the group's members matching the term — startswith on name
+  // and UPN plus a displayName search, direct and transitive, one $batch.
+  // Nested hits are then placed: the child groups read here first, then
+  // checkMemberGroups against the children, so the × can go to the right
+  // group. Four to six requests a click, so a button or Enter, not a keystroke.
+  async function cgMemFind() {
+    const r = cgRes && cgOpen ? cgRes.rows.find((x) => x.name === cgOpen) : null;
+    const q = cgMemQ.trim();
+    if (!r || !r.id || q.length < 2 || !(r.memberTotal > (r.members || []).length)) return;
+    if (cgMemHits && cgMemHits.busy) return;
+    cgMemHits = { q, gid: r.id, busy: true }; cgMemRefresh();
+    try {
+      let hits = [], more = false;
+      if (isDemo) {
+        const ql = q.toLowerCase();
+        hits = (r.members || []).filter((m) => (m.name || "").toLowerCase().startsWith(ql) || (m.upn || "").toLowerCase().startsWith(ql)).map((m) => ({ ...m, direct: r.directIds ? !!m.direct : true, via: null }));
+      } else {
+        const f = q.replace(/'/g, "''"), sq = q.replace(/["\\]/g, " ");
+        const sel = "$select=id,displayName,userPrincipalName,accountEnabled&$count=true&$top=50";
+        const filt = `$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')`;
+        const srch = `$search="displayName:${sq}"`;
+        const res = await Graph.gbatch([
+          { id: "tf", url: `/groups/${r.id}/transitiveMembers/microsoft.graph.user?${filt}&${sel}` },
+          { id: "ts", url: `/groups/${r.id}/transitiveMembers/microsoft.graph.user?${srch}&${sel}` },
+          { id: "df", url: `/groups/${r.id}/members/microsoft.graph.user?${filt}&${sel}` },
+          { id: "ds", url: `/groups/${r.id}/members/microsoft.graph.user?${srch}&${sel}` },
+        ]);
+        if (res.tf.error && res.ts.error) throw new Error(res.tf.error);
+        const rows = (k) => ((res[k] && res[k].body && res[k].body.value) || []);
+        const direct = new Set([...rows("df"), ...rows("ds")].map((u) => u.id));
+        const seen = new Map();
+        [...rows("tf"), ...rows("ts")].forEach((u) => { if (!seen.has(u.id)) seen.set(u.id, { id: u.id, name: u.displayName || u.id, upn: u.userPrincipalName || "", disabled: u.accountEnabled === false, direct: direct.has(u.id), via: null }); });
+        hits = [...seen.values()];
+        more = rows("tf").length >= 50 || rows("ts").length >= 50;
+        hits.forEach((h) => { if (h.direct) return; const ch = (r.children || []).find((c) => (c.members || []).some((m) => m.id === h.id)); if (ch) h.via = { id: ch.id, name: ch.name, dynamic: !!ch.dynamic }; });
+        const open = hits.filter((h) => !h.direct && !h.via), kids = (r.children || []).filter((c) => c.id);
+        if (open.length && kids.length) {
+          const reqs = [];
+          open.forEach((h, i) => { for (let j = 0; j < kids.length; j += 20) reqs.push({ id: `${i}.${j}`, method: "POST", url: `/users/${h.id}/checkMemberGroups`, body: { groupIds: kids.slice(j, j + 20).map((c) => c.id) } }); });
+          const r2 = await Graph.gbatch(reqs);
+          reqs.forEach((rq) => { const out = r2[rq.id]; if (!out || out.error) return; const found = ((out.body && out.body.value) || [])[0]; if (!found) return; const h = open[Number(rq.id.split(".")[0])]; const ch = kids.find((c) => c.id === found); if (h && ch && !h.via) h.via = { id: ch.id, name: ch.name, dynamic: !!ch.dynamic }; });
+        }
+      }
+      hits.sort((a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }));
+      cgMemHits = { q, gid: r.id, hits, more };
+    } catch (e) { cgMemHits = { q, gid: r.id, err: e.message || String(e) }; }
+    cgMemRefresh();
+  }
+  async function cgOpenRow(name) {
+    if (name !== cgOpen) { cgMemQ = ""; cgMemHits = null; }
+    cgOpen = name; cgDrTab = cgDrTab || "members"; cgAddMsg = null;
+    const r = cgRes.rows.find((x) => x.name === name);
+    renderCaGroups();
+    if (r && r.id && r.members == null) { await cgReadRows([r]); if (cgOpen === name) renderCaGroups(); }
+  }
+  // remove a user from a NESTED group shown under the open row — the write
+  // goes to the child, and the confirmation says what else that child feeds
+  async function cgRemoveFromChild(parent, childId, childName, userId, fallback) {
+    const ch = (parent.children || []).find((c) => c.id === childId); if (!ch) return;
+    const m = (ch.members || []).find((x) => x.id === userId) || fallback; if (!m) return;
+    const feeds = cgRes.rows.filter((r) => (r.children || []).some((c) => c.id === childId)).map((r) => r.name);
+    if (!confirm(`Remove ${m.name} (${m.upn || ""}) from ${childName}?\n\n${childName} is a nested group inside ${feeds.join(", ") || parent.name}. Taking ${m.name} out of it takes them out of ${feeds.length > 1 ? "all of those" : "that group"} as well.\n\nThis is a directory write. Nothing else changes.`)) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
+    try {
+      if (!isDemo) await Graph.gdelete(`/groups/${childId}/members/${userId}/$ref`, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+      ch.members = ch.members.filter((x) => x.id !== userId); ch.memberTotal = Math.max(0, ch.memberTotal - 1);
+      parent.members = (parent.members || []).filter((x) => x.id !== userId || x.direct); parent.memberTotal = Math.max(0, (parent.memberTotal || 1) - 1);
+      cgAddMsg = { html: `✓ <b>${esc(m.name)}</b> removed from <b>${esc(childName)}</b>.`, bad: false };
+      renderCaGroups();
+      if (!isDemo) { try { await CaGroups.loadMembers([parent], {}); renderCaGroups(); } catch {} }
+      return true;
+    } catch (e) { cgAddMsg = { html: `Remove failed: ${esc(e.message || e)}`, bad: true }; renderCaGroups(); }
+  }
+  async function cgReadHistory(r) {
+    cgHistBusy = true; renderCaGroups();
+    try {
+      if (isDemo) { cgHist = { id: r.id, rows: [{ activity: "Add member to group", target: "Demo user 1", when: "2026-07-21 09:12", by: "alex.admin@contoso.com", result: "success" }] }; }
+      else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { cgHist = { id: r.id, error: "AuditLog.Read.All was not granted" }; }
+        else {
+          const j = await Graph.gget(`/auditLogs/directoryAudits?$filter=${encodeURIComponent(`targetResources/any(t:t/id eq '${r.id}')`)}&$orderby=activityDateTime desc&$top=50`);
+          cgHist = { id: r.id, rows: ((j && j.value) || []).map((x) => {
+            const by = (x.initiatedBy || {}); const who = (by.user && (by.user.userPrincipalName || by.user.displayName)) || (by.app && by.app.displayName) || "(unknown)";
+            const user = (x.targetResources || []).find((t) => /user/i.test(t.type || "") && t.id !== r.id);
+            return { activity: x.activityDisplayName || "", when: new Date(x.activityDateTime).toLocaleString(), by: who, result: x.result || "", target: user ? (user.userPrincipalName || user.displayName || "") : "" };
+          }) };
+        }
+      }
+    } catch (e) { cgHist = { id: r.id, error: `Could not read the audit log: ${e.message || e}` }; }
+    cgHistBusy = false; renderCaGroups();
+  }
+  function cgGoTab(tab, names) {
+    cgTab = tab; cgQuery = ""; $("cgSearch").value = "";
+    const rows = (names || []).map((n) => cgRes.rows.find((x) => x.name === n)).filter(Boolean);
+    if (tab === "members") { cgMemberSel.clear(); names.forEach((n) => cgMemberSel.add(n)); cgMemberPick = false; }
+    if (tab === "rmau") { const ids = rows.filter((r) => r.id).map((r) => r.id); if (cgRmau && cgRmau.status) { cgRmau.sel = new Set(ids.filter((id) => cgRmau.status.has(id))); if (rows.length === 1) cgRmau.q = rows[0].name; } else cgRmauPre = ids; }
+    if (tab === "migrate") { const ids = rows.filter((r) => r.id).map((r) => r.id); if (cgMig && cgMig.plan) cgMig.sel = new Set(ids.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); else cgMigPre = ids; }
+    renderCaGroups();
+    if (tab === "members" && rows.some((r) => r.id && r.members == null)) startMemberScan();
+    // the list already knows these groups — arriving with a selection runs
+    // the check straight away instead of showing a Scan button for what was
+    // just clicked
+    if (tab === "rmau" && rows.length && !(cgRmau && cgRmau.status) && !rmauBusy) cgRmauScan();
+    if (tab === "migrate" && rows.length && !cgMigBusy && (!cgMig || cgMig.scoped)) cgMigScan(rows.filter((r) => r.id).map((r) => r.id));
+  }
+  const cggClick = async (e) => {
+    const t = e.target;
+    if (!cgRes && !t.closest("[data-cgg-back]")) return;
+    if (t.closest("[data-cgg-back]")) { cgCloseEngine(); return; }
+    if (t.closest("[data-cgg-sheetsize]")) { cgSheetSize(!cgSheetFull); return; }
+    const so = t.closest("[data-cgg-sort]"); if (so) { const k = so.dataset.cggSort; cgSort = cgSort && cgSort.key === k ? (cgSort.dir > 0 ? { key: k, dir: -1 } : null) : { key: k, dir: 1 }; renderCaGroups(); return; }
+    const pl = t.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    if (t.closest("[data-cgg-close]")) { cgOpen = null; renderCaGroups(); return; }
+    const dt = t.closest("[data-cgg-dtab]"); if (dt) { cgDrTab = dt.dataset.cggDtab; renderCaGroups(); return; }
+    const ne = t.closest("[data-cgg-nest]"); if (ne) { const k = ne.dataset.cggNest; cgNestOpenDr.has(k) ? cgNestOpenDr.delete(k) : cgNestOpenDr.add(k); renderCaGroups(); return; }
+    const rd = t.closest("[data-cgg-read]"); if (rd) { const r = cgRes.rows.find((x) => x.name === rd.dataset.cggRead); if (r) { rd.disabled = true; rd.textContent = "…"; await cgReadRows([r]); renderCaGroups(); } return; }
+    const hi = t.closest("[data-cgg-hist]"); if (hi) { const r = cgRes.rows.find((x) => x.name === hi.dataset.cggHist); if (r) cgReadHistory(r); return; }
+    const ms = t.closest("[data-cgg-msort]"); if (ms) { cgMemSort = ms.dataset.cggMsort; renderCaGroups(); return; }
+    if (t.closest("[data-cgg-memfind]")) { cgMemFind(); return; }
+    const rm = t.closest("[data-cgg-rm]");
+    if (rm) {
+      const r = cgRes.rows.find((x) => x.name === cgOpen); if (!r) return;
+      // a tenant-search hit may sit outside the 500 read here — hand the row
+      // the hit itself so the confirmation can still name the person
+      const hit = rm.dataset.cggHit && cgMemHits && cgMemHits.hits ? cgMemHits.hits.find((h) => h.id === rm.dataset.cggRm) : null;
+      let ok;
+      if (rm.dataset.cggRmgid && rm.dataset.cggRmgid !== r.id) ok = await cgRemoveFromChild(r, rm.dataset.cggRmgid, rm.dataset.cggRmgroup, rm.dataset.cggRm, hit);
+      else ok = await cgRemoveMember(rm.dataset.cggRm, r.name, true, hit);
+      if (ok && hit && cgMemHits && cgMemHits.hits) { cgMemHits.hits = cgMemHits.hits.filter((h) => h.id !== hit.id); renderCaGroups(); }
+      return;
+    }
+    const bulk = t.closest("[data-cgg-bulk]");
+    if (bulk) {
+      const names = cgSel.size ? [...cgSel] : (cgOpen ? [cgOpen] : []), rows = names.map((n) => cgRes.rows.find((x) => x.name === n)).filter(Boolean);
+      switch (bulk.dataset.cggBulk) {
+        case "clear": if (cgSel.size) cgSel.clear(); else cgOpen = null; renderCaGroups(); return;
+        case "read": bulk.disabled = true; bulk.textContent = "Reading…"; await cgReadRows(rows.filter((r) => r.members == null)); renderCaGroups(); return;
+        case "compare": cgGoTab("members", names); return;
+        case "assign": openAssign(selected.size ? "selection" : "all"); toast(`The wizard scopes by policy — pick <span>${names.length === 1 ? esc(names[0]) : names.length + " groups"}</span> in its group step`); return;
+        case "rmau": cgGoTab("rmau", names); return;
+        case "migrate": cgGoTab("migrate", names); return;
+        case "csv": cgGoTab("csv", names); return;
+        case "create": cgGoTab("create", names); return;
+      }
+    }
+    const act = t.closest("[data-cgg-act]");
+    if (act) {
+      const name = act.dataset.cggName, r = cgRes.rows.find((x) => x.name === name);
+      switch (act.dataset.cggAct) {
+        case "create": cgGoTab("create", [name]); return;
+        case "restore": openAssign(selected.size ? "selection" : "all"); toast("Use the <span>RESTORE each policy's own exclusion group</span> action in the wizard"); return;
+        case "wave": { const i = $("wvTerm"); if (i) i.value = name; wvPick = null; $("toolWave").click(); setTimeout(() => runWave(), 50); return; }
+        case "analyzer": { const i = $("guTerm"); if (i) i.value = name; $("toolGroupUse").click(); return; }
+        case "assign": openAssign(selected.size ? "selection" : "all"); return;
+        case "rmau": cgGoTab("rmau", [name]); return;
+        case "migrate": cgGoTab("migrate", [name]); return;
+        case "nesting": openNesting(name, act); return;   // ⑧ Disable nesting, from the drawer's Protection tab
+        case "teamsdev": openTeamsDev(); return;   // 📞 T35, folded in at 25349
+        case "menu": showGroupRow(name); return;
+      }
+      return;
+    }
+    const row = t.closest("[data-cgg-row]");
+    if (row && !t.closest("input,button,a")) { cgOpenRow(row.dataset.cggRow); }
+  };
+  $("cgList").addEventListener("click", cggClick);
+  $("cgBar").addEventListener("click", cggClick);
+  $("cgOverlay").addEventListener("click", (e) => { if (e.target.closest("[data-cgg-back]") || e.target === $("cgOverlay")) cgCloseEngine(); });
+  $("cgSheet").addEventListener("click", (e) => { if (e.target.closest("[data-cgg-back]")) cgCloseEngine(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && cgTab !== "groups" && !$("cgOverlay").hidden && !(e.target && e.target.closest && e.target.closest("input,textarea,select"))) cgCloseEngine(); });
+  // ticks change the selection; under the open sheet the matrix follows them
+  const cggSelChanged = () => { if (cgTab === "members") cgGoTab("members", [...cgSel]); else renderCaGroups(); };
+  $("cgList").addEventListener("change", (e) => {
+    const all = e.target.closest("[data-cgg-selall]");
+    if (all) { const names = [...$("cgList").querySelectorAll("[data-cgg-row]")].map((r) => r.dataset.cggRow); all.checked ? names.forEach((n) => cgSel.add(n)) : names.forEach((n) => cgSel.delete(n)); if (!all.checked && cgOpen && !cgSel.has(cgOpen)) cgOpen = null; cggSelChanged(); return; }
+    const one = e.target.closest("[data-cgg-sel]");
+    if (one) {
+      const name = one.dataset.cggSel;
+      // the drawer follows the tick: tick → that group opens; untick the open
+      // one → the last group still ticked opens, or nothing
+      if (one.checked) { cgSel.add(name); cgOpenRow(name); if (cgTab === "members") cgGoTab("members", [...cgSel]); return; }
+      cgSel.delete(name);
+      if (cgOpen === name) { const last = [...cgSel].pop(); if (last) { cgOpenRow(last); if (cgTab === "members") cgGoTab("members", [...cgSel]); return; } cgOpen = null; }
+      cggSelChanged();
+    }
+  });
+  $("cgChips").addEventListener("click", (e) => { const b = e.target.closest("[data-cgg-filter]"); if (!b) return; cgGFilter = b.dataset.cggFilter; renderCaGroups(); });
+
   $("depBody").addEventListener("click", (e) => {
     // A policy in the "Included in" / "Excluded from" lists opens its card.
     // The group overlay closes first: two stacked modals is not a state this
@@ -5981,13 +7394,9 @@ This is a directory write. Nothing else changes.`)) return;
     // Carry the group across rather than dropping the reader back into a tab
     // with nothing selected — the whole point is not having to find it again.
     const name = a.dataset.cgactname;
-    const row = (cgRes && cgRes.rows || []).find((x) => x.name === name);
     $("depModal").classList.remove("open");
-    cgTab = a.dataset.cgact; cgQuery = ""; $("cgSearch").value = "";
-    if (cgTab === "members") { cgMemberSel.clear(); cgMemberSel.add(name); cgMemberPick = true; }
-    if (cgTab === "rmau" && row && row.id && cgRmau) { cgRmau.sel = new Set([row.id]); cgRmau.q = name; }
-    if (cgTab === "migrate" && row && row.id && cgMig) { cgMig.sel = new Set([row.id]); }
-    renderCaGroups();
+    if (a.dataset.cgact === "assign") { openAssign(selected.size ? "selection" : "all"); return; }
+    cgGoTab(a.dataset.cgact, [name]);
     toast(`<span>${esc(name)}</span> carried over to ${esc(a.textContent.trim())}`);
   });
 
@@ -5999,6 +7408,14 @@ This is a directory write. Nothing else changes.`)) return;
   });
   $("cgBody").addEventListener("input", cgAddSuggest);
   $("cgBody").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
+  $("cgList").addEventListener("input", cgAddSuggest);
+  $("cgList").addEventListener("input", (e) => { if (e.target.id !== "cgMemQ") return; cgMemQ = e.target.value; cgMemRefresh(); });
+  $("cgList").addEventListener("keydown", (e) => { if (e.target.id === "cgMemQ" && e.key === "Enter") { e.preventDefault(); cgMemFind(); } });
+  $("cgList").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
+  $("cgList").addEventListener("click", async (e) => {
+    if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
+    if (e.target.id === "cgAddRm") { await cgRemoveMember($("cgAddUser")?.value, $("cgAddGroup")?.value); }
+  });
   $("cgTabs").addEventListener("click", (e) => {
     const b = e.target.closest("[data-cgtab]"); if (!b) return;
     cgTab = b.dataset.cgtab; cgQuery = ""; $("cgSearch").value = "";
@@ -6013,9 +7430,8 @@ This is a directory write. Nothing else changes.`)) return;
     const btn = $("cgRefresh");
     btn.disabled = true; btn.textContent = "⟳ Refreshing…";
     try {
-      if (isDemo) loadDemo(); else await loadFromGraph(true);
-      cgRes = null;
-      await openCaGroups(true);
+      // loadFromGraph(true) re-scans T12 itself when pressed from here
+      if (isDemo) { loadDemo(); cgRes = null; await openCaGroups(true); } else await loadFromGraph(true);
       toast("Groups <span>re-scanned</span>");
     } catch (e) { toast(`Refresh failed: <span>${esc(e.message || e)}</span>`); }
     finally { btn.disabled = false; btn.textContent = "⟳ Refresh"; }
@@ -6634,7 +8050,7 @@ This is a directory write. Nothing else changes.`)) return;
   // The restore write: create whatever groups were asked for, then one PATCH
   // per policy with that policy's own group. Creation failures drop their row
   // rather than failing the run — the other policies are still repairable.
-  async function runRestore() {
+  async function runRestore(onItem, shouldStop) {
     const rows = asPlanActionable();
     const items = [];
     for (const r of rows) {
@@ -6652,7 +8068,7 @@ This is a directory write. Nothing else changes.`)) return;
     const creatable = items.filter((r) => r.groupId);
     const failed = items.filter((r) => !r.groupId)
       .map((r) => ({ name: r.policy, ok: false, group: r.group, error: `${r.group} could not be created: ${r.createFailed || "unknown error"}` }));
-    const done = await Assign.applyMapped(creatable, (m) => toast(m));
+    const done = await Assign.applyMapped(creatable, null, onItem, shouldStop);
     return [...done, ...failed];
   }
 
@@ -6660,19 +8076,28 @@ This is a directory write. Nothing else changes.`)) return;
   $("asConfirmGo").addEventListener("click", async () => {
     if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"])) return;
     const gids = asGroups.filter(g => g.checked).map(g => g.id);
-    const btn = $("asConfirmGo"); btn.disabled = true;
+    const btn = $("asConfirmGo"); btn.disabled = true; $("asConfirmBack").disabled = true;
+    // the run ledger takes the summary's place in the modal: every policy
+    // listed before the first write, the one being written marked, ✓ / ✗ as
+    // each lands, Stop between writes
+    const mapped = Assign.MAPPED_ACTIONS.has(asAction);
+    const rowsFor = mapped ? asPlanActionable().map((r) => ({ label: r.policy, sub: r.group })) : asPolicies.map((p) => ({ label: p.name }));
+    const host = document.createElement("div"); $("asConfirmBody").innerHTML = ""; $("asConfirmBody").appendChild(host);
+    const L = RunLedger.create(host, { unit: "policies", items: rowsFor });
+    const onItem = (i, phase, r) => { if (phase === "start") L.start(i); else if (r.ok) L.done(i, r.changed === false ? "already set" : "", r.changed === false ? "unchanged" : "updated"); else if (r.stopped) L.skip(i, "stopped"); else L.fail(i, r.error || "failed"); };
     try {
-      const mapped = Assign.MAPPED_ACTIONS.has(asAction);
       if (isDemo) {
-        asResults = (mapped ? asPlanActionable() : asPolicies)
-          .map((x) => ({ name: mapped ? x.policy : x.name, ok: true, changed: true, group: x.group }));
+        asResults = [];
+        const src = mapped ? asPlanActionable() : asPolicies;
+        for (let i = 0; i < src.length; i++) { L.start(i); await new Promise((r) => setTimeout(r, 40)); const x = src[i]; asResults.push({ name: mapped ? x.policy : x.name, ok: true, changed: true, group: x.group }); L.done(i, "", "updated"); }
         toast("Demo — changes <span>simulated</span>");
       } else if (mapped) {
-        asResults = await runRestore();
+        asResults = await runRestore(onItem, () => L.stopped);
       } else {
         const ids = asTarget === "roles" ? asRoles.filter(r => r.checked).map(r => r.id) : gids;
-        asResults = await Assign.apply(asPolicies.map(p => p.id), asAction, ids, (m) => toast(m), asTarget);
+        asResults = await Assign.apply(asPolicies.map(p => p.id), asAction, ids, null, asTarget, onItem, () => L.stopped);
       }
+      L.finish({ report: () => showReport("👥 Group assignment report", "CA-Assign-Report", assignReportMd(asRun)) });
       // Snapshot the run so the report reflects exactly what was applied, not
       // whatever the wizard state happens to be when the button is clicked.
       asRun = { action: asAction, scope: asScope, target: asTarget,
@@ -6680,9 +8105,12 @@ This is a directory write. Nothing else changes.`)) return;
         groups: asGroups.filter(g => g.checked).map(g => ({ ...g })),
         roles: asRoles.filter(r => r.checked).map(r => ({ ...r })),
         results: asResults, when: new Date() };
-      $("asConfirm").classList.remove("open");
       asStep = 3; renderAssign();
       const failed = asResults.filter(r => !r.ok).length;
+      // the modal stays open on a failure or a stop so the ✗ rows are read
+      // where they happened; a clean run closes it as before
+      if (!failed) $("asConfirm").classList.remove("open");
+      else { $("asConfirmGo").style.display = "none"; $("asConfirmBack").disabled = false; $("asConfirmBack").textContent = "Close"; }
       const changed = asResults.filter(r => r.ok && r.changed !== false).length;
       toast(failed ? `Done with <span>${failed} failure(s)</span>`
         : `<span>${changed}</span> polic${changed === 1 ? "y" : "ies"} updated${changed < asResults.length ? `, ${asResults.length - changed} already set` : ""}`);
@@ -6692,8 +8120,10 @@ This is a directory write. Nothing else changes.`)) return;
       if (asScope === "all" || failed) showReport("👥 Group assignment report", "CA-Assign-Report", assignReportMd(asRun));
     } catch (e) {
       console.error(e); toast(`Assign failed: <span>${esc(e.message || e)}</span>`);
-    } finally { btn.disabled = false; }
+    } finally { btn.disabled = false; $("asConfirmBack").disabled = false; }
   });
+  // the confirm modal's Back doubles as Close after a run with failures
+  $("asConfirmBack").addEventListener("click", () => { $("asConfirmGo").style.display = ""; $("asConfirmBack").textContent = "Back"; });
 
   // Change report for an assign run — what was applied, which policies changed,
   // which were left alone, and every failure with its Graph error. Same shape
@@ -6779,6 +8209,7 @@ This is a directory write. Nothing else changes.`)) return;
   const blDefaultFilter = (res, catId) => (res && res.counts.missing && Baseline.isActive(catId)) ? "missing" : "all";
   function openBaseline(catId, keepView) {
     show("screen-baseline");
+    mountToolTabs("baseline", "baseline");
     if (catId) blCat = catId;
     if (!policies.length) {
       $("blHead").innerHTML = '<p class="mini">No policies loaded.</p>';
@@ -7002,7 +8433,7 @@ This is a directory write. Nothing else changes.`)) return;
     renderBlCleanup();
     showReport("🧹 Baseline leftovers — change report", "CA-Baseline-Leftovers", BaselineCleanup.toMd(t.plan, results, { tenant: tenantName, build: APP_BUILD.label }));
     // the policies list and the group scans are stale now
-    if (okN && !isDemo) { cgRes = null; try { await loadFromGraph(true); openBaseline(blCat, true); } catch (err) { console.warn("reload after leftovers:", err); } }
+    if (okN && !isDemo) { cgRes = null; try { await loadFromGraph(true); if (shownScreen === "screen-baseline") openBaseline(blCat, true); } catch (err) { console.warn("reload after leftovers:", err); } }
   });
 
   // The facts the dry run needs, read once per preview: every group in
@@ -7083,7 +8514,7 @@ This is a directory write. Nothing else changes.`)) return;
     const a = e.target.closest("[data-open-baseline]"); if (!a) return;
     e.preventDefault();
     const id = a.dataset.openBaseline || Baseline.activeCatalogId();
-    crumb(id === "joey" ? "🧩 Baseline (Joey Verlinden)" : "🧬 Baseline Policies");
+    crumb("🧬 Baseline");
     openBaseline(id);
   });
   $("blChips").addEventListener("click", (e) => {
@@ -7282,12 +8713,18 @@ This is a directory write. Nothing else changes.`)) return;
     exMemCur = ent;
     const shown = ent.members || [], total = ent.memberTotal;
     $("exMemTitle").textContent = `👥 ${ent.name}`;
+    const nested = ent.nested && ent.nested.length ? ent.nested : null;
     $("exMemSub").innerHTML = `${total == null ? shown.length : total} member${(total ?? shown.length) === 1 ? "" : "s"}`
       + (total != null && total > shown.length ? ` — showing the first ${shown.length}` : "")
+      + (nested ? ` · <b>${ent.directCount} direct · ${ent.nestedCount} through ${nested.length} nested group${nested.length === 1 ? "" : "s"}</b>` : "")
       + ` · excluded from ${ent.policyIds.size} polic${ent.policyIds.size === 1 ? "y" : "ies"}`;
-    $("exMemBody").innerHTML = shown.length
-      ? `<table class="plist"><tbody>${shown.map((m) => `<tr><td>${esc(m.name)}<div class="mini muted">${esc(m.upn || "")}</div></td></tr>`).join("")}</tbody></table>`
-      : '<p class="mini">No members resolved for this group.</p>';
+    // direct members first, then the ones who arrive through a nested group,
+    // each with the group they came through — that is the gap to see
+    const sorted = shown.slice().sort((x, y) => ((y.direct === false ? 0 : 1) - (x.direct === false ? 0 : 1)) || x.name.localeCompare(y.name));
+    $("exMemBody").innerHTML = (nested ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">↪ Nested groups: ${nested.map((n) => `<b>${esc(n.name)}</b>${n.dynamic ? " (dynamic)" : ""}`).join(", ")} — whoever manages these decides who is in ${esc(ent.name)}.</p>` : "")
+      + (shown.length
+        ? `<table class="plist"><tbody>${sorted.map((m) => `<tr><td>${esc(m.name)}<div class="mini muted">${esc(m.upn || "")}</div></td><td class="mini" style="text-align:right;white-space:nowrap">${m.direct === false ? `<span style="color:var(--off)">↪ ${esc((m.via || []).join(" / ") || "nested")}</span>` : m.direct === true ? '<span class="muted">direct</span>' : ""}</td></tr>`).join("")}</tbody></table>`
+        : '<p class="mini">No members resolved for this group.</p>');
     $("exMemModal").classList.add("open");
   }
   $("exMemClose").addEventListener("click", () => $("exMemModal").classList.remove("open"));
@@ -7295,8 +8732,8 @@ This is a directory write. Nothing else changes.`)) return;
   $("exMemCsv").addEventListener("click", () => {
     if (!exMemCur) return;
     const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const rows = [[q("Group"), q("Member"), q("UPN")].join(","),
-      ...(exMemCur.members || []).map((m) => [q(exMemCur.name), q(m.name), q(m.upn)].join(","))];
+    const rows = [[q("Group"), q("Member"), q("UPN"), q("How")].join(","),
+      ...(exMemCur.members || []).map((m) => [q(exMemCur.name), q(m.name), q(m.upn), q(m.direct === false ? `nested: ${(m.via || []).join(" + ") || "nested group"}` : m.direct === true ? "direct" : "")].join(","))];
     downloadText(`Members-${exMemCur.name}`.replace(/[^\w.-]+/g, "-"), "csv", "text/csv", rows.join("\n"));
     toast("Member list <span>downloaded</span>");
   });
@@ -7516,8 +8953,9 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   function openValidator() {
-    crumb("⚡ CA validator");
+    crumb("🧪 What-If");
     show("screen-validator");
+    mountToolTabs("whatif", "every");
     if (!policies.length) { $("vaHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("vaBody").innerHTML = ""; $("vaChips").innerHTML = ""; return; }
     if (vaResult) {   // cached — restore the previous screen, no re-generate
       $("vaReportOnly").checked = vaReportOnly;
@@ -7530,6 +8968,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   async function runValidatorScan() {
     show("screen-validator");
+    mountToolTabs("whatif", "every");
     if (!policies.length) return;
     $("vaHead").innerHTML = '<h3>⚡ CA validator</h3><p class="mini" style="margin:6px 0 0">Generating simulations…</p>';
     $("vaChips").innerHTML = ""; $("vaBody").innerHTML = ""; vaFilter = "all"; vaQuery = ""; $("vaSearch").value = ""; vaCollapsed.clear();
@@ -7560,12 +8999,12 @@ This is a directory write. Nothing else changes.`)) return;
       return { kind: "group", id, name: dn[id] || t };
     }
     if (t.includes("@")) {   // a UPN → user
-      const u = await Graph.gget(`/users/${encodeURIComponent(t)}?$select=id,displayName,userPrincipalName`);
+      const u = await Graph.gget(`/users/${encodeURIComponent(t)}?$select=id,displayName,userPrincipalName,userType`);
       return await userTarget(u);
     }
     if (guid) {              // GUID → try group, then user
       try { const g = await Graph.gget(`/groups/${t}?$select=id,displayName`); return await groupTarget(g); }
-      catch { const u = await Graph.gget(`/users/${t}?$select=id,displayName,userPrincipalName`); return await userTarget(u); }
+      catch { const u = await Graph.gget(`/users/${t}?$select=id,displayName,userPrincipalName,userType`); return await userTarget(u); }
     }
     // plain text → group by display name (exact)
     const esc2 = t.replace(/'/g, "''");
@@ -7593,10 +9032,14 @@ This is a directory write. Nothing else changes.`)) return;
         else groupIds.add(o.id);
       });
     } catch (e) { console.warn("validator: membership lookup failed", e.message); }
-    return { kind: "user", id: u.id, name: u.displayName || u.userPrincipalName, upn: u.userPrincipalName, groupIds, roleIds };
+    // guest is read here and nowhere else: the shared scope check needs it to
+    // answer a policy assigned to "Guests and external users", which this tool
+    // could not see at all before 25345.
+    return { kind: "user", id: u.id, name: u.displayName || u.userPrincipalName, upn: u.userPrincipalName,
+      groupIds, roleIds, guest: String(u.userType || "").toLowerCase() === "guest" };
   }
 
-  const VA_CTRL_ORDER = ["block", "mfa", "authenticationStrength", "compliantDevice", "domainJoinedDevice", "passwordChange"];
+  const VA_CTRL_ORDER = ["block", "mfa", "authenticationStrength", "compliantDevice", "domainJoinedDevice", "passwordChange", "riskRemediation"];
 
   // Compact view: collapse a policy's whole cross-product into one summary card —
   // what it enforces, on which apps/clients/conditions, and who it excludes.
@@ -7652,7 +9095,7 @@ This is a directory write. Nothing else changes.`)) return;
         ${r.target ? `<div class="mini">${r.outOfScope} not in scope for this target</div>` : ""}
         ${r.skipped.length ? `<div class="mini">${r.skipped.length} with no controls</div>` : ""}
       </div></div>
-      ${r.target ? `<div class="va-targetbar">🎯 Running against ${r.target.kind === "user" ? "user" : "persona group"} <b>${esc(r.target.name)}</b>${r.target.upn ? ` <span class="mini muted">${esc(r.target.upn)}</span>` : ""} — showing only the policies that apply. <button class="fchip" data-vacleartarget="1">✕ Clear</button></div>` : ""}`;
+      ${r.target ? `<div class="va-targetbar">🎯 Running against ${r.target.kind === "user" ? "user" : "persona group"} <b>${esc(r.target.name)}</b>${r.target.upn ? ` <span class="mini muted">${esc(r.target.upn)}</span>` : ""} — showing only the policies that apply. <button class="fchip" data-vacleartarget="1">✕ Clear</button>${r.target.guest ? ` <span class="tag new">🆕 guest</span><div class="mini" style="margin-top:4px">This target is a <b>guest / external user</b>, and since build 25345 that counts: policies assigned to <b>Guests and external users</b> are in scope for them. Before 25345 this tool read only users, groups and roles, so every such policy was reported out of scope and its simulations were skipped — which is why the simulation count is higher here than it used to be on a guest.</div>` : ""}</div>` : ""}`;
 
     // control filter chips
     const counts = {};
@@ -7807,7 +9250,7 @@ This is a directory write. Nothing else changes.`)) return;
     const t = text.trim();
     if (t.length < 2 || t === vaSugLast) return;
     vaSugLast = t;
-    if (vaSugCache.has(t)) { $("vaTargetList").innerHTML = vaSugCache.get(t); return; }
+    if (vaSugCache.has(t)) { dlSet("vaTargetList", vaSugCache.get(t)); return; }
     let opts = [];
     try {
       if (isDemo) {
@@ -7828,11 +9271,12 @@ This is a directory write. Nothing else changes.`)) return;
     } catch (e) { console.warn("validator: suggest failed", e.message); return; }
     const html = opts.map((o) => `<option value="${esc(o.v)}" label="${esc(o.l)}"></option>`).join("");
     vaSugCache.set(t, html);
-    $("vaTargetList").innerHTML = html;
+    dlSet("vaTargetList", html);
   }
   $("vaTarget").addEventListener("input", (e) => {
     const v = e.target.value;
     clearTimeout(vaSugTimer);
+    if (dlPicked("vaTargetList", v)) return;   // a pick, not typing
     vaSugTimer = setTimeout(() => vaSuggest(v), 250);
   });
   function vaClearTarget() { vaTargetObj = null; $("vaTarget").value = ""; runValidatorScan(); }
@@ -8825,7 +10269,10 @@ This is a directory write. Nothing else changes.`)) return;
         for (const p of [...ruBulkPrefixes(), ...(RU_BULK_EXTRA[code] || [])]) {
           try {
             const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
-            for (const g of r) if (!seen.has(g.id) && CaMap.codeOf(g) === code) { seen.add(g.id); entry.groups.push(g); }
+            // An archived original — "(migrated 2026-09-10)", "(legacy …)" —
+            // is the rollback of a group that already went in; offering it
+            // as "cannot, role-assignable — Migrate it" is wrong twice over.
+            for (const g of r) if (!seen.has(g.id) && CaMap.codeOf(g) === code && !CaGroups.ARCHIVE_SUFFIX.test(g.displayName || "")) { seen.add(g.id); entry.groups.push(g); }
           } catch (e) { console.warn("persona chips: prefix", p, "failed:", e.message || e); }
         }
         // The prefix scan is bounded to the CAB-SEC / CAD-SEC family on
@@ -8862,7 +10309,7 @@ This is a directory write. Nothing else changes.`)) return;
           // group estate should still get the ones that did come back.
           try {
             const r = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${p.replace(/'/g, "''")}')&$select=id,displayName,isAssignableToRole,groupTypes,mailEnabled,securityEnabled&$top=999`);
-            for (const g of r) if (!seen.has(g.id)) { seen.add(g.id); groups.push(g); }
+            for (const g of r) if (!seen.has(g.id) && !CaGroups.ARCHIVE_SUFFIX.test(g.displayName || "")) { seen.add(g.id); groups.push(g); }   // archived originals are rollbacks, not candidates
           } catch (e) { console.warn("bulk add: prefix", p, "failed:", e.message || e); }
         }
         // Same reason as the persona chips: the prefix scan cannot reach a
@@ -9292,39 +10739,84 @@ This is a directory write. Nothing else changes.`)) return;
   // (prefix scopes the element ids), so two reads running in background tabs
   // never write into each other's panel; the state lives outside the DOM so
   // switching tabs and back re-renders mid-flight.
+  // Every progress object by prefix, so ONE document-level click handler can
+  // serve the ■ Stop button in whichever panel is on screen — the panel is
+  // re-rendered by innerHTML at every phase of a read, and a per-render
+  // listener would be lost with it.
+  const PROG_REG = {};
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pgstop]"); if (!b) return;
+    const p = PROG_REG[b.dataset.pgstop]; if (p) p.requestStop();
+  });
   function makeProgress(prefix) {
-    const st = { n: 0, step: 0, t0: 0, cap: 0, label: "records", stepLabel: "page", capped: false };
+    // detail: what the read is doing RIGHT NOW inside a step (a hunting slice,
+    // a wait on another tool's read) — the difference between a bar that sits
+    // at 0 for three minutes and one that says why. frac: how far into the
+    // current step, so the bar moves inside a long step.
+    // stop: set by the ■ Stop button (25320, T37 + T38 on Mihai's ask). A
+    // running Graph call cannot be cancelled, so the loops CHECK it between
+    // calls — check() throws a stopped error the runner catches — and the
+    // line says so while the current query finishes.
+    const st = { n: 0, step: 0, t0: 0, cap: 0, label: "records", stepLabel: "page", capped: false, detail: "", frac: 0, stop: false };
     const elapsed = () => { const s = Math.round((Date.now() - st.t0) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
-    const line = () => st.step
-      ? `${st.n.toLocaleString()} ${st.label} · ${st.stepLabel} ${st.step}${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""} · ${elapsed()}`
-      : "Waiting for the first page from Microsoft Graph…";
-    const width = () => st.cap ? Math.min(100, (st.stepLabel === "page" ? st.n : st.step) / st.cap * 100) : 0;
+    const line = () => {
+      if (!st.step && !st.detail) return "Waiting for the first page from Microsoft Graph…";
+      const base = st.step
+        ? `${st.n.toLocaleString()} ${st.label} · ${st.stepLabel} ${st.step}${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""} · ${elapsed()}`
+        : `${st.n.toLocaleString()} ${st.label} · ${elapsed()}`;
+      const withDetail = st.detail ? `${base} · ${st.detail}` : base;
+      return st.stop ? `${withDetail} · stopping after the current query — a running query cannot be cancelled` : withDetail;
+    };
+    const width = () => st.cap ? Math.min(100, (st.stepLabel === "page" ? st.n : st.step + (st.frac || 0)) / st.cap * 100) : 0;
+    // The clock moves on its own: a single hunting query can take a minute,
+    // and a line that only updates when a page lands reads as "hung".
+    let clock = null;
+    const paint = () => { const t = $(prefix + "PgTxt"), b = $(prefix + "PgBar"); if (t) t.textContent = line(); if (b) b.style.width = width() + "%"; return !!t; };
+    const startClock = () => { if (clock) clearInterval(clock); let miss = 0; clock = setInterval(() => { if (!paint()) { if (++miss > 3) { clearInterval(clock); clock = null; } } else miss = 0; }, 1000); };
+    // The ■ Stop button renders only for a progress that opted in
+    // (api.stoppable = true) — the tools whose runner knows what a stop means.
     const panel = (msg, note) => `<div class="run-prompt"><div class="spinner"></div>
       <p class="mini muted">${msg}</p>
       <div class="ri-progwrap"><div class="ri-progbar" id="${prefix}PgBar" style="width:${width()}%"></div></div>
       <p class="mini" id="${prefix}PgTxt">${line()}</p>
-      ${note ? `<p class="mini muted" style="margin-top:2px">${note}</p>` : ""}</div>`;
-    const start = (cap, label, stepLabel) => { st.n = 0; st.step = 0; st.t0 = Date.now(); st.cap = cap || 0; st.label = label || "records"; st.stepLabel = stepLabel || "page"; st.capped = false; };
-    const tick = (n, step) => {
-      st.n = n; st.step = step != null ? step : st.step + 1;
-      const t = $(prefix + "PgTxt"), b = $(prefix + "PgBar");
-      if (t) t.textContent = line();
-      if (b) b.style.width = width() + "%";
+      ${note ? `<p class="mini muted" style="margin-top:2px">${note}</p>` : ""}
+      ${api.stoppable ? `<button class="btn sm" data-pgstop="${prefix}" ${st.stop ? "disabled" : ""} title="Stop after the query that is running now">${st.stop ? "■ Stopping…" : "■ Stop"}</button>` : ""}</div>`;
+    const start = (cap, label, stepLabel) => { st.n = 0; st.step = 0; st.t0 = Date.now(); st.cap = cap || 0; st.label = label || "records"; st.stepLabel = stepLabel || "page"; st.capped = false; st.detail = ""; st.frac = 0; startClock(); };
+    // begin(): a runner calls it once per run, so a stop from the previous
+    // run never leaks into the next. check(): the loops call it between
+    // calls; it throws an error the runner recognises by e.stopped.
+    const begin = () => { st.stop = false; };
+    const stopErr = () => Object.assign(new Error("stopped"), { stopped: true });
+    const check = () => { if (st.stop) throw stopErr(); };
+    const requestStop = () => {
+      st.stop = true; paint();
+      document.querySelectorAll(`[data-pgstop="${prefix}"]`).forEach((b) => { b.disabled = true; b.textContent = "■ Stopping…"; });
     };
+    const tick = (n, step) => {
+      st.n = n; st.step = step != null ? step : st.step + 1; st.frac = 0;
+      paint();
+    };
+    // inside a step: say what is happening and how far along the step is
+    const detail = (text, frac) => { st.detail = text || ""; if (frac != null) st.frac = Math.max(0, Math.min(0.999, frac)); paint(); };
+    const stop = () => { if (clock) { clearInterval(clock); clock = null; } };
     // Capped, narrated pager — the record cap is also the bar's 100%.
-    const fetchAll = async (url, cap, label) => {
+    const fetchAll = async (url, cap, label, onPage) => {
       start(cap, label, "page");
       let out = [], next = url;
       while (next && out.length < cap) {
+        check();
         const j = await Graph.gget(next);
         out = out.concat(j.value || []);
         tick(out.length);
+        if (onPage) { try { onPage(out); } catch (e) { console.warn("onPage", e); } }
         next = j["@odata.nextLink"] || null;
       }
       st.capped = !!next;
       return out.slice(0, cap);
     };
-    return { st, panel, start, tick, fetchAll };
+    const api = { st, panel, start, tick, detail, stop, fetchAll, begin, check, requestStop, stoppable: false };
+    PROG_REG[prefix] = api;
+    return api;
   }
 
   // The audit range selector stores days; sub-day ranges are fractions (1h = 1/24).
@@ -9352,8 +10844,9 @@ This is a directory write. Nothing else changes.`)) return;
     `The bar runs to the ${AU_MAX.toLocaleString()}-entry cap — Conditional Access changes rarely get near it.`);
 
   function openAudit() {
-    crumb("🕓 Change audit");
+    crumb("🕓 Changes");
     show("screen-audit");
+    mountToolTabs("changes", "audit");
     $("auRescan").style.display = auRes && !auBusy ? "" : "none";
     // A read in flight has to survive navigating away and back, otherwise the
     // Run prompt reappears and it looks like the read was cancelled.
@@ -9634,6 +11127,19 @@ This is a directory write. Nothing else changes.`)) return;
       const sc = exact ? 200 : cpScore(label, q);
       if (sc) out.push({ kind: "tool", id, label, hint: no ? `Tool · ${no}` : "Tool", score: sc });
     }
+    // A FOLDED tool has no tile, so the loop above cannot offer it — and the
+    // whole point of the fold was that the capability is still there. Offer the
+    // old name, resolve it to the host, and say where it went in the hint.
+    for (const [old, f] of Object.entries(FOLDED)) {
+      if (!$(f.into)) continue;
+      if (f.betaOnly && isProdHost()) continue;
+      const no = toolNoOf(old);
+      const qn = q.trim().toLowerCase();
+      const exact = no && (qn === no.toLowerCase() || qn === String(+no.slice(1)) || qn === `t${+no.slice(1)}`);
+      const sc = exact ? 200 : cpScore(f.label, q);
+      if (sc) out.push({ kind: "tool", id: f.into, label: f.label, go: () => openFolded(old),
+        hint: `${no ? `${no} · ` : ""}in ${labelFor(f.into)} — ${f.where}`, score: sc - 1 });
+    }
     // Policies only exist after sign-in; before that the palette is tools only,
     // and the footer says why rather than looking broken.
     for (const p of policies) {
@@ -9668,6 +11174,7 @@ This is a directory write. Nothing else changes.`)) return;
   function cpRun(it) {
     if (!it) return;
     cpClose();
+    if (it.go) { it.go(); return; }              // a folded tool: its own tab, not just the host
     if (it.kind === "tool") { const el = $(it.id); if (el) el.click(); return; }
     showDetail(it.id);
   }
@@ -9678,7 +11185,13 @@ This is a directory write. Nothing else changes.`)) return;
       $("cpModal").classList.contains("open") ? cpClose() : cpOpen();
       return;
     }
-    if (!$("cpModal").classList.contains("open")) return;
+    if (!$("cpModal").classList.contains("open")) {
+      // Esc out of the wave's full-screen members table, when nothing else owns the key
+      if (e.key === "Escape" && wvMemFull && $("screen-wave").classList.contains("active")) {
+        e.preventDefault(); wvMemFull = false; renderWave();
+      }
+      return;
+    }
     if (e.key === "Escape") { e.preventDefault(); cpClose(); return; }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
@@ -9731,8 +11244,7 @@ This is a directory write. Nothing else changes.`)) return;
     return Graph.ggetAll(url);
   }
 
-  function openDrift() { crumb("📉 Drift watch"); show("screen-drift"); renderDrift(); }
-  $("toolDrift").addEventListener("click", openDrift);
+  function openDrift() { crumb("🕓 Changes"); show("screen-drift"); mountToolTabs("changes", "snapshot"); renderDrift(); }
 
   async function drTake(thenCompare) {
     if (drBusy) return;
@@ -10003,6 +11515,167 @@ This is a directory write. Nothing else changes.`)) return;
     renderDrift();
   });
 
+  // ---------- Baseline usage guide (roadmap R05) ----------
+  // The deployment knowledge written down where it can be checked: the steps
+  // with their reasons live in js/guide.js as content plus pure check
+  // functions; this wiring reads the tenant once on demand, hands the reads
+  // to Guide.evaluate, and turns each step's readiness into chips. Reads
+  // only — the guide never writes, it points at the tools that do.
+  let ugRes = null, ugCtx = null, ugBusy = false;
+  const ugOpen = new Set();          // expanded missing-lists, by check key
+  const ugProg = makeProgress("ug");
+  // Agreement.Read.All is the one read outside the base scopes — asked for on
+  // the click like everywhere else; declined, that step reads as "not read"
+  // rather than blocking the rest of the guide.
+  const UG_TOU_READ = ["Agreement.Read.All"];
+  const UG_AREAS = [
+    { key: "groups",     icon: "👥", label: "baseline groups" },
+    { key: "aus",        icon: "🛡", label: "administrative units" },
+    { key: "locations",  icon: "🌐", label: "named locations" },
+    { key: "strengths",  icon: "💪", label: "authentication strengths" },
+    { key: "contexts",   icon: "🎫", label: "authentication contexts" },
+    { key: "agreements", icon: "📜", label: "terms of use" },
+    { key: "policies",   icon: "🗂", label: "policies" },
+  ];
+
+  async function ugRead(key) {
+    if (isDemo) {
+      const D = (typeof DEMO_DATA !== "undefined" && DEMO_DATA) || {};
+      if (key === "groups")     return Object.keys(D.scopeGroups || {});
+      if (key === "aus")        return D.adminUnits || [];
+      if (key === "locations")  return D.namedLocations || [];
+      if (key === "strengths")  return [];
+      if (key === "contexts")   return D.authContexts || [];
+      if (key === "agreements") return [];
+      if (key === "policies")   return (D.policies || []).map((p) => ({ name: p.displayName, raw: p }));
+      return [];
+    }
+    if (key === "groups")
+      return (await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${String((Baseline.active() || {}).groupFilterPrefix || "CAB-SEC-").replace(/'/g, "''")}')&$select=displayName&$top=999`)).map((g) => g.displayName);
+    if (key === "aus")
+      return Graph.ggetAll("/administrativeUnits?$select=id,displayName,isMemberManagementRestricted");
+    if (key === "locations")
+      return Graph.ggetAll("/identity/conditionalAccess/namedLocations");
+    if (key === "strengths")
+      return Graph.ggetAll("/policies/authenticationStrengthPolicies");
+    if (key === "contexts")
+      return Graph.ggetAll("/identity/conditionalAccess/authenticationContextClassReferences");
+    if (key === "agreements") {
+      // null = not read (no consent / read refused) → the check says "unknown"
+      // honestly instead of pretending an empty tenant.
+      try {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...UG_TOU_READ])) return null;
+        return await Graph.ggetAll("/identityGovernance/termsOfUse/agreements");
+      } catch { return null; }
+    }
+    if (key === "policies")
+      return (await Graph.ggetAll("/identity/conditionalAccess/policies")).map((p) => ({ name: p.displayName, raw: p }));
+    return [];
+  }
+
+  async function ugRun() {
+    if (ugBusy) return;
+    ugBusy = true;
+    ugProg.start(UG_AREAS.length, "objects", "area");
+    let done = 0, count = 0;
+    $("ugBody").innerHTML = ugProg.panel("Reading the tenant against the baseline…",
+      "Groups, restricted units, locations, strengths, contexts, terms of use and policies — reads only, nothing is written.");
+    try {
+      const ctx = {};
+      for (const a of UG_AREAS) {
+        const t = $("ugPgTxt"); if (t) t.textContent = `${a.icon} ${a.label}…`;
+        try { ctx[a.key] = await ugRead(a.key); }
+        catch { ctx[a.key] = a.key === "agreements" ? null : []; }
+        count += Array.isArray(ctx[a.key]) ? ctx[a.key].length : 0;
+        ugProg.tick(count, ++done);
+      }
+      ugCtx = ctx;
+      ugRes = Guide.evaluate(ctx);
+      ugOpen.clear();
+    } catch (e) {
+      $("ugBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p></div>`;
+      ugBusy = false;
+      return;
+    }
+    ugBusy = false;
+    renderGuide();
+  }
+
+  const UG_STATE = {
+    ok:      { cls: "ok",    icon: "✅", word: "ready" },
+    warn:    { cls: "new",   icon: "⚠️", word: "gaps" },
+    missing: { cls: "block", icon: "❌", word: "missing" },
+    unknown: { cls: "",      icon: "❔", word: "not read" },
+  };
+  const ugChip = (r) => {
+    const s = UG_STATE[r.state] || UG_STATE.unknown;
+    return `<span class="tag ${s.cls}" style="vertical-align:middle">${s.icon} ${esc(r.summary)}</span>`;
+  };
+
+  function ugMissingList(key, r) {
+    const list = r.missing || [];
+    if (!list.length) return "";
+    const open = ugOpen.has(key);
+    const shown = open ? list : list.slice(0, 8);
+    return `<ul class="mini" style="margin:6px 0 0 2px;padding-left:18px">${shown.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>
+      ${list.length > 8 ? `<a href="#" class="mini" data-ugtog="${key}">${open ? "Show fewer" : `Show all ${list.length}`}</a>` : ""}`;
+  }
+
+  function renderGuide() {
+    $("ugHead").innerHTML = `<h3>📖 Baseline usage guide <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:4px">The deployment order with the <b>reason</b> for each step, not just the sequence — and, once the tenant has been read, a readiness check per step that says what is missing <b>before</b> you run it instead of after.</p>
+      <p class="mini muted" style="margin:0">Reads only — nothing is written. Every step links the tool that does the work. The guide ends where <a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> begins.</p>
+      <p style="margin:8px 0 0">${Baseline.activeChip()}</p>
+      ${Guide.activeId() === "joey" ? `<p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ The step texts were written for the CloudFellows deployment. The <b>readiness checks</b> read the active baseline — Joey Verlinden's groups, his persona units and his policies — but his persona model is Global / Admins / Internals / Service accounts / Guests / Agents, and his CA300 block is service accounts, not externals. Read the ranges in step 1 as his catalog lists them, not as the prose describes them.</p>` : ""}`;
+    if (ugBusy) return;   // the run panel owns ugBody until the read finishes
+
+    if (!ugRes) {
+      $("ugBody").innerHTML = `<div class="run-prompt">
+        <button class="btn primary" data-ugrun>🔎 Read the tenant</button>
+        <p class="mini muted">Compares what exists against the baseline catalog — ${Guide.expectedGroups().length} groups, ${Guide.expectedAus().length} restricted units, the dependency objects and the numbered policies. You can also read the steps first; the checks fill in after the read.</p>
+      </div>` + ugSteps(false);
+      return;
+    }
+    $("ugBody").innerHTML = ugSteps(true);
+  }
+
+  function ugSteps(withChecks) {
+    return Guide.STEPS.map((s, i) => {
+      const checks = withChecks ? (s.check || []).map((k) => {
+        const r = (ugRes || {})[k];
+        return r ? `<div style="margin:8px 0 0">${ugChip(r)}${ugMissingList(k, r)}</div>` : "";
+      }).join("") : "";
+      // Step content that renders from the catalog alone (the persona table)
+      // shows before any read — the reading matter is useful without consent.
+      const extra = s.render ? (() => {
+        try { const rows = s.render(ugCtx || {}); return rows && rows.length ? `<ul class="mini muted" style="margin:8px 0 0 2px;padding-left:18px">${rows.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""; } catch { return ""; }
+      })() : "";
+      const links = (s.links || []).map(([tool, label]) =>
+        `<a href="#" class="md-tool" data-tool="${tool}">${esc(label)}</a>`).join(" · ");
+      return `<div class="list-card" style="padding:14px 16px;margin-top:${i ? 12 : 0}px">
+        <h4 style="margin:0 0 6px"><span class="rm-ref">Step ${i + 1}</span> ${s.icon} ${esc(s.title)}</h4>
+        <p class="mini" style="margin:0">${esc(s.why)}</p>
+        ${extra}${checks}
+        ${links ? `<p class="mini muted" style="margin:8px 0 0">Do it here: ${links}</p>` : ""}
+      </div>`;
+    }).join("");
+  }
+
+  function openGuide() { crumb("🧬 Baseline"); show("screen-guide"); mountToolTabs("baseline", "guide"); renderGuide(); }
+  $("ugRun").addEventListener("click", ugRun);
+  $("ugBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-ugrun]")) { ugRun(); return; }
+    const t = e.target.closest("[data-ugtog]");
+    if (!t) return;
+    e.preventDefault();
+    const k = t.dataset.ugtog;
+    if (ugOpen.has(k)) ugOpen.delete(k); else ugOpen.add(k);
+    renderGuide();
+  });
+  $("ugMd").addEventListener("click", () => {
+    if (!ugRes) { toast("Read the tenant first — the report is the readiness check."); return; }
+    showReport("📖 Baseline usage guide", "CA-BaselineReadiness", Guide.toMd(ugRes, { tenantName }));
+  });
 
   // ---------- 🗣 User impact brief (T32) ----------
   // Analysis in js/userimpact.js as pure functions over the policies already
@@ -10047,16 +11720,17 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function openUserImpact() { crumb("🗣 User impact brief"); show("screen-userimpact"); renderUserImpact(); }
   $("toolUserImpact").addEventListener("click", openUserImpact);
-  // loadFromGraph() lands on the policy list when it is a refresh, so come back
-  // here afterwards — a re-read pressed in this tool should not move you to a
-  // different one. Only on success: a failed read shows the sign-in screen, and
-  // navigating over that would hide it.
+  // loadFromGraph(true) now returns to the screen it was pressed from, but the
+  // brief is rendered from the policies, so re-open to redraw it. Only on
+  // success: a failed read shows the sign-in screen, and navigating over that
+  // would hide it.
   $("uiRescan").addEventListener("click", async (e) => {
     const btn = e.target.closest("#uiRescan"), label = btn.innerHTML;
     btn.disabled = true; btn.textContent = "Reading…";
     try {
       if (isDemo) { policiesReadAt = Date.now(); openUserImpact(); toast("Demo — <span>re-analysed</span> the sample policies"); return; }
-      if (await loadFromGraph(true)) openUserImpact();
+      // re-open only if still here — a move to another tool mid-read wins
+      if (await loadFromGraph(true)) { if (shownScreen === "screen-userimpact") openUserImpact(); else renderUserImpact(); }
     } finally { btn.disabled = false; btn.innerHTML = label; }
   });
   $("uiBody").addEventListener("click", (e) => {
@@ -10339,8 +12013,7 @@ This is a directory write. Nothing else changes.`)) return;
       </div>`).join("");
   }
 
-  function openDevCheck() { crumb("🖥 Device reality check"); show("screen-devcheck"); renderDevCheck(); }
-  $("toolDevCheck").addEventListener("click", openDevCheck);
+  function openDevCheck() { crumb("🛡 Checks"); show("screen-devcheck"); mountToolTabs("checks", "intune"); renderDevCheck(); }
   $("dvRun").addEventListener("click", dvRun);
   $("dvBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-dvrun]")) { dvRun(); return; }
@@ -10811,6 +12484,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("lgAdmInput").addEventListener("input", (e) => {
     const v = e.target.value.trim();
     clearTimeout(lgAdmTimer);
+    if (dlPicked("lgAdmList", v)) return;   // a pick, not typing — `change` takes it
     if (v.length < 2 || isDemo) return;
     lgAdmTimer = setTimeout(async () => {
       try {
@@ -10824,7 +12498,7 @@ This is a directory write. Nothing else changes.`)) return;
         // The CA-referenced groups stay in the list alongside the live hits.
         for (const [, hit] of lgAdmMap) if (!rows.some((r) => r.includes(`value="${esc(hit.name)}"`)))
           rows.push(`<option value="${esc(hit.name)}" label="👥"></option>`);
-        $("lgAdmList").innerHTML = rows.join("");
+        dlSet("lgAdmList", rows.join(""));
       } catch (err) { console.warn("licence gap: group suggest failed", err.message); }
     }, 250);
   });
@@ -10982,8 +12656,7 @@ This is a directory write. Nothing else changes.`)) return;
     renderLicGap();
     if ($("lgUsersModal").classList.contains("open")) lgRenderUsers();
   }
-  function openLicGap() { crumb("🎫 Licence gap"); show("screen-licgap"); lgAdmPrefill(); lgAdmChipRender(); renderLicGap(); }
-  $("toolLicGap").addEventListener("click", openLicGap);
+  function openLicGap() { crumb("🔍 Gap analyse"); show("screen-licgap"); mountToolTabs("gap", "licences"); lgAdmPrefill(); lgAdmChipRender(); renderLicGap(); }
   $("lgRun").addEventListener("click", lgRun);
   $("lgBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-lgrun]")) { lgRun(); return; }
@@ -11028,17 +12701,218 @@ This is a directory write. Nothing else changes.`)) return;
   // The cap travels with the records. A truncated window is a different fact
   // from a complete one, and a tool that inherited the rows without inheriting
   // "this was cut short" would overstate what it knows.
-  let logCache = null;   // { days, records, capped, at }
+  let logCache = null;   // { days, source, records, capped, at }
   const LOG_CACHE_MAX_AGE = 10 * 60 * 1000;   // beyond this, offer it but say so
 
+  // ---------- the sign-in SOURCE ----------
+  // Two ways to read the same sign-ins:
+  //   entra    the Graph sign-in list — interactive only, capped at SI_MAX,
+  //            AuditLog.Read.All. The default, and the only one on a tenant
+  //            without Defender.
+  //   hunt     Defender advanced hunting (EntraIdSignInEvents) — the same
+  //            interactive sign-ins, no cap, 30 days, ThreatHunting.Read.All.
+  //   huntall  hunting including NON-INTERACTIVE sign-ins: token refreshes
+  //            and background client sign-ins, which the Graph list never
+  //            returns — where sign-in-frequency re-prompts, legacy-protocol
+  //            blocks of service accounts and token-protection failures live.
+  // Chosen once per tenant, kept in the browser; the four tools that read
+  // sign-ins (🚦, 🎚, 🕵, 🌊) carry the same segment and share the window.
+  const LOG_SOURCES = [
+    ["entra", "Entra sign-in log", `interactive · cap ${SI_MAX.toLocaleString()} · AuditLog.Read.All`],
+    ["hunt", "Defender hunting", "interactive · 30 days · no cap · ThreatHunting.Read.All"],
+    ["huntall", "Hunting + non-interactive", "token refreshes and background sign-ins too"],
+  ];
+  const LOG_SRC_KEY = () => `enca-logsource:${tenantId || "demo"}`;
+  let logSource = "entra";
+  function loadLogSource() { try { const v = localStorage.getItem(LOG_SRC_KEY()); logSource = LOG_SOURCES.some(([k]) => k === v) ? v : "entra"; } catch { logSource = "entra"; } }
+  const logSourceLabel = () => (LOG_SOURCES.find(([k]) => k === logSource) || LOG_SOURCES[0])[1];
+  function logSourceSeg() {
+    return `<div class="seg logsrc-seg" title="Where the sign-ins are read from — shared by 🚦 Sign-in failures, 🎚 Report-only impact, 🕵 Who is Anna to CA and 🌊 Who is the wave to CA">${LOG_SOURCES.map(([k, l, t]) => `<button class="${logSource === k ? "active" : ""}" data-logsrc="${k}" title="${esc(t)}">${esc(l)}</button>`).join("")}</div>`;
+  }
+  // Put the segment into a toolbar once; re-paint the active button after a change.
+  function mountLogSourceSeg(toolbarId, beforeSel) {
+    const tb = $(toolbarId); if (!tb) return;
+    let seg = tb.querySelector(".logsrc-seg");
+    if (!seg) {
+      const wrap = document.createElement("div"); wrap.innerHTML = logSourceSeg(); seg = wrap.firstChild;
+      const before = beforeSel ? tb.querySelector(beforeSel) : null;
+      before ? tb.insertBefore(seg, before) : tb.appendChild(seg);
+    }
+    [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.logsrc === logSource));
+  }
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-logsrc]"); if (!b) return;
+    const v = b.dataset.logsrc; if (v === logSource) return;
+    logSource = v;
+    try { localStorage.setItem(LOG_SRC_KEY(), v); } catch {}
+    document.querySelectorAll(".logsrc-seg").forEach((seg) => [...seg.children].forEach((x) => x.classList.toggle("active", x.dataset.logsrc === v)));
+    logCache = null;
+    toast(`Sign-ins now read from <span>${esc(logSourceLabel())}</span>`);
+    // the tool that is open re-reads with the new source; the others re-read when opened
+    if (typeof siRes !== "undefined" && siRes && $("screen-signins").classList.contains("active")) runSignins(true);
+    else if (typeof riRes !== "undefined" && riRes && $("screen-impact").classList.contains("active")) runImpact(true);
+    else if (typeof woRes !== "undefined" && woRes && $("screen-whois").classList.contains("active")) runWhoIs(true);
+    else if (typeof wvRes !== "undefined" && wvRes && $("screen-wave").classList.contains("active")) runWave(true);
+  });
+
+  // the demo honours the source too: the hunting-with-non-interactive choice
+  // adds the token-refresh sign-ins the Graph list would never return
+  const demoSignIns = () => ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || []).concat(logSource === "huntall" ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.demoNonInteractive) || []) : []);
   function logCacheAge() { return logCache ? Date.now() - logCache.at : Infinity; }
-  function logCacheUsable(days) { return !!logCache && logCache.days === days; }
+  function logCacheUsable(days) { return !!logCache && logCache.days === days && logCache.source === logSource; }
+
+  // Hunting read: one query per day (each under the 50 MB response cap), the
+  // table name falling back to the pre-October-2026 one, a day that hits the
+  // row cap marked as capped. Sub-day windows are a single query.
+  const HUNT_SCOPES = ["ThreatHunting.Read.All"];
+  let huntTable = "EntraIdSignInEvents";
+  // The fallback is tried only when the error names the table itself — any
+  // other semantic error is a real query problem and must surface as such.
+  // When BOTH names fail to resolve, the tenant's hunting schema has no
+  // Entra sign-in table at all (it needs Entra ID P2 to exist and fill), and
+  // the message must say that, not quote the fallback's name.
+  const HUNT_NO_TABLE = "this tenant's advanced hunting schema has no Entra sign-in table (EntraIdSignInEvents, nor the older AADSignInEventsBeta). The table exists and fills only with an Entra ID P2 licence and a Defender role with hunting access — switch the sign-in source back to the Entra sign-in log";
+  async function huntRun(query, days) {
+    const body = { Query: query, Timespan: `P${Math.max(1, Math.ceil(days))}D` };
+    const noTable = (e, name) => new RegExp(`(resolve|find)[^']*'${name}'`, "i").test(e.message || "");
+    try { const j = await Graph.gpost("/security/runHuntingQuery", body, [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]); return (j && j.results) || []; }
+    catch (e) {
+      if (huntTable === "EntraIdSignInEvents" && noTable(e, "EntraIdSignInEvents")) {
+        try {
+          const j = await Graph.gpost("/security/runHuntingQuery", { ...body, Query: query.replace(/^EntraIdSignInEvents/, "AADSignInEventsBeta") }, [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]);
+          huntTable = "AADSignInEventsBeta";
+          return (j && j.results) || [];
+        } catch (e2) {
+          if (noTable(e2, "AADSignInEventsBeta")) throw new Error(HUNT_NO_TABLE);
+          throw e2;
+        }
+      }
+      if (huntTable === "AADSignInEventsBeta" && noTable(e, "AADSignInEventsBeta")) { huntTable = "EntraIdSignInEvents"; throw new Error(HUNT_NO_TABLE); }
+      throw e;
+    }
+  }
+  // Adaptive slicing. A large tenant's day of sign-ins — each row carrying
+  // the ConditionalAccessPolicies JSON — blows past hunting's response cap
+  // ("Query execution has exceeded the allowed result size"). The window is
+  // read a day at a time; a slice that fails on size is halved and both
+  // halves read, down to 15 minutes. A slice that returns the row cap is
+  // halved too, so no slice ever silently drops rows. A 15-minute slice that
+  // STILL fails on size — a large tenant's non-interactive traffic, each row
+  // carrying the policies JSON — lowers its row cap and retries, down to
+  // 1,000 rows, and is reported as capped rather than failing the read.
+  const HUNT_MIN_SLICE_MS = 15 * 60 * 1000;
+  const HUNT_MIN_CAP = 1000;
+  const isSizeError = (e) => /exceeded the allowed result size|result size|too large|ResultSize/i.test((e && e.message) || "");
+  async function readSignInsHunting(days, prog, opts = {}) {
+    const interactiveOnly = logSource !== "huntall";
+    const now = Date.now(), start = now - days * 86400000;
+    const dayMs = 86400000;
+    const slices = [];
+    for (let t = start; t < now; t += dayMs) slices.push([t, Math.min(t + dayMs, now)]);
+    prog.start(slices.length, "sign-ins", "day");
+    let out = [], capped = false, splits = 0, lowered = 0, dayStart = 0, dayCovered = 0, queries = 0;
+    const hm = (t) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    const dayLabel = (t) => new Date(t).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" });
+    // Every query is said while it runs: which day, which slice of it, how
+    // many rows so far, how many slices were halved. A large tenant's day of
+    // non-interactive sign-ins is dozens of queries of a minute each, and
+    // "waiting for the first page" for that long reads as nothing happening.
+    const say = (from, to, what) => prog.detail(`${dayLabel(from)} ${hm(from)}–${hm(to)}${what ? ` · ${what}` : ""}${splits ? ` · ${splits} slice${splits === 1 ? "" : "s"} halved` : ""}${lowered ? ` · ${lowered} capped` : ""}${interactiveOnly ? "" : " · incl. non-interactive"}`, dayCovered / dayMs);
+    const readSlice = async (from, to, cap) => {
+      if (prog.check) prog.check();
+      cap = cap || Signins.HUNT_CAP;
+      const q = Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly, slim: huntSlim });
+      let rows;
+      queries++;
+      say(from, to, `query ${queries} running${cap < Signins.HUNT_CAP ? ` (cap ${cap.toLocaleString()})` : ""}${huntSlim ? "" : " · full rows"}`);
+      try { rows = await huntRun(q, days); }
+      catch (e) {
+        // The slim query uses mv-apply / make_list_if; a schema or engine
+        // that refuses it must not fail the read — fall back to full rows
+        // for the rest of the session and say so on the line.
+        if (huntSlim && /semantic|syntax|mv-apply|make_list_if|SEM0|not recognized|unknown function/i.test(String(e.message || ""))) {
+          console.warn("hunting: slim query refused, reading full rows", e.message);
+          huntSlim = false;
+          return readSlice(from, to, cap);
+        }
+        if (isSizeError(e)) {
+          if (to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
+          if (cap > HUNT_MIN_CAP) { lowered++; capped = true; await readSlice(from, to, Math.max(HUNT_MIN_CAP, Math.floor(cap / 2))); return; }
+        }
+        throw e;
+      }
+      if (rows.length >= cap) {
+        if (to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
+        capped = true;
+      }
+      out = out.concat(Signins.fromHunting(rows));
+      dayCovered = Math.min(dayMs, to - dayStart);
+      prog.st.n = out.length;
+      say(from, to, `${rows.length.toLocaleString()} rows`);
+    };
+    // Two days at a time (25328). Each hunting query is a round trip of
+    // seconds to a minute that the browser only waits on; two in flight
+    // roughly halve the wall clock without troubling the per-tenant call
+    // limits, and the order of the result does not matter. After every
+    // finished day opts.onPartial(records so far, done, total) lets the
+    // caller show what it already has.
+    let next = 0, done = 0;
+    const worker = async () => {
+      while (next < slices.length) {
+        const i = next++;
+        if (prog.check) prog.check();
+        dayStart = slices[i][0]; dayCovered = 0;
+        await readSlice(slices[i][0], slices[i][1]);
+        done++;
+        prog.tick(out.length, done);
+        if (opts.onPartial) { try { opts.onPartial(out.slice(), done, slices.length); } catch (e) { console.warn("onPartial", e); } }
+      }
+    };
+    // allSettled, not all: on a stop or a failure the other worker's query
+    // is still in flight, and the read must not report done while it is
+    const settled = await Promise.allSettled([worker(), worker()]);
+    const bad = settled.find((r) => r.status === "rejected");
+    if (bad) throw bad.reason;
+    prog.detail("");
+    return { records: out, capped, splits };
+  }
 
   // force: a Rescan means the reader wants the tenant re-read, not our copy.
-  async function readSignInWindow(days, prog, force) {
+  //
+  // One read at a time. 🛂 Session controls and 🌊 the wave both want the
+  // same window; started together on a large tenant with the hunting source
+  // they each ran the whole multi-minute read, doubling the load and the
+  // wait. The second asker now joins the read in flight and mirrors its
+  // progress into its own panel, then both get the same cache entry.
+  let logInflight = null;   // { days, source, promise, prog }
+  let huntSlim = true;      // the mv-apply slimming of the policy JSON (25328); off after one refusal
+  async function readSignInWindow(days, prog, force, onPartial) {
     if (!force && logCacheUsable(days)) return { ...logCache, reused: true };
-    const records = await prog.fetchAll(ReportImpact.query(days), SI_MAX, "sign-ins");
-    logCache = { days, records, capped: !!prog.st.capped, at: Date.now() };
+    if (!force && logInflight && logInflight.days === days && logInflight.source === logSource) {
+      const other = logInflight;
+      prog.start(other.prog.st.cap, other.prog.st.label, other.prog.st.stepLabel);
+      const mirror = setInterval(() => { const s = other.prog.st; prog.st.n = s.n; prog.st.step = s.step; prog.st.cap = s.cap; prog.st.label = s.label; prog.st.stepLabel = s.stepLabel; prog.st.frac = s.frac; prog.st.t0 = s.t0; prog.detail(`${other.by} is already reading this window — joining that read${s.detail ? ` · ${s.detail}` : ""}`); }, 1000);
+      // A stop while joined leaves the join; the other tool's read goes on.
+      const leave = new Promise((_, rej) => { const t = setInterval(() => { if (prog.st.stop) { clearInterval(t); rej(Object.assign(new Error("stopped"), { stopped: true })); } }, 500); other.promise.then(() => clearInterval(t), () => clearInterval(t)); });
+      try { await Promise.race([other.promise, leave]); } finally { clearInterval(mirror); prog.detail(""); }
+      if (logCacheUsable(days)) return { ...logCache, reused: true };
+      // the read we joined failed or was replaced — fall through to our own
+    }
+    let records, capped;
+    const run = (async () => {
+      if (logSource === "entra") {
+        // partial every 5 pages: 5,000 sign-ins is worth a first look
+        let pages = 0;
+        records = await prog.fetchAll(ReportImpact.query(days), SI_MAX, "sign-ins", onPartial ? (sofar) => { if (++pages % 5 === 0) onPartial(sofar.slice(), pages, null); } : null);
+        capped = !!prog.st.capped;
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the source back to the Entra sign-in log, or grant it");
+        ({ records, capped } = await readSignInsHunting(days, prog, { onPartial }));
+      }
+      logCache = { days, source: logSource, records, capped, at: Date.now() };
+    })();
+    logInflight = { days, source: logSource, promise: run, prog, by: prog.by || "another tool" };
+    try { await run; } finally { if (logInflight && logInflight.promise === run) logInflight = null; prog.stop(); }
     return { ...logCache, reused: false };
   }
   const logAgeLabel = () => {
@@ -11075,11 +12949,12 @@ This is a directory write. Nothing else changes.`)) return;
       if (!o.v || seen.has(k)) return;
       seen.add(k); out.push(`<option value="${esc(o.v)}" label="${esc(o.l || "")}"></option>`);
     });
-    dl.innerHTML = out.join("");
+    dlSet("siSearchList", out.join(""));
   }
   $("siSearch").addEventListener("focus", () => siFillSuggest());
   $("siSearch").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(siSugTimer);
+    if (dlPicked("siSearchList", v)) return;   // a pick, not typing — the filter handler below already has it
     siSugTimer = setTimeout(async () => {
       const t = v.trim();
       if (isDemo || t.length < 2) { siFillSuggest(); return; }
@@ -11092,7 +12967,7 @@ This is a directory write. Nothing else changes.`)) return;
   });
   let siBusy = false, siCapped = false;
   const siOpen = new Set();
-  const siProg = makeProgress("si");
+  const siProg = makeProgress("si"); siProg.by = "🚦 Sign-in failures";
   const siBusyPanel = () => siProg.panel(
     "Reading the sign-in log… this keeps running if you switch tabs.",
     siMode === "reportonly"
@@ -11101,8 +12976,10 @@ This is a directory write. Nothing else changes.`)) return;
   const siModeLabel = () => siMode === "reportonly" ? "report-only failures" : "enforced failures & interrupts";
 
   function openSignins() {
-    crumb("🚦 Sign-in failures");
+    crumb("🚦 Sign-in log");
     show("screen-signins");
+    mountToolTabs("signins", "failures");
+    mountLogSourceSeg("siToolbar", "#siModeSeg");
     $("siRescan").style.display = siRes && !siBusy ? "" : "none";
     if (siBusy) { $("siBody").innerHTML = siBusyPanel(); return; }
     if (siRes) { renderSignins(); return; }
@@ -11136,11 +13013,22 @@ This is a directory write. Nothing else changes.`)) return;
     try {
       let records, reused = false;
       if (isDemo) {
-        records = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [];
-      } else if (siMode === "reportonly") {
-        // Same window, same query as 🎚 Report-only impact.
-        const w = await readSignInWindow(siDays, siProg, force);
-        records = w.records; siCapped = w.capped; reused = w.reused;
+        records = demoSignIns();
+      } else if (siMode === "reportonly" || logSource !== "entra") {
+        // Same window, same query as 🎚 Report-only impact. Enforced mode on
+        // the hunting source reuses that window when it is already read;
+        // otherwise it reads only the failures and interrupts, filtered in
+        // KQL — a large tenant's day is hundreds of rows instead of hundreds
+        // of thousands — and leaves the shared cache alone.
+        if (siMode !== "reportonly" && !(!force && logCacheUsable(siDays))) {
+          if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the source back to the Entra sign-in log, or grant it");
+          const h = await readSignInsHunting(siDays, siProg, { enforcedOnly: true });
+          records = h.records; siCapped = h.capped;
+        } else {
+          const w = await readSignInWindow(siDays, siProg, force);
+          records = w.records; siCapped = w.capped; reused = w.reused;
+        }
+        if (siMode !== "reportonly") records = records.filter((r) => r.conditionalAccessStatus === "failure" || Signins.isInterrupt(r));
       } else {
         records = await siProg.fetchAll(Signins.query(siDays, siMode), SI_MAX, "sign-ins");
         siCapped = siProg.st.capped;
@@ -11259,24 +13147,27 @@ This is a directory write. Nothing else changes.`)) return;
         <h3>🚦 Sign-in failures</h3>
         <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure or interrupt"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
         <p class="mini muted" style="margin:0">${siMode === "reportonly"
-          ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the numbers to check before flipping a policy on."
+          ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the individual sign-ins, newest first. For the per-policy verdict — <i>is this one safe to enable?</i> — use the <a href=\"#\" class=\"md-tool\" data-tool=\"toolImpact\">🎚 Report-only impact</a> tab, which answers from the same window."
           : "Enforced: <b>failed</b> — the user did not satisfy the policy's controls and was blocked; <b>interrupted</b> — a policy's control stopped the sign-in mid-flow (MFA prompt shown and abandoned, MFA enrolment, device auth, terms of use). Both are a prompt to look, not proof the policy is wrong."}</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.total}<span class="mini" style="font-weight:400"> sign-ins</span></div>
         <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}${r.interrupted ? ` · ${r.interrupted} interrupted` : ""}</div>
-        ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated at ${SI_MAX.toLocaleString()} sign-ins</div>` : ""}
+        <div class="mini muted">source: ${esc(logSourceLabel())}${r.nonInteractive ? ` · <button class="fchip ${siFilter === "kind:int" ? "active" : ""}" data-sif="kind:int" style="padding:1px 8px;font-size:11px">${r.total - r.nonInteractive} interactive</button> <button class="fchip ${siFilter === "kind:non" ? "active" : ""}" data-sif="kind:non" style="padding:1px 8px;font-size:11px">${r.nonInteractive} non-interactive</button>` : ""}</div>
+        ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated${logSource === "entra" ? ` at ${SI_MAX.toLocaleString()} sign-ins` : " — a day hit the hunting row cap"}</div>` : ""}
       </div></div>`;
 
     const chips = [["all", `All (${r.total})`],
       ...(siMode !== "reportonly" && r.interrupted
         ? [["blk", `Blocked (${r.total - r.interrupted})`], ["int", `Interrupted (${r.interrupted})`]] : []),
+      ...(r.nonInteractive ? [["kind:int", `Interactive (${r.total - r.nonInteractive})`], ["kind:non", `Non-interactive (${r.nonInteractive})`]] : []),
       ...r.policies.slice(0, 8).map((p) => [p.key, `${p.name.length > 34 ? p.name.slice(0, 32) + "…" : p.name} (${p.count})`])];
     $("siChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${siFilter === k ? "active" : ""}" data-sif="${esc(k)}">${esc(l)}</button>`).join("");
 
     const q = siQuery.toLowerCase();
     const match = (x) => (siFilter === "all"
         || (siFilter === "int" ? x.interrupted : siFilter === "blk" ? !x.interrupted
+          : siFilter === "kind:int" ? x.interactive : siFilter === "kind:non" ? !x.interactive
           : x.policies.some((p) => (p.id || p.name) === siFilter)))
       && (!q || `${x.user} ${x.upn} ${x.app} ${x.ip} ${x.country} ${x.city} ${x.client} ${x.os} ${x.policies.map((p) => p.name).join(" ")}`.toLowerCase().includes(q));
     const rows = r.rows.filter(match);
@@ -11288,7 +13179,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (siView === "policies") {
       const pols = r.policies
         .map((p) => ({ ...p, rows: p.rows.filter(match) }))
-        .filter((p) => p.rows.length && (siFilter === "all" || siFilter === "int" || siFilter === "blk" || p.key === siFilter));
+        .filter((p) => p.rows.length && (siFilter === "all" || siFilter === "int" || siFilter === "blk" || siFilter.startsWith("kind:") || p.key === siFilter));
       $("siBody").innerHTML = `<div class="list-card si-stickyhost"><table class="plist au-sum">
         <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
         <tbody>${pols.map((p) => {
@@ -11298,7 +13189,7 @@ This is a directory write. Nothing else changes.`)) return;
             <ul class="wi-list">${p.rows.slice(0, 40).map((x) => `<li>
               <div class="wi-pn">${esc(x.user)}${x.upn && x.upn !== x.user ? ` <span class="mini muted">(${esc(x.upn)})</span>` : ""} → <b>${esc(x.app)}</b>
                 <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪 Replay</button></div>
-              <div class="wi-why">${x.interrupted ? "interrupted · " : ""}${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
+              <div class="wi-why">${x.interrupted ? "interrupted · " : ""}${x.interactive ? "" : "non-interactive · "}${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
             </li>`).join("")}</ul>
             ${p.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${p.rows.length} — switch to Sign-ins and search to see the rest.</p>` : ""}
           </td></tr>` : "";
@@ -11379,7 +13270,12 @@ This is a directory write. Nothing else changes.`)) return;
   let riBusy = false, riCapped = false;
   const riOpen = new Set();
   // Same shared fetch-progress visual as Sign-in failures and Change audit.
-  const riProg = makeProgress("ri");
+  const riProg = makeProgress("ri"); riProg.by = "🎚 Report-only impact"; riProg.stoppable = true;
+  // Progressive (25328): the forecast is rebuilt from what has been read so
+  // far after every finished day (or every five pages on the Entra source)
+  // and shown under a "still reading" strip, so a 40-minute read gives a
+  // first answer after the first day. riPartial = { done, total, recs }.
+  let riPartial = null, riPartialAt = 0;
   const riBusyPanel = () => riProg.panel(
     "Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.",
     `The bar runs to the ${SI_MAX.toLocaleString()}-sign-in cap — most tenants finish well before the end of it.`);
@@ -11391,19 +13287,20 @@ This is a directory write. Nothing else changes.`)) return;
     .map((p) => ({ id: p.id, name: p.name }));
 
   function openImpact() {
-    crumb("🎚 Report-only impact");
+    crumb("🚦 Sign-in log");
     show("screen-impact");
+    mountToolTabs("signins", "impact");
+    mountLogSourceSeg("riToolbar", "#riViewSeg");
     $("riRescan").style.display = riRes && !riBusy ? "" : "none";
-    if (riBusy) { $("riBody").innerHTML = riBusyPanel(); return; }
+    if (riBusy) { if (riRes && riPartial) renderImpact(); else $("riBody").innerHTML = riBusyPanel(); return; }
     if (riRes) { renderImpact(); return; }
     const ro = riTenantRo();
     $("riHead").innerHTML = `<h3>🎚 Report-only impact</h3>
       <p style="margin-bottom:4px">What happens the day a report-only policy goes live. Per policy: who would be <b>denied</b>, who is <b>interrupted</b> for an extra step (MFA, compliant device, terms of use…), who <b>passes unchanged</b>. Per user: the combined effect of everything in report-only at once.</p>
-      <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
+      <p class="mini muted" style="margin:0">Reads the window from the <b>sign-in source</b> chosen in the toolbar — the Entra sign-in log (AuditLog.Read.All), Defender hunting, or Hunting + non-interactive — and shows the forecast as the days land. On the Entra log report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
     $("riChips").innerHTML = "";
     $("riBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-rirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
   }
-  $("toolImpact").addEventListener("click", () => openImpact());
   $("riRescan").addEventListener("click", () => runImpact(true));
   $("riDays").addEventListener("change", (e) => { riDays = +e.target.value; if (riRes) runImpact(); });
 
@@ -11411,18 +13308,29 @@ This is a directory write. Nothing else changes.`)) return;
   async function runImpact(force) {
     if (riBusy) return;
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
-    riBusy = true; riCapped = false;
+    riBusy = true; riCapped = false; riPartial = null; riProg.begin();
     $("riRescan").style.display = "none";
     $("riBody").innerHTML = riBusyPanel();
+    const onPartial = (recs, done, total) => {
+      if (!riBusy) return;   // a late day from a stopped read
+      // at most one rebuild every 3 seconds — a build over 100k records is
+      // a few hundred milliseconds and the reader needs time to look
+      const now = Date.now();
+      riPartial = { done, total, recs };
+      if (now - riPartialAt < 3000 && done !== total) return;
+      riPartialAt = now;
+      riRes = ReportImpact.build(recs, riTenantRo());
+      renderImpact();
+    };
     try {
       let records, reused = false;
       if (isDemo) {
-        records = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [];
+        records = demoSignIns();
       } else {
-        const w = await readSignInWindow(riDays, riProg, force);
+        const w = await readSignInWindow(riDays, riProg, force, onPartial);
         records = w.records; riCapped = w.capped; reused = w.reused;
       }
-      riReused = reused;
+      riReused = reused; riPartial = null;
       riRes = ReportImpact.build(records, riTenantRo());
       riOpen.clear(); riFilter = "all";
       riBusy = false;
@@ -11430,8 +13338,20 @@ This is a directory write. Nothing else changes.`)) return;
       renderImpact();
       if (!riRes.policies.length) toast("No report-only policy was evaluated in this window");
     } catch (e) {
-      console.error("Report-only impact read failed:", e);
       riBusy = false;
+      if (e && e.stopped && riPartial && riPartial.recs && riPartial.recs.length) {
+        // Stopped by the reader: what was read is a real, partial window —
+        // shown as such, never cached as the whole one.
+        const pt = riPartial; riPartial = { ...pt, stopped: true };
+        riReused = false; riCapped = true;
+        riRes = ReportImpact.build(pt.recs, riTenantRo());
+        riOpen.clear(); riFilter = "all";
+        $("riRescan").style.display = "";
+        renderImpact();
+        return;
+      }
+      if (e && e.stopped) { riPartial = null; openImpact(); return; }
+      console.error("Report-only impact read failed:", e);
       $("riBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read the sign-in log: ${esc(e.message || e)}<br>
         <span class="muted">This needs AuditLog.Read.All and a reader role such as Reports Reader, Security Reader or Security Administrator. The sign-in log also needs an Entra ID P1/P2 licence.</span></p>
         <div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-rirun>Try again</button></div>`;
@@ -11451,6 +13371,12 @@ This is a directory write. Nothing else changes.`)) return;
     return `<div class="ri-bar">${seg(p.failure, "bad", "would deny")}${seg(p.interrupted, "warn", "interrupted")}${seg(p.success, "ok", "pass unchanged")}${seg(p.notApplied, "na", "out of scope")}<span style="flex:${t ? 0 : 1}"></span></div>`;
   };
 
+  const riPartialStrip = () => {
+    const pt = riPartial; if (!pt) return "";
+    const where = pt.total ? `${pt.done} of ${pt.total} day${pt.total === 1 ? "" : "s"}` : `${pt.recs.length.toLocaleString()} sign-ins`;
+    if (pt.stopped) return `<div class="wo-callout" style="margin:0 0 10px"><b>Stopped by you</b> — this is ${where}${pt.total ? " of the window" : ""}, ${pt.recs.length.toLocaleString()} sign-ins. A verdict on a partial window is a verdict on a partial window: a policy that looks safe here may have its denials in the days not read. ⟳ Rescan reads it whole.</div>`;
+    return `<div class="list-card" style="margin:0 0 10px;padding:10px 16px">${riProg.panel(`<b>Still reading</b> — showing ${where} so far, ${pt.recs.length.toLocaleString()} sign-ins. The numbers below grow as days land; the verdicts are not final until the bar is.`)}</div>`;
+  };
   function renderImpact() {
     const r = riRes; if (!r) return;
     $("riHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
@@ -11458,7 +13384,7 @@ This is a directory write. Nothing else changes.`)) return;
         <h3>🎚 Report-only impact</h3>
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         ${riReused ? `<p class="mini muted" style="margin:0 0 4px">↺ Reused the sign-in window <b>🚦 Sign-in failures</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}
-        <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read${riCapped ? `, <span style="color:var(--off)">truncated at ${SI_MAX.toLocaleString()}</span>` : ""}.</p>
+        <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read from <b>${esc(logSourceLabel())}</b>${riCapped ? `, <span style="color:var(--off)">truncated${logSource === "entra" ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.policies.length}<span class="mini" style="font-weight:400"> report-only polic${r.policies.length === 1 ? "y" : "ies"}</span></div>
@@ -11496,14 +13422,14 @@ This is a directory write. Nothing else changes.`)) return;
     const sugg = perPolicy
       ? r.policies.flatMap((p) => [p.name, ...riTargetNames(p.id)])
       : r.users.map((u) => u.upn);
-    $("riSearchList").innerHTML = [...new Set(sugg.filter(Boolean))].slice(0, 300)
-      .map((v) => `<option value="${esc(v)}">`).join("");
+    dlSet("riSearchList", [...new Set(sugg.filter(Boolean))].slice(0, 300)
+      .map((v) => `<option value="${esc(v)}">`).join(""));
 
     // ---- Per policy: is flipping THIS one on safe? -----------------------
     if (riView === "policies") {
       const pols = searched.filter((p) => riFilter === "all" || p.verdict === riFilter);
-      if (!pols.length) { $("riBody").innerHTML = riEmpty(true, q, searched.length); return; }
-      $("riBody").innerHTML = pols.map((p) => {
+      if (!pols.length) { $("riBody").innerHTML = riPartialStrip() + riEmpty(true, q, searched.length); return; }
+      $("riBody").innerHTML = riPartialStrip() + pols.map((p) => {
         const [ic, vlab] = RI_V[p.verdict];
         const open = riOpen.has("p:" + p.key);
         const users = p.users.filter((u) => u.failure || u.interrupted);
@@ -11531,6 +13457,7 @@ This is a directory write. Nothing else changes.`)) return;
           </div>
           ${riBar(p)}
           <div class="au-sub">${esc(ReportImpact.verdictLine(p))}${p.notApplied ? ` Out of scope for ${p.notApplied.toLocaleString()} evaluation${p.notApplied === 1 ? "" : "s"}.` : ""}</div>
+          ${(() => { const vm = riVm(p.id); const bi = ((((vm || {}).raw || {}).grantControls || {}).builtInControls) || []; return bi.some((x) => /^compliantApplication$/i.test(String(x))) && p.failure ? `<div class="au-sub" style="color:var(--report)"><b>Report-only cannot evaluate Require app protection policy</b> — Microsoft documents that this control reports Report-only: Failure in report-only mode even where it passes once enforced. The ${p.failure.toLocaleString()} would-deny above ${p.failure === 1 ? "is" : "are"} not evidence; enable the policy for a pilot group to see the real answer.</div>` : ""; })()}
           ${riTargets(p.id)}
           ${detail}
         </div>`;
@@ -11540,9 +13467,9 @@ This is a directory write. Nothing else changes.`)) return;
 
     // ---- Per user: what changes for this person? -------------------------
     const users = searched.filter((u) => riFilter === "all" || u.worst === riFilter);
-    if (!users.length) { $("riBody").innerHTML = riEmpty(false, q, searched.length); return; }
+    if (!users.length) { $("riBody").innerHTML = riPartialStrip() + riEmpty(false, q, searched.length); return; }
     const W = { block: ["🔴", "locked out of something"], prompt: ["🟡", "new prompts"], clean: ["🟢", "unaffected"] };
-    $("riBody").innerHTML = `<div class="list-card"><table class="plist au-sum">
+    $("riBody").innerHTML = riPartialStrip() + `<div class="list-card"><table class="plist au-sum">
       <thead><tr><th>User</th><th style="width:140px">Going live means</th><th style="width:100px">Would deny</th><th style="width:100px">Interrupted</th><th>Policies involved</th><th style="width:110px">Last seen</th></tr></thead>
       <tbody>${users.slice(0, 200).map((u) => {
         const [ic, lab] = W[u.worst];
@@ -11715,7 +13642,8 @@ This is a directory write. Nothing else changes.`)) return;
   let loFindOpen = true;
 
   async function openLocations(force) {
-    crumb("🌐 Named locations");
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "locations");
     show("screen-locations");
     if (loList && !force) { renderLocations(); return; }   // cached
     $("loHead").innerHTML = '<h3>🌐 Named locations</h3><p class="mini" style="margin:6px 0 0">Reading named locations…</p>';
@@ -12297,7 +14225,8 @@ This is a directory write. Nothing else changes.`)) return;
   ];
 
   async function openAuthCtx(force) {
-    crumb("🎫 Authentication contexts");
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "contexts");
     show("screen-authctx");
     if (acList && !force) { renderAuthCtx(); return; }   // cached
     $("acHead").innerHTML = '<h3>🎫 Authentication contexts</h3><p class="mini" style="margin:6px 0 0">Reading authentication contexts…</p>';
@@ -12312,7 +14241,6 @@ This is a directory write. Nothing else changes.`)) return;
       $("acHead").innerHTML = `<h3>🎫 Authentication contexts</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
-  $("toolAuthCtx").addEventListener("click", () => openAuthCtx());
   $("acRefresh").addEventListener("click", () => openAuthCtx(true));
 
   function renderAuthCtx() {
@@ -12471,7 +14399,8 @@ This is a directory write. Nothing else changes.`)) return;
   let asList = null, asCombos = null, asFilter = "all", asQuery = "", asEditing = null, asDeleting = null;
 
   async function openAuthStr(force) {
-    crumb("💪 Authentication strengths");
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "strengths");
     show("screen-authstr");
     if (asList && !force) { renderAuthStr(); return; }   // cached
     $("asHead").innerHTML = '<h3>💪 Authentication strengths</h3><p class="mini" style="margin:6px 0 0">Reading authentication strengths…</p>';
@@ -12511,7 +14440,6 @@ This is a directory write. Nothing else changes.`)) return;
       $("asHead").innerHTML = `<h3>💪 Authentication strengths</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
-  $("toolAuthStr").addEventListener("click", () => openAuthStr());
   $("asRefresh").addEventListener("click", () => openAuthStr(true));
 
   function renderAuthStr() {
@@ -12757,7 +14685,8 @@ This is a directory write. Nothing else changes.`)) return;
   ];
 
   async function openTou(force) {
-    crumb("📜 Terms of use");
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "terms");
     show("screen-tou");
     if (tuList && !force) { renderTou(); return; }   // cached
     $("tuHead").innerHTML = '<h3>📜 Terms of use <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading terms-of-use agreements…</p>';
@@ -12780,7 +14709,6 @@ This is a directory write. Nothing else changes.`)) return;
       $("tuHead").innerHTML = `<h3>📜 Terms of use</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
-  $("toolTou").addEventListener("click", () => openTou());
   $("tuRefresh").addEventListener("click", () => openTou(true));
 
   function renderTou() {
@@ -13019,7 +14947,8 @@ This is a directory write. Nothing else changes.`)) return;
   };
 
   async function openRecycle(force) {
-    crumb("♻ Recycle bin");
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "deleted");
     show("screen-recycle");
     if (rcPols && !force) { renderRecycle(); return; }   // cached
     $("rcHead").innerHTML = '<h3>♻ Recycle bin</h3><p class="mini" style="margin:6px 0 0">Reading recently deleted policies and named locations…</p>';
@@ -13039,7 +14968,6 @@ This is a directory write. Nothing else changes.`)) return;
       $("rcHead").innerHTML = `<h3>♻ Recycle bin</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}${/403|Authorization/i.test(String(e.message || e)) ? " — reading the recycle bin needs the Security Administrator or Conditional Access Administrator role." : ""}</p>`;
     }
   }
-  $("toolRecycle").addEventListener("click", () => openRecycle());
   $("rcRefresh").addEventListener("click", () => openRecycle(true));
 
   function renderRecycle() {
@@ -13156,6 +15084,7 @@ This is a directory write. Nothing else changes.`)) return;
   function openWhatIf() {
     crumb("🧪 What-If");
     show("screen-whatif");
+    mountToolTabs("whatif", "one");
     $("wiHead").innerHTML = `<h3>🧪 What-If</h3>
       <p style="margin-bottom:6px">Describe a sign-in and every <b>enabled</b> or <b>report-only</b> policy is evaluated against it — which would apply (and the controls to satisfy), and which would not, with the first condition that wasn't met.</p>
       <p class="mini muted" style="margin:0">Mirrors the <a href="https://learn.microsoft.com/entra/identity/conditional-access/what-if-tool" target="_blank" rel="noopener">Entra Conditional Access What If tool</a>. Like the Microsoft tool it does not follow Conditional Access <b>service dependencies</b>, an app <i>group</i> (Office 365) never matches — use the app itself — and a condition the scenario leaves unspecified cannot be evaluated, so that policy will not apply.</p>`;
@@ -13176,12 +15105,13 @@ This is a directory write. Nothing else changes.`)) return;
   let wiSugTimer = null;
   $("wiUser").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(wiSugTimer);
+    if (dlPicked("wiUserList", v)) return;   // a pick, not typing
     wiSugTimer = setTimeout(async () => {
       const t = v.trim(); if (t.length < 2 || isDemo) return;
       try {
         const f = t.replace(/'/g, "''");
         const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
-        $("wiUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+        dlSet("wiUserList", ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join(""));
       } catch (err) { console.warn("what-if: suggest failed", err.message); }
     }, 250);
   });
@@ -13309,7 +15239,7 @@ This is a directory write. Nothing else changes.`)) return;
   const WI_GRANT_LABEL = { block: "Block access", mfa: "Require MFA", compliantDevice: "Require compliant device",
     domainJoinedDevice: "Require hybrid Entra joined device", approvedApplication: "Require approved client app",
     compliantApplication: "Require app protection policy", passwordChange: "Require password change",
-    unknownFutureValue: "unknown" };
+    riskRemediation: "Require risk remediation", unknownFutureValue: "unknown" };
   const wiCtrl = (c) => c.startsWith("authenticationStrength:") ? "Authentication strength: " + c.slice(23)
     : c.startsWith("termsOfUse:") ? "Terms of use: " + c.slice(11) : (WI_GRANT_LABEL[c] || c);
 
@@ -13453,8 +15383,9 @@ This is a directory write. Nothing else changes.`)) return;
   // ---------- Compare users ----------
   let cuUsers = [], cuResult = null, cuLocations = null, cuSeedList = "";
   function openCompare() {
-    crumb("⚖ Compare users");
+    crumb("🕵 Who is … to CA");
     show("screen-compare");
+    mountToolTabs("whois", "compare");
     $("cuHead").innerHTML = `<h3>⚖ Compare users</h3>
       <p style="margin-bottom:6px">Add two or more users and see where Conditional Access treats them differently: per-policy <b>assignment</b> (included, excluded — and why — or not targeted), the <b>group and role memberships</b> behind the differences, and optionally one <b>What-If sign-in</b> evaluated for every user.</p>
       <p class="mini muted" style="margin:0">Assignment compares user scoping only — location, platform, client and risk conditions only come in through the optional scenario. Read-only.</p>`;
@@ -13473,7 +15404,6 @@ This is a directory write. Nothing else changes.`)) return;
     renderCuChips();
     if (cuResult) renderCompare();   // keep the last run when returning to the tab
   }
-  $("toolCompare").addEventListener("click", () => openCompare());
 
   function renderCuChips() {
     $("cuChips").innerHTML = cuUsers.map((u, i) => `<span class="cu-chip">${esc(u.name)}${u.guest ? ' <span class="tag new">guest</span>' : ""}
@@ -13506,6 +15436,7 @@ This is a directory write. Nothing else changes.`)) return;
   let cuSugTimer = null;
   $("cuUser").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(cuSugTimer);
+    if (dlPicked("cuUserList", v)) return;   // a pick, not typing — `change` adds the user
     cuSugTimer = setTimeout(async () => {
       const t = v.trim();
       if (isDemo) return;
@@ -13513,7 +15444,7 @@ This is a directory write. Nothing else changes.`)) return;
       try {
         const f = t.replace(/'/g, "''");
         const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
-        $("cuUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+        dlSet("cuUserList", ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join(""));
       } catch (err) { console.warn("compare: suggest failed", err.message); }
     }, 250);
   });
@@ -13614,16 +15545,23 @@ This is a directory write. Nothing else changes.`)) return;
   // read — a single user's window is small, so it never needs the 10,000
   // cap — unless the shared window is already in memory and uncapped, in
   // which case it is filtered from there and the tenant is not read twice.
-  let woRes = null, woBusy = false, woDays = 7, woFilter = "reach", woSeedList = "", woLogSkipped = "";
+  let woRes = null, woBusy = false, woDays = 7, woFilter = "reach", woSfilter = "any", woSeedList = "", woLogSkipped = "";
   const woProg = makeProgress("wo");
   const WO_METHODS = ["UserAuthenticationMethod.Read.All"];
+  // Identity Protection: the user's risk record + the detections behind it.
+  // Optional, like the methods read — consent asked on the click, or read
+  // straight away when the token already carries the scopes.
+  const WO_RISK = ["IdentityRiskyUser.Read.All", "IdentityRiskEvent.Read.All"];
+  const WO_RISK_DAYS = 30;
 
   function openWhoIs() {
-    crumb("🕵 Who is Anna to CA");
+    crumb("🕵 Who is … to CA");
     show("screen-whois");
+    mountToolTabs("whois", "user");
+    mountLogSourceSeg("woToolbar", "#woRun");
     $("woHead").innerHTML = `<h3>🕵 Who is Anna to CA <span class="tag new">BETA</span></h3>
       <p style="margin-bottom:6px">One user, the whole Conditional Access picture: which <b>deployment group</b> she sits in and how she got there, every policy that <b>reaches</b> her (or misses her, and why), what the <b>sign-in log</b> says actually happened to her, and what happens to her the day <b>report-only</b> goes live.</p>
-      <p class="mini muted" style="margin:0">Memberships and policies come from what ENCA already holds. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Registered MFA methods are an optional extra read. Read-only.</p>`;
+      <p class="mini muted" style="margin:0">Memberships and policies come from what ENCA already holds. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Registered MFA methods and her Identity Protection <b>risk</b> (risky-user state, detections) are optional extra reads. Read-only.</p>`;
     if (!policies.length) { $("woBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
     if (isDemo) $("woUserList").innerHTML = (DEMO_DATA.analyzeUsers || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
     else if (!$("woUserList").children.length) {
@@ -13641,6 +15579,7 @@ This is a directory write. Nothing else changes.`)) return;
   let woSugTimer = null;
   $("woUser").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(woSugTimer);
+    if (dlPicked("woUserList", v)) return;   // a pick from the list, not typing — leave the options alone
     woSugTimer = setTimeout(async () => {
       const t = v.trim();
       if (isDemo) return;
@@ -13648,7 +15587,7 @@ This is a directory write. Nothing else changes.`)) return;
       try {
         const f = t.replace(/'/g, "''");
         const r = await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=10`);
-        $("woUserList").innerHTML = ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
+        dlSet("woUserList", ((r && r.value) || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join(""));
       } catch (err) { console.warn("whois: suggest failed", err.message); }
     }, 250);
   });
@@ -13684,8 +15623,11 @@ This is a directory write. Nothing else changes.`)) return;
   // parent it came through. One $batch, capped at 60 direct groups.
   async function woPaths(u) {
     if (isDemo) {
-      u.direct = new Set(u.groupIds);     // the demo directory has no nesting
-      u.via = {};
+      // demo nesting: her first exclusion-looking group is reached through a
+      // nested group, so the ↪ path has something to show
+      u.direct = new Set(u.groupIds); u.via = {};
+      const ex = [...u.groupIds].find((g) => /exclusion/i.test(u.names[g] || ""));
+      if (ex) { u.direct.delete(ex); u.via[ex] = [`SG-Demo-${((u.names[ex] || "").match(/CA\d+/) || ["team"])[0]}`]; }
       return;
     }
     try {
@@ -13704,12 +15646,13 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   async function woExtras(u) {
-    u.dept = ""; u.title = ""; u.licence = null; u.methods = null;
+    u.dept = ""; u.title = ""; u.licence = null; u.methods = null; u.risk = null;
     if (isDemo) {
       const d = (DEMO_DATA.analyzeUsers || []).find((x) => x.id === u.id) || {};
       u.dept = d.department || ""; u.title = d.jobTitle || "";
       try { u.licence = LicGap.licenceOf(d, LicGap.liveSkuSets(DEMO_DATA.skus || [])); } catch { u.licence = null; }
       u.methods = u.id === "u-svc" ? [] : ["Microsoft Authenticator", "phone"];
+      u.risk = (DEMO_DATA.riskyUsers || {})[u.id] || { level: "none", state: "none", detail: "none", updated: "", detections: [], detWindow: WO_RISK_DAYS };
       return;
     }
     try {
@@ -13720,6 +15663,27 @@ This is a directory write. Nothing else changes.`)) return;
       u.licence = LicGap.licenceOf(m, live);
     } catch (e) { console.warn("whois: user detail not read", e.message); }
     if (Graph.hasScopes(WO_METHODS)) await woReadMethods(u);
+    if (Graph.hasScopes(WO_RISK)) await woReadRisk(u);
+  }
+  // Two reads: the risky-user record (404 = never flagged, which is an
+  // answer, not an error) and the detections of the last WO_RISK_DAYS days —
+  // longer than the sign-in window on purpose, because a user is "at risk"
+  // for as long as nobody remediates, however old the detection.
+  async function woReadRisk(u) {
+    const say = (e) => /licen|premium|P2/i.test(String(e && e.message || "")) ? "needs Entra ID P2 (Identity Protection) — not read" : /403|Forbidden|Authorization/i.test(String(e && e.message || "")) ? "not allowed — needs IdentityRiskyUser.Read.All + IdentityRiskEvent.Read.All (Security Reader)" : `not read — ${String(e && e.message || e).slice(0, 120)}`;
+    let rec = null;
+    try { rec = await Graph.gget(`/identityProtection/riskyUsers/${u.id}`); }
+    catch (e) { if (!/404|NotFound|not found/i.test(String(e.message || ""))) { console.warn("whois: risky user not read", e.message); u.risk = { err: say(e) }; return; } }
+    const out = { level: (rec && rec.riskLevel) || "none", state: (rec && rec.riskState) || "none", detail: (rec && rec.riskDetail) || "none", updated: (rec && rec.riskLastUpdatedDateTime) || "", processing: !!(rec && rec.isProcessing), detections: [], detWindow: WO_RISK_DAYS };
+    try {
+      const since = new Date(Date.now() - WO_RISK_DAYS * 86400000).toISOString();
+      const ds = await Graph.ggetAll(`/identityProtection/riskDetections?$filter=${encodeURIComponent(`userId eq '${u.id}' and detectedDateTime ge ${since}`)}&$top=100`);
+      out.detections = (ds || []).map((d) => {
+        let info = ""; try { const j = JSON.parse(d.additionalInfo || "[]"); info = (Array.isArray(j) ? j : []).map((x) => `${x.Key}: ${x.Value}`).join(" · "); } catch {}
+        return { when: d.detectedDateTime || d.activityDateTime, type: d.riskEventType || d.riskType || "", level: String(d.riskLevel || "").toLowerCase(), state: d.riskState || "", detail: d.riskDetail || "", activity: d.activity || "", source: d.source || "", ip: d.ipAddress || "", city: (d.location || {}).city || "", country: (d.location || {}).countryOrRegion || "", info };
+      }).sort((x, y) => String(y.when).localeCompare(String(x.when)));
+    } catch (e) { console.warn("whois: risk detections not read", e.message); out.detErr = say(e); }
+    u.risk = out;
   }
   const WO_METHOD_LABEL = {
     "#microsoft.graph.microsoftAuthenticatorAuthenticationMethod": "Microsoft Authenticator",
@@ -13746,9 +15710,14 @@ This is a directory write. Nothing else changes.`)) return;
   // in memory and was not capped, else one server-filtered read.
   async function woSignIns(u, force) {
     woLogSkipped = "";
-    if (isDemo) return ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || []).filter((r) => r.userId === u.id);
+    if (isDemo) return (demoSignIns()).filter((r) => r.userId === u.id);
     if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { woLogSkipped = "AuditLog.Read.All was not granted"; return null; }
     if (!force && logCacheUsable(woDays) && !logCache.capped) return logCache.records.filter((r) => r.userId === u.id);
+    if (logSource !== "entra") {
+      if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) { woLogSkipped = "ThreatHunting.Read.All was not granted"; return null; }
+      try { const h = await readSignInsHunting(woDays, woProg, { userId: u.id }); if (h.capped) woLogSkipped = "a day hit the hunting row cap"; return h.records; }
+      catch (e) { console.warn("whois: hunting read failed", e.message); woLogSkipped = `could not run the hunting query (${e.message || e})`; return null; }
+    }
     const since = new Date(Date.now() - woDays * 86400000).toISOString();
     const url = `/auditLogs/signIns?$filter=${encodeURIComponent(`userId eq '${u.id}' and createdDateTime ge ${since}`)}&$orderby=createdDateTime desc&$top=999`;
     try { return await woProg.fetchAll(url, 5000, "sign-ins"); }
@@ -13782,6 +15751,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("woBody").innerHTML = woProg.panel(`Reading <b>${esc(u.name)}</b>'s sign-ins…`);
       const records = await woSignIns(u, force);
       woRes = WhoIs.analyze({ user: u, vms: policies, records, cat, dgPresent, days: woDays });
+      Object.assign(woRes, { records, cat, dgPresent });   // kept so the optional risk read can re-derive without re-reading
       woBusy = false;
       $("woRescan").style.display = ""; $("woMd").style.display = ""; $("woCsv").style.display = "";
       renderWhoIs();
@@ -13794,11 +15764,14 @@ This is a directory write. Nothing else changes.`)) return;
 
   function renderWhoIs() {
     const R = woRes; if (!R) return;
-    $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, logSkipped: woLogSkipped });
+    $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, stateFilter: woSfilter, logSkipped: woLogSkipped });
+    applyFolds("woBody");
   }
   $("woBody").addEventListener("click", async (e) => {
+    if (foldClick("woBody", e)) return;
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const f = e.target.closest("[data-wo-filter]"); if (f) { woFilter = f.dataset.woFilter; renderWhoIs(); return; }
+    const sf = e.target.closest("[data-wo-sfilter]"); if (sf) { woSfilter = sf.dataset.woSfilter; renderWhoIs(); return; }
     const R = woRes; if (!R) return;
     if (e.target.closest("[data-wo-compare]")) {
       // Compare adds by term; hand it the UPN and let it resolve, so the
@@ -13815,6 +15788,15 @@ This is a directory write. Nothing else changes.`)) return;
       if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...WO_METHODS])) return;
       await woReadMethods(R.user);
       if (R.user.methods === null) toast("Could not read the registered methods — needs UserAuthenticationMethod.Read.All and Authentication Administrator or Global Reader");
+      renderWhoIs();
+    }
+    if (e.target.closest("[data-wo-risk]")) {
+      if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...WO_RISK])) return;
+      const b = e.target.closest("[data-wo-risk]"); b.disabled = true; b.textContent = "reading…";
+      await woReadRisk(R.user);
+      // the risk half of the result is derived, so re-derive it
+      woRes = WhoIs.analyze({ user: R.user, vms: policies, records: R.records, cat: R.cat, dgPresent: R.dgPresent, days: woDays });
+      if (R.user.risk && R.user.risk.err) toast(`Identity risk: <span>${esc(R.user.risk.err)}</span>`);
       renderWhoIs();
     }
   });
@@ -13836,7 +15818,12 @@ This is a directory write. Nothing else changes.`)) return;
   // WhoIs.stateFor — the same function T36 uses, so the two cannot disagree.
   // The sign-in half is the shared window (🚦 / 🎚), filtered to the members.
   let wvRes = null, wvBusy = false, wvDays = 7, wvFilter = "look", wvPfilter = "targets", wvGroups = null, wvPick = null, wvLogSkipped = "";
-  const wvProg = makeProgress("wv");
+  // 👥 Members full screen (25343). A STATE FLAG rather than Fs.open: the
+  // wave rewrites wvBody whole on every filter click and risk read, so an
+  // element parked in the full-screen modal would be orphaned by the first
+  // re-render. Held here, read by the renderer, it survives all of them.
+  let wvMemFull = false;
+  const wvProg = makeProgress("wv"); wvProg.by = "🌊 Who is the wave to CA"; wvProg.stoppable = true;
   const WV_MEMBER_CAP = 500;
 
   // every group id the policies name in an include or exclude
@@ -13849,8 +15836,10 @@ This is a directory write. Nothing else changes.`)) return;
       <p class="mini muted" style="margin:0">Members are read transitively (first ${WV_MEMBER_CAP}); every member is resolved against every policy with the same rule 🕵 Who is Anna to CA uses. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Read-only.</p>`;
   }
   async function openWave() {
-    crumb("🌊 Who is the wave to CA");
+    crumb("🕵 Who is … to CA");
     show("screen-wave");
+    mountToolTabs("whois", "group");
+    mountLogSourceSeg("wvToolbar2", "#wvRun");
     $("wvHead").innerHTML = wvHeadHtml();
     if (!policies.length) { $("wvBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
     if (wvBusy) { $("wvBody").innerHTML = wvProg.panel("Reading the wave…"); return; }
@@ -13858,7 +15847,6 @@ This is a directory write. Nothing else changes.`)) return;
     if (wvRes) { renderWave(); return; }
     $("wvBody").innerHTML = '<div class="run-prompt"><p class="mini muted">Pick a deployment group above — or type any group name — and press <b>Read wave</b>. Nothing is written.</p></div>';
   }
-  $("toolWave").addEventListener("click", () => openWave());
 
   // The picker: the active baseline's deploy groups first, persona groups
   // after, each with its transitive member count when the tenant has it.
@@ -13898,14 +15886,15 @@ This is a directory write. Nothing else changes.`)) return;
   let wvSugTimer = null;
   $("wvTerm").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(wvSugTimer);
+    if (dlPicked("wvTermList", v)) return;   // a pick, not typing
     wvSugTimer = setTimeout(async () => {
       const t = v.trim();
-      if (isDemo) { $("wvTermList").innerHTML = Object.keys(DEMO_DATA.scopeGroups || {}).filter((n) => n.toLowerCase().includes(t.toLowerCase())).map((n) => `<option value="${esc(n)}"></option>`).join(""); return; }
+      if (isDemo) { dlSet("wvTermList", Object.keys(DEMO_DATA.scopeGroups || {}).filter((n) => n.toLowerCase().includes(t.toLowerCase())).map((n) => `<option value="${esc(n)}"></option>`).join("")); return; }
       if (t.length < 2) return;
       try {
         const f = t.replace(/'/g, "''");
         const r = await Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=id,displayName&$top=10`);
-        $("wvTermList").innerHTML = ((r && r.value) || []).map((g) => `<option value="${esc(g.displayName)}"></option>`).join("");
+        dlSet("wvTermList", ((r && r.value) || []).map((g) => `<option value="${esc(g.displayName)}"></option>`).join(""));
       } catch (err) { console.warn("wave: suggest failed", err.message); }
     }, 250);
   });
@@ -13936,6 +15925,7 @@ This is a directory write. Nothing else changes.`)) return;
     }
     const truncated = [];
     for (let i = 0; i < ids.length; i += 40) {
+      wvProg.check();
       const part = ids.slice(i, i + 40);
       const res = await Graph.gbatch(part.flatMap((id, k) => [
         { id: `m${k}`, url: `/groups/${id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999` },
@@ -13955,7 +15945,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (wvBusy) return;
     const term = $("wvTerm").value.trim();
     if (!wvPick && !term) { toast("Pick a deployment group or type a group name first"); return; }
-    wvBusy = true; wvRes = null;
+    wvBusy = true; wvRes = null; wvProg.begin();
     $("wvRescan").style.display = "none"; $("wvMd").style.display = "none"; $("wvCsv").style.display = "none";
     $("wvBody").innerHTML = wvProg.panel("Reading the group…");
     try {
@@ -13981,6 +15971,7 @@ This is a directory write. Nothing else changes.`)) return;
             children = cg.slice(0, 40).map((g, i) => ({ id: g.id, name: g.displayName || g.id, rule: g.membershipRule || "", memberIds: new Set(((res[i] && res[i].body && res[i].body.value) || []).map((x) => x.id)) }));
           }
         } catch (e) { console.warn("wave: direct members not read", e.message); direct = null; }
+        wvProg.check();
         try { (await Graph.ggetAll(`/groups/${gid}/transitiveMemberOf?$select=id`)).forEach((o) => { if (!/(directoryrole|administrativeunit)/i.test(o["@odata.type"] || "")) parents.add(o.id); }); } catch {}
       }
       // licence verdict per member, same as 🎫 Licence gap
@@ -14001,6 +15992,7 @@ This is a directory write. Nothing else changes.`)) return;
       const roleMembers = new Map();
       if (isDemo) Object.entries(DEMO_DATA.roleMembers || {}).forEach(([rt, ids]) => { roleMembers.set(rt, new Set(ids)); names[rt] = (DEMO_DATA.names || {})[rt] || rt; });
       else {
+        wvProg.check();
         try {
           const roles = await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId");
           const res = await Graph.gbatch(roles.map((r, i) => ({ id: i, url: `/directoryRoles/${r.id}/members?$select=id` })));
@@ -14009,41 +16001,116 @@ This is a directory write. Nothing else changes.`)) return;
       }
       // sign-ins: the shared window, filtered to the members
       let records = null; wvLogSkipped = "";
-      if (isDemo) records = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || [];
+      if (isDemo) records = demoSignIns();
+      else if (wvProg.st.stop) wvLogSkipped = "stopped by you before the sign-in window was read — the group half is complete, the log half is not";
       else if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) wvLogSkipped = "AuditLog.Read.All was not granted";
       else {
         $("wvBody").innerHTML = wvProg.panel("Reading the sign-in window…", "Shared with 🚦 Sign-in failures and 🎚 Report-only impact — read once, reused by all three.");
+        // A stop here keeps what the group half found: the members, the
+        // exclusions, the other waves. Only the sign-in half is missing,
+        // and the note says so.
         try { const w = await readSignInWindow(wvDays, wvProg, force); records = w.records; if (w.capped) wvLogSkipped = `window capped at ${SI_MAX.toLocaleString()} sign-ins`; }
-        catch (e) { console.warn("wave: sign-in read failed", e.message); wvLogSkipped = `could not read the sign-in log (${e.message || e})`; }
+        catch (e) { if (e && e.stopped) wvLogSkipped = "stopped by you during the sign-in read — the group half is complete, the log half is not"; else { console.warn("wave: sign-in read failed", e.message); wvLogSkipped = `could not read the sign-in log (${e.message || e})`; } }
       }
       wvRes = Wave.analyze({ group, members, direct, children, parents, groupMembers, roleMembers, names, vms: policies, records, cat, dgGroups, memberCap: WV_MEMBER_CAP, capped, days: wvDays });
       wvRes.truncated = truncated;
+      wvRes.memberIds = members.map((m) => m.id);
       wvBusy = false;
       $("wvRescan").style.display = ""; $("wvMd").style.display = ""; $("wvCsv").style.display = "";
       renderWave();
     } catch (e) {
-      console.error("Who is the wave to CA failed:", e);
       wvBusy = false;
+      if (e && e.stopped) {
+        // Stopped before the group half was complete: nothing to analyse
+        // honestly, so say where it stopped and offer the read again.
+        $("wvBody").innerHTML = `<div class="run-prompt"><p class="mini">Stopped by you — ${esc(wvProg.st.n.toLocaleString())} ${esc(wvProg.st.label)} read before the stop. Nothing is shown: the wave is analysed from the whole group, and a partial member list would report exclusions and other waves that are not there.</p><button class="btn primary" id="wvAgain">🔎 Read the wave again</button></div>`;
+        const b = $("wvAgain"); if (b) b.addEventListener("click", () => runWave(force));
+        return;
+      }
+      console.error("Who is the wave to CA failed:", e);
       $("wvBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">${esc(e.message || e)}</p>`;
-    } finally { wvBusy = false; }
+    } finally { wvBusy = false; wvProg.stop(); }
   }
   function renderWave() {
     const R = wvRes; if (!R) return;
     const notes = [];
     if (wvLogSkipped) notes.push(`Sign-in half: ${esc(wvLogSkipped)}.`);
     if (R.truncated && R.truncated.length) notes.push(`${R.truncated.length} referenced group${R.truncated.length === 1 ? "" : "s"} with more than 999 members were read partially — exclusion and other-wave counts may be low.`);
-    $("wvBody").innerHTML = (notes.length ? `<p class="mini muted" style="margin:0 0 8px">${notes.join(" ")}</p>` : "") + Wave.render(R, { rangeLabel: rangeLabel(wvDays), filter: wvFilter, pfilter: wvPfilter });
+    $("wvBody").innerHTML = (notes.length ? `<p class="mini muted" style="margin:0 0 8px">${notes.join(" ")}</p>` : "") + Wave.render(R, { memFull: wvMemFull, rangeLabel: rangeLabel(wvDays), filter: wvFilter, pfilter: wvPfilter });
+    applyFolds("wvBody");
+  }
+  // ---- card folding, shared by 🕵 and 🌊 (25323, on Mihai's ask): click a
+  // card heading to fold it; the state is remembered per tool and card so a
+  // rescan or a new user keeps the layout the reader chose.
+  const WO_FOLD_KEY = "enca.woFold";
+  const readFolds = () => { try { return JSON.parse(localStorage.getItem(WO_FOLD_KEY) || "[]"); } catch { return []; } };
+  const writeFolds = (a) => { try { localStorage.setItem(WO_FOLD_KEY, JSON.stringify(a)); } catch { /* private mode */ } };
+  function applyFolds(bodyId) {
+    const host = $(bodyId); if (!host) return;
+    const folded = new Set(readFolds());
+    host.querySelectorAll(".wo-card > .wo-h[data-wo-fold]").forEach((h) => { h.parentElement.classList.toggle("wo-folded", folded.has(`${bodyId}:${h.dataset.woFold}`)); h.title = h.parentElement.classList.contains("wo-folded") ? "Unfold this section" : "Fold this section away"; });
+  }
+  function foldClick(bodyId, e) {
+    const h = e.target.closest(".wo-h[data-wo-fold]"); if (!h) return false;
+    if (e.target.closest("a, button, input, .pol-link")) return false;
+    const key = `${bodyId}:${h.dataset.woFold}`;
+    const set = new Set(readFolds());
+    set.has(key) ? set.delete(key) : set.add(key);
+    writeFolds([...set]);
+    applyFolds(bodyId);
+    return true;
   }
   $("wvBody").addEventListener("click", (e) => {
+    if (foldClick("wvBody", e)) return;
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const mf = e.target.closest("[data-wv-memfull]"); if (mf) { wvMemFull = !wvMemFull; renderWave(); return; }
     const f = e.target.closest("[data-wv-filter]"); if (f) { wvFilter = f.dataset.wvFilter; renderWave(); return; }
     const pf = e.target.closest("[data-wv-pfilter]"); if (pf) { wvPfilter = pf.dataset.wvPfilter; renderWave(); return; }
     const o = e.target.closest("[data-wv-open]");
     if (o) { e.preventDefault(); $("woUser").value = o.dataset.wvOpen; $("toolWhoIs").click(); runWhoIs(); return; }
+    const rb = e.target.closest("[data-wv-risk]"); if (rb) { wvReadRisk(rb); return; }
     const R = wvRes; if (!R) return;
     if (e.target.closest("[data-wv-cagroups]")) { $("toolCaGroups").click(); return; }
     if (e.target.closest("[data-wv-groupuse]")) { const i = $("guTerm"); if (i) i.value = R.group.displayName; $("toolGroupUse").click(); }
   });
+  // 🛡 identity risk for the wave (T37 0.6): one riskyUsers GET per member,
+  // twenty to a $batch; 404 = never flagged. Joined to the risky sign-ins
+  // the members already carry from the shared window (no second log read).
+  let wvRiskBusy = false;
+  async function wvReadRisk(btn) {
+    const R = wvRes; if (!R || wvRiskBusy) return;
+    wvRiskBusy = true;
+    if (btn) { btn.disabled = true; btn.textContent = "🛡 Reading…"; }
+    try {
+      const byId = new Map();
+      if (isDemo) {
+        R.members.forEach((m) => { const d = (DEMO_DATA.riskyUsers || {})[m.id]; byId.set(m.id, d ? { level: d.level, state: d.state, detail: d.detail, updated: d.updated } : null); });
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...WO_RISK])) { toast("IdentityRiskyUser.Read.All was not granted — identity risk not read"); return; }
+        const ids = (R.memberIds || R.members.map((m) => m.id));
+        const say = (e) => /licen|premium|P2/i.test(String(e || "")) ? "needs Entra ID P2" : /403|Forbidden|Authorization/i.test(String(e || "")) ? "not allowed" : String(e || "error").slice(0, 80);
+        for (let i = 0; i < ids.length; i += 20) {
+          const part = ids.slice(i, i + 20);
+          if (btn) btn.textContent = `🛡 Reading… ${Math.min(i + 20, ids.length)} of ${ids.length}`;
+          const res = await Graph.gbatch(part.map((id, k) => ({ id: k, url: `/identityProtection/riskyUsers/${id}` })));
+          part.forEach((id, k) => {
+            const r = res[k] || {};
+            if (r.status === 404) { byId.set(id, null); return; }
+            if (r.status >= 400 || !r.body || r.body.error) { byId.set(id, { err: say(r.body && r.body.error && r.body.error.message || r.status) }); return; }
+            byId.set(id, { level: r.body.riskLevel || "none", state: r.body.riskState || "none", detail: r.body.riskDetail || "none", updated: r.body.riskLastUpdatedDateTime || "" });
+          });
+        }
+      }
+      Wave.applyRisk(R, byId);
+      renderWave();
+      const rk = R.risk;
+      toast(rk.atRisk.length ? `${rk.atRisk.length} member${rk.atRisk.length === 1 ? "" : "s"} at risk${rk.fires.length ? ` — ${rk.fires.length} risk polic${rk.fires.length === 1 ? "y fires" : "ies fire"}` : ""}` : "Nobody in the wave is flagged by Identity Protection");
+    } catch (e) {
+      console.warn("wave: identity risk not read", e);
+      toast(`Identity risk not read: <span>${esc(e.message || e)}</span>`);
+      if (btn) { btn.disabled = false; btn.textContent = "🛡 Read identity risk"; }
+    } finally { wvRiskBusy = false; }
+  }
   $("wvMd").addEventListener("click", () => {
     const R = wvRes; if (!R) return;
     showReport("🌊 Who is the wave to CA", `CA-Wave-${R.group.displayName.replace(/[^\w.-]+/g, "_")}`, Wave.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(wvDays) }));
@@ -14052,6 +16119,166 @@ This is a directory write. Nothing else changes.`)) return;
     const R = wvRes; if (!R) return;
     downloadText(`CA-Wave-${R.group.displayName.replace(/[^\w.-]+/g, "_")}`, "csv", "text/csv", Wave.toCsv(R));
   });
+
+  // ---------- 🛂 Session controls (T38, BETA) ----------
+  // What a session control DID: Defender advanced hunting (CloudAppEvents,
+  // session / access control audit source) through Graph, joined to the
+  // shared Entra sign-in window for the routing policy. Two scopes asked on
+  // the click; each half degrades on its own — activities without routing,
+  // or routing without activities, both render and say what is missing.
+  let scRes = null, scBusy = false, scDays = 7, scFilter = "acted", scPfilter = "appcontrol", scQ = "";
+  const scProg = makeProgress("sc"); scProg.by = "🛂 Session controls"; scProg.stoppable = true;
+  const SC_HUNT = ["ThreatHunting.Read.All"];
+
+  function openSessionCtl() {
+    crumb("🚦 Sign-in log");
+    show("screen-sessionctl");
+    mountToolTabs("signins", "session");
+    $("scHead").innerHTML = `<h3>🛂 Session controls <span class="tag new">BETA</span></h3>
+      <p style="margin-bottom:6px">What did a session control actually <b>do</b>? The sign-in log stops at “policy applied — Conditional Access App Control”. Everything after that — the download that was blocked, the file that was protected, the step-up that fired — is written by <b>Defender for Cloud Apps</b>. This tool reads that log and joins it back to the Conditional Access policy that routed the session.</p>
+      <p class="mini muted" style="margin:0">Reads Defender advanced hunting through Microsoft Graph (<b>ThreatHunting.Read.All</b>, needs Security Reader or a Defender RBAC role with hunting access; 30-day retention) for what Defender did, and the Entra sign-in window 🚦 / 🎚 already read (<b>AuditLog.Read.All</b>) for which policy routed the session. Read-only.</p>`;
+    if (!policies.length) { $("scBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
+    if (scBusy) { $("scBody").innerHTML = scProg.panel("Reading Defender…"); return; }
+    if (scRes) { renderSessionCtl(); return; }
+    // the policy side needs no read at all — show it straight away
+    const pre = SessionCtl.analyze({ vms: policies, events: [], records: null, days: scDays });
+    $("scBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-scrun>▶ Read Defender activity</button><p class="mini muted">${pre.tiles.appcontrol} polic${pre.tiles.appcontrol === 1 ? "y carries" : "ies carry"} Conditional Access App Control, ${pre.tiles.other} carry other session controls. Nothing is written.</p></div>`;
+  }
+  $("scRescan").addEventListener("click", () => runSessionCtl(true));
+  $("scDays").addEventListener("change", (e) => { scDays = +e.target.value; if (scRes) runSessionCtl(); });
+  let scQTimer = null;
+  $("scSearch").addEventListener("input", (e) => { clearTimeout(scQTimer); scQTimer = setTimeout(() => { scQ = e.target.value; if (scRes) renderSessionCtl(); }, 200); });
+
+  // The window in slices — 4 hours each for a day or more, one slice for a
+  // sub-day window — every slice its own hunting query with a 2-minute
+  // client-side limit; a slice that runs out of time is halved and both
+  // halves read, down to 30 minutes, then reported as skipped. Progress is
+  // per slice, so "Reading Defender…" is never a spinner with no number.
+  const SC_SLICE_MS = 4 * 3600000, SC_MIN_SLICE_MS = 30 * 60000, SC_TIMEOUT_MS = 120000;
+  async function scHunt(days, prog) {
+    let fallback = false, skipped = 0;
+    const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("hunting query took longer than 2 minutes")), ms))]);
+    const run = (range, fb) => withTimeout(Graph.gpost("/security/runHuntingQuery", { Query: SessionCtl.query(days, fb, range), Timespan: `P${Math.max(1, Math.ceil(days))}D` }, [...AUTH_CONFIG.scopes, ...SC_HUNT]), SC_TIMEOUT_MS);
+    const now = Date.now(), start = now - days * 86400000;
+    const slices = [];
+    if (days >= 1) { for (let t = start; t < now; t += SC_SLICE_MS) slices.push([t, Math.min(t + SC_SLICE_MS, now)]); } else slices.push([start, now]);
+    prog && prog.start(slices.length, "events", "slice");
+    let rows = [], stoppedAt = 0;
+    const readSlice = async (from, to) => {
+      const range = { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
+      try {
+        const j = await run(range, fallback);
+        rows = rows.concat((j && j.results) || []);
+      } catch (e) {
+        const m = e.message || "";
+        if (!fallback && /AuditSource|SessionData|SemanticError|semantic|not found|failed to resolve/i.test(m)) { fallback = true; return readSlice(from, to); }
+        if (/longer than 2 minutes|timed out|timeout|Gateway|502|504/i.test(m)) {
+          if (to - from > SC_MIN_SLICE_MS) { const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
+          skipped++; return;
+        }
+        throw e;
+      }
+    };
+    for (let i = 0; i < slices.length; i++) {
+      // A stop keeps the slices already read: the events so far are real
+      // events, and the result says the window is partial.
+      if (prog && prog.st.stop) { stoppedAt = i; break; }
+      await readSlice(slices[i][0], slices[i][1]);
+      prog && prog.tick(rows.length, i + 1);
+    }
+    return { rows, fallback, skipped, stoppedAt, slices: slices.length };
+  }
+
+  async function runSessionCtl(force) {
+    if (scBusy) return;
+    scBusy = true; scRes = null; scProg.begin();
+    $("scRescan").style.display = "none"; $("scMd").style.display = "none"; $("scCsv").style.display = "none";
+    $("scBody").innerHTML = scProg.panel("Reading Defender session-control activity…", "Advanced hunting over CloudAppEvents in 4-hour slices, up to 5,000 events per slice; a slice that takes more than 2 minutes is halved.");
+    try {
+      let events = [], records = null, fallback = false, capped = false, logFailed = false;
+      const notes = [];
+      if (isDemo) {
+        events = SessionCtl.parseEvents((typeof DEMO_DATA !== "undefined" && DEMO_DATA.sessionEvents) || []);
+        records = demoSignIns();
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...SC_HUNT])) { scBusy = false; openSessionCtl(); return; }
+        let stoppedHunt = false;
+        try { const h = await scHunt(scDays, scProg); events = SessionCtl.parseEvents(h.rows); fallback = h.fallback; if (h.stoppedAt) { stoppedHunt = true; notes.push(`stopped by you after ${h.stoppedAt} of ${h.slices} slices — the Defender window is PARTIAL (the ${h.stoppedAt === 1 ? "first slice" : `first ${h.stoppedAt} slices`} of ${rangeLabel(scDays)}), and the sign-in window was not read`); } if (h.skipped) notes.push(`${h.skipped} half-hour slice${h.skipped === 1 ? "" : "s"} of Defender activity took longer than 2 minutes and ${h.skipped === 1 ? "was" : "were"} skipped — narrow the window`); }
+        catch (e) {
+          console.error("session controls: hunting failed", e);
+          scBusy = false;
+          $("scBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not run the hunting query: ${esc(e.message || e)}<br><span class="muted">This needs ThreatHunting.Read.All and a Defender role with advanced-hunting access (Security Reader, Global Reader, Security Operator, Security Administrator or a unified RBAC role). The CloudAppEvents table is empty until the Microsoft 365 connector's activities are enabled in Defender for Cloud Apps.</span></p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-scrun>Try again</button></div>`;
+          return;
+        }
+        // routing half — the shared window; a refusal costs only the join.
+        // A stop during the hunt skips it (the reader wants out); a stop
+        // during this read keeps the Defender half and says routing is missing.
+        if (stoppedHunt) { /* noted above */ }
+        else if (await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) {
+          $("scBody").innerHTML = scProg.panel("Reading the sign-in window for the routing policies…", "Shared with 🚦 Sign-in failures and 🎚 Report-only impact.");
+          try { const w = await readSignInWindow(scDays, scProg, force); records = w.records; capped = !!w.capped; }
+          catch (e) { if (e && e.stopped) notes.push("stopped by you during the sign-in read — Defender activity is complete, routing to a CA policy is not"); else { console.warn("session controls: sign-in read failed", e.message); notes.push(`sign-in log not read (${e.message || e})`); logFailed = true; } }
+        } else notes.push("AuditLog.Read.All was not granted — routing not checked");
+      }
+      scRes = SessionCtl.analyze({ vms: policies, events, records, days: scDays, schemaFallback: fallback, capped });
+      scRes.notes = notes;
+      // kept for ↻ read the sign-in window again: the Defender half is
+      // minutes of hunting and does not need to be repeated for a 502 on
+      // the log (25326)
+      scRes.rawEvents = events; scRes.fallback = fallback; scRes.logFailed = logFailed;
+      scBusy = false;
+      $("scRescan").style.display = ""; $("scMd").style.display = ""; $("scCsv").style.display = "";
+      renderSessionCtl();
+      if (!events.length) toast("Defender logged no session-control activity in this window");
+    } catch (e) {
+      console.error("Session controls failed:", e);
+      scBusy = false;
+      $("scBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">${esc(e.message || e)}</p>`;
+    } finally { scBusy = false; scProg.stop(); }
+  }
+  function renderSessionCtl() {
+    const R = scRes; if (!R) return;
+    $("scBody").innerHTML = (R.notes && R.notes.length ? `<p class="mini muted" style="margin:0 0 8px">${R.notes.map(esc).join(" · ")}${R.logFailed ? ` <button class="btn sm" data-sc-retrylog title="Read only the sign-in window again — the Defender activity already read is kept">↻ Read the sign-in window again</button>` : ""}</p>` : "") + SessionCtl.render(R, { rangeLabel: rangeLabel(scDays), filter: scFilter, pfilter: scPfilter, q: scQ });
+    // type-ahead from the result itself: users, apps, files, Defender and
+    // CA policies — the things the filter box actually matches on
+    const seen = new Set(), opts = [];
+    const add = (v, label) => { const k = String(v || "").trim(); if (!k || seen.has(k.toLowerCase())) return; seen.add(k.toLowerCase()); opts.push(`<option value="${esc(k)}"${label ? ` label="${esc(label)}"` : ""}></option>`); };
+    R.events.forEach((e) => { add(e.upn || e.name, e.upn ? e.name : "user"); add(e.app, "app"); add(e.file, "file"); add(e.policy, "Defender policy"); if (e.route) add(e.route.policyName, "CA policy"); });
+    R.rows.forEach((r) => add(r.name, r.seq ? `CA policy ${r.seq}` : "CA policy"));
+    R.mdaPolicies.forEach((m) => add(m.name, "Defender policy"));
+    dlSet("scSearchList", opts.slice(0, 200).join(""));
+  }
+  // Only the sign-in half again: the hunt that took minutes stays.
+  async function scRetryLog(btn) {
+    const R = scRes; if (!R || scBusy) return;
+    scBusy = true; scProg.begin();
+    if (btn) { btn.disabled = true; btn.textContent = "↻ Reading…"; }
+    try {
+      if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { toast("AuditLog.Read.All was not granted"); return; }
+      const w = isDemo ? { records: demoSignIns(), capped: false } : await readSignInWindow(scDays, scProg, true);
+      const notes = (R.notes || []).filter((n) => !/^sign-in log not read/.test(n));
+      const next = SessionCtl.analyze({ vms: policies, events: R.rawEvents || [], records: w.records, days: scDays, schemaFallback: R.fallback, capped: !!w.capped });
+      next.notes = notes; next.rawEvents = R.rawEvents; next.fallback = R.fallback; next.logFailed = false;
+      scRes = next;
+      renderSessionCtl();
+    } catch (e) {
+      toast(`Sign-in window not read: <span>${esc(e.message || e)}</span>`);
+      if (btn) { btn.disabled = false; btn.textContent = "↻ Read the sign-in window again"; }
+    } finally { scBusy = false; scProg.stop(); }
+  }
+  $("scBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-scrun]")) { runSessionCtl(); return; }
+    const rl = e.target.closest("[data-sc-retrylog]"); if (rl) { scRetryLog(rl); return; }
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const f = e.target.closest("[data-sc-filter]"); if (f) { scFilter = f.dataset.scFilter; renderSessionCtl(); return; }
+    const pf = e.target.closest("[data-sc-pfilter]"); if (pf) { scPfilter = pf.dataset.scPfilter; renderSessionCtl(); return; }
+    // tiles and the counts under them: a part before the tile it sits in
+    const ef = e.target.closest("[data-sc-ef]"); if (ef) { scFilter = ef.dataset.scEf; renderSessionCtl(); const t = $("scEvents"); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    const tp = e.target.closest("[data-sc-pf]"); if (tp) { scPfilter = tp.dataset.scPf; renderSessionCtl(); const t = $("scPolicies"); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    const o = e.target.closest("[data-sc-open]"); if (o) { e.preventDefault(); $("woUser").value = o.dataset.scOpen; $("toolWhoIs").click(); runWhoIs(); }
+  });
+  $("scMd").addEventListener("click", () => { const R = scRes; if (!R) return; showReport("🛂 Session controls", "CA-SessionControls", SessionCtl.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(scDays) })); });
+  $("scCsv").addEventListener("click", () => { const R = scRes; if (!R) return; downloadText("CA-SessionControls", "csv", "text/csv", SessionCtl.toCsv(R)); });
 
   // ---------- User or Group analyzer (BETA) ----------
   // "Where is this group actually used?" The source registry, the matching and
@@ -14138,6 +16365,7 @@ This is a directory write. Nothing else changes.`)) return;
   let guSugTimer = null;
   $("guTerm").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(guSugTimer);
+    if (dlPicked("guTermList", v)) return;   // a pick, not typing
     guSugTimer = setTimeout(async () => {
       const t = v.trim();
       if (isDemo || t.length < 2) { if (guSeedList && t.length < 2) $("guTermList").innerHTML = guSeedList; return; }
@@ -14147,9 +16375,9 @@ This is a directory write. Nothing else changes.`)) return;
           Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=displayName&$top=8`).catch(() => ({ value: [] })),
           Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=displayName,userPrincipalName&$top=8`).catch(() => ({ value: [] })),
         ]);
-        $("guTermList").innerHTML =
+        dlSet("guTermList",
           ((g.value || []).map((x) => `<option value="${esc(x.displayName)}" label="group"></option>`).join("")) +
-          ((u.value || []).map((x) => `<option value="${esc(x.userPrincipalName)}" label="${esc(x.displayName || "")}"></option>`).join(""));
+          ((u.value || []).map((x) => `<option value="${esc(x.userPrincipalName)}" label="${esc(x.displayName || "")}"></option>`).join("")));
       } catch (err) { console.warn("User or Group analyzer: suggest failed", err.message); }
     }, 250);
   });
@@ -14652,7 +16880,9 @@ This is a directory write. Nothing else changes.`)) return;
   let mlGroups = null, mlFilter = "all", mlStrengths = new Map(), mlFixes = null, mlTab = "findings";
   const mlExpanded = new Set();
   async function openMsLearn() {
+    crumb("🛡 Checks");
     show("screen-mslearn");
+    mountToolTabs("checks", "mslearn");
     if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; return; }
     $("mlHead").innerHTML = '<h3>📘 MS Learn: documented exclusion checks</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
@@ -14721,6 +16951,8 @@ This is a directory write. Nothing else changes.`)) return;
     if (isDemo) partners = { ok: true, list: DEMO_DATA.serviceProviders || [] };
     else partners = await Graph.serviceProviderPartners();
 
+    ctx.caSettings = await readCaSettings();
+    ctx.authMethods = await readAuthMethods();
     const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners });
     mlGroups = MSLearn.group(findings);
     mlFilter = "all"; mlExpanded.clear();
@@ -15079,7 +17311,9 @@ This is a directory write. Nothing else changes.`)) return;
   let gcCats = null; // category filter set by clicking a scorecard signal/pillar (array or null)
   const gcExpanded = new Set();
   function openGapCheck() {
+    crumb("🛡 Checks");
     show("screen-gapcheck");
+    mountToolTabs("checks", "bypass");
     if (!policies.length) { $("gcHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = ""; return; }
     if (gcResult) { renderGapCheck(); return; }   // cached — keep the previous screen
     // idle — wait for the user to start the checks
@@ -15102,6 +17336,7 @@ This is a directory write. Nothing else changes.`)) return;
     // (trusted-network detection), break-glass display name — all Policy.Read.All
     gcCtx = { strengths: new Map(), namedLocations: [], names: {} };
     try {
+      gcCtx.caSettings = await readCaSettings();
       if (isDemo) {
         Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) gcCtx.strengths.set(v.id, v); });
         gcCtx.names = DEMO_DATA.names || {};
@@ -15113,6 +17348,14 @@ This is a directory write. Nothing else changes.`)) return;
         ]);
         strengths.forEach(s => gcCtx.strengths.set(s.id, s));
         gcCtx.namedLocations = locations;
+        // Customize behavior names a placeholder app: resolve its name for the finding.
+        const bs = GapCheck.baselineScopes(gcCtx.caSettings);
+        if (bs.mode === "custom") {
+          try {
+            const sps = await Graph.ggetAll(`/servicePrincipals?$filter=appId eq '${bs.scope}'&$select=appId,displayName`);
+            if (sps[0]) gcCtx.names[bs.scope] = sps[0].displayName;
+          } catch (e) { console.warn("Baseline scopes placeholder app lookup failed:", e.message); }
+        }
         const bg = GapCheck.identifyBreakGlass(raws);
         if (bg) {
           try {
@@ -15194,6 +17437,115 @@ This is a directory write. Nothing else changes.`)) return;
     renderGapCheck();
   });
 
+  // ---------- CIS Benchmark alignment ----------
+  // Scan on demand (▶ button), result persists across tab switches until an
+  // explicit rescan — same lifecycle as Sign-in failures and Protect.
+  let ciResult = null, ciCtx = null, ciMeta = null;
+  let ciFilter = { level: "all", status: "all" };
+  const ciExpanded = new Set();
+  const CI_IDLE_HEAD = '<h3>📐 CIS Benchmark alignment <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated CA recommendations of section 5.2.2, with per-control pass/fail and the nearest policy for every gap.</p>';
+  function openCis() {
+    crumb("🛡 Checks");
+    show("screen-cis");
+    mountToolTabs("checks", "cis");
+    if (!policies.length) { $("ciHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("ciChips").innerHTML = ""; $("ciBody").innerHTML = ""; return; }
+    if (ciResult) { renderCis(); return; }   // cached — keep the previous screen
+    $("ciHead").innerHTML = CI_IDLE_HEAD;
+    $("ciChips").innerHTML = "";
+    $("ciBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-cirun>▶ Assess against CIS v7.0</button><p class="mini muted">Reads authentication strengths, named locations and the tenant\'s licence SKUs via Microsoft Graph. Results stay until you refresh.</p></div>';
+  }
+  async function runCisScan() {
+    show("screen-cis");
+    if (!policies.length) return;
+    $("ciHead").innerHTML = CI_IDLE_HEAD.replace("Score the", "Assessing… reads authentication strengths, named locations and licence SKUs, then scores the");
+    $("ciChips").innerHTML = ""; $("ciBody").innerHTML = "";
+    const raws = policies.map(p => p.raw);
+    ciCtx = { strengths: new Map(), namedLocations: [], p2: null, groupNames: {} };
+    try {
+      if (isDemo) {
+        Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) ciCtx.strengths.set(v.id, v); });
+        ciCtx.namedLocations = DEMO_DATA.namedLocations || [];
+        ciCtx.p2 = true;
+        ciCtx.groupNames = DEMO_DATA.names || {};
+      } else {
+        const [strengths, locations, skus] = await Promise.all([
+          Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(() => []),
+          Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(() => []),
+          Graph.ggetAll("/subscribedSkus").catch(() => null),
+        ]);
+        strengths.forEach(s => ciCtx.strengths.set(s.id, s));
+        ciCtx.namedLocations = locations;
+        // Entra ID P2 (AAD_PREMIUM_P2 service plan) gates the three Identity
+        // Protection controls. skus === null → the read failed: licence
+        // unknown, assess anyway rather than guessing not-applicable.
+        if (Array.isArray(skus)) {
+          ciCtx.p2 = skus.some(s => !["Suspended", "Deleted", "LockedOut"].includes(s.capabilityStatus) &&
+            (s.servicePlans || []).some(x => x.servicePlanName === "AAD_PREMIUM_P2" && ["Success", "PendingInput"].includes(x.provisioningStatus)));
+        }
+        // Include-group display names: the CAD- pilot-deployment detection
+        // needs them (policies store only GUIDs).
+        const gids = [...new Set(raws.flatMap(p => p.conditions?.users?.includeGroups || []))];
+        for (let i = 0; i < gids.length; i += 1000) {
+          try {
+            const j = await Graph.gpost("/directoryObjects/getByIds", { ids: gids.slice(i, i + 1000), types: ["group"] });
+            (j.value || []).forEach(o => ciCtx.groupNames[o.id] = o.displayName);
+          } catch (e) { console.warn("CIS group-name lookup failed:", e.message); break; }
+        }
+      }
+    } catch (e) { console.warn("CIS benchmark context fetch failed:", e.message); }
+    ciResult = CisCheck.run(raws, ciCtx);
+    ciMeta = { tenantName, policyCount: raws.filter(p => p.state === "enabled" || p.state === "enabledForReportingButNotEnforced").length };
+    ciFilter = { level: "all", status: "all" }; ciExpanded.clear();
+    renderCis();
+  }
+  function renderCis() {
+    if (!ciResult) return;
+    $("ciHead").innerHTML = CisCheck.renderSummary(ciResult, ciMeta);
+    document.querySelectorAll("#ciLevelSeg button").forEach(b =>
+      b.classList.toggle("active", String(ciFilter.level) === b.dataset.cilvl));
+    const n = (s) => s === "all" ? ciResult.results.length : ciResult.results.filter(r => r.status === s).length;
+    $("ciChips").innerHTML = [["all", "All"], ["pass", "✓ Pass"], ["reportonly", "◐ Report-only"], ["configured", "⏸ Configured (Off)"], ["fail", "✗ Fail"], ["unlicensed", "Not licensed"]]
+      .filter(([k]) => n(k) > 0 || k === "all")
+      .map(([k, l]) => `<button class="fchip ${ciFilter.status === k ? "active" : ""}" data-cist="${k}">${l} (${n(k)})</button>`).join("");
+    $("ciBody").innerHTML = CisCheck.renderTable(ciResult, ciFilter, ciExpanded);
+  }
+  $("ciLevelSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cilvl]"); if (!b) return;
+    ciFilter.level = b.dataset.cilvl === "all" ? "all" : Number(b.dataset.cilvl);
+    renderCis();
+  });
+  $("ciChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cist]"); if (!b) return;
+    ciFilter.status = b.dataset.cist; renderCis();
+  });
+  $("ciBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-cirun]")) { runCisScan(); return; }
+    const pl = e.target.closest(".pol-link");
+    if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const t = e.target.closest("[data-cistoggle]"); if (!t) return;
+    const id = t.dataset.cistoggle;
+    ciExpanded.has(id) ? ciExpanded.delete(id) : ciExpanded.add(id);
+    renderCis();
+  });
+  $("ciRefresh").addEventListener("click", async () => {
+    const btn = $("ciRefresh");
+    btn.disabled = true; btn.textContent = "⟳ Refreshing…";
+    try {
+      if (isDemo) loadDemo(); else await loadFromGraph(true);
+      ciCtx = null;
+      await runCisScan();
+      toast("CIS Benchmark alignment <span>refreshed</span>");
+    } catch (e) {
+      toast(`Refresh failed: <span>${esc(e.message || e)}</span>`);
+    } finally {
+      btn.disabled = false; btn.textContent = "⟳ Refresh";
+    }
+  });
+  $("ciMd").addEventListener("click", () => {
+    if (!ciResult) return;
+    showReport("📐 CIS Benchmark alignment", "CA-CIS-Benchmark", CisCheck.toMd(ciResult, ciMeta || { tenantName }));
+    toast("CIS Benchmark Markdown <span>downloaded</span>");
+  });
 
   // ---------- events ----------
   $("signInBtn").addEventListener("click", async () => {
@@ -15490,6 +17842,11 @@ This is a directory write. Nothing else changes.`)) return;
     if (type === "authContext") rows.push(["Description", esc(o.description || "")], ["Available", String(o.isAvailable ?? "—")]);
     if (type === "group") rows.push(["Description", esc(o.description || "")], ["Security enabled", String(o.securityEnabled ?? "—")],
       ["Role-assignable", String(o.isAssignableToRole ?? "false")], ["Group types", (o.groupTypes || []).join(", ") || "assigned"],
+      // disableNesting, read from v1.0 alongside the members (see openDepView)
+      ["Nesting", o.isAssignableToRole ? "impossible — role-assignable groups never take a group as a member"
+        : o._nesting === "disabled" ? '<b style="color:var(--on)">🚫 disabled</b> — no group can be added as a member'
+          : o._nesting === "allowed" ? "allowed — a group can be nested into this one"
+            : o._nesting === "unknown" ? "not reported — this directory does not return disableNesting" : "—"],
       ["Membership rule", o.membershipRule ? `<code>${esc(o.membershipRule)}</code>` : "—"],
       ["On-prem synced", String(o.onPremisesSyncEnabled ?? "—")],
       [`Members${o._members ? ` (first ${o._members.items.length}${o._members.count != null ? ` of ${o._members.count}` : ""})` : ""}`,
@@ -15519,7 +17876,13 @@ This is a directory write. Nothing else changes.`)) return;
             const m = await Graph.gget(`/groups/${id}/members?$top=5&$count=true&$select=displayName,userPrincipalName`);
             obj._members = { count: m["@odata.count"], items: m.value || [] };
           } catch (e) { console.warn("Member fetch failed:", e.message); }
-        }
+          // v1.0 on purpose — the beta base answers without the property on
+          // some tenants (see enca-nesting-v1 / CaGroups.NEST_V1)
+          try {
+            const n = await Graph.gget(CaGroups.NEST_V1(`/groups/${id}?$select=id,disableNesting`));
+            obj._nesting = CaGroups.nestingState(n);
+          } catch (e) { console.warn("Nesting read failed:", e.message); obj._nesting = "unknown"; }
+        } else if (type === "group" && isDemo) obj._nesting = /Exclusion|Persona/i.test(label || "") ? "disabled" : "allowed";
         depCache.set(key, obj);
       }
       currentDepObj = obj;
@@ -15778,6 +18141,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("anNamedSearch").addEventListener("input", (e) => {
     const v = e.target.value.trim();
     clearTimeout(anNamedTimer);
+    if (dlPicked("anNamedList", v)) return;   // a pick, not typing — Enter or ＋ adds it
     if (v.length < 2 || isDemo) return;
     anNamedTimer = setTimeout(async () => {
       try {
@@ -15797,7 +18161,7 @@ This is a directory write. Nothing else changes.`)) return;
           anNamedMap.set((x.displayName || "").toLowerCase(), { kind: "group", id: x.id, name: x.displayName });
           rows.push(`<option value="${esc(x.displayName || "")}" label="👥 group"></option>`);
         });
-        $("anNamedList").innerHTML = rows.join("");
+        dlSet("anNamedList", rows.join(""));
       } catch (err) { console.warn("gap analyse: pick suggest failed", err.message); }
     }, 250);
   });
@@ -15878,6 +18242,10 @@ This is a directory write. Nothing else changes.`)) return;
       "cf:enforced": "coverage — targeted only by report-only policies",
       "cf:mfa": "coverage — reached by a policy that never asks for MFA",
       "cf:licensed": "coverage — targeted without the licence their policies require",
+      "cfin:targeted": "coverage — reached by at least one active policy",
+      "cfin:enforced": "coverage — covered by an enforced policy",
+      "cfin:mfa": "coverage — required to do MFA by an enforced policy",
+      "cfin:licensed": "coverage — licensed for what they are targeted by",
     };
     if (anFilter !== "all") filterBits.push(FILTER_LABEL[anFilter] || anFilter);
     if (anQuery) filterBits.push(`search: "${anQuery}"`);
@@ -17551,8 +19919,11 @@ This is a directory write. Nothing else changes.`)) return;
     }
   }
 
-  function openTeamsDev() { crumb("📞 Teams devices"); show("screen-teamsdev"); renderTeamsDev(); }
-  $("toolTeamsDev").addEventListener("click", openTeamsDev);
+  // Reached from the 📞 Rule action on the TeamsSharedDevices row in 👥 CA
+  // groups (build 25349) — it is one action on one row, not a tool of its own,
+  // so it carries the host's crumb and a way back to the list it came from.
+  function openTeamsDev() { crumb("👥 Conditional Access groups"); show("screen-teamsdev"); renderTeamsDev(); }
+  $("tdBack").addEventListener("click", () => { openCaGroups(); });
   $("tdRun").addEventListener("click", tdRun);
   $("tdPrefix").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); tdRun(); } });
   $("tdBody").addEventListener("click", async (e) => {
@@ -17589,10 +19960,10 @@ This is a directory write. Nothing else changes.`)) return;
     mlHead: "toolMsLearn", exHead: "toolExclusions", cgHead: "toolCaGroups", prHead: "toolProtect",
     blHead: "toolBaseline", gcHead: "toolGapCheck", vaHead: "toolValidator", wiHead: "toolWhatIf",
     guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
-    siHead: "toolSignins", acHead: "toolAuthCtx", asHead: "toolAuthStr",
+    siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
     rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
-    drHead: "toolDrift", dvHead: "toolDevCheck", lgHead: "toolLicGap",
-    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev", woHead: "toolWhoIs", wvHead: "toolWave",
+    drHead: "toolDrift", ugHead: "toolGuide", dvHead: "toolDevCheck", lgHead: "toolLicGap",
+    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev", woHead: "toolWhoIs", wvHead: "toolWave", scHead: "toolSessionCtl", anIntro: "toolAnalyze",
   };
   function stampHeadVersion(el, toolId) {
     const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
