@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25340, date: "2026-09-11", title: "🕓 Changes, and the guide moves in with the baseline",
+    items: [
+      { kind: "improved", tool: "Changes", text: "🕓 Change audit and 📉 Drift watch are one tool with two tabs, and the tile is 🕓 Changes. They asked the same question — what moved — of two sources, over one diff engine: drift.js has always imported Audit.diff from the audit tool. Tabs 🕓 Audit log (who changed what, when, field by field, as far back as your licence keeps) and 📉 Snapshot file (a file you keep, so no retention limit at all). The two bodies are deliberately NOT merged into one: a rolling timeline and a two-point comparison are different shapes of answer, and the strip is what says which you are reading." },
+      { kind: "improved", tool: "Baseline", text: "📖 Baseline guide is the 📖 Deployment guide tab. It only ever answered one question — how do I deploy this baseline — and answered it by reading the tenant and then linking seven other tools, so it belongs in the tool that holds the baseline it describes rather than beside it on the home page. Beta-only, as a guarded tab rather than a deleted file — and on the production host, where that leaves the baseline tool with one tab, no strip is drawn at all: a tab strip with one button in it reads as a bug, and the tile already carries the name." },
+      { kind: "improved", tool: "All tools", text: "T16, T28, T29 and T10 keep their numbers and their Help sections — 📉 and 📖 as sub-sections under their hosts, listed in 🔢 Tool numbers with the tab that holds them, findable in ⌘K under their own names. 31 tiles." },
+      { kind: "improved", tool: "Roadmap", text: "R54 🕓 What moved, and how to deploy it. Two of the four phase-2 hosts; 🧩 Policy building blocks and 🛡 Checks are the remaining two." },
+    ],
+  },
+  {
     build: 25339, date: "2026-09-11", title: "One window, three questions: 🚦 Sign-in log",
     items: [
       { kind: "improved", tool: "Sign-in log", text: "🚦 Sign-in failures, 🎚 Report-only impact and 🛂 Session controls are ONE TOOL with three tabs, and the tile is 🚦 Sign-in log. They were already reading the same thing: one readSignInWindow, one cache keyed on the window and the source, one AuditLog.Read.All consent — and the only sign of that on screen was a line telling you the window had been re-used by the tool you opened second. What the fold removes is the second and third door, not a read. Each tab keeps its own toolbar — the range picker, the sign-in source, the search box, its own exports — because the three ask different things of the same records, and the tab strip is mounted into those toolbars rather than moving three screens into one panel: every screen keeps its scroll position, its Back entry and the ids the other tools deep-link to." },

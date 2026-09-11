@@ -118,6 +118,28 @@ const PROMOTE = {
 
   items: [
     {
+      n: 175,
+      title: "🕓 Changes: 📉 Drift watch folded in as a source tab; 📖 Baseline guide becomes 🧬 Baseline's Deployment guide tab (T16 1.7, T10 2.7; T28 T29 folded) — R54",
+      tools: ["Changes", "Drift watch", "Baseline", "Baseline guide"],
+      builds: [25340],
+      risk: "low",
+      what: "js/app.js: two more TAB_HOSTS — changes (audit → auToolbar, snapshot → drToolbar) and baseline (baseline → blToolbar, guide → ugToolbar with betaOnly). openAudit and openDrift both crumb 🕓 Changes and mount their tab; openGuide crumbs 🧬 Baseline and mounts its tab; openBaseline mounts the strip for every one of its callers. The toolDrift and toolGuide tile handlers are removed, their TOOL_TABS rows go and toolAudit is relabelled 🕓 Changes; FOLDED gains toolDrift → the Snapshot file tab and toolGuide → the Deployment guide tab. index.html: the two tiles removed, T16 renamed Changes with a blurb naming both sources, T10's blurb names the guide tab, id=blToolbar added to the baseline toolbar, the two Help sections moved under their hosts as h5 sub-sections, two rows added to 🔢 Tool numbers, roadmap R54. js/version.js: build 25340, T16 1.7, T10 2.7, T28 1.0.1 folded, T29 0.3.1 folded.",
+      why: "Low: no engine, read or renderer changed, and the two diff bodies are deliberately left as they are — the plan's one-changes-renderer item is a separate change, so nothing about either answer moved. The risk is routing again: openBaseline has six callers and now mounts a strip on every one of them, and 📖's seven outgoing links have to keep working from inside a tab.",
+      test: [
+        "Home page: 31 tiles. 📉 Drift watch and 📖 Baseline guide are gone; 🕓 reads Changes with T16 v1.7 and a blurb naming both sources; 🧬 Baseline is T10 v2.7 and its blurb names the Deployment guide tab.",
+        "🕓 Changes: the strip reads 🕓 Audit log · 📉 Snapshot file with Audit log active. Read the audit log, switch to Snapshot file, take a snapshot, switch back: the audit result is still there (per-screen state), and the strip says which tab you are on in both.",
+        "📉 Snapshot file: 📸 Take snapshot, then 📂 Load snapshot and compare against it — the severity ranking, the resolved GUIDs and Export MD are exactly as at 25339. The 'run 🕓 Change audit first' pointer in its own prose now means the other tab.",
+        "🧬 Baseline: the strip reads 🧬 Baseline · 📖 Deployment guide. Open the guide tab, 🔎 Read the tenant, then click each of its step links (🧬 Baseline, 👥 CA groups, 🛡 Restricted AUs, 🌐 Named locations, 💪 strengths, 🎫 contexts, 📜 Terms of use, 🗂 Policies, 🎚 Report-only impact) — every one must land on its tool; the two that point back at 🧬 and 🗂 must land on the renamed tiles.",
+        "Reach 🧬 Baseline the six ways other tools reach it (the ★ change links with data-open-baseline, 🗣 User impact brief's stale-baseline callout, the import hand-off, R36's roadmap link): the strip must be present and on the Baseline tab every time, never missing and never stuck on Deployment guide.",
+        "One browser tab labelled 🕓 Changes for both change screens and one labelled 🧬 Baseline for both baseline screens; Back walks the screens without leaving the site; the side nav and + menu list each host once with no dead row.",
+        "⌘K: 'drift' offers 📉 Drift watch with the hint 'T28 · in 🕓 Changes — the Snapshot file tab' and lands on that tab; 'guide' does the same for T29; '28' and '29' find them by number.",
+        "PRODUCTION GUARD: with isProdHost() true (serve from a host equal to BRANDING.host, or stub isProdHost) the 🧬 Baseline toolbar must show NO strip at all — mountToolTabs refuses a host whose visible tabs come down to one, because a one-button strip reads as a bug — while 🕓 Changes still shows both of its tabs.",
+        "?demo=1: both change tabs render, the guide tab reads the demo tenant and shows its six steps.",
+      ],
+      carveout: "Beta-number rewrite as in items 173 and 174 (the 'folded into this tool — build 25340' spans, the two new 🔢 bullets, the 'from build 25340' clause in the 🕓 Help section, R54's data-shipped and tag). Do NOT delete js/guide.js, screen-guide or the ugToolbar id on main: the 📖 tab is hidden by tabShown/isProdHost. Prove it with grep -n '25340' index.html (empty on main).",
+      files: ["index.html", "js/app.js", "js/changelog.js", "js/promote.js", "js/version.js"],
+    },
+    {
       n: 174,
       title: "🚦 Sign-in log: 🎚 Report-only impact and 🛂 Session controls folded in as tabs (T17 2.2; T26 T38 folded) — R53",
       tools: ["Sign-in log", "Report-only impact", "Session controls", "All tools"],

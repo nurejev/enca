@@ -191,6 +191,10 @@
                         open: () => openImpact() },
     toolSessionCtl:   { into: "toolSignins",  label: "🛂 Session controls",           where: "the Session controls tab",   build: 25339,
                         open: () => openSessionCtl() },
+    toolDrift:        { into: "toolAudit",    label: "📉 Drift watch",                where: "the Snapshot file tab",      build: 25340,
+                        open: () => openDrift() },
+    toolGuide:        { into: "toolBaseline", label: "📖 Baseline guide",              where: "the Deployment guide tab",   build: 25340,
+                        open: () => openGuide() },
   };
   // Land on a folded tool. Its own entry point when it has one — the right tab,
   // the right catalog — otherwise the host tile, which is the correct answer for
@@ -224,6 +228,26 @@
         { key: "session",  icon: "🛂", name: "Session controls",   toolbar: "scToolbar", open: () => openSessionCtl(), beta: true, betaOnly: true },
       ],
     },
+    // "What changed" asked of two sources. Audit.diff is already the one engine
+    // (drift.js imports it); what the tabs fold away is the second TILE, not a
+    // second diff. The two bodies stay as they are on purpose — a rolling
+    // 30-day timeline of who edited what, and a two-point comparison against a
+    // file you kept, are different shapes of answer; the plan's one-renderer
+    // item (§5) is a separate change from this one.
+    changes: {
+      tile: "toolAudit", label: "🕓 Changes",
+      tabs: [
+        { key: "audit",    icon: "🕓", name: "Audit log",     toolbar: "auToolbar", open: () => openAudit() },
+        { key: "snapshot", icon: "📉", name: "Snapshot file", toolbar: "drToolbar", open: () => openDrift() },
+      ],
+    },
+    baseline: {
+      tile: "toolBaseline", label: "🧬 Baseline",
+      tabs: [
+        { key: "baseline", icon: "🧬", name: "Baseline",         toolbar: "blToolbar", open: () => { crumb("🧬 Baseline"); openBaseline(Baseline.activeCatalogId() || "limonit"); } },
+        { key: "guide",    icon: "📖", name: "Deployment guide", toolbar: "ugToolbar", open: () => openGuide(), beta: true, betaOnly: true },
+      ],
+    },
   };
   const tabShown = (t) => !t.betaOnly || !isProdHost();
   function toolTabsSeg(hostKey) {
@@ -234,8 +258,14 @@
       + `</div>`;
   }
   // Put the strip into this tab's toolbar once, then re-paint which is active.
+  // A strip with ONE tab left is not a tab strip, it is a button that does
+  // nothing — which is what 🧬 Baseline would show on the production host,
+  // where the beta-only 📖 Deployment guide tab is hidden. So a host whose
+  // visible tabs come down to one shows no strip at all: the tile is already
+  // the name of that tool.
   function mountToolTabs(hostKey, tabKey) {
     const h = TAB_HOSTS[hostKey]; if (!h) return;
+    if (h.tabs.filter(tabShown).length < 2) return;
     const t = h.tabs.find((x) => x.key === tabKey); if (!t) return;
     const tb = $(t.toolbar); if (!tb) return;
     let seg = tb.querySelector(".tool-tabs");
@@ -2203,7 +2233,7 @@
     ["toolWhoIs", "🕵 Who is Anna to CA"],
     ["toolWave", "🌊 Who is the wave to CA"],
     ["toolSpGap", "🫥 Apps with no service principal"],
-    ["toolAudit", "🕓 Change audit"],
+    ["toolAudit", "🕓 Changes"],
     ["toolSignins", "🚦 Sign-in log"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolDevCheck", "🖥 Device reality check"],
@@ -2220,8 +2250,6 @@
     ["toolTou", "📜 Terms of use"],
     ["toolRecycle", "♻ Recycle bin"],
     ["toolRmau", "🛡 Restricted AUs"],
-    ["toolDrift", "📉 Drift watch"],
-    ["toolGuide", "📖 Baseline guide"],
     ["toolUserImpact", "🗣 User impact brief"],
     ["toolImport", "📥 Import"],
   ];
@@ -8075,6 +8103,7 @@ This is a directory write. Nothing else changes.`)) return;
   const blDefaultFilter = (res, catId) => (res && res.counts.missing && Baseline.isActive(catId)) ? "missing" : "all";
   function openBaseline(catId, keepView) {
     show("screen-baseline");
+    mountToolTabs("baseline", "baseline");
     if (catId) blCat = catId;
     if (!policies.length) {
       $("blHead").innerHTML = '<p class="mini">No policies loaded.</p>';
@@ -10703,8 +10732,9 @@ This is a directory write. Nothing else changes.`)) return;
     `The bar runs to the ${AU_MAX.toLocaleString()}-entry cap — Conditional Access changes rarely get near it.`);
 
   function openAudit() {
-    crumb("🕓 Change audit");
+    crumb("🕓 Changes");
     show("screen-audit");
+    mountToolTabs("changes", "audit");
     $("auRescan").style.display = auRes && !auBusy ? "" : "none";
     // A read in flight has to survive navigating away and back, otherwise the
     // Run prompt reappears and it looks like the read was cancelled.
@@ -11095,8 +11125,7 @@ This is a directory write. Nothing else changes.`)) return;
     return Graph.ggetAll(url);
   }
 
-  function openDrift() { crumb("📉 Drift watch"); show("screen-drift"); renderDrift(); }
-  $("toolDrift").addEventListener("click", openDrift);
+  function openDrift() { crumb("🕓 Changes"); show("screen-drift"); mountToolTabs("changes", "snapshot"); renderDrift(); }
 
   async function drTake(thenCompare) {
     if (drBusy) return;
@@ -11513,8 +11542,7 @@ This is a directory write. Nothing else changes.`)) return;
     }).join("");
   }
 
-  function openGuide() { crumb("📖 Baseline guide"); show("screen-guide"); renderGuide(); }
-  $("toolGuide").addEventListener("click", openGuide);
+  function openGuide() { crumb("🧬 Baseline"); show("screen-guide"); mountToolTabs("baseline", "guide"); renderGuide(); }
   $("ugRun").addEventListener("click", ugRun);
   $("ugBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-ugrun]")) { ugRun(); return; }
