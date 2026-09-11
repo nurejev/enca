@@ -83,7 +83,7 @@ const Exclusions = (() => {
 
     if (demo) {
       const names = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.names) || {};
-      model.entities.forEach((e) => { e.name = e.name || names[e.id] || e.id; });
+      model.entities.forEach((e) => { e.name = e.name || names[e.id] || (e.kind === "app" && firstPartyAppName(e.id)) || e.id; });
       byKind("group").forEach((e) => {
         const ids = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.scopeGroups && DEMO_DATA.scopeGroups[e.name]) || [];
         const users = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.analyzeUsers) || [];
@@ -172,7 +172,7 @@ const Exclusions = (() => {
     // that is the gap the risk review flags.
     try { await readNesting(groups, onStatus); }
     catch (e) { console.warn("Exclusions: nesting read failed", e.message); }
-    model.entities.forEach((e) => { e.name = e.name || e.id; });
+    model.entities.forEach((e) => { e.name = e.name || (e.kind === "app" && firstPartyAppName(e.id)) || e.id; });
     return model;
   }
 

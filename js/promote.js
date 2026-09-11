@@ -118,6 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 167,
+      title: "🚪 First-party app names for ids with no service principal; 📘 Learn links re-verified, token-protection platforms (T09 1.8, T07 2.5)",
+      tools: ["Exclusion analyzer", "MS Learn checks"],
+      builds: [25332],
+      risk: "low",
+      what: "js/labels.js FIRST_PARTY_APPS (69 Microsoft app ids → names, lower-case keys) + firstPartyAppName(id); js/graph.js loadTenant resolver falls back to it after the caller's label map and the tenant's own names; js/exclusions.js names app entities through it (demo and live). js/mslearn.js: token-prot-devices docUrl → deployment-guide-token-protection-windows#known-limitations (the concept page lost that heading); token-prot-platform accepts windows / macOS / iOS, flags any other platform or none, adds an Apple preview caveat. All 17 learn.microsoft.com URLs in mslearn.js fetched and confirmed on 2026-09-11.",
+      why: "Low: naming is display only and the map is a fallback behind the tenant's service principals. The platform check is the one behavioural change — it used to demand Windows and only Windows; Learn now lists macOS 14+ / iOS 16+ (MDM-managed, Enterprise SSO plug-in) as a preview, so a correctly built Apple policy was a false High. Source of the map: Jhope188's CA Policy Analyzer src/data/first-party-apps.ts (MIT), credited in the file.",
+      test: [
+        "Tenant with an exclusion on an app id that has no service principal (e.g. exclude 29d9ed98-a469-4536-ade2-f981bc1d605e Microsoft Authentication Broker on a lab tenant that never consented to it): 🚪 shows the name, not the GUID; the policy card shows it too.",
+        "Tenant where that app DOES have a service principal with a renamed display name: the tenant's name wins over the map.",
+        "📘 on a token-protection policy targeting Windows + macOS: the platform finding is the Apple preview caveat, not “Windows-only”; targeting Android → blocked finding; no platform condition → blocked finding.",
+        "📘 token-prot-devices finding: the Learn link opens on the Windows deployment guide at Known limitations.",
+        "Demo tenant: 🚪 and the policy list render unchanged (no first-party id in the demo exclusions).",
+      ],
+      files: ["js/labels.js", "js/graph.js", "js/exclusions.js", "js/mslearn.js", "index.html", "js/version.js"],
+    },
+    {
       n: 166,
       title: "🛡 📘 Baseline scopes: tenant setting read, wording past-tense (T08 1.9, T07 2.4)",
       tools: ["Best-practice & bypass checks", "MS Learn checks"],

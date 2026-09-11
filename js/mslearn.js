@@ -331,12 +331,12 @@ const MSLearn = (() => {
     },
     {
       id: "token-prot-platform",
-      title: "Token protection: Windows + desktop clients only",
+      title: "Token protection: Windows (or MDM-managed Apple, preview) + desktop clients only",
       appliesWhen: "Policy uses the token protection session control",
-      requirement: "Token protection only works on Windows: the policy must target the Windows device platform and only 'Mobile apps and desktop clients' — including Browser blocks MSAL.js apps such as Teams Web.",
+      requirement: "Token protection works on Windows, and in preview on macOS 14+ / iOS 16+ devices that are MDM-managed with the Microsoft Enterprise SSO plug-in. The policy must name those platforms explicitly and target only 'Mobile apps and desktop clients' — including Browser blocks MSAL.js apps such as Teams Web (browser support exists only as a preview for Azure Resource Manager web apps).",
       severity: "high",
-      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#deployment",
-      remediation: "Set Device platforms → Include → Windows only, and Client apps → Mobile apps and desktop clients only (leave Browser unchecked).",
+      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#supported-resources",
+      remediation: "Set Device platforms → Include → Windows (add macOS / iOS only for MDM-managed Apple devices with the Enterprise SSO plug-in, preview), and Client apps → Mobile apps and desktop clients only (leave Browser unchecked).",
       fix: (d) => {
         const ch = [];
         const plat = d.conditions.platforms || (d.conditions.platforms = { includePlatforms: [], excludePlatforms: [] });
@@ -352,8 +352,15 @@ const MSLearn = (() => {
         if (!isActive(p) || !hasTokenProtection(p)) return null;
         const issues = [];
         const plat = p.conditions?.platforms;
-        if (!plat || !(plat.includePlatforms || []).includes("windows"))
-          issues.push("The policy does not explicitly target the Windows platform (token protection is Windows-only).");
+        const SUPPORTED = ["windows", "macos", "ios"];   // Apple in preview, MDM-managed only
+        const inc = (plat?.includePlatforms || []).map((x) => String(x).toLowerCase());
+        if (!plat || !inc.length || inc.includes("all"))
+          issues.push("The policy does not name its device platforms — token protection is supported on Windows, and in preview on MDM-managed macOS / iOS; every other platform is blocked.");
+        else {
+          const other = inc.filter((x) => !SUPPORTED.includes(x));
+          if (other.length) issues.push(`The policy targets ${other.join(", ")} — token protection is not supported there and those users are blocked.`);
+          if (inc.some((x) => x === "macos" || x === "ios")) issues.push("Apple platforms are included: token protection there is a PREVIEW and requires MDM-managed devices with the Microsoft Enterprise SSO plug-in — unmanaged Macs, iPhones and Apple's native Mail / Calendar are blocked.");
+        }
         const cat = p.conditions?.clientAppTypes || [];
         if (!cat.length || cat.includes("browser") || cat.includes("all"))
           issues.push('The policy includes "Browser" client apps (or has no client apps condition) — MSAL.js-based apps like Teams Web will be blocked.');
@@ -370,7 +377,7 @@ const MSLearn = (() => {
       appliesWhen: "Policy uses the token protection session control",
       requirement: "Unsupported registration types must be excluded via device filters: Surface Hub, Teams Rooms, Entra-joined AVD hosts and Cloud PCs, Autopilot self-deploying, bulk-enrolled devices and Azure VMs.",
       severity: "high",
-      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#known-limitations",
+      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows#known-limitations",
       remediation: 'Add a device filter in EXCLUDE mode whose rule matches the unsupported types, e.g. device.systemLabels -contains "CloudPC" -or device.systemLabels -contains "AzureVirtualDesktop" -or device.profileType -eq "SecureVM". Two gotchas: systemLabels is multi-valued so it takes -contains (not -eq/-ne), and profileType is an enum limited to RegisteredDevice / SecureVM / Printer / Shared / IoT — Autopilot self-deploying is not a profileType, exclude those devices another way.',
       fix: (d) => {
         const dev = d.conditions.devices || (d.conditions.devices = {});

@@ -464,7 +464,11 @@ const Graph = (() => {
       } catch {}
     }
 
-    return (id, fallbackMap) => (fallbackMap && fallbackMap[id]) || names[id] || id;
+    // Order: the caller's label map (All / Office365 …), the tenant's own
+    // display name, then the first-party fallback map for an id with no
+    // service principal here, then the id itself.
+    const firstParty = (id) => (typeof firstPartyAppName === "function" ? firstPartyAppName(id) : null);
+    return (id, fallbackMap) => (fallbackMap && fallbackMap[id]) || names[id] || firstParty(id) || id;
   }
 
   async function loadTenant(onStatus) {

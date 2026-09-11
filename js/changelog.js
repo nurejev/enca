@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25332, date: "2026-09-11", title: "Names for apps that are not here, and seventeen links re-checked",
+    items: [
+      { kind: "improved", tool: "Exclusion analyzer", text: "An excluded application that has NO service principal in the tenant used to show as a bare GUID. Microsoft's first-party app ids now resolve by name from a built-in map — Windows Azure Active Directory, Microsoft Authentication Broker, OneDrive SyncEngine, Global Secure Access Client and some sixty more — so an exclusion added before anyone consented to the app still reads as what it is. The tenant's own service principal name always wins; the map only speaks when the tenant has nothing. The same fallback sits behind every policy card and What-if." },
+      { kind: "fixed", tool: "MS Learn checks", text: "All seventeen Learn links behind the checks were re-verified. One anchor had moved: token protection's known limitations now live in the Windows deployment guide, and the check links there. The platform check no longer calls token protection Windows-only — MDM-managed macOS and iOS devices with the Enterprise SSO plug-in are supported in preview, so a policy naming them gets a preview caveat instead of a wrong finding, while Android, Linux or no platform at all is still reported as blocked." },
+    ],
+  },
+  {
     build: 25331, date: "2026-09-11", title: "Baseline scopes: the tenant setting is read, and the story is told in the past tense",
     items: [
       { kind: "improved", tool: "Best-practice & bypass checks", text: "The resource-exclusion check used to announce a change “coming March 2026”. It has come: since the rollout that began 15 June 2026 a sign-in that requests only the baseline scopes (openid, profile, email, offline_access, User.Read and the other basic directory scopes) is evaluated against Windows Azure Active Directory even when the All-resources policy has app exclusions — the old directory-enumeration path is closed. The check now READS the tenant's Baseline scopes setting and grades from it. Disable enforcement is High: every exclusion leaks the baseline scopes today. Customize behavior lists the policies that exclude the placeholder app and so keep the legacy behaviour by design — and says so, at low, when NO policy excludes it, because then the setting changes nothing. No selection saved is Microsoft's default, which now means enforced, and reads as an info together with Enable enforcement. If the setting cannot be read the finding says that instead of guessing." },
