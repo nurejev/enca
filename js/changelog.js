@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25333, date: "2026-09-11", title: "Exclusion analyzer: an excluded app is either covered somewhere else, or it is not",
+    items: [
+      { kind: "new", tool: "Exclusion analyzer", text: "Every app excluded from an All-resources policy is now checked against the rest of the tenant: does another ENABLED policy with a grant control reach that app for the same users? If nothing does, the app has no Conditional Access at all, and the risk review says so as a High — Microsoft's own guidance is a baseline policy on all users and all resources without resource exclusions. If something does, an info row names the covering policy so the pair can be kept in step. Report-only and Off policies never count as cover, and neither does a policy scoped to a pilot group when the exclusion sits on an All-users policy. The header, the row chips and the Markdown report carry the count." },
+      { kind: "new", tool: "Exclusion analyzer", text: "A phantom app exclusion — an app id with NO service principal in this tenant — is called out as such (medium). It matches nothing today, and the moment someone consents to or creates that app it is excluded from the policy without anyone deciding so. Ported after reviewing the same two ideas in Jhope188's CA Policy Analyzer v1.16.4 and v1.17.0; the coverage test here is stricter about who a covering policy has to reach." },
+    ],
+  },
+  {
     build: 25332, date: "2026-09-11", title: "Names for apps that are not here, and seventeen links re-checked",
     items: [
       { kind: "improved", tool: "Exclusion analyzer", text: "An excluded application that has NO service principal in the tenant used to show as a bare GUID. Microsoft's first-party app ids now resolve by name from a built-in map — Windows Azure Active Directory, Microsoft Authentication Broker, OneDrive SyncEngine, Global Secure Access Client and some sixty more — so an exclusion added before anyone consented to the app still reads as what it is. The tenant's own service principal name always wins; the map only speaks when the tenant has nothing. The same fallback sits behind every policy card and What-if." },

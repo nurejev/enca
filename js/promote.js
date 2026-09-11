@@ -118,6 +118,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 168,
+      title: "🚪 Excluded apps: covered elsewhere, or not; phantom (no service principal) exclusions (T09 1.9)",
+      tools: ["Exclusion analyzer"],
+      builds: [25333],
+      risk: "medium",
+      what: "js/exclusions.js: collect() keeps each policy's include side (inc.allApps/apps/allUsers/users/groups/roles) and enforces (grant controls or a strength); resolve() marks e.noSp on a GUID app the servicePrincipals lookup did not return (demo: not in DEMO_DATA.names); appCoverage(model) — for every app excluded from an ENABLED, enforcing, All-resources policy, the covering policies are the other enabled enforcing ones that reach the app (named, or All without excluding it) AND reach at least the same users (allUsers, or a superset of the include sets); e.coverage[policyId] + e.uncoveredIn. risk(): High “n excluded apps with no other Conditional Access coverage”, info “covered by another policy” naming it, medium “Phantom app exclusion”. appSub(e) chips on app rows (matrix + MD table), summary() phantomApps/uncoveredApps, header chips, MD summary lines.",
+      why: "Medium: new High in a customer-facing risk review, so the coverage rule must not cry wolf. Deliberately stricter than upstream (which counts any enabled policy that includes the app, even one scoped to a single user): here the covering policy must also reach the excluding policy's users. Two known blind spots, stated so they are decided rather than found: (1) a covering policy that includes the app via a filter for applications (custom security attributes) is not seen — it reads as uncovered; (2) an Office365 or MicrosoftAdminPortals sentinel is never evaluated. Sign-in evidence is NOT consulted — this is a policy-set question.",
+      test: [
+        "Tenant with app X excluded from the All-users MFA policy and no other policy naming X: risk review shows High “1 excluded app with no other Conditional Access coverage: X”; the header chip counts 1; the matrix row for X carries “⚠ no other coverage in 1 policy”.",
+        "Create a report-only policy including X → still High (report-only is not cover); switch it On → the High disappears and an info “covered by another policy — <name>” appears.",
+        "Make the covering policy target one pilot group instead of All users → High again (scope smaller than the excluding policy's All users).",
+        "Exclude a GUID that has no service principal (e.g. 29d9ed98-a469-4536-ade2-f981bc1d605e on a lab tenant that never consented to the Authentication Broker): medium “Phantom app exclusion: Microsoft Authentication Broker”, 👻 header chip, row chip; consent to the app and re-run → gone.",
+        "A policy with only session controls (no grant) excluding X: no coverage row for it (it enforces nothing).",
+        "Markdown export: the Summary carries the two counts and the Exclusions table shows the chips in italics after the app name.",
+        "Demo tenant (?demo=1): 🚪 renders as before — no app exclusions in the demo, so no new rows.",
+      ],
+      files: ["js/exclusions.js", "index.html", "js/version.js"],
+    },
+    {
       n: 167,
       title: "🚪 First-party app names for ids with no service principal; 📘 Learn links re-verified, token-protection platforms (T09 1.8, T07 2.5)",
       tools: ["Exclusion analyzer", "MS Learn checks"],

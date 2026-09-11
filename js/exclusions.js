@@ -56,8 +56,20 @@ const Exclusions = (() => {
         + (l.excludeLocations || []).length + (pl.excludePlatforms || []).length;
       // per-policy breakdown, kept for the risk review
       const SENT = ["All", "None", "GuestsOrExternalUsers"];
+      const g = p.grantControls || {};
       policies.push({
         id: p.id, name: p.displayName || "(unnamed policy)", state: p.state, seq: null, exclusionCount: n,
+        // the include side + whether the policy enforces anything, for the
+        // "is this excluded app covered by another policy" question
+        inc: {
+          allApps: (a.includeApplications || []).includes("All"),
+          apps: (a.includeApplications || []).map((x) => String(x).toLowerCase()),
+          allUsers: (u.includeUsers || []).includes("All"),
+          users: (u.includeUsers || []).filter((x) => !SENT.includes(x)),
+          groups: (u.includeGroups || []),
+          roles: (u.includeRoles || []),
+        },
+        enforces: (g.builtInControls || []).length > 0 || !!g.authenticationStrength,
         exc: {
           users: (u.excludeUsers || []).filter((x) => !SENT.includes(x)),
           groups: (u.excludeGroups || []),
@@ -84,6 +96,8 @@ const Exclusions = (() => {
     if (demo) {
       const names = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.names) || {};
       model.entities.forEach((e) => { e.name = e.name || names[e.id] || (e.kind === "app" && firstPartyAppName(e.id)) || e.id; });
+      byKind("app").forEach((e) => { if (isGuid(e.id) && !names[e.id]) e.noSp = true; });
+      appCoverage(model);
       byKind("group").forEach((e) => {
         const ids = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.scopeGroups && DEMO_DATA.scopeGroups[e.name]) || [];
         const users = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.analyzeUsers) || [];
@@ -145,7 +159,14 @@ const Exclusions = (() => {
         try {
           const flt = part.map((e) => `'${e.id}'`).join(",");
           const sps = await Graph.ggetAll(`/servicePrincipals?$filter=appId in (${flt})&$select=appId,displayName`);
-          part.forEach((e) => { const sp = sps.find((s) => s.appId === e.id); if (sp) e.name = sp.displayName; });
+          part.forEach((e) => {
+            const sp = sps.find((s) => String(s.appId).toLowerCase() === String(e.id).toLowerCase());
+            if (sp) e.name = sp.displayName;
+            // A GUID the tenant has no service principal for: the exclusion
+            // names an app that is not here. It protects nothing today and
+            // becomes live the moment the app is consented or created.
+            else e.noSp = true;
+          });
         } catch (e) { console.warn("Exclusions: app lookup failed", e.message); }
       }
     }
@@ -173,6 +194,42 @@ const Exclusions = (() => {
     try { await readNesting(groups, onStatus); }
     catch (e) { console.warn("Exclusions: nesting read failed", e.message); }
     model.entities.forEach((e) => { e.name = e.name || (e.kind === "app" && firstPartyAppName(e.id)) || e.id; });
+    appCoverage(model);
+    return model;
+  }
+
+  // ---- 2b. is an app excluded from an All-resources policy covered elsewhere? ----
+  // Microsoft's guidance is a baseline policy on all users and all resources
+  // WITHOUT resource exclusions; an app excluded from it needs its own policy
+  // or it has no Conditional Access at all. A covering policy must be ENABLED,
+  // enforce a grant control, reach the app (named, or All resources without
+  // excluding it) and reach at least the same users — a policy scoped to one
+  // pilot group does not cover an exclusion on an All-users policy. Report-only
+  // and Off policies never count: they enforce nothing.
+  function appCoverage(model) {
+    const SENT = new Set(["all", "none", "office365", "microsoftadminportals"]);
+    const byPol = new Map(model.policies.map((p) => [p.id, p]));
+    const live = model.policies.filter((p) => p.state === "enabled" && p.enforces && p.inc);
+    const subset = (a, b) => a.every((x) => b.includes(x));
+    const reaches = (q, p) => q.inc.allUsers
+      || (!p.inc.allUsers && subset(p.inc.users, q.inc.users) && subset(p.inc.groups, q.inc.groups) && subset(p.inc.roles, q.inc.roles));
+    for (const e of model.entities) {
+      if (e.kind !== "app") continue;
+      const id = String(e.id).toLowerCase();
+      if (SENT.has(id)) continue;
+      e.coverage = {};      // policyId → [covering policy names]  (only for enabled, enforcing, All-resources excluders)
+      e.uncoveredIn = [];   // policyIds where nothing else covers the app
+      for (const pid of e.policyIds) {
+        const p = byPol.get(pid);
+        if (!p || p.state !== "enabled" || !p.enforces || !p.inc?.allApps) continue;
+        const covering = live.filter((q) => q.id !== p.id
+          && !(q.exc.apps || []).some((x) => String(x).toLowerCase() === id)
+          && (q.inc.allApps || q.inc.apps.includes(id))
+          && reaches(q, p)).map((q) => q.name);
+        e.coverage[pid] = covering;
+        if (!covering.length) e.uncoveredIn.push(pid);
+      }
+    }
     return model;
   }
 
@@ -310,6 +367,24 @@ const Exclusions = (() => {
           detail + ". Whoever can change the nested groups' membership widens this exclusion without touching the exclusion group — protect the nested groups the same way, or replace them with direct members.");
       }
 
+      // High — an app excluded from this All-resources policy that no other
+      // enabled, enforcing policy reaches for the same users: zero Conditional
+      // Access for that app. Info when every excluded app IS covered elsewhere,
+      // so the reader can see the exclusion was closed deliberately.
+      const appEnts = (x.apps || []).map((id) => ent("app", id)).filter((e) => e && e.coverage && p.id in e.coverage);
+      const uncovered = appEnts.filter((e) => e.uncoveredIn.includes(p.id));
+      const covered = appEnts.filter((e) => !e.uncoveredIn.includes(p.id));
+      if (uncovered.length) add("high", `${uncovered.length} excluded app${uncovered.length === 1 ? "" : "s"} with no other Conditional Access coverage: ${uncovered.map((e) => e.name).join(", ")}`,
+        "This policy targets All resources, and no other ENABLED policy with a grant control reaches these apps for the same users — they have no Conditional Access at all. Microsoft's guidance is a baseline policy on all users and all resources without resource exclusions: give each app its own targeted policy, or remove the exclusion.");
+      if (covered.length) add("info", `${covered.length} excluded app${covered.length === 1 ? "" : "s"} covered by another policy`,
+        covered.map((e) => `${e.name} — ${e.coverage[p.id].join(", ")}`).join(" · ") + ". The exclusion is closed by a targeted policy; keep the two in step when either changes.");
+
+      // Medium — an excluded app id with no service principal in this tenant:
+      // the exclusion protects nothing today and goes live on consent.
+      const phantom = (x.apps || []).map((id) => ent("app", id)).filter((e) => e && e.noSp);
+      if (phantom.length) add("medium", `Phantom app exclusion${phantom.length === 1 ? "" : "s"}: ${phantom.map((e) => e.name).join(", ")}`,
+        "No service principal for this app id exists in the tenant, so the exclusion matches nothing today — and the moment someone consents to or creates the app, it is excluded from this policy without anyone deciding so. Remove the exclusion, or register the app deliberately and review it.");
+
       // Medium — an exclusion list that has grown
       if ((x.groups || []).length > maxGroups) add("medium", `${x.groups.length} group exclusions`,
         "Review each for relevance; consider restructuring who the policy includes instead.");
@@ -342,7 +417,9 @@ const Exclusions = (() => {
     model.entities.forEach((e) => { counts[e.kind] = (counts[e.kind] || 0) + 1; });
     const nestedGroups = model.entities.filter((e) => e.kind === "group" && e.nested && e.nested.length);
     const nestedUsers = new Set(); nestedGroups.forEach((e) => e.members.forEach((m) => { if (m.direct === false) nestedUsers.add(m.id); }));
-    return { policies: model.policies.length, policiesWithExclusions: withExc, entities: model.entities.length, users: users.length, counts, nestedGroups: nestedGroups.length, nestedUsers: nestedUsers.size, allNested: nestedGroups.filter((e) => e.directCount === 0).length };
+    const phantomApps = model.entities.filter((e) => e.kind === "app" && e.noSp).length;
+    const uncoveredApps = model.entities.filter((e) => e.kind === "app" && e.uncoveredIn && e.uncoveredIn.length).length;
+    return { phantomApps, uncoveredApps, policies: model.policies.length, policiesWithExclusions: withExc, entities: model.entities.length, users: users.length, counts, nestedGroups: nestedGroups.length, nestedUsers: nestedUsers.size, allNested: nestedGroups.filter((e) => e.directCount === 0).length };
   }
 
   // ---- rendering ----
@@ -355,7 +432,7 @@ const Exclusions = (() => {
       <div style="flex:1;min-width:260px">
         <h3>🚪 CA Exclusion analyzer</h3>
         <p style="margin-bottom:8px">Every exclusion configured across your Conditional Access policies — users, groups (with their members), directory roles, guest types, applications, named locations and device platforms — mapped against the policies that exclude them.</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${kinds || '<span class="mini">No exclusions found.</span>'}${s.nestedGroups ? ` <span class="tag block" title="Members who come into an exclusion group through a group nested inside it">↪ ${s.nestedGroups} excluded group${s.nestedGroups === 1 ? "" : "s"} with nested groups · ${s.nestedUsers} user${s.nestedUsers === 1 ? "" : "s"} through nesting${s.allNested ? ` · ${s.allNested} fed entirely by nesting` : ""}</span>` : ""}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${kinds || '<span class="mini">No exclusions found.</span>'}${s.nestedGroups ? ` <span class="tag block" title="Members who come into an exclusion group through a group nested inside it">↪ ${s.nestedGroups} excluded group${s.nestedGroups === 1 ? "" : "s"} with nested groups · ${s.nestedUsers} user${s.nestedUsers === 1 ? "" : "s"} through nesting${s.allNested ? ` · ${s.allNested} fed entirely by nesting` : ""}</span>` : ""}${s.uncoveredApps ? ` <span class="tag block" title="Apps excluded from an All-resources policy that no other enabled, enforcing policy reaches for the same users">⚠ ${s.uncoveredApps} excluded app${s.uncoveredApps === 1 ? "" : "s"} with no other coverage</span>` : ""}${s.phantomApps ? ` <span class="tag new" title="Excluded app ids with no service principal in this tenant — the exclusion matches nothing today">👻 ${s.phantomApps} phantom app exclusion${s.phantomApps === 1 ? "" : "s"}</span>` : ""}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${s.entities}<span class="mini" style="font-weight:400"> exclusions</span></div>
@@ -388,9 +465,17 @@ const Exclusions = (() => {
   const nestSub = (e) => (e.nested && e.nested.length
     ? ` · ↪ ${e.nestedCount === e.memberTotal ? "all" : e.nestedCount} through ${e.nested.length} nested group${e.nested.length === 1 ? "" : "s"}`
     : "");
+  const appSub = (e) => {
+    const bits = [];
+    if (e.noSp) bits.push("⚠ no service principal in this tenant");
+    if (e.uncoveredIn && e.uncoveredIn.length) bits.push(`⚠ no other coverage in ${e.uncoveredIn.length} polic${e.uncoveredIn.length === 1 ? "y" : "ies"}`);
+    return bits.join(" · ");
+  };
   const rowSub = (e) => (e.kind === "group"
     ? (e.memberTotal == null ? "members unknown" : `${e.memberTotal} member${e.memberTotal === 1 ? "" : "s"}${nestSub(e)}`)
-    : e.upn || (e.id !== e.name ? e.id : ""));
+    : e.kind === "app"
+      ? [e.id !== e.name ? e.id : "", appSub(e)].filter(Boolean).join(" · ")
+      : e.upn || (e.id !== e.name ? e.id : ""));
 
   // Focus banner — shown above a matrix when a row and/or column is pinned, so
   // it is clear the grid is filtered and there is a one-click way back.
@@ -610,6 +695,8 @@ const Exclusions = (() => {
       ? ` (${Object.entries(s.counts).sort((a, b) => KIND[a[0]].order - KIND[b[0]].order).map(([k, n]) => `${n} ${KIND[k].label.toLowerCase()}${n === 1 ? "" : "s"}`).join(", ")})`
       : ""));
     L.push(`- Users effectively excluded from at least one policy (directly or through a group): **${s.users}**`);
+    if (s.uncoveredApps) L.push(`- **${s.uncoveredApps}** app${s.uncoveredApps === 1 ? "" : "s"} excluded from an All-resources policy with **no other Conditional Access coverage** (no enabled, enforcing policy reaches them for the same users).`);
+    if (s.phantomApps) L.push(`- **${s.phantomApps}** phantom app exclusion${s.phantomApps === 1 ? "" : "s"}: excluded app ids with no service principal in this tenant — the exclusion matches nothing today and goes live on consent.`);
     L.push("");
 
     // ---- risk review ----
@@ -639,7 +726,8 @@ const Exclusions = (() => {
       L.push("| --- | --- | --- | --- | --- |");
       for (const r of mergeRows(ents)) {
         const names = pols.filter((p) => r.policyIds.has(p.id)).map((p) => mdEsc(p.name));
-        const who = r.merged ? `**${r.items.length} ${KIND[r.kind].label.toLowerCase()}s** — ${r.items.map((i) => mdEsc(i.name)).join(", ")}` : mdEsc(r.items[0].name);
+        const who = (r.merged ? `**${r.items.length} ${KIND[r.kind].label.toLowerCase()}s** — ${r.items.map((i) => mdEsc(i.name)).join(", ")}` : mdEsc(r.items[0].name))
+          + (r.kind === "app" ? r.items.map((i) => appSub(i)).filter(Boolean).map((t) => ` _${mdEsc(t)}_`).join("") : "");
         const members = r.kind === "group" ? r.items.reduce((s, i) => s + (i.memberTotal || 0), 0) || "?" : "—";
         L.push(`| ${KIND[r.kind].label} | ${who} | ${members} | ${names.length} | ${names.join("<br>") || "—"} |`);
       }
@@ -706,5 +794,5 @@ const Exclusions = (() => {
     return L.join("\n");
   }
 
-  return { collect, resolve, effectiveUsers, risk, summary, renderSummary, renderGroups, renderMatrix, renderUsers, renderRisk, toCsv, toMd, KIND };
+  return { collect, resolve, appCoverage, effectiveUsers, risk, summary, renderSummary, renderGroups, renderMatrix, renderUsers, renderRisk, toCsv, toMd, KIND };
 })();
