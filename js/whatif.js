@@ -1,19 +1,21 @@
 // ======================================================================
-// What-If — two visual tools for "what happens" reasoning:
+// What-If FLOWCHARTS — the two descriptive views of "what happens", drawn
+// from the view model with no scenario and no tenant read:
 //
-//   1. policyFlow(vm)  — a per-policy flowchart of what the policy does when
-//      it triggers: who is in scope, what has to be true, and the controls
-//      that then apply. Descriptive, no scenario needed. Shown on demand from
-//      the policy card.
+//   policyFlow(vm)          a per-policy flow: who is in scope, what has to be
+//                           true, the controls that then apply, the outcome.
+//                           Shown on demand from the policy card.
+//   personaFlow(key, vms)   the same for a whole persona, with the Global
+//                           policies that reach it and the exclusions that
+//                           drop one out of the flow.
 //
-//   2. simulate(...) / renderSim(...) — a scenario simulator, like the
-//      Conditional Access "What If" in the Entra portal: pick a user and a few
-//      conditions, and see which policies apply, which do not (and why), and
-//      the combined grant / block / session outcome.
+// The SIMULATOR is not here. Evaluating a scenario against the policy set is
+// js/whatifeval.js (WhatIfEval.evaluate), which 🧪 What-If, ⚖ Compare users and
+// 🫥 Apps with no service principal all call. This module draws pictures; that
+// one decides verdicts. Keeping the two apart is deliberate — see the note at
+// the bottom of the file for the fork that used to sit here.
 //
-// Read-only. The simulator needs the subject's group and role memberships,
-// fetched once per user via transitiveMemberOf (Directory.Read.All, already
-// consented).
+// Read-only, pure over its inputs, no Graph and no storage.
 // ======================================================================
 const WhatIf = (() => {
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
@@ -187,200 +189,20 @@ const WhatIf = (() => {
     </div>`;
   }
 
-  // ---- 2. scenario simulator --------------------------------------------
-  const isGuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || "");
+  // WHAT USED TO BE HERE, and why it is gone (25344). This module also held a
+  // second scenario simulator — resolveSubject / evalPolicy / simulate /
+  // renderSim, about 190 lines — written before js/whatifeval.js existed. It
+  // had NO CALLERS: 🧪 What-If evaluates through WhatIfEval.evaluate, and so do
+  // ⚖ Compare users and 🫥 Apps with no service principal. Only policyFlow and
+  // personaFlow above were ever reached from app.js.
+  //
+  // Dead code that answers a question the app answers elsewhere is worse than
+  // no code: it reads as authoritative, it drifts (WhatIfEval has since learnt
+  // user actions, authentication contexts, insider risk, authentication flows
+  // and device filters that this copy never knew), and it is what made the
+  // consolidation review count THREE policy evaluators in ENCA when there has
+  // only ever been one in use. If a second simulator is ever wanted, it starts
+  // from WhatIfEval, not from a fork of it.
 
-  // Resolve the subject once: identity + transitive group and role membership,
-  // so a policy targeting a group the user is nested into still matches.
-  async function resolveSubject(query) {
-    const q = String(query || "").trim();
-    if (!q) return null;
-    let user;
-    if (isGuid(q)) user = await Graph.gget(`/users/${q}?$select=id,displayName,userPrincipalName,userType`);
-    else {
-      const f = encodeURIComponent(`userPrincipalName eq '${q.replace(/'/g, "''")}' or mail eq '${q.replace(/'/g, "''")}'`);
-      const r = await Graph.ggetAll(`/users?$filter=${f}&$select=id,displayName,userPrincipalName,userType&$top=1`);
-      user = r[0];
-    }
-    if (!user) return null;
-    const groupIds = new Set(), roleIds = new Set();
-    try {
-      const mem = await Graph.ggetAll(`/users/${user.id}/transitiveMemberOf?$select=id&$top=999`);
-      for (const m of mem) {
-        const t = m["@odata.type"] || "";
-        if (/directoryRole/i.test(t)) roleIds.add(m.roleTemplateId || m.id);
-        else groupIds.add(m.id);
-      }
-    } catch (e) { console.warn("WhatIf: membership lookup failed", e.message); }
-    return {
-      id: user.id, upn: user.userPrincipalName || "", name: user.displayName || user.userPrincipalName || user.id,
-      isGuest: /guest/i.test(user.userType || ""), groupIds, roleIds,
-    };
-  }
-
-  const U = (p) => p.conditions?.users || {};
-  const A = (p) => p.conditions?.applications || {};
-
-  // Evaluate one raw policy against subject + scenario. Returns why it does or
-  // does not apply, transparently — a "maybe" (condition we cannot decide from
-  // the scenario) is treated as a match but flagged, never silently dropped.
-  function evalPolicy(p, subject, sc) {
-    const reasons = [], notes = [];
-    const u = U(p);
-
-    if (p.state === "disabled") return { applies: false, state: "off", reasons: ["policy is Off"], notes };
-    const reportOnly = p.state === "enabledForReportingButNotEnforced";
-
-    // --- users ---
-    const inc = () => {
-      if ((u.includeUsers || []).includes("All")) { reasons.push("targets All users"); return true; }
-      if ((u.includeUsers || []).includes(subject.id)) { reasons.push("user is named directly"); return true; }
-      if ((u.includeGroups || []).some((g) => subject.groupIds.has(g))) { reasons.push("user is in an included group"); return true; }
-      if ((u.includeRoles || []).some((r) => subject.roleIds.has(r))) { reasons.push("user holds an included role"); return true; }
-      if (subject.isGuest && (u.includeGuestsOrExternalUsers || (u.includeUsers || []).includes("GuestsOrExternalUsers"))) { reasons.push("user is a guest and guests are included"); return true; }
-      return false;
-    };
-    if (!inc()) return { applies: false, reportOnly, reasons: ["user is not in the include scope"], notes };
-    if ((u.excludeUsers || []).includes(subject.id)) return { applies: false, reportOnly, reasons: ["user is explicitly excluded"], notes };
-    if ((u.excludeGroups || []).some((g) => subject.groupIds.has(g))) return { applies: false, reportOnly, reasons: ["user is in an excluded group"], notes };
-    if ((u.excludeRoles || []).some((r) => subject.roleIds.has(r))) return { applies: false, reportOnly, reasons: ["user holds an excluded role"], notes };
-    if (subject.isGuest && u.excludeGuestsOrExternalUsers) return { applies: false, reportOnly, reasons: ["guests are excluded"], notes };
-
-    // --- app / resource ---
-    const a = A(p);
-    if (sc.app && sc.app !== "any") {
-      const incApps = a.includeApplications || [];
-      if (incApps.includes("All")) reasons.push("targets all cloud apps");
-      else if (incApps.includes(sc.app)) reasons.push("target app is included");
-      else if (incApps.length) return { applies: false, reportOnly, reasons: [`the app "${sc.app}" is not in this policy's target resources`], notes };
-      if ((a.excludeApplications || []).includes(sc.app)) return { applies: false, reportOnly, reasons: ["the app is excluded"], notes };
-    } else if ((a.includeApplications || []).length) {
-      notes.push("app not specified — assuming the policy's target resources are in play");
-    }
-
-    // --- conditions (each only checked when the scenario states it) ---
-    const c = p.conditions || {};
-    const plat = c.platforms || {};
-    if (sc.platform && (plat.includePlatforms || []).length) {
-      if (!(plat.includePlatforms.includes(sc.platform) || plat.includePlatforms.includes("all"))) return { applies: false, reportOnly, reasons: [`device platform "${sc.platform}" is not in scope`], notes };
-      if ((plat.excludePlatforms || []).includes(sc.platform)) return { applies: false, reportOnly, reasons: [`device platform "${sc.platform}" is excluded`], notes };
-    } else if ((plat.includePlatforms || []).length) notes.push("platform not specified — policy has a platform condition");
-
-    const cat = c.clientAppTypes || [];
-    if (sc.clientApp && cat.length && !cat.includes("all")) {
-      if (!cat.includes(sc.clientApp)) return { applies: false, reportOnly, reasons: [`client app "${sc.clientApp}" is not in scope`], notes };
-    } else if (cat.length && !cat.includes("all")) notes.push("client app not specified — policy restricts client apps");
-
-    if (sc.signInRisk && (c.signInRiskLevels || []).length && !c.signInRiskLevels.includes(sc.signInRisk)) return { applies: false, reportOnly, reasons: [`sign-in risk "${sc.signInRisk}" is not in scope`], notes };
-    if (!sc.signInRisk && (c.signInRiskLevels || []).length) notes.push("sign-in risk not specified — policy is risk-conditional");
-    if (sc.userRisk && (c.userRiskLevels || []).length && !c.userRiskLevels.includes(sc.userRisk)) return { applies: false, reportOnly, reasons: [`user risk "${sc.userRisk}" is not in scope`], notes };
-    if (!sc.userRisk && (c.userRiskLevels || []).length) notes.push("user risk not specified — policy is risk-conditional");
-
-    // location: matched loosely — "All" applies anywhere; a trusted-only or
-    // named-location condition we cannot fully resolve is flagged, not dropped.
-    const loc = c.locations || {};
-    if ((loc.includeLocations || []).length || (loc.excludeLocations || []).length) {
-      if (sc.location === "trusted" && (loc.excludeLocations || []).some((x) => x === "AllTrusted")) return { applies: false, reportOnly, reasons: ["sign-in is from a trusted location, which this policy excludes"], notes };
-      if (!sc.location) notes.push("location not specified — policy has a location condition");
-      else notes.push(`location "${sc.location}" — evaluated loosely against the policy's named locations`);
-    }
-    if (c.devices?.deviceFilter) notes.push(`device filter (${c.devices.deviceFilter.mode}) present — decide manually: ${c.devices.deviceFilter.rule}`);
-
-    return { applies: true, reportOnly, reasons, notes };
-  }
-
-  // Combine the applying policies into a single access decision.
-  function simulate(raws, subject, sc) {
-    const applied = [], notApplied = [];
-    for (const p of raws) {
-      const r = evalPolicy(p, subject, sc);
-      const row = { name: p.displayName, id: p.id, ...r, raw: p };
-      (r.applies ? applied : notApplied).push(row);
-    }
-    // outcome
-    const enforcing = applied.filter((r) => !r.reportOnly);
-    const grant = new Set(); let block = false; const blockers = []; const session = new Set();
-    const controlLabel = (raw) => {
-      const g = raw.grantControls || {};
-      const out = (g.builtInControls || []).map((x) => (typeof LABELS !== "undefined" && LABELS.grantControls[x]) || x);
-      if (g.authenticationStrength) out.push("Authentication strength: " + (g.authenticationStrength.displayName || "custom"));
-      (g.termsOfUse || []).forEach(() => out.push("Terms of use"));
-      return out;
-    };
-    for (const r of enforcing) {
-      const g = r.raw.grantControls || {};
-      if ((g.builtInControls || []).includes("block")) { block = true; blockers.push(r.name); }
-      else controlLabel(r.raw).forEach((x) => grant.add(x));
-      const s = r.raw.sessionControls || {};
-      if (s.signInFrequency?.isEnabled) session.add("Sign-in frequency");
-      if (s.persistentBrowser?.isEnabled) session.add("Persistent browser: " + (s.persistentBrowser.mode || ""));
-      if (s.applicationEnforcedRestrictions?.isEnabled) session.add("App enforced restrictions");
-      if (s.cloudAppSecurity?.isEnabled) session.add("Conditional Access App Control");
-      if (s.secureSignInSession?.isEnabled) session.add("Token protection");
-    }
-    const decision = block ? "block" : grant.size ? "grant" : enforcing.length ? "allow" : "none";
-    return {
-      subject, scenario: sc, applied, notApplied,
-      outcome: { decision, block, blockers, grant: [...grant], session: [...session], reportOnlyCount: applied.length - enforcing.length },
-    };
-  }
-
-  // ---- simulator rendering ----
-  const SC_LABEL = {
-    app: "Cloud app", platform: "Device platform", clientApp: "Client app",
-    location: "Location", signInRisk: "Sign-in risk", userRisk: "User risk",
-  };
-  // A policy "applies" definitely, or only "maybe" — matched because a
-  // condition the scenario didn't specify was assumed. Surfacing that keeps the
-  // apply count honest instead of implying certainty.
-  const isMaybe = (r) => (r.notes || []).some((n) => /not specified|loosely|manually/i.test(n));
-
-  function renderSim(res) {
-    const o = res.outcome;
-    const banner = o.decision === "block"
-      ? `<div class="wf-outcome block">⛔ Access would be <b>blocked</b><div class="wf-blockers">${o.blockers.map((b) => `<span class="wf-blk pol-link" data-pol="${esc(b)}">${esc(b)}</span>`).join("")}</div></div>`
-      : o.decision === "grant"
-        ? `<div class="wf-outcome grant">✅ Access <b>granted</b> — the user must satisfy:<div class="wf-blockers">${o.grant.map((g) => `<span class="wf-blk">${esc(g)}</span>`).join("")}</div></div>`
-        : o.decision === "allow"
-          ? `<div class="wf-outcome allow">✅ Access <b>granted</b> with no extra controls${o.session.length ? " (session controls apply)" : ""}</div>`
-          : `<div class="wf-outcome none">— No enabled policy applies to this sign-in</div>`;
-    const scBits = Object.entries(SC_LABEL)
-      .filter(([k]) => res.scenario[k] && res.scenario[k] !== "any")
-      .map(([k, l]) => `<span class="wf-chip">${esc(l)}: ${esc(res.scenario[k])}</span>`).join("") || '<span class="wf-chip muted">no conditions set — defaults</span>';
-
-    const policyRow = (r, applied) => {
-      const maybe = applied && isMaybe(r);
-      const dot = !applied ? "off" : r.reportOnly ? "ro" : maybe ? "maybe" : "on";
-      return `<div class="wf-pol ${applied ? "on" : "off"}">
-        <div class="wf-pol-h"><span class="wf-dot ${dot}"></span>
-          <b class="pol-link" data-pol="${esc(r.name)}">${esc(r.name)}</b>
-          ${r.reportOnly ? '<span class="wf-chip ro">report-only</span>' : ""}
-          ${maybe ? '<span class="wf-chip maybe">depends on conditions</span>' : ""}
-          ${r.state === "off" ? '<span class="wf-chip muted">Off</span>' : ""}</div>
-        <div class="wf-pol-why">${esc((r.reasons || []).join("; "))}${(r.notes || []).length ? `<br><span class="wf-mut">${esc(r.notes.join("; "))}</span>` : ""}</div>
-      </div>`;
-    };
-    const nMaybe = res.applied.filter(isMaybe).length;
-
-    return `<div class="wf-sim">
-      <div class="wf-sub"><b>${esc(res.subject.name)}</b> <span class="wf-mut">${esc(res.subject.upn)}</span>
-        ${res.subject.isGuest ? '<span class="wf-chip">guest</span>' : ""}
-        <span class="wf-mut">· ${res.subject.groupIds.size} groups · ${res.subject.roleIds.size} roles</span></div>
-      <div class="wf-scrow">${scBits}</div>
-      ${banner}
-      <div class="wf-notes">
-        ${o.session.length ? `<div><span class="wf-nk">Session</span> ${o.session.map(esc).join(", ")}</div>` : ""}
-        ${o.reportOnlyCount ? `<div><span class="wf-nk">Report-only</span> ${o.reportOnlyCount} more polic${o.reportOnlyCount === 1 ? "y" : "ies"} would apply but not enforce.</div>` : ""}
-        ${nMaybe ? `<div><span class="wf-nk">Conditional</span> ${nMaybe} of the applying policies depend on a condition you did not set (marked <span class="wf-chip maybe">depends on conditions</span>) — set the app / platform / risk above to resolve them.</div>` : ""}
-      </div>
-      <div class="wf-cols">
-        <div><h4 class="wf-colh">✅ Applies (${res.applied.length})</h4>
-          ${res.applied.length ? res.applied.map((r) => policyRow(r, true)).join("") : '<p class="wf-mut">None.</p>'}</div>
-        <div><h4 class="wf-colh">✗ Does not apply (${res.notApplied.length})</h4>
-          ${res.notApplied.map((r) => policyRow(r, false)).join("")}</div>
-      </div>
-    </div>`;
-  }
-
-  return { policyFlow, personaFlow, resolveSubject, evalPolicy, simulate, renderSim };
+  return { policyFlow, personaFlow };
 })();

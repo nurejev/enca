@@ -118,6 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 179,
+      title: "195 lines of dead simulator removed from js/whatif.js; no behaviour change (T14 1.3.2)",
+      tools: ["What-If", "All tools"],
+      builds: [25344],
+      risk: "low",
+      what: "js/whatif.js: resolveSubject, evalPolicy, simulate and renderSim deleted (386 lines to 206), the export list is now { policyFlow, personaFlow }, and the module header says the file draws flowcharts while js/whatifeval.js decides verdicts. css/app.css: the eight single-line rules whose every selector was a class only the deleted half emitted — wf-toggle, wf-scrow, wf-simform and its two children, wf-userrow and its child, wf-conds and its two media queries. Nothing else in any file.",
+      why: "Low, and provable rather than argued: grep for WhatIf. across js/ and index.html returns exactly two call sites, WhatIf.personaFlow and WhatIf.policyFlow, both in app.js, and neither is touched. The deleted functions had no callers anywhere, internal or external. The only way this bites is if a CSS class the live renderers build by INTERPOLATION was counted as dead — wf-${kind} from stage() — so the kinds the live code emits were enumerated first (cond, scope, session, start) and their rules kept; only rules whose every selector was a literal dead class were removed.",
+      test: [
+        "🧪 What-If: run a scenario end to end on a real tenant — pick a user, set platform / client / location / risk, run. Same verdicts, same applied and not-applied lists, same combined outcome as 25343, and Export MD still renders.",
+        "The two things that DO use this module: open a policy card in 🗂 Policies and click ⑃ What-if flow (WhatIf.policyFlow) — the flow draws with its coloured stage headers, scope green, conditions amber, session grey. Then a persona apply flow from the same screen (WhatIf.personaFlow) — it draws too, including a policy dropped from the flow by an exclusion.",
+        "⚖ Compare users and 🫥 Apps with no service principal both evaluate through WhatIfEval: run each once and confirm the verdict columns are unchanged.",
+        "In the console on the loaded page: Object.keys(WhatIf) must be exactly ['policyFlow','personaFlow'], and no page error appears anywhere in a walk of 🧪, 🗂, ⚖ and 🫥.",
+        "?demo=1: the What-If scenario runs, the policy-card flow and the persona flow both draw.",
+      ],
+      files: ["js/whatif.js", "css/app.css", "js/changelog.js", "js/promote.js", "js/version.js"],
+    },
+    {
       n: 178,
       title: "The tab strip takes its own line on every host; 🌊 Flags column readable + 👥 Members full screen (T08 2.0.1, T37 0.8)",
       tools: ["All tools", "Who is the wave to CA"],

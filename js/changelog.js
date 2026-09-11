@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25344, date: "2026-09-11", title: "One simulator, not two: 195 lines of dead What-If removed",
+    items: [
+      { kind: "improved", tool: "What-If", text: "js/whatif.js carried a SECOND scenario simulator — resolveSubject, evalPolicy, simulate, renderSim, 195 lines — written before js/whatifeval.js existed, exported from the module, and called by nothing. 🧪 What-If evaluates through WhatIfEval.evaluate, and so do ⚖ Compare users and 🫥 Apps with no service principal; only the two FLOWCHART renderers in that file were ever reached. It is gone, the module header now says what the file is for, and the stylesheet lost the eight rules only the deleted half used. Nothing on screen changed." },
+      { kind: "improved", tool: "All tools", text: "Why this was worth a build of its own: dead code that answers a question the app answers elsewhere is worse than no code. It reads as authoritative to whoever opens the file next, and it drifts — WhatIfEval has since learnt user actions, authentication contexts, insider risk, authentication flows and device filters that the fork never knew, so the two would have disagreed the moment anybody wired the old one up. It is also what made the consolidation review count THREE policy evaluators in ENCA. There has only ever been one in use." },
+      { kind: "improved", tool: "All tools", text: "The review's third evaluator turns out to be a different question, and a real duplicate of something else. validator.js appliesTo answers 'is this principal in the policy's user assignment' — not 'what does this policy do to this sign-in' — which is the question whois.js stateFor also answers, more completely: stateFor knows about guest and external user types and appliesTo does not, so ⚡ CA validator can currently report a policy as out of scope for a guest that it reaches. That is the consolidation worth doing, and it is next." },
+    ],
+  },
+  {
     build: 25343, date: "2026-09-11", title: "The tab strip gets its own line; the Flags column gets read",
     items: [
       { kind: "improved", tool: "All tools", text: "The tab strip on every tabbed tool takes its OWN LINE. It was already first in the toolbar flow, but the toolbar wraps — so at desktop width 🛡 Checks showed four tabs shoulder to shoulder with All (34), High (4), Medium (3), Low (26), Info (1): a nine-item row in which only four of the items change the tool. The strip is a full-width track now, tabs left and empty rail right, the same shape as the tool tabs in the header. One CSS rule, so all six hosts follow — 🚦 Sign-in log, 🕓 Changes, 🧩 Policy building blocks, 🛡 Checks, 🧬 Baseline." },
