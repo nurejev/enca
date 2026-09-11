@@ -1819,6 +1819,12 @@ button.wo-tile.on{box-shadow:inset 0 0 0 2px var(--accent2)}
 .cgg-dtabs button.on{color:var(--green);border-bottom-color:var(--green)}
 .cgg-add{display:flex;gap:8px;align-items:center;margin-bottom:6px}
 .cgg-add .txt{flex:1;letter-spacing:normal;font-weight:400}
+.cgg-find{display:flex;gap:8px;align-items:center;margin:2px 0 8px;flex-wrap:wrap}
+.cgg-find .txt{flex:1;min-width:180px;letter-spacing:normal;font-weight:400}
+.cgg-find .seg.sw{flex:none}
+.cgg-findn{margin:0 0 4px}
+.cgg-tenant{margin-top:10px;padding:10px 12px;border:1px dashed var(--border);border-radius:10px;background:var(--soft2)}
+.cgg-tenant .cgg-tree li:first-child{border-top:0}
 .cgg-tree{list-style:none;padding:0;margin:0;font-size:13px}
 .cgg-tree li{padding:6px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}
 .cgg-tree li:first-child{border-top:0}

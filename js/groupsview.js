@@ -242,20 +242,75 @@ const GroupsView = (() => {
     if (!r.id) return `<p class="mini muted">This group does not exist in the tenant yet.${r.template ? ' <button class="btn sm primary" data-cgg-act="create" data-cgg-name="' + esc(r.name) + '">＋ Create it</button>' : ""}</p>`;
     if (r.members == null) return `${r.nestedGroups && r.nestedGroups.length ? `<div class="wo-callout bad" style="margin:0 0 8px"><b>↪ ${r.nestedGroups.length} nested group${r.nestedGroups.length === 1 ? "" : "s"}:</b> ${r.nestedGroups.map((g) => esc(g.name)).join(", ")}. Whoever manages ${r.nestedGroups.length === 1 ? "that group" : "those groups"} decides who is in this one.</div>` : ""}<div class="run-prompt" style="padding:18px"><button class="btn primary" data-cgg-read="${esc(r.name)}">👥 Read the members</button><p class="mini muted">Transitive, first 500, with the nested groups they came through.</p></div>`;
     if (r.memberError) return `<p class="mini" style="color:var(--off)">Could not read the members: ${esc(r.memberError)}</p>`;
-    const direct = r.directIds ? r.members.filter((m) => m.direct) : r.members;
-    const children = r.children || [];
     const addBox = o.engine ? '<p class="mini muted">Add and remove from the matrix below while Compare is open.</p>' : r.dynamic ? '<p class="mini muted">Dynamic group — the rule decides the membership.</p>'
       : `<div class="cgg-add"><input id="cgAddUser" class="txt" list="cgUserSug" placeholder="Add a member — name or UPN" spellcheck="false" autocomplete="off"><input id="cgAddGroup" type="hidden" value="${esc(r.name)}"><button class="btn primary" id="cgAddGo">＋ Add</button></div>
         <div id="cgAddLog" class="mini" style="margin:4px 0 6px">${o.addMsg ? `<span style="${o.addMsg.bad ? "color:var(--off)" : ""}">${o.addMsg.html}</span>` : ""}</div>`;
-    const li = (m, kind, gname, gid) => `<li class="${kind}"><span><b>${esc(m.name)}</b>${m.disabled ? ' <span class="tag block">disabled</span>' : ""} <span class="mini muted">${esc(m.upn || "")}</span></span>${r.dynamic ? "" : `<button class="cgg-x" data-cgg-rm="${esc(m.id)}" data-cgg-rmgroup="${esc(gname)}" data-cgg-rmgid="${esc(gid || "")}" title="Remove from ${esc(gname)}">×</button>`}</li>`;
+    // 5.10: find + order. A 10,530-member group showed as a wall of 500 names
+    // with no way to answer "is Jonathan in here" short of scrolling. The box
+    // filters what was read on every keystroke (app.js re-renders #cgMemTree
+    // only, so the caret stays); the segment orders both the direct list and
+    // each nested group's members. Only the tree below re-renders on input.
+    const sort = o.memSort || "";
+    const findBar = r.members.length ? `<div class="cgg-find">
+        <input id="cgMemQ" class="txt" placeholder="Find a member — name or UPN" value="${esc(o.memQ || "")}" spellcheck="false" autocomplete="off" title="Filters the members read here as you type. Enter searches the whole group in the tenant when more were not read.">
+        <span class="seg sw" title="Order the members">${[["", "As read"], ["name", "Name"], ["upn", "UPN"]].map(([k, l]) => `<button class="${sort === k ? "active" : ""}" data-cgg-msort="${k}">${l}</button>`).join("")}</span>
+      </div>` : "";
+    return `${addBox}${findBar}<div id="cgMemTree">${memberTree(r, c, o)}</div>`;
+  }
+
+  // The tree under the find bar — direct members, then each nested group.
+  // With a query: only the matches, nested groups open by themselves on a
+  // match and vanish when nothing inside them matches; and when the read was
+  // capped, the tenant search block, because "not in the first 500" is not
+  // "not a member". Rendered on its own by app.js on every keystroke.
+  function memberTree(r, c, o) {
+    if (!r.id || r.members == null || r.memberError) return "";
+    const q = String(o.memQ || "").trim().toLowerCase();
+    const hit = (m) => !q || (m.name || "").toLowerCase().includes(q) || (m.upn || "").toLowerCase().includes(q);
+    const cmp = o.memSort === "name" ? (a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+      : o.memSort === "upn" ? (a, b) => (a.upn || "").localeCompare(b.upn || "", undefined, { sensitivity: "base" }) : null;
+    const order = (arr) => (cmp ? [...arr].sort(cmp) : arr);
+    const direct = r.directIds ? r.members.filter((m) => m.direct) : r.members;
+    const directShown = order(direct.filter(hit));
+    const children = (r.children || []).map((ch) => {
+      const ms = ch.members || [];
+      const nameHit = !!q && (ch.name || "").toLowerCase().includes(q);
+      const shown = order(q ? ms.filter(hit) : ms);
+      return { ch, shown, nameHit, keep: !q || nameHit || shown.length > 0 };
+    });
+    const capped = r.memberTotal > r.members.length;
+    const li = (m, kind, gname, gid) => `<li class="${kind}"><span><b>${esc(m.name)}</b>${m.disabled ? ' <span class="tag block">disabled</span>' : ""} <span class="mini muted">${esc(m.upn || "")}</span></span>${r.dynamic || (gid === "" && kind === "c") ? "" : `<button class="cgg-x" data-cgg-rm="${esc(m.id)}" data-cgg-rmgroup="${esc(gname)}" data-cgg-rmgid="${esc(gid || "")}" title="Remove from ${esc(gname)}">×</button>`}</li>`;
+    const nMatch = directShown.length + children.reduce((n, x) => n + x.shown.length, 0);
+    const countLine = q ? `<p class="mini muted cgg-findn">${nMatch === 0 ? "No match" : `${nMatch} match${nMatch === 1 ? "" : "es"}`} among the ${r.members.length} read${capped ? ` — <b>${r.memberTotal - r.members.length} more were not read</b>` : ""}.</p>` : "";
     const tree = `<ul class="cgg-tree">
-      ${direct.map((m) => li(m, "d", r.name, r.id)).join("")}
-      ${direct.length ? "" : '<li class="d mini muted">no direct members</li>'}
-      ${children.map((ch) => { const open = o.open && (o.nestOpen || new Set()).has(ch.id); return `<li class="g"><button class="cgg-nest" data-cgg-nest="${esc(ch.id)}">${open ? "▾" : "▸"} <b>${esc(ch.name)}</b></button> <span class="mini muted">nested group · ${ch.memberTotal} member${ch.memberTotal === 1 ? "" : "s"}${ch.dynamic ? " · dynamic" : ""}${ch.error ? ` · could not read: ${esc(ch.error)}` : ""}</span></li>${open ? ch.members.map((m) => li(m, "c", ch.name, ch.dynamic ? "" : ch.id)).join("") + (ch.memberTotal > ch.members.length ? `<li class="c mini muted">… ${ch.memberTotal - ch.members.length} more</li>` : "") : ""}`; }).join("")}
-      ${r.memberTotal > r.members.length ? `<li class="d mini muted">… ${r.memberTotal - r.members.length} more (first ${r.members.length} read)</li>` : ""}
+      ${directShown.map((m) => li(m, "d", r.name, r.id)).join("")}
+      ${direct.length ? (q && !directShown.length ? '<li class="d mini muted">no direct member matches</li>' : "") : '<li class="d mini muted">no direct members</li>'}
+      ${children.filter((x) => x.keep).map(({ ch, shown }) => { const open = q ? true : (o.nestOpen || new Set()).has(ch.id); return `<li class="g"><button class="cgg-nest" data-cgg-nest="${esc(ch.id)}">${open ? "▾" : "▸"} <b>${esc(ch.name)}</b></button> <span class="mini muted">nested group · ${ch.memberTotal} member${ch.memberTotal === 1 ? "" : "s"}${ch.dynamic ? " · dynamic" : ""}${q ? ` · ${shown.length} match${shown.length === 1 ? "" : "es"}` : ""}${ch.error ? ` · could not read: ${esc(ch.error)}` : ""}</span></li>${open ? shown.map((m) => li(m, "c", ch.name, ch.dynamic ? "" : ch.id)).join("") + (ch.memberTotal > (ch.members || []).length ? `<li class="c mini muted">… ${ch.memberTotal - (ch.members || []).length} more${q ? " not read" : ""}</li>` : "") : ""}`; }).join("")}
+      ${capped && !q ? `<li class="d mini muted">… ${r.memberTotal - r.members.length} more (first ${r.members.length} read) — type a name to search all ${r.memberTotal}</li>` : ""}
     </ul>`;
+    const tenant = q && capped ? tenantBlock(r, q, o) : "";
     const bypass = c.excOn && r.memberTotal ? `<div class="wo-callout bad"><b>Standing bypass.</b> This group is excluded from ${c.excOn} enforced polic${c.excOn === 1 ? "y" : "ies"}, so all ${r.memberTotal} people here skip ${c.excOn === 1 ? "it" : "them"}.${children.length && (r.memberTotal - direct.length) > 0 ? ` ${r.memberTotal - direct.length} come in through a nested group — was excluding the whole group the intent?` : ""}</div>` : "";
-    return `${addBox}${tree}${bypass}<p class="mini muted" style="margin-top:8px">× asks first and says what the group is used for. A member under a nested group is removed from that nested group, not from ${esc(r.name)}. Only this group is re-read afterwards.</p>`;
+    return `${countLine}${tree}${tenant}${bypass}<p class="mini muted" style="margin-top:8px">× asks first and says what the group is used for. A member under a nested group is removed from that nested group, not from ${esc(r.name)}. Only this group is re-read afterwards.</p>`;
+  }
+
+  // The read stops at 500 of a bigger group, so a name that is not on screen
+  // may still be a member. Graph answers that in one round trip (startswith on
+  // name and UPN, plus a displayName search, direct and transitive) — a button,
+  // or Enter in the box, never every keystroke: it is four requests a time.
+  function tenantBlock(r, q, o) {
+    const h = o.memHits;
+    const mine = h && h.gid === r.id && h.q === q;
+    if (!mine) return `<div class="cgg-tenant"><button class="btn sm" data-cgg-memfind="1">🔎 Search all ${r.memberTotal} members for “${esc(q)}”</button> <span class="mini muted">or press Enter in the box</span></div>`;
+    if (h.busy) return `<div class="cgg-tenant mini muted">Searching all ${r.memberTotal} members for “${esc(q)}”…</div>`;
+    if (h.err) return `<div class="cgg-tenant mini" style="color:var(--off)">The tenant search failed: ${esc(h.err)}</div>`;
+    const hits = h.hits || [];
+    if (!hits.length) return `<div class="cgg-tenant mini"><b>Not a member.</b> No user with a name or UPN starting with “${esc(q)}” is in ${esc(r.name)}, directly or through a nested group.</div>`;
+    const li = (m) => {
+      const via = m.direct ? "direct" : m.via ? `through <b>${esc(m.via.name)}</b>${m.via.dynamic ? " (dynamic)" : ""}` : "through a nested group";
+      const rm = r.dynamic || (!m.direct && (!m.via || m.via.dynamic)) ? "" : `<button class="cgg-x" data-cgg-rm="${esc(m.id)}" data-cgg-rmgroup="${esc(m.direct ? r.name : m.via.name)}" data-cgg-rmgid="${esc(m.direct ? r.id : m.via.id)}" data-cgg-hit="1" title="Remove from ${esc(m.direct ? r.name : m.via.name)}">×</button>`;
+      return `<li class="${m.direct ? "d" : "c"}"><span><b>${esc(m.name)}</b>${m.disabled ? ' <span class="tag block">disabled</span>' : ""} <span class="mini muted">${esc(m.upn || "")} · ${via}</span></span>${rm}</li>`;
+    };
+    return `<div class="cgg-tenant"><p class="mini" style="margin:0 0 4px"><b>In the tenant:</b> ${hits.length}${h.more ? "+" : ""} member${hits.length === 1 ? "" : "s"} of ${esc(r.name)} match “${esc(q)}”${h.more ? " (first 50 shown — type more of the name)" : ""}.</p><ul class="cgg-tree">${hits.map(li).join("")}</ul></div>`;
   }
   function drawerPolicies(r, ctx) {
     const row = (p, how) => { const st = ctx.stateOf(p.id); return `<tr><td><span class="pol-link" data-polid="${esc(p.id)}">${ctx.seqOf(p.id) ? `<b>${esc(ctx.seqOf(p.id))}</b> ` : ""}${esc(p.name)}</span></td><td>${how === "exclude" ? '<span class="wo-res blk">excluded</span>' : '<span class="wo-res nc">included</span>'}</td><td>${st ? `<span class="wo-state ${STATE_CLS[st]}">${dot(STATE_CLS[st])}${STATE_LABEL[st]}</span>` : '<span class="mini muted">not loaded</span>'}</td></tr>`; };
@@ -301,5 +356,5 @@ const GroupsView = (() => {
     return `<div class="cgg-wrap">${list(model, o)}${drawer(model, o)}</div>`;
   }
 
-  return { classify, chips, render, bulkBar, CHIPS };
+  return { classify, chips, render, bulkBar, memberTree, CHIPS };
 })();

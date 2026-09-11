@@ -327,7 +327,10 @@ const Graph = (() => {
       const body = {
         requests: part.map((r) => ({
           id: String(r.id), method: r.method || "GET", url: r.url,
-          headers: { ConsistencyLevel: "eventual" },
+          // a POST with a body (checkMemberGroups) needs its content type
+          // stated inside the batch, or Graph answers 400 for that id alone
+          headers: r.body ? { ConsistencyLevel: "eventual", "Content-Type": "application/json" } : { ConsistencyLevel: "eventual" },
+          ...(r.body ? { body: r.body } : {}),
         })),
       };
       let j = null;

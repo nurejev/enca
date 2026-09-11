@@ -118,6 +118,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 172,
+      title: "👥 CA groups drawer: find box, order, and a tenant search past the 500 read (T12 5.10)",
+      tools: ["Conditional Access groups"],
+      builds: [25337],
+      risk: "low",
+      what: "js/groupsview.js: drawerMembers renders a .cgg-find bar (#cgMemQ + seg.sw data-cgg-msort '' | name | upn) and #cgMemTree; new memberTree(r, c, o) (exported) filters direct members and each child's members on o.memQ (name/UPN includes), orders on o.memSort, opens matching children, drops non-matching ones, prints the match count and the not-read remainder; tenantBlock renders the 🔎 button / busy / error / hits (data-cgg-hit rows with × to the parent or the child). js/app.js: cgMemQ / cgMemSort / cgMemHits state in cgViewOpts(); the input listener on #cgList re-renders only #cgMemTree (cgMemRefresh) so the caret survives; Enter or the button → cgMemFind(): one $batch of four reads (transitiveMembers + members × startswith(displayName/UPN) + $search displayName, $count, $top 50), direct = present in the members reads, via = the child read here that lists the id, else POST /users/{id}/checkMemberGroups against the child ids (gbatch now forwards a body + Content-Type per request); hits sorted by name; cgRemoveMember / cgRemoveFromChild take a fallback member (a hit outside the 500 read) and return true on success so the hit row drops. Dynamic child rows lose their ×. css: .cgg-find, .cgg-tenant.",
+      why: "Read-only until ×, which is the existing confirmation path. The tenant search is four requests a click (never per keystroke) and uses advanced-query parameters (ConsistencyLevel eventual + $count) on members/transitiveMembers — test 3 confirms Graph accepts them on a real tenant, test 4 that checkMemberGroups works inside a $batch with a body.",
+      test: [
+        "Perfetti, open the risky sign-in MFA group (10,530 members): type 'lee' — only Jonathan Lee-type rows stay, the count line reads 'n matches among the 500 read — 10030 more were not read', the 🔎 button appears.",
+        "Order: click Name — the direct list and each open nested group sort A→Z (case-insensitive); UPN — by UPN; As read — Graph order again. The find box keeps its text across the click.",
+        "🔎 (or Enter) with 'jonathan.lee': the tenant block lists him with 'direct' (or 'through <group>') and a ×; with a nonsense term it reads 'Not a member.'; a Graph error is printed in the block, not thrown.",
+        "A user who is in the group only through a nested group NOT among the first 40 children read here: the hit says 'through <that group>' via checkMemberGroups — the × goes to that group (confirmation names it). Check the network panel: one $batch with POST /users/{id}/checkMemberGroups entries and a body.",
+        "× on a tenant hit outside the 500 read: the confirmation names the person and the group, the write goes to the right group, the row disappears from the tenant block after the re-read.",
+        "A nested group that is DYNAMIC: its members show no ×; a nested group that is assigned: × present.",
+        "?demo=1: read a group with nested members, type a demo user's name — the nested group opens on its own with only the match; clear the box — the tree is back as it was, nested groups folded.",
+      ],
+      files: ["js/groupsview.js", "js/app.js", "js/graph.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 171,
       title: "📵 Retired approved-client-app check in 🕵 and 🌊; 🎚 says app protection policy is not evaluable in report-only (T36 0.9, T37 0.7, T26 1.5.1)",
       tools: ["Who is Anna to CA", "Who is the wave to CA", "Report-only impact"],

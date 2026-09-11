@@ -3510,7 +3510,7 @@
     // The list, every time — ticks and the open row must show under a sheet
     // and be intact when a dialog closes.
     const model = cgModel();
-    const o = { filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, sort: cgSort, engine: cgTab === "members" ? "③ Members / Compare" : null, sheetFull: cgSheetFull };
+    const o = cgViewOpts();
     $("cgList").innerHTML = GroupsView.render(model, o);
     const barHtml = GroupsView.bulkBar(model, o);
     $("cgBar").innerHTML = barHtml;
@@ -6488,6 +6488,10 @@ max@contoso.com,"Global, DevOps"</pre>
   // DOM vanishes the moment the matrix repaints — which is exactly when the
   // confirmation matters. Keep it in state and render it.
   let cgAddMsg = null;   // { html, bad }
+  // drawer Members tab (T12 5.10): the find box, the order, and the last
+  // tenant search { q, gid, busy | err | hits[], more } — dropped when another
+  // row opens, because the hits belong to one group and one query
+  let cgMemQ = "", cgMemSort = "", cgMemHits = null;
 
   function cgAddSuggest(e) {
     if (e.target.id !== "cgAddUser") return;
@@ -6565,7 +6569,7 @@ max@contoso.com,"Global, DevOps"</pre>
   // matrix that can lock somebody out (a member taken out of an EXCLUSION
   // group is suddenly inside the policy). So it always confirms, names both
   // sides, and says what the group is used for before asking.
-  async function cgRemoveMember(who, gName, byId) {
+  async function cgRemoveMember(who, gName, byId, fallback) {
     const say = (html, bad) => {
       cgAddMsg = { html, bad: !!bad };
       const el = $("cgAddLog");
@@ -6578,7 +6582,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
     if (row.dynamic) { say(`<b>${esc(gName)}</b> is a dynamic group — its membership is decided by the rule, not by hand.`, true); return; }
     cgAddGroup = gName;
-    const member = (row.members || []).find((m) => byId ? m.id === who : (m.upn || "").toLowerCase() === who.toLowerCase() || (m.name || "").toLowerCase() === who.toLowerCase());
+    const member = (row.members || []).find((m) => byId ? m.id === who : (m.upn || "").toLowerCase() === who.toLowerCase() || (m.name || "").toLowerCase() === who.toLowerCase()) || (byId ? fallback : null);
     if (!member) { say(`<b>${esc(who)}</b> is not a member of <b>${esc(gName)}</b> (as read here) — nothing to remove.`, true); return; }
     // what the group does, so the reader knows which way the change cuts
     const isExcl = (typeof Baseline !== "undefined" && Baseline.active) ? (() => { try { return !!Baseline.active().isExclusionGroup(gName); } catch { return false; } })() : false;
@@ -6605,6 +6609,7 @@ This is a directory write. Nothing else changes.`)) return;
       if (!isDemo) {
         try { await CaGroups.loadMembers([row], {}); cgRerenderMembers(); } catch { /* the optimistic row stands */ }
       }
+      return true;
     } catch (e) {
       say(`Remove failed: ${esc(e.message || e)}`, true);
     }
@@ -6968,7 +6973,66 @@ This is a directory write. Nothing else changes.`)) return;
     await CaGroups.loadMembers(todo, {});
   }
   const cgRerenderMembers = () => { if (cgTab === "groups") renderCaGroups(); else renderCgMembers(); };
+  const cgViewOpts = () => ({ filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, sort: cgSort, engine: cgTab === "members" ? "③ Members / Compare" : null, sheetFull: cgSheetFull, memQ: cgMemQ, memSort: cgMemSort, memHits: cgMemHits });
+  // The find box lives inside the drawer, and the drawer is innerHTML on every
+  // render — so typing re-renders the TREE under it, never the box itself, or
+  // the caret would be gone after the first letter.
+  function cgMemRefresh() {
+    const host = $("cgMemTree"), r = cgRes && cgOpen ? cgRes.rows.find((x) => x.name === cgOpen) : null;
+    if (!host || !r) return;
+    host.innerHTML = GroupsView.memberTree(r, GroupsView.classify(r, cgModel().ctx), cgViewOpts());
+  }
+  // "Is she in here?" when only the first 500 of a bigger group were read:
+  // ask Graph for the group's members matching the term — startswith on name
+  // and UPN plus a displayName search, direct and transitive, one $batch.
+  // Nested hits are then placed: the child groups read here first, then
+  // checkMemberGroups against the children, so the × can go to the right
+  // group. Four to six requests a click, so a button or Enter, not a keystroke.
+  async function cgMemFind() {
+    const r = cgRes && cgOpen ? cgRes.rows.find((x) => x.name === cgOpen) : null;
+    const q = cgMemQ.trim();
+    if (!r || !r.id || q.length < 2 || !(r.memberTotal > (r.members || []).length)) return;
+    if (cgMemHits && cgMemHits.busy) return;
+    cgMemHits = { q, gid: r.id, busy: true }; cgMemRefresh();
+    try {
+      let hits = [], more = false;
+      if (isDemo) {
+        const ql = q.toLowerCase();
+        hits = (r.members || []).filter((m) => (m.name || "").toLowerCase().startsWith(ql) || (m.upn || "").toLowerCase().startsWith(ql)).map((m) => ({ ...m, direct: r.directIds ? !!m.direct : true, via: null }));
+      } else {
+        const f = q.replace(/'/g, "''"), sq = q.replace(/["\\]/g, " ");
+        const sel = "$select=id,displayName,userPrincipalName,accountEnabled&$count=true&$top=50";
+        const filt = `$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')`;
+        const srch = `$search="displayName:${sq}"`;
+        const res = await Graph.gbatch([
+          { id: "tf", url: `/groups/${r.id}/transitiveMembers/microsoft.graph.user?${filt}&${sel}` },
+          { id: "ts", url: `/groups/${r.id}/transitiveMembers/microsoft.graph.user?${srch}&${sel}` },
+          { id: "df", url: `/groups/${r.id}/members/microsoft.graph.user?${filt}&${sel}` },
+          { id: "ds", url: `/groups/${r.id}/members/microsoft.graph.user?${srch}&${sel}` },
+        ]);
+        if (res.tf.error && res.ts.error) throw new Error(res.tf.error);
+        const rows = (k) => ((res[k] && res[k].body && res[k].body.value) || []);
+        const direct = new Set([...rows("df"), ...rows("ds")].map((u) => u.id));
+        const seen = new Map();
+        [...rows("tf"), ...rows("ts")].forEach((u) => { if (!seen.has(u.id)) seen.set(u.id, { id: u.id, name: u.displayName || u.id, upn: u.userPrincipalName || "", disabled: u.accountEnabled === false, direct: direct.has(u.id), via: null }); });
+        hits = [...seen.values()];
+        more = rows("tf").length >= 50 || rows("ts").length >= 50;
+        hits.forEach((h) => { if (h.direct) return; const ch = (r.children || []).find((c) => (c.members || []).some((m) => m.id === h.id)); if (ch) h.via = { id: ch.id, name: ch.name, dynamic: !!ch.dynamic }; });
+        const open = hits.filter((h) => !h.direct && !h.via), kids = (r.children || []).filter((c) => c.id);
+        if (open.length && kids.length) {
+          const reqs = [];
+          open.forEach((h, i) => { for (let j = 0; j < kids.length; j += 20) reqs.push({ id: `${i}.${j}`, method: "POST", url: `/users/${h.id}/checkMemberGroups`, body: { groupIds: kids.slice(j, j + 20).map((c) => c.id) } }); });
+          const r2 = await Graph.gbatch(reqs);
+          reqs.forEach((rq) => { const out = r2[rq.id]; if (!out || out.error) return; const found = ((out.body && out.body.value) || [])[0]; if (!found) return; const h = open[Number(rq.id.split(".")[0])]; const ch = kids.find((c) => c.id === found); if (h && ch && !h.via) h.via = { id: ch.id, name: ch.name, dynamic: !!ch.dynamic }; });
+        }
+      }
+      hits.sort((a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }));
+      cgMemHits = { q, gid: r.id, hits, more };
+    } catch (e) { cgMemHits = { q, gid: r.id, err: e.message || String(e) }; }
+    cgMemRefresh();
+  }
   async function cgOpenRow(name) {
+    if (name !== cgOpen) { cgMemQ = ""; cgMemHits = null; }
     cgOpen = name; cgDrTab = cgDrTab || "members"; cgAddMsg = null;
     const r = cgRes.rows.find((x) => x.name === name);
     renderCaGroups();
@@ -6976,9 +7040,9 @@ This is a directory write. Nothing else changes.`)) return;
   }
   // remove a user from a NESTED group shown under the open row — the write
   // goes to the child, and the confirmation says what else that child feeds
-  async function cgRemoveFromChild(parent, childId, childName, userId) {
+  async function cgRemoveFromChild(parent, childId, childName, userId, fallback) {
     const ch = (parent.children || []).find((c) => c.id === childId); if (!ch) return;
-    const m = (ch.members || []).find((x) => x.id === userId); if (!m) return;
+    const m = (ch.members || []).find((x) => x.id === userId) || fallback; if (!m) return;
     const feeds = cgRes.rows.filter((r) => (r.children || []).some((c) => c.id === childId)).map((r) => r.name);
     if (!confirm(`Remove ${m.name} (${m.upn || ""}) from ${childName}?\n\n${childName} is a nested group inside ${feeds.join(", ") || parent.name}. Taking ${m.name} out of it takes them out of ${feeds.length > 1 ? "all of those" : "that group"} as well.\n\nThis is a directory write. Nothing else changes.`)) return;
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
@@ -6989,6 +7053,7 @@ This is a directory write. Nothing else changes.`)) return;
       cgAddMsg = { html: `✓ <b>${esc(m.name)}</b> removed from <b>${esc(childName)}</b>.`, bad: false };
       renderCaGroups();
       if (!isDemo) { try { await CaGroups.loadMembers([parent], {}); renderCaGroups(); } catch {} }
+      return true;
     } catch (e) { cgAddMsg = { html: `Remove failed: ${esc(e.message || e)}`, bad: true }; renderCaGroups(); }
   }
   async function cgReadHistory(r) {
@@ -7035,11 +7100,19 @@ This is a directory write. Nothing else changes.`)) return;
     const ne = t.closest("[data-cgg-nest]"); if (ne) { const k = ne.dataset.cggNest; cgNestOpenDr.has(k) ? cgNestOpenDr.delete(k) : cgNestOpenDr.add(k); renderCaGroups(); return; }
     const rd = t.closest("[data-cgg-read]"); if (rd) { const r = cgRes.rows.find((x) => x.name === rd.dataset.cggRead); if (r) { rd.disabled = true; rd.textContent = "…"; await cgReadRows([r]); renderCaGroups(); } return; }
     const hi = t.closest("[data-cgg-hist]"); if (hi) { const r = cgRes.rows.find((x) => x.name === hi.dataset.cggHist); if (r) cgReadHistory(r); return; }
+    const ms = t.closest("[data-cgg-msort]"); if (ms) { cgMemSort = ms.dataset.cggMsort; renderCaGroups(); return; }
+    if (t.closest("[data-cgg-memfind]")) { cgMemFind(); return; }
     const rm = t.closest("[data-cgg-rm]");
     if (rm) {
       const r = cgRes.rows.find((x) => x.name === cgOpen); if (!r) return;
-      if (rm.dataset.cggRmgid && rm.dataset.cggRmgid !== r.id) { await cgRemoveFromChild(r, rm.dataset.cggRmgid, rm.dataset.cggRmgroup, rm.dataset.cggRm); return; }
-      await cgRemoveMember(rm.dataset.cggRm, r.name, true); return;
+      // a tenant-search hit may sit outside the 500 read here — hand the row
+      // the hit itself so the confirmation can still name the person
+      const hit = rm.dataset.cggHit && cgMemHits && cgMemHits.hits ? cgMemHits.hits.find((h) => h.id === rm.dataset.cggRm) : null;
+      let ok;
+      if (rm.dataset.cggRmgid && rm.dataset.cggRmgid !== r.id) ok = await cgRemoveFromChild(r, rm.dataset.cggRmgid, rm.dataset.cggRmgroup, rm.dataset.cggRm, hit);
+      else ok = await cgRemoveMember(rm.dataset.cggRm, r.name, true, hit);
+      if (ok && hit && cgMemHits && cgMemHits.hits) { cgMemHits.hits = cgMemHits.hits.filter((h) => h.id !== hit.id); renderCaGroups(); }
+      return;
     }
     const bulk = t.closest("[data-cgg-bulk]");
     if (bulk) {
@@ -7125,6 +7198,8 @@ This is a directory write. Nothing else changes.`)) return;
   $("cgBody").addEventListener("input", cgAddSuggest);
   $("cgBody").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
   $("cgList").addEventListener("input", cgAddSuggest);
+  $("cgList").addEventListener("input", (e) => { if (e.target.id !== "cgMemQ") return; cgMemQ = e.target.value; cgMemRefresh(); });
+  $("cgList").addEventListener("keydown", (e) => { if (e.target.id === "cgMemQ" && e.key === "Enter") { e.preventDefault(); cgMemFind(); } });
   $("cgList").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
   $("cgList").addEventListener("click", async (e) => {
     if (e.target.id === "cgAddGo") { await cgAddMember(); return; }

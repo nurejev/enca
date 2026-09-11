@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25337, date: "2026-09-11", title: "Is Jonathan in this group? Find and order in the members drawer",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "The drawer's Members tab has a find box and an order switch (as read / name / UPN). Typing filters the members read here — direct members and the nested groups, which open by themselves on a match and step aside when nothing inside them matches — with a count of how many match, and every row keeps its × so a person can be found and removed in one motion." },
+      { kind: "improved", tool: "Conditional Access groups", text: "A group bigger than the 500 members read is no longer a dead end: the count says how many were not read, and 🔎 (or Enter in the box) asks the tenant for the members matching the term — direct and transitive, placed under the nested group they came through — so the answer is either NOT A MEMBER or the person with a × that goes to the right group." },
+      { kind: "fixed", tool: "Conditional Access groups", text: "A member listed under a DYNAMIC nested group no longer offers a × — the rule decides that membership, and the old button would have tried to remove the person from the parent group and failed." },
+    ],
+  },
+  {
     build: 25336, date: "2026-09-11", title: "Who breaks when Require approved client app goes",
     items: [
       { kind: "new", tool: "Who is Anna to CA", text: "📵 Retired control. Microsoft retired Require approved client app on 30 June 2026: a policy that carries it is read-only — it enforces until disabled and cannot be edited, which is why the four REQ-PVM-ReqApp policies refuse every change — and the day it is replaced by Require app protection policy or simply removed, everyone who satisfied it THROUGH the approved app (a mobile app on a device that is not compliant) is blocked unless an Intune app protection policy already reaches them. The new card lists, per retired policy reaching her, the sign-ins that went through that path — apps, devices, last — and says which she is: blocked the day the control goes (no app protection policy seen for her yet — assign one first), ready for the replacement (a sign-in already shows an app protection policy satisfied on a non-compliant device), or not affected. The policies table marks a retired policy read-only. In the Markdown brief." },
