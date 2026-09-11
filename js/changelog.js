@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25346, date: "2026-09-11", title: "🧪 What-If and ⚡ CA validator are two directions of one question",
+    items: [
+      { kind: "improved", tool: "What-If", text: "⚡ CA validator is the ⚡ Every simulation MODE of 🧪 What-If. They ask one question from two ends: 🧪 evaluates one described sign-in against every policy, ⚡ turns it around and enumerates every sign-in a policy implies. The consolidation plan set a condition on folding them — the two modes must not be able to disagree about the same policy and the same person, because two evaluators on one screen is worse than two tools — and it holds as of the two builds before this one: 25344 removed the dead second simulator so both go through WhatIfEval.evaluate, and 25345 gave them one scope check. Everything inside ⚡ is untouched: the target narrowing, the control filter, the compact and full views, the export." },
+      { kind: "improved", tool: "What-If", text: "This tool's controls are a FORM, not a toolbar, so there was nowhere to put the mode strip. It now sits in an otherwise empty toolbar between the description and the form — the same place, at the same height, as the strip on every other host, rather than wedged into the form's own grid. T13 keeps its number and its Help section, listed in 🔢 Tool numbers, and ⌘K still finds CA validator by name and by number." },
+    ],
+  },
+  {
     build: 25345, date: "2026-09-11", title: "One scope check — and ⚡ CA validator stops missing guests",
     items: [
       { kind: "fixed", tool: "CA validator", text: "IT COUNTED EVERYTHING EXCEPT GUESTS. This tool's scope check read includeUsers, includeGroups and includeRoles — not the guest and external user type — so a policy assigned to Guests and external users was reported OUT OF SCOPE for a guest it actually reaches, and every simulation that policy implies for that guest was skipped. 🕵 Who is Anna to CA had always read the guest type, so the two tools disagreed about the same person, and the one whose whole job is enumerating simulations was the one that was wrong. A guest target now produces those simulations, the simulation count on a guest is higher than it used to be, and the target bar says exactly that with the build number so nobody has to wonder why the number moved. Nothing changed for a member or a group target." },

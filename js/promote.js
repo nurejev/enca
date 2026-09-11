@@ -118,6 +118,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 181,
+      title: "⚡ CA validator folded into 🧪 What-If as the Every simulation mode (T14 1.4; T13 folded) — 23 tiles",
+      tools: ["What-If", "CA validator"],
+      builds: [25346],
+      risk: "low",
+      what: "js/app.js: TAB_HOSTS gains whatif (one → wiToolbar, every → vaToolbar); openWhatIf and openValidator both crumb 🧪 What-If and mount their mode, and runValidatorScan mounts it too because it shows the screen on its own path; the toolValidator tile handler and TOOL_TABS row go; FOLDED gains toolValidator with openValidator as its entry point. index.html: the ⚡ tile removed, T14's blurb names both modes, a new empty toolbar id=wiToolbar above the What-If form to host the strip, id=vaToolbar on the validator toolbar, the ⚡ Help section moved under T14 as an h5 with a paragraph saying which two builds made the fold safe, one row in 🔢 Tool numbers. js/version.js: build 25346, T14 1.4, T13 1.7.1 folded.",
+      why: "Low on its own — no evaluator, generator or renderer changed — but it is the fold that had a PRECONDITION, and the precondition is what to check: the two modes must agree. They share WhatIfEval.evaluate (since 25344) and CaScope.of (since 25345), so a disagreement now would be a bug in one of those, not in this build. Test 2 is the one that proves it.",
+      test: [
+        "Home page: 23 tiles, ⚡ gone as a tile, 🧪 reads What-If with T14 v1.4 and a blurb naming both modes. The strip reads 🧪 One sign-in · ⚡ Every simulation, sitting above the form on one mode and above the filters on the other, with the right one active.",
+        "THE PRECONDITION. On a real tenant pick one user and one policy, then answer the same question from both ends: in 🧪 One sign-in, run that user against that policy's conditions and note whether it applies and which control it demands. In ⚡ Every simulation, narrow the target to the same user and find the same policy. The two must agree on in-scope and on the control. A guest target is the case worth doing twice, since 25345 changed what ⚡ says about guests.",
+        "⚡'s own features from inside the mode: 🎯 narrow to a user and to a persona group, the report-only checkbox, the control filter chips, compact and full views, Export MD. Each unchanged from 25345.",
+        "State survives the switch: run 🧪, switch to ⚡, switch back — the What-If result is still on screen (openWhatIf re-renders the last run) and ⚡'s generated simulations are still cached, not regenerated.",
+        "One browser tab labelled 🧪 What-If for both screens; Back walks them; the side nav and + menu list What-If once with no dead row. ⌘K: 'validator' offers ⚡ CA validator with the hint naming the mode and lands on it; 13 finds it by number.",
+        "?demo=1: both modes render, and ⚡ against a demo group still generates simulations.",
+      ],
+      files: ["index.html", "js/app.js", "js/changelog.js", "js/promote.js", "js/version.js"],
+    },
+    {
       n: 180,
       title: "One scope check (js/cascope.js) — and ⚡ CA validator stops reporting guest-scoped policies as out of scope (T13 1.7, T36 0.9.1)",
       tools: ["CA validator", "Who is Anna to CA", "All tools"],

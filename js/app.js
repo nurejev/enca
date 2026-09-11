@@ -209,6 +209,8 @@
                         open: () => openCis() },
     toolDevCheck:     { into: "toolGapCheck", label: "🖥 Device reality check",       where: "the Intune reality tab",     build: 25342,
                         open: () => openDevCheck() },
+    toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
+                        open: () => openValidator() },
   };
   // Land on a folded tool. Its own entry point when it has one — the right tab,
   // the right catalog — otherwise the host tile, which is the correct answer for
@@ -276,6 +278,20 @@
     // with an L1/L2 filter, a per-policy-per-platform grid — and flattening
     // them into one table loses information rather than sharing it. That is
     // its own decision, not something to slip in behind a tab strip.
+    // ONE QUESTION, TWO DIRECTIONS. 🧪 evaluates one described sign-in against
+    // every policy; ⚡ turns it around and enumerates every sign-in a policy
+    // implies. They have shared the evaluator since 25344 removed the fork
+    // (WhatIfEval.evaluate) and the scope check since 25345 (CaScope.of), so
+    // the two modes cannot disagree about the same policy and the same person
+    // — which is exactly the condition the consolidation plan set for folding
+    // these two together, and it now holds.
+    whatif: {
+      tile: "toolWhatIf", label: "🧪 What-If",
+      tabs: [
+        { key: "one", icon: "🧪", name: "One sign-in",       toolbar: "wiToolbar", open: () => openWhatIf() },
+        { key: "every", icon: "⚡", name: "Every simulation", toolbar: "vaToolbar", open: () => openValidator() },
+      ],
+    },
     checks: {
       tile: "toolGapCheck", label: "🛡 Checks",
       tabs: [
@@ -2280,7 +2296,6 @@
     ["toolPolicies", "🗂 Policies"],
     ["toolAnalyze", "🔍 Gap analyse"],
     ["toolGapCheck", "🛡 Checks"],
-    ["toolValidator", "⚡ CA validator"],
     ["toolWhatIf", "🧪 What-If"],
     ["toolGroupUse", "🔗 User or Group analyzer"],
     ["toolCompare", "⚖ Compare users"],
@@ -2515,7 +2530,6 @@
   $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); });
   $("toolGapCheck").addEventListener("click", () => openGapCheck());
   $("toolExclusions").addEventListener("click", () => { crumb("🚪 Exclusion analyzer"); openExclusions(); });
-  $("toolValidator").addEventListener("click", () => { openValidator(); });   // openValidator sets its own crumb
   // One tile, both catalogs: the picker in the toolbar (#blCatalog, rendered from
   // Baseline.catalogs()) is what T11 🧩 Baseline (Joey Verlinden) used to be a
   // second tile for — openBaseline("joey") is still the deep-link target and has
@@ -8892,8 +8906,9 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   function openValidator() {
-    crumb("⚡ CA validator");
+    crumb("🧪 What-If");
     show("screen-validator");
+    mountToolTabs("whatif", "every");
     if (!policies.length) { $("vaHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("vaBody").innerHTML = ""; $("vaChips").innerHTML = ""; return; }
     if (vaResult) {   // cached — restore the previous screen, no re-generate
       $("vaReportOnly").checked = vaReportOnly;
@@ -8906,6 +8921,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   async function runValidatorScan() {
     show("screen-validator");
+    mountToolTabs("whatif", "every");
     if (!policies.length) return;
     $("vaHead").innerHTML = '<h3>⚡ CA validator</h3><p class="mini" style="margin:6px 0 0">Generating simulations…</p>';
     $("vaChips").innerHTML = ""; $("vaBody").innerHTML = ""; vaFilter = "all"; vaQuery = ""; $("vaSearch").value = ""; vaCollapsed.clear();
@@ -15021,6 +15037,7 @@ This is a directory write. Nothing else changes.`)) return;
   function openWhatIf() {
     crumb("🧪 What-If");
     show("screen-whatif");
+    mountToolTabs("whatif", "one");
     $("wiHead").innerHTML = `<h3>🧪 What-If</h3>
       <p style="margin-bottom:6px">Describe a sign-in and every <b>enabled</b> or <b>report-only</b> policy is evaluated against it — which would apply (and the controls to satisfy), and which would not, with the first condition that wasn't met.</p>
       <p class="mini muted" style="margin:0">Mirrors the <a href="https://learn.microsoft.com/entra/identity/conditional-access/what-if-tool" target="_blank" rel="noopener">Entra Conditional Access What If tool</a>. Like the Microsoft tool it does not follow Conditional Access <b>service dependencies</b>, an app <i>group</i> (Office 365) never matches — use the app itself — and a condition the scenario leaves unspecified cannot be evaluated, so that policy will not apply.</p>`;

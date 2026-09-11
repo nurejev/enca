@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25345"></script>
+<script src="js/popup-guard.js?v=25346"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25345" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25345">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25346" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25346">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25345"></script>
+<script src="js/selfhost-boot.js?v=25346"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25345"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25345"></script>
+<script src="js/counter.js?v=25346"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25346"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25345" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25346" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25345" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25346" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -184,13 +184,9 @@
         <div class="tool-ic">🔍</div><h3>Gap analyse <span class="tag upd">UPDATED</span></h3>
         <p>How many of your users Conditional Access actually reaches — a coverage flow from everyone in scope down to targeted, enforced, MFA and licensed — then the users × policies matrix: who bypasses what and why.</p>
       </div>
-      <div class="tool" id="toolValidator">
-        <div class="tool-ic">⚡</div><h3>CA validator <span class="tag upd">UPDATED</span></h3>
-        <p>Per policy, the sign-in simulations it implies — user, app, client, location, platform, risk — and the control each one should (or should not) enforce. Ported from Jasper Baes' CA Validator.</p>
-      </div>
       <div class="tool" id="toolWhatIf">
         <div class="tool-ic">🧪</div><h3>What-If <span class="tag upd">UPDATED</span></h3>
-        <p>Simulate a sign-in — user, app, platform, client, location, device state and risk — and see which policies would apply, with the controls required, and which would not and why.</p>
+        <p>Two ways round the same question, one evaluator behind both. <b>🧪 One sign-in</b> — describe a sign-in (user, app, platform, client, location, device state, risk) and see which policies would apply with the controls required, and which would not and why. <b>⚡ Every simulation</b> — turn it around: per policy, every sign-in the policy <i>implies</i> and the control each one should or should not enforce, optionally narrowed to one user or persona group. Ported from Jasper Baes' CA Validator.</p>
       </div>
       <div class="tool" id="toolCompare">
         <div class="tool-ic">⚖</div><h3>Compare users <span class="tag upd">UPDATED</span></h3>
@@ -682,7 +678,7 @@
        Jasper Baes' Conditional Access Validator (CC BY-NC-SA 4.0). -->
   <section id="screen-validator" class="screen">
     <div class="list-card readme" id="vaHead" style="margin-top:0"></div>
-    <div class="toolbar" style="margin-top:14px">
+    <div class="toolbar" id="vaToolbar" style="margin-top:14px">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="vaSearch" placeholder="Search policy or simulation…" autocomplete="off">
@@ -713,6 +709,11 @@
        a sign-in, evaluate every enabled/report-only policy against it. -->
   <section id="screen-whatif" class="screen">
     <div class="list-card readme" id="wiHead" style="margin-top:0"></div>
+    <!-- This tool's controls are a FORM, not a toolbar, so there was nowhere to
+         mount the mode strip (build 25346). An otherwise empty toolbar is the
+         honest answer: it puts the strip in the same place, at the same height,
+         as it sits on every other host. -->
+    <div class="toolbar" id="wiToolbar" style="margin-top:14px"></div>
     <div class="list-card wi-form">
       <div class="wi-grid">
         <label class="wi-f"><span>User <b class="req">*</b></span>
@@ -1802,21 +1803,10 @@
       <p class="help-x">Read-only. Needs <code>DeviceManagementConfiguration.Read.All</code> and <code>DeviceManagementApps.Read.All</code>, asked once on the click, plus an Intune RBAC role that can read the workload (e.g. Read Only Operator). Assignment targets are checked first; where names alone cannot prove overlap, the tool expands transitive group memberships and matches the users. An unreadable, unenumerable or over-cap scope stays <b>not proven</b> rather than being guessed empty or uncovered.</p>
     </section>
 
-    <section class="help-sec">
-      <h4>⚡ CA validator</h4>
-      <p>For each enabled policy, the sign-in <b>simulations</b> it implies — the combinations of user, application, client app, location, device platform and risk it targets — and, per grant control, the control each one should enforce.</p>
-      <ul>
-        <li><b>Expected control</b> — every simulation shows the control the policy would require (MFA, Block, Compliant device, …). When the principal, app, location or platform is on the <b>excluded</b> side, the expectation inverts to <b>“no &lt;control&gt;”</b> — proving the policy does not fire there.</li>
-        <li><b>Run against a target</b> — optionally enter a <b>user</b> (UPN) or a <b>persona group</b> (name or ID) to scope the report to only the policies that actually apply to that principal (include minus exclude); for a user, their group and role memberships are evaluated. Leave empty to simulate every policy.</li>
-        <li><b>Include report-only</b> — off by default; tick it to also simulate policies in report-only mode.</li>
-        <li><b>Filter &amp; search</b> — filter by expected control, or search by policy or simulation text; collapse/expand all policies.</li>
-        <li>Users are shown as <b>representative placeholders</b> (“all users”, “members of &lt;group&gt;”, “role: …”) — no individual accounts are sampled. Session-only policies are listed as having nothing to assert.</li>
-      </ul>
-      <p class="help-x">Read-only. Ported from Jasper Baes' <a href="https://github.com/jasperbaes/Conditional-Access-Validator" target="_blank" rel="noopener">Conditional Access Validator</a> (CC BY-NC-SA 4.0); the Maester test-code generation is not included.</p>
-    </section>
 
     <section class="help-sec">
       <h4>🧪 What-If</h4>
+      <p><b>Two directions, one evaluator.</b> 🧪 What-If evaluates one described sign-in against every policy; ⚡ CA validator turns it around and enumerates every sign-in a policy implies. They were two tiles, and until build 25344 the plan for folding them carried a condition: they must not be able to disagree. They cannot now — 25344 removed a dead second simulator so both go through <code>WhatIfEval.evaluate</code>, and 25345 gave them one scope check (<code>CaScope.of</code>). One tool with a mode strip from build 25346; <b>T13</b> and <b>T14</b> keep their numbers (see 🔢 Tool numbers) and ⚡ keeps its section below.</p>
       <p>Simulate one sign-in and see exactly which policies would hit it — the same idea as the Entra portal's What If tool.</p>
       <ul>
         <li><b>Required conditions</b> — user, target resource, device platform and client app. Everything else (IP, country, device state, sign-in/user/insider risk, authentication flow) is optional.</li>
@@ -1831,6 +1821,17 @@
         <li><b>Export MD</b> — the scenario and both lists as Markdown.</li>
       </ul>
       <p class="help-x">Read-only. Like the Microsoft tool it does not follow Conditional Access service dependencies, so a policy on a downstream service isn't pulled in.</p>
+
+      <h5>⚡ CA validator <span class="help-fold">folded into this tool — build 25346</span></h5>
+      <p>For each enabled policy, the sign-in <b>simulations</b> it implies — the combinations of user, application, client app, location, device platform and risk it targets — and, per grant control, the control each one should enforce.</p>
+      <ul>
+        <li><b>Expected control</b> — every simulation shows the control the policy would require (MFA, Block, Compliant device, …). When the principal, app, location or platform is on the <b>excluded</b> side, the expectation inverts to <b>“no &lt;control&gt;”</b> — proving the policy does not fire there.</li>
+        <li><b>Run against a target</b> — optionally enter a <b>user</b> (UPN) or a <b>persona group</b> (name or ID) to scope the report to only the policies that actually apply to that principal (include minus exclude); for a user, their group and role memberships are evaluated. Leave empty to simulate every policy.</li>
+        <li><b>Include report-only</b> — off by default; tick it to also simulate policies in report-only mode.</li>
+        <li><b>Filter &amp; search</b> — filter by expected control, or search by policy or simulation text; collapse/expand all policies.</li>
+        <li>Users are shown as <b>representative placeholders</b> (“all users”, “members of &lt;group&gt;”, “role: …”) — no individual accounts are sampled. Session-only policies are listed as having nothing to assert.</li>
+      </ul>
+      <p class="help-x">Read-only. Ported from Jasper Baes' <a href="https://github.com/jasperbaes/Conditional-Access-Validator" target="_blank" rel="noopener">Conditional Access Validator</a> (CC BY-NC-SA 4.0); the Maester test-code generation is not included.</p>
     </section>
 
     <section class="help-sec">
@@ -2014,6 +2015,7 @@
             <li><code>T07</code> 📘 MS Learn checks → <b>🛡 Checks</b>, Microsoft Learn tab (build 25342)</li>
             <li><code>T21</code> 📐 CIS Benchmark → <b>🛡 Checks</b>, CIS 5.2.2 tab (build 25342)</li>
             <li><code>T30</code> 🖥 Device reality check → <b>🛡 Checks</b>, Intune reality tab (build 25342)</li>
+            <li><code>T13</code> ⚡ CA validator → <b>🧪 What-If</b>, Every simulation mode (build 25346)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The version beside it is the opposite kind of thing</b> — the number never changes, the version always does. They sit together so they are read together: “T21 v0.5” says which tool and how far along it is.</li>
@@ -3014,68 +3016,68 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25345"></script>
-<script src="js/selfhost.js?v=25345"></script>
-<script src="js/version.js?v=25345"></script>
-<script src="js/fork.js?v=25345"></script>
-<script src="js/promote.js?v=25345"></script>
-<script src="js/authConfig.js?v=25345"></script>
-<script src="js/labels.js?v=25345"></script>
-<script src="js/graph.js?v=25345"></script>
-<script src="js/model.js?v=25345"></script>
-<script src="js/render.js?v=25345"></script>
-<script src="js/analyze.js?v=25345"></script>
-<script src="js/whatif.js?v=25345"></script>
-<script src="js/mslearn.js?v=25345"></script>
-<script src="js/gapcheck.js?v=25345"></script>
-<script src="js/cisdata.js?v=25345"></script>
-<script src="js/cischeck.js?v=25345"></script>
-<script src="js/exclusions.js?v=25345"></script>
-<script src="js/cascope.js?v=25345"></script>
-<script src="js/validator.js?v=25345"></script>
-<script src="js/whatifeval.js?v=25345"></script>
-<script src="js/compare.js?v=25345"></script>
-<script src="js/whois.js?v=25345"></script>
-<script src="js/wave.js?v=25345"></script>
-<script src="js/sessionctl.js?v=25345"></script>
-<script src="js/spgap.js?v=25345"></script>
-<script src="js/groupuse.js?v=25345"></script>
-<script src="js/iso3166.js?v=25345"></script>
-<script src="js/causes.js?v=25345"></script>
-<script src="js/locations.js?v=25345"></script>
-<script src="js/authcontexts.js?v=25345"></script>
-<script src="js/authstrengths.js?v=25345"></script>
-<script src="js/recycle.js?v=25345"></script>
-<script src="js/rmau.js?v=25345"></script>
-<script src="js/camap.js?v=25345"></script>
-<script src="js/rmaudoc.js?v=25345"></script>
-<script src="js/termsofuse.js?v=25345"></script>
-<script src="js/audit.js?v=25345"></script>
-<script src="js/drift.js?v=25345"></script>
-<script src="js/guide.js?v=25345"></script>
-<script src="js/userimpact.js?v=25345"></script>
-<script src="js/smsvoice.js?v=25345"></script>
-<script src="js/memberof.js?v=25345"></script>
-<script src="js/devcheck.js?v=25345"></script>
-<script src="js/licgap.js?v=25345"></script>
-<script src="js/teamsdev.js?v=25345"></script>
-<script src="js/signins.js?v=25345"></script>
-<script src="js/reportimpact.js?v=25345"></script>
-<script src="js/changelog.js?v=25345"></script>
-<script src="js/baselineData.js?v=25345"></script>
-<script src="js/baselineJoeyData.js?v=25345"></script>
-<script src="js/baselineLive.js?v=25345"></script>
-<script src="js/baseline.js?v=25345"></script>
-<script src="js/baselineCleanup.js?v=25345"></script>
-<script src="js/groupTemplates.js?v=25345"></script>
-<script src="js/assign.js?v=25345"></script>
-<script src="js/cagroups.js?v=25345"></script>
-<script src="js/groupsview.js?v=25345"></script>
-<script src="js/runledger.js?v=25345"></script>
-<script src="js/protect.js?v=25345"></script>
-<script src="js/import.js?v=25345"></script>
-<script src="js/export.js?v=25345"></script>
-<script src="js/demo.js?v=25345"></script>
-<script src="js/app.js?v=25345"></script>
+<script src="js/branding.js?v=25346"></script>
+<script src="js/selfhost.js?v=25346"></script>
+<script src="js/version.js?v=25346"></script>
+<script src="js/fork.js?v=25346"></script>
+<script src="js/promote.js?v=25346"></script>
+<script src="js/authConfig.js?v=25346"></script>
+<script src="js/labels.js?v=25346"></script>
+<script src="js/graph.js?v=25346"></script>
+<script src="js/model.js?v=25346"></script>
+<script src="js/render.js?v=25346"></script>
+<script src="js/analyze.js?v=25346"></script>
+<script src="js/whatif.js?v=25346"></script>
+<script src="js/mslearn.js?v=25346"></script>
+<script src="js/gapcheck.js?v=25346"></script>
+<script src="js/cisdata.js?v=25346"></script>
+<script src="js/cischeck.js?v=25346"></script>
+<script src="js/exclusions.js?v=25346"></script>
+<script src="js/cascope.js?v=25346"></script>
+<script src="js/validator.js?v=25346"></script>
+<script src="js/whatifeval.js?v=25346"></script>
+<script src="js/compare.js?v=25346"></script>
+<script src="js/whois.js?v=25346"></script>
+<script src="js/wave.js?v=25346"></script>
+<script src="js/sessionctl.js?v=25346"></script>
+<script src="js/spgap.js?v=25346"></script>
+<script src="js/groupuse.js?v=25346"></script>
+<script src="js/iso3166.js?v=25346"></script>
+<script src="js/causes.js?v=25346"></script>
+<script src="js/locations.js?v=25346"></script>
+<script src="js/authcontexts.js?v=25346"></script>
+<script src="js/authstrengths.js?v=25346"></script>
+<script src="js/recycle.js?v=25346"></script>
+<script src="js/rmau.js?v=25346"></script>
+<script src="js/camap.js?v=25346"></script>
+<script src="js/rmaudoc.js?v=25346"></script>
+<script src="js/termsofuse.js?v=25346"></script>
+<script src="js/audit.js?v=25346"></script>
+<script src="js/drift.js?v=25346"></script>
+<script src="js/guide.js?v=25346"></script>
+<script src="js/userimpact.js?v=25346"></script>
+<script src="js/smsvoice.js?v=25346"></script>
+<script src="js/memberof.js?v=25346"></script>
+<script src="js/devcheck.js?v=25346"></script>
+<script src="js/licgap.js?v=25346"></script>
+<script src="js/teamsdev.js?v=25346"></script>
+<script src="js/signins.js?v=25346"></script>
+<script src="js/reportimpact.js?v=25346"></script>
+<script src="js/changelog.js?v=25346"></script>
+<script src="js/baselineData.js?v=25346"></script>
+<script src="js/baselineJoeyData.js?v=25346"></script>
+<script src="js/baselineLive.js?v=25346"></script>
+<script src="js/baseline.js?v=25346"></script>
+<script src="js/baselineCleanup.js?v=25346"></script>
+<script src="js/groupTemplates.js?v=25346"></script>
+<script src="js/assign.js?v=25346"></script>
+<script src="js/cagroups.js?v=25346"></script>
+<script src="js/groupsview.js?v=25346"></script>
+<script src="js/runledger.js?v=25346"></script>
+<script src="js/protect.js?v=25346"></script>
+<script src="js/import.js?v=25346"></script>
+<script src="js/export.js?v=25346"></script>
+<script src="js/demo.js?v=25346"></script>
+<script src="js/app.js?v=25346"></script>
 </body>
 </html>
