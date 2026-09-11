@@ -118,6 +118,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 178,
+      title: "The tab strip takes its own line on every host; 🌊 Flags column readable + 👥 Members full screen (T08 2.0.1, T37 0.8)",
+      tools: ["All tools", "Who is the wave to CA"],
+      builds: [25343],
+      risk: "low",
+      what: "css/app.css: .tool-tabs gains flex-basis:100% so the strip is a full-width track on its own line (T08 option A, one rule for all six hosts); new .flagcell / .flagsay; .gu-tw.wo-fit drops the 620px min-width; .wo-card.wo-full is the in-place full-screen card, with .wo-full beating .wo-folded and a narrow-screen inset. js/wave.js: flagCell / flagChip / plural helpers; FLAG.bypass, FLAG.excluded and FLAG.twowaves each render ONE CHIP PER ITEM inside .flagcell with a count line, the On state carried by the block class rather than parenthetical text, and the full sentence on each chip's title; the Members card takes .wo-full from opts.memFull and its heading carries a data-wv-memfull button; the table wrapper is .gu-tw.wo-fit. js/app.js: wvMemFull state, the click handler, memFull passed into Wave.render, and Esc leaves full screen when the wave is the open screen and nothing else owns the key. js/demo.js: the demo could not show any of this — no demo member was in more than one exclusion group — so CA212 and CA310 gained their own exclusion groups and Eva is in three groups across an enforced and a report-only policy. A fix nobody can look at without a customer tenant is a fix nobody reviews.",
+      why: "Low: presentation only — no Graph read, no analysis and no verdict changed, and the flag DATA is the same objects rendered differently. The flags fix is the one with a real before and after: the old cell could not be read on any tenant where a member sits in more than about three exclusion groups, which is most of them. Worth confirming on a real wave rather than the demo, because the demo has at most two exclusions per member.",
+      test: [
+        "Perfetti, 🌊 on a deploy group with a member in five or more exclusion groups (Alessandro Gargiulo): the Flags cell shows five short chips wrapped over two lines with '5 exclusions, all On' underneath, and the table does NOT scroll sideways at laptop width. Hover a chip: the tooltip reads 'in the CA040 exclusion group while the policy is On'.",
+        "A member in a mix of On and not-On exclusions: the On chips are red, the others plain, and the count line reads '3 exclusions — 1 On, 2 not On'. Nothing anywhere says '(not On)' on a chip.",
+        "A member in two deploy groups: the two-waves flag is a chip per wave with 'also in 2 waves' underneath.",
+        "👥 Members ⤢ Full screen: the card fills the window below the header, the filter chips still filter INSIDE full screen (this is the case a parked element would have broken — click 'In an exclusion' and the table re-renders in place), ⤡ Exit full screen and Esc both put it back, and the page behind does not scroll while it is open.",
+        "Fold the Members card by its heading, then ⤢ Full screen: the table is visible, not a folded strip. Exit, and it is folded again.",
+        "🛡 Checks: the four tabs are alone on the first line of the toolbar with the severity chips on the next; confirm the same on 🚦 Sign-in log, 🕓 Changes, 🧩 Policy building blocks, and that 🧬 Baseline on production still draws no strip at all.",
+        "At 420px: the tab strip still holds its own line and wraps within it; the Members table may scroll sideways there (five columns on a phone) but the Flags chips wrap rather than clip.",
+        "?demo=1 (the demo now has the data for this — 25343 put Eva in three exclusion groups, two on enforced policies and one report-only, and gave CA212 and CA310 their own exclusion groups): 🌊 on DG-INT shows Eva with three chips, the two On ones red, and the count line reading 3 exclusions — 2 On, 1 not On. Full screen works on the demo table too."
+      ],
+      files: ["css/app.css", "js/wave.js", "js/app.js", "js/demo.js", "js/changelog.js", "js/promote.js", "js/version.js"],
+    },
+    {
       n: 177,
       title: "🛡 Checks: 📘 MS Learn, 📐 CIS and 🖥 Device reality check folded in as rule packs (T08 2.0; T07 T21 T30 folded) — R56, phase 2 complete at 24 tiles",
       tools: ["Checks", "MS Learn checks", "CIS Benchmark", "Device reality check"],

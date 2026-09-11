@@ -234,10 +234,51 @@ const Wave = (() => {
     const c = (r.controls || []).map((x) => `<span class="ctrl${/^block/i.test(String(x)) ? " block" : ""}">${esc(x)}</span>`);
     return c.concat((r.session || []).map((x) => `<span class="ctrl">${esc(x)}</span>`)).join(r.op && c.length > 1 ? `<span class="mini muted"> ${esc(r.op)} </span>` : "") || '<span class="mini muted">—</span>';
   };
+  // ONE CHIP PER POLICY, in a cell that wraps (25343). Until this build every
+  // flag rendered its whole list into a SINGLE `.ctrl` span joined with commas
+  // — and `.wo-tbl .ctrl` carries white-space:nowrap, so that one span could
+  // not break anywhere. A member in five exclusions forced the Flags column
+  // past the card, .gu-tw started scrolling sideways, and the sentence ended
+  // at "CA114 exclu…". Nothing was missing; it just could not be read.
+  //
+  // A chip per policy is short enough that nowrap costs nothing and the CELL
+  // wraps instead: the column goes tall, never wide. The word "exclusion"
+  // comes off the chips and onto one count line underneath — five chips said
+  // it five times — and the per-chip title carries the full sentence.
+  // The count line appears only when there is more than one chip. One red chip
+  // with "1 exclusion, On" underneath restates what the chip already says, and
+  // in the narrow Members card (it shares the row with 🧩 How the wave is
+  // built) that line wraps to three. Two or more chips is where a count earns
+  // its place — "5 exclusions, all On" is the sentence you cannot get by
+  // counting chips in your head.
+  const flagCell = (chips, say) => `<div class="flagcell">${chips.join("")}`
+    + (say && chips.length > 1 ? `<span class="mini muted flagsay">${esc(say)}</span>` : "") + `</div>`;
+  const flagChip = (label, title, cls) =>
+    `<span class="ctrl${cls ? ` ${cls}` : ""}" title="${esc(title)}">${esc(label)}</span>`;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
   const FLAG = {
-    bypass: (m) => `<span class="ctrl block" title="in an exclusion group while the policy is On">${esc(m.exclusions.filter((x) => x.on).map((x) => `${x.policy} exclusion`).join(", "))}</span>`,
-    excluded: (m) => `<span class="ctrl" title="in an exclusion group of a policy that is not On">${esc(m.exclusions.map((x) => `${x.policy} exclusion (${x.on ? "On" : "not On"})`).join(", "))}</span>`,
-    twowaves: (m) => `<span class="ctrl" title="also in another deploy group">also ${esc(m.waves.map(short).join(", "))}</span>`,
+    bypass: (m) => {
+      const on = m.exclusions.filter((x) => x.on);
+      return flagCell(
+        on.map((x) => flagChip(x.policy, `in the ${x.policy} exclusion group while the policy is On`, "block")),
+        `${plural(on.length, "exclusion")}, ${on.length === 1 ? "On" : "all On"}`);
+    },
+    excluded: (m) => {
+      const on = m.exclusions.filter((x) => x.on).length;
+      const off = m.exclusions.length - on;
+      // The chip carries the state: a red chip is a live bypass, a plain one is
+      // an exclusion on a policy that is not enforcing yet. Saying "(not On)"
+      // on every chip is what made the old cell unreadable.
+      return flagCell(
+        m.exclusions.map((x) => flagChip(x.policy,
+          `in the ${x.policy} exclusion group — the policy is ${x.on ? "On" : "not On"}`,
+          x.on ? "block" : "")),
+        `${plural(m.exclusions.length, "exclusion")}${on && off ? ` — ${on} On, ${off} not On` : on ? ", On" : ", none On"}`);
+    },
+    twowaves: (m) => flagCell(
+      m.waves.map((w) => flagChip(short(w), `also in ${w}`)),
+      `also in ${plural(m.waves.length, "wave")}`),
     nop1: () => '<span class="ctrl">no P1</span>', disabled: () => '<span class="ctrl">disabled</span>', guest: () => '<span class="ctrl">guest</span>',
     blocked: () => "", lockout: () => "",
   };
@@ -395,10 +436,11 @@ const Wave = (() => {
       .map(([k, l]) => `<button class="fchip${filter === k ? " active" : ""}" data-wv-filter="${k}">${l}</button>`).join("");
     const mshown = res.members.filter((m) => filter === "all" ? true : filter === "look" ? m.needsLook : filter === "bypass" ? m.exclusions.length : m.flags.includes(filter));
     const maxRows = opts.maxRows || 100;
-    const mtable = `<div class="list-card wo-card">
-      <h3 class="wo-h" data-wo-fold="members">👥 Members ${pill(mc.total, "zero")} <span class="mini muted">— click a name for 🕵 Who is … to CA</span></h3>
+    const mtable = `<div class="list-card wo-card${opts.memFull ? " wo-full" : ""}">
+      <h3 class="wo-h" data-wo-fold="members">👥 Members ${pill(mc.total, "zero")} <span class="mini muted">— click a name for 🕵 Who is … to CA</span>
+        <span style="margin-left:auto"><button class="btn sm" data-wv-memfull title="${opts.memFull ? "Put the table back in the page" : "Give the table the whole window — 500 members is five columns of it"}">${opts.memFull ? "⤡ Exit full screen" : "⤢ Full screen"}</button></span></h3>
       <div class="chip-filter" style="margin:8px 0 10px">${mchips}</div>
-      <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Member</th><th>In wave via</th><th>Flags</th><th>${esc(rangeLabel)}</th><th>Forecast</th></tr></thead><tbody>
+      <div class="gu-tw wo-fit"><table class="plist wo-tbl"><thead><tr><th>Member</th><th>In wave via</th><th>Flags</th><th>${esc(rangeLabel)}</th><th>Forecast</th></tr></thead><tbody>
         ${mshown.slice(0, maxRows).map((m) => `<tr><td><a href="#" class="wv-member" data-wv-open="${esc(m.upn)}"><b>${esc(m.name)}</b></a><div class="mini muted">${esc(m.upn)}</div></td><td class="wo-via">${esc(m.how)}${m.roles.length ? `<div class="mini muted">${esc(m.roles.join(", "))}</div>` : ""}</td>
           <td>${m.flags.map((f) => FLAG[f] ? FLAG[f](m) : "").join("") || '<span class="mini muted">—</span>'}</td>
           <td>${!log ? '<span class="mini muted">—</span>' : m.log.blocked || m.log.interrupted ? `${m.log.blocked ? `<span class="wo-res blk">${m.log.blocked} blocked</span>` : ""}${m.log.blocked && m.log.interrupted ? " · " : ""}${m.log.interrupted ? `<span class="wo-res int">${m.log.interrupted} int.</span>` : ""}` : m.signIns ? `<span class="mini muted">${m.signIns} passed</span>` : '<span class="mini muted">no sign-ins</span>'}</td>

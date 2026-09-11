@@ -83,7 +83,7 @@ const DEMO_DATA = {
       id: "d10", displayName: "CA310-SESSION-Guests-DP-AllApps-AnyPlatform-BlockDownloadUnmanaged-v1.0",
       state: "enabled", modifiedDateTime: "2026-08-20T09:00:00Z",
       conditions: {
-        users: { includeGroups: ["g-CAB-SEC-U-Persona-Guests"], excludeGroups: ["g-CAB-SEC-U-BreakGlass"] },
+        users: { includeGroups: ["g-CAB-SEC-U-Persona-Guests"], excludeGroups: ["g-CAB-SEC-U-BreakGlass", "g-CAB-SEC-U-CA310-Exclusion"] },
         applications: { includeApplications: ["All"] },
         clientAppTypes: ["browser"],
         devices: { deviceFilter: { mode: "exclude", rule: "device.isCompliant -eq True" } },
@@ -140,7 +140,7 @@ const DEMO_DATA = {
       id: "d12", displayName: "CA212-GRANT-Internals-DAP-AllApps-iOSorAndroid-ApprovedApp-v1.0",
       state: "enabled", modifiedDateTime: "2026-05-27T09:00:00Z",
       conditions: {
-        users: { includeGroups: ["g-CAB-SEC-U-Persona-Internals"], excludeGroups: ["g-CAB-SEC-U-BreakGlass"] },
+        users: { includeGroups: ["g-CAB-SEC-U-Persona-Internals"], excludeGroups: ["g-CAB-SEC-U-BreakGlass", "g-CAB-SEC-U-CA212-Exclusion"] },
         applications: { includeApplications: ["All"] },
         platforms: { includePlatforms: ["iOS", "android"] },
         clientAppTypes: ["mobileAppsAndDesktopClients", "exchangeActiveSync", "other"],
@@ -230,8 +230,14 @@ const DEMO_DATA = {
     "CAB-SEC-U-BreakGlass": ["u-break1", "u-break2"],
     // CA200's exclusion group exists and is referenced; CA201's exists but the
     // policy has lost the reference. CA204's is deliberately absent.
-    "CAB-SEC-U-CA200-Exclusion": [],
+    // 25343: Eva sits in THREE exclusion groups so the 🌊 Flags cell has
+    // something to wrap — one on a report-only policy (not On) and two on
+    // enforced ones (a live bypass each), which is exactly the mix the chip
+    // colours and the count line exist to tell apart. Milan has one.
+    "CAB-SEC-U-CA200-Exclusion": ["u-emp1"],
     "CAB-SEC-U-CA201-Exclusion": ["u-old"],
+    "CAB-SEC-U-CA212-Exclusion": ["u-emp1", "u-emp2"],
+    "CAB-SEC-U-CA310-Exclusion": ["u-emp1"],
     "CAB-SEC-U-Persona-Admins": ["u-admin"],
     "CAB-SEC-U-Persona-Internals": ["u-emp1", "u-emp2", "u-old"],
     "CAB-SEC-U-Persona-Guests": ["u-guest1"],

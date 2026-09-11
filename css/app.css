@@ -717,7 +717,13 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
    markup: it is mounted into each member screen's own toolbar, the way the
    sign-in source segment already is, so a member keeps its own search box,
    range picker and exports. order:-1 keeps it first however the toolbar wraps. */
-.tool-tabs{order:-1}
+/* The strip takes its OWN LINE, always. order:-1 alone put it first in the
+   flow but not on a line of its own, so at desktop width it sat shoulder to
+   shoulder with the filter chips — four tabs and five chips reading as one
+   nine-item row, where only four of them change the tool. flex-basis:100%
+   makes it a full-width track: tabs left, empty rail right, the same shape as
+   the tool tabs in the header. (25343, T08 option A.) */
+.tool-tabs{order:-1;flex-basis:100%}
 .tool-tabs button .tag{margin-left:5px;font-size:9px;padding:0 4px;vertical-align:1px}
 /* CA validator simulation report */
 .va-card{padding:0;margin-bottom:10px;overflow:hidden}
@@ -1770,6 +1776,26 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-cnt{white-space:nowrap}
 .wo-tbl .ctrl{display:inline-block;background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:0 6px;font-size:11px;font-weight:600;margin:1px 2px 1px 0;white-space:nowrap}
 .wo-tbl .ctrl.block{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--off)}
+/* The Flags cell wraps (25343). One chip per policy instead of one nowrap
+   span holding a comma list: the cell grows DOWN, so the column can never
+   force the table past its card again. The cap is what guarantees it — the
+   count line underneath takes the full row so it reads as a summary of the
+   chips above it, not as another chip. */
+.flagcell{display:flex;flex-wrap:wrap;gap:3px;max-width:280px}
+.flagcell .flagsay{width:100%;margin-top:2px;font-size:11px}
+/* A table that now fits keeps overflow-x for a phone, but stops declaring a
+   min-width that guarantees a scrollbar on a laptop. */
+.gu-tw.wo-fit table.plist{min-width:0}
+/* 👥 Members, full screen: the card itself fills the window rather than its
+   contents being moved into the shared full-screen modal — the wave re-renders
+   wvBody whole on every filter click, and a parked element would not survive
+   that. Folded state must not win here: somebody who folded the card and then
+   asked for full screen wants to see the table. */
+.wo-card.wo-full{position:fixed;inset:var(--sticky-nav,106px) 14px 14px;z-index:60;
+  margin:0;overflow:auto;box-shadow:0 24px 60px rgba(18,51,31,.28)}
+.wo-card.wo-full.wo-folded > :not(.wo-h){display:block}
+.wo-card.wo-full .gu-tw{border:0}
+@media (max-width:600px){ .wo-card.wo-full{inset:var(--sticky-nav,106px) 6px 6px} }
 .ctrl.ret{text-decoration:line-through;text-decoration-color:var(--off);text-decoration-thickness:2px}
 .wo-res{font-weight:600;font-size:12px;white-space:nowrap}
 .wo-res.blk,.wo-res.wb{color:var(--off)} .wo-res.int,.wo-res.wp{color:var(--report)} .wo-res.nc{color:var(--on)}

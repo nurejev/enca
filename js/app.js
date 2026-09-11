@@ -11117,7 +11117,13 @@ This is a directory write. Nothing else changes.`)) return;
       $("cpModal").classList.contains("open") ? cpClose() : cpOpen();
       return;
     }
-    if (!$("cpModal").classList.contains("open")) return;
+    if (!$("cpModal").classList.contains("open")) {
+      // Esc out of the wave's full-screen members table, when nothing else owns the key
+      if (e.key === "Escape" && wvMemFull && $("screen-wave").classList.contains("active")) {
+        e.preventDefault(); wvMemFull = false; renderWave();
+      }
+      return;
+    }
     if (e.key === "Escape") { e.preventDefault(); cpClose(); return; }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
@@ -15743,6 +15749,11 @@ This is a directory write. Nothing else changes.`)) return;
   // WhoIs.stateFor — the same function T36 uses, so the two cannot disagree.
   // The sign-in half is the shared window (🚦 / 🎚), filtered to the members.
   let wvRes = null, wvBusy = false, wvDays = 7, wvFilter = "look", wvPfilter = "targets", wvGroups = null, wvPick = null, wvLogSkipped = "";
+  // 👥 Members full screen (25343). A STATE FLAG rather than Fs.open: the
+  // wave rewrites wvBody whole on every filter click and risk read, so an
+  // element parked in the full-screen modal would be orphaned by the first
+  // re-render. Held here, read by the renderer, it survives all of them.
+  let wvMemFull = false;
   const wvProg = makeProgress("wv"); wvProg.by = "🌊 Who is the wave to CA"; wvProg.stoppable = true;
   const WV_MEMBER_CAP = 500;
 
@@ -15956,7 +15967,7 @@ This is a directory write. Nothing else changes.`)) return;
     const notes = [];
     if (wvLogSkipped) notes.push(`Sign-in half: ${esc(wvLogSkipped)}.`);
     if (R.truncated && R.truncated.length) notes.push(`${R.truncated.length} referenced group${R.truncated.length === 1 ? "" : "s"} with more than 999 members were read partially — exclusion and other-wave counts may be low.`);
-    $("wvBody").innerHTML = (notes.length ? `<p class="mini muted" style="margin:0 0 8px">${notes.join(" ")}</p>` : "") + Wave.render(R, { rangeLabel: rangeLabel(wvDays), filter: wvFilter, pfilter: wvPfilter });
+    $("wvBody").innerHTML = (notes.length ? `<p class="mini muted" style="margin:0 0 8px">${notes.join(" ")}</p>` : "") + Wave.render(R, { memFull: wvMemFull, rangeLabel: rangeLabel(wvDays), filter: wvFilter, pfilter: wvPfilter });
     applyFolds("wvBody");
   }
   // ---- card folding, shared by 🕵 and 🌊 (25323, on Mihai's ask): click a
@@ -15983,6 +15994,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("wvBody").addEventListener("click", (e) => {
     if (foldClick("wvBody", e)) return;
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const mf = e.target.closest("[data-wv-memfull]"); if (mf) { wvMemFull = !wvMemFull; renderWave(); return; }
     const f = e.target.closest("[data-wv-filter]"); if (f) { wvFilter = f.dataset.wvFilter; renderWave(); return; }
     const pf = e.target.closest("[data-wv-pfilter]"); if (pf) { wvPfilter = pf.dataset.wvPfilter; renderWave(); return; }
     const o = e.target.closest("[data-wv-open]");
