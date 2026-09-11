@@ -98,6 +98,31 @@ const GapCheck = (() => {
   const DRS_ID = "01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9"; // Device Registration Service
   const REGISTER_DEVICE_ACTION = "urn:user:registerdevice";
   const AAD_GRAPH = "00000002-0000-0000-c000-000000000000";
+  const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
+  const BASELINE_SCOPES_DOC = "https://learn.microsoft.com/entra/identity/conditional-access/concept-enforcement-resource-exclusions";
+  const BASELINE_SCOPES_LIST = "openid, profile, email, offline_access, User.Read, User.Read.All, User.ReadBasic.All, People.Read, People.Read.All, GroupMember.Read.All, Member.Read.Hidden";
+
+  // The tenant's Baseline scopes setting (Entra admin center → Conditional
+  // Access → Baseline scopes, aka.ms/BaselineScopesSettingsUX). Read from the
+  // portal API GET /identity/conditionalAccess/settings (beta, not on Learn):
+  // { advancedSettings: { baselineScopes: { resourceAppId } } | null }.
+  //   unread   — settings not passed / read failed: say so, never guess
+  //   default  — no selection saved: Microsoft's default, which since the
+  //              June-2026 rollout IS enforcement (Learn: "you won't see any
+  //              selections … because the behavior becomes the default")
+  //   enabled  — Enable enforcement chosen explicitly (audience = Windows Azure AD)
+  //   disabled — Disable enforcement (all-zero GUID, per the portal's own write)
+  //   custom   — Customize behavior: a tenant-owned placeholder app is the
+  //              audience; policies that EXCLUDE it keep the legacy behaviour
+  function baselineScopes(settings) {
+    if (!settings || typeof settings !== "object") return { mode: "unread", scope: null };
+    const scope = settings.advancedSettings?.baselineScopes?.resourceAppId || null;
+    if (!scope) return { mode: "default", scope: null };
+    const s = String(scope).toLowerCase();
+    if (s === AAD_GRAPH) return { mode: "enabled", scope };
+    if (s === ZERO_GUID) return { mode: "disabled", scope };
+    return { mode: "custom", scope };
+  }
 
   // ─── Phishing-resistant MFA detection ─────────────────────────────
   const PR_BUILTIN_ID = "00000000-0000-0000-0000-000000000004";
@@ -285,16 +310,55 @@ const GapCheck = (() => {
       }
     }
 
-    // 4. Resource exclusion bypass — low-privilege scope enforcement (March–June 2026)
+    // 4. Resource exclusion bypass — baseline scopes. Until the June-2026
+    // rollout, an All-resources policy with ANY app exclusion silently exempted
+    // sign-ins that asked only for the baseline scopes (a directory-enumeration
+    // path). Enforcement now evaluates those sign-ins against Windows Azure
+    // Active Directory as the audience — unless the tenant's Baseline scopes
+    // setting says otherwise, which is what this check reads.
     const exclPolicies = enabled.filter((p) => allApps(p) && appsExc(p).length > 0);
-    if (exclPolicies.length) {
-      const hasAadGraphPolicy = enabled.some((p) => appsInc(p).some((a) => String(a).toLowerCase() === AAD_GRAPH));
-      const total = exclPolicies.reduce((s, p) => s + appsExc(p).length, 0);
-      F(out, hasAadGraphPolicy ? "info" : "medium", "Resource Exclusion Bypass",
-        `${exclPolicies.length} "All resources" policy(ies) with exclusions — low-privilege scope leak`, null,
-        `${exclPolicies.length} enabled policy(ies) target All resources with ${total} app exclusion(s): ${exclPolicies.map((p) => p.displayName).join(", ")}. Legacy behavior: excluding ANY app leaks the low-privilege scopes openid, profile, email, offline_access, User.Read (plus User.Read.All, People.Read.All, GroupMember.Read.All and Member.Read.Hidden for confidential clients) from CA enforcement — a directory enumeration path. Microsoft is closing this March–June 2026 by mapping these scopes to Azure AD Graph (${AAD_GRAPH}) as the enforcement audience.` +
-        (hasAadGraphPolicy ? " A policy explicitly targeting Azure AD Graph exists, which covers the enforcement audience." : " No policy explicitly targets Azure AD Graph — apps requesting only low-privilege scopes may face unexpected CA challenges once enforcement lands."),
-        "Prefer All-resources policies with NO exclusions (move exempted apps to separate targeted policies). Review sign-ins against the Windows Azure Active Directory resource to spot apps that will start receiving CA challenges, and test with a report-only policy targeting Azure AD Graph.");
+    const bs = baselineScopes(ctx.caSettings);
+    const hasAadGraphPolicy = enabled.some((p) => appsInc(p).some((a) => String(a).toLowerCase() === AAD_GRAPH));
+    const total = exclPolicies.reduce((s, p) => s + appsExc(p).length, 0);
+    const exclLine = exclPolicies.length
+      ? `${exclPolicies.length} enabled policy(ies) target All resources with ${total} app exclusion(s): ${exclPolicies.map((p) => p.displayName).join(", ")}.`
+      : "No enabled All-resources policy carries an app exclusion, so the legacy exemption never had anything to exempt here.";
+    const aadLine = hasAadGraphPolicy
+      ? " A policy explicitly targeting Windows Azure Active Directory exists as well — defence in depth, not what decides coverage."
+      : "";
+    const scopesLine = ` Baseline scopes: ${BASELINE_SCOPES_LIST}.`;
+    if (bs.mode === "disabled") {
+      F(out, exclPolicies.length ? "high" : "medium", "Resource Exclusion Bypass",
+        "Baseline scopes enforcement is explicitly DISABLED for the tenant", null,
+        `The Baseline scopes setting is set to Disable enforcement (resourceAppId ${ZERO_GUID}). Microsoft warns against this option: it switches the legacy behaviour back on for EVERY policy in the tenant, so an All-resources policy with an app exclusion lets any sign-in that requests only the baseline scopes through without Conditional Access. ${exclLine}${exclPolicies.length ? " Those exclusions leak the baseline scopes TODAY." : " Harmless until the first app exclusion is added to an All-resources policy — and it would leak from that moment."}${aadLine}${scopesLine}`,
+        `Open the Baseline scopes settings (aka.ms/BaselineScopesSettingsUX) and choose Enable enforcement. If specific apps genuinely cannot handle a Conditional Access challenge, use Customize behavior for those policies only instead of disabling enforcement tenant-wide. ${BASELINE_SCOPES_DOC}`);
+    } else if (bs.mode === "custom") {
+      const name = ctx.names?.[bs.scope] || ctx.names?.[String(bs.scope).toLowerCase()] || null;
+      const app = name ? `"${name}" (${bs.scope})` : bs.scope;
+      const excluding = enabled.filter((p) => appsExc(p).some((a) => String(a).toLowerCase() === String(bs.scope).toLowerCase()));
+      if (excluding.length) {
+        F(out, "medium", "Resource Exclusion Bypass",
+          `Baseline scopes: legacy behaviour kept for ${excluding.length} policy(ies) through a placeholder app`, null,
+          `The Baseline scopes setting is Customize behavior: sign-ins requesting only the baseline scopes are evaluated against the placeholder app ${app}. ${excluding.length} enabled policy(ies) exclude that app — ${excluding.map((p) => p.displayName).join(", ")} — so for THOSE policies the legacy exemption still applies: a sign-in that asks only for the baseline scopes passes them without Conditional Access. Every other policy enforces. ${exclLine}${aadLine}${scopesLine}`,
+          `Treat each excluding policy as a deliberate exception with an owner and an end date. Use the sign-in log to see which apps ride on it — filter conditionalAccessAudiences on ${bs.scope} (Learn shows the exact query) — and move each one to a targeted policy or fix the app so it can take a CA challenge; then remove the placeholder from the exclusions and switch the setting to Enable enforcement. ${BASELINE_SCOPES_DOC}`);
+      } else {
+        F(out, "low", "Resource Exclusion Bypass",
+          "Baseline scopes: Customize behavior is set but no policy excludes the placeholder app", null,
+          `The Baseline scopes setting names ${app} as the audience for baseline-scope sign-ins, but no enabled policy excludes it — so every All-resources policy reaches it and enforcement effectively applies everywhere. The setting changes nothing today; it only matters once a policy excludes the placeholder. ${exclLine}${aadLine}${scopesLine}`,
+          `Either the exception it was created for is gone — switch the setting to Enable enforcement and retire the placeholder app — or it was never finished: the policy that needs the legacy behaviour must EXCLUDE the placeholder app for the setting to have an effect. ${BASELINE_SCOPES_DOC}`);
+      }
+    } else if (bs.mode === "unread") {
+      if (exclPolicies.length) F(out, "medium", "Resource Exclusion Bypass",
+        `${exclPolicies.length} "All resources" policy(ies) with exclusions — Baseline scopes setting not read`, null,
+        `${exclLine} Since the June-2026 rollout Microsoft evaluates sign-ins that request only the baseline scopes against Windows Azure Active Directory (${AAD_GRAPH}) even when the policy has app exclusions — unless the tenant opted out. The tenant's Baseline scopes setting could not be read (portal API GET /identity/conditionalAccess/settings), so whether these exclusions still leak the baseline scopes is unknown from here.${aadLine}${scopesLine}`,
+        `Check Entra admin center → Conditional Access → Baseline scopes (aka.ms/BaselineScopesSettingsUX): Enable enforcement is the safe state; Disable enforcement leaks the baseline scopes through every exclusion. Prefer All-resources policies with NO app exclusions — move exempted apps to their own targeted policies. ${BASELINE_SCOPES_DOC}`);
+    } else if (exclPolicies.length) {
+      // default or enabled: enforced. Awareness only — the exclusions no longer
+      // exempt baseline-scope sign-ins, which is the secure outcome.
+      F(out, "info", "Resource Exclusion Bypass",
+        `${exclPolicies.length} "All resources" policy(ies) with exclusions — baseline scopes are enforced (${bs.mode === "enabled" ? "enforcement enabled explicitly" : "Microsoft default"})`, null,
+        `${exclLine} ${bs.mode === "enabled" ? "The Baseline scopes setting is Enable enforcement." : "No selection is saved in the Baseline scopes setting, which since the June-2026 rollout means enforcement (Microsoft removed the selection once it became the default)."} A sign-in that requests only the baseline scopes is evaluated against Windows Azure Active Directory (${AAD_GRAPH}), so an app excluded from these policies gets their controls anyway whenever it asks for nothing beyond the baseline scopes — the old directory-enumeration path is closed.${aadLine}${scopesLine}`,
+        `Nothing to fix. If an excluded app started failing after June 2026, it requests only baseline scopes and cannot take a Conditional Access challenge: fix the app (or have it request OIDC scopes only), or keep the legacy behaviour for that ONE policy with Customize behavior — never Disable enforcement tenant-wide. ${BASELINE_SCOPES_DOC}`);
     }
 
     // 5. CA-immune resources — awareness
@@ -1027,5 +1091,5 @@ const GapCheck = (() => {
     return L.join("\n");
   }
 
-  return { run, identifyBreakGlass, renderSummary, renderPersonaMatrix, renderFindings, toMd };
+  return { run, identifyBreakGlass, renderSummary, renderPersonaMatrix, renderFindings, toMd, baselineScopes };
 })();

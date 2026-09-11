@@ -615,18 +615,26 @@ const MSLearn = (() => {
     // ── Behavior changes & hybrid identity ────────────────────────────
     {
       id: "all-resources-exclusion-change",
-      title: "All resources: low-privilege scope exemption ending March 2026",
+      title: "All resources with app exclusions: baseline scopes are enforced against Windows Azure Active Directory",
       appliesWhen: 'Policy targets "All resources" and has app exclusions',
-      requirement: "Microsoft is removing the legacy behavior where low-privilege scopes (User.Read, openid, profile, email, offline_access) were auto-exempted from All-resources policies that carry app exclusions. From March 2026 these scopes are enforced.",
-      severity: "high",
-      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#conditional-access-for-all-resources",
-      remediation: "Review every All-resources policy with app exclusions in report-only mode; consider removing the app exclusions and creating separate targeted policies instead.",
-      detect: (p) => {
+      requirement: "Until the rollout that began 15 June 2026, an All-resources policy with ANY app exclusion silently exempted sign-ins that requested only the baseline scopes (openid, profile, email, offline_access, User.Read, User.Read.All, User.ReadBasic.All, People.Read, People.Read.All, GroupMember.Read.All, Member.Read.Hidden). Those sign-ins are now evaluated against Windows Azure Active Directory (00000002-0000-0000-c000-000000000000) as the audience and get the policy's controls — unless the tenant's Baseline scopes setting keeps the legacy behaviour (Customize behavior for a placeholder app the policy excludes, or Disable enforcement, which Microsoft advises against).",
+      severity: "medium",
+      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-enforcement-resource-exclusions",
+      remediation: "Prefer All-resources policies with NO app exclusions — give an exempted app its own targeted policy instead. Where an exclusion must stay, check whether the app requests only baseline scopes (Learn shows the sign-in log query on conditionalAccessAudiences) and whether it can take a Conditional Access challenge; if it cannot, keep the legacy behaviour for that ONE policy with Customize behavior, never with Disable enforcement.",
+      detect: (p, ctx) => {
         if (!isActive(p) || !allApps(p)) return null;
-        if (!(A(p).excludeApplications || []).length) return null;
+        const excl = A(p).excludeApplications || [];
+        if (!excl.length) return null;
+        const bs = (typeof GapCheck !== "undefined" && GapCheck.baselineScopes) ? GapCheck.baselineScopes(ctx?.caSettings) : { mode: "unread", scope: null };
+        const custom = bs.mode === "custom" && excl.some((a) => String(a).toLowerCase() === String(bs.scope).toLowerCase());
+        const tenant = bs.mode === "disabled" ? " This tenant has Disable enforcement set, so the exclusions on this policy leak the baseline scopes TODAY."
+          : custom ? " This policy excludes the tenant's placeholder app (Customize behavior), so the legacy exemption still applies to it by design — a documented exception, not an accident, as long as somebody owns it."
+          : bs.mode === "custom" ? " The tenant uses Customize behavior, but this policy does not exclude the placeholder app, so it enforces."
+          : bs.mode === "unread" ? " The tenant's Baseline scopes setting was not read; check it in the Entra admin center."
+          : " The tenant enforces (Microsoft default or Enable enforcement).";
         return {
-          detail: 'Policy targets "All resources" with app exclusions. From March 2026 the previously auto-exempted low-privilege scopes (User.Read, openid, profile, email, offline_access) are enforced — users who accessed excluded-app scenarios without CA challenges may start being prompted or blocked. Review sign-in logs for impact.',
-          impactedResources: ["Apps using User.Read", "Apps using openid/profile scopes", "Native clients and SPAs with basic Graph access"],
+          detail: `Policy targets "All resources" with ${excl.length} app exclusion(s). Since the June-2026 rollout a sign-in that requests only the baseline scopes is evaluated against Windows Azure Active Directory and receives this policy's controls even for an excluded app — the directory-enumeration path the old exemption opened is closed, and an excluded app that cannot take a CA challenge is the thing that breaks.${tenant}`,
+          impactedResources: ["Windows Azure Active Directory (00000002-0000-0000-c000-000000000000)", "Excluded apps that request only baseline scopes", "Public clients (desktop CLIs, VS Code, Azure CLI) requesting only User.Read or openid/profile"],
         };
       },
     },

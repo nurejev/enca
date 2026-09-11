@@ -118,6 +118,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 166,
+      title: "🛡 📘 Baseline scopes: tenant setting read, wording past-tense (T08 1.9, T07 2.4)",
+      tools: ["Best-practice & bypass checks", "MS Learn checks"],
+      builds: [25331],
+      risk: "medium",
+      what: "js/app.js readCaSettings(): GET /identity/conditionalAccess/settings (beta, portal API) cached per tenant load (caSettingsCache reset in both loadFromGraph branches), demo = advancedSettings null; the placeholder app of Customize behavior is name-resolved via servicePrincipals. js/gapcheck.js baselineScopes(settings) → unread | default | enabled | disabled | custom (exported); tenant check 4 rewritten around it: disabled = High (medium when no All-resources policy has exclusions), custom = medium listing the policies excluding the placeholder / low when none does, unread = medium only with exclusions, default/enabled = info only with exclusions; category name Resource Exclusion Bypass kept (scorecard filter + snapshots). js/mslearn.js all-resources-exclusion-change: medium, rewritten, docUrl concept-enforcement-resource-exclusions, ctx.caSettings sentence.",
+      why: "Medium: one new read of an UNDOCUMENTED endpoint (Learn documents only networkAccess/settings/conditionalAccess, which is something else) — the shape { advancedSettings: { baselineScopes: { resourceAppId } } } and the all-zero GUID for Disable enforcement come from Jhope188's CA Policy Analyzer v1.16.5, which reads it in production, not from Microsoft. Guarded: a failed read is “not read”, never a verdict. The interpretation deliberately differs from upstream on one point: an EMPTY setting is Microsoft's default and, per Learn, enforced since the June-2026 rollout (“you won't see any selections … because the behavior becomes the default”) — upstream reports it as “not enabled, act now”, which would tell every clean tenant to act.",
+      test: [
+        "Any real tenant, 🛡: the Resource Exclusion Bypass finding no longer says March 2026; devtools network shows one GET /identity/conditionalAccess/settings per load (open 📘 afterwards: no second call).",
+        "Tenant with no selection saved (most): with All-resources exclusions an info “baseline scopes are enforced (Microsoft default)”; without exclusions no finding at all.",
+        "Lab tenant: set Baseline scopes to Disable enforcement → High “explicitly DISABLED” (medium if the tenant has no All-resources exclusions); set it back → info again after a refresh.",
+        "Lab tenant: Customize behavior with a placeholder app, excluded from CA001 → medium naming the app by display name and CA001; remove the exclusion → low “no policy excludes the placeholder app”.",
+        "Record the exact JSON the settings endpoint returns for each of the three portal choices in the js/app.js comment (the disabled value is upstream's inference).",
+        "A tenant where the read is refused (simulate: rename the URL in devtools): 🛡 still runs; with exclusions the finding reads “Baseline scopes setting not read”.",
+        "📘 on a tenant with an All-resources exclusion: the entry is medium, past tense, and ends with the tenant sentence; its Learn link opens (200).",
+        "Demo tenant (?demo=1): 🛡 and 📘 run without errors (the demo has no All-resources exclusion, so neither shows the finding).",
+      ],
+      files: ["js/app.js", "js/gapcheck.js", "js/mslearn.js", "js/demo.js", "index.html", "js/version.js"],
+    },
+    {
       n: 165,
       title: "📐 CIS 5.2.2.6 accepts Require risk remediation; riskRemediation labelled everywhere (T21 0.6, catalog r5)",
       tools: ["CIS Benchmark", "CA validator", "What-if", "Teams devices"],

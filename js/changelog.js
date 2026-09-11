@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25331, date: "2026-09-11", title: "Baseline scopes: the tenant setting is read, and the story is told in the past tense",
+    items: [
+      { kind: "improved", tool: "Best-practice & bypass checks", text: "The resource-exclusion check used to announce a change “coming March 2026”. It has come: since the rollout that began 15 June 2026 a sign-in that requests only the baseline scopes (openid, profile, email, offline_access, User.Read and the other basic directory scopes) is evaluated against Windows Azure Active Directory even when the All-resources policy has app exclusions — the old directory-enumeration path is closed. The check now READS the tenant's Baseline scopes setting and grades from it. Disable enforcement is High: every exclusion leaks the baseline scopes today. Customize behavior lists the policies that exclude the placeholder app and so keep the legacy behaviour by design — and says so, at low, when NO policy excludes it, because then the setting changes nothing. No selection saved is Microsoft's default, which now means enforced, and reads as an info together with Enable enforcement. If the setting cannot be read the finding says that instead of guessing." },
+      { kind: "improved", tool: "MS Learn checks", text: "The All-resources-with-exclusions entry is rewritten for after the rollout: medium instead of high, the full baseline scope set, the Learn page on improved enforcement for resource exclusions, and one sentence from the tenant's Baseline scopes setting — enforced, DISABLED and leaking today, placeholder app excluded by design, or not read." },
+    ],
+  },
+  {
     build: 25330, date: "2026-09-11", title: "CIS: Require risk remediation counts",
     items: [
       { kind: "improved", tool: "CIS Benchmark", text: "Catalog r5. Control 5.2.2.6 (user risk policy) accepts the newer Require risk remediation grant next to the password-change form the benchmark was written for. Risk remediation covers passwordless users too — a passkey or Windows Hello user flagged at high risk cannot complete a password change — and the service applies an authentication strength and sign-in frequency every time to such a policy by itself, so those two criteria are treated as implied by the control. A tenant that moved its user-risk policy to risk remediation no longer fails the control for it." },

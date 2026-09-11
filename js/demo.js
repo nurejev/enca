@@ -246,6 +246,9 @@ const DEMO_DATA = {
     },
     "au-2": { members: [], scoped: [] },
   },
+  // Baseline scopes setting as the portal API returns it when nothing was ever
+  // selected — Microsoft's default, which since June 2026 means enforced.
+  caSettings: { "@odata.context": "https://graph.microsoft.com/beta/$metadata#identity/conditionalAccess/settings/$entity", advancedSettings: null },
   namedLocations: [
     { "@odata.type": "#microsoft.graph.ipNamedLocation", id: "loc-hq", displayName: "HQ egress", isTrusted: true, ipRanges: [{ cidrAddress: "203.0.113.0/24" }] },
     { "@odata.type": "#microsoft.graph.ipNamedLocation", id: "loc-branch", displayName: "Branch office (unmarked)", isTrusted: false, ipRanges: [{ cidrAddress: "198.51.100.0/24" }] },

@@ -1731,6 +1731,24 @@
   }
 
   // ---------- data loading ----------
+  // The tenant's Baseline scopes setting (Entra admin center → Conditional
+  // Access → Baseline scopes, aka.ms/BaselineScopesSettingsUX) — the opt-in /
+  // opt-out for the June-2026 enforcement of baseline scopes on All-resources
+  // policies with app exclusions. Portal API, not documented on Learn:
+  // GET /identity/conditionalAccess/settings (beta) →
+  // { advancedSettings: { baselineScopes: { resourceAppId } } | null }.
+  // Read once per tenant load and shared by 🛡 and 📘. null = could not read
+  // (permission, or the API moved) — the checks say "not read" rather than
+  // guessing; undefined = not fetched yet. GapCheck.baselineScopes() classifies.
+  let caSettingsCache;
+  async function readCaSettings() {
+    if (caSettingsCache !== undefined) return caSettingsCache;
+    if (isDemo) { caSettingsCache = DEMO_DATA.caSettings || { advancedSettings: null }; return caSettingsCache; }
+    try { caSettingsCache = await Graph.gget("/identity/conditionalAccess/settings"); }
+    catch (e) { console.warn("Baseline scopes setting not read:", e.message); caSettingsCache = null; }
+    return caSettingsCache;
+  }
+
   async function loadFromGraph(isRefresh) {
     // A refresh used to land on the policy list whatever tool asked for it —
     // 👥 Conditional Access groups reloads after every policy write (Assign
@@ -1762,7 +1780,7 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; anReport = null; anCov = null;
+      isDemo = false; anReport = null; anCov = null; caSettingsCache = undefined;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
@@ -1815,7 +1833,7 @@
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; anReport = null; anCov = null;
+    isDemo = true; anReport = null; anCov = null; caSettingsCache = undefined;
     // The demo gets its own drawer for the group → persona mapping, so playing
     // with it here can never land in a real tenant's saved state.
     try { Baseline.use("demo"); } catch {}
@@ -16597,6 +16615,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (isDemo) partners = { ok: true, list: DEMO_DATA.serviceProviders || [] };
     else partners = await Graph.serviceProviderPartners();
 
+    ctx.caSettings = await readCaSettings();
     const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners });
     mlGroups = MSLearn.group(findings);
     mlFilter = "all"; mlExpanded.clear();
@@ -16978,6 +16997,7 @@ This is a directory write. Nothing else changes.`)) return;
     // (trusted-network detection), break-glass display name — all Policy.Read.All
     gcCtx = { strengths: new Map(), namedLocations: [], names: {} };
     try {
+      gcCtx.caSettings = await readCaSettings();
       if (isDemo) {
         Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) gcCtx.strengths.set(v.id, v); });
         gcCtx.names = DEMO_DATA.names || {};
@@ -16989,6 +17009,14 @@ This is a directory write. Nothing else changes.`)) return;
         ]);
         strengths.forEach(s => gcCtx.strengths.set(s.id, s));
         gcCtx.namedLocations = locations;
+        // Customize behavior names a placeholder app: resolve its name for the finding.
+        const bs = GapCheck.baselineScopes(gcCtx.caSettings);
+        if (bs.mode === "custom") {
+          try {
+            const sps = await Graph.ggetAll(`/servicePrincipals?$filter=appId eq '${bs.scope}'&$select=appId,displayName`);
+            if (sps[0]) gcCtx.names[bs.scope] = sps[0].displayName;
+          } catch (e) { console.warn("Baseline scopes placeholder app lookup failed:", e.message); }
+        }
         const bg = GapCheck.identifyBreakGlass(raws);
         if (bg) {
           try {
