@@ -206,7 +206,7 @@
     toolMsLearn:      { into: "toolGapCheck", label: "📘 MS Learn checks",            where: "the Microsoft Learn tab",    build: 25342,
                         open: () => openMsLearn() },
     toolCis:          { into: "toolGapCheck", label: "📐 CIS Benchmark",              where: "the CIS 5.2.2 tab",          build: 25342,
-                        open: () => openCis() },
+                        open: () => openCis(), betaOnly: true },
     toolDevCheck:     { into: "toolGapCheck", label: "🖥 Device reality check",       where: "the Intune reality tab",     build: 25342,
                         open: () => openDevCheck() },
     toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
@@ -223,8 +223,13 @@
   // Land on a folded tool. Its own entry point when it has one — the right tab,
   // the right catalog — otherwise the host tile, which is the correct answer for
   // a member whose capability is a button on the host's own screen.
+  // betaOnly here mirrors the tab's own flag in TAB_HOSTS: a folded tool whose
+  // tab is hidden on the production host must not be reachable through a
+  // data-tool link or the palette either, or the guard is a door with a
+  // window next to it.
   function openFolded(id) {
     const f = FOLDED[id]; if (!f) return false;
+    if (f.betaOnly && isProdHost()) return false;
     if (f.open) { f.open(); return true; }
     const tile = $(f.into); if (tile) { tile.click(); return true; }
     return false;
@@ -249,7 +254,7 @@
       tabs: [
         { key: "failures", icon: "🚦", name: "Failures",          toolbar: "siToolbar", open: () => openSignins() },
         { key: "impact",   icon: "🎚", name: "Report-only impact", toolbar: "riToolbar", open: () => openImpact() },
-        { key: "session",  icon: "🛂", name: "Session controls",   toolbar: "scToolbar", open: () => openSessionCtl(), beta: true, betaOnly: true },
+        { key: "session",  icon: "🛂", name: "Session controls",   toolbar: "scToolbar", open: () => openSessionCtl(), beta: true },
       ],
     },
     // "What changed" asked of two sources. Audit.diff is already the one engine
@@ -354,7 +359,7 @@
       tile: "toolBaseline", label: "🧬 Baseline",
       tabs: [
         { key: "baseline", icon: "🧬", name: "Baseline",         toolbar: "blToolbar", open: () => { crumb("🧬 Baseline"); openBaseline(Baseline.activeCatalogId() || "limonit"); } },
-        { key: "guide",    icon: "📖", name: "Deployment guide", toolbar: "ugToolbar", open: () => openGuide(), beta: true, betaOnly: true },
+        { key: "guide",    icon: "📖", name: "Deployment guide", toolbar: "ugToolbar", open: () => openGuide(), beta: true },
       ],
     },
   };
@@ -11128,6 +11133,7 @@ This is a directory write. Nothing else changes.`)) return;
     // old name, resolve it to the host, and say where it went in the hint.
     for (const [old, f] of Object.entries(FOLDED)) {
       if (!$(f.into)) continue;
+      if (f.betaOnly && isProdHost()) continue;
       const no = toolNoOf(old);
       const qn = q.trim().toLowerCase();
       const exact = no && (qn === no.toLowerCase() || qn === String(+no.slice(1)) || qn === `t${+no.slice(1)}`);

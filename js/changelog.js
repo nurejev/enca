@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25350, date: "2026-09-11", title: "Production is 311",
+    items: [
+      { kind: "fixed", tool: "Help", text: "Items 24, 132 to 169 and 171 to 184 — the whole cycle from 🛂 Session controls (25265) to the consolidation (25349), plus the 📖 Baseline guide — went to production as build 311. They leave the promotion queue, productionBuild moves to v1.0.311, and the twelve roadmap cards (R05, R43 to R45, R48 to R50, R52 to R56) move from In beta today to Now with their production clause. Two items stay: 170 (🫥 Apps with no service principal, T39, R51) and 34 (the 📐 CIS Benchmark Help, which travels with the CIS tab). Production is 18 tiles to this channel's 19." },
+      { kind: "improved", tool: "All tools", text: "🛂 Session controls and 📖 Deployment guide are no longer beta-only tabs: both show on the production host now, with their BETA chip. 📐 CIS 5.2.2 stays hidden there, and the guard is closed on the other two doors as well — a folded tool marked beta-only is skipped by ⌘K (by name and by number) and refused by an in-app link on the production host, instead of opening the screen the tab strip was hiding." },
+    ],
+  },
+  {
     build: 25349, date: "2026-09-11", title: "📞 Teams devices is a row action, not a tile. 19 tiles",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "📞 Teams devices is the 📞 Rule action on the CAB-SEC-U-TeamsSharedDevices row. ② Create already makes that group as a dynamic group with the Teams rule; T35 rebuilds the rule from the device licences the tenant actually holds and replaces it. That is one action on ONE row — not a tool of its own — so it is offered where the group is and nowhere else, because on any other row the button would mean nothing. The licence read, the rule derivation, the preview and the write are untouched." },

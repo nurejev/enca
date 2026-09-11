@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25349"></script>
+<script src="js/popup-guard.js?v=25350"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25349" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25349">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25350" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25350">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25349"></script>
+<script src="js/selfhost-boot.js?v=25350"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25349"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25349"></script>
+<script src="js/counter.js?v=25350"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25350"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25349" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25350" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25349" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25350" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1347,6 +1347,54 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+          <div class="list-card rm-card" data-shipped="25063">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R05</span> <a href="#" class="md-tool" data-tool="toolGuide">📖 Baseline usage guide</a> <span class="tag grant">live · beta 25063 · production 311</span></h4>
+            <p class="mini" style="margin:0">The toolset could build the baseline; it could not tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge lived in whoever has done it before, which is the least durable place to keep it. Now it is a tool: the deployment order as six steps, each with the <b>reason</b> it sits where it does — the persona model and its CA ranges, groups and restricted units before the policies that target them, named locations, authentication strengths and contexts before the policies that reference them, Terms of use (which has no create API) before import, policies imported Off, then Off → report-only → 🎚 forecast → enforced, Global last. 🔎 <b>Read the tenant</b> turns every step into a readiness check that names what is missing <i>before</i> the step is run instead of after. Graduates to production once the step texts have proven themselves against enough real deployments.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25265">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R43</span> <a href="#" class="md-tool" data-tool="toolSessionCtl">🛂 Session controls</a> <span class="tag grant">live · beta 25265 · production 311</span></h4>
+            <p class="mini" style="margin:0">What a session control actually <b>did</b>. The sign-in log stops at “App Control applied”; the blocked download, the protected file and the step-up are written by Defender for Cloud Apps. Read through Defender advanced hunting on Microsoft Graph (<code>ThreatHunting.Read.All</code> — no second portal, no API token) and joined back to the Conditional Access policy that routed the session. Says when a policy routes but never acts (<i>Monitor only</i>) and when a Defender policy has no router. The activity schema is undocumented and read tolerantly; a schema panel lists what the tenant's events actually carry, which is what graduates it.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25266">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R44</span> <a href="#" class="md-tool" data-tool="toolSignins">🔭 Sign-in source: Entra log, Defender hunting, or hunting with non-interactive</a> <span class="tag grant">live · beta 25266 · production 311</span></h4>
+            <p class="mini" style="margin:0">One segment shared by 🚦, 🎚, 🕵 and 🌊. The Graph sign-in list is interactive only and capped at 10,000; Defender hunting has the same sign-ins with no cap and 30 days — and, on the third setting, the <b>non-interactive</b> ones the Graph list never returns: token refreshes and background client sign-ins, where sign-in-frequency re-prompts at night, legacy-protocol blocks of service accounts and token-protection failures live. Read in explicit datetime slices that halve themselves on a large tenant. Needs Entra ID P2 for the hunting table to be populated.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25267">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R45</span> <a href="#" class="md-tool" data-tool="toolCaGroups">👥 Show nesting in the members matrix</a> <span class="tag grant">live · beta 25267 · production 311</span></h4>
+            <p class="mini" style="margin:0">Every member read also reads the group's direct list and its nested member groups, so the matrix can say <b>how</b> as well as who: ● direct, ◐ through a nested group with the child named, a Nested groups panel with each child's members, hide-empty-groups, and ◐ cells that are not removable because the membership lives in the child. On the same build the matrix finally got the grid every other matrix has — it had been bare rows since build 97.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25273">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R48</span> <a href="#" class="md-tool" data-tool="toolCaGroups">👥 Conditional Access groups as one list</a> <span class="tag grant">live · beta 25273 · production 311</span></h4>
+            <p class="mini" style="margin:0">Seven tabs that each started their own scan become <b>one read, then everything is a row</b>: a list of every group with its status, members, policies and protection, filter chips for what needs attention, an actions bar for the rows you tick, and a detail drawer that follows the row you click — members as a tree with add and remove (nested groups included), policies, protection, history. The engines underneath are unchanged; the list routes into them with the selection carried across.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25281">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R49</span> <a href="#" class="md-tool" data-tool="toolExclusions">🚪 Exclusions: nesting in sight</a> <span class="tag grant">live · beta 25281 · production 311</span></h4>
+            <p class="mini" style="margin:0">The exclusion analyzer shows <b>how</b> a user got into an exclusion group, not only that they are in it: direct or through a named nested group, per member, per matrix cell and in the head count — and the risk review flags an exclusion group fed by nested groups as the bypass it is. Same nesting read 👥 Conditional Access groups uses, so the two tools agree.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25301">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R50</span> <a href="#" class="md-tool" data-tool="toolCaGroups">✅ One run ledger for every write</a> <span class="tag grant">live · beta 25301 · production 311</span></h4>
+            <p class="mini" style="margin:0">Every tool that walks a list and writes — 139 policies, 6 groups, 4 ticks — shows the same box: the whole list before the first write, the row being written marked, ✓ or ✗ as each lands with the reason inline, the box scrolling to keep the working row in view, a count and a clock, Stop between writes. In 🎯 Assign, 🎚 Set policy state, and 👥 Migrate, Protect, Create, Import CSV, Archived groups and the Compare ticks.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25338">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R52</span> <a href="#" class="md-tool" data-tool="toolPolicies">🗂 One door per room</a> <span class="tag grant">live · beta 25338 · production 311</span></h4>
+            <p class="mini" style="margin:0">39 tiles, far fewer questions. Four of them were a second door onto a screen that already had one: 📄 Create documentation, 🗄 Backup (JSON) and 🎚 Set Policy state all opened 🗂 List Policies with one action pre-selected and a toast naming a button that was already on its action bar, and 🧩 Baseline (Joey Verlinden) was <code>openBaseline("joey")</code> against the same screen the catalog picker already switches. Folded: 39 tiles to 35, nothing removed, every deep link still landing. T02, T04, T05 and T11 keep their numbers, keep their Help sections under their new hosts, and the mapping is published in 🔢 Tool numbers. Phase 1 of the tool consolidation review; the tabbed hosts (🚦 Sign-in log, 🕒 Changes, 🧩 Policy building blocks, 🛡 Checks) are phase 2.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25339">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R53</span> <a href="#" class="md-tool" data-tool="toolSignins">🚦 One tool per data source</a> <span class="tag grant">live · beta 25339 · production 311</span></h4>
+            <p class="mini" style="margin:0">Phase 2 of the consolidation review: where several tools read the SAME thing, they become tabs over one read. First the sign-in window — 🚦 Sign-in failures, 🎚 Report-only impact and 🛂 Session controls were three tiles over one <code>readSignInWindow</code>, one cache and one consent, and the only sign of it was a line saying the window had been re-used. Now 🚦 Sign-in log with three tabs. The tab strip is mounted into each member's own toolbar rather than moving three screens into one panel, so every screen keeps its scroll memory, its history entry and the ids other tools deep-link to; a beta-only member is a guarded tab instead of a deleted file. 🕓 Changes, 🧩 Policy building blocks and 🛡 Checks follow.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25340">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R54</span> <a href="#" class="md-tool" data-tool="toolAudit">🕓 What moved, and how to deploy it</a> <span class="tag grant">live · beta 25340 · production 311</span></h4>
+            <p class="mini" style="margin:0">Two more hosts. 🕓 Change audit and 📉 Drift watch asked one question — what moved — of two sources over one diff engine, so they are 🕓 Changes with an Audit log tab and a Snapshot file tab. And 📖 Baseline guide, which only ever answered <i>how do I deploy this baseline</i> and linked seven other tools to do it, is the Deployment guide tab of 🧬 Baseline, where the baseline it describes already lives. Both bodies stay as they are: the fold removes a tile, not an answer.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25341">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R55</span> <a href="#" class="md-tool" data-tool="toolLocations">🧩 Policy building blocks</a> <span class="tag grant">live · beta 25341 · production 311</span></h4>
+            <p class="mini" style="margin:0">A policy references four kinds of object managed elsewhere — named locations, authentication strengths, authentication contexts, terms-of-use agreements — and each had a tile over the same screen: a list, which policies use each row, create / edit / delete. Five tabs now, with ♻ Deleted as the fifth because the restore window holds deleted locations as well as deleted policies. Underneath, the four private copies of <i>which policies use this</i> became one implementation, so the All-trusted-locations case that only the locations tool knew about is available to every kind.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25342">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R56</span> <a href="#" class="md-tool" data-tool="toolGapCheck">🛡 Checks — four references, one tool</a> <span class="tag grant">live · beta 25342 · production 311</span></h4>
+            <p class="mini" style="margin:0">The last of the four phase-2 hosts. Bypass patterns, Microsoft's documented limits, CIS 5.2.2 and the Intune compliance policy behind a require-compliant-device grant are rule packs as tabs, each asking for its own permissions on its own run. Not done, and said so rather than half done: one findings table across the four. They present a persona × control matrix, buildable fixes, a four-tier score with an L1/L2 filter and a per-platform grid — different shapes, and one table with a Source column would lose what each of them says. Phase 2 closes at 24 tiles, from 39.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="25261">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R40</span> <a href="#" class="md-tool" data-tool="toolWhoIs">🕵 Who is Anna to CA</a> <span class="tag grant">live · beta 25261 · production 309</span></h4>
             <p class="mini" style="margin:0">One user, the whole Conditional Access picture on one screen — the answer to <i>why can't Anna sign in</i> and <i>is Anna in the wave yet</i>, which used to take four tools. Her <b>deployment stage</b> (which of the baseline's <code>CAD-SEC-U-DG-*</code> groups, and how: direct or nested via which parent), every policy that <b>reaches</b> her and via what — or excludes her and by what — the sign-ins Conditional Access actually <b>stopped</b> for her, and what happens to her the day <b>report-only</b> goes live. A standing bypass through an exclusion group is named as such. Same include/exclude resolution as ⚖ Compare users, so the two cannot disagree.</p>
@@ -1481,64 +1529,16 @@
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
-          <div class="list-card rm-card">
+                    <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25063">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R05</span> <a href="#" class="md-tool" data-tool="toolGuide">📖 Baseline usage guide</a> <span class="tag grant">live · beta 25063</span></h4>
-            <p class="mini" style="margin:0">The toolset could build the baseline; it could not tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge lived in whoever has done it before, which is the least durable place to keep it. Now it is a tool: the deployment order as six steps, each with the <b>reason</b> it sits where it does — the persona model and its CA ranges, groups and restricted units before the policies that target them, named locations, authentication strengths and contexts before the policies that reference them, Terms of use (which has no create API) before import, policies imported Off, then Off → report-only → 🎚 forecast → enforced, Global last. 🔎 <b>Read the tenant</b> turns every step into a readiness check that names what is missing <i>before</i> the step is run instead of after. Graduates to production once the step texts have proven themselves against enough real deployments.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25265">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R43</span> <a href="#" class="md-tool" data-tool="toolSessionCtl">🛂 Session controls</a> <span class="tag grant">live · beta 25265</span></h4>
-            <p class="mini" style="margin:0">What a session control actually <b>did</b>. The sign-in log stops at “App Control applied”; the blocked download, the protected file and the step-up are written by Defender for Cloud Apps. Read through Defender advanced hunting on Microsoft Graph (<code>ThreatHunting.Read.All</code> — no second portal, no API token) and joined back to the Conditional Access policy that routed the session. Says when a policy routes but never acts (<i>Monitor only</i>) and when a Defender policy has no router. The activity schema is undocumented and read tolerantly; a schema panel lists what the tenant's events actually carry, which is what graduates it.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25266">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R44</span> <a href="#" class="md-tool" data-tool="toolSignins">🔭 Sign-in source: Entra log, Defender hunting, or hunting with non-interactive</a> <span class="tag grant">live · beta 25266</span></h4>
-            <p class="mini" style="margin:0">One segment shared by 🚦, 🎚, 🕵 and 🌊. The Graph sign-in list is interactive only and capped at 10,000; Defender hunting has the same sign-ins with no cap and 30 days — and, on the third setting, the <b>non-interactive</b> ones the Graph list never returns: token refreshes and background client sign-ins, where sign-in-frequency re-prompts at night, legacy-protocol blocks of service accounts and token-protection failures live. Read in explicit datetime slices that halve themselves on a large tenant. Needs Entra ID P2 for the hunting table to be populated.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25267">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R45</span> <a href="#" class="md-tool" data-tool="toolCaGroups">👥 Show nesting in the members matrix</a> <span class="tag grant">live · beta 25267</span></h4>
-            <p class="mini" style="margin:0">Every member read also reads the group's direct list and its nested member groups, so the matrix can say <b>how</b> as well as who: ● direct, ◐ through a nested group with the child named, a Nested groups panel with each child's members, hide-empty-groups, and ◐ cells that are not removable because the membership lives in the child. On the same build the matrix finally got the grid every other matrix has — it had been bare rows since build 97.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25273">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R48</span> <a href="#" class="md-tool" data-tool="toolCaGroups">👥 Conditional Access groups as one list</a> <span class="tag grant">live · beta 25273</span></h4>
-            <p class="mini" style="margin:0">Seven tabs that each started their own scan become <b>one read, then everything is a row</b>: a list of every group with its status, members, policies and protection, filter chips for what needs attention, an actions bar for the rows you tick, and a detail drawer that follows the row you click — members as a tree with add and remove (nested groups included), policies, protection, history. The engines underneath are unchanged; the list routes into them with the selection carried across.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25281">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R49</span> <a href="#" class="md-tool" data-tool="toolExclusions">🚪 Exclusions: nesting in sight</a> <span class="tag grant">live · beta 25281</span></h4>
-            <p class="mini" style="margin:0">The exclusion analyzer shows <b>how</b> a user got into an exclusion group, not only that they are in it: direct or through a named nested group, per member, per matrix cell and in the head count — and the risk review flags an exclusion group fed by nested groups as the bypass it is. Same nesting read 👥 Conditional Access groups uses, so the two tools agree.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25301">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R50</span> <a href="#" class="md-tool" data-tool="toolCaGroups">✅ One run ledger for every write</a> <span class="tag grant">live · beta 25301</span></h4>
-            <p class="mini" style="margin:0">Every tool that walks a list and writes — 139 policies, 6 groups, 4 ticks — shows the same box: the whole list before the first write, the row being written marked, ✓ or ✗ as each lands with the reason inline, the box scrolling to keep the working row in view, a count and a clock, Stop between writes. In 🎯 Assign, 🎚 Set policy state, and 👥 Migrate, Protect, Create, Import CSV, Archived groups and the Compare ticks.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25335">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R51</span> <a href="#" class="md-tool" data-tool="toolSpGap">🫥 Apps with no service principal</a> <span class="tag grant">live · beta 25335</span></h4>
             <p class="mini" style="margin:0">Conditional Access can only name what exists. An app that signs in but has no service principal here is not in the app picker — neither includable nor excludable, reached only by a policy on All resources. One Graph call (<code>signInEventsAppSummary</code>, 30 days) diffed against the tenant's service principals; per app the 🧪 What-If verdict for the moment it exists, the phantom exclusions already naming it, and the newest sign-in as evidence. Idea from Jhope188's CA Policy Analyzer v1.17.0, rebuilt on ENCA's own What-If engine and sign-in window — and without its generated PowerShell.</p>
           </div>
-          <div class="list-card rm-card" data-shipped="25338">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R52</span> <a href="#" class="md-tool" data-tool="toolPolicies">🗂 One door per room</a> <span class="tag grant">live · beta 25338</span></h4>
-            <p class="mini" style="margin:0">39 tiles, far fewer questions. Four of them were a second door onto a screen that already had one: 📄 Create documentation, 🗄 Backup (JSON) and 🎚 Set Policy state all opened 🗂 List Policies with one action pre-selected and a toast naming a button that was already on its action bar, and 🧩 Baseline (Joey Verlinden) was <code>openBaseline("joey")</code> against the same screen the catalog picker already switches. Folded: 39 tiles to 35, nothing removed, every deep link still landing. T02, T04, T05 and T11 keep their numbers, keep their Help sections under their new hosts, and the mapping is published in 🔢 Tool numbers. Phase 1 of the tool consolidation review; the tabbed hosts (🚦 Sign-in log, 🕒 Changes, 🧩 Policy building blocks, 🛡 Checks) are phase 2.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25339">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R53</span> <a href="#" class="md-tool" data-tool="toolSignins">🚦 One tool per data source</a> <span class="tag grant">live · beta 25339</span></h4>
-            <p class="mini" style="margin:0">Phase 2 of the consolidation review: where several tools read the SAME thing, they become tabs over one read. First the sign-in window — 🚦 Sign-in failures, 🎚 Report-only impact and 🛂 Session controls were three tiles over one <code>readSignInWindow</code>, one cache and one consent, and the only sign of it was a line saying the window had been re-used. Now 🚦 Sign-in log with three tabs. The tab strip is mounted into each member's own toolbar rather than moving three screens into one panel, so every screen keeps its scroll memory, its history entry and the ids other tools deep-link to; a beta-only member is a guarded tab instead of a deleted file. 🕓 Changes, 🧩 Policy building blocks and 🛡 Checks follow.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25340">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R54</span> <a href="#" class="md-tool" data-tool="toolAudit">🕓 What moved, and how to deploy it</a> <span class="tag grant">live · beta 25340</span></h4>
-            <p class="mini" style="margin:0">Two more hosts. 🕓 Change audit and 📉 Drift watch asked one question — what moved — of two sources over one diff engine, so they are 🕓 Changes with an Audit log tab and a Snapshot file tab. And 📖 Baseline guide, which only ever answered <i>how do I deploy this baseline</i> and linked seven other tools to do it, is the Deployment guide tab of 🧬 Baseline, where the baseline it describes already lives. Both bodies stay as they are: the fold removes a tile, not an answer.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25341">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R55</span> <a href="#" class="md-tool" data-tool="toolLocations">🧩 Policy building blocks</a> <span class="tag grant">live · beta 25341</span></h4>
-            <p class="mini" style="margin:0">A policy references four kinds of object managed elsewhere — named locations, authentication strengths, authentication contexts, terms-of-use agreements — and each had a tile over the same screen: a list, which policies use each row, create / edit / delete. Five tabs now, with ♻ Deleted as the fifth because the restore window holds deleted locations as well as deleted policies. Underneath, the four private copies of <i>which policies use this</i> became one implementation, so the All-trusted-locations case that only the locations tool knew about is available to every kind.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25342">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R56</span> <a href="#" class="md-tool" data-tool="toolGapCheck">🛡 Checks — four references, one tool</a> <span class="tag grant">live · beta 25342</span></h4>
-            <p class="mini" style="margin:0">The last of the four phase-2 hosts. Bypass patterns, Microsoft's documented limits, CIS 5.2.2 and the Intune compliance policy behind a require-compliant-device grant are rule packs as tabs, each asking for its own permissions on its own run. Not done, and said so rather than half done: one findings table across the four. They present a persona × control matrix, buildable fixes, a four-tier score with an L1/L2 filter and a per-platform grid — different shapes, and one table with a Source column would lose what each of them says. Phase 2 closes at 24 tiles, from 39.</p>
-          </div>
         </div>
-        <div class="rm-era future">
+<div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R12</span> ↩️ Undo for writes <span class="tag">planned</span></h4>
@@ -1997,7 +1997,7 @@
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
         <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number.</li>
-        <li><b>Folded tools keep their number, and the mapping is published here.</b> A rule that says a number is never reused is only worth something if you can still find out what the number means. Four numbers no longer have a tile of their own:
+        <li><b>Folded tools keep their number, and the mapping is published here.</b> A rule that says a number is never reused is only worth something if you can still find out what the number means. Twenty numbers no longer have a tile of their own:
           <ul>
             <li><code>T02</code> 📄 Create documentation → <b>🗂 Policies</b>, action bar (build 25338)</li>
             <li><code>T04</code> 🗄 Backup (JSON) → <b>🗂 Policies</b>, action bar (build 25338)</li>
@@ -3005,68 +3005,68 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25349"></script>
-<script src="js/selfhost.js?v=25349"></script>
-<script src="js/version.js?v=25349"></script>
-<script src="js/fork.js?v=25349"></script>
-<script src="js/promote.js?v=25349"></script>
-<script src="js/authConfig.js?v=25349"></script>
-<script src="js/labels.js?v=25349"></script>
-<script src="js/graph.js?v=25349"></script>
-<script src="js/model.js?v=25349"></script>
-<script src="js/render.js?v=25349"></script>
-<script src="js/analyze.js?v=25349"></script>
-<script src="js/whatif.js?v=25349"></script>
-<script src="js/mslearn.js?v=25349"></script>
-<script src="js/gapcheck.js?v=25349"></script>
-<script src="js/cisdata.js?v=25349"></script>
-<script src="js/cischeck.js?v=25349"></script>
-<script src="js/exclusions.js?v=25349"></script>
-<script src="js/cascope.js?v=25349"></script>
-<script src="js/validator.js?v=25349"></script>
-<script src="js/whatifeval.js?v=25349"></script>
-<script src="js/compare.js?v=25349"></script>
-<script src="js/whois.js?v=25349"></script>
-<script src="js/wave.js?v=25349"></script>
-<script src="js/sessionctl.js?v=25349"></script>
-<script src="js/spgap.js?v=25349"></script>
-<script src="js/groupuse.js?v=25349"></script>
-<script src="js/iso3166.js?v=25349"></script>
-<script src="js/causes.js?v=25349"></script>
-<script src="js/locations.js?v=25349"></script>
-<script src="js/authcontexts.js?v=25349"></script>
-<script src="js/authstrengths.js?v=25349"></script>
-<script src="js/recycle.js?v=25349"></script>
-<script src="js/rmau.js?v=25349"></script>
-<script src="js/camap.js?v=25349"></script>
-<script src="js/rmaudoc.js?v=25349"></script>
-<script src="js/termsofuse.js?v=25349"></script>
-<script src="js/audit.js?v=25349"></script>
-<script src="js/drift.js?v=25349"></script>
-<script src="js/guide.js?v=25349"></script>
-<script src="js/userimpact.js?v=25349"></script>
-<script src="js/smsvoice.js?v=25349"></script>
-<script src="js/memberof.js?v=25349"></script>
-<script src="js/devcheck.js?v=25349"></script>
-<script src="js/licgap.js?v=25349"></script>
-<script src="js/teamsdev.js?v=25349"></script>
-<script src="js/signins.js?v=25349"></script>
-<script src="js/reportimpact.js?v=25349"></script>
-<script src="js/changelog.js?v=25349"></script>
-<script src="js/baselineData.js?v=25349"></script>
-<script src="js/baselineJoeyData.js?v=25349"></script>
-<script src="js/baselineLive.js?v=25349"></script>
-<script src="js/baseline.js?v=25349"></script>
-<script src="js/baselineCleanup.js?v=25349"></script>
-<script src="js/groupTemplates.js?v=25349"></script>
-<script src="js/assign.js?v=25349"></script>
-<script src="js/cagroups.js?v=25349"></script>
-<script src="js/groupsview.js?v=25349"></script>
-<script src="js/runledger.js?v=25349"></script>
-<script src="js/protect.js?v=25349"></script>
-<script src="js/import.js?v=25349"></script>
-<script src="js/export.js?v=25349"></script>
-<script src="js/demo.js?v=25349"></script>
-<script src="js/app.js?v=25349"></script>
+<script src="js/branding.js?v=25350"></script>
+<script src="js/selfhost.js?v=25350"></script>
+<script src="js/version.js?v=25350"></script>
+<script src="js/fork.js?v=25350"></script>
+<script src="js/promote.js?v=25350"></script>
+<script src="js/authConfig.js?v=25350"></script>
+<script src="js/labels.js?v=25350"></script>
+<script src="js/graph.js?v=25350"></script>
+<script src="js/model.js?v=25350"></script>
+<script src="js/render.js?v=25350"></script>
+<script src="js/analyze.js?v=25350"></script>
+<script src="js/whatif.js?v=25350"></script>
+<script src="js/mslearn.js?v=25350"></script>
+<script src="js/gapcheck.js?v=25350"></script>
+<script src="js/cisdata.js?v=25350"></script>
+<script src="js/cischeck.js?v=25350"></script>
+<script src="js/exclusions.js?v=25350"></script>
+<script src="js/cascope.js?v=25350"></script>
+<script src="js/validator.js?v=25350"></script>
+<script src="js/whatifeval.js?v=25350"></script>
+<script src="js/compare.js?v=25350"></script>
+<script src="js/whois.js?v=25350"></script>
+<script src="js/wave.js?v=25350"></script>
+<script src="js/sessionctl.js?v=25350"></script>
+<script src="js/spgap.js?v=25350"></script>
+<script src="js/groupuse.js?v=25350"></script>
+<script src="js/iso3166.js?v=25350"></script>
+<script src="js/causes.js?v=25350"></script>
+<script src="js/locations.js?v=25350"></script>
+<script src="js/authcontexts.js?v=25350"></script>
+<script src="js/authstrengths.js?v=25350"></script>
+<script src="js/recycle.js?v=25350"></script>
+<script src="js/rmau.js?v=25350"></script>
+<script src="js/camap.js?v=25350"></script>
+<script src="js/rmaudoc.js?v=25350"></script>
+<script src="js/termsofuse.js?v=25350"></script>
+<script src="js/audit.js?v=25350"></script>
+<script src="js/drift.js?v=25350"></script>
+<script src="js/guide.js?v=25350"></script>
+<script src="js/userimpact.js?v=25350"></script>
+<script src="js/smsvoice.js?v=25350"></script>
+<script src="js/memberof.js?v=25350"></script>
+<script src="js/devcheck.js?v=25350"></script>
+<script src="js/licgap.js?v=25350"></script>
+<script src="js/teamsdev.js?v=25350"></script>
+<script src="js/signins.js?v=25350"></script>
+<script src="js/reportimpact.js?v=25350"></script>
+<script src="js/changelog.js?v=25350"></script>
+<script src="js/baselineData.js?v=25350"></script>
+<script src="js/baselineJoeyData.js?v=25350"></script>
+<script src="js/baselineLive.js?v=25350"></script>
+<script src="js/baseline.js?v=25350"></script>
+<script src="js/baselineCleanup.js?v=25350"></script>
+<script src="js/groupTemplates.js?v=25350"></script>
+<script src="js/assign.js?v=25350"></script>
+<script src="js/cagroups.js?v=25350"></script>
+<script src="js/groupsview.js?v=25350"></script>
+<script src="js/runledger.js?v=25350"></script>
+<script src="js/protect.js?v=25350"></script>
+<script src="js/import.js?v=25350"></script>
+<script src="js/export.js?v=25350"></script>
+<script src="js/demo.js?v=25350"></script>
+<script src="js/app.js?v=25350"></script>
 </body>
 </html>

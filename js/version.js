@@ -30,7 +30,7 @@ const APP_BUILD = {
   // graduating to production one queue number at a time — production walked
   // 250 → 281 while this cycle stayed 250. It is a cycle NAME, not a promise.
   cycle: 250,
-  build: 25349,
+  build: 25350,
   date: "2026-09-11",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time
@@ -40,7 +40,7 @@ const APP_BUILD = {
   // Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
-  released: "2026-09-11T14:29Z",
+  released: "2026-09-11T15:23Z",
   get isBeta() { return this.build >= 10000; },
   // Stored UTC, shown in the reader's own timezone with the offset named.
   // A build is cut once, so one absolute instant is the right thing to record —
@@ -107,7 +107,7 @@ const APP_BUILD = {
 //   * NEVER REUSED. Not when a tool is retired, not when it is folded into
 //     another. A recycled number makes every older note about it wrong, which
 //     is precisely the failure the number exists to prevent.
-//   * A NEW TOOL TAKES THE NEXT FREE NUMBER — 39 next — and takes it in the
+//   * A NEW TOOL TAKES THE NEXT FREE NUMBER — 40 next — and takes it in the
 //     same commit that adds the tile, like the changelog entry and the
 //     promotion-queue row.
 //
