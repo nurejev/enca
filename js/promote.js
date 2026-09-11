@@ -118,6 +118,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 183,
+      title: "🎫 Licence gap folded into 🔍 Gap analyse as the Licences tab (T03 1.10; T31 folded) — 20 tiles",
+      tools: ["Gap analyse", "Licence gap"],
+      builds: [25348],
+      risk: "low",
+      what: "js/app.js: TAB_HOSTS gains gap (coverage → plToolbar, licences → lgToolbar); NEW unmountToolTabs(hostKey) removes a host's strip from every member toolbar, called by the 🗂 Policies tile handler because screen-list is both tools; the toolAnalyze handler mounts coverage, openLicGap crumbs 🔍 Gap analyse and mounts licences; the toolLicGap tile handler and TOOL_TABS row go; FOLDED gains toolLicGap. index.html: the 🎫 tile removed, T03's blurb names the Licences tab, id=plToolbar on screen-list's toolbar, the 🎫 Help section moved under T03 as an h5 with a paragraph on the unmount, one row in 🔢 Tool numbers. js/version.js: build 25348, T03 1.10, T31 1.0.2 folded.",
+      why: "Low in substance — no read or renderer changed — but it is the only fold where a strip has to come back out, and that is the thing to check. screen-list serves 🗂 Policies AND 🔍 Gap analyse; a strip left in place would offer to switch to a tool the reader is not in.",
+      test: [
+        "THE UNMOUNT. Open 🔍 Gap analyse: the strip reads 🔍 Coverage · 🎫 Licences with Coverage active. Now open 🗂 Policies from the home page or the side nav: the toolbar must have NO strip. Back to 🔍: the strip is there again. Repeat the round trip three times — it must not leave two strips or none.",
+        "Home page: 20 tiles, 🎫 gone as a tile, 🔍 reads Gap analyse with T03 v1.10 and a blurb naming the Licences tab.",
+        "🎫 Licences from inside the tab on a real tenant: the same obligation counts, the same per-user verdicts, the same remedies and the same export as 25347. The admin-unit prefill and its chips still render (openLicGap calls lgAdmPrefill and lgAdmChipRender before the render, and that order is unchanged).",
+        "The funnel's last stage and the tab must agree on the number: read the licensed stage of the 🔍 funnel, then open 🎫 — the obligated and licensed counts must match, since both come from LicGap.licenceOf.",
+        "One browser tab labelled 🔍 Gap analyse for both screens; Back walks them; the side nav and + menu list it once with no dead row. ⌘K: 'licence' offers 🎫 Licence gap with the hint naming the tab and lands on it; 31 finds it by number.",
+        "?demo=1: both tabs render and the round trip to 🗂 Policies still removes and restores the strip.",
+      ],
+      files: ["index.html", "js/app.js", "js/changelog.js", "js/promote.js", "js/version.js"],
+    },
+    {
       n: 182,
       title: "🕵 Who is … to CA: 🌊 the wave and ⚖ Compare users folded in as subjects (T36 1.0; T37 T18 folded) — 21 tiles",
       tools: ["Who is … to CA", "Who is the wave to CA", "Compare users"],

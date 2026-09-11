@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25348, date: "2026-09-11", title: "🎫 Licence gap is the funnel's last stage, opened up",
+    items: [
+      { kind: "improved", tool: "Gap analyse", text: "🎫 Licence gap is the 🎫 Licences TAB of 🔍 Gap analyse. The coverage funnel's final stage already reported the same obligation through the same helper — every user a policy targets needs Entra ID P1, a risk condition needs P2 — and 🎫 was that stage with the ways to close it attached. Nothing inside it changed: the obligation read, the per-user verdicts, the remedies, the export." },
+      { kind: "improved", tool: "Gap analyse", text: "This is the one host whose strip has to be taken back OUT again. 🔍 Gap analyse is 🗂 Policies' screen in its analyze view, so without an unmount the Gap strip would sit in the Policies toolbar offering to switch a tool you are not in. Opening 🗂 Policies removes it; opening 🔍 puts it back." },
+    ],
+  },
+  {
     build: 25347, date: "2026-09-11", title: "🕵 Who is … to CA — a user, a group, or several side by side",
     items: [
       { kind: "improved", tool: "Who is … to CA", text: "🕵 Who is Anna to CA, 🌊 Who is the wave to CA and ⚖ Compare users are ONE TOOL with a subject picker, and the tile is 🕵 Who is … to CA. They were three tiles over one picture, and the code has always said so: 🌊 resolves every member of a group through 🕵's own policy ladder, and 🕵 resolves its user through ⚖'s resolver. Pick the subject — a user, a group, or several users side by side — and the rest of the tool is the same tool. Nothing inside any of the three changed: the wave read and its member table, the risk read, the retired-control check, the forecast, the assignment matrix, the membership diff, the optional What-If scenario per user." },

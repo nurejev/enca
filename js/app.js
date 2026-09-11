@@ -215,6 +215,8 @@
                         open: () => openWave() },
     toolCompare:      { into: "toolWhoIs",    label: "⚖ Compare users",               where: "the Compare users subject",  build: 25347,
                         open: () => openCompare() },
+    toolLicGap:       { into: "toolAnalyze",  label: "🎫 Licence gap",                 where: "the Licences tab",           build: 25348,
+                        open: () => openLicGap() },
   };
   // Land on a folded tool. Its own entry point when it has one — the right tab,
   // the right catalog — otherwise the host tile, which is the correct answer for
@@ -296,6 +298,22 @@
     // for: a user, a group, or several users side by side. Since 25345 all
     // three share one scope check as well, so the three subjects cannot
     // disagree about the same person and the same policy.
+    // The coverage funnel and its last stage. 🎫 Licence gap computes the same
+    // obligation the funnel's final stage already reports through
+    // LicGap.licenceOf, and then says how to close it — so it is that stage
+    // opened up, not a second tool.
+    //
+    // This host is the one that needs UNMOUNTING: 🔍 Gap analyse is screen-list
+    // in the analyze view, and screen-list is also 🗂 Policies. Without the
+    // unmount the Gap strip would sit in the Policies toolbar, offering to
+    // switch a tool you are not in.
+    gap: {
+      tile: "toolAnalyze", label: "🔍 Gap analyse",
+      tabs: [
+        { key: "coverage", icon: "🔍", name: "Coverage",  toolbar: "plToolbar", open: () => $("toolAnalyze").click() },
+        { key: "licences", icon: "🎫", name: "Licences",  toolbar: "lgToolbar", open: () => openLicGap() },
+      ],
+    },
     whois: {
       tile: "toolWhoIs", label: "🕵 Who is … to CA",
       tabs: [
@@ -363,6 +381,13 @@
       tb.insertBefore(seg, tb.firstChild);
     }
     [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.tabgo === `${hostKey}:${tabKey}`));
+  }
+  // Take the strip back out. Needed for exactly one host: screen-list is both
+  // 🗂 Policies and 🔍 Gap analyse, so opening it as Policies has to remove a
+  // strip that belongs to the other tool.
+  function unmountToolTabs(hostKey) {
+    const h = TAB_HOSTS[hostKey]; if (!h) return;
+    h.tabs.forEach((t) => { const tb = $(t.toolbar); const seg = tb && tb.querySelector(".tool-tabs"); if (seg) seg.remove(); });
   }
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-tabgo]"); if (!b) return;
@@ -2322,7 +2347,6 @@
     ["toolAudit", "🕓 Changes"],
     ["toolSignins", "🚦 Sign-in log"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
-    ["toolLicGap", "🎫 Licence gap"],
     ["toolTeamsDev", "📞 Teams devices"],
     ["toolBaseline", "🧬 Baseline"],
     ["toolCaGroups", "👥 Conditional Access groups"],
@@ -2543,8 +2567,8 @@
   // here. Their open functions (openExport, runBackup, openStateModal) are
   // unchanged and still reached from the bar, the per-policy card actions and
   // the deep links other tools use.
-  $("toolPolicies").addEventListener("click", () => { crumb("🗂 Policies"); setToolMode(""); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list"); });
-  $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); });
+  $("toolPolicies").addEventListener("click", () => { crumb("🗂 Policies"); setToolMode(""); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list"); unmountToolTabs("gap"); });
+  $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); mountToolTabs("gap", "coverage"); });
   $("toolGapCheck").addEventListener("click", () => openGapCheck());
   $("toolExclusions").addEventListener("click", () => { crumb("🚪 Exclusion analyzer"); openExclusions(); });
   // One tile, both catalogs: the picker in the toolbar (#blCatalog, rendered from
@@ -12625,8 +12649,7 @@ This is a directory write. Nothing else changes.`)) return;
     renderLicGap();
     if ($("lgUsersModal").classList.contains("open")) lgRenderUsers();
   }
-  function openLicGap() { crumb("🎫 Licence gap"); show("screen-licgap"); lgAdmPrefill(); lgAdmChipRender(); renderLicGap(); }
-  $("toolLicGap").addEventListener("click", openLicGap);
+  function openLicGap() { crumb("🔍 Gap analyse"); show("screen-licgap"); mountToolTabs("gap", "licences"); lgAdmPrefill(); lgAdmChipRender(); renderLicGap(); }
   $("lgRun").addEventListener("click", lgRun);
   $("lgBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-lgrun]")) { lgRun(); return; }

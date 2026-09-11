@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25347"></script>
+<script src="js/popup-guard.js?v=25348"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25347" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25347">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25348" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25348">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25347"></script>
+<script src="js/selfhost-boot.js?v=25348"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25347"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25347"></script>
+<script src="js/counter.js?v=25348"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25348"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25347" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25348" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25347" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25348" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -182,7 +182,7 @@
     <div class="tools">
       <div class="tool" id="toolAnalyze">
         <div class="tool-ic">🔍</div><h3>Gap analyse <span class="tag upd">UPDATED</span></h3>
-        <p>How many of your users Conditional Access actually reaches — a coverage flow from everyone in scope down to targeted, enforced, MFA and licensed — then the users × policies matrix: who bypasses what and why.</p>
+        <p>Who your policies actually cover, as a funnel: every user, then the ones a policy targets, then the ones an exclusion takes back out, then the ones holding the licence their own policies oblige. The last stage has its own tab — <b>🎫 Licences</b> — because the obligation is the interesting half: Microsoft's licence usage blade counts who <i>triggered</i> a policy last month, while every user your policies <i>target</i> needs Entra ID P1, and risk conditions need P2.</p>
       </div>
       <div class="tool" id="toolWhatIf">
         <div class="tool-ic">🧪</div><h3>What-If <span class="tag upd">UPDATED</span></h3>
@@ -203,10 +203,6 @@
       <div class="tool" id="toolExclusions">
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer <span class="tag upd">UPDATED</span></h3>
         <p>Every exclusion across all policies — users, groups (expanded to members, with the nested groups they came through), roles, guest types, apps and locations — in an exclusion × policy matrix, with a risk review that flags an exclusion group fed by nesting.</p>
-      </div>
-      <div class="tool" id="toolLicGap">
-        <div class="tool-ic">🎫</div><h3>Licence gap <span class="tag upd">UPDATED</span></h3>
-        <p>Microsoft's licence usage blade counts who <i>triggered</i> a policy last month — the obligation is on who your policies <i>target</i>. Every targeted user needs Entra ID P1, risk-based policies need P2. This counts the real number, compares it with the seats you own, and lays out the ways to close a gap.</p>
       </div>
       <div class="tool" id="toolTeamsDev">
         <div class="tool-ic">📞</div><h3>Teams devices <span class="tag new">BETA</span></h3>
@@ -336,7 +332,7 @@
 
   <!-- ============ POLICIES (cards default · list · matrix) ============ -->
   <section id="screen-list" class="screen">
-    <div class="toolbar">
+    <div class="toolbar" id="plToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="searchBox" placeholder="Search policies…">
@@ -1726,6 +1722,7 @@
 
     <section class="help-sec">
       <h4>🔍 Gap analyse</h4>
+      <p><b>The funnel and its last stage.</b> 🎫 Licence gap computed the same obligation this funnel's final stage already reports — every user a policy targets needs Entra ID P1, a risk condition needs P2 — and then said how to close it. It is that stage opened up rather than a second tool, so from build 25348 it is the <b>🎫 Licences</b> tab; <b>T03</b> and <b>T31</b> keep their numbers (see 🔢 Tool numbers) and 🎫 keeps its section below. One thing to know about where the strip lives: this tool IS 🗂 Policies' screen in its analyze view, so the strip is taken back out when you open 🗂 Policies — a tab offering to switch a tool you are not in would be worse than no tab.</p>
       <p>A users × policies impact matrix: who is in scope for what, who bypasses a policy and why.</p>
       <ul>
         <li><b>Coverage</b> <span class="tag new">NEW</span> — the funnel above the results, and usually the first thing worth reading. Five stages, each a subset of the one above: everyone <b>in scope</b> → <b>targeted</b> by at least one active policy → covered by one that is actually <b>enforced</b> → required to do <b>MFA</b> → holding the <b>licence</b> their own policies oblige. Every bar is drawn against the same denominator, so the shape of the drop is readable without doing arithmetic on five percentages.</li>
@@ -1740,6 +1737,19 @@
               <li><b>Scan only who you asked about.</b> Scope → <i>Only these users or groups</i> names principals before the run and judges those, with the same policies and the same verdicts. A group is expanded to its <b>members</b>, nested ones included — the scan judges people, not groups, because a group being in scope of a policy says nothing about a member another policy excludes. In this mode nothing is read tenant-wide, which is where the time goes on a large tenant. The result carries a banner saying what was scoped, and the exported report says it too: "no risky bypasses" over four named people and over the whole tenant are different answers that would otherwise look identical.</li>
 </ul>
       <p class="help-x">Read-only.</p>
+
+      <h5>🎫 Licence gap <span class="help-fold">folded into this tool — build 25348</span></h5>
+      <p>Microsoft has started showing a <b>“Licensing overage”</b> warning on the Conditional Access page, linked to the licence usage blade. The blade counts <b>evaluated</b> users — unique users who actually triggered a policy during the previous month. But that is not what Microsoft licenses on: <b>every user targeted by a Conditional Access policy needs Entra ID P1</b>, and every user targeted by a risk-based (sign-in / user risk) policy needs <b>P2</b> — whether they signed in or not. A blade showing “2 of 25, no warning” can sit on a tenant whose broadest policy targets every one of its 121 users. This tool computes the <i>targeted</i> number — the obligation — and compares it with the seats the tenant owns.</p>
+      <ul>
+        <li><b>Targeting is resolved on the actual members</b> — an All-users policy is the member-user count minus its resolvable exclusions; a scoped policy is the union of its included users, transitive group members (nesting counts) and directory-role holders (a role held through a role-assignable group is expanded to its users; service principals holding a role are ignored — they hold no user licences), minus its exclusions. Per-policy counts overlap, so the obligation is the <b>union across policies</b>, computed on user ids — one user under five policies needs one licence, never five.</li>
+        <li><b>Seats are matched on service plans</b>, not SKU names: any subscription carrying the <code>AAD_PREMIUM</code> / <code>AAD_PREMIUM_P2</code> plan counts (EMS, M365 E3/E5, Business Premium…), a P2 seat counts for the P1 obligation too, and suspended or cancelled subscriptions are excluded by <code>capabilityStatus</code>. The comparison is against seats <b>owned</b>, not assigned — an unassigned seat still covers a targeted user.</li>
+        <li><b>The gap is named, in a pop-out</b> — the on-screen card shows the breakdown; the full list opens in a searchable dialog (large tenants make long lists), and the complete list is always in the Markdown export. <b>🏷 Check mailbox types</b> reads each gap user's mailbox purpose (<code>MailboxSettings.Read</code>, asked once on the click) and labels <b>shared, room and equipment mailbox accounts</b> — those are never licensed and should be disabled or excluded, not bought for. A delegated sign-in usually cannot read another mailbox's type directly, so the check also reads the <i>failure</i>: an unlicensed account whose mailbox read is <i>denied</i> has a mailbox without a licence — almost always shared/room/equipment — and is labelled <b>likely shared/resource</b> with a verify-in-Exchange note, while “no mailbox” confirms a regular unlicensed account.</li>
+        <li><b>Honest numbers</b> — a count where a group was unreadable or over the read cap, or a role could not be read, is marked <b>≈</b> rather than presented as exact. Report-only policies count (they evaluate everyone in scope); disabled policies do not, but a disabled risk-based policy is named as a P2 obligation waiting to happen. Guests are deliberately not counted — guest licensing follows different rules.</li>
+        <li><b>Why gaps exist and how to close them</b> — the result explains the usual cause (an All-users baseline sweeping in disabled accounts, stale synced users, service accounts and shared mailboxes) and lays out the options with their trade-offs: clean up and exclude before buying, map admin accounts to their owners (one person, one licence — the counts here are identities), narrow the targeting only as a deliberate decision because everyone outside a licensed-users group goes unprotected, Security defaults for small tenants (cannot coexist with CA), and finally buying the remainder.</li>
+        <li><b>👑 Exclude admin-accounts groups</b> — Microsoft licenses <i>people</i>: a second internal account (an <code>adm-</code> account next to a day-to-day account) needs no second licence. Pick the group or groups that hold those accounts, one after another — the field auto-fills with the groups your CA policies already reference and searches the directory as you type — and the union of their transitive user members drops out of every count and named list. Each group gets its own chip with its own ✕. The exclusion is stated on the result and in the export, with the caveat that it assumes every member maps to a licensed owner: document the mapping.</li>
+        <li><b>📄 Export MD</b> — the comparison, the per-policy table and the mitigation options as Markdown for the licensing conversation.</li>
+      </ul>
+      <p class="help-x">Read-only. Covered by the baseline <code>Policy.Read.All</code> + <code>Directory.Read.All</code>; only the optional 🏷 mailbox-type check asks for <code>MailboxSettings.Read</code>, once, on that click. After Rudy Mens' <i>Get-EntraLicenseGap.ps1</i> (lazyadmin.nl). The overage banner is a warning today, not enforcement — this tool exists so your number is ready before that changes.</p>
     </section>
 
     <section class="help-sec">
@@ -2010,6 +2020,7 @@
             <li><code>T13</code> ⚡ CA validator → <b>🧪 What-If</b>, Every simulation mode (build 25346)</li>
             <li><code>T37</code> 🌊 Who is the wave to CA → <b>🕵 Who is … to CA</b>, A group subject (build 25347)</li>
             <li><code>T18</code> ⚖ Compare users → <b>🕵 Who is … to CA</b>, Compare users subject (build 25347)</li>
+            <li><code>T31</code> 🎫 Licence gap → <b>🔍 Gap analyse</b>, Licences tab (build 25348)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The version beside it is the opposite kind of thing</b> — the number never changes, the version always does. They sit together so they are read together: “T21 v0.5” says which tool and how far along it is.</li>
@@ -2291,20 +2302,6 @@
 
 
 
-    <section class="help-sec">
-      <h4>🎫 Licence gap</h4>
-      <p>Microsoft has started showing a <b>“Licensing overage”</b> warning on the Conditional Access page, linked to the licence usage blade. The blade counts <b>evaluated</b> users — unique users who actually triggered a policy during the previous month. But that is not what Microsoft licenses on: <b>every user targeted by a Conditional Access policy needs Entra ID P1</b>, and every user targeted by a risk-based (sign-in / user risk) policy needs <b>P2</b> — whether they signed in or not. A blade showing “2 of 25, no warning” can sit on a tenant whose broadest policy targets every one of its 121 users. This tool computes the <i>targeted</i> number — the obligation — and compares it with the seats the tenant owns.</p>
-      <ul>
-        <li><b>Targeting is resolved on the actual members</b> — an All-users policy is the member-user count minus its resolvable exclusions; a scoped policy is the union of its included users, transitive group members (nesting counts) and directory-role holders (a role held through a role-assignable group is expanded to its users; service principals holding a role are ignored — they hold no user licences), minus its exclusions. Per-policy counts overlap, so the obligation is the <b>union across policies</b>, computed on user ids — one user under five policies needs one licence, never five.</li>
-        <li><b>Seats are matched on service plans</b>, not SKU names: any subscription carrying the <code>AAD_PREMIUM</code> / <code>AAD_PREMIUM_P2</code> plan counts (EMS, M365 E3/E5, Business Premium…), a P2 seat counts for the P1 obligation too, and suspended or cancelled subscriptions are excluded by <code>capabilityStatus</code>. The comparison is against seats <b>owned</b>, not assigned — an unassigned seat still covers a targeted user.</li>
-        <li><b>The gap is named, in a pop-out</b> — the on-screen card shows the breakdown; the full list opens in a searchable dialog (large tenants make long lists), and the complete list is always in the Markdown export. <b>🏷 Check mailbox types</b> reads each gap user's mailbox purpose (<code>MailboxSettings.Read</code>, asked once on the click) and labels <b>shared, room and equipment mailbox accounts</b> — those are never licensed and should be disabled or excluded, not bought for. A delegated sign-in usually cannot read another mailbox's type directly, so the check also reads the <i>failure</i>: an unlicensed account whose mailbox read is <i>denied</i> has a mailbox without a licence — almost always shared/room/equipment — and is labelled <b>likely shared/resource</b> with a verify-in-Exchange note, while “no mailbox” confirms a regular unlicensed account.</li>
-        <li><b>Honest numbers</b> — a count where a group was unreadable or over the read cap, or a role could not be read, is marked <b>≈</b> rather than presented as exact. Report-only policies count (they evaluate everyone in scope); disabled policies do not, but a disabled risk-based policy is named as a P2 obligation waiting to happen. Guests are deliberately not counted — guest licensing follows different rules.</li>
-        <li><b>Why gaps exist and how to close them</b> — the result explains the usual cause (an All-users baseline sweeping in disabled accounts, stale synced users, service accounts and shared mailboxes) and lays out the options with their trade-offs: clean up and exclude before buying, map admin accounts to their owners (one person, one licence — the counts here are identities), narrow the targeting only as a deliberate decision because everyone outside a licensed-users group goes unprotected, Security defaults for small tenants (cannot coexist with CA), and finally buying the remainder.</li>
-        <li><b>👑 Exclude admin-accounts groups</b> — Microsoft licenses <i>people</i>: a second internal account (an <code>adm-</code> account next to a day-to-day account) needs no second licence. Pick the group or groups that hold those accounts, one after another — the field auto-fills with the groups your CA policies already reference and searches the directory as you type — and the union of their transitive user members drops out of every count and named list. Each group gets its own chip with its own ✕. The exclusion is stated on the result and in the export, with the caveat that it assumes every member maps to a licensed owner: document the mapping.</li>
-        <li><b>📄 Export MD</b> — the comparison, the per-policy table and the mitigation options as Markdown for the licensing conversation.</li>
-      </ul>
-      <p class="help-x">Read-only. Covered by the baseline <code>Policy.Read.All</code> + <code>Directory.Read.All</code>; only the optional 🏷 mailbox-type check asks for <code>MailboxSettings.Read</code>, once, on that click. After Rudy Mens' <i>Get-EntraLicenseGap.ps1</i> (lazyadmin.nl). The overage banner is a warning today, not enforcement — this tool exists so your number is ready before that changes.</p>
-    </section>
 
     <section class="help-sec">
       <h4>📥 Import <span class="tag block">writes to tenant</span></h4>
@@ -3010,68 +3007,68 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25347"></script>
-<script src="js/selfhost.js?v=25347"></script>
-<script src="js/version.js?v=25347"></script>
-<script src="js/fork.js?v=25347"></script>
-<script src="js/promote.js?v=25347"></script>
-<script src="js/authConfig.js?v=25347"></script>
-<script src="js/labels.js?v=25347"></script>
-<script src="js/graph.js?v=25347"></script>
-<script src="js/model.js?v=25347"></script>
-<script src="js/render.js?v=25347"></script>
-<script src="js/analyze.js?v=25347"></script>
-<script src="js/whatif.js?v=25347"></script>
-<script src="js/mslearn.js?v=25347"></script>
-<script src="js/gapcheck.js?v=25347"></script>
-<script src="js/cisdata.js?v=25347"></script>
-<script src="js/cischeck.js?v=25347"></script>
-<script src="js/exclusions.js?v=25347"></script>
-<script src="js/cascope.js?v=25347"></script>
-<script src="js/validator.js?v=25347"></script>
-<script src="js/whatifeval.js?v=25347"></script>
-<script src="js/compare.js?v=25347"></script>
-<script src="js/whois.js?v=25347"></script>
-<script src="js/wave.js?v=25347"></script>
-<script src="js/sessionctl.js?v=25347"></script>
-<script src="js/spgap.js?v=25347"></script>
-<script src="js/groupuse.js?v=25347"></script>
-<script src="js/iso3166.js?v=25347"></script>
-<script src="js/causes.js?v=25347"></script>
-<script src="js/locations.js?v=25347"></script>
-<script src="js/authcontexts.js?v=25347"></script>
-<script src="js/authstrengths.js?v=25347"></script>
-<script src="js/recycle.js?v=25347"></script>
-<script src="js/rmau.js?v=25347"></script>
-<script src="js/camap.js?v=25347"></script>
-<script src="js/rmaudoc.js?v=25347"></script>
-<script src="js/termsofuse.js?v=25347"></script>
-<script src="js/audit.js?v=25347"></script>
-<script src="js/drift.js?v=25347"></script>
-<script src="js/guide.js?v=25347"></script>
-<script src="js/userimpact.js?v=25347"></script>
-<script src="js/smsvoice.js?v=25347"></script>
-<script src="js/memberof.js?v=25347"></script>
-<script src="js/devcheck.js?v=25347"></script>
-<script src="js/licgap.js?v=25347"></script>
-<script src="js/teamsdev.js?v=25347"></script>
-<script src="js/signins.js?v=25347"></script>
-<script src="js/reportimpact.js?v=25347"></script>
-<script src="js/changelog.js?v=25347"></script>
-<script src="js/baselineData.js?v=25347"></script>
-<script src="js/baselineJoeyData.js?v=25347"></script>
-<script src="js/baselineLive.js?v=25347"></script>
-<script src="js/baseline.js?v=25347"></script>
-<script src="js/baselineCleanup.js?v=25347"></script>
-<script src="js/groupTemplates.js?v=25347"></script>
-<script src="js/assign.js?v=25347"></script>
-<script src="js/cagroups.js?v=25347"></script>
-<script src="js/groupsview.js?v=25347"></script>
-<script src="js/runledger.js?v=25347"></script>
-<script src="js/protect.js?v=25347"></script>
-<script src="js/import.js?v=25347"></script>
-<script src="js/export.js?v=25347"></script>
-<script src="js/demo.js?v=25347"></script>
-<script src="js/app.js?v=25347"></script>
+<script src="js/branding.js?v=25348"></script>
+<script src="js/selfhost.js?v=25348"></script>
+<script src="js/version.js?v=25348"></script>
+<script src="js/fork.js?v=25348"></script>
+<script src="js/promote.js?v=25348"></script>
+<script src="js/authConfig.js?v=25348"></script>
+<script src="js/labels.js?v=25348"></script>
+<script src="js/graph.js?v=25348"></script>
+<script src="js/model.js?v=25348"></script>
+<script src="js/render.js?v=25348"></script>
+<script src="js/analyze.js?v=25348"></script>
+<script src="js/whatif.js?v=25348"></script>
+<script src="js/mslearn.js?v=25348"></script>
+<script src="js/gapcheck.js?v=25348"></script>
+<script src="js/cisdata.js?v=25348"></script>
+<script src="js/cischeck.js?v=25348"></script>
+<script src="js/exclusions.js?v=25348"></script>
+<script src="js/cascope.js?v=25348"></script>
+<script src="js/validator.js?v=25348"></script>
+<script src="js/whatifeval.js?v=25348"></script>
+<script src="js/compare.js?v=25348"></script>
+<script src="js/whois.js?v=25348"></script>
+<script src="js/wave.js?v=25348"></script>
+<script src="js/sessionctl.js?v=25348"></script>
+<script src="js/spgap.js?v=25348"></script>
+<script src="js/groupuse.js?v=25348"></script>
+<script src="js/iso3166.js?v=25348"></script>
+<script src="js/causes.js?v=25348"></script>
+<script src="js/locations.js?v=25348"></script>
+<script src="js/authcontexts.js?v=25348"></script>
+<script src="js/authstrengths.js?v=25348"></script>
+<script src="js/recycle.js?v=25348"></script>
+<script src="js/rmau.js?v=25348"></script>
+<script src="js/camap.js?v=25348"></script>
+<script src="js/rmaudoc.js?v=25348"></script>
+<script src="js/termsofuse.js?v=25348"></script>
+<script src="js/audit.js?v=25348"></script>
+<script src="js/drift.js?v=25348"></script>
+<script src="js/guide.js?v=25348"></script>
+<script src="js/userimpact.js?v=25348"></script>
+<script src="js/smsvoice.js?v=25348"></script>
+<script src="js/memberof.js?v=25348"></script>
+<script src="js/devcheck.js?v=25348"></script>
+<script src="js/licgap.js?v=25348"></script>
+<script src="js/teamsdev.js?v=25348"></script>
+<script src="js/signins.js?v=25348"></script>
+<script src="js/reportimpact.js?v=25348"></script>
+<script src="js/changelog.js?v=25348"></script>
+<script src="js/baselineData.js?v=25348"></script>
+<script src="js/baselineJoeyData.js?v=25348"></script>
+<script src="js/baselineLive.js?v=25348"></script>
+<script src="js/baseline.js?v=25348"></script>
+<script src="js/baselineCleanup.js?v=25348"></script>
+<script src="js/groupTemplates.js?v=25348"></script>
+<script src="js/assign.js?v=25348"></script>
+<script src="js/cagroups.js?v=25348"></script>
+<script src="js/groupsview.js?v=25348"></script>
+<script src="js/runledger.js?v=25348"></script>
+<script src="js/protect.js?v=25348"></script>
+<script src="js/import.js?v=25348"></script>
+<script src="js/export.js?v=25348"></script>
+<script src="js/demo.js?v=25348"></script>
+<script src="js/app.js?v=25348"></script>
 </body>
 </html>
