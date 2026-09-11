@@ -29,6 +29,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25342, date: "2026-09-11", title: "🛡 Checks — four references, one tool. Phase 2 closes at 24 tiles",
+    items: [
+      { kind: "improved", tool: "Checks", text: "🛡 Best-practice & bypass checks, 📘 MS Learn checks, 📐 CIS Benchmark and 🖥 Device reality check are one tool with the four as RULE PACKS, and the tile is 🛡 Checks. They all answer the same question — what is wrong with this baseline, judged against a reference — and each had its own tile, its own Refresh and its own Export MD, so a review meant opening four tools in turn and remembering which of them you had run. Each pack still asks for its own permissions on its own ▶ run and never on opening the tool, which is what stops reaching 🛡 Checks from prompting for Intune scopes you were not going to use." },
+      { kind: "improved", tool: "Checks", text: "What is deliberately NOT in this build, said on the screen rather than left as a gap: one findings table across the four packs. They present genuinely different shapes — a persona by control matrix, findings with buildable fixes, a four-tier CIS score with an L1 and L2 filter, a per-policy-per-platform grid — and flattening them into one table with a Source column would lose what each of them says rather than share it. If that changes it will be its own release." },
+      { kind: "improved", tool: "CIS Benchmark", text: "Beta-only is a guarded TAB, like 🛂 Session controls and 📖 Deployment guide before it: hidden on the production host by the same test the BETA ribbon uses, so the promotion port stops deleting cischeck.js and its tile and instead carries a guard that is visible in the code." },
+      { kind: "improved", tool: "All tools", text: "PHASE 2 IS COMPLETE: 24 tiles, from 39 at the start of the day. Four hosts — 🚦 Sign-in log, 🕓 Changes, 🧩 Policy building blocks, 🛡 Checks — plus 🗂 Policies and 🧬 Baseline from phase 1. Every folded tool keeps its T-number, keeps its own Help section under its host, is listed in 🔢 Tool numbers with the tab that holds it, and is findable in ⌘K by its own name and its number. Nothing was removed." },
+      { kind: "improved", tool: "Roadmap", text: "R56 🛡 Checks — four references, one tool. The last of the four phase-2 hosts (R53 to R56)." },
+    ],
+  },
+  {
     build: 25341, date: "2026-09-11", title: "🧩 Policy building blocks — four references and a bin, one tool",
     items: [
       { kind: "improved", tool: "Policy building blocks", text: "🌐 Named locations, 💪 Authentication strengths, 🎫 Authentication contexts and 📜 Terms of use are one tool with tabs, and the tile is 🧩 Policy building blocks. They are the four kinds of object a policy REFERENCES, and they were four tiles over four copies of one screen: a list, which policies use each row, create / edit / delete. ♻ Recycle bin is the fifth tab — it belongs with the dependency tools rather than with 🗂 Policies because the 30-day restore window holds deleted named LOCATIONS as well as deleted policies." },

@@ -203,6 +203,12 @@
                         open: () => openTou() },
     toolRecycle:      { into: "toolLocations", label: "♻ Recycle bin",                where: "the Deleted tab",            build: 25341,
                         open: () => openRecycle() },
+    toolMsLearn:      { into: "toolGapCheck", label: "📘 MS Learn checks",            where: "the Microsoft Learn tab",    build: 25342,
+                        open: () => openMsLearn() },
+    toolCis:          { into: "toolGapCheck", label: "📐 CIS Benchmark",              where: "the CIS 5.2.2 tab",          build: 25342,
+                        open: () => openCis() },
+    toolDevCheck:     { into: "toolGapCheck", label: "🖥 Device reality check",       where: "the Intune reality tab",     build: 25342,
+                        open: () => openDevCheck() },
   };
   // Land on a folded tool. Its own entry point when it has one — the right tab,
   // the right catalog — otherwise the host tile, which is the correct answer for
@@ -256,6 +262,29 @@
     // ♻ Deleted is here rather than in 🗂 Policies because the recycle bin
     // restores deleted NAMED LOCATIONS as well as deleted policies, so it is a
     // dependency screen that happens to also hold policies.
+    // RULE PACKS. Four tools that all answer "what is wrong with this
+    // baseline, judged against a reference" — bypass patterns, Microsoft's
+    // documented limits, CIS 5.2.2, and the Intune compliance policy behind a
+    // require-compliant-device grant. A reviewer wants one place to open, not
+    // four, and each pack asks for its own scopes on its own ▶ run rather
+    // than on tab open (none of these open functions consents, which is what
+    // makes that true).
+    //
+    // What is NOT here: the plan's single findings table with a Source
+    // column. The four present genuinely different shapes — a persona ×
+    // control matrix, findings with buildable fixes, a four-tier CIS score
+    // with an L1/L2 filter, a per-policy-per-platform grid — and flattening
+    // them into one table loses information rather than sharing it. That is
+    // its own decision, not something to slip in behind a tab strip.
+    checks: {
+      tile: "toolGapCheck", label: "🛡 Checks",
+      tabs: [
+        { key: "bypass", icon: "🛡", name: "Bypass & Swiss cheese", toolbar: "gcToolbar", open: () => openGapCheck() },
+        { key: "mslearn", icon: "📘", name: "Microsoft Learn",      toolbar: "mlToolbar", open: () => openMsLearn() },
+        { key: "cis",     icon: "📐", name: "CIS 5.2.2",            toolbar: "ciToolbar", open: () => openCis(), beta: true, betaOnly: true },
+        { key: "intune",  icon: "🖥", name: "Intune reality",       toolbar: "dvToolbar", open: () => openDevCheck() },
+      ],
+    },
     blocks: {
       tile: "toolLocations", label: "🧩 Policy building blocks",
       tabs: [
@@ -2250,7 +2279,7 @@
     ["toolMemberOf", "🧷 memberOf retirement"],
     ["toolPolicies", "🗂 Policies"],
     ["toolAnalyze", "🔍 Gap analyse"],
-    ["toolGapCheck", "🛡 Best-practice & bypass checks"],
+    ["toolGapCheck", "🛡 Checks"],
     ["toolValidator", "⚡ CA validator"],
     ["toolWhatIf", "🧪 What-If"],
     ["toolGroupUse", "🔗 User or Group analyzer"],
@@ -2261,12 +2290,9 @@
     ["toolAudit", "🕓 Changes"],
     ["toolSignins", "🚦 Sign-in log"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
-    ["toolDevCheck", "🖥 Device reality check"],
     ["toolLicGap", "🎫 Licence gap"],
     ["toolTeamsDev", "📞 Teams devices"],
     ["toolBaseline", "🧬 Baseline"],
-    ["toolMsLearn", "📘 MS Learn checks"],
-    ["toolCis", "📐 CIS Benchmark"],
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
     ["toolLocations", "🧩 Policy building blocks"],
@@ -2487,9 +2513,7 @@
   // the deep links other tools use.
   $("toolPolicies").addEventListener("click", () => { crumb("🗂 Policies"); setToolMode(""); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list"); });
   $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); });
-  $("toolMsLearn").addEventListener("click", () => { crumb("📘 MS Learn checks"); openMsLearn(); });
-  $("toolCis").addEventListener("click", () => { crumb("📐 CIS Benchmark"); openCis(); });
-  $("toolGapCheck").addEventListener("click", () => { crumb("🛡 Best-practice & bypass checks"); openGapCheck(); });
+  $("toolGapCheck").addEventListener("click", () => openGapCheck());
   $("toolExclusions").addEventListener("click", () => { crumb("🚪 Exclusion analyzer"); openExclusions(); });
   $("toolValidator").addEventListener("click", () => { openValidator(); });   // openValidator sets its own crumb
   // One tile, both catalogs: the picker in the toolbar (#blCatalog, rendered from
@@ -11915,8 +11939,7 @@ This is a directory write. Nothing else changes.`)) return;
       </div>`).join("");
   }
 
-  function openDevCheck() { crumb("🖥 Device reality check"); show("screen-devcheck"); renderDevCheck(); }
-  $("toolDevCheck").addEventListener("click", openDevCheck);
+  function openDevCheck() { crumb("🛡 Checks"); show("screen-devcheck"); mountToolTabs("checks", "intune"); renderDevCheck(); }
   $("dvRun").addEventListener("click", dvRun);
   $("dvBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-dvrun]")) { dvRun(); return; }
@@ -16862,7 +16885,9 @@ This is a directory write. Nothing else changes.`)) return;
   let mlGroups = null, mlFilter = "all", mlStrengths = new Map(), mlFixes = null, mlTab = "findings";
   const mlExpanded = new Set();
   async function openMsLearn() {
+    crumb("🛡 Checks");
     show("screen-mslearn");
+    mountToolTabs("checks", "mslearn");
     if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; return; }
     $("mlHead").innerHTML = '<h3>📘 MS Learn: documented exclusion checks</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
@@ -17291,7 +17316,9 @@ This is a directory write. Nothing else changes.`)) return;
   let gcCats = null; // category filter set by clicking a scorecard signal/pillar (array or null)
   const gcExpanded = new Set();
   function openGapCheck() {
+    crumb("🛡 Checks");
     show("screen-gapcheck");
+    mountToolTabs("checks", "bypass");
     if (!policies.length) { $("gcHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = ""; return; }
     if (gcResult) { renderGapCheck(); return; }   // cached — keep the previous screen
     // idle — wait for the user to start the checks
@@ -17423,7 +17450,9 @@ This is a directory write. Nothing else changes.`)) return;
   const ciExpanded = new Set();
   const CI_IDLE_HEAD = '<h3>📐 CIS Benchmark alignment <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated CA recommendations of section 5.2.2, with per-control pass/fail and the nearest policy for every gap.</p>';
   function openCis() {
+    crumb("🛡 Checks");
     show("screen-cis");
+    mountToolTabs("checks", "cis");
     if (!policies.length) { $("ciHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("ciChips").innerHTML = ""; $("ciBody").innerHTML = ""; return; }
     if (ciResult) { renderCis(); return; }   // cached — keep the previous screen
     $("ciHead").innerHTML = CI_IDLE_HEAD;

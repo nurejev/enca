@@ -118,6 +118,28 @@ const PROMOTE = {
 
   items: [
     {
+      n: 177,
+      title: "🛡 Checks: 📘 MS Learn, 📐 CIS and 🖥 Device reality check folded in as rule packs (T08 2.0; T07 T21 T30 folded) — R56, phase 2 complete at 24 tiles",
+      tools: ["Checks", "MS Learn checks", "CIS Benchmark", "Device reality check"],
+      builds: [25342],
+      risk: "low",
+      what: "js/app.js: TAB_HOSTS gains checks (bypass → gcToolbar, mslearn → mlToolbar, cis → ciToolbar with betaOnly, intune → dvToolbar). The crumb moves OFF the three tile handlers and INTO openGapCheck, openMsLearn and openCis so a deep link gets it too, each mounting its own tab; openDevCheck likewise. Three tile handlers and three TOOL_TABS rows go, toolGapCheck is relabelled 🛡 Checks, and FOLDED gains the three with their tab entry points. index.html: the three tiles removed, T08 renamed Checks with a blurb naming all four packs, id=gcToolbar/mlToolbar/ciToolbar added, the three Help sections moved under the host as h5 with a paragraph saying what was deliberately NOT merged, three rows added to 🔢 Tool numbers, roadmap R56. js/version.js: build 25342, T08 2.0, T07 2.6.1, T21 0.6.1, T30 1.1.1 folded.",
+      why: "Low: no check, no rule, no Graph read and no renderer changed — the four packs are the code they were, and nothing was merged into a shared findings table (that is stated on the screen, in the Help and in the roadmap card, so nobody reads the tabs as a half-finished merge). The one thing worth proving is CONSENT: none of the four open functions consents, so opening 🛡 Checks must not prompt for anything, and the Intune scopes must still be asked for on 🖥's own run.",
+      test: [
+        "CONSENT, the one that matters: sign in fresh, open 🛡 Checks and click through all four tabs WITHOUT running anything. No permission prompt may appear. Then ▶ on the Intune reality tab: the Intune scopes are requested at that point. Then ▶ on Microsoft Learn: its own reads are requested then.",
+        "Home page: 24 tiles — the phase-2 target. 📘 📐 🖥 are gone as tiles; 🛡 reads Checks with T08 v2.0 and a blurb naming the four packs.",
+        "The strip: 🛡 Bypass & Swiss cheese · 📘 Microsoft Learn · 📐 CIS 5.2.2 BETA · 🖥 Intune reality, the right one active on each of the four screens, each tab keeping its own Refresh, Export MD and filters (the gap matrix's ⤢ Full screen, CIS's L1/L2 filter, 🖥's platform chips).",
+        "Run all four packs on a real tenant and compare each result against 25341 on the same tenant: the same findings, the same severities, the same counts, the same Export MD. A pack's result must survive switching to another tab and back.",
+        "PRODUCTION GUARD: with isProdHost() true (serve from a host equal to BRANDING.host, or stub it) the strip shows THREE tabs and the 📐 CIS tab is absent, not present-and-broken.",
+        "Deep links: 🚪 Exclusion analyzer's and 🧬 Baseline's links to 📘 MS Learn (data-tool toolMsLearn) must land on the Microsoft Learn TAB; 🗂 Policies' device-grant pointer to 🖥 must land on Intune reality.",
+        "One browser tab labelled 🛡 Checks for all four screens; Back walks them; the side nav and + menu list the host once with no dead row.",
+        "⌘K: 'learn', 'CIS', 'device reality' each offer the tool under its own name with the hint naming its tab and land on it; 7, 21 and 30 find them by number.",
+        "?demo=1: all four tabs render and the three that can run against demo data do.",
+      ],
+      carveout: "Beta-number rewrite as in items 173 to 176 (the 'folded into this tool — build 25342' spans, the three new 🔢 bullets, the 'from build 25342' clause in the 🛡 Help section, R56's data-shipped and tag). Do NOT delete js/cischeck.js, js/cisdata.js, screen-cis or the ciToolbar id on main any more: the 📐 tab is hidden by tabShown/isProdHost. Prove it with grep -n '25342' index.html (empty on main) and document.querySelectorAll('.tool-tabs button').length === 3 on the deployed 🛡 Checks page.",
+      files: ["index.html", "js/app.js", "js/changelog.js", "js/promote.js", "js/version.js"],
+    },
+    {
       n: 176,
       title: "🧩 Policy building blocks: 🎫 contexts, 💪 strengths, 📜 terms of use and ♻ recycle bin folded in; one shared usedBy (T15 1.8; T22 T23 T24 T25 folded) — R55",
       tools: ["Policy building blocks", "Authentication contexts", "Authentication strengths", "Terms of use", "Recycle bin"],

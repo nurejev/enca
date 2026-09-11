@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25341"></script>
+<script src="js/popup-guard.js?v=25342"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25341" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25341">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25342" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25342">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25341"></script>
+<script src="js/selfhost-boot.js?v=25342"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25341"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25341"></script>
+<script src="js/counter.js?v=25342"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25342"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25341" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25342" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25341" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25342" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -216,10 +216,6 @@
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer <span class="tag upd">UPDATED</span></h3>
         <p>Every exclusion across all policies — users, groups (expanded to members, with the nested groups they came through), roles, guest types, apps and locations — in an exclusion × policy matrix, with a risk review that flags an exclusion group fed by nesting.</p>
       </div>
-      <div class="tool" id="toolDevCheck">
-        <div class="tool-ic">🖥</div><h3>Device reality check <span class="tag new">NEW</span></h3>
-        <p>A grant demanding a compliant device is only worth what Intune's compliance policies are worth — and nothing checks the other half. Per CA policy and per platform: is the scope actually assigned a compliance policy, or does it fall through to the tenant default? Same check for app protection behind “require approved client app”. <span class="tag grant">extra permissions</span></p>
-      </div>
       <div class="tool" id="toolLicGap">
         <div class="tool-ic">🎫</div><h3>Licence gap <span class="tag upd">UPDATED</span></h3>
         <p>Microsoft's licence usage blade counts who <i>triggered</i> a policy last month — the obligation is on who your policies <i>target</i>. Every targeted user needs Entra ID P1, risk-based policies need P2. This counts the real number, compares it with the seats you own, and lays out the ways to close a gap.</p>
@@ -240,20 +236,12 @@
     <div class="tool-sec"><h3>🧬 Compare against a baseline</h3><p>Measure this tenant against a reference set of policies.</p></div>
     <div class="tools">
       <div class="tool" id="toolGapCheck">
-        <div class="tool-ic">🛡</div><h3>Best-practice &amp; bypass checks <span class="tag upd">UPDATED</span></h3>
-        <p>Check the baseline against known CA bypasses and the Swiss-cheese model — MFA coverage, FOCI token sharing, break-glass coverage, known bypass apps, persona × control matrix.</p>
+        <div class="tool-ic">🛡</div><h3>Checks <span class="tag upd">UPDATED</span></h3>
+        <p>What is wrong with this baseline, judged against four references — each its own tab, each asking for its own permissions on its own run. <b>🛡 Bypass &amp; Swiss cheese</b> — known Conditional Access bypasses and the holes a stack of policies leaves between them: MFA coverage, FOCI token sharing, break-glass coverage, bypass apps, the persona × control matrix. <b>📘 Microsoft Learn</b> — the exclusions and limitations Microsoft documents, with buildable fixes. <b>📐 CIS 5.2.2</b> — the 17 automated Conditional Access recommendations of the CIS Microsoft 365 Foundations Benchmark, per control. <b>🖥 Intune reality</b> — the other half of a require-compliant-device grant: whether the policy's scope is actually assigned an Intune compliance policy at all.</p>
       </div>
       <div class="tool" id="toolBaseline">
         <div class="tool-ic">🧬</div><h3>Baseline <span class="tag upd">UPDATED</span></h3>
         <p>Match this tenant against a Conditional Access baseline: which baseline policies are present, outdated or missing — then import the gap. <b>Both catalogs are one picker in the toolbar</b> — <b>🧬 CloudFellows</b> R26.6 (v3.x) and <b>🧩 Joey Verlinden</b>, the community baseline read <b>live from his repository</b> (latest release, with the commit it read) with the bundled 2026.6.1 snapshot as the fallback. The ★ active baseline for this tenant — what every group, vault and exclusion-restore tool works against — is chosen here, after a dry run shows what the switch would change. A <b>📖 Deployment guide</b> tab gives the order to deploy it in with the reason for each step, and reads the tenant to say what is missing <i>before</i> each one.</p>
-      </div>
-      <div class="tool" id="toolMsLearn">
-        <div class="tool-ic">📘</div><h3>MS Learn checks <span class="tag upd">UPDATED</span></h3>
-        <p>Check policies against documented Microsoft Learn exclusions &amp; limitations — break-glass, token protection, Teams Rooms, retirements.</p>
-      </div>
-      <div class="tool" id="toolCis">
-        <div class="tool-ic">📐</div><h3>CIS Benchmark <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
-        <p>Score the tenant against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated Conditional Access recommendations (5.2.2), per-control pass/fail with the nearest policy and exactly which criteria it misses, L1/L2 filter and a Markdown compliance report.</p>
       </div>
     </div>
     <div class="tool-sec"><h3>✍️ Manage the tenant</h3><p>The tools that write. Each one confirms before it changes anything.</p></div>
@@ -510,7 +498,7 @@
   <!-- ============ MS LEARN CHECKS ============ -->
   <section id="screen-mslearn" class="screen">
     <div class="list-card readme" id="mlHead" style="margin-top:0"></div>
-    <div class="toolbar" style="margin-top:14px">
+    <div class="toolbar" id="mlToolbar" style="margin-top:14px">
       <div class="seg">
         <button class="active" id="mlTabFindings">Findings</button>
         <button id="mlTabFixes">Suggested fixes</button>
@@ -657,7 +645,7 @@
   <section id="screen-gapcheck" class="screen">
     <div class="list-card readme" id="gcHead" style="margin-top:0"></div>
     <div id="gcMatrix" style="margin-top:16px"></div>
-    <div class="toolbar" style="margin-top:14px">
+    <div class="toolbar" id="gcToolbar" style="margin-top:14px">
       <div class="chip-filter" id="gcChips"></div>
       <label class="chk" id="gcDisabledWrap" style="margin:0"><input type="checkbox" id="gcDisabled"> Include Off (disabled) policies <span class="mini" id="gcDisabledNote"></span></label>
       <div class="tb-actions">
@@ -674,7 +662,7 @@
        Foundations Benchmark v7.0.0 (content: cisdata.js, logic: cischeck.js). -->
   <section id="screen-cis" class="screen">
     <div class="list-card readme" id="ciHead" style="margin-top:0"></div>
-    <div class="toolbar" style="margin-top:14px">
+    <div class="toolbar" id="ciToolbar" style="margin-top:14px">
       <div class="seg" id="ciLevelSeg">
         <button class="active" data-cilvl="all">All levels</button>
         <button data-cilvl="1">Level 1</button>
@@ -1558,6 +1546,10 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R55</span> <a href="#" class="md-tool" data-tool="toolLocations">🧩 Policy building blocks</a> <span class="tag grant">live · beta 25341</span></h4>
             <p class="mini" style="margin:0">A policy references four kinds of object managed elsewhere — named locations, authentication strengths, authentication contexts, terms-of-use agreements — and each had a tile over the same screen: a list, which policies use each row, create / edit / delete. Five tabs now, with ♻ Deleted as the fifth because the restore window holds deleted locations as well as deleted policies. Underneath, the four private copies of <i>which policies use this</i> became one implementation, so the All-trusted-locations case that only the locations tool knew about is available to every kind.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25342">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R56</span> <a href="#" class="md-tool" data-tool="toolGapCheck">🛡 Checks — four references, one tool</a> <span class="tag grant">live · beta 25342</span></h4>
+            <p class="mini" style="margin:0">The last of the four phase-2 hosts. Bypass patterns, Microsoft's documented limits, CIS 5.2.2 and the Intune compliance policy behind a require-compliant-device grant are rule packs as tabs, each asking for its own permissions on its own run. Not done, and said so rather than half done: one findings table across the four. They present a persona × control matrix, buildable fixes, a four-tier score with an L1/L2 filter and a per-platform grid — different shapes, and one table with a Source column would lose what each of them says. Phase 2 closes at 24 tiles, from 39.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -1757,7 +1749,9 @@
     </section>
 
     <section class="help-sec">
-      <h4>🛡 Best-practice &amp; bypass checks</h4>
+      <h4>🛡 Checks</h4>
+      <p><b>Four references, four tabs.</b> 🛡 Best-practice &amp; bypass checks, 📘 MS Learn checks, 📐 CIS Benchmark and 🖥 Device reality check all answer one question — what is wrong with this baseline, judged against a reference — and each was its own tile with its own Refresh and its own Export MD. One tool with rule packs as tabs from build 25342; <b>T08</b>, <b>T07</b>, <b>T21</b> and <b>T30</b> keep their numbers (see 🔢 Tool numbers) and their sections below. Each pack asks for its own permissions on its own ▶ run, never on opening the tool, so reaching 🛡 Checks never prompts for Intune scopes you were not going to use.</p>
+      <p><b>What is deliberately not here:</b> one findings table across the four. They present genuinely different shapes — a persona × control matrix, findings with buildable fixes, a four-tier CIS score with an L1/L2 filter, a per-policy-per-platform grid — and flattening them into one table with a Source column would lose information rather than share it. If that changes it will be its own release, not something that arrived behind a tab strip.</p>
       <p>Checks the baseline against known Conditional Access bypasses and the Swiss-cheese model.</p>
       <ul>
         <li>MFA coverage, FOCI token-sharing, break-glass coverage, known bypass apps, and a <b>persona × control</b> coverage matrix.</li>
@@ -1765,6 +1759,47 @@
         <li><b>Export MD</b> — the findings as Markdown for a ticket or review.</li>
       </ul>
       <p class="help-x">Read-only.</p>
+
+      <h5>📘 MS Learn checks <span class="help-fold">folded into this tool — build 25342</span></h5>
+      <p>Checks policies against documented Microsoft Learn exclusions and limitations — break-glass, token protection, Teams Rooms, service providers, retired features.</p>
+      <ul>
+        <li><b>Findings</b> tab lists what conflicts with the docs; <b>Refresh</b> re-runs after you fix something.</li>
+        <li><b>Service provider (CSP / GDAP) exclusions</b> — five checks covering the partner who administers this tenant on your behalf. They are matched by the <b>Service provider users</b> external user type and by nothing else: a partner admin arriving through delegated privileges holds no account, no group membership and no device here, so a group exclusion or a named break-glass account never reaches them. The checks find an external-user exclusion that lists the other five types but not this one; a Block policy their sign-in falls into; a compliant or hybrid-joined device requirement they cannot meet unless cross-tenant access settings trust device claims from their tenant; grant controls documented as unsupported for external users (approved client app, app protection policy, password change); and a guest MFA policy that leaves out the one external identity holding admin roles here. Exclusions naming specific tenants are read as such — an exclusion for two partner tenants does not cover a third.</li>
+        <li><b>Read once, judged against your tenant.</b> Cross-tenant access settings are read to see which partners are flagged as service providers and whether this tenant accepts their MFA and device claims. A partner whose compliant-device claims you already trust does not raise a device finding, and a tenant with no partner at all has the five checks skipped rather than answered — the summary says so. If the settings cannot be read the checks still run and say the trust configuration was not verified, which is not the same as saying there is nothing there.</li>
+        <li><b>Buildable fixes</b> — where a documented fix exists, apply it in the tenant (creating a service principal or group if the fix needs one). <span class="tag block">writes to tenant</span></li>
+      </ul>
+      <p class="help-x">Checks are read-only; applying a fix writes, and produces a change report.</p>
+
+      <h5>📐 CIS Benchmark <span class="tag new">BETA</span> <span class="help-fold">folded into this tool — build 25342</span></h5>
+      <p>The tenant's Conditional Access policies scored against section <b>5.2.2</b> of the CIS Microsoft 365 Foundations Benchmark v7.0.0 — all 17 automated recommendations, each expressed as the machine criteria from the benchmark's own "audit using the Microsoft Graph API" procedure.</p>
+      <ul>
+        <li><b>Four outcomes, not two.</b> A control <b>passes</b> when at least one <i>enabled</i> policy meets every criterion; a policy that meets them all but runs in <b>report-only</b> is reported as such; one that meets them all while <b>Off</b> gets its own tier — the benchmark's audit requires the policy to be enabled, so it is not scored as a pass, but calling it a plain failure would hide the fact that the work is done.</li>
+        <li><b>Nearest-miss policies</b> are listed for every failure with exactly which criteria they lack. That is the remediation map: usually one condition away, and knowing which one is the difference between a score and a task.</li>
+        <li><b>Licence-aware</b> — the three Identity Protection controls drop to "not licensed" rather than failing when the tenant has no Entra ID P2, because failing a control you cannot implement is noise.</li>
+        <li><b>L1 / L2 profile filter</b>, an overall and per-level compliance score, and a Markdown compliance report.</li>
+        <li><b>What it cannot judge</b>, and says so: the benchmark also asks per control that exclusions are documented and reviewed annually. That is inherently manual and is carried as such rather than assumed.</li>
+      </ul>
+      <p class="help-x">Read-only. The benchmark catalog carries its own revision stamp, shown in the header and the report, so the CIS content is versioned separately from the app. Recommendation numbers and titles are referenced from the CIS Benchmark (© Center for Internet Security); the assessment logic is implemented from the published Graph audit procedures — the benchmark text itself is not reproduced.</p>
+
+      <h5>🖥 Device reality check <span class="tag new">NEW</span> <span class="help-fold">folded into this tool — build 25342</span></h5>
+      <p>The other half of the <b>require compliant device</b> grant. The CA side names <i>who</i> must present a compliant device; the Intune side decides <i>which devices can ever be one</i> — and neither portal checks that the two halves meet. Per CA policy and per platform: is the policy's scope actually assigned an Intune compliance policy, or does it fall through to a tenant default almost nobody has read?</p>
+      <p style="margin-bottom:4px"><b>The four verdicts</b> — one per platform, and the policy card wears the worst of them:</p>
+      <ul>
+        <li><b>✅ covered</b> — proof was found: a compliance / app-protection policy for that platform is assigned to <b>All devices</b> or <b>All users</b>, or the CA policy's include group is <b>assigned directly</b>, or every <b>member</b> of the CA scope was matched inside the assigned groups (the membership pass). Covered means <i>the check has someone to answer for this scope</i> — it says nothing about how strict that compliance policy is.</li>
+        <li><b>⚠️ not proven</b> — Intune policies exist for the platform, but coverage could not be <i>proven</i>, and the tool refuses to guess. The reasons it says so: the CA scope cannot be enumerated (<b>All users</b>, guests, roles — there is no member list to match); only <b>some</b> members of the scope matched (“n of m covered”); an assigned group is a <b>device group</b>, which cannot be matched against the users of the CA scope; or the included group is <b>empty</b> today. Not proven is not the same as broken — it is “nobody can show you this works”, which for an audit is usually the same problem.</li>
+        <li><b>❌ uncovered</b> — a proven gap as far as reads go: <b>no Intune policy exists</b> for the platform at all, or <b>none of the members</b> of the CA scope is in any assigned group. What happens next is the tenant default above: marked-Compliant means the CA grant passes silently for exactly the people the policy names; marked-Not-compliant means those people get blocked instead.</li>
+        <li><b>🚫 n/a</b> — the control cannot exist on this platform. Approved client app / app protection is an iOS-and-Android mechanism; a CA policy demanding it on Windows or macOS has written a condition no sign-in from those platforms can ever satisfy.</li>
+      </ul>
+      <ul>
+        <li><b>The tenant default comes first</b>, because it decides what every gap <i>means</i>: Intune's “Mark devices with no compliance policy assigned as” toggle. Set to <b>Compliant</b>, an uncovered device passes the CA grant silently — the policy enforces nothing for that scope. Set to <b>Not compliant</b>, the same gap surfaces as blocked users instead: loud, but not silent.</li>
+        <li><b>Per platform, not per tenant</b> — compliance policies are per-platform, so a CA policy scoped to “any platform” can be covered on Windows and wide open on macOS. Settings-catalog compliance policies are read too (Linux only exists there).</li>
+        <li><b>Coverage is proven from assignments first</b>: All devices / All users is proof; a CA include group directly assigned a compliance policy is proof. Each Intune policy on a verdict is listed with <b>the groups it is assigned to</b> (and its exclusion groups), because <i>which</i> groups decides who falls through.</li>
+        <li><b>Then the members themselves</b> — a different group name does not mean a user is not covered: the CA policy can include a persona group while Intune assigns a BYOD group, and if the same people are in both, the coverage is real. Where assignment names could not prove it, the tool expands the memberships (transitive, so nesting counts) of the CA include groups and the Intune-assigned groups and matches the <b>users</b>: all matched → covered by membership, some → “n of m covered”, none → uncovered. Per-policy Intune exclusions count against that policy only. Scopes that cannot be enumerated (All users, guests, roles) stay honestly “not proven”, an Intune policy assigned a <b>device group</b> is flagged as unmatchable to users rather than counted as a gap, and an unreadable or over-cap group falls back to assignment names instead of pretending to be empty.</li>
+        <li><b>OR-alternatives are named</b> — a policy granting <i>compliant device OR MFA</i> does not block an uncovered device, it just lets the sign-in through on MFA. That is a gap in what the policy name promises, not in availability, and the card says which it is.</li>
+        <li><b>Same check for app protection</b> behind “require approved client app / app protection policy” — an iOS-and-Android mechanism, so a CA policy demanding it on Windows or macOS is flagged as a control that can never be satisfied there.</li>
+        <li><b>📄 Export MD</b> — the verdicts as Markdown for the review record.</li>
+      </ul>
+      <p class="help-x">Read-only. Needs <code>DeviceManagementConfiguration.Read.All</code> and <code>DeviceManagementApps.Read.All</code>, asked once on the click, plus an Intune RBAC role that can read the workload (e.g. Read Only Operator). Assignment targets are checked first; where names alone cannot prove overlap, the tool expands transitive group memberships and matches the users. An unreadable, unenumerable or over-cap scope stays <b>not proven</b> rather than being guessed empty or uncovered.</p>
     </section>
 
     <section class="help-sec">
@@ -1976,6 +2011,9 @@
             <li><code>T23</code> 💪 Authentication strengths → <b>🧩 Policy building blocks</b>, Strengths tab (build 25341)</li>
             <li><code>T24</code> ♻ Recycle bin → <b>🧩 Policy building blocks</b>, Deleted tab (build 25341)</li>
             <li><code>T25</code> 📜 Terms of use → <b>🧩 Policy building blocks</b>, Terms of use tab (build 25341)</li>
+            <li><code>T07</code> 📘 MS Learn checks → <b>🛡 Checks</b>, Microsoft Learn tab (build 25342)</li>
+            <li><code>T21</code> 📐 CIS Benchmark → <b>🛡 Checks</b>, CIS 5.2.2 tab (build 25342)</li>
+            <li><code>T30</code> 🖥 Device reality check → <b>🛡 Checks</b>, Intune reality tab (build 25342)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The version beside it is the opposite kind of thing</b> — the number never changes, the version always does. They sit together so they are read together: “T21 v0.5” says which tool and how far along it is.</li>
@@ -2082,30 +2120,7 @@
     </section>
 
 
-    <section class="help-sec">
-      <h4>📘 MS Learn checks</h4>
-      <p>Checks policies against documented Microsoft Learn exclusions and limitations — break-glass, token protection, Teams Rooms, service providers, retired features.</p>
-      <ul>
-        <li><b>Findings</b> tab lists what conflicts with the docs; <b>Refresh</b> re-runs after you fix something.</li>
-        <li><b>Service provider (CSP / GDAP) exclusions</b> — five checks covering the partner who administers this tenant on your behalf. They are matched by the <b>Service provider users</b> external user type and by nothing else: a partner admin arriving through delegated privileges holds no account, no group membership and no device here, so a group exclusion or a named break-glass account never reaches them. The checks find an external-user exclusion that lists the other five types but not this one; a Block policy their sign-in falls into; a compliant or hybrid-joined device requirement they cannot meet unless cross-tenant access settings trust device claims from their tenant; grant controls documented as unsupported for external users (approved client app, app protection policy, password change); and a guest MFA policy that leaves out the one external identity holding admin roles here. Exclusions naming specific tenants are read as such — an exclusion for two partner tenants does not cover a third.</li>
-        <li><b>Read once, judged against your tenant.</b> Cross-tenant access settings are read to see which partners are flagged as service providers and whether this tenant accepts their MFA and device claims. A partner whose compliant-device claims you already trust does not raise a device finding, and a tenant with no partner at all has the five checks skipped rather than answered — the summary says so. If the settings cannot be read the checks still run and say the trust configuration was not verified, which is not the same as saying there is nothing there.</li>
-        <li><b>Buildable fixes</b> — where a documented fix exists, apply it in the tenant (creating a service principal or group if the fix needs one). <span class="tag block">writes to tenant</span></li>
-      </ul>
-      <p class="help-x">Checks are read-only; applying a fix writes, and produces a change report.</p>
-    </section>
 
-    <section class="help-sec">
-      <h4>📐 CIS Benchmark <span class="tag new">BETA</span></h4>
-      <p>The tenant's Conditional Access policies scored against section <b>5.2.2</b> of the CIS Microsoft 365 Foundations Benchmark v7.0.0 — all 17 automated recommendations, each expressed as the machine criteria from the benchmark's own "audit using the Microsoft Graph API" procedure.</p>
-      <ul>
-        <li><b>Four outcomes, not two.</b> A control <b>passes</b> when at least one <i>enabled</i> policy meets every criterion; a policy that meets them all but runs in <b>report-only</b> is reported as such; one that meets them all while <b>Off</b> gets its own tier — the benchmark's audit requires the policy to be enabled, so it is not scored as a pass, but calling it a plain failure would hide the fact that the work is done.</li>
-        <li><b>Nearest-miss policies</b> are listed for every failure with exactly which criteria they lack. That is the remediation map: usually one condition away, and knowing which one is the difference between a score and a task.</li>
-        <li><b>Licence-aware</b> — the three Identity Protection controls drop to "not licensed" rather than failing when the tenant has no Entra ID P2, because failing a control you cannot implement is noise.</li>
-        <li><b>L1 / L2 profile filter</b>, an overall and per-level compliance score, and a Markdown compliance report.</li>
-        <li><b>What it cannot judge</b>, and says so: the benchmark also asks per control that exclusions are documented and reviewed annually. That is inherently manual and is carried as such rather than assumed.</li>
-      </ul>
-      <p class="help-x">Read-only. The benchmark catalog carries its own revision stamp, shown in the header and the report, so the CIS content is versioned separately from the app. Recommendation numbers and titles are referenced from the CIS Benchmark (© Center for Internet Security); the assessment logic is implemented from the published Graph audit procedures — the benchmark text itself is not reproduced.</p>
-    </section>
 
 
     <section class="help-sec">
@@ -2278,27 +2293,6 @@
     </section>
 
 
-    <section class="help-sec">
-      <h4>🖥 Device reality check <span class="tag new">NEW</span></h4>
-      <p>The other half of the <b>require compliant device</b> grant. The CA side names <i>who</i> must present a compliant device; the Intune side decides <i>which devices can ever be one</i> — and neither portal checks that the two halves meet. Per CA policy and per platform: is the policy's scope actually assigned an Intune compliance policy, or does it fall through to a tenant default almost nobody has read?</p>
-      <p style="margin-bottom:4px"><b>The four verdicts</b> — one per platform, and the policy card wears the worst of them:</p>
-      <ul>
-        <li><b>✅ covered</b> — proof was found: a compliance / app-protection policy for that platform is assigned to <b>All devices</b> or <b>All users</b>, or the CA policy's include group is <b>assigned directly</b>, or every <b>member</b> of the CA scope was matched inside the assigned groups (the membership pass). Covered means <i>the check has someone to answer for this scope</i> — it says nothing about how strict that compliance policy is.</li>
-        <li><b>⚠️ not proven</b> — Intune policies exist for the platform, but coverage could not be <i>proven</i>, and the tool refuses to guess. The reasons it says so: the CA scope cannot be enumerated (<b>All users</b>, guests, roles — there is no member list to match); only <b>some</b> members of the scope matched (“n of m covered”); an assigned group is a <b>device group</b>, which cannot be matched against the users of the CA scope; or the included group is <b>empty</b> today. Not proven is not the same as broken — it is “nobody can show you this works”, which for an audit is usually the same problem.</li>
-        <li><b>❌ uncovered</b> — a proven gap as far as reads go: <b>no Intune policy exists</b> for the platform at all, or <b>none of the members</b> of the CA scope is in any assigned group. What happens next is the tenant default above: marked-Compliant means the CA grant passes silently for exactly the people the policy names; marked-Not-compliant means those people get blocked instead.</li>
-        <li><b>🚫 n/a</b> — the control cannot exist on this platform. Approved client app / app protection is an iOS-and-Android mechanism; a CA policy demanding it on Windows or macOS has written a condition no sign-in from those platforms can ever satisfy.</li>
-      </ul>
-      <ul>
-        <li><b>The tenant default comes first</b>, because it decides what every gap <i>means</i>: Intune's “Mark devices with no compliance policy assigned as” toggle. Set to <b>Compliant</b>, an uncovered device passes the CA grant silently — the policy enforces nothing for that scope. Set to <b>Not compliant</b>, the same gap surfaces as blocked users instead: loud, but not silent.</li>
-        <li><b>Per platform, not per tenant</b> — compliance policies are per-platform, so a CA policy scoped to “any platform” can be covered on Windows and wide open on macOS. Settings-catalog compliance policies are read too (Linux only exists there).</li>
-        <li><b>Coverage is proven from assignments first</b>: All devices / All users is proof; a CA include group directly assigned a compliance policy is proof. Each Intune policy on a verdict is listed with <b>the groups it is assigned to</b> (and its exclusion groups), because <i>which</i> groups decides who falls through.</li>
-        <li><b>Then the members themselves</b> — a different group name does not mean a user is not covered: the CA policy can include a persona group while Intune assigns a BYOD group, and if the same people are in both, the coverage is real. Where assignment names could not prove it, the tool expands the memberships (transitive, so nesting counts) of the CA include groups and the Intune-assigned groups and matches the <b>users</b>: all matched → covered by membership, some → “n of m covered”, none → uncovered. Per-policy Intune exclusions count against that policy only. Scopes that cannot be enumerated (All users, guests, roles) stay honestly “not proven”, an Intune policy assigned a <b>device group</b> is flagged as unmatchable to users rather than counted as a gap, and an unreadable or over-cap group falls back to assignment names instead of pretending to be empty.</li>
-        <li><b>OR-alternatives are named</b> — a policy granting <i>compliant device OR MFA</i> does not block an uncovered device, it just lets the sign-in through on MFA. That is a gap in what the policy name promises, not in availability, and the card says which it is.</li>
-        <li><b>Same check for app protection</b> behind “require approved client app / app protection policy” — an iOS-and-Android mechanism, so a CA policy demanding it on Windows or macOS is flagged as a control that can never be satisfied there.</li>
-        <li><b>📄 Export MD</b> — the verdicts as Markdown for the review record.</li>
-      </ul>
-      <p class="help-x">Read-only. Needs <code>DeviceManagementConfiguration.Read.All</code> and <code>DeviceManagementApps.Read.All</code>, asked once on the click, plus an Intune RBAC role that can read the workload (e.g. Read Only Operator). Assignment targets are checked first; where names alone cannot prove overlap, the tool expands transitive group memberships and matches the users. An unreadable, unenumerable or over-cap scope stays <b>not proven</b> rather than being guessed empty or uncovered.</p>
-    </section>
 
 
     <section class="help-sec">
@@ -3020,67 +3014,67 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25341"></script>
-<script src="js/selfhost.js?v=25341"></script>
-<script src="js/version.js?v=25341"></script>
-<script src="js/fork.js?v=25341"></script>
-<script src="js/promote.js?v=25341"></script>
-<script src="js/authConfig.js?v=25341"></script>
-<script src="js/labels.js?v=25341"></script>
-<script src="js/graph.js?v=25341"></script>
-<script src="js/model.js?v=25341"></script>
-<script src="js/render.js?v=25341"></script>
-<script src="js/analyze.js?v=25341"></script>
-<script src="js/whatif.js?v=25341"></script>
-<script src="js/mslearn.js?v=25341"></script>
-<script src="js/gapcheck.js?v=25341"></script>
-<script src="js/cisdata.js?v=25341"></script>
-<script src="js/cischeck.js?v=25341"></script>
-<script src="js/exclusions.js?v=25341"></script>
-<script src="js/validator.js?v=25341"></script>
-<script src="js/whatifeval.js?v=25341"></script>
-<script src="js/compare.js?v=25341"></script>
-<script src="js/whois.js?v=25341"></script>
-<script src="js/wave.js?v=25341"></script>
-<script src="js/sessionctl.js?v=25341"></script>
-<script src="js/spgap.js?v=25341"></script>
-<script src="js/groupuse.js?v=25341"></script>
-<script src="js/iso3166.js?v=25341"></script>
-<script src="js/causes.js?v=25341"></script>
-<script src="js/locations.js?v=25341"></script>
-<script src="js/authcontexts.js?v=25341"></script>
-<script src="js/authstrengths.js?v=25341"></script>
-<script src="js/recycle.js?v=25341"></script>
-<script src="js/rmau.js?v=25341"></script>
-<script src="js/camap.js?v=25341"></script>
-<script src="js/rmaudoc.js?v=25341"></script>
-<script src="js/termsofuse.js?v=25341"></script>
-<script src="js/audit.js?v=25341"></script>
-<script src="js/drift.js?v=25341"></script>
-<script src="js/guide.js?v=25341"></script>
-<script src="js/userimpact.js?v=25341"></script>
-<script src="js/smsvoice.js?v=25341"></script>
-<script src="js/memberof.js?v=25341"></script>
-<script src="js/devcheck.js?v=25341"></script>
-<script src="js/licgap.js?v=25341"></script>
-<script src="js/teamsdev.js?v=25341"></script>
-<script src="js/signins.js?v=25341"></script>
-<script src="js/reportimpact.js?v=25341"></script>
-<script src="js/changelog.js?v=25341"></script>
-<script src="js/baselineData.js?v=25341"></script>
-<script src="js/baselineJoeyData.js?v=25341"></script>
-<script src="js/baselineLive.js?v=25341"></script>
-<script src="js/baseline.js?v=25341"></script>
-<script src="js/baselineCleanup.js?v=25341"></script>
-<script src="js/groupTemplates.js?v=25341"></script>
-<script src="js/assign.js?v=25341"></script>
-<script src="js/cagroups.js?v=25341"></script>
-<script src="js/groupsview.js?v=25341"></script>
-<script src="js/runledger.js?v=25341"></script>
-<script src="js/protect.js?v=25341"></script>
-<script src="js/import.js?v=25341"></script>
-<script src="js/export.js?v=25341"></script>
-<script src="js/demo.js?v=25341"></script>
-<script src="js/app.js?v=25341"></script>
+<script src="js/branding.js?v=25342"></script>
+<script src="js/selfhost.js?v=25342"></script>
+<script src="js/version.js?v=25342"></script>
+<script src="js/fork.js?v=25342"></script>
+<script src="js/promote.js?v=25342"></script>
+<script src="js/authConfig.js?v=25342"></script>
+<script src="js/labels.js?v=25342"></script>
+<script src="js/graph.js?v=25342"></script>
+<script src="js/model.js?v=25342"></script>
+<script src="js/render.js?v=25342"></script>
+<script src="js/analyze.js?v=25342"></script>
+<script src="js/whatif.js?v=25342"></script>
+<script src="js/mslearn.js?v=25342"></script>
+<script src="js/gapcheck.js?v=25342"></script>
+<script src="js/cisdata.js?v=25342"></script>
+<script src="js/cischeck.js?v=25342"></script>
+<script src="js/exclusions.js?v=25342"></script>
+<script src="js/validator.js?v=25342"></script>
+<script src="js/whatifeval.js?v=25342"></script>
+<script src="js/compare.js?v=25342"></script>
+<script src="js/whois.js?v=25342"></script>
+<script src="js/wave.js?v=25342"></script>
+<script src="js/sessionctl.js?v=25342"></script>
+<script src="js/spgap.js?v=25342"></script>
+<script src="js/groupuse.js?v=25342"></script>
+<script src="js/iso3166.js?v=25342"></script>
+<script src="js/causes.js?v=25342"></script>
+<script src="js/locations.js?v=25342"></script>
+<script src="js/authcontexts.js?v=25342"></script>
+<script src="js/authstrengths.js?v=25342"></script>
+<script src="js/recycle.js?v=25342"></script>
+<script src="js/rmau.js?v=25342"></script>
+<script src="js/camap.js?v=25342"></script>
+<script src="js/rmaudoc.js?v=25342"></script>
+<script src="js/termsofuse.js?v=25342"></script>
+<script src="js/audit.js?v=25342"></script>
+<script src="js/drift.js?v=25342"></script>
+<script src="js/guide.js?v=25342"></script>
+<script src="js/userimpact.js?v=25342"></script>
+<script src="js/smsvoice.js?v=25342"></script>
+<script src="js/memberof.js?v=25342"></script>
+<script src="js/devcheck.js?v=25342"></script>
+<script src="js/licgap.js?v=25342"></script>
+<script src="js/teamsdev.js?v=25342"></script>
+<script src="js/signins.js?v=25342"></script>
+<script src="js/reportimpact.js?v=25342"></script>
+<script src="js/changelog.js?v=25342"></script>
+<script src="js/baselineData.js?v=25342"></script>
+<script src="js/baselineJoeyData.js?v=25342"></script>
+<script src="js/baselineLive.js?v=25342"></script>
+<script src="js/baseline.js?v=25342"></script>
+<script src="js/baselineCleanup.js?v=25342"></script>
+<script src="js/groupTemplates.js?v=25342"></script>
+<script src="js/assign.js?v=25342"></script>
+<script src="js/cagroups.js?v=25342"></script>
+<script src="js/groupsview.js?v=25342"></script>
+<script src="js/runledger.js?v=25342"></script>
+<script src="js/protect.js?v=25342"></script>
+<script src="js/import.js?v=25342"></script>
+<script src="js/export.js?v=25342"></script>
+<script src="js/demo.js?v=25342"></script>
+<script src="js/app.js?v=25342"></script>
 </body>
 </html>
