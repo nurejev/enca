@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25329, date: "2026-09-11", title: "Compliant device OR app protection is a pattern, not a weakness",
+    items: [
+      { kind: "fixed", tool: "Best-practice & bypass checks", text: "A policy granting compliant device OR app protection policy is no longer reported as a weakest-link OR. That pair is Microsoft's MDM-or-MAM pattern for BYOD — a managed device passes the compliance side, an unmanaged one passes the app-protection side — and both sides are management controls of the same tier, so there is no weaker control to fall through to. Until now only an OR WITHIN one tier (compliant OR hybrid-joined) was accepted and the mobile policies of every persona baseline came back High for it. An OR that still mixes in MFA, password change or terms of use keeps its High. Reviewed against the same fix in Jhope188's CA Policy Analyzer v1.17.1." },
+    ],
+  },
+  {
     build: 25328, date: "2026-09-10", title: "The hunting read is ten times lighter, and the forecast shows up as it goes",
     items: [
       { kind: "improved", tool: "Sign-in failures", text: "The Defender hunting read that 🚦 🎚 🕵 🌊 🛂 share is slimmed in the query. On a 140-policy tenant every sign-in row carried 140 policy entries, 130 of them “not applied” — 30 KB of JSON per row that nothing reads except one count — and that is what pushed a 7-day Hunting + non-interactive read to 459 queries of 15-minute slices: 40 minutes for 93,500 rows. Those entries are now dropped server-side (mv-apply); the report-only not-applied ones survive as a list of ids so the out-of-scope counts stay exact; success, failure and the report-only verdicts stay whole. A row shrinks ten to twenty times, a day fits in one or two queries, and two days are read at once. A hunting schema that refuses the slim query falls back to full rows and says so on the progress line." },

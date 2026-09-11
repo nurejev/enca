@@ -409,9 +409,19 @@ const GapCheck = (() => {
       if (controls.length <= 1) return;
       const groupsOf = new Set(controls.map((c) => EQUIV_GROUP[c] || `unique:${c}`));
       const labels = controls.map((c) => CONTROL_LABEL[c] || c);
-      if (groupsOf.size === 1 && ["device-trust", "app-protection"].includes([...groupsOf][0])) {
+      // Accepted when EVERY control is a management control: one group (compliant
+      // OR hybrid-joined) or the device-trust + app-protection pair — Microsoft's
+      // MDM-or-MAM pattern for BYOD, where a managed device satisfies the
+      // compliance side and an unmanaged one satisfies app protection. Both sides
+      // are the same tier, so there is no weaker control to fall through to. An OR
+      // that mixes in MFA, password change or terms of use stays High.
+      const allManagement = controls.every((c) => !!EQUIV_GROUP[c]);
+      if (allManagement) {
+        const pair = groupsOf.size === 2;
         F(out, "info", "Swiss Cheese Model", 'Grant OR between equivalent-strength controls — accepted pattern', p,
-          `Requires ${labels.join(" OR ")} — both are controls of the same strength tier (a Microsoft-recommended pattern such as compliant OR hybrid-joined device), so there is no weaker control to downgrade to.`,
+          pair
+            ? `Requires ${labels.join(" OR ")} — a managed device satisfies the compliance side, an unmanaged BYOD device satisfies the app-protection side. Both are management-based controls of the same tier (Microsoft's MDM-or-MAM pattern), so there is no weaker control to downgrade to.`
+            : `Requires ${labels.join(" OR ")} — both are controls of the same strength tier (a Microsoft-recommended pattern such as compliant OR hybrid-joined device), so there is no weaker control to downgrade to.`,
           "No change required. If these controls are meant to be layered on top of MFA, enforce the MFA layer in a separate policy — do not rely on this policy alone for MFA.");
         return;
       }

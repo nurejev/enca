@@ -118,6 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 164,
+      title: "🛡 Compliant device OR app protection is the accepted pattern (T08 1.8)",
+      tools: ["Best-practice & bypass checks"],
+      builds: [25329],
+      risk: "high",
+      what: "js/gapcheck.js checkOr: the accepted case is now “every control in the OR is a management control” — one tier (compliant OR hybrid-joined, unchanged) or the device-trust + app-protection pair (compliant device OR app protection policy, Microsoft's MDM-or-MAM pattern for BYOD). The pair gets its own info wording. An OR with mfa, passwordChange, riskRemediation, terms of use or custom factors in it is unchanged: High, weakest control is effective.",
+      why: "High because production reports a FALSE POSITIVE today: the mobile policies of the Joey and Limon-IT persona baselines grant compliantDevice OR compliantApplication, and every tenant running them gets a High “weakest control is effective” for a pattern Microsoft recommends. Ported after reviewing the same fix in Jhope188's CA Policy Analyzer v1.17.1 (issue 19). Nothing else in the check moved.",
+      test: [
+        "A tenant with a policy granting compliantDevice OR compliantApplication (any Joey-baseline tenant; the demo tenant has no such policy), 🛡: it renders as info “accepted pattern” with the MDM-or-MAM sentence — not High.",
+        "A policy with grant OR mfa + compliantDevice still renders High “weakest control is effective”.",
+        "A policy with grant OR compliantDevice + domainJoinedDevice is unchanged (info, one-tier wording).",
+        "Zero Trust scorecard on the same tenant: the Least privilege number goes up or stays — never down.",
+        "A real tenant on the Joey baseline: the CA2xx mobile app-protection policies no longer appear under High.",
+      ],
+      files: ["js/gapcheck.js", "index.html", "js/version.js"],
+    },
+    {
       n: 163,
       title: "🚦 Hunting read slimmed + two days at a time; 🎚 forecast as the days land, ■ Stop (T17 2.1, T26 1.5)",
       tools: ["Sign-in failures", "Report-only impact", "Who is Anna to CA", "Who is the wave to CA", "Session controls"],
