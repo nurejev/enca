@@ -195,6 +195,14 @@
                         open: () => openDrift() },
     toolGuide:        { into: "toolBaseline", label: "📖 Baseline guide",              where: "the Deployment guide tab",   build: 25340,
                         open: () => openGuide() },
+    toolAuthStr:      { into: "toolLocations", label: "💪 Authentication strengths",   where: "the Strengths tab",          build: 25341,
+                        open: () => openAuthStr() },
+    toolAuthCtx:      { into: "toolLocations", label: "🎫 Authentication contexts",    where: "the Contexts tab",           build: 25341,
+                        open: () => openAuthCtx() },
+    toolTou:          { into: "toolLocations", label: "📜 Terms of use",               where: "the Terms of use tab",       build: 25341,
+                        open: () => openTou() },
+    toolRecycle:      { into: "toolLocations", label: "♻ Recycle bin",                where: "the Deleted tab",            build: 25341,
+                        open: () => openRecycle() },
   };
   // Land on a folded tool. Its own entry point when it has one — the right tab,
   // the right catalog — otherwise the host tile, which is the correct answer for
@@ -239,6 +247,23 @@
       tabs: [
         { key: "audit",    icon: "🕓", name: "Audit log",     toolbar: "auToolbar", open: () => openAudit() },
         { key: "snapshot", icon: "📉", name: "Snapshot file", toolbar: "drToolbar", open: () => openDrift() },
+      ],
+    },
+    // The four kinds of object a policy REFERENCES, plus the bin they land in
+    // when deleted. Every one of these tools is the same screen: a list, which
+    // policies use each row, and create / edit / delete — and until 25341 each
+    // carried its own copy of "which policies use this" (see js/causes.js).
+    // ♻ Deleted is here rather than in 🗂 Policies because the recycle bin
+    // restores deleted NAMED LOCATIONS as well as deleted policies, so it is a
+    // dependency screen that happens to also hold policies.
+    blocks: {
+      tile: "toolLocations", label: "🧩 Policy building blocks",
+      tabs: [
+        { key: "locations", icon: "🌐", name: "Locations",   toolbar: "loToolbar", open: () => openLocations() },
+        { key: "strengths", icon: "💪", name: "Strengths",   toolbar: "asToolbar", open: () => openAuthStr() },
+        { key: "contexts",  icon: "🎫", name: "Contexts",    toolbar: "acToolbar", open: () => openAuthCtx() },
+        { key: "terms",     icon: "📜", name: "Terms of use", toolbar: "tuToolbar", open: () => openTou(), beta: true },
+        { key: "deleted",   icon: "♻", name: "Deleted",     toolbar: "rcToolbar", open: () => openRecycle() },
       ],
     },
     baseline: {
@@ -2244,11 +2269,7 @@
     ["toolCis", "📐 CIS Benchmark"],
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
-    ["toolLocations", "🌐 Named locations"],
-    ["toolAuthCtx", "🎫 Authentication contexts"],
-    ["toolAuthStr", "💪 Authentication strengths"],
-    ["toolTou", "📜 Terms of use"],
-    ["toolRecycle", "♻ Recycle bin"],
+    ["toolLocations", "🧩 Policy building blocks"],
     ["toolRmau", "🛡 Restricted AUs"],
     ["toolUserImpact", "🗣 User impact brief"],
     ["toolImport", "📥 Import"],
@@ -13525,7 +13546,8 @@ This is a directory write. Nothing else changes.`)) return;
   let loFindOpen = true;
 
   async function openLocations(force) {
-    crumb("🌐 Named locations");
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "locations");
     show("screen-locations");
     if (loList && !force) { renderLocations(); return; }   // cached
     $("loHead").innerHTML = '<h3>🌐 Named locations</h3><p class="mini" style="margin:6px 0 0">Reading named locations…</p>';
@@ -14107,7 +14129,8 @@ This is a directory write. Nothing else changes.`)) return;
   ];
 
   async function openAuthCtx(force) {
-    crumb("🎫 Authentication contexts");
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "contexts");
     show("screen-authctx");
     if (acList && !force) { renderAuthCtx(); return; }   // cached
     $("acHead").innerHTML = '<h3>🎫 Authentication contexts</h3><p class="mini" style="margin:6px 0 0">Reading authentication contexts…</p>';
@@ -14122,7 +14145,6 @@ This is a directory write. Nothing else changes.`)) return;
       $("acHead").innerHTML = `<h3>🎫 Authentication contexts</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
-  $("toolAuthCtx").addEventListener("click", () => openAuthCtx());
   $("acRefresh").addEventListener("click", () => openAuthCtx(true));
 
   function renderAuthCtx() {
@@ -14281,7 +14303,8 @@ This is a directory write. Nothing else changes.`)) return;
   let asList = null, asCombos = null, asFilter = "all", asQuery = "", asEditing = null, asDeleting = null;
 
   async function openAuthStr(force) {
-    crumb("💪 Authentication strengths");
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "strengths");
     show("screen-authstr");
     if (asList && !force) { renderAuthStr(); return; }   // cached
     $("asHead").innerHTML = '<h3>💪 Authentication strengths</h3><p class="mini" style="margin:6px 0 0">Reading authentication strengths…</p>';
@@ -14321,7 +14344,6 @@ This is a directory write. Nothing else changes.`)) return;
       $("asHead").innerHTML = `<h3>💪 Authentication strengths</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
-  $("toolAuthStr").addEventListener("click", () => openAuthStr());
   $("asRefresh").addEventListener("click", () => openAuthStr(true));
 
   function renderAuthStr() {
@@ -14567,7 +14589,8 @@ This is a directory write. Nothing else changes.`)) return;
   ];
 
   async function openTou(force) {
-    crumb("📜 Terms of use");
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "terms");
     show("screen-tou");
     if (tuList && !force) { renderTou(); return; }   // cached
     $("tuHead").innerHTML = '<h3>📜 Terms of use <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading terms-of-use agreements…</p>';
@@ -14590,7 +14613,6 @@ This is a directory write. Nothing else changes.`)) return;
       $("tuHead").innerHTML = `<h3>📜 Terms of use</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
-  $("toolTou").addEventListener("click", () => openTou());
   $("tuRefresh").addEventListener("click", () => openTou(true));
 
   function renderTou() {
@@ -14829,7 +14851,8 @@ This is a directory write. Nothing else changes.`)) return;
   };
 
   async function openRecycle(force) {
-    crumb("♻ Recycle bin");
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "deleted");
     show("screen-recycle");
     if (rcPols && !force) { renderRecycle(); return; }   // cached
     $("rcHead").innerHTML = '<h3>♻ Recycle bin</h3><p class="mini" style="margin:6px 0 0">Reading recently deleted policies and named locations…</p>';
@@ -14849,7 +14872,6 @@ This is a directory write. Nothing else changes.`)) return;
       $("rcHead").innerHTML = `<h3>♻ Recycle bin</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}${/403|Authorization/i.test(String(e.message || e)) ? " — reading the recycle bin needs the Security Administrator or Conditional Access Administrator role." : ""}</p>`;
     }
   }
-  $("toolRecycle").addEventListener("click", () => openRecycle());
   $("rcRefresh").addEventListener("click", () => openRecycle(true));
 
   function renderRecycle() {

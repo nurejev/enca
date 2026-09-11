@@ -30,11 +30,8 @@ const AuthContexts = (() => {
   // A policy consumes a context through
   // conditions.applications.includeAuthenticationContextClassReferences.
   // Returns [{id,name,state}]
-  function usedBy(ctxId, raws) {
-    return (raws || []).filter((p) =>
-      ((p.conditions?.applications?.includeAuthenticationContextClassReferences) || []).includes(ctxId))
-      .map((p) => ({ id: p.id, name: p.displayName, state: p.state }));
-  }
+  // Shared with the three other dependency tools — js/causes.js, build 25341.
+  const usedBy = (ctxId, raws) => CaUses.by("context", ctxId, raws);
 
   function freeSlots(list) {
     const taken = new Set((list || []).map((c) => c.id));

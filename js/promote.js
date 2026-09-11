@@ -118,6 +118,29 @@ const PROMOTE = {
 
   items: [
     {
+      n: 176,
+      title: "🧩 Policy building blocks: 🎫 contexts, 💪 strengths, 📜 terms of use and ♻ recycle bin folded in; one shared usedBy (T15 1.8; T22 T23 T24 T25 folded) — R55",
+      tools: ["Policy building blocks", "Authentication contexts", "Authentication strengths", "Terms of use", "Recycle bin"],
+      builds: [25341],
+      risk: "medium",
+      what: "NEW js/causes.js — CaUses.by(kind, id, raws, opts) with one predicate per kind (location / context / strength / terms) returning { id, policyId, name, state, side, ...extra }, plus CaUses.trustedConsumers; location carries the old how and implicit fields unchanged. js/locations.js, js/authcontexts.js, js/authstrengths.js, js/termsofuse.js: each usedBy is now a ONE-LINE delegation to it (locations also passes trusted, which lives on the object the tool holds) and locations trustedConsumers delegates too — no call site changed. js/app.js: TAB_HOSTS gains blocks (locations → loToolbar, strengths → asToolbar, contexts → acToolbar, terms → tuToolbar with beta, deleted → rcToolbar); the five open functions crumb 🧩 Policy building blocks and mount their tab; four tile handlers and four TOOL_TABS rows go, toolLocations is relabelled; FOLDED gains the four with their tab entry points. index.html: the four tiles removed, T15 renamed with a blurb naming all five tabs, id=acToolbar/asToolbar/tuToolbar/rcToolbar added, the four Help sections moved under the host as h5, four rows added to 🔢 Tool numbers, the causes.js script tag before locations.js, roadmap R55. js/version.js: build 25341, T15 1.8, T22 1.0.1, T23 1.0.2, T24 1.0.1, T25 1.0.1 folded.",
+      why: "Medium because of the shared lookup, not the tabs. usedBy decides the In use and Unused chips, the summary counts, whether Delete is offered and what its refusal says — so a wrong predicate shows up as a delete that should have been refused. The delegation shape is what makes it checkable: four predicates of four lines each, with the old code beside them in the diff, and every caller untouched. Test 1 is the equivalence check and it is the one that matters; the rest is routing. The case-insensitive id compare in the strength predicate is load-bearing (the tenant returns mixed case) and is kept.",
+      test: [
+        "EQUIVALENCE — the one that must pass. On a real tenant with locations, strengths, contexts and agreements in use, open each tab and compare against 25340 on the same tenant: the In use and Unused chip counts per tab, and for three rows per kind the exact list of policies named under Used by, in the same order. For locations include a TRUSTED location that no policy names but that a policy reaches through All trusted locations: its usage must still read 'included via All trusted locations' and still be marked implicit.",
+        "Delete guards: try to delete a strength a policy grants, an agreement a policy requires, a context a policy is scoped to — each must refuse with the same sentence and the same policy count as before. Then delete an unused custom strength and an unused context: both must still go through.",
+        "Mixed-case check for the strength predicate: a policy whose grantControls.authenticationStrength.id differs in case from the strength list's id must still show as a consumer (read one such id in Graph if the tenant has one; if not, say the step was skipped).",
+        "Home page: 27 tiles. 🎫 🎚 💪 📜 ♻ gone as tiles; 🧩 Policy building blocks reads T15 v1.8 with a blurb naming all five tabs and the writes-to-tenant chip.",
+        "The strip: 🌐 Locations · 💪 Strengths · 🎫 Contexts · 📜 Terms of use BETA · ♻ Deleted, the right one active on each of the five screens, and each tab keeping its own search box, chips, Refresh, Export MD and ＋ New.",
+        "Create and edit still work from inside a tab: ＋ New location, ＋ New custom strength, ＋ New context, ＋ New agreement — each writes and the list re-reads, landing back on its own tab and not on Locations.",
+        "♻ Deleted: restore a deleted named location and a deleted policy; both land back in the tenant and the tab re-reads.",
+        "One browser tab labelled 🧩 Policy building blocks for all five screens; Back walks them; the side nav and + menu list the host once with no dead row. The seven-plus deep links other tools use (openLocations ×6, openAuthCtx ×7, 📖 the guide's dependency step, 🧬 Baseline's missing-dependency links) must each land on the right TAB.",
+        "⌘K: 'terms', 'strengths', 'contexts', 'recycle' each offer the tool under its own name with the hint naming the tab, and land on it; 22, 23, 24 and 25 find them by number.",
+        "?demo=1: all five tabs render; a demo location that is trusted and only reached through All trusted locations shows the implicit usage.",
+      ],
+      carveout: "Beta-number rewrite as in items 173 to 175 (the 'folded into this tool — build 25341' spans, the four new 🔢 bullets, the 'from build 25341' clause in the 🧩 Help section, R55's data-shipped and tag). js/causes.js is NOT beta-only — it ports as a new file, and its script tag must go in before js/locations.js or every dependency tool throws on open. Prove the port with grep -n '25341' index.html (empty on main) and by opening each of the five tabs on production once.",
+      files: ["js/causes.js", "js/locations.js", "js/authcontexts.js", "js/authstrengths.js", "js/termsofuse.js", "index.html", "js/app.js", "js/changelog.js", "js/promote.js", "js/version.js"],
+    },
+    {
       n: 175,
       title: "🕓 Changes: 📉 Drift watch folded in as a source tab; 📖 Baseline guide becomes 🧬 Baseline's Deployment guide tab (T16 1.7, T10 2.7; T28 T29 folded) — R54",
       tools: ["Changes", "Drift watch", "Baseline", "Baseline guide"],

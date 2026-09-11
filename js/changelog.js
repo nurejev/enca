@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25341, date: "2026-09-11", title: "🧩 Policy building blocks — four references and a bin, one tool",
+    items: [
+      { kind: "improved", tool: "Policy building blocks", text: "🌐 Named locations, 💪 Authentication strengths, 🎫 Authentication contexts and 📜 Terms of use are one tool with tabs, and the tile is 🧩 Policy building blocks. They are the four kinds of object a policy REFERENCES, and they were four tiles over four copies of one screen: a list, which policies use each row, create / edit / delete. ♻ Recycle bin is the fifth tab — it belongs with the dependency tools rather than with 🗂 Policies because the 30-day restore window holds deleted named LOCATIONS as well as deleted policies." },
+      { kind: "improved", tool: "Policy building blocks", text: "Underneath, the four private copies of WHICH POLICIES USE THIS became one implementation — js/causes.js, CaUses.by(kind, id, raws). Four copies of one query is not a style problem: three of them returned one shape and the fourth returned two extra fields, so nothing could be written against 'a usage' without knowing which tool it came from, and a fix to one reached one. The All-trusted-locations case is the example — a policy that never names a location but reaches it through All trusted locations, and therefore changes behaviour the moment you flip the trusted flag — which only the locations tool knew about and every kind can now be asked about. Each tool keeps its own usedBy as a one-line delegation, so not a single call site moved: the chips, the counts, the delete guards and the exports are the code they were." },
+      { kind: "improved", tool: "All tools", text: "T15, T22, T23, T24 and T25 keep their numbers and their Help sections, listed in 🔢 Tool numbers with the tab that holds them and findable in ⌘K under their own names. 27 tiles, from 39." },
+      { kind: "improved", tool: "Roadmap", text: "R55 🧩 Policy building blocks — the third of four phase-2 hosts. 🛡 Checks, where 📘 MS Learn, 📐 CIS and 🖥 Device reality check become rule packs over one findings table, is the last." },
+    ],
+  },
+  {
     build: 25340, date: "2026-09-11", title: "🕓 Changes, and the guide moves in with the baseline",
     items: [
       { kind: "improved", tool: "Changes", text: "🕓 Change audit and 📉 Drift watch are one tool with two tabs, and the tile is 🕓 Changes. They asked the same question — what moved — of two sources, over one diff engine: drift.js has always imported Audit.diff from the audit tool. Tabs 🕓 Audit log (who changed what, when, field by field, as far back as your licence keeps) and 📉 Snapshot file (a file you keep, so no retention limit at all). The two bodies are deliberately NOT merged into one: a rolling timeline and a two-point comparison are different shapes of answer, and the strip is what says which you are reading." },

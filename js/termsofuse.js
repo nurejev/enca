@@ -21,10 +21,8 @@
 // ======================================================================
 const TermsOfUse = (() => {
   // ---- policy usage ----------------------------------------------------
-  function usedBy(agreementId, raws) {
-    return (raws || []).filter((p) => ((p.grantControls?.termsOfUse) || []).includes(agreementId))
-      .map((p) => ({ id: p.id, name: p.displayName, state: p.state }));
-  }
+  // Shared with the three other dependency tools — js/causes.js, build 25341.
+  const usedBy = (agreementId, raws) => CaUses.by("terms", agreementId, raws);
 
   function summarize(list, raws) {
     const l = list || [];

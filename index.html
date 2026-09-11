@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25340"></script>
+<script src="js/popup-guard.js?v=25341"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25340" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25340">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25341" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25341">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25340"></script>
+<script src="js/selfhost-boot.js?v=25341"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25340"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25340"></script>
+<script src="js/counter.js?v=25341"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25341"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25340" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25341" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25340" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25341" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -267,24 +267,8 @@
         <p>Two locks per CA exclusion group on one row: a <b>restricted management administrative unit</b> so only AU-scoped roles can change the members, and <b>nesting disabled</b> so no group can be put inside — with what each group still lacks pre-ticked. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolLocations">
-        <div class="tool-ic">🌐</div><h3>Named locations <span class="tag upd">UPDATED</span></h3>
-        <p>View, create, edit and delete Conditional Access named locations — IP ranges and countries — see which policies use each one, and what is <b>wrong</b> with them: dangling policy references, empty country locations, overly broad ranges. <span class="tag block">writes to tenant</span></p>
-      </div>
-      <div class="tool" id="toolAuthCtx">
-        <div class="tool-ic">🎫</div><h3>Authentication contexts</h3>
-        <p>The step-up requirements apps and Protected Actions can ask for (c1–c99): create, rename, publish or unpublish each context and see which Conditional Access policies enforce it. <span class="tag block">writes to tenant</span></p>
-      </div>
-      <div class="tool" id="toolAuthStr">
-        <div class="tool-ic">💪</div><h3>Authentication strengths</h3>
-        <p>The method combinations a policy can require: the three built-in strengths read-only, custom strengths created, re-combined, renamed and deleted — with the policies granting each one. <span class="tag block">writes to tenant</span></p>
-      </div>
-      <div class="tool" id="toolTou">
-        <div class="tool-ic">📜</div><h3>Terms of use <span class="tag new">BETA</span></h3>
-        <p>The terms-of-use agreements Conditional Access can require: every agreement with its behaviour settings, PDFs and the policies that require it — create with a PDF upload, edit behaviour, check acceptances, delete when unreferenced. <span class="tag block">writes to tenant</span></p>
-      </div>
-      <div class="tool" id="toolRecycle">
-        <div class="tool-ic">♻</div><h3>Recycle bin</h3>
-        <p>Recently deleted Conditional Access policies and named locations — everything still inside the 30-day restore window, with what it did, when it went, and one-click restore. A policy that was On comes back enforcing. <span class="tag block">writes to tenant</span></p>
+        <div class="tool-ic">🧩</div><h3>Policy building blocks <span class="tag upd">UPDATED</span></h3>
+        <p>The four kinds of object a policy <i>references</i>, each on its own tab, plus the bin they land in when deleted. <b>🌐 Locations</b> — IP ranges and countries, with what is wrong with them: dangling references, empty country locations, overly broad ranges. <b>💪 Strengths</b> and <b>🎫 Contexts</b> — the authentication strengths a policy grants and the contexts it is scoped to. <b>📜 Terms of use</b> — the agreements it requires. <b>♻ Deleted</b> — everything still inside the 30-day restore window, policies and locations, with one-click restore. Every tab says which policies use each row, from one shared lookup, and refuses a delete that would leave a policy pointing at nothing. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool" id="toolRmau">
         <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag upd">UPDATED</span></h3>
@@ -1055,7 +1039,7 @@
   <!-- ============ AUTHENTICATION CONTEXTS (BETA) ============ -->
   <section id="screen-authctx" class="screen">
     <div class="list-card readme" id="acHead" style="margin-top:0"></div>
-    <div class="toolbar" style="margin-top:14px">
+    <div class="toolbar" id="acToolbar" style="margin-top:14px">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="acSearch" placeholder="Search contexts…">
@@ -1073,7 +1057,7 @@
   <!-- ============ AUTHENTICATION STRENGTHS ============ -->
   <section id="screen-authstr" class="screen">
     <div class="list-card readme" id="asHead" style="margin-top:0"></div>
-    <div class="toolbar" style="margin-top:14px">
+    <div class="toolbar" id="asToolbar" style="margin-top:14px">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="asSearch" placeholder="Search strengths…">
@@ -1091,7 +1075,7 @@
   <!-- ============ TERMS OF USE (BETA) ============ -->
   <section id="screen-tou" class="screen">
     <div class="list-card readme" id="tuHead" style="margin-top:0"></div>
-    <div class="toolbar" style="margin-top:14px">
+    <div class="toolbar" id="tuToolbar" style="margin-top:14px">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="tuSearch" placeholder="Search agreements…">
@@ -1109,7 +1093,7 @@
   <!-- ============ RECYCLE BIN (BETA) ============ -->
   <section id="screen-recycle" class="screen">
     <div class="list-card readme" id="rcHead" style="margin-top:0"></div>
-    <div class="toolbar" style="margin-top:14px">
+    <div class="toolbar" id="rcToolbar" style="margin-top:14px">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="rcSearch" placeholder="Search deleted items…">
@@ -1570,6 +1554,10 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R54</span> <a href="#" class="md-tool" data-tool="toolAudit">🕓 What moved, and how to deploy it</a> <span class="tag grant">live · beta 25340</span></h4>
             <p class="mini" style="margin:0">Two more hosts. 🕓 Change audit and 📉 Drift watch asked one question — what moved — of two sources over one diff engine, so they are 🕓 Changes with an Audit log tab and a Snapshot file tab. And 📖 Baseline guide, which only ever answered <i>how do I deploy this baseline</i> and linked seven other tools to do it, is the Deployment guide tab of 🧬 Baseline, where the baseline it describes already lives. Both bodies stay as they are: the fold removes a tile, not an answer.</p>
           </div>
+          <div class="list-card rm-card" data-shipped="25341">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R55</span> <a href="#" class="md-tool" data-tool="toolLocations">🧩 Policy building blocks</a> <span class="tag grant">live · beta 25341</span></h4>
+            <p class="mini" style="margin:0">A policy references four kinds of object managed elsewhere — named locations, authentication strengths, authentication contexts, terms-of-use agreements — and each had a tile over the same screen: a list, which policies use each row, create / edit / delete. Five tabs now, with ♻ Deleted as the fifth because the restore window holds deleted locations as well as deleted policies. Underneath, the four private copies of <i>which policies use this</i> became one implementation, so the All-trusted-locations case that only the locations tool knew about is available to every kind.</p>
+          </div>
         </div>
         <div class="rm-era future">
           <h3>Next <span class="rm-when">being worked toward</span></h3>
@@ -1984,6 +1972,10 @@
             <li><code>T38</code> 🛂 Session controls → <b>🚦 Sign-in log</b>, Session controls tab (build 25339)</li>
             <li><code>T28</code> 📉 Drift watch → <b>🕓 Changes</b>, Snapshot file tab (build 25340)</li>
             <li><code>T29</code> 📖 Baseline guide → <b>🧬 Baseline</b>, Deployment guide tab (build 25340)</li>
+            <li><code>T22</code> 🎫 Authentication contexts → <b>🧩 Policy building blocks</b>, Contexts tab (build 25341)</li>
+            <li><code>T23</code> 💪 Authentication strengths → <b>🧩 Policy building blocks</b>, Strengths tab (build 25341)</li>
+            <li><code>T24</code> ♻ Recycle bin → <b>🧩 Policy building blocks</b>, Deleted tab (build 25341)</li>
+            <li><code>T25</code> 📜 Terms of use → <b>🧩 Policy building blocks</b>, Terms of use tab (build 25341)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The version beside it is the opposite kind of thing</b> — the number never changes, the version always does. They sit together so they are read together: “T21 v0.5” says which tool and how far along it is.</li>
@@ -2181,7 +2173,8 @@
     </section>
 
     <section class="help-sec">
-      <h4>🌐 Named locations <span class="tag block">writes to tenant</span></h4>
+      <h4>🧩 Policy building blocks <span class="tag block">writes to tenant</span></h4>
+      <p><b>Four kinds of reference, one tool.</b> 🌐 Named locations, 💪 Authentication strengths, 🎫 Authentication contexts and 📜 Terms of use were four tiles over four copies of the same screen — a list, which policies use each row, create / edit / delete — and four private copies of the same query, one per module. ♻ Recycle bin is the fifth tab because the restore window holds deleted named LOCATIONS as well as deleted policies. They are one tool with five tabs from build 25341; <b>T15</b>, <b>T22</b>, <b>T23</b>, <b>T24</b> and <b>T25</b> keep their numbers (see 🔢 Tool numbers) and their sections below. The four <i>which policies use this</i> lookups are now one implementation in <code>js/causes.js</code>, so the All-trusted-locations case — a policy that never names a location but reaches it through <b>All trusted locations</b>, and so changes behaviour the moment you flip the trusted flag — is available to every kind rather than to locations alone.</p>
       <p>Manage the named locations your Conditional Access policies target — the IP-range and country locations — without leaving the tool.</p>
       <ul>
         <li><b>Cards / Table</b> — Cards tile at least two per row with the ranges, usage and the Edit/Delete buttons; Table is the same information one line per location, which is the readable option once a tenant has dozens.</li>
@@ -2197,10 +2190,8 @@
         <li><b>⇄ Compare…</b> — load an earlier JSON export and see what moved since: locations whose <b>ranges, countries or trusted flag</b> changed, ones in the file that are gone from the tenant, and ones created since. Matched by display name, because an id from another tenant means nothing here. A flipped trusted flag is the one worth looking at first — it silently changes which policies match.</li>
       </ul>
       <p class="help-x">Reading is read-only; create, edit and delete write to the tenant and ask for Policy.ReadWrite.ConditionalAccess when you run them.</p>
-    </section>
 
-    <section class="help-sec">
-      <h4>🎫 Authentication contexts <span class="tag block">writes to tenant</span></h4>
+      <h5>🎫 Authentication contexts <span class="tag block">writes to tenant</span> <span class="help-fold">folded into this tool — build 25341</span></h5>
       <p>The named step-up requirements, <code>c1</code>–<code>c99</code>. An app, a Protected Action or a Purview label asks for "c1", and whichever Conditional Access policy is scoped to c1 is what enforces it. Every defined context is listed with its publish state and the policies that consume it.</p>
       <ul>
         <li><b>The id is the contract</b>, and the tool treats it as one. <code>c1</code> is what applications request and what the ACRS claim carries, so a context can be renamed and republished freely but its id can never change. Renaming is safe; renumbering is not possible, and nothing here pretends otherwise.</li>
@@ -2210,10 +2201,8 @@
         <li><b>Export MD</b> — every context, its state and what enforces it.</li>
       </ul>
       <p class="help-x">Writes need <code>Policy.ReadWrite.ConditionalAccess</code>, the same scope every other Conditional Access write uses, asked for on the click. Create and update are the same call — Graph treats it as an upsert on the id.</p>
-    </section>
 
-    <section class="help-sec">
-      <h4>💪 Authentication strengths <span class="tag block">writes to tenant</span></h4>
+      <h5>💪 Authentication strengths <span class="tag block">writes to tenant</span> <span class="help-fold">folded into this tool — build 25341</span></h5>
       <p>A strength is a set of allowed authentication method <b>combinations</b>, and it is what a policy grants when it demands more than "MFA". The three built-in strengths — Multifactor, Passwordless MFA, Phishing-resistant MFA — are Microsoft-managed and read-only here; custom strengths are yours to create, rename, re-combine and delete.</p>
       <ul>
         <li><b>Classified by their weakest combination</b> — phishing-resistant, MFA, or allows-single-factor. A strength is only as strong as the easiest way to satisfy it, and that is the number worth seeing on the card rather than the name somebody gave it.</li>
@@ -2223,10 +2212,8 @@
         <li><b>Export MD</b> — every strength with its combinations, restrictions and consumers.</li>
       </ul>
       <p class="help-x">Writes need <code>Policy.ReadWrite.ConditionalAccess</code>. Changing the combinations is its own Graph action (<code>updateAllowedCombinations</code>) rather than part of the update — sending them in a normal edit is rejected — so the tool issues both calls and reports them separately. The valid-combination catalog is read live from Graph, with a bundled fallback when that read is refused.</p>
-    </section>
 
-    <section class="help-sec">
-      <h4>📜 Terms of use <span class="tag block">writes to tenant</span></h4>
+      <h5>📜 Terms of use <span class="tag block">writes to tenant</span> <span class="help-fold">folded into this tool — build 25341</span></h5>
       <p>The agreements a Conditional Access policy can require before granting access. Each one is shown with its behaviour settings — view before accepting, per-device acceptance, re-accept schedule, expiration — its PDFs per language, and the policies that require it.</p>
       <ul>
         <li><b>The PDFs are actually there</b> — with a direct download per language, and the default marked. The list endpoint does not return file content, so each agreement is fetched individually to get them; a list that showed no languages was reporting the API's shape rather than the tenant's.</li>
@@ -2236,10 +2223,8 @@
         <li><b>Export MD</b> — every agreement, its settings, languages and consumers.</li>
       </ul>
       <p class="help-x">Reads need <code>Agreement.Read.All</code>, writes <code>Agreement.ReadWrite.All</code>, acceptances <code>AgreementAcceptance.Read.All</code> — all delegated-only, with Conditional Access Administrator or Security Administrator. Replacing a PDF or adding a language is deliberately not in scope: that is a new file localisation and belongs in the portal.</p>
-    </section>
 
-    <section class="help-sec">
-      <h4>♻ Recycle bin <span class="tag block">writes to tenant</span></h4>
+      <h5>♻ Recycle bin <span class="tag block">writes to tenant</span> <span class="help-fold">folded into this tool — build 25341</span></h5>
       <p>Conditional Access has a soft-delete window: a deleted <b>policy</b> or <b>named location</b> sits for <b>30 days</b> and can be restored, after which it is gone for good. Each item shows what it did, the state it was in when deleted, when it went and how many days remain.</p>
       <ul>
         <li><b>A policy comes back in the state it was deleted in.</b> One that was <b>On</b> when it went enforces again the moment it is restored — not after a review, not in report-only. That restore therefore demands a typed <code>RESTORE</code>, and the stored state is shown before you commit rather than discovered afterwards.</li>
@@ -2251,6 +2236,10 @@
       </ul>
       <p class="help-x">Reads and restores need <code>Policy.ReadWrite.ConditionalAccess</code>, asked for on the click. Nothing here can delete anything — the only write is a restore.</p>
     </section>
+
+
+
+
 
     <section class="help-sec">
       <h4>📞 Teams devices <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
@@ -3031,66 +3020,67 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25340"></script>
-<script src="js/selfhost.js?v=25340"></script>
-<script src="js/version.js?v=25340"></script>
-<script src="js/fork.js?v=25340"></script>
-<script src="js/promote.js?v=25340"></script>
-<script src="js/authConfig.js?v=25340"></script>
-<script src="js/labels.js?v=25340"></script>
-<script src="js/graph.js?v=25340"></script>
-<script src="js/model.js?v=25340"></script>
-<script src="js/render.js?v=25340"></script>
-<script src="js/analyze.js?v=25340"></script>
-<script src="js/whatif.js?v=25340"></script>
-<script src="js/mslearn.js?v=25340"></script>
-<script src="js/gapcheck.js?v=25340"></script>
-<script src="js/cisdata.js?v=25340"></script>
-<script src="js/cischeck.js?v=25340"></script>
-<script src="js/exclusions.js?v=25340"></script>
-<script src="js/validator.js?v=25340"></script>
-<script src="js/whatifeval.js?v=25340"></script>
-<script src="js/compare.js?v=25340"></script>
-<script src="js/whois.js?v=25340"></script>
-<script src="js/wave.js?v=25340"></script>
-<script src="js/sessionctl.js?v=25340"></script>
-<script src="js/spgap.js?v=25340"></script>
-<script src="js/groupuse.js?v=25340"></script>
-<script src="js/iso3166.js?v=25340"></script>
-<script src="js/locations.js?v=25340"></script>
-<script src="js/authcontexts.js?v=25340"></script>
-<script src="js/authstrengths.js?v=25340"></script>
-<script src="js/recycle.js?v=25340"></script>
-<script src="js/rmau.js?v=25340"></script>
-<script src="js/camap.js?v=25340"></script>
-<script src="js/rmaudoc.js?v=25340"></script>
-<script src="js/termsofuse.js?v=25340"></script>
-<script src="js/audit.js?v=25340"></script>
-<script src="js/drift.js?v=25340"></script>
-<script src="js/guide.js?v=25340"></script>
-<script src="js/userimpact.js?v=25340"></script>
-<script src="js/smsvoice.js?v=25340"></script>
-<script src="js/memberof.js?v=25340"></script>
-<script src="js/devcheck.js?v=25340"></script>
-<script src="js/licgap.js?v=25340"></script>
-<script src="js/teamsdev.js?v=25340"></script>
-<script src="js/signins.js?v=25340"></script>
-<script src="js/reportimpact.js?v=25340"></script>
-<script src="js/changelog.js?v=25340"></script>
-<script src="js/baselineData.js?v=25340"></script>
-<script src="js/baselineJoeyData.js?v=25340"></script>
-<script src="js/baselineLive.js?v=25340"></script>
-<script src="js/baseline.js?v=25340"></script>
-<script src="js/baselineCleanup.js?v=25340"></script>
-<script src="js/groupTemplates.js?v=25340"></script>
-<script src="js/assign.js?v=25340"></script>
-<script src="js/cagroups.js?v=25340"></script>
-<script src="js/groupsview.js?v=25340"></script>
-<script src="js/runledger.js?v=25340"></script>
-<script src="js/protect.js?v=25340"></script>
-<script src="js/import.js?v=25340"></script>
-<script src="js/export.js?v=25340"></script>
-<script src="js/demo.js?v=25340"></script>
-<script src="js/app.js?v=25340"></script>
+<script src="js/branding.js?v=25341"></script>
+<script src="js/selfhost.js?v=25341"></script>
+<script src="js/version.js?v=25341"></script>
+<script src="js/fork.js?v=25341"></script>
+<script src="js/promote.js?v=25341"></script>
+<script src="js/authConfig.js?v=25341"></script>
+<script src="js/labels.js?v=25341"></script>
+<script src="js/graph.js?v=25341"></script>
+<script src="js/model.js?v=25341"></script>
+<script src="js/render.js?v=25341"></script>
+<script src="js/analyze.js?v=25341"></script>
+<script src="js/whatif.js?v=25341"></script>
+<script src="js/mslearn.js?v=25341"></script>
+<script src="js/gapcheck.js?v=25341"></script>
+<script src="js/cisdata.js?v=25341"></script>
+<script src="js/cischeck.js?v=25341"></script>
+<script src="js/exclusions.js?v=25341"></script>
+<script src="js/validator.js?v=25341"></script>
+<script src="js/whatifeval.js?v=25341"></script>
+<script src="js/compare.js?v=25341"></script>
+<script src="js/whois.js?v=25341"></script>
+<script src="js/wave.js?v=25341"></script>
+<script src="js/sessionctl.js?v=25341"></script>
+<script src="js/spgap.js?v=25341"></script>
+<script src="js/groupuse.js?v=25341"></script>
+<script src="js/iso3166.js?v=25341"></script>
+<script src="js/causes.js?v=25341"></script>
+<script src="js/locations.js?v=25341"></script>
+<script src="js/authcontexts.js?v=25341"></script>
+<script src="js/authstrengths.js?v=25341"></script>
+<script src="js/recycle.js?v=25341"></script>
+<script src="js/rmau.js?v=25341"></script>
+<script src="js/camap.js?v=25341"></script>
+<script src="js/rmaudoc.js?v=25341"></script>
+<script src="js/termsofuse.js?v=25341"></script>
+<script src="js/audit.js?v=25341"></script>
+<script src="js/drift.js?v=25341"></script>
+<script src="js/guide.js?v=25341"></script>
+<script src="js/userimpact.js?v=25341"></script>
+<script src="js/smsvoice.js?v=25341"></script>
+<script src="js/memberof.js?v=25341"></script>
+<script src="js/devcheck.js?v=25341"></script>
+<script src="js/licgap.js?v=25341"></script>
+<script src="js/teamsdev.js?v=25341"></script>
+<script src="js/signins.js?v=25341"></script>
+<script src="js/reportimpact.js?v=25341"></script>
+<script src="js/changelog.js?v=25341"></script>
+<script src="js/baselineData.js?v=25341"></script>
+<script src="js/baselineJoeyData.js?v=25341"></script>
+<script src="js/baselineLive.js?v=25341"></script>
+<script src="js/baseline.js?v=25341"></script>
+<script src="js/baselineCleanup.js?v=25341"></script>
+<script src="js/groupTemplates.js?v=25341"></script>
+<script src="js/assign.js?v=25341"></script>
+<script src="js/cagroups.js?v=25341"></script>
+<script src="js/groupsview.js?v=25341"></script>
+<script src="js/runledger.js?v=25341"></script>
+<script src="js/protect.js?v=25341"></script>
+<script src="js/import.js?v=25341"></script>
+<script src="js/export.js?v=25341"></script>
+<script src="js/demo.js?v=25341"></script>
+<script src="js/app.js?v=25341"></script>
 </body>
 </html>
