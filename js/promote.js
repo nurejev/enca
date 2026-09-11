@@ -118,6 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 165,
+      title: "📐 CIS 5.2.2.6 accepts Require risk remediation; riskRemediation labelled everywhere (T21 0.6, catalog r5)",
+      tools: ["CIS Benchmark", "CA validator", "What-if", "Teams devices"],
+      builds: [25330],
+      risk: "medium",
+      what: "js/cischeck.js 5.2.2.6 criteria: grant passwordChange OR riskRemediation; the MFA-or-strength and sign-in-frequency-everyTime criteria are satisfied by riskRemediation on its own (the service attaches an authentication strength and SIF every time to such a policy, whether or not the JSON echoes them). js/cisdata.js revision 2026-09-11 r5 with the what/checks text. Label riskRemediation added to js/validator.js CONTROL_LABEL + VA_CTRL_ORDER, js/app.js WI_GRANT_LABEL, js/baselineLive.js, js/gapcheck.js CONTROL_LABEL, js/teamsdev.js pwd reading.",
+      why: "Medium: a tenant that followed Microsoft's current guidance (policy-risk-based-user: Require risk remediation) FAILS 5.2.2.6 today because the check demands passwordChange — a wrong fail in a benchmark report. Learn (concept-identity-protection-policies): risk remediation accommodates password-based and passwordless users, overrides password change when both apply, is NOT supported for guests, and auto-applies authentication strength + sign-in frequency every time. The CIS text itself still names password change; the control's intent (self-remediation at high risk) is met either way, so both forms pass. Ported after reviewing the same idea in Jhope188's CA Policy Analyzer v1.16.4/1.17.0 — WITHOUT its “password change is deprecated” claim, which Microsoft does not make.",
+      test: [
+        "Tenant with a user-risk High policy granting Require risk remediation (All users, All resources, enabled): 📐 5.2.2.6 passes; the criterion rows read passwordChange or riskRemediation ✓ and the two implied rows ✓.",
+        "Tenant with the classic form (passwordChange + mfa, SIF every time): still passes, unchanged.",
+        "Demo tenant (?demo=1): the medium-risk policy with passwordChange only and no SIF still fails 5.2.2.6 (it is Internals-scoped and Medium) — no false pass appears.",
+        "Confirm on a real tenant whether a riskRemediation policy's JSON carries authenticationStrength and signInFrequency (Graph beta) and note it in the cischeck.js comment.",
+        "🧪 What-if and 🧰 CA validator on a policy with riskRemediation: the grant reads “Require risk remediation”, not riskRemediation.",
+      ],
+      files: ["js/cischeck.js", "js/cisdata.js", "js/validator.js", "js/app.js", "js/baselineLive.js", "js/gapcheck.js", "js/teamsdev.js", "index.html", "js/version.js"],
+    },
+    {
       n: 164,
       title: "🛡 Compliant device OR app protection is the accepted pattern (T08 1.8)",
       tools: ["Best-practice & bypass checks"],

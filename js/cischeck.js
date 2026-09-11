@@ -193,9 +193,14 @@ const CisCheck = (() => {
         ["users: All (or a CAD- pilot deployment group)", allUsersOk, usersWhy],
         ["resources: All", allApps],
         ["userRiskLevels includes high", (p) => (p.conditions?.userRiskLevels || []).includes("high")],
-        ["grant: passwordChange", (p) => grants(p).includes("passwordChange")],
-        ["grant: mfa or authentication strength", mfaOrStrength],
-        ["sign-in frequency: everyTime", sifEvery],
+        // Require risk remediation is the newer remediation control: it covers
+        // passwordless users too, and the service applies an authentication
+        // strength and sign-in frequency every time to the policy itself — so a
+        // policy that carries it satisfies the MFA and SIF criteria by
+        // construction, whether or not the JSON echoes them.
+        ["grant: passwordChange or riskRemediation", (p) => grants(p).includes("passwordChange") || grants(p).includes("riskRemediation")],
+        ["grant: mfa or authentication strength (implied by riskRemediation)", (p) => grants(p).includes("riskRemediation") || mfaOrStrength(p)],
+        ["sign-in frequency: everyTime (implied by riskRemediation)", (p) => grants(p).includes("riskRemediation") || sifEvery(p)],
       ],
     },
     "5.2.2.7": {

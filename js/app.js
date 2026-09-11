@@ -8715,7 +8715,7 @@ This is a directory write. Nothing else changes.`)) return;
     return { kind: "user", id: u.id, name: u.displayName || u.userPrincipalName, upn: u.userPrincipalName, groupIds, roleIds };
   }
 
-  const VA_CTRL_ORDER = ["block", "mfa", "authenticationStrength", "compliantDevice", "domainJoinedDevice", "passwordChange"];
+  const VA_CTRL_ORDER = ["block", "mfa", "authenticationStrength", "compliantDevice", "domainJoinedDevice", "passwordChange", "riskRemediation"];
 
   // Compact view: collapse a policy's whole cross-product into one summary card —
   // what it enforces, on which apps/clients/conditions, and who it excludes.
@@ -14894,7 +14894,7 @@ This is a directory write. Nothing else changes.`)) return;
   const WI_GRANT_LABEL = { block: "Block access", mfa: "Require MFA", compliantDevice: "Require compliant device",
     domainJoinedDevice: "Require hybrid Entra joined device", approvedApplication: "Require approved client app",
     compliantApplication: "Require app protection policy", passwordChange: "Require password change",
-    unknownFutureValue: "unknown" };
+    riskRemediation: "Require risk remediation", unknownFutureValue: "unknown" };
   const wiCtrl = (c) => c.startsWith("authenticationStrength:") ? "Authentication strength: " + c.slice(23)
     : c.startsWith("termsOfUse:") ? "Terms of use: " + c.slice(11) : (WI_GRANT_LABEL[c] || c);
 

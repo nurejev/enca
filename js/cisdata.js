@@ -27,7 +27,7 @@ const CIS_BENCHMARK = {
   // of the app build and of the other tools' versions. Shown in the tool
   // header and in the Markdown report so a reviewer can tell which catalog
   // produced a given assessment.
-  revision: "2026-08-11 r4",
+  revision: "2026-09-11 r5",
   section: "5.2.2 Conditional Access",
   copyright: "Recommendation numbers and titles referenced from the CIS Microsoft 365 Foundations Benchmark v7.0.0, © Center for Internet Security, Inc. Assessment logic is ENCA's own implementation of the benchmark's Graph audit procedures.",
 
@@ -98,8 +98,8 @@ const CIS_BENCHMARK = {
     {
       id: "5.2.2.6", level: 1, e5Only: true,
       title: "Enable Identity Protection user risk policies",
-      what: "An enabled policy on user risk High (at least) for All users on All resources that requires MFA plus a password change, with sign-in frequency every time.",
-      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All", "condition: userRiskLevels includes high", "grant: passwordChange AND (mfa OR strength)", "session: sign-in frequency everyTime", "state: enabled"],
+      what: "An enabled policy on user risk High (at least) for All users on All resources that requires MFA plus a password change with sign-in frequency every time — or the newer Require risk remediation control, which covers passwordless users as well and carries an authentication strength and sign-in frequency every time by itself.",
+      checks: ["users: All (a CAD- pilot deployment group is accepted, noted when used)", "resources: All", "condition: userRiskLevels includes high", "grant: riskRemediation, OR passwordChange AND (mfa OR strength)", "session: sign-in frequency everyTime (implied by riskRemediation)", "state: enabled"],
     },
     {
       id: "5.2.2.7", level: 1, e5Only: true,

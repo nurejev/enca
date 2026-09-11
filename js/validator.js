@@ -30,7 +30,7 @@ const Validator = (() => {
   // controls still enforces something — sign-in frequency, token protection,
   // app-enforced restrictions — so those are simulated too rather than skipped.
   const CONTROL_LABEL = {
-    block: "Block access", mfa: "MFA", passwordChange: "Password change",
+    block: "Block access", mfa: "MFA", passwordChange: "Password change", riskRemediation: "Risk remediation",
     compliantDevice: "Compliant device", domainJoinedDevice: "Hybrid Entra joined device",
     approvedApplication: "Approved client app", compliantApplication: "App protection policy",
     authenticationStrength: "Authentication strength", termsOfUse: "Terms of use",

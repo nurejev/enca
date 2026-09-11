@@ -170,6 +170,7 @@ const GapCheck = (() => {
     mfa: "Require MFA", compliantDevice: "Require compliant device",
     domainJoinedDevice: "Require hybrid joined device", approvedApplication: "Require approved client app",
     compliantApplication: "Require app protection policy", passwordChange: "Require password change",
+    riskRemediation: "Require risk remediation",
   };
 
   // ─── Finding factory ──────────────────────────────────────────────

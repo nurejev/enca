@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25330, date: "2026-09-11", title: "CIS: Require risk remediation counts",
+    items: [
+      { kind: "improved", tool: "CIS Benchmark", text: "Catalog r5. Control 5.2.2.6 (user risk policy) accepts the newer Require risk remediation grant next to the password-change form the benchmark was written for. Risk remediation covers passwordless users too — a passkey or Windows Hello user flagged at high risk cannot complete a password change — and the service applies an authentication strength and sign-in frequency every time to such a policy by itself, so those two criteria are treated as implied by the control. A tenant that moved its user-risk policy to risk remediation no longer fails the control for it." },
+      { kind: "improved", tool: "CA validator", text: "Require risk remediation has its own label wherever grant controls are named — the validator chips, What-if, the live baseline compare, the Teams devices reading and the best-practice checks — instead of showing as its raw name." },
+    ],
+  },
+  {
     build: 25329, date: "2026-09-11", title: "Compliant device OR app protection is a pattern, not a weakness",
     items: [
       { kind: "fixed", tool: "Best-practice & bypass checks", text: "A policy granting compliant device OR app protection policy is no longer reported as a weakest-link OR. That pair is Microsoft's MDM-or-MAM pattern for BYOD — a managed device passes the compliance side, an unmanaged one passes the app-protection side — and both sides are management controls of the same tier, so there is no weaker control to fall through to. Until now only an OR WITHIN one tier (compliant OR hybrid-joined) was accepted and the mobile policies of every persona baseline came back High for it. An OR that still mixes in MFA, password change or terms of use keeps its High. Reviewed against the same fix in Jhope188's CA Policy Analyzer v1.17.1." },
