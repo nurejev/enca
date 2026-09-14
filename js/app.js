@@ -167,7 +167,6 @@
   // R33 — a tool's permanent number, formatted. Two digits so T07 and T31 line
   // up in a list and read as the same kind of thing; empty for the three app
   // pages that deliberately carry none.
-  const toolNo = (t) => (t && t.t) ? `T${String(t.t).padStart(2, "0")}` : "";
   const toolNoOf = (id) => toolNo((typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[id]) || null);
   // A tool that has been FOLDED into another keeps its T-number (js/version.js
   // rule) and its open function, but its tile is gone — so every in-app link
@@ -8619,26 +8618,26 @@ This is a directory write. Nothing else changes.`)) return;
       return;
     }
     // idle — wait for the user to start the scan
-    $("exHead").innerHTML = '<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">Every exclusion across all policies — users, groups (expanded to their members), roles, guest types, apps and locations.</p>';
+    $("exHead").innerHTML = toolHead("toolExclusions") + '<p class="mini" style="margin:6px 0 0">Every exclusion across all policies — users, groups (expanded to their members), roles, guest types, apps and locations.</p>';
     $("exChips").innerHTML = ""; $("exPager").style.display = "none"; $("exHint").style.display = "none";
     $("exBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-exrun>▶ Run exclusion scan</button><p class="mini muted">Expands group memberships via Microsoft Graph. The result stays until you rescan.</p></div>';
   }
   async function runExclusionScan() {
     $("exRescan").style.display = "";
-    $("exHead").innerHTML = '<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">Collecting exclusions…</p>';
+    $("exHead").innerHTML = toolHead("toolExclusions") + '<p class="mini" style="margin:6px 0 0">Collecting exclusions…</p>';
     $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
     exTab = "matrix"; exKind = "all"; exQuery = ""; exPage = 0; exFocusRow = null; exFocusCol = null; Fs.close(); $("exSearch").value = "";
     Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === "matrix"));
     try {
       // the whole tenant's policies — exclusions are a tenant-wide question
       exModel = Exclusions.collect(policies.map(p => p.raw));
-      await Exclusions.resolve(exModel, { demo: isDemo, onStatus: (m, done, total) => { $("exHead").innerHTML = `<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">${esc(m)}</p>` + progInline(done, total); } });
+      await Exclusions.resolve(exModel, { demo: isDemo, onStatus: (m, done, total) => { $("exHead").innerHTML = `${toolHead("toolExclusions")}<p class="mini" style="margin:6px 0 0">${esc(m)}</p>` + progInline(done, total); } });
       exUsers = Exclusions.effectiveUsers(exModel);
       renderExclusions();
     } catch (e) {
       console.error("Exclusion analyzer failed:", e);
       exModel = null;
-      $("exHead").innerHTML = `<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("exHead").innerHTML = `${toolHead("toolExclusions")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("exRescan").addEventListener("click", runExclusionScan);
@@ -8971,7 +8970,7 @@ This is a directory write. Nothing else changes.`)) return;
     show("screen-validator");
     mountToolTabs("whatif", "every");
     if (!policies.length) return;
-    $("vaHead").innerHTML = '<h3>⚡ CA validator</h3><p class="mini" style="margin:6px 0 0">Generating simulations…</p>';
+    $("vaHead").innerHTML = toolHead("toolValidator") + '<p class="mini" style="margin:6px 0 0">Generating simulations…</p>';
     $("vaChips").innerHTML = ""; $("vaBody").innerHTML = ""; vaFilter = "all"; vaQuery = ""; $("vaSearch").value = ""; vaCollapsed.clear();
     $("vaReportOnly").checked = vaReportOnly;
     $("vaTargetClear").style.display = vaTargetObj ? "" : "none";
@@ -8982,7 +8981,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderValidator();
     } catch (e) {
       console.error("CA validator failed:", e);
-      $("vaHead").innerHTML = `<h3>⚡ CA validator</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("vaHead").innerHTML = `${toolHead("toolValidator")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
 
@@ -9086,7 +9085,7 @@ This is a directory write. Nothing else changes.`)) return;
     const r = vaResult;
     $("vaHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>⚡ CA validator <span class="tag new">NEW</span></h3>
+        ${toolHead("toolValidator")}
         <p style="margin-bottom:6px">For each enabled policy, the sign-in simulations it implies and the control each one should enforce. A simulation on the <b>excluded</b> side inverts to <b>“no &lt;control&gt;”</b>.</p>
         <p class="mini muted" style="margin:0">Ported from <a href="https://github.com/jasperbaes/Conditional-Access-Validator" target="_blank" rel="noopener">Jasper Baes' Conditional Access Validator</a> (CC BY-NC-SA 4.0). Simulation report only; users are representative placeholders.</p>
       </div>
@@ -9300,7 +9299,7 @@ This is a directory write. Nothing else changes.`)) return;
     crumb("🛡 Restricted AUs");
     show("screen-rmau");
     if (ruList && !force) { renderRmau(); return; }
-    $("ruHead").innerHTML = '<h3>🛡 Restricted AUs</h3><p class="mini" style="margin:6px 0 0">Reading administrative units…</p>';
+    $("ruHead").innerHTML = toolHead("toolRmau") + '<p class="mini" style="margin:6px 0 0">Reading administrative units…</p>';
     $("ruBody").innerHTML = ""; $("ruChips").innerHTML = "";
     try {
       ruList = isDemo
@@ -9310,7 +9309,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderRmau();
     } catch (e) {
       console.error("Restricted AUs failed:", e);
-      $("ruHead").innerHTML = `<h3>🛡 Restricted AUs</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("ruHead").innerHTML = `${toolHead("toolRmau")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("toolRmau").addEventListener("click", () => openRmauTool());
@@ -9518,7 +9517,7 @@ This is a directory write. Nothing else changes.`)) return;
     const su = Rmau.summarize(ruList);
     $("ruHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🛡 Restricted AUs <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolRmau")}
         <p style="margin-bottom:4px">Restricted management administrative units — the vaults that shield objects (here: CA exclusion groups) from tenant-wide administration. Members of a restricted AU answer <b>only</b> to roles scoped to that AU.</p>
         <p class="mini muted" style="margin:0">The <code>isMemberManagementRestricted</code> flag is <b>immutable</b> — set at creation, never changeable. Creating one needs <b>Privileged Role Administrator</b>; touching members of one needs a role <b>scoped to it</b> — a 403 there is the shield working, not a fault. Every write asks for its permission on the click.</p>
       </div>
@@ -10853,7 +10852,7 @@ This is a directory write. Nothing else changes.`)) return;
     // Run prompt reappears and it looks like the read was cancelled.
     if (auBusy) { $("auBody").innerHTML = auBusyPanel(); return; }
     if (auRes) { renderAudit(); return; }
-    $("auHead").innerHTML = `<h3>🕓 Change audit <span class="tag upd">UPDATED</span></h3>
+    $("auHead").innerHTML = `${toolHead("toolAudit")}
       <p style="margin-bottom:4px">Who changed which Conditional Access resource, when, and exactly what changed — policies, named locations, authentication strengths and contexts, and terms of use.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>directory audit log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise.</p>`;
     $("auChips").innerHTML = "";
@@ -10976,7 +10975,7 @@ This is a directory write. Nothing else changes.`)) return;
     const K = Audit.KIND;
     $("auHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🕓 Change audit <span class="tag upd">UPDATED</span></h3>
+        ${toolHead("toolAudit")}
         <p style="margin-bottom:4px">Every Conditional Access change in the last ${auRangeLabel(auDays)}, newest first — expand one to see the exact fields that moved.</p>
         <p class="mini muted" style="margin:0">From the Entra directory audit log. Retention is licence-bound (≈30 days on P1/P2), so this is a rolling window, not a full history.</p>
       </div>
@@ -11426,7 +11425,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   function renderDrift() {
-    $("drHead").innerHTML = `<h3>📉 Drift watch</h3>
+    $("drHead").innerHTML = `${toolHead("toolDrift")}
       <p class="mini" style="margin:6px 0 0">Snapshot the Conditional Access configuration now, compare a later run against it. The history is a file you keep — no server, no 30-day limit. Take a snapshot today; come back next month and load it.</p>`;
 
     if (!drCmp) {
@@ -11623,7 +11622,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   function renderGuide() {
-    $("ugHead").innerHTML = `<h3>📖 Baseline usage guide <span class="tag new">BETA</span></h3>
+    $("ugHead").innerHTML = `${toolHead("toolGuide")}
       <p style="margin-bottom:4px">The deployment order with the <b>reason</b> for each step, not just the sequence — and, once the tenant has been read, a readiness check per step that says what is missing <b>before</b> you run it instead of after.</p>
       <p class="mini muted" style="margin:0">Reads only — nothing is written. Every step links the tool that does the work. The guide ends where <a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> begins.</p>
       <p style="margin:8px 0 0">${Baseline.activeChip()}</p>
@@ -11691,7 +11690,7 @@ This is a directory write. Nothing else changes.`)) return;
   };
   function renderUserImpact() {
     uiRes = UserImpact.analyze(policies);
-    $("uiHead").innerHTML = `<h3 style="margin:0 0 6px">🗣 User impact brief</h3>
+    $("uiHead").innerHTML = `${toolHead("toolUserImpact")}
       ${uiRes.baseline && uiRes.baseline.stale ? `<p class="mini" style="margin:0 0 6px;color:var(--off)">⚠ <b>The bundled baseline was revised ${esc(uiRes.baseline.revised)}; these wordings were last checked against ${esc(uiRes.baseline.checked)}.</b> A baseline revision can change how a requirement is <i>written</i> — 2026-08-20 moved CA205 and CA301 from a compliant-device grant to a block with a device filter, and the brief stopped covering either until it was re-checked. Compare against <a href="#" class="md-tool" data-tool="toolBaseline">🧬 Baseline Policies</a> before sending this anywhere.</p>` : ""}
       <p class="mini muted" style="margin:0 0 4px">Read from the tenant <b>${esc(uiReadAgo())}</b>. This brief is derived from the policies already loaded, so it is exactly that current — policies change, so <b>⟳ Re-read &amp; analyse</b> before you send it anywhere.</p>
       <p class="mini" style="margin:0">What people will notice — and what will deliberately no longer be possible — derived from the <b>${uiRes.total} persona baseline policies</b> (${uiRes.counts.on} enforced, ${uiRes.counts.report} report-only, ${uiRes.counts.off} prepared)${uiRes.other.total ? `; the ${uiRes.other.total} policies without a persona CA number are analyzed LAST, in their own section at the bottom` : ""}. Statements from enforced policies are marked <b>live now</b>; the rest describe go-live. Export the draft for the communications team as Markdown or Word.</p>`;
@@ -11958,7 +11957,7 @@ This is a directory write. Nothing else changes.`)) return;
     : s === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
 
   function renderDevCheck() {
-    $("dvHead").innerHTML = `<h3>🖥 Compliant-device reality check <span class="tag new">NEW</span></h3>
+    $("dvHead").innerHTML = `${toolHead("toolDevCheck")}
       <p style="margin-bottom:4px">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — the CA side names <b>who</b> must present a compliant device, the Intune side decides <b>which devices can ever be one</b>, and nothing else checks that the two halves meet. Per CA policy and per platform: is the scope actually assigned a compliance policy? Same check for app-protection behind “require approved client app”.</p>
       <p class="mini muted" style="margin:0">Reads only — Intune compliance and app-protection policies with their assignments, and the tenant default that decides what an uncovered device becomes.</p>`;
     // The toolbar Rescan exists only when there is a result to redo — the first
@@ -12291,7 +12290,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   function renderLicGap() {
     $("lgRun").style.display = lgRes && !lgBusy ? "" : "none";
-    $("lgHead").innerHTML = `<h3>🎫 Licence gap</h3>
+    $("lgHead").innerHTML = `${toolHead("toolLicGap")}
       <p style="margin-bottom:4px">Microsoft's licence usage blade counts <b>evaluated</b> users — who happened to trigger a policy last month. The obligation Microsoft licenses on is <b>targeted</b> users: every user a Conditional Access policy is scoped to needs <b>Entra ID P1</b>, and every user targeted by a risk-based policy needs <b>P2</b> — whether they signed in or not. A blade showing "2 of 25, fine" can sit on a tenant targeting every one of its users. This tool counts the targeted number and compares it with the seats the tenant owns.</p>
       <p class="mini muted" style="margin:0">Reads only, covered by the permissions already granted at sign-in — licences, the member-user count, and the members behind every group and role your policies include or exclude.</p>`;
     if (lgBusy) return;   // the run panel owns lgBody until the read finishes
@@ -12984,7 +12983,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("siRescan").style.display = siRes && !siBusy ? "" : "none";
     if (siBusy) { $("siBody").innerHTML = siBusyPanel(); return; }
     if (siRes) { renderSignins(); return; }
-    $("siHead").innerHTML = `<h3>🚦 Sign-in failures</h3>
+    $("siHead").innerHTML = `${toolHead("toolSignins")}
       <p style="margin-bottom:4px">Which sign-ins Conditional Access failed <b>or interrupted</b>, and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. The log-side counterpart of What-If.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> reads two Graph-filtered passes — the CA failures, plus the interrupts (abandoned MFA prompt, MFA enrolment, device auth, terms of use), which Graph logs with CA status <i>success</i> and only an interrupt error code; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins — and shared with <b>🎚 Report-only impact</b>, which reads exactly the same window.</p>
         ${siReused ? `<p class="mini muted" style="margin:6px 0 0">↺ Reused the sign-in window <b>🎚 Report-only impact</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}`;
@@ -13145,7 +13144,7 @@ This is a directory write. Nothing else changes.`)) return;
     (window.requestAnimationFrame || setTimeout)(syncSiDetheadTop);
     $("siHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🚦 Sign-in failures</h3>
+        ${toolHead("toolSignins")}
         <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure or interrupt"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
         <p class="mini muted" style="margin:0">${siMode === "reportonly"
           ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the individual sign-ins, newest first. For the per-policy verdict — <i>is this one safe to enable?</i> — use the <a href=\"#\" class=\"md-tool\" data-tool=\"toolImpact\">🎚 Report-only impact</a> tab, which answers from the same window."
@@ -13296,7 +13295,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (riBusy) { if (riRes && riPartial) renderImpact(); else $("riBody").innerHTML = riBusyPanel(); return; }
     if (riRes) { renderImpact(); return; }
     const ro = riTenantRo();
-    $("riHead").innerHTML = `<h3>🎚 Report-only impact</h3>
+    $("riHead").innerHTML = `${toolHead("toolImpact")}
       <p style="margin-bottom:4px">What happens the day a report-only policy goes live. Per policy: who would be <b>denied</b>, who is <b>interrupted</b> for an extra step (MFA, compliant device, terms of use…), who <b>passes unchanged</b>. Per user: the combined effect of everything in report-only at once.</p>
       <p class="mini muted" style="margin:0">Reads the window from the <b>sign-in source</b> chosen in the toolbar — the Entra sign-in log (AuditLog.Read.All), Defender hunting, or Hunting + non-interactive — and shows the forecast as the days land. On the Entra log report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
     $("riChips").innerHTML = "";
@@ -13382,7 +13381,7 @@ This is a directory write. Nothing else changes.`)) return;
     const r = riRes; if (!r) return;
     $("riHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🎚 Report-only impact</h3>
+        ${toolHead("toolImpact")}
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         ${riReused ? `<p class="mini muted" style="margin:0 0 4px">↺ Reused the sign-in window <b>🚦 Sign-in failures</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}
         <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read from <b>${esc(logSourceLabel())}</b>${riCapped ? `, <span style="color:var(--off)">truncated${logSource === "entra" ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
@@ -13647,7 +13646,7 @@ This is a directory write. Nothing else changes.`)) return;
     mountToolTabs("blocks", "locations");
     show("screen-locations");
     if (loList && !force) { renderLocations(); return; }   // cached
-    $("loHead").innerHTML = '<h3>🌐 Named locations</h3><p class="mini" style="margin:6px 0 0">Reading named locations…</p>';
+    $("loHead").innerHTML = toolHead("toolLocations") + '<p class="mini" style="margin:6px 0 0">Reading named locations…</p>';
     $("loBody").innerHTML = ""; $("loChips").innerHTML = "";
     try {
       loList = isDemo
@@ -13656,7 +13655,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderLocations();
     } catch (e) {
       console.error("Named locations failed:", e);
-      $("loHead").innerHTML = `<h3>🌐 Named locations</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("loHead").innerHTML = `${toolHead("toolLocations")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("toolLocations").addEventListener("click", () => openLocations());
@@ -13673,7 +13672,7 @@ This is a directory write. Nothing else changes.`)) return;
       .map((k) => `${F.counts[k]} ${k}`).join(" · ");
     $("loHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🌐 Named locations <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolLocations")}
         <p style="margin-bottom:4px">The IP-range and country locations your Conditional Access policies can target. Create, edit and delete them here — each row shows which policies use it.</p>
         <p class="mini muted" style="margin:0">A location's type is fixed at creation: an IP location cannot become a country location. Deleting one that a policy still references widens that policy.</p>
       </div>
@@ -14230,7 +14229,7 @@ This is a directory write. Nothing else changes.`)) return;
     mountToolTabs("blocks", "contexts");
     show("screen-authctx");
     if (acList && !force) { renderAuthCtx(); return; }   // cached
-    $("acHead").innerHTML = '<h3>🎫 Authentication contexts</h3><p class="mini" style="margin:6px 0 0">Reading authentication contexts…</p>';
+    $("acHead").innerHTML = toolHead("toolAuthCtx") + '<p class="mini" style="margin:6px 0 0">Reading authentication contexts…</p>';
     $("acBody").innerHTML = ""; $("acChips").innerHTML = "";
     try {
       acList = isDemo
@@ -14239,7 +14238,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderAuthCtx();
     } catch (e) {
       console.error("Authentication contexts failed:", e);
-      $("acHead").innerHTML = `<h3>🎫 Authentication contexts</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("acHead").innerHTML = `${toolHead("toolAuthCtx")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("acRefresh").addEventListener("click", () => openAuthCtx(true));
@@ -14249,7 +14248,7 @@ This is a directory write. Nothing else changes.`)) return;
     const s = AuthContexts.summarize(acList, raws);
     $("acHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🎫 Authentication contexts <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolAuthCtx")}
         <p style="margin-bottom:4px">The step-up requirements apps, Protected Actions and sensitivity labels can ask for. The <b>id</b> (c1–c${AuthContexts.SLOT_MAX}) is the contract — it is what callers request and what the token's ACRS claim carries — so it can be renamed and republished, but never changed. Each card shows which Conditional Access policies enforce it.</p>
         <p class="mini muted" style="margin:0">Unpublished contexts are hidden from app and label selection but stay usable in CA policy authoring. Only an unpublished context that no policy references can be deleted.</p>
       </div>
@@ -14404,7 +14403,7 @@ This is a directory write. Nothing else changes.`)) return;
     mountToolTabs("blocks", "strengths");
     show("screen-authstr");
     if (asList && !force) { renderAuthStr(); return; }   // cached
-    $("asHead").innerHTML = '<h3>💪 Authentication strengths</h3><p class="mini" style="margin:6px 0 0">Reading authentication strengths…</p>';
+    $("asHead").innerHTML = toolHead("toolAuthStr") + '<p class="mini" style="margin:6px 0 0">Reading authentication strengths…</p>';
     $("astBody").innerHTML = ""; $("asChips").innerHTML = "";
     try {
       if (isDemo) {
@@ -14438,7 +14437,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderAuthStr();
     } catch (e) {
       console.error("Authentication strengths failed:", e);
-      $("asHead").innerHTML = `<h3>💪 Authentication strengths</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("asHead").innerHTML = `${toolHead("toolAuthStr")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("asRefresh").addEventListener("click", () => openAuthStr(true));
@@ -14448,7 +14447,7 @@ This is a directory write. Nothing else changes.`)) return;
     const s = AuthStrengths.summarize(asList, raws);
     $("asHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>💪 Authentication strengths <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolAuthStr")}
         <p style="margin-bottom:4px">The method combinations a Conditional Access policy can require through <b>Require authentication strength</b>. A sign-in satisfies a strength with <b>any one</b> of its allowed combinations — so every combination on the list is a door, and the weakest door defines the strength.</p>
         <p class="mini muted" style="margin:0">The three built-in strengths are Microsoft-managed and immutable. Custom strengths can be created, renamed, re-combined and — when no policy grants them — deleted.</p>
       </div>
@@ -14690,12 +14689,12 @@ This is a directory write. Nothing else changes.`)) return;
     mountToolTabs("blocks", "terms");
     show("screen-tou");
     if (tuList && !force) { renderTou(); return; }   // cached
-    $("tuHead").innerHTML = '<h3>📜 Terms of use <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading terms-of-use agreements…</p>';
+    $("tuHead").innerHTML = toolHead("toolTou") + '<p class="mini" style="margin:6px 0 0">Reading terms-of-use agreements…</p>';
     $("tuBody").innerHTML = ""; $("tuChips").innerHTML = "";
     try {
       if (isDemo) tuList = TU_DEMO;
       else {
-        if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_READ])) { $("tuHead").innerHTML = '<h3>📜 Terms of use</h3><p class="mini">Reading agreements needs Agreement.Read.All.</p>'; return; }
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_READ])) { $("tuHead").innerHTML = toolHead("toolTou") + '<p class="mini">Reading agreements needs Agreement.Read.All.</p>'; return; }
         // The LIST endpoint does not return the file localizations' fileData
         // (and on some tenants not the files at all) — only a per-agreement
         // GET with $expand=files carries the PDFs. Tenants hold a handful of
@@ -14707,7 +14706,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderTou();
     } catch (e) {
       console.error("Terms of use failed:", e);
-      $("tuHead").innerHTML = `<h3>📜 Terms of use</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("tuHead").innerHTML = `${toolHead("toolTou")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("tuRefresh").addEventListener("click", () => openTou(true));
@@ -14717,7 +14716,7 @@ This is a directory write. Nothing else changes.`)) return;
     const s = TermsOfUse.summarize(tuList, raws);
     $("tuHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>📜 Terms of use <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolTou")}
         <p style="margin-bottom:4px">The agreements a Conditional Access policy can require through its <b>terms of use</b> grant control. Each card shows the agreement's behaviour, its PDFs per language, and the policies requiring it.</p>
         <p class="mini muted" style="margin:0">The display name is internal — end users see the PDF, not the name. Deleting an agreement a policy still requires would leave a dangling grant, so that delete is blocked. Replacing a PDF (new version / extra language) is not in this tool yet — use the portal for that.</p>
       </div>
@@ -14952,7 +14951,7 @@ This is a directory write. Nothing else changes.`)) return;
     mountToolTabs("blocks", "deleted");
     show("screen-recycle");
     if (rcPols && !force) { renderRecycle(); return; }   // cached
-    $("rcHead").innerHTML = '<h3>♻ Recycle bin</h3><p class="mini" style="margin:6px 0 0">Reading recently deleted policies and named locations…</p>';
+    $("rcHead").innerHTML = toolHead("toolRecycle") + '<p class="mini" style="margin:6px 0 0">Reading recently deleted policies and named locations…</p>';
     $("rcBody").innerHTML = ""; $("rcChips").innerHTML = "";
     try {
       if (isDemo) {
@@ -14966,7 +14965,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderRecycle();
     } catch (e) {
       console.error("Recycle bin failed:", e);
-      $("rcHead").innerHTML = `<h3>♻ Recycle bin</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}${/403|Authorization/i.test(String(e.message || e)) ? " — reading the recycle bin needs the Security Administrator or Conditional Access Administrator role." : ""}</p>`;
+      $("rcHead").innerHTML = `${toolHead("toolRecycle")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}${/403|Authorization/i.test(String(e.message || e)) ? " — reading the recycle bin needs the Security Administrator or Conditional Access Administrator role." : ""}</p>`;
     }
   }
   $("rcRefresh").addEventListener("click", () => openRecycle(true));
@@ -14975,7 +14974,7 @@ This is a directory write. Nothing else changes.`)) return;
     const s = Recycle.summarize(rcPols, rcLocs);
     $("rcHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>♻ Recycle bin <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolRecycle")}
         <p style="margin-bottom:4px">Deleted Conditional Access policies and named locations stay restorable for <b>${Recycle.RETENTION_DAYS} days</b>, then they are permanently gone. Each card shows what the item did, when it was deleted and how long it has left.</p>
         <p class="mini muted" style="margin:0">A restored policy returns <b>in the state it was deleted in</b> — a policy that was On enforces again the moment it comes back, so that restore asks for an extra confirmation.</p>
       </div>
@@ -15086,7 +15085,7 @@ This is a directory write. Nothing else changes.`)) return;
     crumb("🧪 What-If");
     show("screen-whatif");
     mountToolTabs("whatif", "one");
-    $("wiHead").innerHTML = `<h3>🧪 What-If</h3>
+    $("wiHead").innerHTML = `${toolHead("toolWhatIf")}
       <p style="margin-bottom:6px">Describe a sign-in and every <b>enabled</b> or <b>report-only</b> policy is evaluated against it — which would apply (and the controls to satisfy), and which would not, with the first condition that wasn't met.</p>
       <p class="mini muted" style="margin:0">Mirrors the <a href="https://learn.microsoft.com/entra/identity/conditional-access/what-if-tool" target="_blank" rel="noopener">Entra Conditional Access What If tool</a>. Like the Microsoft tool it does not follow Conditional Access <b>service dependencies</b>, an app <i>group</i> (Office 365) never matches — use the app itself — and a condition the scenario leaves unspecified cannot be evaluated, so that policy will not apply.</p>`;
     if (!policies.length) { $("wiBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
@@ -15387,7 +15386,7 @@ This is a directory write. Nothing else changes.`)) return;
     crumb("🕵 Who is … to CA");
     show("screen-compare");
     mountToolTabs("whois", "compare");
-    $("cuHead").innerHTML = `<h3>⚖ Compare users</h3>
+    $("cuHead").innerHTML = `${toolHead("toolCompare")}
       <p style="margin-bottom:6px">Add two or more users and see where Conditional Access treats them differently: per-policy <b>assignment</b> (included, excluded — and why — or not targeted), the <b>group and role memberships</b> behind the differences, and optionally one <b>What-If sign-in</b> evaluated for every user.</p>
       <p class="mini muted" style="margin:0">Assignment compares user scoping only — location, platform, client and risk conditions only come in through the optional scenario. Read-only.</p>`;
     if (!policies.length) { $("cuBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
@@ -15560,7 +15559,7 @@ This is a directory write. Nothing else changes.`)) return;
     show("screen-whois");
     mountToolTabs("whois", "user");
     mountLogSourceSeg("woToolbar", "#woRun");
-    $("woHead").innerHTML = `<h3>🕵 Who is Anna to CA <span class="tag new">BETA</span></h3>
+    $("woHead").innerHTML = `${toolHead("toolWhoIs")}
       <p style="margin-bottom:6px">One user, the whole Conditional Access picture: which <b>deployment group</b> she sits in and how she got there, every policy that <b>reaches</b> her (or misses her, and why), what the <b>sign-in log</b> says actually happened to her, and what happens to her the day <b>report-only</b> goes live.</p>
       <p class="mini muted" style="margin:0">Memberships and policies come from what ENCA already holds. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Registered MFA methods and her Identity Protection <b>risk</b> (risky-user state, detections) are optional extra reads. Read-only.</p>`;
     if (!policies.length) { $("woBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
@@ -15832,7 +15831,7 @@ This is a directory write. Nothing else changes.`)) return;
   // the demo policies name scope groups as g-<name>; use that id when they do
   const wvDemoId = (name) => wvRefd().has(`g-${name}`) ? `g-${name}` : name;
   function wvHeadHtml() {
-    return `<h3>🌊 Who is the wave to CA <span class="tag new">BETA</span></h3>
+    return `${toolHead("toolWave")}
       <p style="margin-bottom:6px">The 🕵 Who is Anna to CA picture for a whole <b>deployment group</b>: who is in the wave and how they got there, which policies target the group, what the sign-in log did to its members, and whether the next report-only policy can go live <b>for this wave</b> without locking somebody out.</p>
       <p class="mini muted" style="margin:0">Members are read transitively (first ${WV_MEMBER_CAP}); every member is resolved against every policy with the same rule 🕵 Who is Anna to CA uses. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Read-only.</p>`;
   }
@@ -16135,7 +16134,7 @@ This is a directory write. Nothing else changes.`)) return;
     crumb("🚦 Sign-in log");
     show("screen-sessionctl");
     mountToolTabs("signins", "session");
-    $("scHead").innerHTML = `<h3>🛂 Session controls <span class="tag new">BETA</span></h3>
+    $("scHead").innerHTML = `${toolHead("toolSessionCtl")}
       <p style="margin-bottom:6px">What did a session control actually <b>do</b>? The sign-in log stops at “policy applied — Conditional Access App Control”. Everything after that — the download that was blocked, the file that was protected, the step-up that fired — is written by <b>Defender for Cloud Apps</b>. This tool reads that log and joins it back to the Conditional Access policy that routed the session.</p>
       <p class="mini muted" style="margin:0">Reads Defender advanced hunting through Microsoft Graph (<b>ThreatHunting.Read.All</b>, needs Security Reader or a Defender RBAC role with hunting access; 30-day retention) for what Defender did, and the Entra sign-in window 🚦 / 🎚 already read (<b>AuditLog.Read.All</b>) for which policy routed the session. Read-only.</p>`;
     if (!policies.length) { $("scBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
@@ -16293,7 +16292,7 @@ This is a directory write. Nothing else changes.`)) return;
   function openSpGap() {
     crumb("🫥 Apps with no service principal");
     show("screen-spgap");
-    $("sgHead").innerHTML = `<h3>🫥 Apps with no service principal <span class="tag new">BETA</span></h3>
+    $("sgHead").innerHTML = `${toolHead("toolSpGap")}
       <p style="margin-bottom:6px">Apps that signed in over the last 30 days and have <b>no service principal</b> in this tenant. Such an app is not in the Conditional Access app picker — it can be neither included nor excluded by name; only a policy on <b>All resources</b> reaches it, and only once it exists. For each one: which policies would apply the moment it does, whether a policy already excludes the id, and what Entra recorded on its newest sign-in.</p>
       <p class="mini muted" style="margin:0">Reads <b>auditLogs/signInEventsAppSummary</b> (AuditLog.Read.All, asked once on the run click; a fixed 30-day window, at most 1,000 apps) and the tenant's service principals. Evidence comes from the shared sign-in window on request.</p>`;
     if (!policies.length) { $("sgBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
@@ -16381,7 +16380,7 @@ This is a directory write. Nothing else changes.`)) return;
   function openGroupUse() {
     crumb("🔗 User or Group analyzer");
     show("screen-groupuse");
-    $("guHead").innerHTML = `<h3>🔗 User or Group analyzer</h3>
+    $("guHead").innerHTML = `${toolHead("toolGroupUse")}
       <p style="margin-bottom:6px">A group is a shared handle: one admin scopes a Conditional Access policy to it, another targets an Intune profile at it, a third grants it a role on a subscription. Paste a <b>group or user</b> and see every place it is referenced — or sweep the tenant and find the groups <b>nothing</b> references.</p>
       <p class="mini muted" style="margin:0">Read-only. Hits inherited from a <b>parent group</b> are marked as such — anything targeting the parent reaches these members too. After Jasper Baes' <i>Microsoft Cloud Group Analyzer</i>.</p>`;
 
@@ -16971,7 +16970,7 @@ This is a directory write. Nothing else changes.`)) return;
     show("screen-mslearn");
     mountToolTabs("checks", "mslearn");
     if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; return; }
-    $("mlHead").innerHTML = '<h3>📘 MS Learn: documented exclusion checks</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
+    $("mlHead").innerHTML = toolHead("toolMsLearn") + '<p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
     mlTab = "findings"; mlFixes = null;
     // baseline tenant → include Off + persona-only; note the scope
@@ -17404,14 +17403,14 @@ This is a directory write. Nothing else changes.`)) return;
     if (!policies.length) { $("gcHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = ""; return; }
     if (gcResult) { renderGapCheck(); return; }   // cached — keep the previous screen
     // idle — wait for the user to start the checks
-    $("gcHead").innerHTML = '<h3>🛡 Best-practice &amp; bypass checks</h3><p class="mini" style="margin:6px 0 0">Check the baseline against known Conditional Access bypasses and the Swiss-cheese model — MFA coverage, break-glass, known bypass apps, and a persona × control matrix.</p>';
+    $("gcHead").innerHTML = toolHead("toolGapCheck") + '<p class="mini" style="margin:6px 0 0">Check the baseline against known Conditional Access bypasses and the Swiss-cheese model — MFA coverage, break-glass, known bypass apps, and a persona × control matrix.</p>';
     $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = "";
     $("gcBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-gcrun>▶ Run checks</button><p class="mini muted">Reads authentication strengths and named locations via Microsoft Graph. Results stay until you refresh.</p></div>';
   }
   async function runGapCheckScan() {
     show("screen-gapcheck");
     if (!policies.length) return;
-    $("gcHead").innerHTML = '<h3>🛡 Best-practice &amp; bypass checks</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
+    $("gcHead").innerHTML = toolHead("toolGapCheck") + '<p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = "";
     // baseline tenant → include Off + persona-only; note the scope
     const baseline = isBaselineTenant();
@@ -17530,7 +17529,7 @@ This is a directory write. Nothing else changes.`)) return;
   let ciResult = null, ciCtx = null, ciMeta = null;
   let ciFilter = { level: "all", status: "all" };
   const ciExpanded = new Set();
-  const CI_IDLE_HEAD = '<h3>📐 CIS Benchmark alignment <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated CA recommendations of section 5.2.2, with per-control pass/fail and the nearest policy for every gap.</p>';
+  const CI_IDLE_HEAD = toolHead("toolCis") + '<p class="mini" style="margin:6px 0 0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated CA recommendations of section 5.2.2, with per-control pass/fail and the nearest policy for every gap.</p>';
   function openCis() {
     crumb("🛡 Checks");
     show("screen-cis");
@@ -18912,7 +18911,7 @@ This is a directory write. Nothing else changes.`)) return;
   function renderSmsVoice() {
     const d = SmsVoice.DATES;
     const dN = SmsVoice.daysUntil(d.nudge.iso), dR = SmsVoice.daysUntil(d.retire.iso);
-    $("svHead").innerHTML = `<h3>📵 SMS &amp; voice retirement <span class="tag new">BETA</span> <span class="tag" title="This tool exists for one dated retirement and is removed once the date has passed">⏳ temporary tool</span></h3>
+    $("svHead").innerHTML = `${toolHead("toolSmsVoice")}
       <p style="margin-bottom:4px">Microsoft-provided SMS and voice MFA delivery <b>retires on ${d.retire.label}</b>${dR >= 0 ? ` (in ${dR} days)` : ""} — and from <b>${d.nudge.label}</b>${dN >= 0 ? ` (in ${dN} day${dN === 1 ? "" : "s"})` : ""} every user still enabled for SMS or voice is auto-enabled for passkeys and nudged at sign-in. After ${d.retire.label} a user whose <b>only</b> MFA method is a phone number gets a <b>blocking</b> passkey-registration prompt — no opt-out. This tool reads the SMS and Voice policy scope the way <a href="https://github.com/microsoft/entra-sms-voice-usage-analyzer" target="_blank" rel="noopener">Microsoft's own script</a> does, then goes further: the actual users, and who really has a phone method registered.</p>
       <p class="mini muted" style="margin:0">Reads, with <b>one</b> optional write: pausing or resuming Microsoft's September rollout below (<code>passkeyDynamicMigration</code>) — nothing else in this tool changes the tenant. Sources: <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement" target="_blank" rel="noopener">retirement notice</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement-faq" target="_blank" rel="noopener">FAQ</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/how-to-deploy-phishing-resistant-passwordless-authentication" target="_blank" rel="noopener">passkey deployment guide</a> · <a href="https://aka.ms/mfatemplates" target="_blank" rel="noopener">end-user communication templates</a></p>`;
     $("svRun").style.display = svRes && !svBusy ? "" : "none";
@@ -19353,7 +19352,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   function renderMemberOf() {
     const d = MemberOf.DATES, days = MemberOf.daysUntil(d.retire.iso);
-    $("moHead").innerHTML = `<h3>🧷 memberOf retirement <span class="tag new">BETA</span> <span class="tag" title="This tool exists for one dated retirement and is removed once the date has passed">⏳ temporary tool</span> <span class="tag ok">reads only</span></h3>
+    $("moHead").innerHTML = `${toolHead("toolMemberOf")}
       <p style="margin-bottom:4px">The <code>memberOf</code> dynamic rule operator has been in public preview since 2022, and Microsoft <b>ends that preview on ${d.retire.label}</b>${days >= 0 ? ` (in ${days} day${days === 1 ? "" : "s"})` : ""}. Rules using it do not fail on that date — they <b>stop updating</b> and stay in their last known state. A group frozen that day keeps handing out whatever membership it held, so joiners are never covered and leavers are never removed, with nothing on screen anywhere to say so.</p>
       <p class="mini muted" style="margin:0">Reads all <b>three</b> surfaces Microsoft names — dynamic groups, dynamic administrative units and entitlement-management auto-assignment policies — then crosses every affected group against the Conditional Access policies ENCA already holds: an <b>exclusion</b> that stops shrinking is a permanent bypass; an <b>inclusion</b> that stops growing is an enforcement gap. Nothing here writes. Sources: <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-member-of" target="_blank" rel="noopener">retirement notice</a> · <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-more-efficient" target="_blank" rel="noopener">supported operators</a> · <a href="https://learn.microsoft.com/entra/id-governance/entitlement-management-access-package-auto-assignment-policy" target="_blank" rel="noopener">auto-assignment policies</a> · <a href="https://github.com/kayasax/EMOS" target="_blank" rel="noopener">EMOS</a></p>`;
     $("moRun").style.display = moRes && !moBusy ? "" : "none";
@@ -19741,7 +19740,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   function renderTeamsDev() {
-    $("tdHead").innerHTML = `<h3>📞 Teams devices <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+    $("tdHead").innerHTML = `${toolHead("toolTeamsDev")}
       <p style="margin-bottom:4px">Every baseline exclusion for Teams Rooms, panels, common-area phones and call-queue accounts rides on <b>one dynamic group</b> — <code>${esc(TeamsDev.CANONICAL)}</code> — and that group is only as good as its membership rule. The rule shipped so far names three <b>Teams Rooms</b> service plans and nothing else: a tenant with hundreds of common-area phones on <b>Teams Shared Space</b> (Teams Shared Devices until April 2026) and a hundred auto-attendant <b>resource accounts</b> has none of them in the group, so sign-in frequency, MFA, device-code blocks and risk policies hit devices that cannot answer them.</p>
       <p style="margin-bottom:4px">A rule cannot say “every Teams SKU”: dynamic membership sees <b>service plans</b>, not licences, and a device SKU is mostly plans every E5 user also holds — naming <code>MCOEV</code> (Teams Phone) would put your whole E5 population in the exclusion group. So this tool reads the tenant's <b>subscribed SKUs</b>, keeps the plans that exist <b>only</b> in device licences, builds the rule from those <b>and</b> a NOT half — an account that also holds a user suite (E1/E3/E5, F1/F3, A3/A5, Business) is a person and stays out, whatever device licence sits on it — previews how many accounts it matches today, names the people holding a device licence on their own account, and replaces the rule on the group after you confirm. <b>Teams Phone Standard</b> stays out on purpose: people hold it.</p>
       <p class="mini muted" style="margin:0">Sources: <a href="https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies" target="_blank" rel="noopener">supported Conditional Access policies for Teams devices</a> · <a href="https://learn.microsoft.com/microsoftteams/rooms/conditional-access-and-compliance-for-devices" target="_blank" rel="noopener">Teams Rooms CA best practices</a> · <a href="https://learn.microsoft.com/entra/identity/users/licensing-service-plan-reference" target="_blank" rel="noopener">service plan reference</a> · <a href="https://learn.microsoft.com/microsoftteams/teams-add-on-licensing/teams-shared-device-license" target="_blank" rel="noopener">Teams Shared Space licensing</a> · <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-membership#rules-with-complex-expressions" target="_blank" rel="noopener">assignedPlans rules</a></p>`;
@@ -20042,31 +20041,20 @@ This is a directory write. Nothing else changes.`)) return;
   Graph.setThrottleHandler((ms) => toast(`Microsoft Graph is throttling — waiting <span>${Math.ceil(ms / 1000)}s</span> then continuing…`));
   // The version badge is on the home tile; it belongs on the tool's own header
   // too, which is where somebody actually is when they wonder what changed.
-  // Heads are re-rendered by their tools, so observe rather than stamp once.
-  const HEAD_TOOL = {
-    mlHead: "toolMsLearn", exHead: "toolExclusions", cgHead: "toolCaGroups", prHead: "toolProtect",
-    blHead: "toolBaseline", gcHead: "toolGapCheck", vaHead: "toolValidator", wiHead: "toolWhatIf",
-    guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
-    siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
-    rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
-    drHead: "toolDrift", ugHead: "toolGuide", dvHead: "toolDevCheck", lgHead: "toolLicGap",
-    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev", woHead: "toolWhoIs", wvHead: "toolWave", scHead: "toolSessionCtl", sgHead: "toolSpGap", anIntro: "toolAnalyze",
-  };
-  function stampHeadVersion(el, toolId) {
-    const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
-    if (!t || !t.v) return;
-    const h = el.querySelector("h3, h4");
-    if (!h || h.querySelector(".tool-ver-head")) return;   // also stops the observer looping
-    const s = document.createElement("span");
-    s.className = "tool-ver-head";
-    s.textContent = `${toolNo(t)}${toolNo(t) ? " · " : ""}v${t.v}`;
-    s.title = `${toolNo(t) ? `${toolNo(t)} — this tool's permanent number. It never changes and is never reused, so it means one thing across both channels, every build and any future language.\n\n` : ""}${t.note || ""}`.trim();
-    h.appendChild(s);
-  }
-  Object.entries(HEAD_TOOL).forEach(([id, toolId]) => {
-    const el = $(id); if (!el) return;
-    stampHeadVersion(el, toolId);
-    new MutationObserver(() => stampHeadVersion(el, toolId)).observe(el, { childList: true, subtree: true });
+  // ---------- the two heads that are static HTML (build 25352) ----------
+  // Until now a 33-entry map of head element ids to tool ids sat here, with a
+  // MutationObserver on every one of them re-appending the version stamp each
+  // time a tool re-rendered its own head — because the tools wrote their head
+  // line themselves and the stamp was added afterwards. toolHead() writes the
+  // whole line now, stamp included, so there is nothing to observe and no map
+  // to keep in step with the tool list.
+  //
+  // These two are the exception: their head line is written into index.html
+  // rather than by a renderer, and neither ever re-renders. They carry
+  // data-tool-head and are filled once, from the same registry entry every
+  // other head reads, so their chips cannot drift from their tool either.
+  document.querySelectorAll("[data-tool-head]").forEach((el) => {
+    el.innerHTML = toolHeadInner(el.dataset.toolHead);
   });
 
   Graph.init().then((resumed) => {

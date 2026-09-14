@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25351"></script>
+<script src="js/popup-guard.js?v=25352"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25351" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25351">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25352" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25352">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25351"></script>
+<script src="js/selfhost-boot.js?v=25352"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25351"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25351"></script>
+<script src="js/counter.js?v=25352"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25352"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25351" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25352" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25351" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25352" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -389,7 +389,7 @@
     <!-- Impact analysis (users × policies) — computed only when Analyze is clicked -->
     <div id="analyzeView" style="display:none">
       <div class="list-card" id="anIntro" style="padding:26px">
-        <h3 style="margin-bottom:6px">🔍 Gap analyse — Conditional Access impact</h3>
+        <h3 style="margin-bottom:6px" data-tool-head="toolAnalyze"></h3>
         <p class="mini" style="max-width:640px;line-height:1.5;margin-bottom:16px">
           Builds a users × policies matrix: which policies apply to each user, who bypasses
           a policy via exclusions (and why), whether a bypass is covered by another policy
@@ -588,7 +588,7 @@
   <!-- ============ PROTECT EXCLUSIONS (standalone view of CA groups ⑥) ============ -->
   <section id="screen-protect" class="screen tool">
     <div class="list-card readme" id="prHead">
-      <h3>🔒 Protect exclusions <span class="tag upd">UPDATED</span> <span class="tag block">writes to tenant</span></h3>
+      <h3 data-tool-head="toolProtect"></h3>
       <p style="margin-bottom:4px">An exclusion group is a Conditional Access bypass, and two things widen it without the policy being touched: a tenant-wide admin <b>adding a member</b>, and somebody <b>nesting a group</b> inside it. Two locks, one row per group: a <b>restricted management administrative unit</b> for the first (only AU-scoped roles may change the members), <b>disableNesting</b> for the second (no group can be added as a member). The table says which lock each group still lacks; the ticks are pre-set to exactly that.</p>
       <p class="mini muted" style="margin:0">Same engines as <b>👥 CA groups → ⑥ Protect</b> and <b>⑧ Disable nesting</b>; nothing here recreates a group. Needs Privileged Role Administrator for the units, an Entra ID P1 licence for administrative-unit administrators, and a directory that has the nesting property — where it does not, the screen says so once and nesting stays in sight instead.</p>
     </div>
@@ -1345,7 +1345,7 @@
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
           <div class="list-card rm-card" data-shipped="25351">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R57</span> 🧱 One frame for every tool screen <span class="tag ok">in beta today</span></h4>
-            <p class="mini" style="margin:0">Thirty-three tool screens, built one at a time over two years, had grown <b>ten different orders</b> for the same six kinds of control &mdash; find, scope, filter, window, the tool's own extras, the actions. No screen was wrong; what was wrong is that a control <i>moved</i> when you switched tools. The order is now one order, written into the stylesheet and enforced by <code>tools/check-toolbar-order.js</code>, and the spacing that 96 hand-typed inline margins used to hold together belongs to <code>.screen.tool</code>. Still open, and deliberately not done yet: whether the head card should collapse into the toolbar on the table-heavy tools so the result owns the whole window &mdash; worth it on 🗂 🚦 🕓 🕵, wrong on the tools whose prose <i>is</i> the tool.</p>
+            <p class="mini" style="margin:0">Thirty-three tool screens, built one at a time over two years, had grown <b>ten different orders</b> for the same six kinds of control &mdash; find, scope, filter, window, the tool's own extras, the actions. No screen was wrong; what was wrong is that a control <i>moved</i> when you switched tools. The order is now one order, written into the stylesheet and enforced by <code>tools/check-toolbar-order.js</code>, and the spacing that 96 hand-typed inline margins used to hold together belongs to <code>.screen.tool</code>. The line each screen opens with came next (25352): one title and one set of chips per tool, in the registry beside its number, after seven tools were found dropping a chip while they worked. Still open, and deliberately not done yet: whether the head card should collapse into the toolbar on the table-heavy tools so the result owns the whole window &mdash; worth it on 🗂 🚦 🕓 🕵, wrong on the tools whose prose <i>is</i> the tool.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25063">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R05</span> <a href="#" class="md-tool" data-tool="toolGuide">📖 Baseline usage guide</a> <span class="tag grant">live · beta 25063 · production 311</span></h4>
@@ -3005,68 +3005,68 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25351"></script>
-<script src="js/selfhost.js?v=25351"></script>
-<script src="js/version.js?v=25351"></script>
-<script src="js/fork.js?v=25351"></script>
-<script src="js/promote.js?v=25351"></script>
-<script src="js/authConfig.js?v=25351"></script>
-<script src="js/labels.js?v=25351"></script>
-<script src="js/graph.js?v=25351"></script>
-<script src="js/model.js?v=25351"></script>
-<script src="js/render.js?v=25351"></script>
-<script src="js/analyze.js?v=25351"></script>
-<script src="js/whatif.js?v=25351"></script>
-<script src="js/mslearn.js?v=25351"></script>
-<script src="js/gapcheck.js?v=25351"></script>
-<script src="js/cisdata.js?v=25351"></script>
-<script src="js/cischeck.js?v=25351"></script>
-<script src="js/exclusions.js?v=25351"></script>
-<script src="js/cascope.js?v=25351"></script>
-<script src="js/validator.js?v=25351"></script>
-<script src="js/whatifeval.js?v=25351"></script>
-<script src="js/compare.js?v=25351"></script>
-<script src="js/whois.js?v=25351"></script>
-<script src="js/wave.js?v=25351"></script>
-<script src="js/sessionctl.js?v=25351"></script>
-<script src="js/spgap.js?v=25351"></script>
-<script src="js/groupuse.js?v=25351"></script>
-<script src="js/iso3166.js?v=25351"></script>
-<script src="js/causes.js?v=25351"></script>
-<script src="js/locations.js?v=25351"></script>
-<script src="js/authcontexts.js?v=25351"></script>
-<script src="js/authstrengths.js?v=25351"></script>
-<script src="js/recycle.js?v=25351"></script>
-<script src="js/rmau.js?v=25351"></script>
-<script src="js/camap.js?v=25351"></script>
-<script src="js/rmaudoc.js?v=25351"></script>
-<script src="js/termsofuse.js?v=25351"></script>
-<script src="js/audit.js?v=25351"></script>
-<script src="js/drift.js?v=25351"></script>
-<script src="js/guide.js?v=25351"></script>
-<script src="js/userimpact.js?v=25351"></script>
-<script src="js/smsvoice.js?v=25351"></script>
-<script src="js/memberof.js?v=25351"></script>
-<script src="js/devcheck.js?v=25351"></script>
-<script src="js/licgap.js?v=25351"></script>
-<script src="js/teamsdev.js?v=25351"></script>
-<script src="js/signins.js?v=25351"></script>
-<script src="js/reportimpact.js?v=25351"></script>
-<script src="js/changelog.js?v=25351"></script>
-<script src="js/baselineData.js?v=25351"></script>
-<script src="js/baselineJoeyData.js?v=25351"></script>
-<script src="js/baselineLive.js?v=25351"></script>
-<script src="js/baseline.js?v=25351"></script>
-<script src="js/baselineCleanup.js?v=25351"></script>
-<script src="js/groupTemplates.js?v=25351"></script>
-<script src="js/assign.js?v=25351"></script>
-<script src="js/cagroups.js?v=25351"></script>
-<script src="js/groupsview.js?v=25351"></script>
-<script src="js/runledger.js?v=25351"></script>
-<script src="js/protect.js?v=25351"></script>
-<script src="js/import.js?v=25351"></script>
-<script src="js/export.js?v=25351"></script>
-<script src="js/demo.js?v=25351"></script>
-<script src="js/app.js?v=25351"></script>
+<script src="js/branding.js?v=25352"></script>
+<script src="js/selfhost.js?v=25352"></script>
+<script src="js/version.js?v=25352"></script>
+<script src="js/fork.js?v=25352"></script>
+<script src="js/promote.js?v=25352"></script>
+<script src="js/authConfig.js?v=25352"></script>
+<script src="js/labels.js?v=25352"></script>
+<script src="js/graph.js?v=25352"></script>
+<script src="js/model.js?v=25352"></script>
+<script src="js/render.js?v=25352"></script>
+<script src="js/analyze.js?v=25352"></script>
+<script src="js/whatif.js?v=25352"></script>
+<script src="js/mslearn.js?v=25352"></script>
+<script src="js/gapcheck.js?v=25352"></script>
+<script src="js/cisdata.js?v=25352"></script>
+<script src="js/cischeck.js?v=25352"></script>
+<script src="js/exclusions.js?v=25352"></script>
+<script src="js/cascope.js?v=25352"></script>
+<script src="js/validator.js?v=25352"></script>
+<script src="js/whatifeval.js?v=25352"></script>
+<script src="js/compare.js?v=25352"></script>
+<script src="js/whois.js?v=25352"></script>
+<script src="js/wave.js?v=25352"></script>
+<script src="js/sessionctl.js?v=25352"></script>
+<script src="js/spgap.js?v=25352"></script>
+<script src="js/groupuse.js?v=25352"></script>
+<script src="js/iso3166.js?v=25352"></script>
+<script src="js/causes.js?v=25352"></script>
+<script src="js/locations.js?v=25352"></script>
+<script src="js/authcontexts.js?v=25352"></script>
+<script src="js/authstrengths.js?v=25352"></script>
+<script src="js/recycle.js?v=25352"></script>
+<script src="js/rmau.js?v=25352"></script>
+<script src="js/camap.js?v=25352"></script>
+<script src="js/rmaudoc.js?v=25352"></script>
+<script src="js/termsofuse.js?v=25352"></script>
+<script src="js/audit.js?v=25352"></script>
+<script src="js/drift.js?v=25352"></script>
+<script src="js/guide.js?v=25352"></script>
+<script src="js/userimpact.js?v=25352"></script>
+<script src="js/smsvoice.js?v=25352"></script>
+<script src="js/memberof.js?v=25352"></script>
+<script src="js/devcheck.js?v=25352"></script>
+<script src="js/licgap.js?v=25352"></script>
+<script src="js/teamsdev.js?v=25352"></script>
+<script src="js/signins.js?v=25352"></script>
+<script src="js/reportimpact.js?v=25352"></script>
+<script src="js/changelog.js?v=25352"></script>
+<script src="js/baselineData.js?v=25352"></script>
+<script src="js/baselineJoeyData.js?v=25352"></script>
+<script src="js/baselineLive.js?v=25352"></script>
+<script src="js/baseline.js?v=25352"></script>
+<script src="js/baselineCleanup.js?v=25352"></script>
+<script src="js/groupTemplates.js?v=25352"></script>
+<script src="js/assign.js?v=25352"></script>
+<script src="js/cagroups.js?v=25352"></script>
+<script src="js/groupsview.js?v=25352"></script>
+<script src="js/runledger.js?v=25352"></script>
+<script src="js/protect.js?v=25352"></script>
+<script src="js/import.js?v=25352"></script>
+<script src="js/export.js?v=25352"></script>
+<script src="js/demo.js?v=25352"></script>
+<script src="js/app.js?v=25352"></script>
 </body>
 </html>

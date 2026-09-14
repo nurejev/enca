@@ -118,6 +118,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 186,
+      title: "\ud83e\udde9 One tool, one title \u2014 toolHead, and seven tools stop changing theirs (all tools, R57)",
+      tools: ["All tools"],
+      builds: [25352],
+      risk: "medium",
+      what: "js/version.js: each registry entry gains head (the title) and chips (its chip texts); HEAD_CHIP maps a chip's text to its class; headEsc, headChip, toolHeadTail, toolHeadInner and toolHead build the line; toolNo moves here from js/app.js's closure, because toolHeadTail runs before app.js. js/app.js: 52 head assignments now call toolHead instead of writing an h3, CI_IDLE_HEAD with them; the HEAD_TOOL map, stampHeadVersion and the 33 MutationObservers are deleted and replaced by a one-shot pass over data-tool-head. js/cischeck.js, js/exclusions.js, js/gapcheck.js, js/mslearn.js: their renderSummary title calls toolHead. js/baseline.js, js/cagroups.js: their data-driven titles keep composing and gain toolHeadTail. index.html: the two static heads become empty h3 elements carrying data-tool-head.",
+      why: "Medium because it touches the render path of every tool, not because the change is deep: the line is the same line, from one place instead of 53. What a reader will actually notice is the fix \u2014 seven tools stop dropping a chip while they work, and \ud83d\udcdc Terms of use stops having three titles. The risk to look for is a tool whose head renders EMPTY (its registry entry has no head field) or DOUBLE-CHIPPED (a literal chip left behind next to a registry one). Both were checked across all 31 registry entries and all 33 screens in a browser before this landed, and the static check below is how you re-establish it rather than trust it. No per-tool version was bumped: no tool's own behaviour, read or output changed, only the shared line above it.",
+      test: [
+        "Open every tool from the sidebar. Each opens with its title, its chips and T-number \u00b7 version at the end of the line \u2014 none empty, none showing a chip twice. \ud83e\uddec Baseline still names its catalog and release in the title, \ud83d\udc65 CA groups still names the tenant, and both now carry their number.",
+        "The fix, on a real tenant where the read takes a moment: open \ud83c\udf10 Named locations (or \ud83c\udfab Authentication contexts, \ud83d\udcaa Authentication strengths, \u267b Recycle bin, \ud83d\udee1 Restricted AUs) and watch the head WHILE it reads \u2014 the writes-to-tenant chip stays. Before this build it appeared only once the read finished.",
+        "\ud83d\udcdc Terms of use: reading, loaded, and failed all show the same line \u2014 BETA and writes to tenant. It showed three different lines before.",
+        "\u26a1 CA validator while it generates simulations: the NEW chip stays.",
+        "Force a failure (sign in without the permission a tool needs): the head still shows the full title and chips above the error line, not a bare error.",
+        "\ud83d\udd12 Protect exclusions and \ud83d\udd0d Gap analyse's intro card: both heads are written into index.html as empty h3 elements and filled at startup. Confirm both read correctly and carry their number; if app.js ever fails to run these two are blank, which is the deliberate cost of not keeping a second copy of their chips.",
+        "Search the source for a head still writing its own title: node -e on js/app.js finding an h3 within 900 characters after a $(xxHead) reference should return none. Only the two data-driven module titles remain as literals.",
+        "\ud83d\udd22 Tool numbers in Help and the sidebar numbers are unchanged \u2014 toolNo moved file but not behaviour.",
+        "Open a tool, switch its tab strip, come back: the head re-renders and still carries exactly one stamp. There is no observer to loop now, so a doubled stamp would mean a renderer appending the line twice.",
+      ],
+      files: ["js/version.js", "js/app.js", "js/baseline.js", "js/cagroups.js", "js/cischeck.js", "js/exclusions.js", "js/gapcheck.js", "js/mslearn.js", "index.html"],
+    },
+    {
       n: 185,
       title: "\ud83e\uddf1 One frame for every tool screen \u2014 slot order, spacing in CSS (all tools, R57)",
       tools: ["All tools"],
