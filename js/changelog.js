@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 313, date: "2026-09-14", title: "\ud83e\udee5 The only-here chip comes off",
+    items: [
+      { kind: "fixed", tool: "Apps with no service principal", text: "The tile still carried the only-here chip — the one that says a tool runs on the beta site and not in production — one build after the tool went into production. Off now; the BETA chip stays while the tool proves itself on real tenants. Nothing else changes in this build." },
+    ],
+  },
+  {
     build: 312, date: "2026-09-14", title: "One frame for every tool, a policy workspace with Guided rollout, and the apps Conditional Access cannot name — queue 170, 185–199",
     items: [
       { kind: "improved", tool: "All tools", text: "Production is build 312: everything the beta channel gathered since 311 — sixteen queue items, 170 and 185 to 199. In one release: one frame for every tool screen and one title line per tool; the host tab strip pinned above the head card; the group analyzer on the shared verdict surface; the policy workspace, the evidence desk and the new Guided rollout tool; imports that fail closed and verify their replacement; bounded Graph retries and complete-or-failed exports; the Methods registered column in SMS and voice retirement and its obsolete September controls removed; the sidebar following the brand palette on one dark rail in both themes; and 🫥 Apps with no service principal, a new tool. Item 34, the CIS Help section, stays behind with the CIS tab it describes." },
