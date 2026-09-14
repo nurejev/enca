@@ -118,6 +118,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 185,
+      title: "\ud83e\uddf1 One frame for every tool screen \u2014 slot order, spacing in CSS (all tools, R57)",
+      tools: ["All tools"],
+      builds: [25351],
+      risk: "medium",
+      what: "css/app.css: THE TOOL SCREEN FRAME and THE SLOT ORDER blocks \u2014 .screen.tool owns the margins of its head card, toolbar and .tool-body; .toolbar children carry order values (tabs -1, find 1, scope 2, filter 3, window 4, extras 5, actions 6); .toolbar > .search drops flex:1 for width clamp(200px,26%,320px) with the action group taking the slack; .wi-f.tb-win and .wi-f.tb-scope get the row direction six inline styles used to give them; Inter removed from the body stack. index.html: all 33 tool sections gain class screen tool, 96 inline margin-top styles removed, the result div of each gains class tool-body, the five range or window labels gain tb-win and cgScopeWrap gains tb-scope (the six inline flex styles go with them), and the toolbars of \ud83d\uddc2 \ud83d\udeaa \ud83d\udc65 \u26a1 \ud83d\udccd \ud83d\udd53 \ud83d\udea6 \ud83c\udf9a are reordered so the markup matches the contract. New: tools/check-toolbar-order.js. Roadmap R57.",
+      why: "Medium not for what it does but for how wide it is: no tool's behaviour, read, verdict or export changes, and no control was added or removed \u2014 but the markup of all 33 tool screens moved, and eight of them had two controls swap position. The risk is a screen whose JavaScript reaches a toolbar child by position rather than by id; nothing found does, and the checker plus the browser pass below are how that is established rather than assumed. The visible change somebody will notice: the find box is narrower than it was on a wide window, because it no longer stretches.",
+      test: [
+        "node tools/check-toolbar-order.js \u2014 exits 0 and reports 33 tool screens, 31 toolbars, every one in slot order. It also notes the four screens build 25353 fixes: \ud83d\udc65 CA groups and \ud83e\udd25 Apps with no service principal have no toolbar id, \ud83d\udd12 Protect exclusions and \ud83d\udc65 Group usage have no toolbar.",
+        "Open every tool from the sidebar on a wide window: the find box is the same width and starts at the same x on all seventeen screens that have one, the segments sit immediately right of it, the chips right of those, the range picker right of those, and the actions hard right. Repeat at about 1100 and about 820 pixels \u2014 the row wraps but the order does not change.",
+        "Tab from the find box on \ud83d\udea6 Sign-in log: focus goes Enforced/Report-only, then Sign-ins/Per policy, then the chips, then Range, then the export buttons \u2014 the same left-to-right order the eye reads. Before this build focus jumped from the chips back to the segments.",
+        "\ud83d\uddc2 Policies and \ud83d\udc65 CA groups hide a toolbar control until it is needed (the Back button, the tab segment, the CSV file input). Open each, switch views, and confirm the control appears in its slot rather than at the start of the row.",
+        "The eight hosts still mount their tab strips on its own row above the controls: \ud83d\uddc2 \ud83d\udd0d \ud83d\udea6 \ud83d\udd53 \ud83d\udee1 \ud83e\uddec \ud83d\udd2e \ud83d\udd75. Opening \ud83d\udd0d Gap analyse and then \ud83d\uddc2 Policies still takes the Gap strip back out.",
+        "Spacing: the gap between head card and toolbar, and between toolbar and result, is 14 pixels on every tool screen. Three screens were tighter than that before (\ud83d\udeaa Exclusion analyzer, \ud83e\uddec Baseline, \ud83d\udc65 CA groups had no gap at all) and now match the rest.",
+        "On a phone the find box is full width and the row stacks; no toolbar scrolls sideways.",
+        "The sign-in screen, the loading screen, the home grid, \u2753 Help, \ud83d\uddfa Roadmap and the changelog do NOT carry class screen tool and are visually unchanged \u2014 check the Help table of contents still lines up and the roadmap cards still sit in their eras.",
+        "Fonts: with Inter NOT installed locally the app looks the same as before (it was already falling back). On a machine that DOES have Inter installed, text is now the system font instead of Inter \u2014 intended, and the reason is that the app never shipped the file.",
+      ],
+      files: ["index.html", "css/app.css", "tools/check-toolbar-order.js", "js/version.js"],
+    },
+    {
       n: 170,
       title: "🫥 Apps with no service principal — new tool (T39 0.1, R51)",
       tools: ["Apps with no service principal"],

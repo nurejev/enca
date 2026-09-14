@@ -26,27 +26,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25350"></script>
+<script src="js/popup-guard.js?v=25351"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25350" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25350">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25351" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25351">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25350"></script>
+<script src="js/selfhost-boot.js?v=25351"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25350"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25350"></script>
+<script src="js/counter.js?v=25351"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25351"></script>
 </head>
 <body>
 
 <header>
   <div class="hwrap">
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25350" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25351" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -97,7 +97,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25350" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25351" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -327,24 +327,18 @@
   </section>
 
   <!-- ============ POLICIES (cards default · list · matrix) ============ -->
-  <section id="screen-list" class="screen">
+  <section id="screen-list" class="screen tool">
     <div class="toolbar" id="plToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="searchBox" placeholder="Search policies…">
       </div>
-      <div class="chip-filter" id="stateChips"></div>
       <div class="seg" id="plViewSeg">
         <button class="active" id="viewCards">Cards</button>
         <button id="viewList">List</button>
         <button id="viewMatrix">Matrix</button>
       </div>
-      <!-- Gap analyse renders inside this screen, and while it is showing the
-           three buttons above switch away from it rather than within it — with
-           none of them highlighted, because none is where you are. That reads
-           as a broken view picker, and its Matrix means something different
-           from Gap analyse's own Matrix tab. So the segment is hidden there and
-           this takes its place: one control, labelled with what it does. -->
+      <div class="chip-filter" id="stateChips"></div>
       <button class="btn" id="anBack" style="display:none" title="Leave Gap analyse and return to the policy views">← Back to policies</button>
       <label class="chk selall" id="selAllWrap" title="Select or clear every policy matching the current filter"><input type="checkbox" id="selAllTop"> <span id="selAllLabel">Select all</span></label>
       <div class="tb-actions">
@@ -436,7 +430,7 @@
              the users your policies actually reach, protect and license. -->
         <div id="anCoverage"></div>
         <div class="an-cards" id="anCards"></div>
-        <div class="toolbar" style="margin-top:14px">
+        <div class="toolbar">
           <div class="search"><input id="anSearch" placeholder="Search user or UPN…"></div>
           <select id="anType" class="btn" style="cursor:pointer">
             <option value="">All user types</option>
@@ -476,9 +470,9 @@
   </section>
 
   <!-- ============ MS LEARN CHECKS ============ -->
-  <section id="screen-mslearn" class="screen">
-    <div class="list-card readme" id="mlHead" style="margin-top:0"></div>
-    <div class="toolbar" id="mlToolbar" style="margin-top:14px">
+  <section id="screen-mslearn" class="screen tool">
+    <div class="list-card readme" id="mlHead"></div>
+    <div class="toolbar" id="mlToolbar">
       <div class="seg">
         <button class="active" id="mlTabFindings">Findings</button>
         <button id="mlTabFixes">Suggested fixes</button>
@@ -491,23 +485,23 @@
         <button class="btn lemon" id="mlFixZip" style="display:none">⤓ Download all (zip)</button>
       </div>
     </div>
-    <div id="mlBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="mlBody"></div>
   </section>
 
   <!-- ============ EXCLUSION ANALYZER ============ -->
-  <section id="screen-exclusions" class="screen">
-    <div class="list-card readme" id="exHead" style="margin-top:0"></div>
-    <div class="toolbar" id="exToolbar" style="margin-top:14px">
+  <section id="screen-exclusions" class="screen tool">
+    <div class="list-card readme" id="exHead"></div>
+    <div class="toolbar" id="exToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="exSearch" placeholder="Search exclusions or users…">
       </div>
-      <div class="chip-filter" id="exChips"></div>
       <div class="seg">
         <button class="active" id="exTabMatrix">Matrix</button>
         <button id="exTabUsers">Effective users</button>
         <button id="exTabRisk">Risk review</button>
       </div>
+      <div class="chip-filter" id="exChips"></div>
       <div class="tb-actions">
         <button class="btn" id="exRescan" title="Re-scan exclusions from the tenant">⟳ Rescan</button>
         <button class="btn" id="exExpand" title="Open the matrix full screen">⤢ Full screen</button>
@@ -520,7 +514,7 @@
       <button class="btn" id="exPrev">←</button><span id="exPage" class="mini"></span><button class="btn" id="exNext">→</button>
       <span class="mini">✗ excluded directly · <span style="color:var(--report)">◐</span> excluded via group membership</span>
     </div>
-    <div id="exBody"></div>
+    <div class="tool-body" id="exBody"></div>
   </section>
 
   <!-- Generic matrix popout. Every matrix view uses this: the view's own
@@ -540,9 +534,9 @@
 
   <!-- ============ BASELINE POLICIES ============ -->
   <!-- ============ CONDITIONAL ACCESS GROUPS ============ -->
-  <section id="screen-cagroups" class="screen">
-    <div class="list-card readme" id="cgHead" style="margin-top:0"></div>
-    <div class="toolbar" style="margin-top:14px">
+  <section id="screen-cagroups" class="screen tool">
+    <div class="list-card readme" id="cgHead"></div>
+    <div class="toolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="cgSearch" placeholder="Search group name, object ID or member…">
@@ -556,15 +550,15 @@
         <button data-cgtab="rmau">⑥ Protect</button>
         <button data-cgtab="migrate">⑦ Migrate <span class="tag new">BETA</span></button>
       </div>
-      <input type="file" id="cgCsvFile" accept=".csv,text/csv,text/plain" style="display:none">
-      <div class="chip-filter" id="cgChips"></div>
-      <label class="wi-f" id="cgScopeWrap" style="flex-direction:row;align-items:center;gap:6px">
+      <label class="wi-f tb-scope" id="cgScopeWrap">
         <span>Scope</span>
         <select id="cgScope" title="Which groups to look up" style="width:auto">
           <option value="policies">Used by CA policies</option>
           <option value="all">Baseline + templates</option>
           <option value="tenant">All groups</option>
         </select></label>
+      <div class="chip-filter" id="cgChips"></div>
+      <input type="file" id="cgCsvFile" accept=".csv,text/csv,text/plain" style="display:none">
       <div class="tb-actions">
         <button class="btn" id="cgFull" style="display:none" title="Open the members matrix full screen">⤢ Full screen</button>
         <button class="btn" id="cgArchived" title="Groups a recreate renamed aside and nobody deleted">🧹 Archived groups</button>
@@ -573,7 +567,7 @@
       </div>
     </div>
     <div id="cgList"></div>
-    <div id="cgBody" hidden></div>
+    <div class="tool-body" id="cgBody" hidden></div>
     <div id="cgBar" class="cgg-bar" hidden></div>
     <div id="cgOverlay" class="cgg-overlay" hidden>
       <div class="cgg-dialog" role="dialog" aria-modal="true" aria-labelledby="cgOvTitle">
@@ -592,18 +586,18 @@
   </section>
 
   <!-- ============ PROTECT EXCLUSIONS (standalone view of CA groups ⑥) ============ -->
-  <section id="screen-protect" class="screen">
-    <div class="list-card readme" id="prHead" style="margin-top:0">
+  <section id="screen-protect" class="screen tool">
+    <div class="list-card readme" id="prHead">
       <h3>🔒 Protect exclusions <span class="tag upd">UPDATED</span> <span class="tag block">writes to tenant</span></h3>
       <p style="margin-bottom:4px">An exclusion group is a Conditional Access bypass, and two things widen it without the policy being touched: a tenant-wide admin <b>adding a member</b>, and somebody <b>nesting a group</b> inside it. Two locks, one row per group: a <b>restricted management administrative unit</b> for the first (only AU-scoped roles may change the members), <b>disableNesting</b> for the second (no group can be added as a member). The table says which lock each group still lacks; the ticks are pre-set to exactly that.</p>
       <p class="mini muted" style="margin:0">Same engines as <b>👥 CA groups → ⑥ Protect</b> and <b>⑧ Disable nesting</b>; nothing here recreates a group. Needs Privileged Role Administrator for the units, an Entra ID P1 licence for administrative-unit administrators, and a directory that has the nesting property — where it does not, the screen says so once and nesting stays in sight instead.</p>
     </div>
-    <div id="prBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="prBody"></div>
   </section>
 
-  <section id="screen-baseline" class="screen">
-    <div class="list-card readme" id="blHead" style="margin-top:0"></div>
-    <div class="toolbar" id="blToolbar" style="margin-top:14px">
+  <section id="screen-baseline" class="screen tool">
+    <div class="list-card readme" id="blHead"></div>
+    <div class="toolbar" id="blToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="blSearch" placeholder="Search CA number or policy name…">
@@ -618,14 +612,14 @@
         <button class="btn lemon" id="blImport">📥 Import baseline →</button>
       </div>
     </div>
-    <div id="blBody"></div>
+    <div class="tool-body" id="blBody"></div>
   </section>
 
   <!-- ============ GAP ANALYSIS ============ -->
-  <section id="screen-gapcheck" class="screen">
-    <div class="list-card readme" id="gcHead" style="margin-top:0"></div>
+  <section id="screen-gapcheck" class="screen tool">
+    <div class="list-card readme" id="gcHead"></div>
     <div id="gcMatrix" style="margin-top:16px"></div>
-    <div class="toolbar" id="gcToolbar" style="margin-top:14px">
+    <div class="toolbar" id="gcToolbar">
       <div class="chip-filter" id="gcChips"></div>
       <label class="chk" id="gcDisabledWrap" style="margin:0"><input type="checkbox" id="gcDisabled"> Include Off (disabled) policies <span class="mini" id="gcDisabledNote"></span></label>
       <div class="tb-actions">
@@ -634,15 +628,15 @@
         <button class="btn" id="gcMd">Export MD</button>
       </div>
     </div>
-    <div id="gcBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="gcBody"></div>
   </section>
 
   <!-- ============ CIS BENCHMARK ALIGNMENT ============
        Assesses the CA policies against section 5.2.2 of the CIS Microsoft 365
        Foundations Benchmark v7.0.0 (content: cisdata.js, logic: cischeck.js). -->
-  <section id="screen-cis" class="screen">
-    <div class="list-card readme" id="ciHead" style="margin-top:0"></div>
-    <div class="toolbar" id="ciToolbar" style="margin-top:14px">
+  <section id="screen-cis" class="screen tool">
+    <div class="list-card readme" id="ciHead"></div>
+    <div class="toolbar" id="ciToolbar">
       <div class="seg" id="ciLevelSeg">
         <button class="active" data-cilvl="all">All levels</button>
         <button data-cilvl="1">Level 1</button>
@@ -654,50 +648,51 @@
         <button class="btn" id="ciMd">Export MD</button>
       </div>
     </div>
-    <div id="ciBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="ciBody"></div>
   </section>
 
   <!-- ============ CA VALIDATOR ============
        Read-only simulation report — a port of the simulation generator from
        Jasper Baes' Conditional Access Validator (CC BY-NC-SA 4.0). -->
-  <section id="screen-validator" class="screen">
-    <div class="list-card readme" id="vaHead" style="margin-top:0"></div>
-    <div class="toolbar" id="vaToolbar" style="margin-top:14px">
+  <section id="screen-validator" class="screen tool">
+    <div class="list-card readme" id="vaHead"></div>
+    <div class="toolbar" id="vaToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="vaSearch" placeholder="Search policy or simulation…" autocomplete="off">
       </div>
+      <div class="seg" id="vaViewSeg">
+        <button class="active" data-vaview="compact">Compact</button>
+        <button data-vaview="detailed">Detailed</button>
+      </div>
+      <div class="chip-filter" id="vaChips"></div>
       <div class="va-target">
         <input id="vaTarget" list="vaTargetList" placeholder="Run against a user (UPN) or group name / ID… (optional)" autocomplete="off" spellcheck="false">
         <datalist id="vaTargetList"></datalist>
         <button class="btn sm" id="vaTargetGo">Run</button>
         <button class="btn sm" id="vaTargetClear" title="Clear target — simulate every policy" style="display:none">✕</button>
       </div>
-      <div class="chip-filter" id="vaChips"></div>
       <label class="chk" id="vaROWrap" style="margin:0"><input type="checkbox" id="vaReportOnly"> Include report-only policies</label>
-      <div class="seg" id="vaViewSeg">
-        <button class="active" data-vaview="compact">Compact</button>
-        <button data-vaview="detailed">Detailed</button>
-      </div>
       <div class="tb-actions">
         <button class="btn" id="vaExpand" title="Collapse or expand every policy">⊟ Collapse all</button>
         <button class="btn" id="vaRefresh" title="Re-fetch policies and re-run the simulations">⟳ Refresh</button>
         <button class="btn" id="vaMd">Export MD</button>
       </div>
     </div>
-    <div id="vaBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="vaBody"></div>
   </section>
 
   <!-- ============ WHAT-IF ============
        A re-implementation of the Entra Conditional Access What If tool: describe
        a sign-in, evaluate every enabled/report-only policy against it. -->
-  <section id="screen-whatif" class="screen">
-    <div class="list-card readme" id="wiHead" style="margin-top:0"></div>
+  <section id="screen-whatif" class="screen tool">
+    <div class="list-card readme" id="wiHead"></div>
     <!-- This tool's controls are a FORM, not a toolbar, so there was nowhere to
          mount the mode strip (build 25346). An otherwise empty toolbar is the
          honest answer: it puts the strip in the same place, at the same height,
          as it sits on every other host. -->
-    <div class="toolbar" id="wiToolbar" style="margin-top:14px"></div>
+    <div class="toolbar" id="wiToolbar">
+    </div>
     <div class="list-card wi-form">
       <div class="wi-grid">
         <label class="wi-f"><span>User <b class="req">*</b></span>
@@ -757,12 +752,12 @@
         <button class="btn" id="wiMd" style="display:none">Export MD</button>
       </div>
     </div>
-    <div id="wiBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="wiBody"></div>
   </section>
 
   <!-- ============ GROUP ANALYZER (BETA) ============ -->
-  <section id="screen-groupuse" class="screen">
-    <div class="list-card readme" id="guHead" style="margin-top:0"></div>
+  <section id="screen-groupuse" class="screen tool">
+    <div class="list-card readme" id="guHead"></div>
     <div class="list-card wi-form">
       <div class="seg" id="guModeSeg" style="margin-bottom:12px">
         <button data-gumode="one">One group or user</button>
@@ -817,13 +812,14 @@
       </div>
       <div id="guProg" class="mini muted" style="margin-top:10px"></div>
     </div>
-    <div id="guBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="guBody"></div>
   </section>
 
   <!-- ============ COMPARE USERS ============ -->
-  <section id="screen-compare" class="screen">
-    <div class="list-card readme" id="cuHead" style="margin-top:0"></div>
-    <div class="toolbar" id="cuToolbar" style="margin-top:14px"></div>
+  <section id="screen-compare" class="screen tool">
+    <div class="list-card readme" id="cuHead"></div>
+    <div class="toolbar" id="cuToolbar">
+    </div>
     <div class="list-card wi-form">
       <div class="wi-grid">
         <label class="wi-f"><span>Add user <b class="req">*</b></span>
@@ -883,19 +879,19 @@
         <button class="btn" id="cuMd" style="display:none">Export MD</button>
       </div>
     </div>
-    <div id="cuBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="cuBody"></div>
   </section>
 
   <!-- ============ WHO IS ANNA TO CA ============ -->
-  <section id="screen-whois" class="screen">
-    <div class="list-card readme" id="woHead" style="margin-top:0"></div>
-    <div class="toolbar" id="woToolbar" style="margin-top:14px">
+  <section id="screen-whois" class="screen tool">
+    <div class="list-card readme" id="woHead"></div>
+    <div class="toolbar" id="woToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="woUser" list="woUserList" placeholder="UPN or display name — Enter to read…" autocomplete="off" spellcheck="false">
         <datalist id="woUserList"></datalist>
       </div>
-      <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px"><span>Sign-ins</span>
+      <label class="wi-f tb-win"><span>Sign-ins</span>
         <select id="woDays" style="width:auto">
           <option value="0.0416667">Last hour</option>
           <option value="0.1666667">Last 4 hours</option>
@@ -910,16 +906,16 @@
         <button class="btn lemon" id="woCsv" style="display:none" title="The policy table, one line per policy">⤓ Export CSV</button>
       </div>
     </div>
-    <div id="woBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="woBody"></div>
   </section>
 
   <!-- ============ WHO IS THE WAVE TO CA ============ -->
-  <section id="screen-wave" class="screen">
-    <div class="list-card readme" id="wvHead" style="margin-top:0"></div>
-    <div class="toolbar" id="wvToolbar" style="margin-top:14px">
+  <section id="screen-wave" class="screen tool">
+    <div class="list-card readme" id="wvHead"></div>
+    <div class="toolbar" id="wvToolbar">
       <div class="chip-filter" id="wvPicker" style="align-items:center"></div>
     </div>
-    <div class="toolbar" id="wvToolbar2" style="margin-top:8px">
+    <div class="toolbar" id="wvToolbar2">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="wvTerm" list="wvTermList" placeholder="…or any group — name or object ID, Enter to read" autocomplete="off" spellcheck="false">
@@ -938,19 +934,19 @@
         <button class="btn lemon" id="wvCsv" style="display:none" title="Every member with flags, log counts and forecast">⤓ Export CSV</button>
       </div>
     </div>
-    <div id="wvBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="wvBody"></div>
   </section>
 
   <!-- ============ SESSION CONTROLS ============ -->
-  <section id="screen-sessionctl" class="screen">
-    <div class="list-card readme" id="scHead" style="margin-top:0"></div>
-    <div class="toolbar" id="scToolbar" style="margin-top:14px">
+  <section id="screen-sessionctl" class="screen tool">
+    <div class="list-card readme" id="scHead"></div>
+    <div class="toolbar" id="scToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="scSearch" list="scSearchList" placeholder="Filter user, app, file, policy…" autocomplete="off" spellcheck="false">
         <datalist id="scSearchList"></datalist>
       </div>
-      <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px"><span>Window</span>
+      <label class="wi-f tb-win"><span>Window</span>
         <select id="scDays" style="width:auto">
           <option value="0.0416667">Last hour</option>
           <option value="0.1666667">Last 4 hours</option>
@@ -964,12 +960,12 @@
         <button class="btn lemon" id="scCsv" style="display:none" title="Every Defender event with its routing policy">⤓ Export CSV</button>
       </div>
     </div>
-    <div id="scBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="scBody"></div>
   </section>
 
-  <section id="screen-spgap" class="screen">
-    <div class="list-card readme" id="sgHead" style="margin-top:0"></div>
-    <div class="toolbar" style="margin-top:14px">
+  <section id="screen-spgap" class="screen tool">
+    <div class="list-card readme" id="sgHead"></div>
+    <div class="toolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="sgSearch" placeholder="Filter app, id, policy…" autocomplete="off" spellcheck="false">
@@ -982,22 +978,22 @@
         <button class="btn lemon" id="sgCsv" style="display:none" title="One row per app id — for whoever registers them, deliberately">⤓ Export CSV</button>
       </div>
     </div>
-    <div id="sgBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="sgBody"></div>
   </section>
 
   <!-- ============ NAMED LOCATIONS ============ -->
-  <section id="screen-locations" class="screen">
-    <div class="list-card readme" id="loHead" style="margin-top:0"></div>
-    <div class="toolbar" id="loToolbar" style="margin-top:14px">
+  <section id="screen-locations" class="screen tool">
+    <div class="list-card readme" id="loHead"></div>
+    <div class="toolbar" id="loToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="loSearch" placeholder="Search named locations…">
       </div>
-      <div class="chip-filter" id="loChips"></div>
       <div class="seg" id="loViewSeg">
         <button class="active" data-loview="cards">Cards</button>
         <button data-loview="table">Table</button>
       </div>
+      <div class="chip-filter" id="loChips"></div>
       <div class="tb-actions">
         <button class="btn" id="loRefresh" title="Re-read the named locations from Entra">⟳ Refresh</button>
         <button class="btn" id="loMd" title="Documentation of every named location and its policy usage">Export MD</button>
@@ -1007,13 +1003,13 @@
         <button class="btn lemon" id="loNew">＋ New location</button>
       </div>
     </div>
-    <div id="loBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="loBody"></div>
   </section>
 
   <!-- ============ AUTHENTICATION CONTEXTS (BETA) ============ -->
-  <section id="screen-authctx" class="screen">
-    <div class="list-card readme" id="acHead" style="margin-top:0"></div>
-    <div class="toolbar" id="acToolbar" style="margin-top:14px">
+  <section id="screen-authctx" class="screen tool">
+    <div class="list-card readme" id="acHead"></div>
+    <div class="toolbar" id="acToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="acSearch" placeholder="Search contexts…">
@@ -1025,13 +1021,13 @@
         <button class="btn lemon" id="acNew">＋ New context</button>
       </div>
     </div>
-    <div id="acBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="acBody"></div>
   </section>
 
   <!-- ============ AUTHENTICATION STRENGTHS ============ -->
-  <section id="screen-authstr" class="screen">
-    <div class="list-card readme" id="asHead" style="margin-top:0"></div>
-    <div class="toolbar" id="asToolbar" style="margin-top:14px">
+  <section id="screen-authstr" class="screen tool">
+    <div class="list-card readme" id="asHead"></div>
+    <div class="toolbar" id="asToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="asSearch" placeholder="Search strengths…">
@@ -1043,13 +1039,13 @@
         <button class="btn lemon" id="asNew">＋ New custom strength</button>
       </div>
     </div>
-    <div id="astBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="astBody"></div>
   </section>
 
   <!-- ============ TERMS OF USE (BETA) ============ -->
-  <section id="screen-tou" class="screen">
-    <div class="list-card readme" id="tuHead" style="margin-top:0"></div>
-    <div class="toolbar" id="tuToolbar" style="margin-top:14px">
+  <section id="screen-tou" class="screen tool">
+    <div class="list-card readme" id="tuHead"></div>
+    <div class="toolbar" id="tuToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="tuSearch" placeholder="Search agreements…">
@@ -1061,13 +1057,13 @@
         <button class="btn lemon" id="tuNew">＋ New agreement</button>
       </div>
     </div>
-    <div id="tuBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="tuBody"></div>
   </section>
 
   <!-- ============ RECYCLE BIN (BETA) ============ -->
-  <section id="screen-recycle" class="screen">
-    <div class="list-card readme" id="rcHead" style="margin-top:0"></div>
-    <div class="toolbar" id="rcToolbar" style="margin-top:14px">
+  <section id="screen-recycle" class="screen tool">
+    <div class="list-card readme" id="rcHead"></div>
+    <div class="toolbar" id="rcToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="rcSearch" placeholder="Search deleted items…">
@@ -1078,13 +1074,13 @@
         <button class="btn" id="rcMd" title="Documentation of everything in the recycle bin">Export MD</button>
       </div>
     </div>
-    <div id="rcBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="rcBody"></div>
   </section>
 
   <!-- ============ RESTRICTED AUs (BETA) ============ -->
-  <section id="screen-rmau" class="screen">
-    <div class="list-card readme" id="ruHead" style="margin-top:0"></div>
-    <div class="toolbar" id="ruToolbar" style="margin-top:14px">
+  <section id="screen-rmau" class="screen tool">
+    <div class="list-card readme" id="ruHead"></div>
+    <div class="toolbar" id="ruToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="ruSearch" placeholder="Search administrative units…" autocomplete="off" spellcheck="false">
@@ -1097,7 +1093,7 @@
         <button class="btn" id="ruMd">Export MD</button>
       </div>
     </div>
-    <div id="ruBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="ruBody"></div>
     <!-- Shared by every AU card's add/grant boxes. One datalist each rather than
          one per card: repeated ids are what broke the assign wizard in 23016. -->
     <datalist id="ruGroupSug"></datalist>
@@ -1109,15 +1105,19 @@
   </section>
 
   <!-- ============ CHANGE AUDIT ============ -->
-  <section id="screen-audit" class="screen">
-    <div class="list-card readme" id="auHead" style="margin-top:0"></div>
-    <div class="toolbar" id="auToolbar" style="margin-top:14px">
+  <section id="screen-audit" class="screen tool">
+    <div class="list-card readme" id="auHead"></div>
+    <div class="toolbar" id="auToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="auSearch" placeholder="Search resource, person or changed field…">
       </div>
+      <div class="seg" id="auViewSeg">
+        <button class="active" data-auview="summary">Summary</button>
+        <button data-auview="timeline">Timeline</button>
+      </div>
       <div class="chip-filter" id="auChips"></div>
-      <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px"><span>Range</span>
+      <label class="wi-f tb-win"><span>Range</span>
         <select id="auDays" style="width:auto">
           <option value="0.0416667">Last 1 hour</option>
           <option value="0.1666667">Last 4 hours</option>
@@ -1126,10 +1126,6 @@
           <option value="30">Last 30 days</option>
           <option value="90">Last 90 days</option>
         </select></label>
-      <div class="seg" id="auViewSeg">
-        <button class="active" data-auview="summary">Summary</button>
-        <button data-auview="timeline">Timeline</button>
-      </div>
       <div class="tb-actions">
         <button class="btn" id="auRescan" style="display:none" title="Re-read the audit log">⟳ Rescan</button>
         <button class="btn" id="auCompare" title="Load a snapshot exported earlier and see what has changed since">⤒ Compare…</button>
@@ -1138,27 +1134,18 @@
         <button class="btn lemon" id="auJson" title="Save this read as JSON so you can compare against it later">⤓ Export JSON</button>
       </div>
     </div>
-    <div id="auBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="auBody"></div>
   </section>
 
   <!-- ============ SIGN-IN FAILURES ============ -->
-  <section id="screen-signins" class="screen">
-    <div class="list-card readme" id="siHead" style="margin-top:0"></div>
-    <div class="toolbar" id="siToolbar" style="margin-top:14px">
+  <section id="screen-signins" class="screen tool">
+    <div class="list-card readme" id="siHead"></div>
+    <div class="toolbar" id="siToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="siSearch" list="siSearchList" placeholder="Search user, app, policy, IP or location…" autocomplete="off" spellcheck="false">
         <datalist id="siSearchList"></datalist>
       </div>
-      <div class="chip-filter" id="siChips"></div>
-      <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px"><span>Range</span>
-        <select id="siDays" style="width:auto">
-          <option value="0.0416667">Last hour</option>
-          <option value="0.1666667">Last 4 hours</option>
-          <option value="1">Last 24 hours</option>
-          <option value="7" selected>Last 7 days</option>
-          <option value="30">Last 30 days</option>
-        </select></label>
       <div class="seg" id="siModeSeg">
         <button class="active" data-simode="enforced" title="Sign-ins an enforced policy blocked or interrupted">Enforced</button>
         <button data-simode="reportonly" title="Sign-ins a report-only policy would have failed">Report-only</button>
@@ -1167,26 +1154,39 @@
         <button class="active" data-siview="signins">Sign-ins</button>
         <button data-siview="policies">Per policy</button>
       </div>
+      <div class="chip-filter" id="siChips"></div>
+      <label class="wi-f tb-win"><span>Range</span>
+        <select id="siDays" style="width:auto">
+          <option value="0.0416667">Last hour</option>
+          <option value="0.1666667">Last 4 hours</option>
+          <option value="1">Last 24 hours</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select></label>
       <div class="tb-actions">
         <button class="btn" id="siRescan" style="display:none" title="Re-read the sign-in log">⟳ Rescan</button>
         <button class="btn" id="siMd">Export MD</button>
         <button class="btn lemon" id="siCsv" title="One line per sign-in × failing policy — pivot-table and SIEM friendly">⤓ Export CSV</button>
       </div>
     </div>
-    <div id="siBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="siBody"></div>
   </section>
 
   <!-- ============ REPORT-ONLY IMPACT (BETA) ============ -->
-  <section id="screen-impact" class="screen">
-    <div class="list-card readme" id="riHead" style="margin-top:0"></div>
-    <div class="toolbar" id="riToolbar" style="margin-top:14px">
+  <section id="screen-impact" class="screen tool">
+    <div class="list-card readme" id="riHead"></div>
+    <div class="toolbar" id="riToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
         <input id="riSearch" list="riSearchList" placeholder="Search policy, target group, user or app…" autocomplete="off" spellcheck="false">
         <datalist id="riSearchList"></datalist>
       </div>
+      <div class="seg" id="riViewSeg">
+        <button class="active" data-riview="policies" title="Per report-only policy: is it safe to enable?">Per policy</button>
+        <button data-riview="users" title="Per user: what changes for this person when everything goes live?">Per user</button>
+      </div>
       <div class="chip-filter" id="riChips"></div>
-      <label class="wi-f" style="flex-direction:row;align-items:center;gap:6px"><span>Range</span>
+      <label class="wi-f tb-win"><span>Range</span>
         <select id="riDays" style="width:auto">
           <option value="0.0416667">Last hour</option>
           <option value="0.1666667">Last 4 hours</option>
@@ -1194,16 +1194,12 @@
           <option value="7" selected>Last 7 days</option>
           <option value="30">Last 30 days</option>
         </select></label>
-      <div class="seg" id="riViewSeg">
-        <button class="active" data-riview="policies" title="Per report-only policy: is it safe to enable?">Per policy</button>
-        <button data-riview="users" title="Per user: what changes for this person when everything goes live?">Per user</button>
-      </div>
       <div class="tb-actions">
         <button class="btn" id="riRescan" style="display:none" title="Re-read the sign-in log">⟳ Rescan</button>
         <button class="btn" id="riMd" title="Go-live forecast as Markdown — per policy and per user">Export MD</button>
       </div>
     </div>
-    <div id="riBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="riBody"></div>
   </section>
 
   <!-- ============ CHANGELOG — the full history, as a page ============ -->
@@ -1216,9 +1212,9 @@
   </section>
 
   <!-- ============ DRIFT WATCH (BETA) ============ -->
-  <section id="screen-drift" class="screen">
-    <div class="list-card readme" id="drHead" style="margin-top:0"></div>
-    <div class="toolbar" id="drToolbar" style="margin-top:14px">
+  <section id="screen-drift" class="screen tool">
+    <div class="list-card readme" id="drHead"></div>
+    <div class="toolbar" id="drToolbar">
       <div class="tb-actions">
         <button class="btn primary" id="drSnap">📸 Take snapshot</button>
         <button class="btn" id="drLoadBtn">📂 Load snapshot &amp; compare</button>
@@ -1227,25 +1223,25 @@
         <button class="btn" id="drClear">Clear</button>
       </div>
     </div>
-    <div id="drBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="drBody"></div>
   </section>
 
   <!-- ============ BASELINE USAGE GUIDE (R05) ============ -->
-  <section id="screen-guide" class="screen">
-    <div class="list-card readme" id="ugHead" style="margin-top:0"></div>
-    <div class="toolbar" id="ugToolbar" style="margin-top:14px">
+  <section id="screen-guide" class="screen tool">
+    <div class="list-card readme" id="ugHead"></div>
+    <div class="toolbar" id="ugToolbar">
       <div class="tb-actions">
         <button class="btn primary" id="ugRun">🔎 Read the tenant</button>
         <button class="btn" id="ugMd">Export MD</button>
       </div>
     </div>
-    <div id="ugBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="ugBody"></div>
   </section>
 
   <!-- ============ USER IMPACT BRIEF (T32) ============ -->
-  <section id="screen-userimpact" class="screen">
-    <div class="list-card readme" id="uiHead" style="margin-top:0"></div>
-    <div class="toolbar" id="uiToolbar" style="margin-top:14px">
+  <section id="screen-userimpact" class="screen tool">
+    <div class="list-card readme" id="uiHead"></div>
+    <div class="toolbar" id="uiToolbar">
       <div class="tb-actions">
         <!-- The brief is DERIVED from the policy set in memory, not read for
              itself, so it is exactly as current as the last tenant read. It has
@@ -1256,13 +1252,13 @@
         <button class="btn" id="uiDocx">Export Word</button>
       </div>
     </div>
-    <div id="uiBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="uiBody"></div>
   </section>
 
   <!-- ============ SMS / VOICE RETIREMENT (T33 — temporary tool) ============ -->
-  <section id="screen-smsvoice" class="screen">
-    <div class="list-card readme" id="svHead" style="margin-top:0"></div>
-    <div class="toolbar" id="svToolbar" style="margin-top:14px">
+  <section id="screen-smsvoice" class="screen tool">
+    <div class="list-card readme" id="svHead"></div>
+    <div class="toolbar" id="svToolbar">
       <div class="tb-actions">
         <button class="btn primary" id="svRun" style="display:none">⟳ Rescan</button>
         <button class="btn" id="svMail" title="The recipient list and a ready-to-send email telling the affected users to register a passkey and remove their phone method">✉️ Notify users</button>
@@ -1277,13 +1273,13 @@
          just written. The two answer different questions and one must never
          clear the other. -->
     <div id="svMig" style="margin-top:14px"></div>
-    <div id="svBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="svBody"></div>
   </section>
 
   <!-- ============ memberOf RETIREMENT (T34 — temporary tool) ============ -->
-  <section id="screen-memberof" class="screen">
-    <div class="list-card readme" id="moHead" style="margin-top:0"></div>
-    <div class="toolbar" id="moToolbar" style="margin-top:14px">
+  <section id="screen-memberof" class="screen tool">
+    <div class="list-card readme" id="moHead"></div>
+    <div class="toolbar" id="moToolbar">
       <div class="tb-actions">
         <button class="btn primary" id="moRun" style="display:none">⟳ Rescan</button>
         <button class="btn" id="moMail" title="The owners of the affected groups and a ready-to-send email asking each of them to replace the rule, convert to assigned, or say it can go">✉️ Notify owners</button>
@@ -1291,25 +1287,25 @@
         <button class="btn" id="moCsv">Export CSV</button>
       </div>
     </div>
-    <div id="moBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="moBody"></div>
   </section>
 
   <!-- ============ COMPLIANT-DEVICE REALITY CHECK (R11) ============ -->
-  <section id="screen-devcheck" class="screen">
-    <div class="list-card readme" id="dvHead" style="margin-top:0"></div>
-    <div class="toolbar" id="dvToolbar" style="margin-top:14px">
+  <section id="screen-devcheck" class="screen tool">
+    <div class="list-card readme" id="dvHead"></div>
+    <div class="toolbar" id="dvToolbar">
       <div class="tb-actions">
         <button class="btn primary" id="dvRun" style="display:none">⟳ Rescan</button>
         <button class="btn" id="dvMd">Export MD</button>
       </div>
     </div>
-    <div id="dvBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="dvBody"></div>
   </section>
 
   <!-- ============ LICENCE GAP (targeted vs entitled) ============ -->
-  <section id="screen-licgap" class="screen">
-    <div class="list-card readme" id="lgHead" style="margin-top:0"></div>
-    <div class="toolbar" id="lgToolbar" style="margin-top:14px">
+  <section id="screen-licgap" class="screen tool">
+    <div class="list-card readme" id="lgHead"></div>
+    <div class="toolbar" id="lgToolbar">
       <div style="display:flex;gap:8px;align-items:center;flex:1;flex-wrap:wrap;min-width:0">
         <input id="lgAdmInput" class="btn" style="cursor:text;min-width:280px" list="lgAdmList" placeholder="Exclude admin-accounts groups… (optional, several allowed)" autocomplete="off" spellcheck="false">
         <datalist id="lgAdmList"></datalist>
@@ -1320,13 +1316,13 @@
         <button class="btn" id="lgMd">Export MD</button>
       </div>
     </div>
-    <div id="lgBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="lgBody"></div>
   </section>
 
   <!-- ============ TEAMS DEVICES (T35) ============ -->
-  <section id="screen-teamsdev" class="screen">
-    <div class="list-card readme" id="tdHead" style="margin-top:0"></div>
-    <div class="toolbar" id="tdToolbar" style="margin-top:14px">
+  <section id="screen-teamsdev" class="screen tool">
+    <div class="list-card readme" id="tdHead"></div>
+    <div class="toolbar" id="tdToolbar">
       <button class="btn" id="tdBack" title="Back to the group list this came from">← Groups</button>
       <div style="display:flex;gap:8px;align-items:center;flex:1;flex-wrap:wrap;min-width:0">
         <input id="tdPrefix" class="txt" style="flex:1;min-width:280px;letter-spacing:normal;font-weight:400" placeholder="UPN prefixes the rule should also match, e.g. mtr-, cap- (optional, comma-separated)" autocomplete="off" spellcheck="false" title="Accounts a service plan cannot isolate — a device SKU whose plans every user also holds — can still be caught by the start of their user principal name. Each prefix becomes a -startsWith clause in the rule.">
@@ -1336,7 +1332,7 @@
         <button class="btn" id="tdMd">Export MD</button>
       </div>
     </div>
-    <div id="tdBody" style="margin-top:14px"></div>
+    <div class="tool-body" id="tdBody"></div>
   </section>
 
   <!-- ============ ROADMAP — where ENCA is heading, as a timeline ============ -->
@@ -1347,6 +1343,10 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+          <div class="list-card rm-card" data-shipped="25351">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R57</span> 🧱 One frame for every tool screen <span class="tag ok">in beta today</span></h4>
+            <p class="mini" style="margin:0">Thirty-three tool screens, built one at a time over two years, had grown <b>ten different orders</b> for the same six kinds of control &mdash; find, scope, filter, window, the tool's own extras, the actions. No screen was wrong; what was wrong is that a control <i>moved</i> when you switched tools. The order is now one order, written into the stylesheet and enforced by <code>tools/check-toolbar-order.js</code>, and the spacing that 96 hand-typed inline margins used to hold together belongs to <code>.screen.tool</code>. Still open, and deliberately not done yet: whether the head card should collapse into the toolbar on the table-heavy tools so the result owns the whole window &mdash; worth it on 🗂 🚦 🕓 🕵, wrong on the tools whose prose <i>is</i> the tool.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="25063">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R05</span> <a href="#" class="md-tool" data-tool="toolGuide">📖 Baseline usage guide</a> <span class="tag grant">live · beta 25063 · production 311</span></h4>
             <p class="mini" style="margin:0">The toolset could build the baseline; it could not tell you <b>what the baseline is</b> or <b>what order to do it in</b>. That knowledge lived in whoever has done it before, which is the least durable place to keep it. Now it is a tool: the deployment order as six steps, each with the <b>reason</b> it sits where it does — the persona model and its CA ranges, groups and restricted units before the policies that target them, named locations, authentication strengths and contexts before the policies that reference them, Terms of use (which has no create API) before import, policies imported Off, then Off → report-only → 🎚 forecast → enforced, Global last. 🔎 <b>Read the tenant</b> turns every step into a readiness check that names what is missing <i>before</i> the step is run instead of after. Graduates to production once the step texts have proven themselves against enough real deployments.</p>
@@ -3005,68 +3005,68 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25350"></script>
-<script src="js/selfhost.js?v=25350"></script>
-<script src="js/version.js?v=25350"></script>
-<script src="js/fork.js?v=25350"></script>
-<script src="js/promote.js?v=25350"></script>
-<script src="js/authConfig.js?v=25350"></script>
-<script src="js/labels.js?v=25350"></script>
-<script src="js/graph.js?v=25350"></script>
-<script src="js/model.js?v=25350"></script>
-<script src="js/render.js?v=25350"></script>
-<script src="js/analyze.js?v=25350"></script>
-<script src="js/whatif.js?v=25350"></script>
-<script src="js/mslearn.js?v=25350"></script>
-<script src="js/gapcheck.js?v=25350"></script>
-<script src="js/cisdata.js?v=25350"></script>
-<script src="js/cischeck.js?v=25350"></script>
-<script src="js/exclusions.js?v=25350"></script>
-<script src="js/cascope.js?v=25350"></script>
-<script src="js/validator.js?v=25350"></script>
-<script src="js/whatifeval.js?v=25350"></script>
-<script src="js/compare.js?v=25350"></script>
-<script src="js/whois.js?v=25350"></script>
-<script src="js/wave.js?v=25350"></script>
-<script src="js/sessionctl.js?v=25350"></script>
-<script src="js/spgap.js?v=25350"></script>
-<script src="js/groupuse.js?v=25350"></script>
-<script src="js/iso3166.js?v=25350"></script>
-<script src="js/causes.js?v=25350"></script>
-<script src="js/locations.js?v=25350"></script>
-<script src="js/authcontexts.js?v=25350"></script>
-<script src="js/authstrengths.js?v=25350"></script>
-<script src="js/recycle.js?v=25350"></script>
-<script src="js/rmau.js?v=25350"></script>
-<script src="js/camap.js?v=25350"></script>
-<script src="js/rmaudoc.js?v=25350"></script>
-<script src="js/termsofuse.js?v=25350"></script>
-<script src="js/audit.js?v=25350"></script>
-<script src="js/drift.js?v=25350"></script>
-<script src="js/guide.js?v=25350"></script>
-<script src="js/userimpact.js?v=25350"></script>
-<script src="js/smsvoice.js?v=25350"></script>
-<script src="js/memberof.js?v=25350"></script>
-<script src="js/devcheck.js?v=25350"></script>
-<script src="js/licgap.js?v=25350"></script>
-<script src="js/teamsdev.js?v=25350"></script>
-<script src="js/signins.js?v=25350"></script>
-<script src="js/reportimpact.js?v=25350"></script>
-<script src="js/changelog.js?v=25350"></script>
-<script src="js/baselineData.js?v=25350"></script>
-<script src="js/baselineJoeyData.js?v=25350"></script>
-<script src="js/baselineLive.js?v=25350"></script>
-<script src="js/baseline.js?v=25350"></script>
-<script src="js/baselineCleanup.js?v=25350"></script>
-<script src="js/groupTemplates.js?v=25350"></script>
-<script src="js/assign.js?v=25350"></script>
-<script src="js/cagroups.js?v=25350"></script>
-<script src="js/groupsview.js?v=25350"></script>
-<script src="js/runledger.js?v=25350"></script>
-<script src="js/protect.js?v=25350"></script>
-<script src="js/import.js?v=25350"></script>
-<script src="js/export.js?v=25350"></script>
-<script src="js/demo.js?v=25350"></script>
-<script src="js/app.js?v=25350"></script>
+<script src="js/branding.js?v=25351"></script>
+<script src="js/selfhost.js?v=25351"></script>
+<script src="js/version.js?v=25351"></script>
+<script src="js/fork.js?v=25351"></script>
+<script src="js/promote.js?v=25351"></script>
+<script src="js/authConfig.js?v=25351"></script>
+<script src="js/labels.js?v=25351"></script>
+<script src="js/graph.js?v=25351"></script>
+<script src="js/model.js?v=25351"></script>
+<script src="js/render.js?v=25351"></script>
+<script src="js/analyze.js?v=25351"></script>
+<script src="js/whatif.js?v=25351"></script>
+<script src="js/mslearn.js?v=25351"></script>
+<script src="js/gapcheck.js?v=25351"></script>
+<script src="js/cisdata.js?v=25351"></script>
+<script src="js/cischeck.js?v=25351"></script>
+<script src="js/exclusions.js?v=25351"></script>
+<script src="js/cascope.js?v=25351"></script>
+<script src="js/validator.js?v=25351"></script>
+<script src="js/whatifeval.js?v=25351"></script>
+<script src="js/compare.js?v=25351"></script>
+<script src="js/whois.js?v=25351"></script>
+<script src="js/wave.js?v=25351"></script>
+<script src="js/sessionctl.js?v=25351"></script>
+<script src="js/spgap.js?v=25351"></script>
+<script src="js/groupuse.js?v=25351"></script>
+<script src="js/iso3166.js?v=25351"></script>
+<script src="js/causes.js?v=25351"></script>
+<script src="js/locations.js?v=25351"></script>
+<script src="js/authcontexts.js?v=25351"></script>
+<script src="js/authstrengths.js?v=25351"></script>
+<script src="js/recycle.js?v=25351"></script>
+<script src="js/rmau.js?v=25351"></script>
+<script src="js/camap.js?v=25351"></script>
+<script src="js/rmaudoc.js?v=25351"></script>
+<script src="js/termsofuse.js?v=25351"></script>
+<script src="js/audit.js?v=25351"></script>
+<script src="js/drift.js?v=25351"></script>
+<script src="js/guide.js?v=25351"></script>
+<script src="js/userimpact.js?v=25351"></script>
+<script src="js/smsvoice.js?v=25351"></script>
+<script src="js/memberof.js?v=25351"></script>
+<script src="js/devcheck.js?v=25351"></script>
+<script src="js/licgap.js?v=25351"></script>
+<script src="js/teamsdev.js?v=25351"></script>
+<script src="js/signins.js?v=25351"></script>
+<script src="js/reportimpact.js?v=25351"></script>
+<script src="js/changelog.js?v=25351"></script>
+<script src="js/baselineData.js?v=25351"></script>
+<script src="js/baselineJoeyData.js?v=25351"></script>
+<script src="js/baselineLive.js?v=25351"></script>
+<script src="js/baseline.js?v=25351"></script>
+<script src="js/baselineCleanup.js?v=25351"></script>
+<script src="js/groupTemplates.js?v=25351"></script>
+<script src="js/assign.js?v=25351"></script>
+<script src="js/cagroups.js?v=25351"></script>
+<script src="js/groupsview.js?v=25351"></script>
+<script src="js/runledger.js?v=25351"></script>
+<script src="js/protect.js?v=25351"></script>
+<script src="js/import.js?v=25351"></script>
+<script src="js/export.js?v=25351"></script>
+<script src="js/demo.js?v=25351"></script>
+<script src="js/app.js?v=25351"></script>
 </body>
 </html>

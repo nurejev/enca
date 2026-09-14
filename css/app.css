@@ -15,7 +15,7 @@
   color-scheme:light;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
 button{font-family:inherit;cursor:pointer}
 a{color:var(--accent2)}
 .muted{color:var(--muted)}
@@ -155,6 +155,68 @@ footer{position:sticky;top:100vh}
   position:sticky;top:var(--sticky-nav,106px);z-index:40;background:var(--bg);
   padding:12px 0;margin:-12px 0 6px;box-shadow:0 6px 12px -8px rgba(18,51,31,.15)}
 .tb-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
+
+/* ---- THE TOOL SCREEN FRAME (build 25351) --------------------------------
+   Every tool screen is the same three things in the same order: a head card
+   saying what the tool is, a sticky toolbar of controls, and the result.
+   That was already true, and it was held together by hand: 96 copies of
+   style="margin-top:0" and style="margin-top:14px" typed onto the same three
+   elements, 33 times. They agreed because somebody was careful, not because
+   anything made them. Now the stylesheet owns the spacing, the markup says
+   nothing about it, and a new screen is spaced right by existing.
+
+   .screen.tool is the opt-in. The sign-in, loading, home, Help, roadmap and
+   changelog screens are not tool screens and deliberately do not carry it. */
+.screen.tool > .readme:first-child,
+.screen.tool > .list-card:first-child{margin-top:0}
+.screen.tool > .toolbar{margin-top:14px}
+.screen.tool > .tool-body{margin-top:14px}
+
+/* ---- THE SLOT ORDER -----------------------------------------------------
+   The toolbar holds six kinds of control and they are ALWAYS in this order,
+   left to right, on every screen:
+
+     tabs   the host's tab strip, on its own row
+     find   search within what this tool loaded
+     scope  which set the tool is looking at (view, catalog, mode, level)
+     filter chips that narrow the rows inside that set
+     window the time range read from the tenant
+     extra  this tool's own controls — a tick, a target, a back button
+     act    refresh, exports, the primary write — right-aligned
+
+   Before this there were TEN different orders across 33 screens for the same
+   six kinds of control: scope came before filter on three screens and after
+   it on seven, and the window picker sat third on 🕓 🚦 🎚 and fifth on 👥.
+   Nothing was wrong with any one screen; what was wrong was that a control
+   moved when you switched tools, so you had to look for it again every time.
+
+   The markup on every screen is now in this order, so the FOCUS order is too.
+   These `order` values are the guard rail, not the mechanism: a screen written
+   out of order still draws in order, and tools/check-toolbar-order.js fails
+   the commit that wrote it. Both agree, deliberately — CSS alone would leave
+   tabbing through a toolbar jumping about, and markup alone nothing enforces.
+
+   THE ONE REAL CULPRIT was .search{flex:1}: the find box ate all the slack in
+   the row, so the filter chips landed in the middle of a screen that had a
+   search and hard left on a screen that did not. A control's position must
+   not depend on whether a DIFFERENT control exists, so inside a toolbar the
+   find box is a fixed width and .tb-actions{margin-left:auto} takes the slack
+   — which is what it was already doing on the screens that have no search. */
+.toolbar > *{order:5}
+.toolbar > .tool-tabs{order:-1}
+.toolbar > .search{order:1;flex:0 0 auto;width:clamp(200px,26%,320px);min-width:0}
+.toolbar > .seg,.toolbar > .tb-scope{order:2}
+.toolbar > .chip-filter{order:3}
+.toolbar > .tb-win{order:4}
+.toolbar > .tb-actions{order:6}
+/* The window and scope pickers are .wi-f labels — a form field borrowed into
+   a toolbar — so they need the row direction the six inline styles used to
+   give them one screen at a time. */
+.wi-f.tb-win,.wi-f.tb-scope{flex-direction:row;align-items:center;gap:6px;flex:none}
+@media (max-width:600px){
+  /* On a phone the find box is the widest useful thing in the row. */
+  .toolbar > .search{width:100%}
+}
 .toolbar > .chk{margin:0}
 /* every control in a toolbar shares one height, so nothing sits half a row off */
 .toolbar .btn,.toolbar .seg,.toolbar .fchip,.toolbar .chk,.toolbar .search input,
