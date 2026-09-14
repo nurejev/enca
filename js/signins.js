@@ -88,7 +88,7 @@ const Signins = (() => {
     const since = new Date(Date.now() - (days || 7) * 864e5).toISOString();
     const parts = [`createdDateTime ge ${since}`];
     if (mode !== "reportonly") parts.push(`conditionalAccessStatus eq 'failure'`);
-    return `/auditLogs/signIns?$filter=${encodeURIComponent(parts.join(" and "))}&$orderby=createdDateTime desc&$top=999`;
+    return `/v1.0/auditLogs/signIns?$filter=${encodeURIComponent(parts.join(" and "))}&$orderby=createdDateTime desc&$top=999`;
   }
 
   // Companion fetch for enforced mode: the interrupted sign-ins. Graph can't
@@ -97,7 +97,7 @@ const Signins = (() => {
   function interruptQuery(days) {
     const since = new Date(Date.now() - (days || 7) * 864e5).toISOString();
     const codes = [...INTERRUPT].map((c) => `status/errorCode eq ${c}`).join(" or ");
-    return `/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since} and (${codes})`)}&$orderby=createdDateTime desc&$top=999`;
+    return `/v1.0/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since} and (${codes})`)}&$orderby=createdDateTime desc&$top=999`;
   }
 
   // ---- Defender advanced hunting as a second source --------------------

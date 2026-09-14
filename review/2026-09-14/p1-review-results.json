@@ -1,0 +1,152 @@
+{
+  "date": "2026-09-14",
+  "probes": [
+    {
+      "name": "ARM successful response throws",
+      "networkCalls": 1,
+      "error": "opts is not defined"
+    },
+    {
+      "name": "Batch Retry-After shortened",
+      "serverRequestedSeconds": 120,
+      "actualScheduledSeconds": 60
+    },
+    {
+      "name": "Compare users external scope mismatch",
+      "compare": "inc",
+      "sharedScope": "na"
+    },
+    {
+      "name": "Compare users legacy guest mismatch",
+      "compare": "na",
+      "sharedScope": "inc"
+    },
+    {
+      "name": "Exclusions discards users after full read",
+      "read": 600,
+      "effectiveUsers": 500
+    },
+    {
+      "name": "Progress pager silently slices final page",
+      "fetched": 600,
+      "returned": 500,
+      "capped": false
+    },
+    {
+      "name": "Page count used as record denominator",
+      "pageCap": 25,
+      "page": 1,
+      "records": 999,
+      "bar": "100%"
+    },
+    {
+      "name": "First-page progress hides elapsed time",
+      "elapsedSeconds": 30,
+      "visible": "Waiting for the first page from Microsoft Graph…"
+    },
+    {
+      "name": "Log source changes during pending read",
+      "requestedSource": "entra",
+      "storedSource": "hunt",
+      "record": "entra-row"
+    },
+    {
+      "name": "Failed group lookup becomes missing object",
+      "request": "403",
+      "reportedMissing": true
+    },
+    {
+      "name": "Group recreation retargets policy after failed membership read",
+      "memberRead": "403",
+      "membersCopied": 0,
+      "reportedFailures": 0,
+      "policyWrites": 1,
+      "newPolicyGroup": "new"
+    },
+    {
+      "name": "Wave cannot distinguish unread membership",
+      "missingLaterPage": "inc",
+      "completeRead": "exc"
+    }
+  ],
+  "benchmarks": [
+    {
+      "module": "Wave.analyze",
+      "users": 100,
+      "policies": 50,
+      "ms": [
+        5,
+        3.7,
+        3.4
+      ],
+      "medianMs": 3.7
+    },
+    {
+      "module": "Wave.analyze",
+      "users": 500,
+      "policies": 100,
+      "ms": [
+        50.4,
+        46.9,
+        47.3
+      ],
+      "medianMs": 47.3
+    },
+    {
+      "module": "Wave.analyze",
+      "users": 500,
+      "policies": 200,
+      "ms": [
+        155.4,
+        175.2,
+        157.8
+      ],
+      "medianMs": 157.8
+    },
+    {
+      "module": "ReportImpact.build",
+      "signins": 10000,
+      "policiesPerSignin": 10,
+      "distinctUsers": 1000,
+      "ms": [
+        51.1,
+        44,
+        37
+      ],
+      "medianMs": 44
+    },
+    {
+      "module": "ReportImpact.build",
+      "signins": 100000,
+      "policiesPerSignin": 10,
+      "distinctUsers": 1000,
+      "ms": [
+        315.9,
+        244.9,
+        266.4
+      ],
+      "medianMs": 266.4
+    },
+    {
+      "module": "Analyzer.evaluate",
+      "users": 1000,
+      "policies": 100,
+      "ms": 73.3,
+      "runs": 1
+    },
+    {
+      "module": "Analyzer.evaluate",
+      "users": 5000,
+      "policies": 100,
+      "ms": 356.5,
+      "runs": 1
+    },
+    {
+      "module": "Analyzer.evaluate",
+      "users": 10000,
+      "policies": 100,
+      "ms": 712.4,
+      "runs": 1
+    }
+  ]
+}

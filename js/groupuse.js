@@ -719,7 +719,7 @@ const GroupUse = (() => {
     const base = principal.type === "user" ? `/users/${principal.id}` : `/groups/${principal.id}`;
     let mem = [];
     try { mem = await Graph.ggetAll(`${base}/transitiveMemberOf?$select=id,displayName,roleTemplateId`); }
-    catch (e) { console.warn("transitiveMemberOf failed:", shortErr(e)); }
+    catch (e) { throw new Error(`Membership scope could not be read: ${shortErr(e)}. Inherited usage is unknown.`); }
     for (const o of mem) {
       const ty = lc(o["@odata.type"]);
       if (ty.includes("directoryrole")) {

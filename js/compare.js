@@ -63,11 +63,7 @@ const Comparer = (() => {
       const p = vm.raw, u = (p.conditions || {}).users || {};
       return {
         id: p.id, name: p.displayName, seq: vm.seq, enforced: p.state === "enabled",
-        includeAll: (u.includeUsers || []).includes("All"),
-        incUsers: new Set(u.includeUsers || []), excUsers: new Set(u.excludeUsers || []),
-        incGroups: u.includeGroups || [], excGroups: u.excludeGroups || [],
-        incRoles: u.includeRoles || [], excRoles: u.excludeRoles || [],
-        incGuests: !!u.includeGuestsOrExternalUsers, excGuests: !!u.excludeGuestsOrExternalUsers,
+        ...CaScope.prep(p),
         controlsLabel: vm.grant.controls.join(vm.grant.op ? ` ${vm.grant.op} ` : ", "),
       };
     }).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
@@ -75,18 +71,8 @@ const Comparer = (() => {
 
   // Assignment state of one policy for one resolved user.
   function stateFor(P, u) {
-    const name = (id) => u.names[id] || id;
-    const included = P.includeAll || P.incUsers.has(u.id) ||
-      P.incGroups.some((g) => u.groupIds.has(g)) || P.incRoles.some((r) => u.roleIds.has(r)) ||
-      (P.incGuests && u.guest);
-    if (!included) return { s: "na" };
-    if (P.excUsers.has(u.id)) return { s: "exc", why: "direct user exclusion" };
-    const g = P.excGroups.find((x) => u.groupIds.has(x));
-    if (g) return { s: "exc", why: "group: " + name(g) };
-    const r = P.excRoles.find((x) => u.roleIds.has(x));
-    if (r) return { s: "exc", why: "role: " + name(r) };
-    if (P.excGuests && u.guest) return { s: "exc", why: "guest user type" };
-    return { s: "inc" };
+    const r = CaScope.of(P, u);
+    return { s: r.state, why: r.state === "unknown" ? "Scope evidence is incomplete" : (r.exc || r.inc)?.text || "" };
   }
 
   // → [{id, name, enforced, controls, states:[{s,why}], differs}]
@@ -119,9 +105,10 @@ const Comparer = (() => {
     }, { namedLocations: ctx.namedLocations, names }));
     // matrix rows over every evaluated policy (same policy set for everyone)
     const polNames = new Map();
-    perUser.forEach((r) => [...r.applied, ...r.notApplied].forEach((p) => polNames.set(p.id, p.name)));
+    perUser.forEach((r) => [...r.applied, ...r.notApplied, ...(r.indeterminate || [])].forEach((p) => polNames.set(p.id, p.name)));
     const rows = [...polNames.entries()].map(([id, name]) => {
       const cells = perUser.map((r) => {
+        if ((r.indeterminate || []).some(p => p.id === id)) return { s: "unknown", why: "Scenario cannot be fully evaluated" };
         const a = r.applied.find((p) => p.id === id);
         if (a) return { s: a.state === "enabledForReportingButNotEnforced" ? "ro" : "ok", why: "" };
         const n = r.notApplied.find((p) => p.id === id);
@@ -133,8 +120,8 @@ const Comparer = (() => {
   }
 
   // ---------- rendering ----------
-  const SYM = { inc: "✓", ok: "✓", ro: "✓", exc: "✗", no: "✗", na: "·" };
-  const CLS = { inc: "ok", ok: "ok", ro: "ro", exc: "no", no: "no", na: "na" };
+  const SYM = { unknown: "?", inc: "✓", ok: "✓", ro: "✓", exc: "✗", no: "✗", na: "·" };
+  const CLS = { unknown: "ro", inc: "ok", ok: "ok", ro: "ro", exc: "no", no: "no", na: "na" };
   const userHead = (users) => users.map((u) =>
     `<th class="pcol"><div class="ph" title="${esc(u.upn)}">${esc(u.name)}${u.guest ? " (guest)" : ""}</div></th>`).join("");
 
@@ -145,7 +132,7 @@ const Comparer = (() => {
     const body = use.map((r) => `<tr${r.differs ? ' class="cmp-diff"' : ""}>
       <td class="ucol"><span class="pol-link" data-polid="${esc(r.id)}">${esc(r.name)}</span>${r.enforced ? "" : ' <span class="tag">report-only</span>'}${diffTag(r.differs)}
         <div class="uupn">${esc(r.controls)}</div></td>` +
-      r.states.map((st) => `<td class="cellv ${CLS[st.s]}"${st.why ? ` title="excluded — ${esc(st.why)}"` : ""}><span class="cell ${CLS[st.s]}">${SYM[st.s]}</span></td>`).join("") + "</tr>").join("");
+      r.states.map((st) => `<td class="cellv ${CLS[st.s]}"${st.why ? ` title="${esc(st.why)}"` : ""}><span class="cell ${CLS[st.s]}">${SYM[st.s]}</span></td>`).join("") + "</tr>").join("");
     return `<div class="mwrap"><table class="mtable"><thead><tr><th class="ucol">Policy (${use.length})</th>${userHead(users)}</tr></thead>
       <tbody>${body || `<tr><td class="mini" style="padding:16px" colspan="${users.length + 1}">${diffOnly ? "No differences — these users are treated identically by every enabled or report-only policy." : "No policies."}</td></tr>`}</tbody></table></div>`;
   }
@@ -174,7 +161,7 @@ const Comparer = (() => {
     const e = (v) => String(v ?? "").replace(/\|/g, "\\|");
     const uh = users.map((u) => e(u.name)).join(" | ");
     const sep = users.map(() => "---").join(" | ");
-    const cell = { inc: "✓", ok: "✓", ro: "✓ (RO)", exc: "✗", no: "✗", na: "·" };
+    const cell = { unknown: "? unknown", inc: "✓", ok: "✓", ro: "✓ (RO)", exc: "✗", no: "✗", na: "·" };
     const L = [`# Compare users — ${e(meta.tenant)}`, "", Brand.generatedBy("Generated"), "",
       "Users compared: " + users.map((u) => `**${e(u.name)}** (${e(u.upn)})`).join(" · "), "",
       "## Policy assignment", "",
@@ -191,7 +178,7 @@ const Comparer = (() => {
       L.push("", "## What-If scenario", "", meta.scenarioLine, "");
       users.forEach((u, i) => {
         const r = sr.perUser[i];
-        L.push(`- **${e(u.name)}** — ${r.blocked ? "access would be **BLOCKED**" : `${r.applied.length} policies apply`}`);
+        L.push(`- **${e(u.name)}** — ${r.complete === false ? "**unknown — incomplete scenario**" : r.blocked ? "access would be **BLOCKED**" : `${r.applied.length} policies apply`}`);
       });
       L.push("", `| Policy | ${uh} |`, `| --- | ${sep} |`);
       sr.rows.forEach((r) => L.push(`| ${e(r.name)}${r.differs ? " **≠**" : ""} | ` +

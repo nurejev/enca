@@ -73,7 +73,7 @@ const Wave = (() => {
 
     // ---- per-member resolution through T36's stateFor
     const memberRows = members.map((m) => {
-      const u = { id: m.id, name: m.displayName || m.userPrincipalName, upn: m.userPrincipalName || "", guest: lc(m.userType) === "guest", enabled: m.accountEnabled !== false, groupIds: new Set([gid, ...parents]), roleIds: new Set(), names, direct: null };
+      const u = { id: m.id, name: m.displayName || m.userPrincipalName, upn: m.userPrincipalName || "", guest: lc(m.userType) === "guest", enabled: m.accountEnabled !== false, groupIds: new Set([gid, ...parents]), roleIds: new Set(), groupsComplete: a.groupsComplete !== false, rolesComplete: a.rolesComplete !== false, names, direct: null };
       groupMembers.forEach((set, g) => { if (set.has(m.id)) u.groupIds.add(g); });
       roleMembers.forEach((set, r) => { if (set.has(m.id)) u.roleIds.add(r); });
       const states = lookup.map((P) => ({ P, st: WhoIs.stateFor(P, u) }));
@@ -92,6 +92,7 @@ const Wave = (() => {
       };
     });
     const byId = new Map(memberRows.map((r) => [r.id, r]));
+    const stateIndex = new Map(memberRows.map(m => [m.id, new Map(m.states.map(s => [s.P.id, s.st]))]));
 
     // ---- sign-ins of the members
     let log = null;
@@ -151,14 +152,15 @@ const Wave = (() => {
       let target = direct ? { kind: "direct", text: `${short(group.displayName)} direct include` }
         : parent ? { kind: "parent", text: `via parent group ${names[parent] || parent}` }
           : P.includeAll ? { kind: "all", text: "All users" } : null;
-      const reach = memberRows.filter((m) => m.states.find((s) => s.P.id === P.id).st.s === "inc");
-      const exc = memberRows.filter((m) => m.states.find((s) => s.P.id === P.id).st.s === "exc");
+      const reach = memberRows.filter((m) => stateIndex.get(m.id).get(P.id).s === "inc");
+      const exc = memberRows.filter((m) => stateIndex.get(m.id).get(P.id).s === "exc");
       if (!target && reach.length) {
         // reaches members through a role, another group or guest type
-        const kinds = new Set(reach.map((m) => m.states.find((s) => s.P.id === P.id).st.inc.kind));
+        const kinds = new Set(reach.map((m) => stateIndex.get(m.id).get(P.id).inc.kind));
         target = { kind: "other", text: `reaches ${reach.length} member${reach.length === 1 ? "" : "s"} through ${[...kinds].map((k) => ({ group: "another group", role: "a role", guest: "guest type", user: "a direct name" }[k] || k)).join(" / ")}` };
       }
       const cnt = log ? (log.perPolicy.get(P.id) || null) : null;
+      const unknown = memberRows.filter(m => stateIndex.get(m.id).get(P.id).s === "unknown").length;
       let fc = null;
       if (P.state === "ro" && log && target && target.kind !== "other") {
         const withTraffic = reach.filter((m) => m.signIns);
@@ -168,9 +170,9 @@ const Wave = (() => {
         const unchanged = evaluated.filter((m) => !blocked.includes(m) && !prompted.includes(m));
         const silent = reach.filter((m) => !m.signIns);
         fc = { reach: reach.length, withTraffic: withTraffic.length, evaluated: evaluated.length, blocked, prompted, unchanged: unchanged.length, silent: silent.length,
-          verdict: blocked.length ? "notyet" : prompted.length ? "friction" : evaluated.length ? "ready" : "nodata" };
+          verdict: (unknown || a.capped || a.logsComplete === false) ? "nodata" : blocked.length ? "notyet" : prompted.length ? "friction" : evaluated.length ? "ready" : "nodata" };
       }
-      return { ...P, target, reach: reach.length, exc, log: cnt, forecast: fc,
+      return { ...P, target, reach: reach.length, unknown, exc, log: cnt, forecast: fc,
         excGroupsHit: [...new Set(exc.flatMap((m) => m.exclusions.filter((x) => x.pid === P.id).map((x) => x.name)))] };
     }).filter((r) => r.target || r.exc.length).sort((a, b) => {
       const o = { direct: 0, parent: 1, all: 2, other: 3 };
@@ -210,7 +212,7 @@ const Wave = (() => {
     // the risk-based policies aimed at this wave, with how many members each reaches
     const retiredPolicies = lookup.filter((P) => P.retired && P.state !== "off").map((P) => ({
       id: P.id, name: P.name, seq: P.seq, state: P.state, hasDev: (P.builtIn || []).some((x) => /^(compliantDevice|domainJoinedDevice)$/i.test(x)), hasApp: (P.builtIn || []).some((x) => /^compliantApplication$/i.test(x)),
-      reach: memberRows.filter((m) => m.states.find((s) => s.P.id === P.id).st.s === "inc").length,
+      reach: memberRows.filter((m) => stateIndex.get(m.id).get(P.id).s === "inc").length,
     })).filter((p) => p.reach);
     const retired = retiredPolicies.length ? {
       policies: retiredPolicies,
@@ -220,9 +222,9 @@ const Wave = (() => {
     } : null;
     const riskPolicies = lookup.filter((P) => P.risk && P.state !== "off").map((P) => ({
       id: P.id, name: P.name, seq: P.seq, state: P.state, userRisk: P.userRisk, signInRisk: P.signInRisk, insiderRisk: P.insiderRisk || [],
-      reach: memberRows.filter((m) => m.states.find((s) => s.P.id === P.id).st.s === "inc").length,
+      reach: memberRows.filter((m) => stateIndex.get(m.id).get(P.id).s === "inc").length,
     })).filter((p) => p.reach);
-    return { group, isDyn, days, riskPolicies, retired, members: memberRows, mcounts, children: (children || []).map((c) => ({ id: c.id, name: c.name, rule: c.rule, n: c.memberIds.size })), rows, counts, log, waveOverlap, alsoIn, bypassGroups, coverage, memberCap: memberCap || 0, capped: !!a.capped, dgGroups: dgGroups || [] };
+    return { group, isDyn, days, riskPolicies, retired, members: memberRows, mcounts, children: (children || []).map((c) => ({ id: c.id, name: c.name, rule: c.rule, n: c.memberIds.size })), rows, counts, log, waveOverlap, alsoIn, bypassGroups, coverage, memberCap: memberCap || 0, capped: !!a.capped, incomplete: a.logsComplete === false || a.groupsComplete === false || a.rolesComplete === false || !!a.capped, dgGroups: dgGroups || [] };
   }
 
   // ----------------------------------------------------------- render --
@@ -298,7 +300,7 @@ const Wave = (() => {
       if (r && r.err) { errs++; m.risk = { err: r.err }; return; }
       m.risk = r || { level: "none", state: "none", detail: "none", updated: "" };
       m.risk.atRisk = !!RS[m.risk.state];
-      m.risk.fires = m.risk.atRisk ? res.riskPolicies.filter((P) => P.userRisk.includes(lc(m.risk.level)) && m.states.find((s) => s.P.id === P.id).st.s === "inc") : [];
+      m.risk.fires = m.risk.atRisk ? res.riskPolicies.filter((P) => P.userRisk.includes(lc(m.risk.level)) && m.states.some(s => s.P.id === P.id && s.st.s === "inc")) : [];
     });
     const atRisk = res.members.filter((m) => m.risk && m.risk.atRisk);
     const remediated = res.members.filter((m) => m.risk && /^(remediated|dismissed|confirmedSafe)$/i.test(String(m.risk.state || "")));
@@ -325,7 +327,7 @@ const Wave = (() => {
     ].filter(Boolean).join("");
     const fcMembers = log ? res.members.filter((m) => m.worst === "block").length : null;
     const promptMembers = log ? res.members.filter((m) => m.worst === "prompt").length : null;
-    const head = `<div class="list-card wo-card">
+    const head = `${res.incomplete ? '<div class="workspace-source">Partial membership evidence — unknown scope is not a safe-to-activate verdict. Counts cover only the users read.</div>' : ""}<div class="list-card wo-card">
       <div class="wo-who">
         <div class="avatar wo-av" style="border-radius:12px;font-size:13px">${esc(dgName.replace(/^DG-/, "").slice(0, 4))}</div>
         <div>
@@ -468,9 +470,9 @@ const Wave = (() => {
   // ------------------------------------------------------------- csv --
   const csvCell = (v) => { const s = String(v ?? ""); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   function toCsv(res) {
-    const H = ["upn", "name", "enabled", "guest", "in_wave_via", "other_waves", "exclusion_groups", "bypass", "roles", "p1", "blocked", "interrupted", "sign_ins", "forecast"];
+    const H = ["upn", "name", "enabled", "guest", "in_wave_via", "other_waves", "exclusion_groups", "bypass", "roles", "p1", "blocked", "interrupted", "sign_ins", "forecast", "evidence_complete", "member_limit"];
     return [H.join(",")].concat(res.members.map((m) => [m.upn, m.name, m.enabled, m.guest, m.how, m.waves.join("; "), m.exclusions.map((x) => `${x.name} (${x.policy})`).join("; "), m.bypass, m.roles.join("; "),
-      m.licence ? (m.licence.p2 ? "P2" : m.licence.p1 ? "P1" : "none") : "", m.log.blocked, m.log.interrupted, m.signIns, m.worst].map(csvCell).join(","))).join("\n");
+      m.licence ? (m.licence.p2 ? "P2" : m.licence.p1 ? "P1" : "none") : "", m.log.blocked, m.log.interrupted, m.signIns, m.worst, !res.incomplete, res.memberCap].map(csvCell).join(","))).join("\n");
   }
 
   // ------------------------------------------------------------ markdown --
@@ -478,6 +480,7 @@ const Wave = (() => {
     const e = (v) => String(v ?? "").replace(/\|/g, "\\|");
     const g = res.group, c = res.counts, mc = res.mcounts, log = res.log;
     const L = [`# Who is ${e(g.displayName)} to Conditional Access — ${e(meta.tenant || "")}`, "", (typeof Brand !== "undefined" && Brand.generatedBy) ? Brand.generatedBy("Generated") : "", ""];
+    if (res.incomplete) L.push("**INCOMPLETE: membership, sign-in evidence or user coverage is partial. No activation recommendation.**", "");
     L.push(`**${e(g.displayName)}** — ${mc.total} members${res.capped ? ` (first ${res.memberCap})` : ""}, ${mc.enabled} enabled${mc.direct != null ? `, ${mc.direct} direct / ${mc.nested} nested` : ""}${res.isDyn ? `, dynamic rule \`${e(g.membershipRule)}\`` : ""}, ${mc.guests} guests.`, "");
     L.push("## At a glance", "");
     L.push(`- **Policies targeting the wave:** ${c.targets} — ${c.on} enforced, ${c.ro} report-only, ${c.off} off${c.other ? `; ${c.other} reach members another way` : ""}`);

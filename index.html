@@ -26,21 +26,21 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25367"></script>
+<script src="js/popup-guard.js?v=25368"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25367" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25367">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25368" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25368">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25367"></script>
+<script src="js/selfhost-boot.js?v=25368"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25367"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25367"></script>
-<link rel="stylesheet" href="css/workspace.css?v=25367">
+<script src="js/counter.js?v=25368"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25368"></script>
+<link rel="stylesheet" href="css/workspace.css?v=25368">
 </head>
 <body>
 
@@ -48,7 +48,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25367" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25368" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -100,7 +100,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25367" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25368" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1889,7 +1889,7 @@
         <li><b>Every card folds</b> on its heading — click to fold or unfold; the choice is remembered per card, so the next user or a rescan keeps your layout.</li>
         <li><b>Buttons out</b> — ⚖ Compare (adds her, ready for a colleague), 🧪 What-If (user filled in), 🔗 Analyzer (everything outside Conditional Access that points at her), 🌊 the wave she is in, Markdown brief for the ticket with every card, CSV of the policy table.</li>
       </ul>
-      <p class="help-x">Read-only. Memberships and policies come from what ENCA already holds — the same include/exclude resolution as ⚖ Compare users. <b>Sign-in source:</b> the segment in the toolbar is shared with 🚦 Sign-in failures, 🎚 Report-only impact and 🌊 the wave — Entra sign-in log (interactive, AuditLog.Read.All), Defender hunting, or Hunting + non-interactive (ThreatHunting.Read.All, Entra ID P2) — see 🚦 for the trade-offs. On the Entra source only this user's sign-ins are read (server-filtered, so no record cap), or the window another tool already read is reused when it was not capped. Registered MFA methods and identity risk are optional extra reads, offered as buttons and never required. Licence comes from the same verdict 🎫 Licence gap uses.</p>
+      <p class="help-x">Read-only. Memberships and policies come from what ENCA already holds — the same include/exclude resolution as ⚖ Compare users. <b>Sign-in source:</b> the segment in the toolbar is shared with 🚦 Sign-in failures, 🎚 Report-only impact and 🌊 the wave — Entra sign-in log (interactive, AuditLog.Read.All), Entra + non-interactive preview, Defender hunting, or Hunting + non-interactive (ThreatHunting.Read.All, Entra ID P2) — see 🚦 for the trade-offs. On the Entra source only this user's sign-ins are read (server-filtered, with a 5,000-event safety cap), or the window another tool already read is reused when it was not capped. Registered MFA methods and identity risk are optional extra reads, offered as buttons and never required. Licence comes from the same verdict 🎫 Licence gap uses.</p>
 
       <h5>🌊 Who is the wave to CA <span class="tag new">BETA</span> <span class="help-fold">folded into this tool — build 25347</span></h5>
       <p>A rollout goes wave by wave — <code>CAD-SEC-U-DG-GLO</code>, then <code>-INT</code>, then <code>-ADM</code>. The question before the next policy is switched from report-only to On is <b>can this wave take it</b>, and until now the answer was per policy (🎚 Report-only impact) or per user (🕵 Who is Anna to CA), never per wave. Pick a deployment group — the active baseline's deploy and persona groups are offered with their member counts, or type any group — and get:</p>
@@ -1904,7 +1904,7 @@
         <li><b>■ Stop</b> — the read can be stopped. Stopped while the group is being read, nothing partial is shown (a half member list would report exclusions that are not there) and the read is offered again; stopped during the sign-in window, the group half stays and the note says the log half is missing. A running Graph call cannot be cancelled, so the stop lands after the query in flight.</li>
         <li><b>Every card folds</b> on its heading, remembered per card.</li>
       </ul>
-      <p class="help-x">Read-only. Members are read transitively, first 500. The reads are bounded by the groups the policies name, not by the members: every referenced group (first 999 members each) and the baseline's deploy / persona groups are read once, plus the directory roles, and every member is then resolved against every policy with the same rule 🕵 Who is Anna to CA uses — so the two tools cannot disagree about a member. <b>Sign-in source:</b> the same segment as 🚦, 🎚 and 🕵 — Entra sign-in log, Defender hunting, or Hunting + non-interactive — and the window is read once and shared; a capped window is said so. Licence per member is the same verdict 🎫 Licence gap uses.</p>
+      <p class="help-x">Read-only. Referenced group and role memberships are fully paged. Wave analysis reads up to 25,000 members, with a lower per-run limit when needed to stay within two million user-policy evaluations. The screen and exports identify partial membership or sign-in evidence; incomplete evidence cannot produce an activation recommendation. The sign-in window is shared with the other log tools, including the P1 non-interactive preview. Licence per member uses the same verdict as Licence gap.</p>
 
       <h5>⚖ Compare users <span class="help-fold">folded into this tool — build 25347</span></h5>
       <p>Why does it work for her but not for him? Put two or more users side by side and see where Conditional Access treats them differently.</p>
@@ -2047,7 +2047,9 @@
       <h4>🚦 Sign-in log</h4>
       <p><b>One window, three questions.</b> Until build 25339 these were three tiles — 🚦 Sign-in failures, 🎚 Report-only impact and 🛂 Session controls — and the first two already read the SAME window through the same cache and the same consent, so the second tile you opened re-used what the first had read and said so in a line nobody should have needed to see. They are one tool with tabs now; <b>T17</b>, <b>T26</b> and <b>T38</b> keep their numbers (see 🔢 Tool numbers) and their sections below. The range picker, the sign-in source and the search box stay per tab, because the three ask different things of the same records.</p>
       <p>Which sign-ins Conditional Access failed and which policy did it — read from the Entra sign-in log, grouped per policy.</p>
-      <p><b>Sign-in source.</b> 🚦, 🎚 Report-only impact, 🕵 Who is Anna to CA and 🌊 Who is the wave to CA share one segment that says where sign-ins are read from: the <b>Entra sign-in log</b> (interactive only, capped at 10,000, <code>AuditLog.Read.All</code>), <b>Defender hunting</b> (the same interactive sign-ins from <code>EntraIdSignInEvents</code> through advanced hunting on Microsoft Graph — <code>ThreatHunting.Read.All</code>, no cap, 30 days) or <b>Hunting + non-interactive</b>, which adds the token refreshes and background client sign-ins the Graph list never returns — where sign-in-frequency re-prompts, legacy-protocol blocks of service accounts and token-protection failures live. Chosen once per tenant; one cached window per source. Hunting needs Entra ID P2 for the table to be populated and a Defender role with hunting access. With non-interactive rows in the result, the interactive / non-interactive counts are chips that filter the list. Large tenants: the rows are <b>slimmed in the query</b> — on a 140-policy tenant a sign-in carries 140 policy entries, 130 of them “not applied”, and those are dropped server-side (the report-only ones survive as a list of ids, so the out-of-scope counts stay exact); a row shrinks ten to twenty times and a day fits in one or two queries. The window is read <b>two days at a time</b>; a day that still exceeds the hunting result size is halved down to 15 minutes, and a 15-minute slice that still exceeds it is read with a lower row cap and reported as capped — the read never fails on size. <b>Enforced</b> on the hunting source reads only the CA failures and interrupts, filtered in the query, so even a large tenant's non-interactive traffic is a small read; <b>Report-only</b> needs the whole window.</p>
+      <p><b>Sign-in source.</b> The log tools share a source selector. <b>Entra sign-in log</b> reads interactive user sign-ins through the stable Graph endpoint on P1/P2. <b>Entra + non-interactive · preview</b> explicitly includes background user sign-ins through the beta endpoint and uses the same AuditLog.Read.All permission. <b>Defender hunting</b> and <b>Hunting + non-interactive</b> remain optional: they need a populated Entra hunting table, P2 and the relevant Defender access. P2 alone does not establish Defender access. Each source has row/response limits; a capped or failed read is incomplete. The shared window is tied to tenant, source, period and policy snapshot. The screen shows the observed event interval separately from the requested period.</p>
+      <p><b>While reading.</b> Progress starts before Microsoft's first response, keeps the elapsed time across phases and shows server retry waits. A page limit is never presented as a completion percentage. Report-only impact shows provisional results from the first useful page. Stop cancels supported reads or stops at the next safe read boundary; a stopped read cannot become a complete result. Larger analyses run in background workers. Coverage analysis accepts up to two million user-policy evaluations per run: choose a deployment group or named users for larger tenants.</p>
+      <p><b>P1 support and optional products.</b> Policy and directory tools use P1 as the supported baseline. Identity risk, Defender evidence, Intune checks and Governance features keep their own product, consent, role and source requirements. Import preview identifies premium requirements; policy writes and restores recheck active subscription evidence and policy capacity. Unknown entitlement blocks the write without removing premium conditions. Subscription discovery does not prove that each affected person is correctly licensed. Actual P1/P2 tenant acceptance is recorded separately in Help → Waiting for production.</p>
       <ul>
         <li><b>Enforced</b> — sign-ins with <code>conditionalAccessStatus = failure</code>: a policy's controls were not satisfied and the sign-in was blocked or interrupted. Filtered by Graph, so the read is cheap. An abandoned MFA prompt lands here too — a failure is a prompt to look, not proof the policy is wrong.</li>
         <li><b>Report-only</b> — sign-ins a report-only policy <i>would have failed</i>. These sign-ins complete, so Graph cannot pre-filter them: the whole window is read and filtered in the browser, capped at 10&#8239;000 sign-ins. This is the number to check before flipping a policy from report-only to On.</li>
@@ -3019,71 +3021,73 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25367"></script>
-<script src="js/selfhost.js?v=25367"></script>
-<script src="js/version.js?v=25367"></script>
-<script src="js/verdict.js?v=25367"></script>
-<script src="js/fork.js?v=25367"></script>
-<script src="js/promote.js?v=25367"></script>
-<script src="js/authConfig.js?v=25367"></script>
-<script src="js/labels.js?v=25367"></script>
-<script src="js/graph.js?v=25367"></script>
-<script src="js/model.js?v=25367"></script>
-<script src="js/render.js?v=25367"></script>
-<script src="js/analyze.js?v=25367"></script>
-<script src="js/whatif.js?v=25367"></script>
-<script src="js/mslearn.js?v=25367"></script>
-<script src="js/gapcheck.js?v=25367"></script>
-<script src="js/cisdata.js?v=25367"></script>
-<script src="js/cischeck.js?v=25367"></script>
-<script src="js/exclusions.js?v=25367"></script>
-<script src="js/cascope.js?v=25367"></script>
-<script src="js/validator.js?v=25367"></script>
-<script src="js/whatifeval.js?v=25367"></script>
-<script src="js/compare.js?v=25367"></script>
-<script src="js/whois.js?v=25367"></script>
-<script src="js/wave.js?v=25367"></script>
-<script src="js/sessionctl.js?v=25367"></script>
-<script src="js/spgap.js?v=25367"></script>
-<script src="js/groupuse.js?v=25367"></script>
-<script src="js/iso3166.js?v=25367"></script>
-<script src="js/causes.js?v=25367"></script>
-<script src="js/locations.js?v=25367"></script>
-<script src="js/authcontexts.js?v=25367"></script>
-<script src="js/authstrengths.js?v=25367"></script>
-<script src="js/recycle.js?v=25367"></script>
-<script src="js/rmau.js?v=25367"></script>
-<script src="js/camap.js?v=25367"></script>
-<script src="js/rmaudoc.js?v=25367"></script>
-<script src="js/termsofuse.js?v=25367"></script>
-<script src="js/audit.js?v=25367"></script>
-<script src="js/drift.js?v=25367"></script>
-<script src="js/guide.js?v=25367"></script>
-<script src="js/userimpact.js?v=25367"></script>
-<script src="js/smsvoice.js?v=25367"></script>
-<script src="js/memberof.js?v=25367"></script>
-<script src="js/devcheck.js?v=25367"></script>
-<script src="js/licgap.js?v=25367"></script>
-<script src="js/teamsdev.js?v=25367"></script>
-<script src="js/signins.js?v=25367"></script>
-<script src="js/reportimpact.js?v=25367"></script>
-<script src="js/changelog.js?v=25367"></script>
-<script src="js/baselineData.js?v=25367"></script>
-<script src="js/baselineJoeyData.js?v=25367"></script>
-<script src="js/baselineLive.js?v=25367"></script>
-<script src="js/baseline.js?v=25367"></script>
-<script src="js/baselineCleanup.js?v=25367"></script>
-<script src="js/groupTemplates.js?v=25367"></script>
-<script src="js/assign.js?v=25367"></script>
-<script src="js/cagroups.js?v=25367"></script>
-<script src="js/groupsview.js?v=25367"></script>
-<script src="js/runledger.js?v=25367"></script>
-<script src="js/protect.js?v=25367"></script>
-<script src="js/import.js?v=25367"></script>
-<script src="js/export.js?v=25367"></script>
-<script src="js/demo.js?v=25367"></script>
-<script src="js/workspace.js?v=25367"></script>
-<script src="js/app.js?v=25367"></script>
-<script src="js/accessibility.js?v=25367"></script>
+<script src="js/branding.js?v=25368"></script>
+<script src="js/selfhost.js?v=25368"></script>
+<script src="js/version.js?v=25368"></script>
+<script src="js/verdict.js?v=25368"></script>
+<script src="js/fork.js?v=25368"></script>
+<script src="js/promote.js?v=25368"></script>
+<script src="js/authConfig.js?v=25368"></script>
+<script src="js/labels.js?v=25368"></script>
+<script src="js/capabilities.js?v=25368"></script>
+<script src="js/graph.js?v=25368"></script>
+<script src="js/model.js?v=25368"></script>
+<script src="js/render.js?v=25368"></script>
+<script src="js/analyze.js?v=25368"></script>
+<script src="js/whatif.js?v=25368"></script>
+<script src="js/mslearn.js?v=25368"></script>
+<script src="js/gapcheck.js?v=25368"></script>
+<script src="js/cisdata.js?v=25368"></script>
+<script src="js/cischeck.js?v=25368"></script>
+<script src="js/exclusions.js?v=25368"></script>
+<script src="js/cascope.js?v=25368"></script>
+<script src="js/validator.js?v=25368"></script>
+<script src="js/whatifeval.js?v=25368"></script>
+<script src="js/compare.js?v=25368"></script>
+<script src="js/whois.js?v=25368"></script>
+<script src="js/wave.js?v=25368"></script>
+<script src="js/sessionctl.js?v=25368"></script>
+<script src="js/spgap.js?v=25368"></script>
+<script src="js/groupuse.js?v=25368"></script>
+<script src="js/iso3166.js?v=25368"></script>
+<script src="js/causes.js?v=25368"></script>
+<script src="js/locations.js?v=25368"></script>
+<script src="js/authcontexts.js?v=25368"></script>
+<script src="js/authstrengths.js?v=25368"></script>
+<script src="js/recycle.js?v=25368"></script>
+<script src="js/rmau.js?v=25368"></script>
+<script src="js/camap.js?v=25368"></script>
+<script src="js/rmaudoc.js?v=25368"></script>
+<script src="js/termsofuse.js?v=25368"></script>
+<script src="js/audit.js?v=25368"></script>
+<script src="js/drift.js?v=25368"></script>
+<script src="js/guide.js?v=25368"></script>
+<script src="js/userimpact.js?v=25368"></script>
+<script src="js/smsvoice.js?v=25368"></script>
+<script src="js/memberof.js?v=25368"></script>
+<script src="js/devcheck.js?v=25368"></script>
+<script src="js/licgap.js?v=25368"></script>
+<script src="js/teamsdev.js?v=25368"></script>
+<script src="js/signins.js?v=25368"></script>
+<script src="js/reportimpact.js?v=25368"></script>
+<script src="js/changelog.js?v=25368"></script>
+<script src="js/baselineData.js?v=25368"></script>
+<script src="js/baselineJoeyData.js?v=25368"></script>
+<script src="js/baselineLive.js?v=25368"></script>
+<script src="js/baseline.js?v=25368"></script>
+<script src="js/baselineCleanup.js?v=25368"></script>
+<script src="js/groupTemplates.js?v=25368"></script>
+<script src="js/assign.js?v=25368"></script>
+<script src="js/cagroups.js?v=25368"></script>
+<script src="js/groupsview.js?v=25368"></script>
+<script src="js/runledger.js?v=25368"></script>
+<script src="js/protect.js?v=25368"></script>
+<script src="js/import.js?v=25368"></script>
+<script src="js/export.js?v=25368"></script>
+<script src="js/demo.js?v=25368"></script>
+<script src="js/workspace.js?v=25368"></script>
+<script src="js/analysis-jobs.js?v=25368"></script>
+<script src="js/app.js?v=25368"></script>
+<script src="js/accessibility.js?v=25368"></script>
 </body>
 </html>

@@ -28,6 +28,33 @@
 // Newest release first.
 // ======================================================================
 const CHANGELOG = [
+{
+  "build": 25368,
+  "date": "2026-09-14",
+  "title": "Work packages 1–3: trustworthy P1 tools and responsive reads",
+  "items": [
+    {
+      "kind": "fixed",
+      "tool": "Imports and group management",
+      "text": "Group replacement verifies the complete member copy before repointing policy references. Read failures, failed copies and unreadable verification retain the original assignments. Imports, policy writes and restores check product requirements and policy capacity."
+    },
+    {
+      "kind": "fixed",
+      "tool": "Analysis and log tools",
+      "text": "Pagination reports final-page overflow and incomplete reads. Comparisons share the scope evaluator; unresolved memberships remain unknown. Exclusions retain full member totals. Sign-in results cannot cross tenant, source or period selections."
+    },
+    {
+      "kind": "improved",
+      "tool": "P1 support",
+      "text": "The Entra log now offers an explicit non-interactive preview alongside its stable interactive query. P2, Defender and Intune evidence keep separate requirements; premium policy conditions are explained in import preview rather than silently removed."
+    },
+    {
+      "kind": "improved",
+      "tool": "Long reads",
+      "text": "Progress starts before the first response and shows elapsed time and retry waits. Reads share a concurrency budget; supported reads and analysis workers can be stopped. Report-only impact renders the first useful page. Large calculations use workers and indexed lookups, with explicit per-run limits."
+    }
+  ]
+},
   {
     build: 25367, date: "2026-09-14", title: "\ud83e\udee5 The verdict stays in its column",
     items: [

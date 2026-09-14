@@ -659,7 +659,7 @@ const CaGroups = (() => {
         const ms = await Graph.ggetAll(`/groups/${r.id}/transitiveMembers/microsoft.graph.user`
           + `?$select=id,displayName,userPrincipalName,accountEnabled&$top=999`);
         r.memberTotal = ms.length;
-        r.members = ms.slice(0, MEMBER_CAP).map((m) => ({
+        r.members = ms.map((m) => ({
           id: m.id, name: m.displayName || m.id, upn: m.userPrincipalName || "",
           disabled: m.accountEnabled === false,
         }));
@@ -790,7 +790,7 @@ const CaGroups = (() => {
         // per-row Create for a missing group that has a template — so a single
         // missing group can be fixed without going to the Create tab.
         const mem = r.memberError ? '<span class="cg-err" title="scan failed">error</span>'
-          : r.members ? `<b>${r.memberTotal}</b>${r.memberTotal > MEMBER_CAP ? ` <span class="mini">(first ${MEMBER_CAP})</span>` : ""}`
+          : r.members ? `<b>${r.memberTotal}</b>`
           : r.id ? `<button class="btn sm cg-scan" data-cgscan="${esc(r.name)}">Scan</button>`
           : r.status === "missing" && r.template ? `<button class="btn sm primary" data-cgcreateone="${esc(r.name)}">Create</button>`
           : '<span class="mini muted">—</span>';
@@ -860,13 +860,13 @@ const CaGroups = (() => {
     // The same grid every matrix view uses (.matrix-wrap + .mtable): card
     // surface, sticky header row, sticky first column, vertical policy-style
     // headers. The old tablewrap / stick / vert classes never had CSS.
-    return `<div class="matrix-wrap cg-mwrap"><table class="mtable cg-matrix${nesting ? " cg-nesting" : ""}">
+    return `${users.length > 100 ? `<p class="mini muted">Showing the first 100 of ${users.length.toLocaleString()} matching members. Search to find any member; exports include every loaded member.</p>` : ""}<div class="matrix-wrap cg-mwrap"><table class="mtable cg-matrix${nesting ? " cg-nesting" : ""}">
       <thead><tr>
         <th class="ucol">Member (${users.length})</th>
         ${cols.map((c) => { const an = nesting && allNested(c); return `<th class="pcol${an ? " cg-allnested" : ""}"><div class="ph" title="${esc(c.name)}${c.memberTotal != null ? ` — ${c.memberTotal} member${c.memberTotal === 1 ? "" : "s"}` : ""}${c.children ? ` — ${c.children.length} nested group${c.children.length === 1 ? "" : "s"}` : ""}${an ? " — every member came in through a nested group; nothing here is removable from this group" : ""}">${an ? "◐ " : ""}${esc(c.name)}</div></th>`; }).join("")}
         <th class="pcol cg-incol" title="How many of the loaded groups this member is in">In</th><th class="cg-fill"></th>
       </tr></thead>
-      <tbody>${users.map((u) => `<tr>
+      <tbody>${users.slice(0, 100).map((u) => `<tr>
         <td class="ucol"><span class="uname">${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""}</span><div class="uupn">${esc(u.upn || "")}</div></td>
         ${cols.map((c) => cell(u, c)).join("")}
         <td class="cellv cg-incol"><b>${u.groups.size}</b></td><td class="cg-fill"></td>

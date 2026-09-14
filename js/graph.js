@@ -101,7 +101,13 @@ const Graph = (() => {
     try { return atob(m[1]); } catch { return null; }
   }
 
-  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+  const sleep = (ms, signal) => new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(Object.assign(new Error("Read stopped"), { stopped: true })); return; }
+    let timer;
+    const abort = () => { clearTimeout(timer); reject(Object.assign(new Error("Read stopped"), { stopped: true })); };
+    timer = setTimeout(() => { signal?.removeEventListener("abort", abort); resolve(); }, ms);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 
   // Every Graph call goes through here, so two cross-cutting concerns live in
   // one place: the claims-challenge step-up, and 429 throttling.
@@ -112,10 +118,32 @@ const Graph = (() => {
   // dies the moment the tenant's quota is hit, as it did here. Retry-After is
   // authoritative; when absent we back off exponentially. 503/504 (transient
   // gateway) get the same treatment.
+  async function readFetch(url, options) {
+    if (options.method && options.method !== "GET" || typeof AbortController === "undefined") return fetch(url, options);
+    const controller = new AbortController(); let timedOut = false;
+    const abort = () => controller.abort();
+    if (options.signal?.aborted) throw stoppedError();
+    options.signal?.addEventListener("abort", abort, { once: true });
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 120000);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      // Keep the attempt deadline through the body download, not only headers.
+      if (typeof Response !== "undefined" && response.arrayBuffer) {
+        const bytes = await response.arrayBuffer();
+        return new Response(response.status === 204 ? null : bytes, { status: response.status, statusText: response.statusText, headers: response.headers });
+      }
+      return response;
+    } catch (e) {
+      if (timedOut) throw new Error("Microsoft did not finish this request within two minutes. Retry or narrow the scope; the read is incomplete.");
+      if (options.signal?.aborted) throw stoppedError();
+      throw e;
+    } finally { clearTimeout(timer); options.signal?.removeEventListener("abort", abort); }
+  }
+
   const MAX_RETRIES = 5;
   async function graphFetch(url, opts, scopes) {
     const full = safeGraphUrl(url);
-    const send = (t) => fetch(full, { ...opts, headers: { ...(opts.headers || {}), Authorization: "Bearer " + t } });
+    const send = (t) => readFetch(full, { ...opts, headers: { ...(opts.headers || {}), Authorization: "Bearer " + t } });
     let r = await send(await token(scopes));
 
     // claims challenge — one step-up, as before
@@ -136,7 +164,7 @@ const Graph = (() => {
       const ra = parseInt(r.headers.get("Retry-After"), 10);
       const waitMs = Number.isFinite(ra) ? ra * 1000 : Math.min(2 ** attempt * 1000, 20000);
       onThrottle(waitMs, attempt + 1);
-      await sleep(waitMs + 250);   // small cushion over the stated window
+      await sleep(waitMs + 250, opts.signal);   // stop remains responsive during server backoff
       r = await send(await token(scopes));
     }
     return r;
@@ -154,7 +182,11 @@ const Graph = (() => {
 
   // scopes optional — defaults to the CA write scope; pass Group.ReadWrite.All
   // etc. when patching a different resource (e.g. renaming a group).
+  let policyGuard = null;
+  const setPolicyGuard = fn => { policyGuard = fn; };
+  const guardPolicy = async (url, body, method) => { if (policyGuard && /\/identity\/conditionalAccess\/(?:policies(?:\/[^/?]+)?|deletedItems\/policies\/[^/?]+\/restore)$/.test(url.split("?")[0])) await policyGuard(url, body, method); };
   async function gpatch(url, body, scopes) {
+    await guardPolicy(url, body, "PATCH");
     scopes = scopes || [...AUTH_CONFIG.scopes, ...WRITE_SCOPES];
     const r = await graphFetch(url, {
       method: "PATCH",
@@ -201,7 +233,7 @@ const Graph = (() => {
       // no JSON body — a bare gateway page, or nothing at all
       if (GATEWAY[r.status]) msg += ": " + gatewayText(r.status, "");
     }
-    return new Error(msg);
+    return Object.assign(new Error(msg), { status: r.status });
   }
 
   // Which of these appIds actually have a service principal in this tenant?
@@ -222,7 +254,7 @@ const Graph = (() => {
 
   // never attach the access token to anything but Microsoft Graph
   function safeGraphUrl(url) {
-    const full = url.startsWith("http") ? url : AUTH_CONFIG.graphBase + url;
+    const full = url.startsWith("http") ? url : /^\/(v1\.0|beta)\//.test(url) ? "https://graph.microsoft.com" + url : AUTH_CONFIG.graphBase + url;
     if (new URL(full).hostname !== "graph.microsoft.com") throw new Error("Blocked non-Graph URL");
     return full;
   }
@@ -264,7 +296,7 @@ const Graph = (() => {
     let r = await send(await token(ARM_SCOPES));
     // A gateway failure may arrive after a write was committed. Retrying a
     // create could duplicate it; only reads retry ambiguous 5xx responses.
-    const isRead = !opts.method || ["GET", "HEAD"].includes(opts.method.toUpperCase());
+    const isRead = !init?.method || ["GET", "HEAD"].includes(init.method.toUpperCase());
     for (let attempt = 0; (r.status === 429 || (isRead && [502, 503, 504].includes(r.status))) && attempt < MAX_RETRIES; attempt++) {
       const ra = parseInt(r.headers.get("Retry-After"), 10);
       const waitMs = Number.isFinite(ra) ? ra * 1000 : Math.min(2 ** attempt * 1000, 20000);
@@ -326,6 +358,8 @@ const Graph = (() => {
   // v1.0 returns on some tenants (see NEST_V1 in js/cagroups.js).
   async function gbatch(requests, onProgress, opts = {}) {
     const out = {}, all = requests || [];
+    // Validate the whole batch before sending any policy mutation.
+    for (const r of all) if (["POST", "PATCH"].includes((r.method || "GET").toUpperCase())) await guardPolicy(r.url, r.body, r.method.toUpperCase());
     const endpoint = opts.base ? `${opts.base}/$batch` : "/$batch";
     const limit = Math.max(0, Math.min(5, opts.maxRetries ?? 3));
     const stopped = () => opts.signal?.aborted || opts.shouldStop?.();
@@ -355,7 +389,7 @@ const Graph = (() => {
             const raw = Object.entries(r.headers || {}).find(([k]) => k.toLowerCase() === "retry-after")?.[1];
             const seconds = Number(raw);
             const delay = raw && !Number.isFinite(seconds) ? Date.parse(raw) - Date.now() : (raw == null ? 5 : seconds) * 1000;
-            waitMs = Math.max(waitMs, Math.min(60000, Math.max(0, Number.isFinite(delay) ? delay : 5000)));
+            waitMs = Math.max(waitMs, Math.max(0, Number.isFinite(delay) ? delay : 5000));
           } else out[req.id] = { error: r?.body?.error?.message || (r ? `HTTP ${r.status}; retry limit reached` : "Batch response missing"), code: r?.body?.error?.code || "", status: r?.status };
         }
         pending = again;
@@ -373,25 +407,80 @@ const Graph = (() => {
   // Reads used to throw a bare "Graph request failed (403)", which tells the
   // person nothing they can act on — Graph's own body says whether it is a
   // missing scope, a missing directory role or a malformed query. Surface it.
-  async function gget(url, scopes) {
-    const r = await graphFetch(url, { headers: { ConsistencyLevel: "eventual" } }, scopes);
-    if (!r.ok) throw await graphError(r);
-    return r.json();
+  const readContext = () => `${account?.homeAccountId || ""}:${account?.tenantId || ""}`;
+  const stoppedError = () => Object.assign(new Error("Read stopped; results are incomplete"), { stopped: true });
+  // Shared concurrency budget for all directory reads. Queued reads can be stopped.
+  let activeReads = 0;
+  const readQueue = [];
+  async function withReadSlot(fn, signal) {
+    if (signal?.aborted) throw stoppedError();
+    await new Promise((resolve, reject) => {
+      const entry = { resolve, cleanup: () => signal?.removeEventListener("abort", abort) };
+      const abort = () => { const i = readQueue.indexOf(entry); if (i >= 0) { readQueue.splice(i, 1); entry.cleanup(); reject(stoppedError()); } };
+      signal?.addEventListener("abort", abort, { once: true });
+      readQueue.push(entry); drainReads();
+    });
+    try { if (signal?.aborted) throw stoppedError(); return await fn(); }
+    finally { activeReads--; drainReads(); }
+  }
+  function drainReads() { while (activeReads < 4 && readQueue.length) { activeReads++; const entry = readQueue.shift(); entry.cleanup(); entry.resolve(); } }
+  async function mapLimit(items, limit, fn) {
+    const result = new Array(items.length); let cursor = 0;
+    await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, async () => {
+      for (;;) { const i = cursor++; if (i >= items.length) return; result[i] = await fn(items[i], i); }
+    }));
+    return result;
+  }
+  const pendingReads = new Map();
+  async function gget(url, scopes, options = {}) {
+    const context = readContext();
+    const key = JSON.stringify([context, url, scopes || AUTH_CONFIG.scopes]);
+    if (!options.signal && pendingReads.has(key)) return pendingReads.get(key);
+    const run = withReadSlot(async () => {
+      const r = await graphFetch(url, { headers: { ConsistencyLevel: "eventual" }, signal: options.signal }, scopes);
+      if (context !== readContext()) throw new Error("Read discarded: signed-in account changed");
+      if (!r.ok) throw await graphError(r);
+      return r.json();
+    }, options.signal);
+    if (!options.signal) pendingReads.set(key, run);
+    try { return await run; }
+    finally { if (pendingReads.get(key) === run) pendingReads.delete(key); }
   }
 
-  // cap: stop paging once that many rows are in hand (the caller says so)
-  async function ggetAll(url, cap) {
-    let out = [], next = url;
-    while (next) {
-      const j = await gget(next);
-      out = out.concat(j.value || []);
-      next = j["@odata.nextLink"] || null;
-      if (cap && out.length >= cap) break;
-    }
-    return out;
+  // Completeness is explicit, independent of whether the final page has a nextLink.
+  async function readPages(url, opts = {}) {
+    const cap = Number.isFinite(opts.cap) && opts.cap > 0 ? opts.cap : Infinity;
+    const items = [], seen = new Set(); let next = url, pages = 0, observed = 0;
+    const state = () => ({ items, complete: !next && observed <= cap, capped: !!next || observed > cap,
+      nextLink: next, pages, observed, count: items.length, readAt: Date.now() });
+    try {
+      while (next && items.length < cap) {
+        if (opts.signal?.aborted || opts.shouldStop?.()) throw stoppedError();
+        if (seen.has(next)) throw new Error("Repeated pagination link; read is incomplete");
+        seen.add(next);
+        const j = await gget(next, opts.scopes, { signal: opts.signal });
+        if (opts.signal?.aborted || opts.shouldStop?.()) throw stoppedError();
+        const page = j.value;
+        if (!Array.isArray(page)) throw new Error("Expected a collection page; read is incomplete");
+        observed += page.length; pages++;
+        for (const row of page) { if (items.length < cap) items.push(row); }
+        next = j["@odata.nextLink"] || null;
+        await opts.onPage?.(items, state());
+      }
+      return state();
+    } catch (e) { e.partial = { ...state(), complete: false }; throw e; }
+  }
+  async function ggetAll(url, capOrOptions) {
+    // Older callers passed a scopes array as argument two. Preserve it explicitly.
+    const opts = Array.isArray(capOrOptions) ? { scopes: capOrOptions }
+      : typeof capOrOptions === "object" ? (capOrOptions || {}) : { cap: capOrOptions };
+    const result = await readPages(url, opts);
+    Object.defineProperty(result.items, "readState", { value: { ...result, items: undefined } });
+    return result.items;
   }
 
   async function gpost(url, body, scopes) {
+    await guardPolicy(url, body, "POST");
     const r = await graphFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -590,5 +679,5 @@ const Graph = (() => {
     }
   }
 
-  return { init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, apost, apatch, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, get account() { return account; } };
+  return { init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, readPages, mapLimit, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, apost, apatch, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, setPolicyGuard, get account() { return account; } };
 })();

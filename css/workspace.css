@@ -57,3 +57,10 @@ html{scrollbar-gutter:stable}
 .dialog-close{display:block;margin:0 0 14px auto}.workspace-about{margin-top:24px}.workspace-about>summary{font-size:14px;font-weight:600;cursor:pointer}.workspace-about[open]>summary{margin-bottom:20px}
 .rollout-sources{margin-top:28px;border-top:1px solid var(--border);padding-top:20px}.rollout-source-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px}.rollout-source-grid article{border:1px solid var(--border);border-radius:12px;padding:20px;min-width:0}.rollout-source-grid h4{margin:0}.rollout-source-grid p{margin:10px 0 16px;line-height:1.6;color:var(--muted)}.rollout-sources [role=status]{overflow-wrap:anywhere}
 .workspace-review-summary{font-size:13px;line-height:1.6}.workspace-review-summary>summary{cursor:pointer;color:var(--muted);padding:8px 0}.workspace-review-summary[open]>summary{margin-bottom:12px}.cell.unknown{color:var(--warn-fg);background:var(--soft)}
+
+/* Unknown-length reads show activity, not a percentage of a safety cap. */
+.read-progress { min-height: 150px; }
+.read-indeterminate { animation: read-progress-travel 1.6s ease-in-out infinite alternate; }
+@keyframes read-progress-travel { from { transform: translateX(0); } to { transform: translateX(180%); } }
+.wi-verdict.unknown { background: var(--surface); border: 1px solid var(--report); color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .read-indeterminate { animation: none; } }

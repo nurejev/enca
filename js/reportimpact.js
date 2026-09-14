@@ -27,9 +27,10 @@
 // ======================================================================
 const ReportImpact = (() => {
   // Date-window read; report-only verdicts cannot be filtered server-side.
-  function query(days) {
+  function query(days, nonInteractive = false) {
     const since = new Date(Date.now() - (days || 7) * 864e5).toISOString();
-    return `/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since}`)}&$orderby=createdDateTime desc&$top=999`;
+    const eventFilter = nonInteractive ? " and signInEventTypes/any(t:t eq 'interactiveUser' or t eq 'nonInteractiveUser')" : "";
+    return `/${nonInteractive ? "beta" : "v1.0"}/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since}${eventFilter}`)}&$orderby=createdDateTime desc&$top=999`;
   }
 
   const RO = {

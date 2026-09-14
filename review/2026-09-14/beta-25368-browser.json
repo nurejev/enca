@@ -1,0 +1,200 @@
+{
+  "build": 25368,
+  "boot": "screen-home",
+  "analyze": "8 users have unresolved policy scope. No complete coverage funnel is available. Inspect their unknown matrix cells for the missing evidence.\n8\nUSERS\n1\nRISKY BYPASSES\n0\nNO MFA FROM ",
+  "wave": "GLO\nCAD-SEC-U-DG-GLO deploy group\nCAD-SEC-U-DG-GLO\nMembers\n4\n· 4 enabled\nDirect\n4\n· nested\n0\nAlso in\nDG-ADM\n: 1 ·\nDG-INT\n: 2 ·\nPersona-Admins\n: 1 ·\nPersona-Internals\n: 2\n2\nin an exclusion group while the policy is On\nGuests\n1\nNo Entra ID P1",
+  "exclusions": "🚪 CA Exclusion analyzerT09 · v1.10\n\nEvery exclusion configured across your Conditional Access policies — users, groups (with their members), directory roles, guest types, applications, named locations and device platforms — mapped against ",
+  "worker": {
+    "users": 10000,
+    "policies": 100,
+    "elapsedMs": 1017,
+    "uiHeartbeatTicks": 36
+  },
+  "smoke": [
+    {
+      "id": "toolSmsVoice",
+      "screen": "screen-smsvoice"
+    },
+    {
+      "id": "toolMemberOf",
+      "screen": "screen-memberof"
+    },
+    {
+      "id": "toolUserImpact",
+      "screen": "screen-userimpact"
+    },
+    {
+      "id": "toolPolicies",
+      "screen": "screen-list"
+    },
+    {
+      "id": "toolAnalyze",
+      "screen": "screen-list"
+    },
+    {
+      "tab": "gap:coverage",
+      "screen": "screen-list"
+    },
+    {
+      "tab": "gap:licences",
+      "screen": "screen-licgap"
+    },
+    {
+      "id": "toolWhatIf",
+      "screen": "screen-whatif"
+    },
+    {
+      "tab": "whatif:one",
+      "screen": "screen-whatif"
+    },
+    {
+      "tab": "whatif:every",
+      "screen": "screen-validator"
+    },
+    {
+      "id": "toolWhoIs",
+      "screen": "screen-whois"
+    },
+    {
+      "tab": "whois:user",
+      "screen": "screen-whois"
+    },
+    {
+      "tab": "whois:group",
+      "screen": "screen-wave"
+    },
+    {
+      "tab": "whois:compare",
+      "screen": "screen-compare"
+    },
+    {
+      "id": "toolSpGap",
+      "screen": "screen-spgap"
+    },
+    {
+      "id": "toolGroupUse",
+      "screen": "screen-groupuse"
+    },
+    {
+      "id": "toolExclusions",
+      "screen": "screen-exclusions"
+    },
+    {
+      "id": "toolAudit",
+      "screen": "screen-audit"
+    },
+    {
+      "tab": "changes:audit",
+      "screen": "screen-audit"
+    },
+    {
+      "tab": "changes:snapshot",
+      "screen": "screen-drift"
+    },
+    {
+      "id": "toolSignins",
+      "screen": "screen-signins"
+    },
+    {
+      "tab": "signins:failures",
+      "screen": "screen-signins"
+    },
+    {
+      "tab": "signins:impact",
+      "screen": "screen-impact"
+    },
+    {
+      "tab": "signins:session",
+      "screen": "screen-sessionctl"
+    },
+    {
+      "id": "toolGapCheck",
+      "screen": "screen-gapcheck"
+    },
+    {
+      "tab": "checks:bypass",
+      "screen": "screen-gapcheck"
+    },
+    {
+      "tab": "checks:mslearn",
+      "screen": "screen-mslearn"
+    },
+    {
+      "tab": "checks:cis",
+      "screen": "screen-cis"
+    },
+    {
+      "tab": "checks:intune",
+      "screen": "screen-devcheck"
+    },
+    {
+      "id": "toolBaseline",
+      "screen": "screen-baseline"
+    },
+    {
+      "tab": "baseline:baseline",
+      "screen": "screen-baseline"
+    },
+    {
+      "tab": "baseline:guide",
+      "screen": "screen-guide"
+    },
+    {
+      "id": "toolCaGroups",
+      "screen": "screen-cagroups"
+    },
+    {
+      "id": "toolProtect",
+      "screen": "screen-protect"
+    },
+    {
+      "id": "toolLocations",
+      "screen": "screen-locations"
+    },
+    {
+      "tab": "blocks:locations",
+      "screen": "screen-locations"
+    },
+    {
+      "tab": "blocks:strengths",
+      "screen": "screen-authstr"
+    },
+    {
+      "tab": "blocks:contexts",
+      "screen": "screen-authctx"
+    },
+    {
+      "tab": "blocks:terms",
+      "screen": "screen-tou"
+    },
+    {
+      "tab": "blocks:deleted",
+      "screen": "screen-recycle"
+    },
+    {
+      "id": "toolRmau",
+      "screen": "screen-rmau"
+    },
+    {
+      "id": "toolDeploy",
+      "screen": "screen-rollout"
+    },
+    {
+      "id": "toolImport",
+      "screen": "screen-rollout"
+    },
+    {
+      "id": "toolChangelog",
+      "screen": "screen-changelog"
+    },
+    {
+      "id": "toolRoadmap",
+      "screen": "screen-roadmap"
+    },
+    {
+      "id": "toolHelp",
+      "screen": "screen-help"
+    }
+  ],
+  "errors": []
+}

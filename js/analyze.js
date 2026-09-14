@@ -172,7 +172,10 @@ const Analyzer = (() => {
     return out;
   }
 
-  async function collect(vms, scope, onStatus, only) {
+  async function collect(vms, scope, onStatus, only, options = {}) {
+    const read = (url) => Graph.ggetAll(url, { signal: options.signal, onPage: (rows, state) => {
+      onStatus(`Reading ${url.split("?")[0]} — ${rows.length.toLocaleString()} records, page ${state.pages}…`);
+    } });
     const lookup = buildLookup(vms);
     const gids = new Set(), rids = new Set();
     lookup.forEach(P => {
@@ -185,16 +188,17 @@ const Analyzer = (() => {
       users = await collectNamed(only, onStatus);
     } else {
       onStatus("Fetching users…");
-      users = await Graph.ggetAll("/users?$select=id,userPrincipalName,displayName,accountEnabled,userType,assignedLicenses,assignedPlans&$top=999");
+      users = await read("/users?$select=id,userPrincipalName,displayName,accountEnabled,userType,assignedLicenses,assignedPlans&$top=999");
       if (scope === "member") users = users.filter(u => u.userType !== "Guest");
       if (scope === "guest") users = users.filter(u => u.userType === "Guest");
     }
 
+    if (users.length * lookup.length > 2000000) throw new Error("This selection exceeds the beta limit of 2 million user-policy evaluations. Select a deployment group or named users and run again; no partial coverage was published.");
     const groups = new Map(); let i = 0;
     for (const g of gids) {
       onStatus(`Expanding group ${++i}/${gids.size}…`, i, gids.size);
       try {
-        const m = await Graph.ggetAll(`/groups/${g}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`);
+        const m = await read(`/groups/${g}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`);
         groups.set(g, new Set(m.map(x => x.id)));
       } catch (e) { throw new Error(`Analysis incomplete: group ${g} could not be read (${e.message}). No coverage result was produced.`); }
     }
@@ -203,7 +207,7 @@ const Analyzer = (() => {
     if (rids.size) {
       onStatus("Resolving role members…");
       try {
-        const dirRoles = await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId");
+        const dirRoles = await read("/directoryRoles?$select=id,displayName,roleTemplateId");
         const byTemplate = Object.fromEntries(dirRoles.map(r => [r.roleTemplateId, r]));
         let j = 0;
         for (const rid of rids) {
@@ -211,14 +215,14 @@ const Analyzer = (() => {
           const role = byTemplate[rid]; const set = new Set();
           if (role) {
             try {
-              const ms = await Graph.ggetAll(`/directoryRoles/${role.id}/members?$select=id`);
+              const ms = await read(`/directoryRoles/${role.id}/members?$select=id`);
               for (const m of ms) {
                 const t = m["@odata.type"];
                 if (!t || t === "#microsoft.graph.user") set.add(m.id);
                 else if (t === "#microsoft.graph.group") {
                   let gm = groups.get(m.id);
                   if (!gm) {
-                    try { gm = new Set((await Graph.ggetAll(`/groups/${m.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`)).map(x => x.id)); }
+                    try { gm = new Set((await read(`/groups/${m.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`)).map(x => x.id)); }
                     catch (e) { throw new Error(`Nested role group ${m.id} could not be read: ${e.message}`); }
                     groups.set(m.id, gm);
                   }
@@ -234,7 +238,7 @@ const Analyzer = (() => {
 
     onStatus("Resolving names…");
     const names = {};
-    try { (await Graph.ggetAll("/directoryRoleTemplates")).forEach(r => names[r.id] = r.displayName); } catch {}
+    try { (await read("/directoryRoleTemplates")).forEach(r => names[r.id] = r.displayName); } catch {}
     if (gids.size) {
       try { ((await Graph.gpost("/directoryObjects/getByIds", { ids: [...gids], types: ["group"] })).value || []).forEach(o => names[o.id] = o.displayName); } catch {}
     }

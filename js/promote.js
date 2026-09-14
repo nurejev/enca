@@ -114,9 +114,127 @@ const PROMOTE = {
   // only while two or more queued items share its id, and it is deleted when
   // the last of them ships.
   groups: {
+    "p1-scale-1-3": { title: "P1 reliability and large-tenant execution — work packages 1–3" },
   },
 
   items: [
+{
+    "n": 201,
+    "title": "Work package 1 — trustworthy operations and results",
+    "tools": [
+        "Imports",
+        "Conditional Access groups",
+        "Exclusions",
+        "Compare users",
+        "Wave",
+        "User or Group analysis"
+    ],
+    "builds": [
+        25368
+    ],
+    "risk": "high",
+    "group": "p1-scale-1-3",
+    "what": "Complete membership copy and readback before group repointing; explicit paging coverage and unknown scope; full exclusion members, paged Wave references and roles; no false absent-resource result on selected failed reads; immutable log context and ARM read correction.",
+    "why": "Changes conclusions and write safeguards. Keep the original assignments on any unverified replacement. Partial evidence must never authorize rollout.",
+    "test": [
+        "PASSED offline: source 403, copy failure and missing readback member all prevent policy repointing; a verified copy permits it.",
+        "PASSED offline: 600-item final page capped at 500 is incomplete; membership beyond 999 is retained; unresolved comparison and Wave scope remain unknown.",
+        "PENDING dedicated test tenant: nested and role-assigned groups, replication delay, protected actions, restricted AU permissions and partial writes. Verify the original policies and memberships remain safe."
+    ],
+    "files": [
+        "js/app.js",
+        "js/graph.js",
+        "js/compare.js",
+        "js/exclusions.js",
+        "js/cagroups.js",
+        "js/groupuse.js",
+        "js/wave.js",
+        "js/version.js",
+        "js/changelog.js",
+        "js/promote.js",
+        "index.html",
+        "tools/workpackages.test.cjs",
+        "review/2026-09-14/BETA-25368.md"
+    ]
+},
+{
+    "n": 202,
+    "title": "Work package 2 — P1 contract and import compatibility",
+    "tools": [
+        "Imports",
+        "Guided rollout",
+        "Sign-in log",
+        "Report-only impact",
+        "Intune checks"
+    ],
+    "builds": [
+        25368
+    ],
+    "risk": "high",
+    "group": "p1-scale-1-3",
+    "what": "Capability model distinguishes P1, P2, Workload Premium and additional products. Import preview, policy writes and restores enforce known entitlement and available policy slots. Stable interactive Graph queries and explicit beta non-interactive queries. Endpoint contract and remaining beta dependencies are documented.",
+    "why": "Unknown subscription evidence blocks writes. A SKU cannot establish per-user compliance or Defender permissions. Do not advertise live P1 certification from fixture tests.",
+    "test": [
+        "PASSED offline: P1 does not imply P2, Intune or Workload Premium; unknown/suspended entitlement and 240-slot exhaustion block preflight.",
+        "PASSED offline: direct, batch and restore policy writes invoke the guard; non-interactive Graph query explicitly requests the event types.",
+        "PENDING P1-only and P2-only tenants: verify core reads, role and consent errors, non-interactive preview, and each separately entitled optional source.",
+        "PENDING staging writes: P1 baseline import, P2 risk-policy refusal and successful entitled import; keep premium conditions intact."
+    ],
+    "files": [
+        "js/capabilities.js",
+        "js/app.js",
+        "js/graph.js",
+        "js/signins.js",
+        "js/reportimpact.js",
+        "review/2026-09-14/P1-ENDPOINT-CONTRACT.md",
+        "js/version.js",
+        "js/changelog.js",
+        "js/promote.js",
+        "index.html",
+        "tools/workpackages.test.cjs",
+        "review/2026-09-14/BETA-25368.md"
+    ]
+},
+{
+    "n": 203,
+    "title": "Work package 3 — responsive reads and background analysis",
+    "tools": [
+        "Gap analyse",
+        "Exclusions",
+        "Wave",
+        "Sign-in log",
+        "Report-only impact",
+        "All read progress panels"
+    ],
+    "builds": [
+        25368
+    ],
+    "risk": "medium",
+    "group": "p1-scale-1-3",
+    "what": "Shared four-slot directory read queue, in-flight deduplication, cancellable paging/backoff, full Retry-After delays and per-attempt GET deadlines. Persistent progress clock and first-page impact results. Two-worker analysis queue, indexed Wave states and bounded matrix rendering. Explicit two-million-evaluation budget.",
+    "why": "Large tenants need truthful partial coverage and a responsive UI. Worker processing reduces blocking but serialization, rendering and Microsoft latency still need scale acceptance.",
+    "test": [
+        "PASSED offline: read deduplication/concurrency, queued/backoff cancellation, first-response elapsed time, progress reset, worker parity, queued-worker cancellation and oversized-matrix refusal.",
+        "PASSED local browser: demo coverage, Wave, exclusion scan and available navigation; 10,000 users x 100 policies ran in a worker while a UI timer continued. See BETA-25368.md for measured timing.",
+        "PENDING representative laptop and large tenant: 50k/250k users, 100k/1m log events, heap/long-task measurements, first useful result, Stop latency, source failures and reconnect.",
+        "PENDING full theme/brand, narrow-screen, keyboard and assistive-technology acceptance."
+    ],
+    "files": [
+        "js/analysis-jobs.js",
+        "js/analysis-worker.js",
+        "js/analyze.js",
+        "js/app.js",
+        "js/graph.js",
+        "js/wave.js",
+        "css/workspace.css",
+        "js/version.js",
+        "js/changelog.js",
+        "js/promote.js",
+        "index.html",
+        "tools/workpackages.test.cjs",
+        "review/2026-09-14/BETA-25368.md"
+    ]
+},
     {
       n: 200,
       title: "\ud83e\udee5 The apps table drawn as a list, not as the policy matrix (T39 0.2)",
