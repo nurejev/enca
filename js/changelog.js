@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25365, date: "2026-09-14", title: "Production is 312",
+    items: [
+      { kind: "fixed", tool: "Help", text: "Items 170 and 185 to 198 — 🫥 Apps with no service principal, the whole R57 frame programme (25351 to 25356), the policy workspace, evidence desk and Guided rollout (25357 and 25358), the tab-layout fix (25359), SMS and voice retirement 1.5 and 1.6, and the sidebar rail (25362, as rewound in 25364) — went to production as build 312. They leave the promotion queue, productionBuild moves to v1.0.312, and the two roadmap cards R57 and R51 read production 312, R51 moving from In beta today to Now. Item 34, the CIS Help section, stays with the CIS tab it describes; item 199 was dropped in 25364 rather than promoted. Also in this build: the offline regression test only checks the promotion queue where js/promote.js exists, so the same test file passes on main, which has no queue." },
+    ],
+  },
+  {
     build: 25364, date: "2026-09-14", title: "The sidebar keeps its dark rail in both themes",
     items: [
       { kind: "fixed", tool: "All tools", text: "The sidebar is the dark brand rail again in the dark theme, as it is in the light theme and was before build 25362. That build inverted it for dark — a lightly tinted light surface with dark text — and 25363 made the surface cream; both were looked at on the beta site and neither is what the toolset should look like: a light rail beside a dark page is the one thing on screen that does not belong to the theme. The token plumbing from 25362 stays, so a brand palette still colours the rail and the mobile menu uses the same rail as the desktop one; only the dark-theme overrides are gone." },

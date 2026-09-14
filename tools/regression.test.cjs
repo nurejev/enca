@@ -154,7 +154,9 @@ test('build number, assets and promotion entries are in sync',()=>{
  const build=load('version.js','APP_BUILD');const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  for(const [,v] of html.matchAll(/\?v=(\d+)/g))assert.equal(Number(v),build.build);
  const changes=load('changelog.js','CHANGELOG');assert.equal(changes[0].build,build.build);
- const queue=load('promote.js','PROMOTE');const active=queue.items.filter(i=>i.builds.includes(build.build));assert.ok(active.length>0);for(const i of active)assert.ok(i.test.length>0);
+ // js/promote.js is the beta channel's promotion queue and does not exist on main (production has no queue); the sync check applies where the file is.
+ // A bookkeeping build (its changelog title starts with Production is) records a promotion and has no queue item of its own — every other beta build must.
+ if(fs.existsSync(path.join(root,'js','promote.js'))){const queue=load('promote.js','PROMOTE');const active=queue.items.filter(i=>i.builds.includes(build.build));if(!/^Production is /.test(changes[0].title))assert.ok(active.length>0);for(const i of active)assert.ok(i.test.length>0);}
 });
 test('unresolved external scope stays unknown in coverage, matrix and exported report',async()=>{
  const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?users:[],gpost:async()=>({value:[]})});
