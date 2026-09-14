@@ -119,7 +119,49 @@ const PROMOTE = {
 
   items: [
 {
+    "n": 204,
+    "title": "Work package 4 acceptance fixes and work package 5 production proposal",
+    "tools": [
+        "Gap analyse",
+        "Navigation",
+        "Self-hosting"
+    ],
+    "builds": [
+        25369
+    ],
+    "group": "p1-scale-1-3",
+    "risk": "medium",
+    "what": "Stream coverage input/results in 500-row batches and restore global result ordering. Close mobile navigation on Escape and keep narrow identity cards and the channel ribbon from covering content. Normalize site permissions during container build. Acceptance report covers synthetic scale, adverse reads, 16 theme/brand/viewport combinations, Docker and bounded read-only checks in the user-selected P2/Intune tenant. A production proposal is prepared but not executed.",
+    "why": "The previous worker response blocked the UI for more than one second at scale, and owner-only local files produced nginx 403 responses. Passing read-only tests is not approval for live policy changes or a P1-only certification. Stable and beta Graph policy inventories differed in the test tenant, so retain the beta policy endpoint.",
+    "test": [
+        "PASSED: 79 offline tests including failed second pages (401/403/404/429/502/503/504), download timeout/cancellation, missing batch response and streamed global ordering.",
+        "PASSED browser: 16 default/custom-brand, light/dark/auto and 1440/390px combinations; Escape and keyboard theme changes; reduced motion; no page overflow in the tested Wave screen.",
+        "PASSED scale: 50,000 x 40 and 250,000 x 8 coverage fixtures, one million log events; measured worker transfers and Stop latency are recorded in BETA-25369.md.",
+        "PASSED limited live reads: organization identity, subscription evidence, users/groups, policies, named locations, audit log and interactive/non-interactive sign-in endpoints. These are CLI/API checks with a delegated account, not every ENCA tool end-to-end.",
+        "PENDING: P1-only tenant, feature-specific optional sources, dedicated-tenant write/readback/rollback, real large-tenant latency, full screen-reader audit and resolution of stable/beta policy inventory differences. No production push/deployment was performed."
+    ],
+    "files": [
+        "js/analysis-jobs.js",
+        "js/analysis-worker.js",
+        "js/workspace.js",
+        "css/workspace.css",
+        "Dockerfile",
+        "selfhost/nginx.conf",
+        "tools/acceptance-browser.cjs",
+        "tools/acceptance-scale.cjs",
+        "tools/acceptance.test.cjs",
+        "tools/regression.test.cjs",
+        "review/2026-09-14/BETA-25369.md",
+        "review/2026-09-14/PRODUCTION-PROPOSAL-25369.md",
+        "js/version.js",
+        "js/changelog.js",
+        "js/promote.js",
+        "index.html"
+    ]
+},
+{
     "n": 201,
+    "acceptance": "Additional evidence and remaining gates: review/2026-09-14/BETA-25369.md; queue item 204.",
     "title": "Work package 1 — trustworthy operations and results",
     "tools": [
         "Imports",
@@ -159,6 +201,7 @@ const PROMOTE = {
 },
 {
     "n": 202,
+    "acceptance": "Additional evidence and remaining gates: review/2026-09-14/BETA-25369.md; queue item 204.",
     "title": "Work package 2 — P1 contract and import compatibility",
     "tools": [
         "Imports",
@@ -197,6 +240,7 @@ const PROMOTE = {
 },
 {
     "n": 203,
+    "acceptance": "Additional evidence and remaining gates: review/2026-09-14/BETA-25369.md; queue item 204.",
     "title": "Work package 3 — responsive reads and background analysis",
     "tools": [
         "Gap analyse",
@@ -216,8 +260,8 @@ const PROMOTE = {
     "test": [
         "PASSED offline: read deduplication/concurrency, queued/backoff cancellation, first-response elapsed time, progress reset, worker parity, queued-worker cancellation and oversized-matrix refusal.",
         "PASSED local browser: demo coverage, Wave, exclusion scan and available navigation; 10,000 users x 100 policies ran in a worker while a UI timer continued. See BETA-25368.md for measured timing.",
-        "PENDING representative laptop and large tenant: 50k/250k users, 100k/1m log events, heap/long-task measurements, first useful result, Stop latency, source failures and reconnect.",
-        "PENDING full theme/brand, narrow-screen, keyboard and assistive-technology acceptance."
+        "25369 PASSED synthetic 50k/250k-user and 100k/1m-event fixtures, browser heap/long-task and worker Stop checks. PENDING actual large-tenant request latency, throttling, source failure/reconnect and first useful network result.",
+        "25369 PASSED 16 Wave theme/brand/width combinations, rail palette, clipping, reduced-motion and keyboard/Escape checks. PENDING other screens and full assistive-technology acceptance."
     ],
     "files": [
         "js/analysis-jobs.js",

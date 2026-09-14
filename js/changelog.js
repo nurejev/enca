@@ -29,6 +29,33 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  "build": 25369,
+  "date": "2026-09-14",
+  "title": "Beta acceptance: mobile navigation, container access and large analysis transfers",
+  "items": [
+    {
+      "kind": "fixed",
+      "tool": "Gap analyse",
+      "text": "Large coverage jobs transfer users and result rows in batches of 500. The browser can respond between transfers. Results are sorted across the whole selection, preserving the same order as a single analysis."
+    },
+    {
+      "kind": "fixed",
+      "tool": "Navigation",
+      "text": "Escape closes the mobile navigation and returns keyboard focus to its menu button. Narrow identity cards wrap their content, and the channel ribbon has space above the header."
+    },
+    {
+      "kind": "fixed",
+      "tool": "Self-hosting",
+      "text": "The container normalizes site file permissions so nginx can read files saved with owner-only permissions. The duplicate HTML gzip declaration is removed."
+    },
+    {
+      "kind": "improved",
+      "tool": "Beta acceptance",
+      "text": "Added large synthetic fixtures, adverse-read tests, theme and keyboard checks, container validation and bounded live read-only checks. P1-only and live write acceptance remain pending. See the validation report before production promotion."
+    }
+  ]
+},
+{
   "build": 25368,
   "date": "2026-09-14",
   "title": "Work packages 1–3: trustworthy P1 tools and responsive reads",

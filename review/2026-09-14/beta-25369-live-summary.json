@@ -1,0 +1,86 @@
+{
+  "readOnly": true,
+  "tenantIdentityVerified": true,
+  "containsTenantIdentifiers": false,
+  "observedProducts": {
+    "p1": true,
+    "p2": true,
+    "intune": true,
+    "workload": false,
+    "cloudApps": true,
+    "governance": null,
+    "purview": null
+  },
+  "checks": [
+    {
+      "source": "org",
+      "status": 200,
+      "rows": 1,
+      "hasContinuation": false
+    },
+    {
+      "source": "skus",
+      "status": 200,
+      "rows": 3,
+      "hasContinuation": false
+    },
+    {
+      "source": "policies",
+      "status": 200,
+      "rows": 98,
+      "hasContinuation": false
+    },
+    {
+      "source": "policies-beta",
+      "status": 200,
+      "rows": 105,
+      "hasContinuation": false
+    },
+    {
+      "source": "users",
+      "status": 200,
+      "rows": 1,
+      "hasContinuation": true
+    },
+    {
+      "source": "groups",
+      "status": 200,
+      "rows": 1,
+      "hasContinuation": true
+    },
+    {
+      "source": "signins",
+      "status": 200,
+      "rows": 1,
+      "hasContinuation": true
+    },
+    {
+      "source": "noninteractive",
+      "status": 200,
+      "rows": 1,
+      "hasContinuation": true
+    },
+    {
+      "source": "locations",
+      "status": 200,
+      "rows": 4,
+      "hasContinuation": false
+    },
+    {
+      "source": "audits",
+      "status": 200,
+      "rows": 1,
+      "hasContinuation": true
+    }
+  ],
+  "noninteractiveEventObserved": true,
+  "policyInventoryRecheck": {
+    "v1Count": 98,
+    "betaCount": 105,
+    "stableOnly": 0,
+    "betaOnly": 7,
+    "betaOnlyDisabled": 7,
+    "cause": "unresolved; retain existing beta policy endpoint"
+  },
+  "limits": "Bounded CLI/API reads with the delegated test account; no P1-only certification, no tenant writes, no end-to-end claim for all tools."
+}

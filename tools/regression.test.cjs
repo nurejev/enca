@@ -179,7 +179,7 @@ function rolloutHarness(fetchJoey) {
   if(!nodes.has(id))nodes.set(id,{innerHTML:'',textContent:'',hidden:false,listeners:{},classList:{contains:()=>true,toggle(){}},setAttribute(){},addEventListener(name,fn){this.listeners[name]=fn;},querySelector(){return null;}});
   return nodes.get(id);
  };
- const workspace=load('workspace.js','Workspace',{APP_BUILD:{isBeta:true},document:{getElementById:node,querySelectorAll:()=>[]}});
+ const workspace=load('workspace.js','Workspace',{APP_BUILD:{isBeta:true},document:{getElementById:node,querySelectorAll:()=>[],addEventListener(){}}});
  workspace.init({action:name=>actions.push(name),impact:()=>null,fetchJoey,prepareJoey:async bundle=>prepared.push(bundle)});
  const update=(tenant='Fixture')=>workspace.update({tenant,demo:true,policies:[],visible:[],selected:new Set(),view:'list',readAt:1});
  update();

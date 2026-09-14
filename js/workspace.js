@@ -20,6 +20,13 @@ const Workspace = (() => {
       const open = document.body.classList.toggle('workspace-nav-open');
       $('workspaceMenu').setAttribute('aria-expanded', String(open));
     });
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !document.body.classList.contains('workspace-nav-open')) return;
+      event.preventDefault();
+      document.body.classList.remove('workspace-nav-open');
+      $('workspaceMenu').setAttribute('aria-expanded', 'false');
+      $('workspaceMenu').focus();
+    });
     $('sideNav').addEventListener('click', e => {
       if (e.target.closest('button')) { document.body.classList.remove('workspace-nav-open'); $('workspaceMenu').setAttribute('aria-expanded','false'); }
     });

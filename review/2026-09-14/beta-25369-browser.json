@@ -1,0 +1,209 @@
+{
+  "localOnly": true,
+  "themes": [
+    {
+      "brand": "default",
+      "theme": "light",
+      "os": "light",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "rail": "rgb(18, 51, 31)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "default",
+      "theme": "light",
+      "os": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "rail": "rgb(18, 51, 31)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "default",
+      "theme": "dark",
+      "os": "light",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "rail": "rgb(18, 51, 31)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "default",
+      "theme": "dark",
+      "os": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "rail": "rgb(18, 51, 31)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "default",
+      "theme": "auto",
+      "os": "light",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "rail": "rgb(18, 51, 31)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "default",
+      "theme": "auto",
+      "os": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "rail": "rgb(18, 51, 31)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "default",
+      "theme": "auto",
+      "os": "dark",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "rail": "rgb(18, 51, 31)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "default",
+      "theme": "auto",
+      "os": "dark",
+      "width": 390,
+      "scrollWidth": 390,
+      "rail": "rgb(18, 51, 31)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "fixture",
+      "theme": "light",
+      "os": "light",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "rail": "rgb(23, 28, 64)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "fixture",
+      "theme": "light",
+      "os": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "rail": "rgb(23, 28, 64)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "fixture",
+      "theme": "dark",
+      "os": "light",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "rail": "rgb(23, 28, 64)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "fixture",
+      "theme": "dark",
+      "os": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "rail": "rgb(23, 28, 64)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "fixture",
+      "theme": "auto",
+      "os": "light",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "rail": "rgb(23, 28, 64)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "fixture",
+      "theme": "auto",
+      "os": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "rail": "rgb(23, 28, 64)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "fixture",
+      "theme": "auto",
+      "os": "dark",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "rail": "rgb(23, 28, 64)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    },
+    {
+      "brand": "fixture",
+      "theme": "auto",
+      "os": "dark",
+      "width": 390,
+      "scrollWidth": 390,
+      "rail": "rgb(23, 28, 64)",
+      "ink": "rgb(255, 255, 255)",
+      "animation": "none",
+      "overflow": false
+    }
+  ],
+  "workers": [
+    {
+      "n": 50000,
+      "p": 40,
+      "rows": 50000,
+      "elapsedMs": 1812,
+      "ticks": 120,
+      "longTasks": [],
+      "maxLongTaskMs": 0,
+      "heapUsedBytes": 189924480
+    },
+    {
+      "n": 250000,
+      "p": 8,
+      "rows": 250000,
+      "elapsedMs": 2293,
+      "ticks": 150,
+      "longTasks": [],
+      "maxLongTaskMs": 0,
+      "heapUsedBytes": 246405420
+    }
+  ],
+  "errors": [],
+  "cancellation": {
+    "stopped": true,
+    "latencyMs": 0
+  },
+  "build": 25369
+}

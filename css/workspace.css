@@ -64,3 +64,12 @@ html{scrollbar-gutter:stable}
 @keyframes read-progress-travel { from { transform: translateX(0); } to { transform: translateX(180%); } }
 .wi-verdict.unknown { background: var(--surface); border: 1px solid var(--report); color: var(--ink); }
 @media (prefers-reduced-motion: reduce) { .read-indeterminate { animation: none; } }
+
+/* Keep identity cards readable when the mobile result column is narrow. */
+@media (max-width:640px){
+  .wo-who{grid-template-columns:auto minmax(0,1fr)}
+  .wo-who>div{min-width:0}
+  .wo-name,.wo-facts{overflow-wrap:anywhere}
+  .wo-fact{display:block;max-width:100%}
+  body:has(#betaRibbon)>header{padding-top:34px}
+}
