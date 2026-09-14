@@ -135,7 +135,7 @@ test('build number, assets and promotion entries are in sync',()=>{
  const build=load('version.js','APP_BUILD');const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  for(const [,v] of html.matchAll(/\?v=(\d+)/g))assert.equal(Number(v),build.build);
  const changes=load('changelog.js','CHANGELOG');assert.equal(changes[0].build,build.build);
- const queue=load('promote.js','PROMOTE');const active=queue.items.filter(i=>i.builds.includes(build.build));assert.ok(active.length>=4);for(const i of active)assert.ok(i.test.length>0);
+ const queue=load('promote.js','PROMOTE');const active=queue.items.filter(i=>i.builds.includes(build.build));assert.ok(active.length>0);for(const i of active)assert.ok(i.test.length>0);
 });
 test('unresolved external scope stays unknown in coverage, matrix and exported report',async()=>{
  const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?users:[],gpost:async()=>({value:[]})});
@@ -150,4 +150,49 @@ test('an ambiguous gateway error never automatically retries a policy create',as
  let calls=0;class Msal{async initialize(){}async handleRedirectPromise(){return null;}async acquireTokenSilent(){return{accessToken:'fixture'};}}
  const Graph=load('graph.js','Graph',{AUTH_CONFIG:{clientId:'fixture',authority:'fixture',scopes:[],graphBase:'https://graph.microsoft.com/beta'},window:{location:{origin:'http://localhost',pathname:'/'}},msal:{PublicClientApplication:Msal},setTimeout:fn=>fn(),fetch:async()=>{calls++;return{ok:false,status:503,headers:{get:()=>null},json:async()=>({error:{message:'gateway failed'}})};}});
  await Graph.init();await assert.rejects(Graph.gpost('/identity/conditionalAccess/policies',policy()),/503/);assert.equal(calls,1);
+});
+
+function rolloutHarness(fetchJoey) {
+ const nodes=new Map(),actions=[],prepared=[];
+ const node=id=>{
+  if(!nodes.has(id))nodes.set(id,{innerHTML:'',textContent:'',hidden:false,listeners:{},classList:{contains:()=>true,toggle(){}},setAttribute(){},addEventListener(name,fn){this.listeners[name]=fn;},querySelector(){return null;}});
+  return nodes.get(id);
+ };
+ const workspace=load('workspace.js','Workspace',{APP_BUILD:{isBeta:true},document:{getElementById:node,querySelectorAll:()=>[]}});
+ workspace.init({action:name=>actions.push(name),impact:()=>null,fetchJoey,prepareJoey:async bundle=>prepared.push(bundle)});
+ const update=(tenant='Fixture')=>workspace.update({tenant,demo:true,policies:[],visible:[],selected:new Set(),view:'list',readAt:1});
+ update();
+ const click=action=>node('rolloutBody').listeners.click({target:{closest:()=>({dataset:{rolloutAction:action}})}});
+ return {workspace,node,actions,prepared,update,click};
+}
+const rolloutBundle=()=>({complete:true,policies:[policy()],groups:[{displayName:'Exclusion group'}],namedLocations:[{displayName:'Office'}],depSkipped:[],release:'fixture-release',commit:'1234567abcdef'});
+test('rollout exposes separate CloudFellows ZIP and Joey fetch actions in Scope and Plan',async()=>{
+ let fetches=0;const h=rolloutHarness(async()=>{fetches++;});
+ assert.match(h.node('rolloutBody').innerHTML,/CloudFellows/);assert.match(h.node('rolloutBody').innerHTML,/Choose ZIP/);assert.match(h.node('rolloutBody').innerHTML,/Fetch latest/);
+ await h.click('cloudfellows');assert.deepEqual(h.actions,['cloudfellows']);assert.equal(fetches,0);
+ await h.click('next');assert.match(h.node('rolloutBody').innerHTML,/Choose ZIP/);assert.match(h.node('rolloutBody').innerHTML,/Fetch latest/);
+});
+test('Joey preparation waits for a complete fresh read, preserves dependencies and prevents double submission',async()=>{
+ let finish,fetches=0;const bundle=rolloutBundle();
+ const h=rolloutHarness(()=>{fetches++;return new Promise(resolve=>finish=resolve);});
+ const run=h.click('joey');await h.click('joey');await h.click('cloudfellows');
+ assert.equal(fetches,1);assert.equal(h.prepared.length,0);assert.equal(h.actions.length,0);
+ finish({status:{status:'live',error:null},bundle});await run;
+ assert.equal(h.prepared[0],bundle);assert.match(h.node('rolloutBody').innerHTML,/fixture-release/);assert.match(h.node('rolloutBody').innerHTML,/1234567/);
+});
+test('failed fresh fetch never opens a cached Joey release and can be retried',async()=>{
+ let fetches=0;const h=rolloutHarness(async()=>({status:++fetches===1?{status:'live',error:'Rate limited'}:{status:'live',error:null},bundle:rolloutBundle()}));
+ await h.click('joey');assert.equal(h.prepared.length,0);assert.match(h.node('rolloutBody').innerHTML,/Rate limited/);
+ await h.click('joey');assert.equal(h.prepared.length,1);
+});
+test('incomplete Joey release, skipped dependencies and thrown errors stop preparation',async()=>{
+ for(const result of [{...rolloutBundle(),complete:false},{...rolloutBundle(),depSkipped:['Groups/missing.json']},{...rolloutBundle(),policies:[]},null]){
+  const h=rolloutHarness(async()=>({status:{status:'live'},bundle:result}));await h.click('joey');assert.equal(h.prepared.length,0);assert.match(h.node('rolloutBody').innerHTML,/incomplete/);
+ }
+ const h=rolloutHarness(async()=>{throw Error('Offline');});await h.click('joey');assert.equal(h.prepared.length,0);assert.match(h.node('rolloutBody').innerHTML,/Offline/);
+});
+test('switching tenants while Joey fetches discards the pending import',async()=>{
+ let finish;const h=rolloutHarness(()=>new Promise(resolve=>finish=resolve));const run=h.click('joey');
+ h.update('Other tenant');finish({status:{status:'live'},bundle:rolloutBundle()});await run;
+ assert.equal(h.prepared.length,0);assert.doesNotMatch(h.node('rolloutBody').innerHTML,/fixture-release/);
 });

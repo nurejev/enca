@@ -126,11 +126,18 @@ const PROMOTE = {
     "Guided rollout"
   ],
   "builds": [
-    25357
+    25357,
+    25358
   ],
-  "what": "List-first layout, detail inspector, tenant context, mobile navigation and keyboard dialogs; guided flow delegates to existing tools.",
+  "risk": "medium",
+  "what": "List-first layout, detail inspector, tenant context, mobile navigation and keyboard dialogs; guided flow delegates to existing tools. CloudFellows loads a backup ZIP; Joey Fetch latest opens a freshly fetched, complete release in the import review. Sidebar background, hover and selection follow the active brand palette.",
   "why": "Changes navigation and modal focus throughout the app.",
   "test": [
+    "VERIFIED 2026-09-14, build 25358: 34 offline tests and structural/plain-text checks passed. Browser demo verified ZIP picker, fresh Joey import handoff and stale-read rejection with fixtures; branded sidebar light/dark/system-dark and mobile at 390px. Live release, real CloudFellows ZIP and tenant writes remain pending; see review/2026-09-14/BETA-25358.md.",
+    "Branding: apply a non-green brand, inspect the desktop sidebar background, hover, active row and tool numbers in light/dark/automatic mode, then open mobile navigation at 390px. All colours follow the active theme with readable labels. Return to the default brand and verify no previous brand colours remain.",
+    "Scope and Plan: CloudFellows Choose ZIP opens the file picker and imports the selected backup into the existing policy review; cancel and retry the same file. No tenant writes occur until the existing confirmation.",
+    "Joey Fetch latest: force a fresh read, show release and commit in the import review, and include groups and named locations. Simulate failed refresh with a cached bundle, incomplete dependencies and repeated clicks: no stale import or duplicate preparation. Shared E-Admins policies must still be requested from the CloudFellows ZIP.",
+    "REAL TENANT / NETWORK REQUIRED: fetch the current Joey release, verify policy and dependency names in import review, then validate assignments and permissions before any write. See review/2026-09-14/BETA-25358.md for completed and pending checks.",
     "Demo at desktop and 390px: select a policy, inspect its original definition, filter states, switch Cards/List/Matrix and return without losing selection.",
     "Keyboard: open a home launcher, open nested policy dialogs, Tab stays inside the top dialog and Escape restores focus.",
     "Run Checks, filter high findings and select two findings: assessment, policy and recommendation must follow the selection.",

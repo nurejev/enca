@@ -20162,11 +20162,25 @@ This is a directory write. Nothing else changes.`)) return;
   $("toolDeploy").addEventListener("click", openRollout);
   Workspace.init({
     detail: id => showDetail(id, true),
+    fetchJoey: async onStatus => {
+      const status = await BaselineLive.fetchLatest({ force: true, onStatus });
+      return { status, bundle: BaselineLive.bundle() };
+    },
+    prepareJoey: async bundle => {
+      $("toolImport").click();
+      await imLoaded(bundle, `Joey Verlinden ${bundle.release} — fetched at ${String(bundle.commit || '').slice(0, 7)}`);
+    },
     impact: () => riBusy || riCapped || !riReadAt || riReadAt < policiesReadAt || riReadTenant !== (tenantId || tenantName) ? null : { ...riRes, readAt: riReadAt, days: riDays },
     state: () => { $("toolPolicies").click(); $("selActState").click(); },
     action: name => {
       const ids = { policies: "toolPolicies", baseline: "toolBaseline", groups: "toolCaGroups", checks: "toolGapCheck", whatif: "toolWhatIf", import: "toolImport" };
       if (name === "deploy") openRollout();
+      else if (name === "cloudfellows") {
+        $("toolImport").click();
+        $("imDesc").textContent = "Choose the CloudFellows baseline backup ZIP. Its policies and dependencies will be listed for review before import.";
+        $("imZip").value = "";
+        $("imZip").click();
+      }
       else if (name === "impact") openImpact();
       else if (name === "guide") openGuide();
       else if (name === "backup") { $("toolPolicies").click(); $("selActBackup").click(); }

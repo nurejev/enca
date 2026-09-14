@@ -29,6 +29,19 @@
 // ======================================================================
 const CHANGELOG = [
   {
+  "build": 25358,
+  "date": "2026-09-14",
+  "title": "Baseline sources for rollout and a sidebar that follows your brand",
+  "items": [
+    { "kind": "fixed", "tool": "All tools", "text": "The desktop sidebar now follows the active brand palette, including its background, hover and selected state. Branded light and dark modes no longer inherit a fixed green sidebar; mobile navigation retains the brand surface and ink colours." },
+    {
+      "kind": "improved",
+      "tool": "Guided rollout",
+      "text": "CloudFellows opens the backup ZIP picker; Joey Fetch latest reads a fresh repository release and its dependencies directly into the import review. The release and commit identify the source. Failed or incomplete reads do not open an older snapshot; shared E-Admins policies remain in the CloudFellows ZIP."
+    }
+  ]
+},
+  {
   "build": 25357,
   "date": "2026-09-14",
   "title": "A policy workspace with evidence before enforcement",

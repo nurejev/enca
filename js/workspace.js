@@ -4,6 +4,7 @@ const Workspace = (() => {
   const $ = id => document.getElementById(id);
   const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let api, current, inspected = null, reviewIndex = 0, step = 0, checks = new Set();
+  let sourceBusy = false, sourceMessage = '', tenantRevision = 0;
   const state = s => ({on:"On",report:"Report-only",off:"Off"}[s] || s);
   const names = p => {
     const native = p.name || "Unnamed policy";
@@ -38,14 +39,16 @@ const Workspace = (() => {
     $('rolloutBody').addEventListener('click', e => {
       const b=e.target.closest('[data-rollout-action]');if(!b)return;
       const action=b.dataset.rolloutAction;
-      if(action==='next'){step=Math.min(3,step+1);renderRollout();}
+      if(action==='joey'){return prepareJoey();}
+      else if(action==='cloudfellows'){if(!sourceBusy)api.action('cloudfellows');}
+      else if(action==='next'){step=Math.min(3,step+1);renderRollout();}
       else if(action==='state'){if(checks.size===3 && current.selected.size)api.state();}
       else api.action(action);
     });
     document.querySelectorAll('[data-workspace-tool]').forEach(b=>b.addEventListener('click',()=>api.action(b.dataset.workspaceTool)));
   }
   function update(data) {
-    if(current && current.tenant!==data.tenant){checks.clear();inspected=null;step=0;}
+    if(current && (current.tenant!==data.tenant || current.demo!==data.demo)){checks.clear();inspected=null;step=0;sourceMessage='';tenantRevision++;}
     if(current && (current.readAt!==data.readAt || [...current.selected].join()!==[...data.selected].join()))checks.clear();
     current={...data,selected:new Set(data.selected)};
     $('workspaceContext').textContent=data.tenant?`${data.tenant} · ${data.demo?'Demo · sample data':APP_BUILD.isBeta?'Beta':'Live'}`:'';
@@ -91,6 +94,27 @@ const Workspace = (() => {
   }
   function pickReview(index){reviewIndex=index;}
   function openRollout(){renderRollout();}
+  async function prepareJoey() {
+    if(sourceBusy || !current)return;
+    const revision=tenantRevision;
+    sourceBusy=true;sourceMessage='Fetching the latest Joey release…';renderRollout();
+    try {
+      const result=await api.fetchJoey(message=>{
+        if(revision!==tenantRevision)return;
+        sourceMessage=message;renderRollout();
+      });
+      if(revision!==tenantRevision)return;
+      const {status,bundle}=result;
+      if(status.error || status.status!=='live')throw new Error(status.error || 'The latest release could not be read.');
+      if(!bundle?.complete || !bundle.policies?.length || bundle.depSkipped?.length)throw new Error('The release or its dependencies are incomplete. Retry Fetch latest before importing.');
+      sourceMessage=`Joey ${bundle.release} · ${String(bundle.commit || '').slice(0,7)} · ${bundle.policies.length} policies fetched. Review the import before making changes. Shared E-Admins policies come from the CloudFellows ZIP.`;
+      await api.prepareJoey(bundle);
+    } catch(error) {
+      if(revision===tenantRevision)sourceMessage=`Could not prepare Joey: ${error.message || error} No older snapshot was opened. Retry Fetch latest.`;
+    } finally {
+      sourceBusy=false;renderRollout();
+    }
+  }
   function renderRollout(focusCheck) {
     if(!current)return;
     const picked=current.policies.filter(p=>current.selected.has(p.id));
@@ -99,12 +123,13 @@ const Workspace = (() => {
     const head=`<div class="workspace-source">${esc(current.tenant)} · ${current.demo?'Demo — writes are simulated':'Tenant changes use the existing confirmation flow'} · ${picked.length} selected policies</div>`;
     const selection=`<div class="rollout-selection">${picked.length?picked.map(p=>`<div><b>${esc(names(p).title)}</b><span class="state ${esc(p.state)}">${state(p.state)}</span><small>${esc(p.name)}</small></div>`).join(''):'No policies selected. Choose policies in the policy workspace, or prepare a new baseline import.'}</div>`;
     const action=(key,label,primary=false)=>`<button class="btn ${primary?'primary':''}" data-rollout-action="${key}">${label}</button>`;
+    const sources=`<section class="rollout-sources" aria-label="Baseline policy sources"><h3>Start from a baseline</h3><div class="rollout-source-grid"><article><h4>CloudFellows</h4><p>Load policies and dependencies from your baseline backup ZIP.</p><button class="btn primary" data-rollout-action="cloudfellows" ${sourceBusy?'disabled':''}>Choose ZIP</button></article><article><h4>Joey Verlinden</h4><p>Fetch the latest release, including policies, groups and named locations.</p><button class="btn primary" data-rollout-action="joey" ${sourceBusy?'disabled':''}>${sourceBusy?'Fetching…':'Fetch latest'}</button></article></div><p class="workspace-source">Review the imported policies and assignment mode before applying them. Source policies are separate from the existing tenant selection above. Shared E-Admins policies come from the CloudFellows ZIP.</p><p role="status" aria-live="polite">${esc(sourceMessage)}</p></section>`;
     let content;
     if(step===0)content=`<h2>Start with a deliberate scope</h2><p>Select the policies for this rollout. Keep emergency access and exclusions visible throughout the change.</p>${selection}<div class="workspace-actions">${action('policies','Choose policies',true)}${action('baseline','Compare a baseline')}${action('guide','Check deployment prerequisites')}</div>`;
     if(step===1)content=`<h2>Prepare the plan and rollback</h2><p>Export the current definitions, review dependencies, and stage new policies. Imports create disabled policies first and read them back before restoring an approved replacement state.</p>${selection}<div class="workspace-actions">${action('backup','Back up selected policies',true)}${action('import','Prepare an import')}${action('groups','Review groups & exclusions')}</div><p class="workspace-source">A backup is a file you must keep. ENCA does not automatically certify that you saved it or that rollback has been tested.</p>`;
     if(step===2)content=`<h2>Read what report-only would change</h2><p>Use observed sign-ins for the proposed scope. A window with no matching sign-ins gives no evidence of a safe rollout.</p><div class="rollout-metrics">${impact?`<div><b>${impact.records}</b><span>sign-ins in the loaded window</span></div><div><b>${impact.blockedUsers}</b><span>users with a predicted denial</span></div><div><b>${impact.promptedUsers}</b><span>users with a predicted prompt</span></div>`:'No completed impact read in this session.'}</div><p class="workspace-source">${impact?`Read ${esc(new Date(impact.readAt).toLocaleString())}; ${impact.days} days. These totals describe the loaded impact report, not necessarily your selection. Open the report to confirm policy coverage, caps and unresolved records.`:'Impact is not checked yet. Read report-only impact before deciding to enforce.'}</p><div class="workspace-actions">${action('impact','Open report-only impact',true)}${action('checks','Review configuration findings')}${action('whatif','Test a sign-in scenario')}</div>`;
     if(step===3)content=`<h2>Review before enforcement</h2><p>These are your acknowledgements. They are not automated validation or a claim that the rollout is safe.</p>${selection}<div class="rollout-checks">${[['scope','I reviewed the selected policies, exclusions and emergency access.'],['backup','I saved the current definitions and have a rollback procedure.'],['impact','I reviewed sign-in impact and accept any missing evidence.']].map(([key,label])=>`<label><input type="checkbox" data-rollout-check="${key}" ${checks.has(key)?'checked':''}>${label}</label>`).join('')}</div><button class="btn primary" data-rollout-action="state" ${checks.size!==3||!picked.length?'disabled':''}>Review policy state change →</button><p class="workspace-source">The next screen names each proposed state. Its confirmation and permission checks still apply. Refreshing the policy snapshot or changing selection clears these acknowledgements.</p>`;
-    $('rolloutBody').innerHTML=head+`<div class="rollout-content">${content}${step<3?`<div class="rollout-next">${action('next','Continue →')}</div>`:''}</div>`;
+    $('rolloutBody').innerHTML=head+`<div class="rollout-content">${content}${step<2?sources:''}${step<3?`<div class="rollout-next">${action('next','Continue →')}</div>`:''}</div>`;
     if(focusCheck)$('rolloutBody').querySelector(`[data-rollout-check="${focusCheck}"]`)?.focus();
   }
   return {init,update,inspect,names,review,pickReview,openRollout};
