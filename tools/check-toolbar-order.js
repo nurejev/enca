@@ -21,7 +21,11 @@
 // THE SLOTS, in order. A screen uses the ones it needs and skips the rest;
 // what it may not do is put them in a different order.
 //
-//   tabs    .tool-tabs      the host's tab strip, mounted by app.js
+// The host TAB STRIP is not one of them any more: build 25355 took it out of
+// the toolbar and pinned it above the head card, because underneath four
+// paragraphs of 🛡 Checks nobody found it. app.js mounts it into the section,
+// so a .tool-tabs written into a toolbar here is the old shape and fails.
+//
 //   find    .search         search within what this tool loaded
 //   scope   .seg .tb-scope  which set the tool is looking at
 //   filter  .chip-filter    chips that narrow the rows in that set
@@ -161,6 +165,10 @@ while ((s = SEC.exec(html)) !== null) {
   if (closeAt < 0) { fails.push(`screen-${id}: the toolbar never closes`); continue; }
 
   const kids = topChildren(rest.slice(0, closeAt));
+  if (kids.some((k) => /\btool-tabs\b/.test(attrOf(k, "class")))) {
+    fails.push(`screen-${id}: a tab strip is written into the toolbar. Since 25355 the strip `
+      + `pins above the head card and app.js mounts it into the section, not here.`);
+  }
   const order = kids.map(slotOf);
   for (let i = 1; i < order.length; i++) {
     if (order[i] < order[i - 1]) {

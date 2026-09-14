@@ -118,6 +118,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 189,
+      title: "\ud83e\uddf1 The host tab strip moves above the head card, pinned (all eight hosts, R57)",
+      tools: ["All tools"],
+      builds: [25355],
+      risk: "low",
+      what: "js/app.js: mountToolTabs builds the strip into a .tool-tabs-bar inserted as the SECTION's first child instead of the toolbar's first row, registers it with the sticky ResizeObserver and calls syncStickyTops; unmountToolTabs removes it from the section; syncStickyTops measures the active screen's strip into --tabs-h (0 where there is none). css/app.css: .screen.tool > .tool-tabs-bar pins at --sticky-nav with z-index 41 and scrolls sideways rather than clipping; .screen.tool > .toolbar pins at --sticky-nav + --tabs-h; the old .tool-tabs order and flex-basis rules are gone; .screen.tool > .readme no longer needs to be the first child. tools/check-toolbar-order.js fails a .tool-tabs written into a toolbar, which is now the old shape.",
+      why: "Low: no tool's behaviour, read or output changes, and the strip carries the same buttons doing the same thing. It is a position change on 21 screens across eight hosts. Two things to look at after promotion: the strip and the toolbar are now two pinned rows rather than one, so any screen whose toolbar changes height has to keep stacking correctly (measured, not assumed \u2014 but it is the failure mode that hid \ud83c\udf0a's picker); and on a narrow window the strip scrolls sideways, which is new behaviour for it.",
+      test: [
+        "Open \ud83d\udee1 Checks: the four tabs are the FIRST thing on the screen, above the head card. Before this build they were under it, about a screen down.",
+        "Scroll a long result on each host: the strip stays pinned and the toolbar pins directly beneath it \u2014 they must not overlap. At 1500 by 800 scrolled 900 pixels the strip reads 111 to 166 and the toolbar 166 to 228 on every one of the eight.",
+        "Switch tabs while scrolled down: the new tool opens with the strip still pinned in the same place.",
+        "A screen with no strip (\ud83d\udc65 CA groups, \ud83d\udeaa Exclusion analyzer, \ud83d\udee1 Restricted AUs): no strip, --tabs-h reads 0px, and the toolbar sits exactly where it did before.",
+        "\ud83d\udd0d Gap analyse and \ud83d\uddc2 Policies share one screen: opening \ud83d\udd0d puts the strip in, opening \ud83d\uddc2 takes it out again, and the toolbar's offset follows both ways.",
+        "Narrow the window to about 400 pixels on \ud83e\udde9 Policy building blocks: all five tabs stay one row, the strip scrolls sideways to reach the last of them, and the page does not scroll sideways. Before this build three were clipped away entirely.",
+        "Production host: \ud83e\uddec Baseline's \ud83d\udcd6 Deployment guide tab and \ud83d\udee1 Checks' \ud83d\udcd0 CIS tab are hidden there. A host left with one visible tab shows NO strip, and --tabs-h reads 0 on it.",
+        "node tools/check-toolbar-order.js exits 0. Write a .tool-tabs into any toolbar in index.html and it must FAIL.",
+      ],
+      files: ["js/app.js", "css/app.css", "tools/check-toolbar-order.js", "js/version.js"],
+    },
+    {
       n: 188,
       title: "\ud83c\udf0a The wave picker stops hiding behind its own controls (T30, R57)",
       tools: ["Who is the wave to CA", "All tools"],

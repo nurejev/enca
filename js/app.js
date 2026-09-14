@@ -68,6 +68,15 @@
     const nh = navVisible ? Math.round(n.getBoundingClientRect().height) : 0;
     document.documentElement.style.setProperty("--sticky-header", hh + "px");
     document.documentElement.style.setProperty("--sticky-nav", (hh + nh) + "px");
+    // A host screen's TAB STRIP pins above that screen's toolbar (build
+    // 25355), so the toolbar's own offset has to include it. One screen is
+    // active at a time, so one variable covers every host, and it reads 0 on
+    // every screen that has no strip. Measured, never assumed: 🛡 Checks has
+    // four tabs and 🧩 Policy building blocks five, and both wrap to a second
+    // row on a narrow window.
+    const bar = document.querySelector("section.screen.active > .tool-tabs-bar");
+    document.documentElement.style.setProperty("--tabs-h",
+      (bar ? Math.round(bar.getBoundingClientRect().height) : 0) + "px");
   }
   const stickyNavTop = () => parseInt(getComputedStyle(document.documentElement).getPropertyValue("--sticky-nav")) || 106;
   window.addEventListener("resize", syncStickyTops);
@@ -88,14 +97,18 @@
   // So observe the boxes rather than guessing when they move. The resize
   // listener stays as the fallback where ResizeObserver is missing.
   const syncStickyStack = () => { syncStickyTops(); syncSelbarTop(); };
+  let stickyRO = null;
   if (typeof ResizeObserver !== "undefined") {
-    const ro = new ResizeObserver(syncStickyStack);
+    stickyRO = new ResizeObserver(syncStickyStack);
     for (const el of [document.querySelector("header"),
                       document.getElementById("toolNav"),
                       document.querySelector("#screen-list .toolbar")]) {
-      if (el) ro.observe(el);
+      if (el) stickyRO.observe(el);
     }
   }
+  // Tab strips are built when a host opens, so they cannot be in the list
+  // above. Same rule though: observe the box, do not guess when it moves.
+  const observeSticky = (el) => { if (el && stickyRO) stickyRO.observe(el); };
 
   // ---------- screens + browser history ----------
   // This is a single page, so without history entries the Back button leaves
@@ -370,7 +383,17 @@
           + (t.beta ? ' <span class="tag new">BETA</span>' : "") + `</button>`).join("")
       + `</div>`;
   }
-  // Put the strip into this tab's toolbar once, then re-paint which is active.
+  // Put the strip at the TOP OF THE SCREEN once, then re-paint which is
+  // active. It used to be the toolbar's first row, which put it under the
+  // tool's head card — so on 🛡 Checks, whose head is four paragraphs, the
+  // four tabs were most of a screen down and people did not find them. The
+  // strip is navigation BETWEEN tools; the head describes the tool you are
+  // in. Navigation comes first (build 25355).
+  //
+  // It pins at --sticky-nav and the screen's own toolbar pins beneath it at
+  // --sticky-nav + --tabs-h. Two sticky rows at the SAME offset is what hid
+  // 🌊's wave picker until 25354, so the offset is measured rather than
+  // assumed, and the strip is observed for when it wraps.
   // A strip with ONE tab left is not a tab strip, it is a button that does
   // nothing — which is what 🧬 Baseline would show on the production host,
   // where the beta-only 📖 Deployment guide tab is hidden. So a host whose
@@ -381,19 +404,30 @@
     if (h.tabs.filter(tabShown).length < 2) return;
     const t = h.tabs.find((x) => x.key === tabKey); if (!t) return;
     const tb = $(t.toolbar); if (!tb) return;
-    let seg = tb.querySelector(".tool-tabs");
-    if (!seg) {
-      const wrap = document.createElement("div"); wrap.innerHTML = toolTabsSeg(hostKey); seg = wrap.firstChild;
-      tb.insertBefore(seg, tb.firstChild);
+    const screen = tb.closest("section.screen"); if (!screen) return;
+    let bar = screen.querySelector(":scope > .tool-tabs-bar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.className = "tool-tabs-bar";
+      bar.innerHTML = toolTabsSeg(hostKey);
+      screen.insertBefore(bar, screen.firstElementChild);
+      observeSticky(bar);
     }
+    const seg = bar.querySelector(".tool-tabs");
     [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.tabgo === `${hostKey}:${tabKey}`));
+    syncStickyTops();
   }
   // Take the strip back out. Needed for exactly one host: screen-list is both
   // 🗂 Policies and 🔍 Gap analyse, so opening it as Policies has to remove a
   // strip that belongs to the other tool.
   function unmountToolTabs(hostKey) {
     const h = TAB_HOSTS[hostKey]; if (!h) return;
-    h.tabs.forEach((t) => { const tb = $(t.toolbar); const seg = tb && tb.querySelector(".tool-tabs"); if (seg) seg.remove(); });
+    h.tabs.forEach((t) => {
+      const tb = $(t.toolbar); const screen = tb && tb.closest("section.screen");
+      const bar = screen && screen.querySelector(":scope > .tool-tabs-bar");
+      if (bar) bar.remove();
+    });
+    syncStickyTops();
   }
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-tabgo]"); if (!b) return;
