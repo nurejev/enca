@@ -29,6 +29,18 @@
 // ======================================================================
 const CHANGELOG = [
   {
+  "build": 25362,
+  "date": "2026-09-14",
+  "title": "Sidebar colours follow the approved brand and theme design",
+  "items": [
+    {
+      "kind": "improved",
+      "tool": "All tools",
+      "text": "Light theme now pairs with a dark branded sidebar; dark theme pairs with a lightly tinted sidebar and dark branded text. Selected items, hover states, keyboard focus and scrollbars follow the sidebar palette. The same colours apply to the mobile menu and Auto theme."
+    }
+  ]
+},
+  {
   "build": 25361,
   "date": "2026-09-14",
   "title": "SMS & voice retirement: obsolete rollout controls removed",

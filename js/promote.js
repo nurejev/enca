@@ -118,6 +118,33 @@ const PROMOTE = {
 
   items: [
     {
+  "n": 198,
+  "title": "Approved contrasting sidebar colours across themes and brands",
+  "tools": [
+    "All tools"
+  ],
+  "builds": [
+    25362
+  ],
+  "risk": "low",
+  "what": "Use brand-derived inverse sidebar surfaces in explicit Light, Dark and Auto themes. Apply matching text, selected item, hover, focus and native scrollbar colours across expanded, collapsed and mobile navigation.",
+  "why": "Presentation-only CSS change scoped to the sidebar. Uses each active brand palette; navigation behavior, policy data and tenant operations are unchanged.",
+  "test": [
+    "VERIFIED 2026-09-14: Edge demo checks passed for default green and the approved purple mockup palette, Light/Dark, Auto following OS changes, explicit theme overriding OS, collapsed sidebar, mobile menu and navigation. No JavaScript errors.",
+    "VERIFIED: normal, muted and selected text contrast exceeded 4.5:1 in all four tested combinations (lowest 6.56:1). Hover and keyboard focus checked; desktop and mobile screenshots inspected.",
+    "VERIFIED: 37 existing regression tests, toolbar ordering, plain-text checks, release metadata and git whitespace checks passed. See review/2026-09-14/BETA-25362.md.",
+    "PENDING deployed beta: verify the configured customer brand palettes and refresh/cache behavior on the hosted site. No live tenant or deployment test was performed."
+  ],
+  "files": [
+    "css/workspace.css",
+    "index.html",
+    "js/version.js",
+    "js/changelog.js",
+    "js/promote.js",
+    "review/2026-09-14/BETA-25362.md"
+  ]
+},
+    {
   "n": 197,
   "title": "Remove obsolete September rollout controls (T33 1.6)",
   "tools": [
