@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25364, date: "2026-09-14", title: "The sidebar keeps its dark rail in both themes",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "The sidebar is the dark brand rail again in the dark theme, as it is in the light theme and was before build 25362. That build inverted it for dark — a lightly tinted light surface with dark text — and 25363 made the surface cream; both were looked at on the beta site and neither is what the toolset should look like: a light rail beside a dark page is the one thing on screen that does not belong to the theme. The token plumbing from 25362 stays, so a brand palette still colours the rail and the mobile menu uses the same rail as the desktop one; only the dark-theme overrides are gone." },
+    ],
+  },
+  {
   "build": 25363,
   "date": "2026-09-14",
   "title": "Approved cream sidebar in dark theme",

@@ -118,59 +118,23 @@ const PROMOTE = {
 
   items: [
     {
-  "n": 199,
-  "title": "Approved cream sidebar for dark theme",
-  "tools": [
-    "All tools"
-  ],
-  "builds": [
-    25363
-  ],
-  "risk": "low",
-  "what": "Use the approved #FCF8E8 cream surface for the sidebar in Dark and Auto dark mode. Keep deep brand colours for text and selected items; selected text and focus use cream. Apply the palette to desktop, collapsed and mobile navigation.",
-  "why": "Presentation-only CSS scoped to sidebar tokens. Light mode retains the dark branded rail. The shared warning palette, content backgrounds and tenant operations are unchanged.",
-  "test": [
-    "VERIFIED 2026-09-14: Edge demo green and approved purple palette passed exact RGB 252/248/232 checks in Dark mode, Auto OS switching, explicit theme overrides, hover, keyboard focus, collapsed rail and mobile navigation. No JavaScript errors.",
-    "VERIFIED: regular, muted and selected text contrast exceeds 4.5:1 in all tested combinations; minimum 6.67:1. Screenshots inspected.",
-    "VERIFIED: 37 offline regressions, toolbar ordering, plain-text and release consistency checks passed; see review/2026-09-14/BETA-25363.md.",
-    "PENDING hosted beta: refresh cached assets and check actual customer brand configurations before promotion. No live-tenant or deployment test was run."
-  ],
-  "files": [
-    "css/workspace.css",
-    "index.html",
-    "js/version.js",
-    "js/changelog.js",
-    "js/promote.js",
-    "review/2026-09-14/BETA-25363.md"
-  ]
-},
-    {
-  "n": 198,
-  "title": "Approved contrasting sidebar colours across themes and brands",
-  "tools": [
-    "All tools"
-  ],
-  "builds": [
-    25362
-  ],
-  "risk": "low",
-  "what": "Use brand-derived inverse sidebar surfaces in explicit Light, Dark and Auto themes. Apply matching text, selected item, hover, focus and native scrollbar colours across expanded, collapsed and mobile navigation.",
-  "why": "Presentation-only CSS change scoped to the sidebar. Uses each active brand palette; navigation behavior, policy data and tenant operations are unchanged.",
-  "test": [
-    "VERIFIED 2026-09-14: Edge demo checks passed for default green and the approved purple mockup palette, Light/Dark, Auto following OS changes, explicit theme overriding OS, collapsed sidebar, mobile menu and navigation. No JavaScript errors.",
-    "VERIFIED: normal, muted and selected text contrast exceeded 4.5:1 in all four tested combinations (lowest 6.56:1). Hover and keyboard focus checked; desktop and mobile screenshots inspected.",
-    "VERIFIED: 37 existing regression tests, toolbar ordering, plain-text checks, release metadata and git whitespace checks passed. See review/2026-09-14/BETA-25362.md.",
-    "PENDING deployed beta: verify the configured customer brand palettes and refresh/cache behavior on the hosted site. No live tenant or deployment test was performed."
-  ],
-  "files": [
-    "css/workspace.css",
-    "index.html",
-    "js/version.js",
-    "js/changelog.js",
-    "js/promote.js",
-    "review/2026-09-14/BETA-25362.md"
-  ]
-},
+      n: 198,
+      title: "One sidebar rail for both themes — the brand's dark surface, in light AND dark (25362 rewound in 25364)",
+      tools: ["All tools"],
+      builds: [25362, 25364],
+      risk: "low",
+      what: "css/workspace.css: the sidebar's colours come from --workspace-rail tokens (surface, ink, muted, selected, selected-ink, colour-scheme) instead of literal values, and the same tokens drive the expanded, collapsed and mobile navigation, hover, focus and the native scrollbar. 25362 gave the dark theme an INVERTED rail (a lightly tinted light surface with dark brand text) and 25363 made that rail cream; both were reviewed on the beta site and rejected — 25364 removes the dark-theme overrides, so the rail is the brand's dark surface with the lemon selected row in light, dark and auto, which is what it was before 25362. What stays from 25362: the token plumbing, so a brand palette still colours the rail, and the mobile menu uses the same rail as the desktop one.",
+      why: "Presentation-only CSS scoped to the sidebar. Navigation behaviour, policy data and tenant operations are unchanged. The one thing to look at after promotion is a customer brand palette whose --green-deep is light — the rail follows it either way, as it did before 25362.",
+      test: [
+        "Beta site, dark theme: the sidebar is the dark green rail with white text and the lemon selected row — NOT cream, NOT a light tint. Light theme: the same rail. Auto: the same rail whichever way the OS is set.",
+        "Switch theme in the account menu while a tool is open: the rail does not change colour; the page around it does.",
+        "Collapse the sidebar (the chevron) and expand it: icons and T-numbers stay legible on the dark rail in both states.",
+        "Narrow the window under 1240 px and open the mobile menu: the same dark rail, not the page surface.",
+        "Branding settings, pick the purple mockup palette: the rail takes that brand's deep colour and the selected row its accent, in both themes.",
+        "Keyboard: Tab through the rail — the focus ring is visible on the dark rail and on the selected row.",
+      ],
+      files: ["css/workspace.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
     {
   "n": 197,
   "title": "Remove obsolete September rollout controls (T33 1.6)",
