@@ -1,8 +1,8 @@
 /* Workspace chrome uses the existing light/dark tokens; policy exports retain their own layout. */
-/* Invert the navigation surface while deriving its hue from the active brand. */
-:root{--workspace-rail:var(--green-deep);--workspace-rail-ink:#fff;--workspace-rail-muted:color-mix(in srgb,var(--workspace-rail-ink) 72%,var(--workspace-rail));--workspace-rail-selected:var(--lemon);--workspace-rail-selected-ink:var(--green-deep);--workspace-rail-scheme:dark}
-:root[data-theme="dark"]{--workspace-rail:color-mix(in srgb,var(--green) 8%,white);--workspace-rail-ink:var(--green-deep);--workspace-rail-muted:color-mix(in srgb,var(--green-deep) 78%,white);--workspace-rail-selected:var(--green-deep);--workspace-rail-selected-ink:#fff;--workspace-rail-scheme:light}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]):not([data-theme="dark"]){--workspace-rail:color-mix(in srgb,var(--green) 8%,white);--workspace-rail-ink:var(--green-deep);--workspace-rail-muted:color-mix(in srgb,var(--green-deep) 78%,white);--workspace-rail-selected:var(--green-deep);--workspace-rail-selected-ink:#fff;--workspace-rail-scheme:light}}
+/* Approved cream navigation surface; text and selection retain the active brand. */
+:root{--workspace-cream:#fcf8e8;--workspace-rail:var(--green-deep);--workspace-rail-ink:#fff;--workspace-rail-muted:color-mix(in srgb,var(--workspace-rail-ink) 72%,var(--workspace-rail));--workspace-rail-selected:var(--lemon);--workspace-rail-selected-ink:var(--green-deep);--workspace-rail-scheme:dark}
+:root[data-theme="dark"]{--workspace-rail:var(--workspace-cream);--workspace-rail-ink:var(--green-deep);--workspace-rail-muted:color-mix(in srgb,var(--green-deep) 78%,var(--workspace-cream));--workspace-rail-selected:var(--green-deep);--workspace-rail-selected-ink:var(--workspace-cream);--workspace-rail-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]):not([data-theme="dark"]){--workspace-rail:var(--workspace-cream);--workspace-rail-ink:var(--green-deep);--workspace-rail-muted:color-mix(in srgb,var(--green-deep) 78%,var(--workspace-cream));--workspace-rail-selected:var(--green-deep);--workspace-rail-selected-ink:var(--workspace-cream);--workspace-rail-scheme:light}}
 #sideNav{background:var(--workspace-rail);color:var(--workspace-rail-ink);color-scheme:var(--workspace-rail-scheme);border:0}
 #sideNav button{color:var(--workspace-rail-ink)}
 #sideNav h4,#sideNav .sn-t{color:var(--workspace-rail-muted)}

@@ -118,6 +118,33 @@ const PROMOTE = {
 
   items: [
     {
+  "n": 199,
+  "title": "Approved cream sidebar for dark theme",
+  "tools": [
+    "All tools"
+  ],
+  "builds": [
+    25363
+  ],
+  "risk": "low",
+  "what": "Use the approved #FCF8E8 cream surface for the sidebar in Dark and Auto dark mode. Keep deep brand colours for text and selected items; selected text and focus use cream. Apply the palette to desktop, collapsed and mobile navigation.",
+  "why": "Presentation-only CSS scoped to sidebar tokens. Light mode retains the dark branded rail. The shared warning palette, content backgrounds and tenant operations are unchanged.",
+  "test": [
+    "VERIFIED 2026-09-14: Edge demo green and approved purple palette passed exact RGB 252/248/232 checks in Dark mode, Auto OS switching, explicit theme overrides, hover, keyboard focus, collapsed rail and mobile navigation. No JavaScript errors.",
+    "VERIFIED: regular, muted and selected text contrast exceeds 4.5:1 in all tested combinations; minimum 6.67:1. Screenshots inspected.",
+    "VERIFIED: 37 offline regressions, toolbar ordering, plain-text and release consistency checks passed; see review/2026-09-14/BETA-25363.md.",
+    "PENDING hosted beta: refresh cached assets and check actual customer brand configurations before promotion. No live-tenant or deployment test was run."
+  ],
+  "files": [
+    "css/workspace.css",
+    "index.html",
+    "js/version.js",
+    "js/changelog.js",
+    "js/promote.js",
+    "review/2026-09-14/BETA-25363.md"
+  ]
+},
+    {
   "n": 198,
   "title": "Approved contrasting sidebar colours across themes and brands",
   "tools": [

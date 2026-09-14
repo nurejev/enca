@@ -29,6 +29,18 @@
 // ======================================================================
 const CHANGELOG = [
   {
+  "build": 25363,
+  "date": "2026-09-14",
+  "title": "Approved cream sidebar in dark theme",
+  "items": [
+    {
+      "kind": "improved",
+      "tool": "All tools",
+      "text": "The dark theme now uses the approved warm cream sidebar (#FCF8E8), with branded dark text and selection. The same palette applies in Auto dark mode, the collapsed rail and the mobile menu. Light mode retains its dark branded sidebar."
+    }
+  ]
+},
+  {
   "build": 25362,
   "date": "2026-09-14",
   "title": "Sidebar colours follow the approved brand and theme design",
