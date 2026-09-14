@@ -118,6 +118,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 187,
+      title: "\ud83e\uddf1 The last four screens that were not like the others (\ud83d\udd2e \u2696 \ud83d\udd17 \ud83d\udd12, R57)",
+      tools: ["What-If", "Compare users", "Group usage", "Protect exclusions", "All tools"],
+      builds: [25353],
+      risk: "low",
+      what: "index.html: \ud83d\udd2e What-If and \u2696 Compare users move their wi-actions group out of the form card into their existing toolbar as tb-actions (Compare's Differences only tick becomes a toolbar child in the extras slot); \ud83d\udd17 Group usage gains a toolbar holding its mode segment and its action group, both taken out of the form card; \ud83d\udc65 CA groups, \ud83e\udd25 Apps with no service principal and the filter row in \ud83d\udd0d Gap analyse's panel gain toolbar ids (cgToolbar, sgToolbar, anToolbar); \ud83d\udd12 Protect exclusions declares data-no-toolbar with its reason. css/app.css: the wi-actions rule is deleted, its two users having become tb-actions. tools/check-toolbar-order.js: a missing toolbar id and an undeclared missing toolbar now fail instead of printing a note.",
+      why: "Low: markup moves inside three screens plus three id attributes. Every control kept its id, and nothing binds a handler by position, so the buttons work where they now sit. What a reader will notice is that the primary action of the two form tools moved from the foot of the form to the top right, in the sticky bar \u2014 that is the point, but it is the one thing somebody could dislike. Worth knowing: this leaves 32 addressable toolbars and one declared exception, so any screen that turns up later without either fails the commit.",
+      test: [
+        "node tools/check-toolbar-order.js \u2014 exits 0, reports 33 tool screens and 32 toolbars, and prints exactly one note: \ud83d\udd12 Protect exclusions, no toolbar, declared, with its reason. Delete the data-no-toolbar attribute and it should FAIL; put it back.",
+        "\ud83d\udd2e What-If: the mode strip is on its own row, \u25b6 What If, Reset and Export MD are hard right beneath it, and the form below no longer ends in a button row. Fill the form and press \u25b6 What If \u2014 it runs and the result appears as before. Scroll the long form: the button stays in view.",
+        "\u2696 Compare users (from \ud83d\udd75 Who is \u2014 Compare users): Differences only sits to the LEFT of \u2696 Compare and Reset. Tick it and run: the comparison hides matching rows exactly as it used to.",
+        "\ud83d\udd17 User or Group analyzer: the two mode buttons are at the left of the toolbar, the five buttons at the right. Switch to One group or user \u2014 the form below swaps, the buttons stay put. Run a sweep in demo and confirm the exports appear in the toolbar rather than in the form.",
+        "\ud83d\udc65 CA groups and \ud83e\udd25 Apps with no service principal: everything in their toolbars still works (search, the numbered segment, the chips, the CSV file picker, refresh and the exports). Their toolbars now have ids, which changes nothing visible.",
+        "\ud83d\udd0d Gap analyse: the user filter row inside its panel still filters; it just has an id now.",
+        "\ud83d\udd12 Protect exclusions: unchanged \u2014 the scan prompt, the ticks and the run all sit in the result as before. Open \ud83d\udc65 CA groups \u2465 Protect too and confirm the same renderer still draws there.",
+        "At about 820 pixels wide, all three reshaped toolbars wrap without the actions landing on top of the controls.",
+      ],
+      files: ["index.html", "css/app.css", "tools/check-toolbar-order.js", "js/version.js"],
+    },
+    {
       n: 186,
       title: "\ud83e\udde9 One tool, one title \u2014 toolHead, and seven tools stop changing theirs (all tools, R57)",
       tools: ["All tools"],

@@ -94,10 +94,10 @@ const fails = [];
 const notes = [];
 let screens = 0, toolbars = 0;
 
-const SEC = /<section id="screen-([a-z0-9-]+)" class="screen tool">([\s\S]*?)\n  <\/section>/g;
+const SEC = /<section id="screen-([a-z0-9-]+)" class="screen tool"([^>]*)>([\s\S]*?)\n  <\/section>/g;
 let s;
 while ((s = SEC.exec(html)) !== null) {
-  const id = s[1], body = s[2];
+  const id = s[1], attrs = s[2], body = s[3];
   screens++;
 
   // The spacing belongs to the stylesheet. An inline margin on any of the
@@ -111,15 +111,27 @@ while ((s = SEC.exec(html)) !== null) {
     if (re.test(body)) fails.push(`screen-${id}: ${what} sets its own margin — .screen.tool owns that now`);
   });
 
+  // A screen without a toolbar has to say why, on the section itself. Build
+  // 25353 gave 🔮 What-If, ⚖ Compare users and 🔗 Group usage real toolbars
+  // — their controls were sitting inside their form card — and left one
+  // declared exception: 🔒 Protect exclusions, whose controls are drawn into
+  // its result by code shared with 👥 CA groups ⑥.
+  const declared = (attrs.match(/data-no-toolbar="([^"]*)"/) || [])[1];
   const ti = body.indexOf('<div class="toolbar"');
   if (ti < 0) {
-    notes.push(`screen-${id}: no toolbar — it cannot host a tab strip`);
+    if (declared) notes.push(`screen-${id}: no toolbar, declared — ${declared}`);
+    else fails.push(`screen-${id}: no toolbar, and no data-no-toolbar on the section saying why. `
+      + `A tool screen either has one or states the reason it does not.`);
     continue;
   }
+  if (declared) fails.push(`screen-${id}: declares data-no-toolbar but has a toolbar — remove the attribute`);
   toolbars++;
   const openEnd = body.indexOf(">", ti) + 1;
+  // mountToolTabs looks a toolbar up by id, so one without an id can never
+  // host a tab strip. All 32 have one since 25353.
   if (!/ id="\w+"/.test(body.slice(ti, openEnd))) {
-    notes.push(`screen-${id}: the toolbar has no id — mountToolTabs looks one up by id`);
+    fails.push(`screen-${id}: the toolbar has no id — mountToolTabs looks one up by id, `
+      + `so this screen could never host a tab strip`);
   }
 
   const rest = body.slice(openEnd);
