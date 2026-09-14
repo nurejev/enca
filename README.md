@@ -2,7 +2,7 @@
 
 A browser-based toolset for a Microsoft Entra Conditional Access baseline: **document it, analyse it, check it against best practice, back it up and redeploy it** — from one page, with an interactive Entra sign-in and nothing to install.
 
-It started as a web successor to the idPowerToys CA documenter and grew into twelve tools. Everything runs **100% in the browser** as a static site: no backend, no database, and **no policy data ever leaves the user's session**. All Microsoft Graph calls go straight from the browser to `graph.microsoft.com` with a delegated token. The one measurement is anonymous, aggregate **usage counting** via [GoatCounter](https://www.goatcounter.com) — page views and tool-open counts only: no cookies, no identifiers, no tenant names, nothing from the Graph session. Block the script and nothing breaks.
+It started as a web successor to the idPowerToys CA documenter and grew into a workspace with 20 top-level tools and additional tabs. Everything runs **100% in the browser** as a static site: no backend, no database, and **no tenant data is sent to an ENCA backend**. Microsoft Graph calls go straight from the browser to `graph.microsoft.com` with a delegated token. Optional Azure RBAC reads use `management.azure.com` with a separate token. Exports are local files retained by the user. The one measurement is anonymous, aggregate **usage counting** via [GoatCounter](https://www.goatcounter.com) — page views and tool-open counts only: no cookies, no identifiers, no tenant names, nothing from the Graph session. Block the script and nothing breaks.
 
 **Live:** https://enca.limon-it.nl · **Demo without sign-in:** https://enca.limon-it.nl/?demo=1
 
@@ -12,7 +12,7 @@ It started as a web successor to the idPowerToys CA documenter and grew into twe
 
 | Tool | What it does | Writes? |
 |---|---|---|
-| 🗂 **List Policies** | Every policy as cards, a list, or a settings matrix — grouped by persona from the CA number (CA000–099 Global, CA100–199 Admins, … CA1100–1199 E-Admins). Expand a policy to inspect its dependencies (auth strengths, named locations, groups with their first members, terms of use). Select policies to act on them without leaving the screen: documentation, backup, gap analyse, assign groups, policy state, or **delete** (typed confirmation, JSON backup offered first — deleted policies land in the 30-day recycle bin, see ♻ Recycle bin). | only if you delete or change state/groups |
+| 🗂 **List Policies** | A list-first workspace with a detail inspector, persistent tenant context and readable titles alongside original names; cards and the settings matrix remain available. Every policy as cards, a list, or a settings matrix — grouped by persona from the CA number (CA000–099 Global, CA100–199 Admins, … CA1100–1199 E-Admins). Expand a policy to inspect its dependencies (auth strengths, named locations, groups with their first members, terms of use). Select policies to act on them without leaving the screen: documentation, backup, gap analyse, assign groups, policy state, or **delete** (typed confirmation, JSON backup offered first — deleted policies land in the 30-day recycle bin, see ♻ Recycle bin). | only if you delete or change state/groups |
 | 📄 **Create documentation** | Select policies (or take all) and generate shareable documentation: **Word**, **PDF**, **PNG**, or a **PNG bundle**. Exports are neutral — they carry the connected tenant's branding, not Limon-IT's. | no |
 | 🔍 **Gap analyse** | Users × policies impact matrix: which policies apply to whom, who bypasses one through an exclusion (and why), whether that bypass is covered elsewhere, and who gets no MFA at all. Filter by group or user type (the matrix columns then narrow to policies in scope of that group), then export the filtered set as a standalone HTML report. | no |
 | ⑃ **Apply flow** (per persona) | On every persona group header in **List Policies**, a button pops out a visual flow of what Conditional Access does to a sign-in for that persona — the persona's own policies **plus the Global policies (CA000–099) that target everyone** — with the combined grant / block / session outcome, and report-only / staged-Off policies called out. So you can see the real effect on an Internals, Admin or Guest-admin sign-in in one view. | no |
@@ -30,7 +30,7 @@ It started as a web successor to the idPowerToys CA documenter and grew into twe
 | ♻ **Recycle bin** (BETA) | Recently deleted Conditional Access policies and named locations — everything inside the 30-day soft-delete window, with what each item did, its state at deletion and days left. One-click restore with guard rails: a policy that was On at deletion enforces again immediately (typed confirmation), name collisions with the live set are flagged, and restoring a trusted location warns that All-trusted policies follow it again. | **yes** |
 | 🎚 **Set Policy state** | Switch selected policies between On, Report-only and Off. | **yes** |
 | 🚦 **Sign-in failures** | The sign-in log × Conditional Access verdicts: which sign-ins a policy **failed** (enforced — blocked or interrupted) or **would have failed** (report-only), grouped per policy with distinct users, affected apps and the grant controls that weren't met. Report-only failures can't be filtered by Graph (those sign-ins complete), so that mode reads the window in the browser, capped at 10 000 sign-ins. Any logged sign-in can be **replayed in What-If** with one click — user, app, platform, client, IP, country and device state prefilled. Exports CSV (one line per sign-in × failing policy, pivot/SIEM-friendly) and Markdown. Needs `AuditLog.Read.All` (on demand) and an Entra ID P1/P2 licence for the sign-in log. | no |
-| 📥 **Import** | Restore a backup (zip or folder): dependencies first, policies always imported **Off**, matched on CA number + version so existing policies are updated rather than duplicated, and include-assignments remapped onto the target tenant's persona groups. **Import by persona:** a whole-tenant backup can be filtered to one persona (Global, Admins, Guest admins, …) with a single click, so you bring in just that set instead of everything. Produces a Markdown change report. | **yes** |
+| 📥 **Import** | Restore a backup (zip or folder): dependencies first, policies staged **Off** and read back before any activation; approved replacements retain the previous state and E-Admins as-is imports retain the source state, matched on CA number + version so existing policies are updated rather than duplicated, and include-assignments remapped onto the target tenant's persona groups. **Import by persona:** a whole-tenant backup can be filtered to one persona (Global, Admins, Guest admins, …) with a single click, so you bring in just that set instead of everything. Produces a Markdown change report. | **yes** |
 
 The writing actions are always behind an explicit review step and request their write scopes on demand (incremental consent) — signing in never grants them.
 
@@ -373,3 +373,21 @@ Inspired by the Conditional Access documenter in [idPowerToys](https://github.co
 The **MS Learn checks** tool (`js/mslearn.js`) is an independent vanilla-JS implementation of the documented-exclusion check set from [ca-policy-analyzer](https://github.com/Jhope188/ca-policy-analyzer); the checks themselves encode guidance published on learn.microsoft.com (each finding links to its source page).
 
 The **Best-practice & bypass checks** tool (`js/gapcheck.js`) is likewise an independent reimplementation of that project's analyzer check set. The underlying data and research: Conditional Access bypasses by Fabian Bader & Dirk-jan Mollema ([cloudbrothers.info](https://cloudbrothers.info/en/conditional-access-bypasses/), [entrascopes.com](https://entrascopes.com)), the FOCI family research by Secureworks, and the Zero Trust persona framework by Claus Jespersen (Microsoft).
+
+## Workspace and verification (build 312)
+
+The guided rollout connects scope, plan, observed report-only impact and policy-state review. It uses existing tools and confirmations. Manual acknowledgements are not automatic safety checks. The Checks evidence desk shows configuration findings alongside the assessment, recommendation and data limitations.
+
+Imports refuse unresolved exclusions and missing application references instead of dropping them. A replacement is created disabled, read back, activated only to its approved state, read back again, and only then supersedes the old version. Partial changes identify the new policy so the administrator can inspect the tenant before retrying.
+
+Coverage reads fail closed when membership cannot be read. What-If marks unsupported compound device filters and restricted external-user scopes without sufficient metadata as unresolved. It does not prove effective access.
+
+Run the offline checks before committing or publishing:
+
+```sh
+node --test tools/*.test.cjs
+node tools/check-toolbar-order.js
+node tools/check-plain-text.js
+```
+
+GitHub CI runs these checks before building the container. Live-tenant write and consent checks are listed per item in the beta channel's promotion queue; offline fixtures do not replace those checks.

@@ -65,15 +65,18 @@ const WhatIfEval = (() => {
   // Best-effort read of a device filter rule for the common cases the portal
   // generates. Anything else is reported as not evaluatable.
   function deviceFilterVerdict(rule, sc) {
-    const r = String(rule || "").toLowerCase();
+    const r = String(rule || "").trim().toLowerCase();
     if (!r) return { known: true, match: false };
-    if (!sc.deviceState) return { known: false };
-    const compliant = sc.deviceState === "compliant";
-    const hybrid = sc.deviceState === "hybrid";
-    if (/device\.iscompliant\s*-eq\s*true/.test(r)) return { known: true, match: compliant };
-    if (/device\.iscompliant\s*-ne\s*true/.test(r)) return { known: true, match: !compliant };
-    if (/device\.trusttype\s*-eq\s*"?serverad"?/.test(r)) return { known: true, match: hybrid };
-    if (/device\.trusttype\s*-ne\s*"?serverad"?/.test(r)) return { known: true, match: !hybrid };
+    // Match the ENTIRE simple predicate. Unsupported expressions remain unknown;
+    // matching just the first clause of AND/OR would change the policy's scope.
+    const compliant = typeof sc.isCompliant === "boolean" ? sc.isCompliant
+      : sc.deviceState === "compliant" ? true : sc.deviceState === "unmanaged" ? false : null;
+    const trust = sc.trustType ? String(sc.trustType).toLowerCase()
+      : sc.deviceState === "hybrid" ? "serverad" : sc.deviceState === "unmanaged" ? "none" : null;
+    let m = r.match(/^device\.iscompliant\s+-(eq|ne)\s+(true|false)$/);
+    if (m && compliant !== null) return { known: true, match: m[1] === "eq" ? compliant === (m[2] === "true") : compliant !== (m[2] === "true") };
+    m = r.match(/^device\.trusttype\s+-(eq|ne)\s+"(serverad|azuread|workplace)"$/);
+    if (m && trust !== null) return { known: true, match: m[1] === "eq" ? trust === m[2] : trust !== m[2] };
     return { known: false };
   }
 
@@ -100,19 +103,9 @@ const WhatIfEval = (() => {
     const u = c.users || {}, a = c.applications || {};
 
     // 1. users -------------------------------------------------------------
-    const gids = sc.groupIds || new Set(), rids = sc.roleIds || new Set();
-    const incAll = has(u.includeUsers, "All");
-    const incMe = has(u.includeUsers, sc.userId);
-    const incGrp = (u.includeGroups || []).some((g) => gids.has(g));
-    const incRole = (u.includeRoles || []).some((r) => rids.has(r));
-    const incGuest = !!u.includeGuestsOrExternalUsers && !!sc.isGuest;
-    if (!(incAll || incMe || incGrp || incRole || incGuest)) return { applies: false, why: "scope", reason: "User is not in scope of this policy" };
-    if (has(u.excludeUsers, sc.userId)) return { applies: false, why: "excluded", reason: "User is excluded" };
-    const exGrp = (u.excludeGroups || []).find((g) => gids.has(g));
-    if (exGrp) return { applies: false, why: "excluded", reason: `User is excluded via group ${ctx.name(exGrp)}` };
-    const exRole = (u.excludeRoles || []).find((r) => rids.has(r));
-    if (exRole) return { applies: false, why: "excluded", reason: `User is excluded via role ${ctx.name(exRole)}` };
-    if (u.excludeGuestsOrExternalUsers && sc.isGuest) return { applies: false, why: "excluded", reason: "Guest / external users are excluded" };
+    const scope = CaScope.of(p, { ...sc, kind: "user", id: sc.userId, guest: sc.isGuest });
+    if (scope.state === "unknown") return { applies: false, why: "unspecified", reason: scope.reason };
+    if (!scope.applies) return { applies: false, why: scope.excluded ? "excluded" : "scope", reason: scope.excluded ? `User excluded: ${scope.exc?.text || "policy exclusion"}` : "User is not in scope of this policy" };
 
     // 2. target resource ---------------------------------------------------
     const userActions = a.includeUserActions || [], authCtx = a.includeAuthenticationContextClassReferences || [];
@@ -170,10 +163,14 @@ const WhatIfEval = (() => {
       if (!sc.userRisk) return { applies: false, why: "unspecified", reason: "Policy has a user risk condition, but no user risk was supplied" };
       if (!has(c.userRiskLevels, sc.userRisk)) return { applies: false, why: "risk", reason: `User risk ${sc.userRisk} is not in scope` };
     }
-    if (nonEmpty(c.insiderRiskLevels)) {
+    const insider = Array.isArray(c.insiderRiskLevels) ? c.insiderRiskLevels : typeof c.insiderRiskLevels === "string" ? c.insiderRiskLevels.split(",").map(x => x.trim()) : [];
+    if (insider.length) {
+      if (insider.some(x => !["minor", "moderate", "elevated"].includes(x))) return { applies: false, why: "unspecified", reason: "Unsupported insider risk level" };
       if (!sc.insiderRisk) return { applies: false, why: "unspecified", reason: "Policy has an insider risk condition, but no insider risk was supplied" };
-      if (!has(c.insiderRiskLevels, sc.insiderRisk)) return { applies: false, why: "risk", reason: `Insider risk ${sc.insiderRisk} is not in scope` };
+      if (!has(insider, sc.insiderRisk)) return { applies: false, why: "risk", reason: `Insider risk ${sc.insiderRisk} is not in scope` };
     }
+
+    if (c.servicePrincipalRiskLevels?.length || c.clientApplications || c.agentIdRiskLevels?.length) return { applies: false, why: "unspecified", reason: "Workload or agent identity conditions require a supported identity evaluation" };
 
     // 7. authentication flow (device code / auth transfer) -----------------
     const flows = c.authenticationFlows && c.authenticationFlows.transferMethods;
@@ -188,7 +185,7 @@ const WhatIfEval = (() => {
     const df = c.devices && c.devices.deviceFilter;
     if (df && df.rule) {
       const v = deviceFilterVerdict(df.rule, sc);
-      if (!v.known) warnings.push(`device filter not evaluated: ${df.rule}`);
+      if (!v.known) return { applies: false, why: "unspecified", reason: `Device filter requires more data or an unsupported expression: ${df.rule}` };
       else {
         const isInclude = (df.mode || "include") === "include";
         const inScope = isInclude ? v.match : !v.match;
@@ -234,6 +231,8 @@ const WhatIfEval = (() => {
     }
     return {
       applied, notApplied, notEvaluated,
+      indeterminate: notApplied.filter(p => p.why === "unspecified"),
+      complete: !notApplied.some(p => p.why === "unspecified"),
       total: (raws || []).length,
       evaluated: applied.length + notApplied.length,
       // A block wins over everything else — but only if the policy is actually
@@ -250,5 +249,5 @@ const WhatIfEval = (() => {
     };
   }
 
-  return { evaluate, evalPolicy, WHY_LABEL, ipInCidr, matchesLocation, RISK, PLATFORMS, CLIENT_APPS, DEVICE_STATES, LABEL };
+  return { evaluate, evalPolicy, deviceFilterVerdict, WHY_LABEL, ipInCidr, matchesLocation, RISK, PLATFORMS, CLIENT_APPS, DEVICE_STATES, LABEL };
 })();

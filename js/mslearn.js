@@ -994,7 +994,7 @@ const MSLearn = (() => {
     const scope = includeDisabled ? "enabled, report-only and Off (disabled)" : "enabled and report-only";
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>📘 MS Learn: documented exclusion checks</h3>
+        ${toolHead("toolMsLearn")}
         <p style="margin-bottom:0">Your policies, checked against exclusions, limitations and upcoming behavior changes documented on learn.microsoft.com —
         missing break-glass exclusions, token protection limits, Teams Rooms / Surface Hub impact, service provider (CSP / GDAP) exclusions, required app exclusions and control retirements.
         ${checksTotal - LAST_NO_SP} checks ran against your ${scope} policies.${LAST_NO_SP ? ` The ${LAST_NO_SP} service provider checks were skipped: cross-tenant access settings list no CSP or delegated-administration partner for this tenant.` : ""}</p>

@@ -15,7 +15,7 @@
   color-scheme:light;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
 button{font-family:inherit;cursor:pointer}
 a{color:var(--accent2)}
 .muted{color:var(--muted)}
@@ -155,6 +155,95 @@ footer{position:sticky;top:100vh}
   position:sticky;top:var(--sticky-nav,106px);z-index:40;background:var(--bg);
   padding:12px 0;margin:-12px 0 6px;box-shadow:0 6px 12px -8px rgba(18,51,31,.15)}
 .tb-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
+
+/* ---- THE TOOL SCREEN FRAME (build 25351) --------------------------------
+   Every tool screen is the same three things in the same order: a head card
+   saying what the tool is, a sticky toolbar of controls, and the result.
+   That was already true, and it was held together by hand: 96 copies of
+   style="margin-top:0" and style="margin-top:14px" typed onto the same three
+   elements, 33 times. They agreed because somebody was careful, not because
+   anything made them. Now the stylesheet owns the spacing, the markup says
+   nothing about it, and a new screen is spaced right by existing.
+
+   .screen.tool is the opt-in. The sign-in, loading, home, Help, roadmap and
+   changelog screens are not tool screens and deliberately do not carry it. */
+.screen.tool > .readme,
+.screen.tool > .list-card:first-child{margin-top:0}
+.screen.tool > .toolbar{margin-top:14px}
+.screen.tool > .tool-body{margin-top:14px}
+
+/* ---- THE TAB STRIP, ABOVE THE HEAD (build 25355) ------------------------
+   The strip lists the tools inside a host and used to be the toolbar's first
+   row — which put it UNDER the tool's head card. On 🛡 Checks, whose head is
+   four paragraphs, the four tabs were most of a screen down, and people
+   reasonably concluded there was one tool there rather than four.
+
+   The strip is navigation BETWEEN tools; the head describes the tool you are
+   standing in. So navigation goes first, and it stays pinned, because
+   switching tool halfway down a result is the whole reason the strip exists.
+
+   TWO STICKY ROWS, STACKED ON PURPOSE. Sticky siblings given the same `top`
+   land on top of each other — that is exactly what hid 🌊's wave picker until
+   25354 — so the strip pins at --sticky-nav and the toolbar pins beneath it
+   at --sticky-nav + --tabs-h, with --tabs-h MEASURED by syncStickyTops from
+   the active screen's own strip (0 where there is none) and re-measured by a
+   ResizeObserver when the strip wraps: 🛡 has four tabs, 🧩 five, and both
+   take a second row on a narrow window. */
+.screen.tool > .tool-tabs-bar{position:sticky; top:var(--sticky-nav,106px); z-index:41;
+  background:var(--bg); padding:12px 0 10px; margin:0; overflow-x:auto; scrollbar-width:thin}
+/* A .seg hides its overflow, which on a phone quietly ATE tabs: at 400px
+   three of 🧩 Policy building blocks' five were past the right edge with no
+   way to reach them, and the labels that did fit wrapped to three lines. The
+   strip keeps its natural width and the bar scrolls sideways instead — the
+   same answer the policy list and the state chips already use there. */
+.screen.tool > .tool-tabs-bar .tool-tabs{width:max-content; max-width:none; flex:none}
+.screen.tool > .tool-tabs-bar .tool-tabs button{white-space:nowrap}
+.screen.tool > .toolbar{top:calc(var(--sticky-nav,106px) + var(--tabs-h,0px))}
+
+/* ---- THE SLOT ORDER -----------------------------------------------------
+   The toolbar holds six kinds of control and they are ALWAYS in this order,
+   left to right, on every screen (the host tab strip left the toolbar in
+   25355 and pins above the head card instead):
+
+     find   search within what this tool loaded
+     scope  which set the tool is looking at (view, catalog, mode, level)
+     filter chips that narrow the rows inside that set
+     window the time range read from the tenant
+     extra  this tool's own controls — a tick, a target, a back button
+     act    refresh, exports, the primary write — right-aligned
+
+   Before this there were TEN different orders across 33 screens for the same
+   six kinds of control: scope came before filter on three screens and after
+   it on seven, and the window picker sat third on 🕓 🚦 🎚 and fifth on 👥.
+   Nothing was wrong with any one screen; what was wrong was that a control
+   moved when you switched tools, so you had to look for it again every time.
+
+   The markup on every screen is now in this order, so the FOCUS order is too.
+   These `order` values are the guard rail, not the mechanism: a screen written
+   out of order still draws in order, and tools/check-toolbar-order.js fails
+   the commit that wrote it. Both agree, deliberately — CSS alone would leave
+   tabbing through a toolbar jumping about, and markup alone nothing enforces.
+
+   THE ONE REAL CULPRIT was .search{flex:1}: the find box ate all the slack in
+   the row, so the filter chips landed in the middle of a screen that had a
+   search and hard left on a screen that did not. A control's position must
+   not depend on whether a DIFFERENT control exists, so inside a toolbar the
+   find box is a fixed width and .tb-actions{margin-left:auto} takes the slack
+   — which is what it was already doing on the screens that have no search. */
+.toolbar > *{order:5}
+.toolbar > .search{order:1;flex:0 0 auto;width:clamp(200px,26%,320px);min-width:0}
+.toolbar > .seg,.toolbar > .tb-scope{order:2}
+.toolbar > .chip-filter{order:3}
+.toolbar > .tb-win{order:4}
+.toolbar > .tb-actions{order:6}
+/* The window and scope pickers are .wi-f labels — a form field borrowed into
+   a toolbar — so they need the row direction the six inline styles used to
+   give them one screen at a time. */
+.wi-f.tb-win,.wi-f.tb-scope{flex-direction:row;align-items:center;gap:6px;flex:none}
+@media (max-width:600px){
+  /* On a phone the find box is the widest useful thing in the row. */
+  .toolbar > .search{width:100%}
+}
 .toolbar > .chk{margin:0}
 /* every control in a toolbar shares one height, so nothing sits half a row off */
 .toolbar .btn,.toolbar .seg,.toolbar .fchip,.toolbar .chk,.toolbar .search input,
@@ -711,7 +800,6 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
    nine-item row, where only four of them change the tool. flex-basis:100%
    makes it a full-width track: tabs left, empty rail right, the same shape as
    the tool tabs in the header. (25343, T08 option A.) */
-.tool-tabs{order:-1;flex-basis:100%}
 .tool-tabs button .tag{margin-left:5px;font-size:9px;padding:0 4px;vertical-align:1px}
 /* CA validator simulation report */
 .va-card{padding:0;margin-bottom:10px;overflow:hidden}
@@ -764,7 +852,6 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 /* …but not the tick boxes: the rule above is meant for text fields and selects,
    and it was inflating a checkbox into a 38px bordered square. */
 .wi-f input[type=checkbox],.wi-f input[type=radio]{width:16px;height:16px;padding:0;border:0;border-radius:0}
-.wi-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
 .wi-res{margin-bottom:12px;padding:14px 16px}
 .wi-verdict{font-size:15px;padding:8px 12px;border-radius:var(--radius)}
 .wi-verdict.block{background:var(--bad-bg2);color:var(--off)}
@@ -881,12 +968,12 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 @keyframes ruFlash{0%{box-shadow:0 0 0 3px var(--accent2)}100%{box-shadow:0 0 0 0 transparent}}
 
 
-.tool{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;cursor:pointer;transition:.15s;
+.tool-tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;cursor:pointer;transition:.15s;
   background-image:radial-gradient(300px 160px at 90% -40px,var(--glow) 0%,transparent 60%)}
-.tool:hover{border-color:var(--accent2);transform:translateY(-2px)}
+.tool-tile:hover{border-color:var(--accent2);transform:translateY(-2px)}
 .tool-ic{font-size:30px;margin-bottom:12px}
-.tool h3{font-size:17px;letter-spacing:-.01em;margin-bottom:8px;color:var(--green)}
-.tool p{font-size:13px;color:var(--muted);line-height:1.5}
+.tool-tile h3{font-size:17px;letter-spacing:-.01em;margin-bottom:8px;color:var(--green)}
+.tool-tile p{font-size:13px;color:var(--muted);line-height:1.5}
 .readme{margin-top:26px;padding:26px;max-width:1180px}
 .readme h3{font-size:16px;margin-bottom:10px;color:var(--green)}
 .readme h4{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin:18px 0 6px}
@@ -1040,7 +1127,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 :root[data-theme="dark"] .logo img, :root[data-theme="dark"] .login-card > img{content:url("../assets/logo-mark-dark.svg?v=25163")}
 
 /* the site's own treatment: white card titles, lemon pill, lemon CTA, hero glow */
-:root[data-theme="dark"] .tool h3, :root[data-theme="dark"] .readme h3{color:var(--lemon)}
+:root[data-theme="dark"] .tool-tile h3, :root[data-theme="dark"] .readme h3{color:var(--lemon)}
 :root[data-theme="dark"] .tag.new{background:var(--soft);border-color:var(--ghost-bd);color:var(--lemon);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 :root[data-theme="dark"] .btn.primary{background:var(--lemon);border-color:var(--lemon)}
 :root[data-theme="dark"] .btn.primary:hover{background:var(--lemon-deep);border-color:var(--lemon-deep)}
@@ -1060,7 +1147,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn:hover,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x:hover{background:rgba(0,0,0,.12);color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .fs-bg{background:rgba(0,0,0,.62)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .logo img, :root:not([data-theme="light"]):not([data-theme="dark"]) .login-card > img{content:url("../assets/logo-mark-dark.svg?v=25163")}
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .tool h3, :root:not([data-theme="light"]):not([data-theme="dark"]) .readme h3{color:var(--lemon)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .tool-tile h3, :root:not([data-theme="light"]):not([data-theme="dark"]) .readme h3{color:var(--lemon)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .tag.new{background:var(--soft);border-color:var(--ghost-bd);color:var(--lemon);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary{background:var(--lemon);border-color:var(--lemon)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary:hover{background:var(--lemon-deep);border-color:var(--lemon-deep)}
@@ -1153,7 +1240,7 @@ button.bl-chip.active{box-shadow:0 0 0 2px currentColor inset}
 footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospace,Consolas,monospace}
 
 /* per-tool version, tucked into the tile corner */
-.tool{position:relative}
+.tool-tile{position:relative}
 .tool-ver{position:absolute;top:14px;right:16px;font-size:10.5px;letter-spacing:.04em;
   font-family:ui-monospace,Consolas,monospace;color:var(--muted);background:var(--soft);
   border:1px solid var(--border);border-radius:999px;padding:2px 8px;cursor:help;white-space:nowrap}
@@ -1161,8 +1248,8 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
    ON it. Carrying the T-number as well as the version made it wide enough for
    that to matter, so the heading is kept clear of it and its NEW / UPDATED
    chips wrap instead of sliding underneath. */
-.tool h3{padding-right:104px}
-.tool:hover .tool-ver{border-color:var(--accent2);color:var(--green)}
+.tool-tile h3{padding-right:104px}
+.tool-tile:hover .tool-ver{border-color:var(--accent2);color:var(--green)}
 /* the same stamp, on the tool's own header card */
 .tool-ver-head{margin-left:9px;font-size:10.5px;letter-spacing:.04em;font-weight:400;vertical-align:middle;
   font-family:ui-monospace,Consolas,monospace;color:var(--muted);background:var(--soft);
@@ -1270,13 +1357,19 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
    clears the header plus the tool tab bar. It has to live OUTSIDE .list-card:
    that card sets overflow:hidden, and a sticky child of a clipping ancestor
    sticks only within that ancestor's box, which is not what anyone wants. */
-.gu-sticky{position:sticky;top:106px;z-index:40;background:var(--bg);
+/* This strip is sticky INSIDE the result, so it pins below the screen's own
+   toolbar — not at a hard-coded 106px, which is what it used to do. Build
+   25353 gave this screen a toolbar and the two then pinned to the same place:
+   62px of overlap at a 1500x800 window, the mode buttons hidden under the
+   strip on any scroll. --sticky-tools is measured by syncStickyTops. */
+.gu-sticky{position:sticky;top:var(--sticky-tools,168px);z-index:39;background:var(--bg);
   padding:10px 0 12px;margin:0 0 12px;box-shadow:0 6px 12px -8px rgba(18,51,31,.15)}
 .gu-who{display:block;font-size:14px;font-weight:600;margin-bottom:2px}
 .gu-who .mini{font-weight:400}
 .gu-sticky .gu-sum{margin-top:6px}
-/* a jump lands the card below the strip, not behind it */
-.gu-jt,#guBody .list-card{scroll-margin-top:172px}
+/* a jump lands the card below the strip, not behind it — both numbers
+   measured, because the strip is taller now that its counts are tiles */
+.gu-jt,#guBody .list-card{scroll-margin-top:calc(var(--sticky-tools,168px) + var(--gu-strip,96px) + 10px)}
 
 /* A brand override supplies its own logo for BOTH themes — the dark-mode
    content: swap above must not clobber it. */
@@ -1686,30 +1779,6 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
   body.with-side .toolnav-inner,body.with-side.side-min .toolnav-inner{padding:0 24px}
 }
 
-/* T33 — the passkey-dynamic-migration strip. Its whole job is to answer one
-   question from across the room: is Microsoft's September rollout running
-   against this tenant, or not? A tag-sized badge could not do that, and a
-   read whose result looks the same before and after the click reads as a
-   button that did nothing. Hence a coloured strip, a state word in caps, the
-   raw property value underneath, and a flash on every update — including an
-   update that changes nothing, because "still not paused" is an answer. */
-.sv-mig{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--border);border-left-width:6px;
-  border-radius:12px;padding:12px 14px;background:var(--soft)}
-.sv-mig-ic{font-size:24px;line-height:1.1}
-.sv-mig-t{font-size:14px;font-weight:700;letter-spacing:.04em;margin:0 0 3px}
-.sv-mig-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--muted);margin:4px 0 0}
-.sv-mig.on{border-left-color:var(--on);background:var(--ok-bg2)}
-.sv-mig.on .sv-mig-t{color:var(--on)}
-.sv-mig.warn{border-left-color:var(--report);background:var(--warn-bg2)}
-.sv-mig.warn .sv-mig-t{color:var(--report)}
-.sv-mig.bad{border-left-color:var(--off);background:var(--bad-bg2)}
-.sv-mig.bad .sv-mig-t{color:var(--off)}
-.sv-mig.idle .sv-mig-t{color:var(--muted)}
-@keyframes sv-flash{0%{box-shadow:0 0 0 0 var(--accent2)}30%{box-shadow:0 0 0 4px var(--accent2)}100%{box-shadow:0 0 0 0 transparent}}
-.sv-flash{animation:sv-flash 1.4s ease-out}
-.sv-spin{width:14px;height:14px;border:2px solid var(--soft);border-top-color:var(--accent2);border-radius:50%;
-  display:inline-block;vertical-align:-2px;margin:0;animation:spin .8s linear infinite}
-
 /* ---------- 🕵 Who is Anna to CA (T36) ---------- */
 .wo-card{padding:18px 20px;margin-top:14px}
 .wo-card:first-child{margin-top:0}
@@ -1733,7 +1802,10 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-verdicts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
 .wo-verdicts.wo-5{grid-template-columns:repeat(5,1fr)}
 .wo-verdicts.wo-3{grid-template-columns:repeat(3,1fr)}
-@media (max-width:1200px){.wo-verdicts.wo-5{grid-template-columns:repeat(3,1fr)}}
+.wo-verdicts.wo-2{grid-template-columns:repeat(2,1fr)}
+.wo-verdicts.wo-6{grid-template-columns:repeat(6,1fr)}
+@media (max-width:1200px){.wo-verdicts.wo-5,.wo-verdicts.wo-6{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:760px){.wo-verdicts,.wo-verdicts.wo-3,.wo-verdicts.wo-5,.wo-verdicts.wo-6{grid-template-columns:repeat(2,1fr)}}
 .wo-vt{border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--soft2);display:grid;gap:2px;align-content:start}
 .wo-vt .k{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 .wo-vt .v{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums}

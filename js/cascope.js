@@ -23,7 +23,7 @@
 // built from the more complete of the two.
 //
 //   CaScope.of(policy, subject, opts) -> {
-//     state      "inc" | "exc" | "na"
+//     state      "inc" | "exc" | "na" | "unknown"
 //     applies    state === "inc"          (what ⚡ asks)
 //     included   was included by some clause, before exclusions
 //     excluded   included, then taken out
@@ -68,11 +68,38 @@ const CaScope = (() => {
       excUsers: new Set(exc.filter((x) => x !== GUEST_TOKEN)),
       incGroups: u.includeGroups || [], excGroups: u.excludeGroups || [],
       incRoles: u.includeRoles || [], excRoles: u.excludeRoles || [],
-      incGuests: !!u.includeGuestsOrExternalUsers || inc.includes(GUEST_TOKEN),
-      excGuests: !!u.excludeGuestsOrExternalUsers || exc.includes(GUEST_TOKEN),
+      incGuests: u.includeGuestsOrExternalUsers || inc.includes(GUEST_TOKEN),
+      excGuests: u.excludeGuestsOrExternalUsers || exc.includes(GUEST_TOKEN),
     };
   }
 
+  // Restricted guest scopes require both external-user type and home tenant.
+  // userType=Guest alone does not identify a service provider or partner tenant.
+  function guestMatch(rule, subject) {
+    if (!rule) return false;
+    if (rule === true) return subject.guest == null ? null : !!subject.guest;
+    const types = String(rule.guestOrExternalUserTypes || "").split(",").map(x => x.trim());
+    const type = subject.guestOrExternalUserType;
+    if (!type) return null;
+    if (!types.includes(type)) return false;
+    const tenants = rule.externalTenants;
+    if (!tenants || tenants.membershipKind === "all") return true;
+    if (tenants.membershipKind !== "enumerated" || !subject.homeTenantId) return null;
+    return (tenants.members || []).includes(subject.homeTenantId);
+  }
+
+  // A strength counts only if Graph explicitly says it satisfies MFA or it is
+  // one of the three built-in MFA strengths. A custom id/name is not proof.
+  function requiresMfa(grant = {}) {
+    const controls = (grant.builtInControls || []).map(x => x === "mfa");
+    if (grant.authenticationStrength) {
+      const a = grant.authenticationStrength;
+      controls.push(a.requirementsSatisfied === "mfa" || /^00000000-0000-0000-0000-00000000000[234]$/i.test(a.id || ""));
+    }
+    (grant.termsOfUse || []).forEach(() => controls.push(false));
+    (grant.customAuthenticationFactors || []).forEach(() => controls.push(false));
+    return !!controls.length && (grant.operator === "AND" ? controls.some(Boolean) : controls.every(Boolean));
+  }
   const NA = { state: "na", applies: false, included: false, excluded: false, byAll: false, inc: null, exc: null, via: null };
 
   function of(policy, subject, opts) {
@@ -106,6 +133,9 @@ const CaScope = (() => {
     }
 
     // ---- a USER subject ----
+    const incGuest = guests ? guestMatch(P.incGuests, s) : false;
+    const excGuest = guests ? guestMatch(P.excGuests, s) : false;
+    const unknown = reason => ({ ...NA, state: "unknown", reason, inc: { kind: "unknown", text: reason } });
     let inc = null;
     if (P.includeAll) inc = why("all", "All users");
     else if (has(P.incUsers, s.id)) inc = why("user", "named directly");
@@ -115,10 +145,13 @@ const CaScope = (() => {
       else {
         const r = (P.incRoles || []).find((x) => rids.has(x)) || null;
         if (r) inc = why("role", nameOf(r), r);
-        else if (guests && P.incGuests && s.guest) inc = why("guest", "guest / external user type");
+        else if (incGuest === true) inc = why("guest", "guest / external user type");
       }
     }
-    if (!inc) return { ...NA };
+    if (!inc) {
+      if (incGuest === null || (P.incGroups?.length && s.groupsComplete === false) || (P.incRoles?.length && s.rolesComplete === false)) return unknown("Scope cannot be determined: external-user metadata or membership data is incomplete");
+      return { ...NA };
+    }
 
     let exc = null;
     if (has(P.excUsers, s.id)) exc = why("user", "named directly in the exclusions");
@@ -128,14 +161,15 @@ const CaScope = (() => {
       else {
         const r = (P.excRoles || []).find((x) => rids.has(x)) || null;
         if (r) exc = why("role", nameOf(r), r);
-        else if (guests && P.excGuests && s.guest) exc = why("guest", "guest / external user type");
+        else if (excGuest === true) exc = why("guest", "guest / external user type");
       }
     }
+    if (!exc && (excGuest === null || (P.excGroups?.length && s.groupsComplete === false) || (P.excRoles?.length && s.rolesComplete === false))) return unknown("Exclusions cannot be determined: external-user metadata or membership data is incomplete");
     return { state: exc ? "exc" : "inc", applies: !exc, included: true, excluded: !!exc,
       byAll: !!P.includeAll, inc, exc, via: exc ? (exc.id || s.id) : null };
   }
 
-  return { of, prep, GUEST_TOKEN };
+  return { of, prep, guestMatch, requiresMfa, GUEST_TOKEN };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = { CaScope };

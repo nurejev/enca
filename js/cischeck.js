@@ -418,7 +418,7 @@ const CisCheck = (() => {
     const s = result.score;
     const card = (label, val) => `<div style="flex:0 0 auto;display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:96px;border:1px solid var(--border);border-radius:12px;padding:10px 16px">
       <div style="font-size:26px;font-weight:800;color:${scoreColor(val)}">${val}%</div><div class="mini muted">${label}</div></div>`;
-    return `<h3>📐 CIS Benchmark alignment <span class="tag new">BETA</span></h3>
+    return `${toolHead("toolCis")}
       <p style="margin:6px 0 0">The tenant's Conditional Access policies assessed against the <b>${esc(CIS_BENCHMARK.name)} v${CIS_BENCHMARK.version}</b> (released ${esc(CIS_BENCHMARK.released)}), section ${esc(CIS_BENCHMARK.section)} — the ${CIS_BENCHMARK.controls.length} automated CA recommendations. A CA compliance slice, not a full M365 benchmark scan.</p>
       <p class="mini muted" style="margin:4px 0 0">Benchmark catalog revision ${esc(CIS_BENCHMARK.revision)} — the control set and assessment criteria are versioned on their own (cisdata.js), separate from the app build and the other tools.</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:stretch;margin-top:12px">

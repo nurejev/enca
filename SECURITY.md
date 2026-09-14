@@ -15,9 +15,9 @@ this file next to it.)*
 
 ENCA is a **static, single-page web application**: HTML, CSS and plain
 JavaScript served from GitHub Pages. There is **no backend, no database, no
-proxy and no server-side code**. The browser talks to two parties for the
+proxy and no server-side code**. The browser talks directly to Microsoft for the
 tenant: `login.microsoftonline.com` to sign in and `graph.microsoft.com` to
-read and (only when an admin explicitly uses a write tool) change the tenant.
+read and (only when an admin explicitly uses a write tool) change the tenant. Optional Azure RBAC reads use `management.azure.com` with a separate ARM token.
 One read-only exception, added in R36: the 🧩 Baseline (Joey Verlinden) tool
 reads that community baseline's policy files from `api.github.com` and
 `raw.githubusercontent.com` — public, unauthenticated, once per session, no
@@ -41,9 +41,7 @@ ENCA signs the administrator in with **MSAL.js using the authorization code
 flow with PKCE** as a public client — there is **no client secret** anywhere,
 because a static site cannot keep one. Tokens are cached in
 **`sessionStorage`**: they die with the tab, are not shared across sites, and
-are never written to disk by the app. Access tokens are attached **only** to
-requests whose hostname is `graph.microsoft.com` — validated before every
-single request.
+are never written to disk by the app. Graph access tokens are attached only to requests whose hostname is `graph.microsoft.com`; ARM tokens are attached only to `management.azure.com`. The host is validated before every request.
 
 All permissions are **delegated**. This is the load-bearing property of the
 whole security model:
@@ -65,7 +63,7 @@ whole security model:
 The write scopes are the powerful ones, and there is no way to soften what
 they are: `Policy.ReadWrite.ConditionalAccess` can change the policies that
 guard the tenant, `Group.ReadWrite.All` and `RoleManagement.ReadWrite.Directory`
-can create and populate (role-assignable) groups, `AdministrativeUnit.ReadWrite.All`
+can create and populate ordinary security groups, `AdministrativeUnit.ReadWrite.All`
 can create a restricted management AU. They are requested only by the tools
 that write, only when used, and every change they make is recorded — by
 Entra, not by ENCA — in the tenant's own audit log with the administrator as
@@ -219,3 +217,13 @@ Please report suspected vulnerabilities privately via **GitHub Security
 Advisories** on this repository ("Report a vulnerability") rather than a
 public issue. Reports get a response, a fix in the beta channel, and credit
 if wanted; the changelog discloses security-relevant fixes.
+
+## Build 312: evidence and mutation integrity
+
+Graph access tokens are restricted to the Graph host. Optional Azure RBAC inspection obtains a separate ARM token for `management.azure.com`; it never reuses a Graph token. Branding settings can be written through their own existing confirmation flow. Public baseline catalog caches are distinct from tenant data in memory. Downloaded exports remain on the user's device.
+
+Policy import refuses unresolved material exclusions and missing applications. Creation is staged disabled and read back before restoring an approved state. The previous version is only disabled after the replacement is verified. Readback or old-policy failures remain visible as failures; a created policy may remain and must be inspected before retrying. This is a multi-request operation, not an atomic transaction.
+
+A failed membership read aborts coverage. Unknown external-user scope and unsupported device expressions do not establish protection. Grant alternatives are respected when counting mandatory MFA. The local simulator cannot certify effective access.
+
+Batch retries are bounded and preserve the selected Graph API version. Export rendering errors abort document generation; requested pages are not silently omitted. Self-hosted HTML and branding responses retain all four security headers even when setting their own cache header.

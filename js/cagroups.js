@@ -735,7 +735,7 @@ const CaGroups = (() => {
     const inUse = res.rows.length;
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>👥 Conditional Access groups — ${esc(tenant || "this tenant")}</h3>
+        <h3>👥 Conditional Access groups — ${esc(tenant || "this tenant")}${toolHeadTail("toolCaGroups")}</h3>
         <p style="margin-bottom:10px">${onlyPolicies
           ? `Only the groups your Conditional Access policies actually reference. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody. Switch the scope to <b>Baseline + templates</b> to also check which expected groups are missing.`
           : res.scope === "tenant"

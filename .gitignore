@@ -29,3 +29,11 @@ js/authConfig.local.js
 # number. It is its own git repo pushed to Azure Repos, so the nested .git
 # lives in here too. selfhost/azuredeploy.json stays the published route.
 /terraform/
+
+# Working notes that are deliberately NOT part of the repo. The tool
+# consolidation plan (39 tiles down to 19, builds 25338-25349) and anything
+# like it: written to be worked from and superseded, not to be kept. The
+# record of what actually shipped is js/changelog.js, js/promote.js and the
+# roadmap, which is where somebody reading the repo will look. Left untracked
+# on purpose, so the pre-commit check stops asking about it.
+/CONSOLIDATION-PLAN.md

@@ -17,14 +17,34 @@ name: docker image
 on:
   push:
     branches: [main, beta]
+  pull_request:
+    branches: [main, beta]
 
 permissions:
   contents: read
   packages: write
 
 jobs:
+  checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tools/*.test.cjs
+      - run: node tools/check-toolbar-order.js
+      - run: node tools/check-plain-text.js
+      - name: Check self-hosting response headers
+        run: |
+          docker build -t enca-check .
+          docker run -d --name enca-check -p 8080:80 enca-check
+          python3 tools/check-headers.py http://127.0.0.1:8080
   publish:
-    if: github.repository == 'nurejev/enca'
+    needs: checks
+    if: github.event_name == 'push' && github.repository == 'nurejev/enca'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -430,7 +430,7 @@ const Exclusions = (() => {
       .map(([k, n]) => `<span class="tag">${KIND[k].icon} ${n} ${esc(KIND[k].label)}${n === 1 ? "" : "s"}</span>`).join(" ");
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🚪 CA Exclusion analyzer</h3>
+        ${toolHead("toolExclusions")}
         <p style="margin-bottom:8px">Every exclusion configured across your Conditional Access policies — users, groups (with their members), directory roles, guest types, applications, named locations and device platforms — mapped against the policies that exclude them.</p>
         <div style="display:flex;gap:6px;flex-wrap:wrap">${kinds || '<span class="mini">No exclusions found.</span>'}${s.nestedGroups ? ` <span class="tag block" title="Members who come into an exclusion group through a group nested inside it">↪ ${s.nestedGroups} excluded group${s.nestedGroups === 1 ? "" : "s"} with nested groups · ${s.nestedUsers} user${s.nestedUsers === 1 ? "" : "s"} through nesting${s.allNested ? ` · ${s.allNested} fed entirely by nesting` : ""}</span>` : ""}${s.uncoveredApps ? ` <span class="tag block" title="Apps excluded from an All-resources policy that no other enabled, enforcing policy reaches for the same users">⚠ ${s.uncoveredApps} excluded app${s.uncoveredApps === 1 ? "" : "s"} with no other coverage</span>` : ""}${s.phantomApps ? ` <span class="tag new" title="Excluded app ids with no service principal in this tenant — the exclusion matches nothing today">👻 ${s.phantomApps} phantom app exclusion${s.phantomApps === 1 ? "" : "s"}</span>` : ""}</div>
       </div>

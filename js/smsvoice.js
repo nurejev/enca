@@ -24,7 +24,6 @@
 // house pattern (devcheck.js, guide.js):
 //   ctx = {
 //     campaignState: "enabled"|"disabled"|"default"|"unknown",
-//     optOut:        true|false|null,       // passkeyDynamicMigration; null = not readable
 //     sms:   { state, scope },              // scope = parseScope() result
 //     voice: { state, scope },
 //     names: { id → displayName },
@@ -40,176 +39,6 @@ const SmsVoice = (() => {
     retire: { iso: "2027-02-01", label: "1 February 2027" },
   };
   const daysUntil = (iso) => Math.ceil((new Date(iso + "T00:00:00Z") - Date.now()) / 86400000);
-
-  // ---- passkey dynamic migration: the one thing this tool can WRITE --------
-  // Microsoft's temporary opt-out from its OWN September rollout, and the
-  // reason it needs a tool at all: it is a Graph-only property with no control
-  // anywhere in the Entra admin center, so a tenant cannot see its own setting
-  // without calling Graph, and cannot tell "we decided not to opt out" from
-  // "nobody ever looked". Tenant-wide, one boolean, on the authentication
-  // methods policy — beta only, which is what AUTH_CONFIG.graphBase already is.
-  //
-  // What TRUE does: excludes the tenant from the 1 September 2026 automatic
-  // passkey enablement and the Microsoft-managed registration campaign that
-  // comes with it. What it does NOT do — and this is the misreading worth
-  // spending words on — is move the 1 February 2027 retirement. SMS and voice
-  // stop working on that date whatever this says.
-  //   Background: Roy Klooster, rksolutions.nl/posts/microsoft-entra-passkey-dynamic-migration
-  //   Graph: learn.microsoft.com/graph/api/authenticationmethodspolicy-update?view=graph-rest-beta
-  const MIGRATION = {
-    path: "/policies/authenticationMethodsPolicy",
-    readScopes: ["Policy.Read.All"],                       // covered by the baseline consent
-    writeScopes: ["Policy.ReadWrite.AuthenticationMethod"], // asked on demand, at the click
-    role: "Authentication Policy Administrator",           // least-privileged built-in role that can write it
-  };
-  // null is a THIRD answer, not a falsy second one: an absent property means
-  // the tenant has never used the opt-out — but it also looks identical to a
-  // tenant that cannot expose it, so the caller must be able to say "not read".
-  const readOptOut = (policy) => {
-    const v = policy && policy.optOutSettings ? policy.optOutSettings.passkeyDynamicMigration : undefined;
-    return typeof v === "boolean" ? v : null;
-  };
-  const optOutBody = (on) => ({ optOutSettings: { passkeyDynamicMigration: !!on } });
-  const migrationWord = (v) => v === true ? "paused" : v === false ? "not paused" : "not read";
-  // In a HISTORY line the third state means something different from "not
-  // read": the property was absent from the policy at that moment. Same three
-  // values, different sentence, so it gets its own word rather than reusing a
-  // label that would claim the audit log failed.
-  const migrationValueWord = (v) => v === true ? "paused" : v === false ? "not paused" : "absent";
-
-  // ---- who changed it, and when: the directory audit log -------------------
-  // The panel answers WHAT this tenant's setting is. The question that follows
-  // it in every real conversation is "since when, and who did that?" — and
-  // because the property has no control in the Entra admin center, there is no
-  // change record anywhere a person can reach by clicking. The directory audit
-  // log has one: an edit to the authentication methods policy is logged like
-  // any other policy change, whoever made it and however they made it.
-  //
-  // Two caveats that must be PASSED ON rather than hidden, because both make
-  // an empty answer mean something other than "nobody changed it":
-  //   * retention is licence-bound — about 30 days on Entra ID P1/P2, 7 days
-  //     otherwise. "No record" means "not in the window", never "never".
-  //   * Entra does not reliably diff nested properties, so a record can prove
-  //     the policy was edited without proving WHICH field moved. Those records
-  //     are kept and labelled instead of dropped: a name and a timestamp is a
-  //     smaller answer than a transition, but it is still an answer.
-  const MIGRATION_AUDIT = {
-    scopes: ["AuditLog.Read.All"],
-    role: "Reports Reader",   // least-privileged built-in role that can read the audit log
-    days: 30,                 // the most any licence retains
-    // The date window plus the category every policy change lands in. Narrowing
-    // further server-side is not worth it: the activity name for this edit
-    // differs between the portal, Graph and PowerShell, and a filter that
-    // misses one of them would report "nobody changed it" about a change that
-    // is sitting right there in the log.
-    query(days) {
-      const since = new Date(Date.now() - (days || MIGRATION_AUDIT.days) * 864e5).toISOString();
-      const f = `activityDateTime ge ${since} and category eq 'Policy'`;
-      return `/auditLogs/directoryAudits?$filter=${encodeURIComponent(f)}&$orderby=activityDateTime desc&$top=999`;
-    },
-  };
-
-  // Audit values arrive as JSON strings, sometimes double-encoded, sometimes
-  // wrapped in a one-element array, and sometimes as the bare word "true".
-  function auDecode(v) {
-    if (v == null || v === "") return null;
-    let x = v;
-    for (let i = 0; i < 3; i++) {
-      if (typeof x !== "string") break;
-      const s = x.trim();
-      if (s === "true") return true;
-      if (s === "false") return false;
-      if (!(s.startsWith("{") || s.startsWith("[") || s.startsWith('"'))) break;
-      try { x = JSON.parse(s); } catch { break; }
-    }
-    if (Array.isArray(x) && x.length === 1 && x[0] && typeof x[0] === "object") return x[0];
-    return x;
-  }
-  // The flag can sit anywhere in a decoded payload: the whole policy object,
-  // just optOutSettings, or the bare boolean when the property is named on the
-  // modifiedProperty itself. undefined means "this payload does not carry it",
-  // which is not the same as null ("it carries it, and it was absent").
-  function findFlag(v, depth = 0) {
-    if (typeof v === "boolean") return depth ? v : undefined;
-    if (!v || typeof v !== "object" || depth > 6) return undefined;
-    if (Object.prototype.hasOwnProperty.call(v, "passkeyDynamicMigration")) {
-      const b = v.passkeyDynamicMigration;
-      return typeof b === "boolean" ? b : b === "true" ? true : b === "false" ? false : null;
-    }
-    for (const k of Object.keys(v)) {
-      const r = findFlag(v[k], depth + 1);
-      if (r !== undefined) return r;
-    }
-    return undefined;
-  }
-  const NAMED_RX = /passkeydynamicmigration/i;
-  const AUTH_POLICY_RX = /authentication ?methods ?policy|authenticationmethodspolicy/i;
-
-  function migrationActor(rec) {
-    const b = rec.initiatedBy || {};
-    if (b.user && (b.user.userPrincipalName || b.user.displayName || b.user.id))
-      return { kind: "user", name: b.user.displayName || b.user.userPrincipalName || b.user.id,
-        upn: b.user.userPrincipalName || "", ip: b.user.ipAddress || "" };
-    if (b.app && (b.app.displayName || b.app.appId))
-      return { kind: "app", name: b.app.displayName || b.app.appId, upn: "", ip: "" };
-    return { kind: "unknown", name: "(unknown)", upn: "", ip: "" };
-  }
-
-  // One audit record → one history row, or null when it has nothing to do with
-  // the authentication methods policy.
-  function migrationRecord(rec) {
-    const trs = rec.targetResources || [];
-    const props = trs.flatMap((t) => t.modifiedProperties || []);
-    const text = [rec.activityDisplayName || "",
-      ...trs.map((t) => `${t.displayName || ""} ${t.type || ""}`),
-      ...props.map((p) => p.displayName || "")].join(" ");
-    if (!NAMED_RX.test(text) && !AUTH_POLICY_RX.test(text)) return null;
-
-    let from, to;
-    for (const p of props) {
-      const named = NAMED_RX.test(String(p.displayName || ""));
-      const o = auDecode(p.oldValue), n = auDecode(p.newValue);
-      const f = named ? (typeof o === "boolean" ? o : o == null ? null : findFlag(o, 1)) : findFlag(o);
-      const t = named ? (typeof n === "boolean" ? n : n == null ? null : findFlag(n, 1)) : findFlag(n);
-      if (f !== undefined && from === undefined) from = f;
-      if (t !== undefined && to === undefined) to = t;
-    }
-    const seen = from !== undefined || to !== undefined;
-    const norm = (v) => (v === true || v === false) ? v : null;
-    return {
-      id: rec.id,
-      when: rec.activityDateTime,
-      activity: rec.activityDisplayName || "(policy change)",
-      result: rec.result || "",
-      service: rec.loggedByService || "",
-      actor: migrationActor(rec),
-      from: seen ? norm(from) : null,
-      to: seen ? norm(to) : null,
-      seen,                                       // the record carried the property at all
-      moved: seen && norm(from) !== norm(to),     // and it actually changed
-    };
-  }
-
-  // The whole answer, in the order the panel needs it: the property changes
-  // first, every other authentication methods policy edit behind them as the
-  // fallback, and a word for which of the two the caller is looking at — so
-  // the screen can say "nobody touched the property, but somebody edited the
-  // policy" instead of drawing the weaker answer as if it were the strong one.
-  function migrationHistory(records, days) {
-    const rows = (records || []).map(migrationRecord).filter(Boolean)
-      .sort((a, b) => String(b.when).localeCompare(String(a.when)));
-    const moved = rows.filter((r) => r.moved);
-    return {
-      days: days || MIGRATION_AUDIT.days,
-      rows, moved,
-      last: moved[0] || null,        // who changed the opt-out, when Entra diffed it
-      lastTouch: rows[0] || null,    // else: who last edited the policy at all
-      matched: moved.length ? "property" : rows.length ? "policy" : "none",
-    };
-  }
-  const migrationMove = (r) => `${migrationValueWord(r.from)} → ${migrationValueWord(r.to)}`;
-
-  // ---- end passkey dynamic migration --------------------------------------
 
   // methodsRegistered values from the registration-details report, sorted
   // into what they mean for THIS retirement. mobilePhone can receive both
@@ -231,6 +60,72 @@ const SmsVoice = (() => {
   // defaultMfaMethod field names the method itself — so both are recognised.
   const PHONE_DEFAULTS = new Set(["sms", "voiceMobile", "voiceAlternateMobile", "voiceOffice",
     "mobilePhone", "alternateMobilePhone", "officePhone"]);
+
+  // ---- what is registered, in words -------------------------------------
+  // The verdict compresses the registration record into one sentence; the
+  // Methods column shows the record itself, because the sentence is only as
+  // trustworthy as the sets above and a person checking a verdict should be
+  // able to see the methods it was made from. Every methodsRegistered value
+  // the report documents has a short label; one it does not is printed as
+  // the raw Graph value rather than dropped, so a method Microsoft adds later
+  // shows up as a name to look up instead of a hole in the list.
+  //   learn.microsoft.com/graph/api/resources/userregistrationdetails
+  const METHOD_LABELS = {
+    mobilePhone: "Phone (mobile)",
+    alternateMobilePhone: "Phone (alternate mobile)",
+    officePhone: "Phone (office)",
+    microsoftAuthenticatorPush: "Authenticator push",
+    microsoftAuthenticatorPasswordless: "Authenticator passwordless",
+    softwareOneTimePasscode: "Software TOTP",
+    hardwareOneTimePasscode: "Hardware OATH token",
+    temporaryAccessPass: "Temporary Access Pass",
+    passKeyDeviceBound: "Passkey (device-bound)",
+    passKeyDeviceBoundAuthenticator: "Passkey (Authenticator)",
+    passKeyDeviceBoundWindowsHello: "Passkey (Windows Hello)",
+    windowsHelloForBusiness: "Windows Hello for Business",
+    fido2SecurityKey: "FIDO2 security key",
+    macOsSecureEnclaveKey: "macOS Secure Enclave key",
+    email: "Email (SSPR only)",
+    securityQuestion: "Security questions (SSPR only)",
+    password: "Password",
+  };
+  // The same value in both dialects of the default-method field, so the
+  // default can be marked in the list whatever the report chose to call it.
+  const DEFAULT_ALIASES = {
+    sms: "mobilePhone", voiceMobile: "mobilePhone", voiceAlternateMobile: "alternateMobilePhone",
+    voiceOffice: "officePhone", push: "microsoftAuthenticatorPush", oath: "softwareOneTimePasscode",
+    microsoftAuthenticatorPush: "microsoftAuthenticatorPush",
+  };
+  const methodLabel = (m) => METHOD_LABELS[m] || String(m);
+  // Which registered method the default field points at, if any: a method
+  // name, or null when the field is empty or names something not registered
+  // (the report can say "sms" for a user whose phone was since removed).
+  function defaultOf(rec) {
+    if (!rec) return null;
+    const d = String(rec.defaultMethod || "");
+    if (!d) return null;
+    const m = rec.methods || [];
+    if (m.includes(d)) return d;
+    const a = DEFAULT_ALIASES[d];
+    return a && m.includes(a) ? a : null;
+  }
+  // One list for the exports: labels, the default first and marked, the rest
+  // in the report's own order. Password is left out of the MFA picture — it
+  // is not a second factor and every user has one.
+  function methodsList(rec) {
+    if (!rec || rec.methods === null) return null;   // not read → not a list
+    const m = (rec.methods || []).filter((x) => x !== "password");
+    const d = defaultOf(rec);
+    const rest = m.filter((x) => x !== d);
+    return (d ? [{ m: d, label: methodLabel(d), isDefault: true }] : [])
+      .concat(rest.map((x) => ({ m: x, label: methodLabel(x), isDefault: false })));
+  }
+  const methodsWord = (rec) => {
+    const L = methodsList(rec);
+    if (L === null) return "?";
+    if (!L.length) return "none";
+    return L.map((x) => x.isDefault ? `${x.label} (default)` : x.label).join("; ");
+  };
 
   // ---- policy scope, the way Microsoft's script reads it -----------------
   // includeTargets/excludeTargets of an authenticationMethodConfiguration:
@@ -268,7 +163,7 @@ const SmsVoice = (() => {
   // people who will FEEL the retirement first, even when a passkey already
   // sits unused next to the phone.
   function classify(rec) {
-    if (!rec) return { risk: "unknown", sms: null, voice: null, pr: null, phoneOnly: null, phoneDefault: null };
+    if (!rec) return { risk: "unknown", sms: null, voice: null, pr: null, phoneOnly: null, phoneDefault: null, methods: null };
     const m = rec.methods || [];
     const sms = m.some((x) => SMS_METHODS.has(x));
     const voice = m.some((x) => VOICE_METHODS.has(x));
@@ -281,7 +176,7 @@ const SmsVoice = (() => {
     else if (phoneOnly) risk = "blocking";
     else if (sms || voice) risk = "migrate";
     else risk = "clean";
-    return { risk, sms, voice, pr, phoneOnly, phoneDefault };
+    return { risk, sms, voice, pr, phoneOnly, phoneDefault, methods: m.slice() };
   }
 
   // One phrase for the new column: what the phone IS to this user.
@@ -298,7 +193,7 @@ const SmsVoice = (() => {
   function analyze(ctx) {
     const rows = (ctx.users || []).map((u) => {
       const rec = ctx.reg ? ctx.reg[u.id] : null;
-      const c = ctx.reg ? classify(rec) : { risk: "unknown", sms: null, voice: null, pr: null };
+      const c = ctx.reg ? classify(rec) : { risk: "unknown", sms: null, voice: null, pr: null, phoneOnly: null, phoneDefault: null, methods: null };
       return { ...u, ...c, defaultMethod: rec ? rec.defaultMethod || "" : "" };
     });
     rows.sort((a, b) => RISK_RANK[a.risk] - RISK_RANK[b.risk] || String(a.upn).localeCompare(String(b.upn)));
@@ -306,7 +201,7 @@ const SmsVoice = (() => {
     const anyEnabled = (ctx.sms || {}).state === "enabled" || (ctx.voice || {}).state === "enabled";
     return {
       rows, anyEnabled,
-      campaignState: ctx.campaignState, optOut: ctx.optOut,
+      campaignState: ctx.campaignState,
       sms: ctx.sms, voice: ctx.voice, names: ctx.names || {},
       usersPartial: !!ctx.usersPartial, regRead: !!ctx.reg, regPartial: !!ctx.regPartial,
       summary: {
@@ -395,7 +290,6 @@ const SmsVoice = (() => {
       "## Tenant state", "",
       `- SMS policy: **${stateWord((res.sms || {}).state)}** · Voice policy: **${stateWord((res.voice || {}).state)}**`,
       `- Registration campaign: **${campaignWord(res.campaignState)}**`,
-      `- Temporary opt-out (passkeyDynamicMigration): **${res.optOut === null ? "not read" : res.optOut ? "OPTED OUT (delays Sep 1 auto-enablement only — Feb 1 still applies)" : "not set"}**`,
       `- ${DATES.nudge.label} (passkey auto-enablement): **${s.daysNudge >= 0 ? `in ${s.daysNudge} day${s.daysNudge === 1 ? "" : "s"}` : `${-s.daysNudge} days ago`}**`,
       `- ${DATES.retire.label} (SMS/voice retired, blocking prompt): **${s.daysRetire >= 0 ? `in ${s.daysRetire} days` : `${-s.daysRetire} days ago`}**`, ""];
     if (!res.anyEnabled) {
@@ -409,18 +303,17 @@ const SmsVoice = (() => {
         ? ` · ${s.phone} with a phone method registered (${s.phoneDefault} as their default) · **${s.blocking} phone-only (blocked after ${DATES.retire.label})** · ${s.migrate} to migrate · ${s.ready} already phishing-resistant · ${s.clean} clean${s.unknown ? ` · ${s.unknown} unknown` : ""}${res.regPartial ? " · registration read was capped — unknowns may be understated" : ""}`
         : " · registration data NOT read (needs AuditLog.Read.All) — the table shows scope only, not who actually uses a phone"), "");
     if (res.rows.length) {
-      L.push("| User | Name | Enabled | SMS scope | Voice scope | Via | SMS reg. | Voice reg. | Phishing-resistant | Phone role | Verdict |", "|---|---|---|---|---|---|---|---|---|---|---|");
+      L.push("| User | Name | Enabled | SMS scope | Voice scope | Via | SMS reg. | Voice reg. | Phishing-resistant | Methods registered | Phone role | Verdict |", "|---|---|---|---|---|---|---|---|---|---|---|---|");
       const yn = (v) => v === null ? "?" : v ? "yes" : "no";
       for (const r of res.rows.slice(0, MD_ROW_CAP))
-        L.push(`| ${r.upn} | ${r.name || ""} | ${r.enabled === false ? "no" : r.enabled === true ? "yes" : "?"} | ${r.inSms ? "yes" : "no"} | ${r.inVoice ? "yes" : "no"} | ${(r.via || []).join("; ")} | ${yn(r.sms)} | ${yn(r.voice)} | ${yn(r.pr)} | ${phoneRole(r)} | ${RISK_WORD[r.risk]} |`);
+        L.push(`| ${r.upn} | ${r.name || ""} | ${r.enabled === false ? "no" : r.enabled === true ? "yes" : "?"} | ${r.inSms ? "yes" : "no"} | ${r.inVoice ? "yes" : "no"} | ${(r.via || []).join("; ")} | ${yn(r.sms)} | ${yn(r.voice)} | ${yn(r.pr)} | ${methodsWord(r)} | ${phoneRole(r)} | ${RISK_WORD[r.risk]} |`);
       if (res.rows.length > MD_ROW_CAP) L.push("", `…and ${res.rows.length - MD_ROW_CAP} more — the CSV export carries the full list.`);
       L.push("");
     }
     L.push("## What to do", "",
       `1. Move users to passkeys before ${DATES.retire.label} — [plan a passkey deployment](https://learn.microsoft.com/entra/identity/authentication/how-to-deploy-phishing-resistant-passwordless-authentication) and [enable passkeys (FIDO2)](https://learn.microsoft.com/entra/identity/authentication/how-to-authentication-passkeys-fido2).`,
-      `2. To stop the ${DATES.nudge.label} auto-enablement, move users out of the SMS/Voice policy scope before that date — or pause it tenant-wide with the temporary opt-out (\`optOutSettings.passkeyDynamicMigration\`), which this tool can read and set for you at the top of its screen. Neither changes the ${DATES.retire.label} enforcement.`,
-      "3. A regulatory need for SMS/voice? A customer-managed telecom provider can be configured through the Microsoft Security Store (selectable from 30 October 2026).",
-      "4. Tell the users — [Microsoft's communication templates](https://aka.ms/mfatemplates), scoped to the people this report names.", "",
+      "2. A regulatory need for SMS/voice? A customer-managed telecom provider can be configured through the Microsoft Security Store (selectable from 30 October 2026).",
+      "3. Tell the users — [Microsoft's communication templates](https://aka.ms/mfatemplates), scoped to the people this report names.", "",
       "Links: [retirement notice](https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement) · [FAQ](https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement-faq) · [Microsoft's scope script](https://github.com/microsoft/entra-sms-voice-usage-analyzer)", "");
     return L.join("\n");
   }
@@ -428,15 +321,16 @@ const SmsVoice = (() => {
   function toCsv(res) {
     const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
     const yn = (v) => v === null ? "" : v ? "yes" : "no";
-    const L = ["userPrincipalName,displayName,accountEnabled,inSmsScope,inVoiceScope,via,smsRegistered,voiceRegistered,phishingResistantRegistered,phoneIsOnlyMfaMethod,phoneIsDefaultMethod,defaultMethod,verdict"];
+    const L = ["userPrincipalName,displayName,accountEnabled,inSmsScope,inVoiceScope,via,smsRegistered,voiceRegistered,phishingResistantRegistered,methodsRegistered,methodsRegisteredLabels,phoneIsOnlyMfaMethod,phoneIsDefaultMethod,defaultMethod,verdict"];
     for (const r of res.rows)
       L.push([q(r.upn), q(r.name), r.enabled === false ? "no" : r.enabled === true ? "yes" : "",
         r.inSms ? "yes" : "no", r.inVoice ? "yes" : "no", q((r.via || []).join("; ")),
-        yn(r.sms), yn(r.voice), yn(r.pr), yn(r.phoneOnly), yn(r.phoneDefault), q(r.defaultMethod), q(RISK_WORD[r.risk])].join(","));
+        yn(r.sms), yn(r.voice), yn(r.pr),
+        q(r.methods === null ? "" : r.methods.join("; ")), q(r.methods === null ? "" : methodsWord(r)),
+        yn(r.phoneOnly), yn(r.phoneDefault), q(r.defaultMethod), q(RISK_WORD[r.risk])].join(","));
     return L.join("\n");
   }
 
   return { DATES, daysUntil, parseScope, classify, phoneRole, analyze, toMd, toCsv, notifyEmail, stateWord, campaignWord, RISK_WORD, MD_ROW_CAP,
-    MIGRATION, readOptOut, optOutBody, migrationWord,
-    MIGRATION_AUDIT, migrationHistory, migrationRecord, migrationValueWord, migrationMove };
+    METHOD_LABELS, methodLabel, defaultOf, methodsList, methodsWord };
 })();

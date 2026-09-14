@@ -923,7 +923,7 @@ const GapCheck = (() => {
       .map((s) => `<span class="sev ${s}">${n(s)} ${SEV_LABEL[s]}</span>`).join(" ");
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🛡 Best-practice &amp; bypass checks</h3>
+        ${toolHead("toolGapCheck")}
         <p style="margin-bottom:0">Your policies checked against known Conditional Access bypasses and the Swiss-cheese layered-defense model:
         MFA coverage, FOCI token sharing, resource-exclusion scope leaks, CA-immune resources, device registration bypass, grant-operator
         weaknesses, legacy auth, known bypass apps, guest authentication strength and break-glass coverage — plus a persona × control matrix.
@@ -1002,6 +1002,8 @@ const GapCheck = (() => {
   const mdEsc = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
 
   function toMd(result, meta = {}) {
+    // Context incompleteness is part of the evidence, also outside the browser.
+    if (meta.incomplete) return `> INCOMPLETE CONTEXT: ${meta.incomplete}. Findings are provisional.\n\n` + toMd(result, { ...meta, incomplete: null });
     const f = result.findings.slice().sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
     const n = (s) => f.filter((x) => x.severity === s).length;
     const L = [];

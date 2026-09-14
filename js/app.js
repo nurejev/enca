@@ -35,7 +35,7 @@
   let tenantLogo = null;      // tenant branding logo (data URL) for neutral exports
   let selected = new Set();
   let collapsedGroups = new Set();  // collapsed persona sections in cards view
-  let stateFilter = "all", query = "", viewMode = "cards", fmt = "png";
+  let stateFilter = "all", query = "", viewMode = "list", fmt = "png";
   let currentExport = [];
   let isDemo = false;
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
@@ -68,6 +68,30 @@
     const nh = navVisible ? Math.round(n.getBoundingClientRect().height) : 0;
     document.documentElement.style.setProperty("--sticky-header", hh + "px");
     document.documentElement.style.setProperty("--sticky-nav", (hh + nh) + "px");
+    // A host screen's TAB STRIP pins above that screen's toolbar (build
+    // 25355), so the toolbar's own offset has to include it. One screen is
+    // active at a time, so one variable covers every host, and it reads 0 on
+    // every screen that has no strip. Measured, never assumed: 🛡 Checks has
+    // four tabs and 🧩 Policy building blocks five, and both wrap to a second
+    // row on a narrow window.
+    const bar = document.querySelector("section.screen.active > .tool-tabs-bar");
+    const barH = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty("--tabs-h", barH + "px");
+    // And one layer further in: a strip that is sticky INSIDE a result, below
+    // the screen's own toolbar. 🔗 User or Group analyzer has one, and it was
+    // pinned at a hard-coded 106px — so when build 25353 gave that screen a
+    // toolbar, the two landed on top of each other and the mode buttons went
+    // under the strip on any scroll. --sticky-tools is where the result
+    // begins: the header, the tab bar, a host strip and this screen's toolbar,
+    // all measured. .cgg-drawer computes the same thing by hand as --cg-tb.
+    const stb = document.querySelector("section.screen.active > .toolbar");
+    const tbH = stb && stb.offsetParent !== null ? Math.round(stb.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty("--sticky-tools", (hh + nh + barH + tbH) + "px");
+    // The jump links in 🔗 land a card below its strip, so that needs the
+    // strip's own height too — taller now that the counts are tiles.
+    const gus = document.querySelector("section.screen.active .gu-sticky");
+    document.documentElement.style.setProperty("--gu-strip",
+      (gus ? Math.round(gus.getBoundingClientRect().height) : 0) + "px");
   }
   const stickyNavTop = () => parseInt(getComputedStyle(document.documentElement).getPropertyValue("--sticky-nav")) || 106;
   window.addEventListener("resize", syncStickyTops);
@@ -88,14 +112,18 @@
   // So observe the boxes rather than guessing when they move. The resize
   // listener stays as the fallback where ResizeObserver is missing.
   const syncStickyStack = () => { syncStickyTops(); syncSelbarTop(); };
+  let stickyRO = null;
   if (typeof ResizeObserver !== "undefined") {
-    const ro = new ResizeObserver(syncStickyStack);
+    stickyRO = new ResizeObserver(syncStickyStack);
     for (const el of [document.querySelector("header"),
                       document.getElementById("toolNav"),
                       document.querySelector("#screen-list .toolbar")]) {
-      if (el) ro.observe(el);
+      if (el) stickyRO.observe(el);
     }
   }
+  // Tab strips are built when a host opens, so they cannot be in the list
+  // above. Same rule though: observe the box, do not guess when it moves.
+  const observeSticky = (el) => { if (el && stickyRO) stickyRO.observe(el); };
 
   // ---------- screens + browser history ----------
   // This is a single page, so without history entries the Back button leaves
@@ -104,7 +132,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-rollout", "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -116,8 +144,10 @@
   // Per-screen scroll memory: switching tabs used to jump to the top and lose
   // your place. The position of the screen you leave is saved and restored when
   // you come back; a screen you have not visited yet starts at the top.
+  // Subtab clicks within a host instead keep the shared tab-row anchor.
   const screenScroll = {};
   let shownScreen = null;
+  let tabViewportTop = null, screenTransition = 0;
   // Anonymous usage counting: one event per tool-screen open (GoatCounter,
   // loaded in index.html). Only the tool name and channel — never who, never
   // which tenant, never any policy data. Must never break the app.
@@ -131,6 +161,8 @@
     } catch { /* counting is best-effort */ }
   }
   function show(id) {
+    const transition = shownScreen === id ? screenTransition : ++screenTransition;
+    const tabTop = tabViewportTop;
     if (shownScreen && shownScreen !== id) screenScroll[shownScreen] = window.scrollY;
     if (shownScreen !== id) trackTool(id);
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
@@ -138,7 +170,15 @@
     (window.requestAnimationFrame || setTimeout)(syncStickyTops);
     if (shownScreen !== id) {
       const y = screenScroll[id] || 0;
-      (window.requestAnimationFrame || setTimeout)(() => window.scrollTo(0, y));
+      (window.requestAnimationFrame || setTimeout)(() => {
+        if (transition !== screenTransition) return;
+        syncStickyTops();
+        // Switching a host's subtab starts its content beneath the same tab
+        // row, rather than restoring an unrelated result's saved scroll.
+        const top = tabTop === null ? y : Math.max(0, $(id).getBoundingClientRect().top + window.scrollY - tabTop);
+        window.scrollTo({ top, left: 0, behavior: "instant" });
+        if (tabTop !== null) $(id).querySelector(".tool-tabs button.active")?.focus({ preventScroll: true });
+      });
     }
     shownScreen = id;
     if (navSuppress || !HISTORY_SCREENS.has(id)) return;
@@ -167,8 +207,8 @@
   // R33 — a tool's permanent number, formatted. Two digits so T07 and T31 line
   // up in a list and read as the same kind of thing; empty for the three app
   // pages that deliberately carry none.
-  const toolNo = (t) => (t && t.t) ? `T${String(t.t).padStart(2, "0")}` : "";
   const toolNoOf = (id) => toolNo((typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[id]) || null);
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   // A tool that has been FOLDED into another keeps its T-number (js/version.js
   // rule) and its open function, but its tile is gone — so every in-app link
   // written as data-tool="toolX" would resolve to nothing and toast "not
@@ -371,7 +411,17 @@
           + (t.beta ? ' <span class="tag new">BETA</span>' : "") + `</button>`).join("")
       + `</div>`;
   }
-  // Put the strip into this tab's toolbar once, then re-paint which is active.
+  // Put the strip at the TOP OF THE SCREEN once, then re-paint which is
+  // active. It used to be the toolbar's first row, which put it under the
+  // tool's head card — so on 🛡 Checks, whose head is four paragraphs, the
+  // four tabs were most of a screen down and people did not find them. The
+  // strip is navigation BETWEEN tools; the head describes the tool you are
+  // in. Navigation comes first (build 25355).
+  //
+  // It pins at --sticky-nav and the screen's own toolbar pins beneath it at
+  // --sticky-nav + --tabs-h. Two sticky rows at the SAME offset is what hid
+  // 🌊's wave picker until 25354, so the offset is measured rather than
+  // assumed, and the strip is observed for when it wraps.
   // A strip with ONE tab left is not a tab strip, it is a button that does
   // nothing — which is what 🧬 Baseline would show on the production host,
   // where the beta-only 📖 Deployment guide tab is hidden. So a host whose
@@ -382,25 +432,40 @@
     if (h.tabs.filter(tabShown).length < 2) return;
     const t = h.tabs.find((x) => x.key === tabKey); if (!t) return;
     const tb = $(t.toolbar); if (!tb) return;
-    let seg = tb.querySelector(".tool-tabs");
-    if (!seg) {
-      const wrap = document.createElement("div"); wrap.innerHTML = toolTabsSeg(hostKey); seg = wrap.firstChild;
-      tb.insertBefore(seg, tb.firstChild);
+    const screen = tb.closest("section.screen"); if (!screen) return;
+    let bar = screen.querySelector(":scope > .tool-tabs-bar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.className = "tool-tabs-bar";
+      bar.innerHTML = toolTabsSeg(hostKey);
+      screen.insertBefore(bar, screen.firstElementChild);
+      observeSticky(bar);
     }
+    const seg = bar.querySelector(".tool-tabs");
     [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.tabgo === `${hostKey}:${tabKey}`));
+    observeSticky(tb);
+    syncStickyTops();
   }
   // Take the strip back out. Needed for exactly one host: screen-list is both
   // 🗂 Policies and 🔍 Gap analyse, so opening it as Policies has to remove a
   // strip that belongs to the other tool.
   function unmountToolTabs(hostKey) {
     const h = TAB_HOSTS[hostKey]; if (!h) return;
-    h.tabs.forEach((t) => { const tb = $(t.toolbar); const seg = tb && tb.querySelector(".tool-tabs"); if (seg) seg.remove(); });
+    h.tabs.forEach((t) => {
+      const tb = $(t.toolbar); const screen = tb && tb.closest("section.screen");
+      const bar = screen && screen.querySelector(":scope > .tool-tabs-bar");
+      if (bar) bar.remove();
+    });
+    syncStickyTops();
   }
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-tabgo]"); if (!b) return;
     const [hostKey, key] = String(b.dataset.tabgo).split(":");
     const h = TAB_HOSTS[hostKey], t = h && h.tabs.find((x) => x.key === key);
-    if (t) t.open();
+    if (t && !b.classList.contains("active")) {
+      tabViewportTop = b.closest(".tool-tabs-bar").getBoundingClientRect().top;
+      try { t.open(); } finally { tabViewportTop = null; }
+    }
   });
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   // ---- <datalist> pick guard --------------------------------------------
@@ -1614,6 +1679,7 @@
     updateSelbar();
     syncCollapseAllBtn();
     syncHkBtn();
+    syncWorkspace();
   }
   function groupIds(key) {
     return visible().filter(p => String(Render.caGroup(p.name).key) === String(key)).map(p => p.id);
@@ -1625,10 +1691,11 @@
   // Which policy view Gap analyse was opened from, so leaving it puts you back
   // where you were instead of always on Cards. Entering from the home tile has
   // no meaningful previous view, and the last one used is the best guess there.
-  let viewBeforeAnalyze = "cards";
+  let viewBeforeAnalyze = "list";
   function setView(v) {
     if (v === "analyze" && viewMode !== "analyze") viewBeforeAnalyze = viewMode || "cards";
     viewMode = v;
+    syncWorkspace();
     $("cardsView").style.display = v === "cards" ? "grid" : "none";
     $("listView").style.display = v === "list" ? "block" : "none";
     $("matrixView").style.display = v === "matrix" ? "block" : "none";
@@ -1727,7 +1794,8 @@
     if (n) setTimeout(() => toast(`⚠ ${n} object name(s) could not be resolved — exports will show raw IDs for these`), 3500);
   }
 
-  function showDetail(id) {
+  function showDetail(id, full = false) {
+    if (!full && viewMode === "list" && $("screen-list").classList.contains("active")) { Workspace.inspect(id); return; }
     const p = policies.find(x => x.id === id); if (!p) return;
     // The what-if flow is opt-in (a button under the card) so the detail stays
     // compact until you actually want to trace what the policy does.
@@ -2110,12 +2178,12 @@
   const SCOPE_INFO = [
     { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
     { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
-    { scope: "AuditLog.Read.All", use: "Read the directory audit log for Conditional Access changes and for who changed passkey dynamic migration, the registration-details report, and the sign-in log for CA failures", tools: "Change audit, Sign-in failures, SMS & voice retirement", onDemand: true },
+    { scope: "AuditLog.Read.All", use: "Read the directory audit log for Conditional Access changes, the registration-details report, and the sign-in log for CA failures", tools: "Change audit, Sign-in failures, SMS & voice retirement", onDemand: true },
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
     { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies, manage named locations", tools: "CA groups (assign), Set Policy state, Import, Named locations, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
     { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
-    { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths; pause or resume Microsoft's September passkey rollout (passkeyDynamicMigration on the authentication methods policy)", tools: "Import, SMS & voice retirement", onDemand: true },
+    { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Grant a directory role scoped to a restricted administrative unit. No longer used to create role-assignable groups — nothing creates those any more — but still requested by the create flows for the scoped-role grant that can follow", tools: "Restricted AUs, CA groups (protect)", onDemand: true },
@@ -2350,6 +2418,7 @@
     ["toolWhatIf", "🧪 What-If"],
     ["toolGroupUse", "🔗 User or Group analyzer"],
     ["toolWhoIs", "🕵 Who is … to CA"],
+    ["toolSpGap", "🫥 Apps with no service principal"],
     ["toolAudit", "🕓 Changes"],
     ["toolSignins", "🚦 Sign-in log"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
@@ -2360,6 +2429,7 @@
     ["toolRmau", "🛡 Restricted AUs"],
     ["toolUserImpact", "🗣 User impact brief"],
     ["toolImport", "📥 Import"],
+    ["toolDeploy", "↗ Guided rollout"],
   ];
   // Help is a tool too, but always sits last (after the + in the tab bar).
   TOOL_TABS.push(["toolChangelog", "📋 What's new"]);
@@ -3239,9 +3309,9 @@
       imPlan.map((p, i) => `<li data-imrow="${i}" data-imkey="${esc(imPersonaKey(p))}"><label class="chk" style="margin:0">
         <input type="checkbox" data-imp="${i}" ${p.exists || imWidBlocked(p) ? "disabled" : "checked"}>
         ${p.exists ? '<span class="tag">skip</span>' : imWidBlocked(p) ? '<span class="tag block" title="Conditional Access for workload identities requires the Microsoft Entra Workload ID licence">🔒 no Workload ID licence</span>' : p.upgrade ? '<span class="tag grant">update</span>' : p.asIs ? '<span class="tag new">as-is</span>' : `<span class="tag grant">import</span>`}
-        ${p.needsTou ? '<span class="tag block" title="Grants a Terms of use — create the ToU in the portal first, then re-import; it imports now without that control">📜 needs ToU</span>' : ""}
+        ${p.needsTou ? '<span class="tag block" title="Grants a Terms of use — create the ToU in the portal first, then re-import; unresolved controls stop the import">📜 needs ToU</span>' : ""}
         ${esc(p.name)}
-        <span class="mini">${rowHint(p)}${p.needsTou && !p.exists ? ' · <span style="color:var(--off)">imports without the Terms of use until you create it</span>' : ""}</span>
+        <span class="mini">${rowHint(p)}${p.needsTou && !p.exists ? ' · <span style="color:var(--off)">requires a resolved Terms of use before import</span>' : ""}</span>
       </label></li>`).join("") + "</ul>";
     $("imGo").style.display = importable.length ? "inline-flex" : "none";
     updateImGo();
@@ -3465,7 +3535,7 @@
         res.results = chosen.map(p => {
           const matched = imMode === "replace" && p.upgrade;
           const sup = (imMode === "replace" || imMode === "switch") && p.upgrade;
-          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching ? null : p.personaGroup, matched, switched: !!switching, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : "disabled" };
+          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching ? null : p.personaGroup, matched, switched: !!switching, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : p.asIs ? p.raw.state : "disabled", asIs: p.asIs };
         });
         depLog.created = scoped.groups.map(g => "Group: " + g.displayName + " (assigned)");
         if (switching) {
@@ -3491,7 +3561,7 @@
           }
         }
         L.done(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused (simulated)`, "ready");
-        for (let i = 0; i < chosen.length; i++) { L.start(i + 1); await new Promise((r) => setTimeout(r, 40)); L.done(i + 1, "imported, Off (simulated)", "imported"); }
+        for (let i = 0; i < chosen.length; i++) { L.start(i + 1); await new Promise((r) => setTimeout(r, 40)); L.done(i + 1, `imported, ${res.results[i].state === "enabled" ? "On" : res.results[i].state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"} (simulated)`, "imported"); }
       } else {
         const dep = await Importer.ensureDependencies(scoped, depSay, { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
@@ -3506,7 +3576,7 @@
             if (phase === "start") { L.start(i + 1); return; }
             if (!r) return;
             if (r.stopped) { L.skip(i + 1, "stopped"); stoppedEarly = true; return; }
-            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : "created"}, Off${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}`, "imported");
+            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : "created"}, ${r.state === "enabled" ? "On" : r.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"}${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}`, "imported");
             else L.fail(i + 1, r.error || "refused", "refused");
           },
         });
@@ -3531,8 +3601,8 @@
       else { $("imGo").style.display = "none"; imHost.insertAdjacentHTML("beforeend", `<p class="mini" style="margin-top:10px;color:var(--off)"><b>${failed} refused${stoppedEarly ? ", stopped early" : ""}</b> — the reasons are on the rows and in the report; Close when read.</p>`); }
       showReport("📥 Import report", "CA-Import-Report", md);
       toast(failed ? `Import done with <span>${failed} failure(s)</span>`
-        : `Imported <span>${res.results.length}</span> policies (Off)${isDemo ? " (simulated)" : ""}`);
-      if (!isDemo && res.results.some(r => r.ok)) await loadFromGraph(true);
+        : `Imported <span>${res.results.length}</span> policies (${["enabled", "enabledForReportingButNotEnforced", "disabled"].map(s => `${res.results.filter(r => r.ok && r.state === s).length} ${s === "enabled" ? "On" : s === "disabled" ? "Off" : "Report-only"}`).join(", ")})${isDemo ? " (simulated)" : ""}`);
+      if (!isDemo && res.results.some(r => r.ok || r.createdId)) await loadFromGraph(true);
     } catch (e) {
       console.error(e); toast(`Import failed: <span>${esc(e.message || e)}</span>`);
       try { L.finish(); } catch {}
@@ -8618,26 +8688,26 @@ This is a directory write. Nothing else changes.`)) return;
       return;
     }
     // idle — wait for the user to start the scan
-    $("exHead").innerHTML = '<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">Every exclusion across all policies — users, groups (expanded to their members), roles, guest types, apps and locations.</p>';
+    $("exHead").innerHTML = toolHead("toolExclusions") + '<p class="mini" style="margin:6px 0 0">Every exclusion across all policies — users, groups (expanded to their members), roles, guest types, apps and locations.</p>';
     $("exChips").innerHTML = ""; $("exPager").style.display = "none"; $("exHint").style.display = "none";
     $("exBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-exrun>▶ Run exclusion scan</button><p class="mini muted">Expands group memberships via Microsoft Graph. The result stays until you rescan.</p></div>';
   }
   async function runExclusionScan() {
     $("exRescan").style.display = "";
-    $("exHead").innerHTML = '<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">Collecting exclusions…</p>';
+    $("exHead").innerHTML = toolHead("toolExclusions") + '<p class="mini" style="margin:6px 0 0">Collecting exclusions…</p>';
     $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
     exTab = "matrix"; exKind = "all"; exQuery = ""; exPage = 0; exFocusRow = null; exFocusCol = null; Fs.close(); $("exSearch").value = "";
     Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === "matrix"));
     try {
       // the whole tenant's policies — exclusions are a tenant-wide question
       exModel = Exclusions.collect(policies.map(p => p.raw));
-      await Exclusions.resolve(exModel, { demo: isDemo, onStatus: (m, done, total) => { $("exHead").innerHTML = `<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="margin:6px 0 0">${esc(m)}</p>` + progInline(done, total); } });
+      await Exclusions.resolve(exModel, { demo: isDemo, onStatus: (m, done, total) => { $("exHead").innerHTML = `${toolHead("toolExclusions")}<p class="mini" style="margin:6px 0 0">${esc(m)}</p>` + progInline(done, total); } });
       exUsers = Exclusions.effectiveUsers(exModel);
       renderExclusions();
     } catch (e) {
       console.error("Exclusion analyzer failed:", e);
       exModel = null;
-      $("exHead").innerHTML = `<h3>🚪 CA Exclusion analyzer</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("exHead").innerHTML = `${toolHead("toolExclusions")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("exRescan").addEventListener("click", runExclusionScan);
@@ -8871,7 +8941,7 @@ This is a directory write. Nothing else changes.`)) return;
   });
   $("plFull").addEventListener("click", () => Fs.open("Policy settings matrix", { body: $("matrixView") }));
   $("anFull").addEventListener("click", () => Fs.open("Users × policies impact matrix", { body: $("anMatrixWrap") }));
-  $("gcFull").addEventListener("click", () => Fs.open("Persona × control coverage", { body: $("gcMatrix") }));
+  $("gcFull").addEventListener("click", () => { const d = $("gcMatrix").querySelector("details"); if (d) d.open = true; Fs.open("Persona × control coverage", { body: $("gcMatrix") }); });
   $("exSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; renderExclusions(); });
   const EX_TABS = { matrix: "exTabMatrix", users: "exTabUsers", risk: "exTabRisk" };
   for (const [tab, id] of Object.entries(EX_TABS)) {
@@ -8970,7 +9040,7 @@ This is a directory write. Nothing else changes.`)) return;
     show("screen-validator");
     mountToolTabs("whatif", "every");
     if (!policies.length) return;
-    $("vaHead").innerHTML = '<h3>⚡ CA validator</h3><p class="mini" style="margin:6px 0 0">Generating simulations…</p>';
+    $("vaHead").innerHTML = toolHead("toolValidator") + '<p class="mini" style="margin:6px 0 0">Generating simulations…</p>';
     $("vaChips").innerHTML = ""; $("vaBody").innerHTML = ""; vaFilter = "all"; vaQuery = ""; $("vaSearch").value = ""; vaCollapsed.clear();
     $("vaReportOnly").checked = vaReportOnly;
     $("vaTargetClear").style.display = vaTargetObj ? "" : "none";
@@ -8981,7 +9051,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderValidator();
     } catch (e) {
       console.error("CA validator failed:", e);
-      $("vaHead").innerHTML = `<h3>⚡ CA validator</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("vaHead").innerHTML = `${toolHead("toolValidator")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
 
@@ -9085,7 +9155,7 @@ This is a directory write. Nothing else changes.`)) return;
     const r = vaResult;
     $("vaHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>⚡ CA validator <span class="tag new">NEW</span></h3>
+        ${toolHead("toolValidator")}
         <p style="margin-bottom:6px">For each enabled policy, the sign-in simulations it implies and the control each one should enforce. A simulation on the <b>excluded</b> side inverts to <b>“no &lt;control&gt;”</b>.</p>
         <p class="mini muted" style="margin:0">Ported from <a href="https://github.com/jasperbaes/Conditional-Access-Validator" target="_blank" rel="noopener">Jasper Baes' Conditional Access Validator</a> (CC BY-NC-SA 4.0). Simulation report only; users are representative placeholders.</p>
       </div>
@@ -9299,7 +9369,7 @@ This is a directory write. Nothing else changes.`)) return;
     crumb("🛡 Restricted AUs");
     show("screen-rmau");
     if (ruList && !force) { renderRmau(); return; }
-    $("ruHead").innerHTML = '<h3>🛡 Restricted AUs</h3><p class="mini" style="margin:6px 0 0">Reading administrative units…</p>';
+    $("ruHead").innerHTML = toolHead("toolRmau") + '<p class="mini" style="margin:6px 0 0">Reading administrative units…</p>';
     $("ruBody").innerHTML = ""; $("ruChips").innerHTML = "";
     try {
       ruList = isDemo
@@ -9309,7 +9379,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderRmau();
     } catch (e) {
       console.error("Restricted AUs failed:", e);
-      $("ruHead").innerHTML = `<h3>🛡 Restricted AUs</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("ruHead").innerHTML = `${toolHead("toolRmau")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("toolRmau").addEventListener("click", () => openRmauTool());
@@ -9517,7 +9587,7 @@ This is a directory write. Nothing else changes.`)) return;
     const su = Rmau.summarize(ruList);
     $("ruHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🛡 Restricted AUs <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolRmau")}
         <p style="margin-bottom:4px">Restricted management administrative units — the vaults that shield objects (here: CA exclusion groups) from tenant-wide administration. Members of a restricted AU answer <b>only</b> to roles scoped to that AU.</p>
         <p class="mini muted" style="margin:0">The <code>isMemberManagementRestricted</code> flag is <b>immutable</b> — set at creation, never changeable. Creating one needs <b>Privileged Role Administrator</b>; touching members of one needs a role <b>scoped to it</b> — a 403 there is the shield working, not a fault. Every write asks for its permission on the click.</p>
       </div>
@@ -10852,7 +10922,7 @@ This is a directory write. Nothing else changes.`)) return;
     // Run prompt reappears and it looks like the read was cancelled.
     if (auBusy) { $("auBody").innerHTML = auBusyPanel(); return; }
     if (auRes) { renderAudit(); return; }
-    $("auHead").innerHTML = `<h3>🕓 Change audit <span class="tag upd">UPDATED</span></h3>
+    $("auHead").innerHTML = `${toolHead("toolAudit")}
       <p style="margin-bottom:4px">Who changed which Conditional Access resource, when, and exactly what changed — policies, named locations, authentication strengths and contexts, and terms of use.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>directory audit log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise.</p>`;
     $("auChips").innerHTML = "";
@@ -10975,7 +11045,7 @@ This is a directory write. Nothing else changes.`)) return;
     const K = Audit.KIND;
     $("auHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🕓 Change audit <span class="tag upd">UPDATED</span></h3>
+        ${toolHead("toolAudit")}
         <p style="margin-bottom:4px">Every Conditional Access change in the last ${auRangeLabel(auDays)}, newest first — expand one to see the exact fields that moved.</p>
         <p class="mini muted" style="margin:0">From the Entra directory audit log. Retention is licence-bound (≈30 days on P1/P2), so this is a rolling window, not a full history.</p>
       </div>
@@ -11425,7 +11495,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   function renderDrift() {
-    $("drHead").innerHTML = `<h3>📉 Drift watch</h3>
+    $("drHead").innerHTML = `${toolHead("toolDrift")}
       <p class="mini" style="margin:6px 0 0">Snapshot the Conditional Access configuration now, compare a later run against it. The history is a file you keep — no server, no 30-day limit. Take a snapshot today; come back next month and load it.</p>`;
 
     if (!drCmp) {
@@ -11622,7 +11692,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   function renderGuide() {
-    $("ugHead").innerHTML = `<h3>📖 Baseline usage guide <span class="tag new">BETA</span></h3>
+    $("ugHead").innerHTML = `${toolHead("toolGuide")}
       <p style="margin-bottom:4px">The deployment order with the <b>reason</b> for each step, not just the sequence — and, once the tenant has been read, a readiness check per step that says what is missing <b>before</b> you run it instead of after.</p>
       <p class="mini muted" style="margin:0">Reads only — nothing is written. Every step links the tool that does the work. The guide ends where <a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> begins.</p>
       <p style="margin:8px 0 0">${Baseline.activeChip()}</p>
@@ -11690,7 +11760,7 @@ This is a directory write. Nothing else changes.`)) return;
   };
   function renderUserImpact() {
     uiRes = UserImpact.analyze(policies);
-    $("uiHead").innerHTML = `<h3 style="margin:0 0 6px">🗣 User impact brief</h3>
+    $("uiHead").innerHTML = `${toolHead("toolUserImpact")}
       ${uiRes.baseline && uiRes.baseline.stale ? `<p class="mini" style="margin:0 0 6px;color:var(--off)">⚠ <b>The bundled baseline was revised ${esc(uiRes.baseline.revised)}; these wordings were last checked against ${esc(uiRes.baseline.checked)}.</b> A baseline revision can change how a requirement is <i>written</i> — 2026-08-20 moved CA205 and CA301 from a compliant-device grant to a block with a device filter, and the brief stopped covering either until it was re-checked. Compare against <a href="#" class="md-tool" data-tool="toolBaseline">🧬 Baseline Policies</a> before sending this anywhere.</p>` : ""}
       <p class="mini muted" style="margin:0 0 4px">Read from the tenant <b>${esc(uiReadAgo())}</b>. This brief is derived from the policies already loaded, so it is exactly that current — policies change, so <b>⟳ Re-read &amp; analyse</b> before you send it anywhere.</p>
       <p class="mini" style="margin:0">What people will notice — and what will deliberately no longer be possible — derived from the <b>${uiRes.total} persona baseline policies</b> (${uiRes.counts.on} enforced, ${uiRes.counts.report} report-only, ${uiRes.counts.off} prepared)${uiRes.other.total ? `; the ${uiRes.other.total} policies without a persona CA number are analyzed LAST, in their own section at the bottom` : ""}. Statements from enforced policies are marked <b>live now</b>; the rest describe go-live. Export the draft for the communications team as Markdown or Word.</p>`;
@@ -11957,7 +12027,7 @@ This is a directory write. Nothing else changes.`)) return;
     : s === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
 
   function renderDevCheck() {
-    $("dvHead").innerHTML = `<h3>🖥 Compliant-device reality check <span class="tag new">NEW</span></h3>
+    $("dvHead").innerHTML = `${toolHead("toolDevCheck")}
       <p style="margin-bottom:4px">A grant control demanding a compliant device is only worth what Intune's compliance policies are worth — the CA side names <b>who</b> must present a compliant device, the Intune side decides <b>which devices can ever be one</b>, and nothing else checks that the two halves meet. Per CA policy and per platform: is the scope actually assigned a compliance policy? Same check for app-protection behind “require approved client app”.</p>
       <p class="mini muted" style="margin:0">Reads only — Intune compliance and app-protection policies with their assignments, and the tenant default that decides what an uncovered device becomes.</p>`;
     // The toolbar Rescan exists only when there is a result to redo — the first
@@ -12290,7 +12360,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   function renderLicGap() {
     $("lgRun").style.display = lgRes && !lgBusy ? "" : "none";
-    $("lgHead").innerHTML = `<h3>🎫 Licence gap</h3>
+    $("lgHead").innerHTML = `${toolHead("toolLicGap")}
       <p style="margin-bottom:4px">Microsoft's licence usage blade counts <b>evaluated</b> users — who happened to trigger a policy last month. The obligation Microsoft licenses on is <b>targeted</b> users: every user a Conditional Access policy is scoped to needs <b>Entra ID P1</b>, and every user targeted by a risk-based policy needs <b>P2</b> — whether they signed in or not. A blade showing "2 of 25, fine" can sit on a tenant targeting every one of its users. This tool counts the targeted number and compares it with the seats the tenant owns.</p>
       <p class="mini muted" style="margin:0">Reads only, covered by the permissions already granted at sign-in — licences, the member-user count, and the members behind every group and role your policies include or exclude.</p>`;
     if (lgBusy) return;   // the run panel owns lgBody until the read finishes
@@ -12735,7 +12805,7 @@ This is a directory write. Nothing else changes.`)) return;
     let seg = tb.querySelector(".logsrc-seg");
     if (!seg) {
       const wrap = document.createElement("div"); wrap.innerHTML = logSourceSeg(); seg = wrap.firstChild;
-      const before = beforeSel ? tb.querySelector(beforeSel) : null;
+      const before = tb.querySelector(":scope > .chip-filter, :scope > .tb-win") || (beforeSel ? tb.querySelector(beforeSel) : null);
       before ? tb.insertBefore(seg, before) : tb.appendChild(seg);
     }
     [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.logsrc === logSource));
@@ -12983,7 +13053,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("siRescan").style.display = siRes && !siBusy ? "" : "none";
     if (siBusy) { $("siBody").innerHTML = siBusyPanel(); return; }
     if (siRes) { renderSignins(); return; }
-    $("siHead").innerHTML = `<h3>🚦 Sign-in failures</h3>
+    $("siHead").innerHTML = `${toolHead("toolSignins")}
       <p style="margin-bottom:4px">Which sign-ins Conditional Access failed <b>or interrupted</b>, and which policy did it — per policy: who, on which app, from where, with the controls that weren't met. The log-side counterpart of What-If.</p>
       <p class="mini muted" style="margin:0">Reads the Entra <b>sign-in log</b> (AuditLog.Read.All, requested when you run it). Retention is what your licence keeps — about 30 days on Entra ID P1/P2, 7 days otherwise. <b>Enforced</b> reads two Graph-filtered passes — the CA failures, plus the interrupts (abandoned MFA prompt, MFA enrolment, device auth, terms of use), which Graph logs with CA status <i>success</i> and only an interrupt error code; <b>report-only</b> failures require reading the whole window, so that mode is capped at ${SI_MAX.toLocaleString()} sign-ins — and shared with <b>🎚 Report-only impact</b>, which reads exactly the same window.</p>
         ${siReused ? `<p class="mini muted" style="margin:6px 0 0">↺ Reused the sign-in window <b>🎚 Report-only impact</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}`;
@@ -13144,7 +13214,7 @@ This is a directory write. Nothing else changes.`)) return;
     (window.requestAnimationFrame || setTimeout)(syncSiDetheadTop);
     $("siHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🚦 Sign-in failures</h3>
+        ${toolHead("toolSignins")}
         <p style="margin-bottom:4px">Sign-ins with a Conditional Access <b>${siMode === "reportonly" ? "report-only failure" : "failure or interrupt"}</b> in the window, newest first — grouped per policy, so the policy generating the noise sits on top.</p>
         <p class="mini muted" style="margin:0">${siMode === "reportonly"
           ? "Report-only: the sign-in itself completed, but these policies <b>would have failed it</b> if enforced — the individual sign-ins, newest first. For the per-policy verdict — <i>is this one safe to enable?</i> — use the <a href=\"#\" class=\"md-tool\" data-tool=\"toolImpact\">🎚 Report-only impact</a> tab, which answers from the same window."
@@ -13268,6 +13338,7 @@ This is a directory write. Nothing else changes.`)) return;
   // answer needs the denominator, not just the failures.
   let riRes = null, riDays = 7, riView = "policies", riQuery = "", riFilter = "all";
   let riBusy = false, riCapped = false;
+  let riReadAt = null, riReadTenant = "";
   const riOpen = new Set();
   // Same shared fetch-progress visual as Sign-in failures and Change audit.
   const riProg = makeProgress("ri"); riProg.by = "🎚 Report-only impact"; riProg.stoppable = true;
@@ -13295,7 +13366,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (riBusy) { if (riRes && riPartial) renderImpact(); else $("riBody").innerHTML = riBusyPanel(); return; }
     if (riRes) { renderImpact(); return; }
     const ro = riTenantRo();
-    $("riHead").innerHTML = `<h3>🎚 Report-only impact</h3>
+    $("riHead").innerHTML = `${toolHead("toolImpact")}
       <p style="margin-bottom:4px">What happens the day a report-only policy goes live. Per policy: who would be <b>denied</b>, who is <b>interrupted</b> for an extra step (MFA, compliant device, terms of use…), who <b>passes unchanged</b>. Per user: the combined effect of everything in report-only at once.</p>
       <p class="mini muted" style="margin:0">Reads the window from the <b>sign-in source</b> chosen in the toolbar — the Entra sign-in log (AuditLog.Read.All), Defender hunting, or Hunting + non-interactive — and shows the forecast as the days land. On the Entra log report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
     $("riChips").innerHTML = "";
@@ -13332,6 +13403,7 @@ This is a directory write. Nothing else changes.`)) return;
       }
       riReused = reused; riPartial = null;
       riRes = ReportImpact.build(records, riTenantRo());
+      riReadAt = Date.now(); riReadTenant = tenantId || tenantName;
       riOpen.clear(); riFilter = "all";
       riBusy = false;
       $("riRescan").style.display = "";
@@ -13381,7 +13453,7 @@ This is a directory write. Nothing else changes.`)) return;
     const r = riRes; if (!r) return;
     $("riHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>🎚 Report-only impact</h3>
+        ${toolHead("toolImpact")}
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         ${riReused ? `<p class="mini muted" style="margin:0 0 4px">↺ Reused the sign-in window <b>🚦 Sign-in failures</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}
         <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read from <b>${esc(logSourceLabel())}</b>${riCapped ? `, <span style="color:var(--off)">truncated${logSource === "entra" ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
@@ -13646,7 +13718,7 @@ This is a directory write. Nothing else changes.`)) return;
     mountToolTabs("blocks", "locations");
     show("screen-locations");
     if (loList && !force) { renderLocations(); return; }   // cached
-    $("loHead").innerHTML = '<h3>🌐 Named locations</h3><p class="mini" style="margin:6px 0 0">Reading named locations…</p>';
+    $("loHead").innerHTML = toolHead("toolLocations") + '<p class="mini" style="margin:6px 0 0">Reading named locations…</p>';
     $("loBody").innerHTML = ""; $("loChips").innerHTML = "";
     try {
       loList = isDemo
@@ -13655,7 +13727,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderLocations();
     } catch (e) {
       console.error("Named locations failed:", e);
-      $("loHead").innerHTML = `<h3>🌐 Named locations</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("loHead").innerHTML = `${toolHead("toolLocations")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("toolLocations").addEventListener("click", () => openLocations());
@@ -13672,7 +13744,7 @@ This is a directory write. Nothing else changes.`)) return;
       .map((k) => `${F.counts[k]} ${k}`).join(" · ");
     $("loHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🌐 Named locations <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolLocations")}
         <p style="margin-bottom:4px">The IP-range and country locations your Conditional Access policies can target. Create, edit and delete them here — each row shows which policies use it.</p>
         <p class="mini muted" style="margin:0">A location's type is fixed at creation: an IP location cannot become a country location. Deleting one that a policy still references widens that policy.</p>
       </div>
@@ -14229,7 +14301,7 @@ This is a directory write. Nothing else changes.`)) return;
     mountToolTabs("blocks", "contexts");
     show("screen-authctx");
     if (acList && !force) { renderAuthCtx(); return; }   // cached
-    $("acHead").innerHTML = '<h3>🎫 Authentication contexts</h3><p class="mini" style="margin:6px 0 0">Reading authentication contexts…</p>';
+    $("acHead").innerHTML = toolHead("toolAuthCtx") + '<p class="mini" style="margin:6px 0 0">Reading authentication contexts…</p>';
     $("acBody").innerHTML = ""; $("acChips").innerHTML = "";
     try {
       acList = isDemo
@@ -14238,7 +14310,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderAuthCtx();
     } catch (e) {
       console.error("Authentication contexts failed:", e);
-      $("acHead").innerHTML = `<h3>🎫 Authentication contexts</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("acHead").innerHTML = `${toolHead("toolAuthCtx")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("acRefresh").addEventListener("click", () => openAuthCtx(true));
@@ -14248,7 +14320,7 @@ This is a directory write. Nothing else changes.`)) return;
     const s = AuthContexts.summarize(acList, raws);
     $("acHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>🎫 Authentication contexts <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolAuthCtx")}
         <p style="margin-bottom:4px">The step-up requirements apps, Protected Actions and sensitivity labels can ask for. The <b>id</b> (c1–c${AuthContexts.SLOT_MAX}) is the contract — it is what callers request and what the token's ACRS claim carries — so it can be renamed and republished, but never changed. Each card shows which Conditional Access policies enforce it.</p>
         <p class="mini muted" style="margin:0">Unpublished contexts are hidden from app and label selection but stay usable in CA policy authoring. Only an unpublished context that no policy references can be deleted.</p>
       </div>
@@ -14403,7 +14475,7 @@ This is a directory write. Nothing else changes.`)) return;
     mountToolTabs("blocks", "strengths");
     show("screen-authstr");
     if (asList && !force) { renderAuthStr(); return; }   // cached
-    $("asHead").innerHTML = '<h3>💪 Authentication strengths</h3><p class="mini" style="margin:6px 0 0">Reading authentication strengths…</p>';
+    $("asHead").innerHTML = toolHead("toolAuthStr") + '<p class="mini" style="margin:6px 0 0">Reading authentication strengths…</p>';
     $("astBody").innerHTML = ""; $("asChips").innerHTML = "";
     try {
       if (isDemo) {
@@ -14437,7 +14509,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderAuthStr();
     } catch (e) {
       console.error("Authentication strengths failed:", e);
-      $("asHead").innerHTML = `<h3>💪 Authentication strengths</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("asHead").innerHTML = `${toolHead("toolAuthStr")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("asRefresh").addEventListener("click", () => openAuthStr(true));
@@ -14447,7 +14519,7 @@ This is a directory write. Nothing else changes.`)) return;
     const s = AuthStrengths.summarize(asList, raws);
     $("asHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>💪 Authentication strengths <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolAuthStr")}
         <p style="margin-bottom:4px">The method combinations a Conditional Access policy can require through <b>Require authentication strength</b>. A sign-in satisfies a strength with <b>any one</b> of its allowed combinations — so every combination on the list is a door, and the weakest door defines the strength.</p>
         <p class="mini muted" style="margin:0">The three built-in strengths are Microsoft-managed and immutable. Custom strengths can be created, renamed, re-combined and — when no policy grants them — deleted.</p>
       </div>
@@ -14689,12 +14761,12 @@ This is a directory write. Nothing else changes.`)) return;
     mountToolTabs("blocks", "terms");
     show("screen-tou");
     if (tuList && !force) { renderTou(); return; }   // cached
-    $("tuHead").innerHTML = '<h3>📜 Terms of use <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Reading terms-of-use agreements…</p>';
+    $("tuHead").innerHTML = toolHead("toolTou") + '<p class="mini" style="margin:6px 0 0">Reading terms-of-use agreements…</p>';
     $("tuBody").innerHTML = ""; $("tuChips").innerHTML = "";
     try {
       if (isDemo) tuList = TU_DEMO;
       else {
-        if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_READ])) { $("tuHead").innerHTML = '<h3>📜 Terms of use</h3><p class="mini">Reading agreements needs Agreement.Read.All.</p>'; return; }
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...TU_READ])) { $("tuHead").innerHTML = toolHead("toolTou") + '<p class="mini">Reading agreements needs Agreement.Read.All.</p>'; return; }
         // The LIST endpoint does not return the file localizations' fileData
         // (and on some tenants not the files at all) — only a per-agreement
         // GET with $expand=files carries the PDFs. Tenants hold a handful of
@@ -14706,7 +14778,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderTou();
     } catch (e) {
       console.error("Terms of use failed:", e);
-      $("tuHead").innerHTML = `<h3>📜 Terms of use</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
+      $("tuHead").innerHTML = `${toolHead("toolTou")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     }
   }
   $("tuRefresh").addEventListener("click", () => openTou(true));
@@ -14716,7 +14788,7 @@ This is a directory write. Nothing else changes.`)) return;
     const s = TermsOfUse.summarize(tuList, raws);
     $("tuHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>📜 Terms of use <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolTou")}
         <p style="margin-bottom:4px">The agreements a Conditional Access policy can require through its <b>terms of use</b> grant control. Each card shows the agreement's behaviour, its PDFs per language, and the policies requiring it.</p>
         <p class="mini muted" style="margin:0">The display name is internal — end users see the PDF, not the name. Deleting an agreement a policy still requires would leave a dangling grant, so that delete is blocked. Replacing a PDF (new version / extra language) is not in this tool yet — use the portal for that.</p>
       </div>
@@ -14951,7 +15023,7 @@ This is a directory write. Nothing else changes.`)) return;
     mountToolTabs("blocks", "deleted");
     show("screen-recycle");
     if (rcPols && !force) { renderRecycle(); return; }   // cached
-    $("rcHead").innerHTML = '<h3>♻ Recycle bin</h3><p class="mini" style="margin:6px 0 0">Reading recently deleted policies and named locations…</p>';
+    $("rcHead").innerHTML = toolHead("toolRecycle") + '<p class="mini" style="margin:6px 0 0">Reading recently deleted policies and named locations…</p>';
     $("rcBody").innerHTML = ""; $("rcChips").innerHTML = "";
     try {
       if (isDemo) {
@@ -14965,7 +15037,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderRecycle();
     } catch (e) {
       console.error("Recycle bin failed:", e);
-      $("rcHead").innerHTML = `<h3>♻ Recycle bin</h3><p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}${/403|Authorization/i.test(String(e.message || e)) ? " — reading the recycle bin needs the Security Administrator or Conditional Access Administrator role." : ""}</p>`;
+      $("rcHead").innerHTML = `${toolHead("toolRecycle")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}${/403|Authorization/i.test(String(e.message || e)) ? " — reading the recycle bin needs the Security Administrator or Conditional Access Administrator role." : ""}</p>`;
     }
   }
   $("rcRefresh").addEventListener("click", () => openRecycle(true));
@@ -14974,7 +15046,7 @@ This is a directory write. Nothing else changes.`)) return;
     const s = Recycle.summarize(rcPols, rcLocs);
     $("rcHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
-        <h3>♻ Recycle bin <span class="tag block">writes to tenant</span></h3>
+        ${toolHead("toolRecycle")}
         <p style="margin-bottom:4px">Deleted Conditional Access policies and named locations stay restorable for <b>${Recycle.RETENTION_DAYS} days</b>, then they are permanently gone. Each card shows what the item did, when it was deleted and how long it has left.</p>
         <p class="mini muted" style="margin:0">A restored policy returns <b>in the state it was deleted in</b> — a policy that was On enforces again the moment it comes back, so that restore asks for an extra confirmation.</p>
       </div>
@@ -15085,7 +15157,7 @@ This is a directory write. Nothing else changes.`)) return;
     crumb("🧪 What-If");
     show("screen-whatif");
     mountToolTabs("whatif", "one");
-    $("wiHead").innerHTML = `<h3>🧪 What-If</h3>
+    $("wiHead").innerHTML = `${toolHead("toolWhatIf")}
       <p style="margin-bottom:6px">Describe a sign-in and every <b>enabled</b> or <b>report-only</b> policy is evaluated against it — which would apply (and the controls to satisfy), and which would not, with the first condition that wasn't met.</p>
       <p class="mini muted" style="margin:0">Mirrors the <a href="https://learn.microsoft.com/entra/identity/conditional-access/what-if-tool" target="_blank" rel="noopener">Entra Conditional Access What If tool</a>. Like the Microsoft tool it does not follow Conditional Access <b>service dependencies</b>, an app <i>group</i> (Office 365) never matches — use the app itself — and a condition the scenario leaves unspecified cannot be evaluated, so that policy will not apply.</p>`;
     if (!policies.length) { $("wiBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
@@ -15189,7 +15261,7 @@ This is a directory write. Nothing else changes.`)) return;
           });
           wiNames = {};
           mem.forEach((o) => { if (o.displayName) wiNames[o.id] = o.displayName; });
-        } catch (e) { console.warn("what-if: membership lookup failed", e.message); }
+        } catch (e) { sc.groupsComplete = false; sc.rolesComplete = false; }
       }
       // ---- target resource ----
       const appSel = $("wiApp").value;
@@ -15216,7 +15288,7 @@ This is a directory write. Nothing else changes.`)) return;
       // ---- named locations (once) ----
       if (!wiLocations) {
         try { wiLocations = isDemo ? [] : await Graph.ggetAll("/identity/conditionalAccess/namedLocations"); }
-        catch (e) { wiLocations = []; console.warn("what-if: named locations failed", e.message); }
+        catch (e) { throw new Error(`Named locations unavailable: ${e.message}. Evaluation stopped.`); }
       }
       // group names for the "excluded via …" reasons
       try {
@@ -15269,9 +15341,11 @@ This is a directory write. Nothing else changes.`)) return;
       : "";
     const verdict = (r.blocked
       ? `<div class="wi-verdict block">⛔ Access would be <b>blocked</b> by ${(r.blockers || []).length === 1 ? "" : `${r.blockers.length} policies: `}${nameList(r.blockers || [])}</div>`
+      : !r.complete
+        ? `<div class="wi-verdict none">Evaluation incomplete: ${r.indeterminate.length} policies need more evidence. Access cannot be determined.</div>`
       : allControls.length
-        ? `<div class="wi-verdict grant">✅ Access granted after satisfying: <b>${esc(allControls.map(wiCtrl).join(", "))}</b></div>`
-        : `<div class="wi-verdict none">✅ No grant control required by any enforced policy</div>`) + roNote;
+        ? `<div class="wi-verdict grant">Applicable controls to satisfy: <b>${esc(allControls.map(wiCtrl).join(", "))}</b></div>`
+        : `<div class="wi-verdict none">No enforced grant control found for this scenario</div>`) + roNote;
 
     const applied = r.applied.length ? r.applied.map((p) => `<li>
         <div class="wi-pn"><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">report-only</span>' : ""}${(p.grant || []).includes("block") ? (p.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">would block once enforced</span>' : ' <span class="tag block">⛔ this is the block</span>') : ""}</div>
@@ -15327,7 +15401,7 @@ This is a directory write. Nothing else changes.`)) return;
         <ul class="wi-list">${applied}</ul>
       </div>
       <div class="list-card wi-res">
-        <h4 class="wi-h">Policies that do not apply <span class="mini muted">${r.notApplied.length}</span></h4>
+        <h4 class="wi-h">Not applied or unresolved <span class="mini muted">${r.notApplied.length}</span></h4>
         ${naFilters}
         <ul class="wi-list dim">${notApplied || '<li class="mini muted">None — every evaluated policy applies.</li>'}</ul>
       </div>
@@ -15363,15 +15437,15 @@ This is a directory write. Nothing else changes.`)) return;
       // in a list of ten is the version that gets pasted into a ticket.
       `**Result:** ${r.blocked
         ? `access would be **BLOCKED** by ${(r.blockers || []).map((b) => b.name).join(", ")}`
-        : "access granted after satisfying the controls below"}`,
+        : !r.complete ? "INCOMPLETE — access cannot be determined; unresolved policies listed below" : "applicable controls listed below; this simulation does not prove access"}`,
       ...((r.blockersReportOnly || []).length
-        ? [`**Report-only:** ${r.blockersReportOnly.map((b) => b.name).join(", ")} would block once enforced — ${r.blocked ? "in addition to the above" : "today this sign-in succeeds"}.`]
+        ? [`**Report-only:** ${r.blockersReportOnly.map((b) => b.name).join(", ")} would block once enforced — ${r.blocked ? "in addition to the above" : "this simulation does not prove access"}.`]
         : []), "",
       `## Policies that apply (${r.applied.length})`, ""];
     r.applied.forEach((p) => L.push(`- **${p.name}**${p.state === "enabledForReportingButNotEnforced" ? " *(report-only)*" : ""}${(p.grant || []).includes("block") ? (p.state === "enabledForReportingButNotEnforced" ? " ⛔ *would block once enforced*" : " ⛔ **this is the block**") : ""} — grant: ${(p.grant || []).map(wiCtrl).join(", ") || "none"}${(p.session || []).length ? `; session: ${p.session.join(" · ")}` : ""}`));
     const naBy = {};
     r.notApplied.forEach((p) => { naBy[p.why || "other"] = (naBy[p.why || "other"] || 0) + 1; });
-    L.push("", `## Policies that do not apply (${r.notApplied.length})`, "");
+    L.push("", `## Not applied or unresolved (${r.notApplied.length})`, "");
     const naSum = Object.entries(naBy).sort((a, b) => b[1] - a[1])
       .map(([w, n]) => `${n} ${(WhatIfEval.WHY_LABEL || {})[w] || w}`).join(" · ");
     if (naSum) L.push(`_${naSum}_`, "");
@@ -15386,9 +15460,9 @@ This is a directory write. Nothing else changes.`)) return;
     crumb("🕵 Who is … to CA");
     show("screen-compare");
     mountToolTabs("whois", "compare");
-    $("cuHead").innerHTML = `<h3>⚖ Compare users</h3>
+    $("cuHead").innerHTML = `${toolHead("toolCompare")}<details class="tool-about"><summary>About this tool · scope and permissions</summary>
       <p style="margin-bottom:6px">Add two or more users and see where Conditional Access treats them differently: per-policy <b>assignment</b> (included, excluded — and why — or not targeted), the <b>group and role memberships</b> behind the differences, and optionally one <b>What-If sign-in</b> evaluated for every user.</p>
-      <p class="mini muted" style="margin:0">Assignment compares user scoping only — location, platform, client and risk conditions only come in through the optional scenario. Read-only.</p>`;
+      <p class="mini muted" style="margin:0">Assignment compares user scoping only — location, platform, client and risk conditions only come in through the optional scenario. Read-only.</p></details>`;
     if (!policies.length) { $("cuBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
     if (isDemo) $("cuUserList").innerHTML = (DEMO_DATA.analyzeUsers || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
     else if (!$("cuUserList").children.length) {
@@ -15559,9 +15633,9 @@ This is a directory write. Nothing else changes.`)) return;
     show("screen-whois");
     mountToolTabs("whois", "user");
     mountLogSourceSeg("woToolbar", "#woRun");
-    $("woHead").innerHTML = `<h3>🕵 Who is Anna to CA <span class="tag new">BETA</span></h3>
+    $("woHead").innerHTML = `${toolHead("toolWhoIs")}<details class="tool-about"><summary>About this tool · scope and permissions</summary>
       <p style="margin-bottom:6px">One user, the whole Conditional Access picture: which <b>deployment group</b> she sits in and how she got there, every policy that <b>reaches</b> her (or misses her, and why), what the <b>sign-in log</b> says actually happened to her, and what happens to her the day <b>report-only</b> goes live.</p>
-      <p class="mini muted" style="margin:0">Memberships and policies come from what ENCA already holds. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Registered MFA methods and her Identity Protection <b>risk</b> (risky-user state, detections) are optional extra reads. Read-only.</p>`;
+      <p class="mini muted" style="margin:0">Memberships and policies come from what ENCA already holds. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Registered MFA methods and her Identity Protection <b>risk</b> (risky-user state, detections) are optional extra reads. Read-only.</p></details>`;
     if (!policies.length) { $("woBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
     if (isDemo) $("woUserList").innerHTML = (DEMO_DATA.analyzeUsers || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
     else if (!$("woUserList").children.length) {
@@ -15831,15 +15905,15 @@ This is a directory write. Nothing else changes.`)) return;
   // the demo policies name scope groups as g-<name>; use that id when they do
   const wvDemoId = (name) => wvRefd().has(`g-${name}`) ? `g-${name}` : name;
   function wvHeadHtml() {
-    return `<h3>🌊 Who is the wave to CA <span class="tag new">BETA</span></h3>
+    return `${toolHead("toolWave")}<details class="tool-about"><summary>About this tool · scope and permissions</summary>
       <p style="margin-bottom:6px">The 🕵 Who is Anna to CA picture for a whole <b>deployment group</b>: who is in the wave and how they got there, which policies target the group, what the sign-in log did to its members, and whether the next report-only policy can go live <b>for this wave</b> without locking somebody out.</p>
-      <p class="mini muted" style="margin:0">Members are read transitively (first ${WV_MEMBER_CAP}); every member is resolved against every policy with the same rule 🕵 Who is Anna to CA uses. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Read-only.</p>`;
+      <p class="mini muted" style="margin:0">Members are read transitively (first ${WV_MEMBER_CAP}); every member is resolved against every policy with the same rule 🕵 Who is Anna to CA uses. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Read-only.</p></details>`;
   }
   async function openWave() {
     crumb("🕵 Who is … to CA");
     show("screen-wave");
     mountToolTabs("whois", "group");
-    mountLogSourceSeg("wvToolbar2", "#wvRun");
+    mountLogSourceSeg("wvToolbar", "#wvRun");
     $("wvHead").innerHTML = wvHeadHtml();
     if (!policies.length) { $("wvBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
     if (wvBusy) { $("wvBody").innerHTML = wvProg.panel("Reading the wave…"); return; }
@@ -15855,7 +15929,7 @@ This is a directory write. Nothing else changes.`)) return;
     const deploy = ((cat && cat.predefined) || []).filter((n) => /-DG-/i.test(n));
     const persona = ((cat && cat.personaGroups) || []).filter((p) => p.group).map((p) => p.group);
     const names = [...deploy, ...persona];
-    $("wvPicker").innerHTML = '<span class="mini muted">Reading the deploy groups…</span>';
+    $("wvPicker").innerHTML = '<option value="">Reading groups…</option>';
     const present = await woGroupsPresent(names);
     wvGroups = names.map((n) => ({ name: n, kind: deploy.includes(n) ? "deploy" : "persona", id: (present.get(n.toLowerCase()) || {}).id || null, count: null }));
     if (isDemo) wvGroups.forEach((g) => { if (g.id) g.id = wvDemoId(g.name); });
@@ -15870,14 +15944,19 @@ This is a directory write. Nothing else changes.`)) return;
     renderWvPicker();
   }
   function renderWvPicker() {
-    const btn = (g) => `<button class="fchip${wvPick === g.id ? " active" : ""}${g.id ? "" : " wv-missing"}" data-wv-pick="${esc(g.id || "")}" title="${esc(g.name)}${g.id ? "" : " — this tenant does not have this group"}" ${g.id ? "" : "disabled"}>${esc(g.name.replace(/^CAD-SEC-U-DG-/i, "").replace(/^CAB-SEC-U-Persona-/i, "").replace(/^CAB-SEC-U-/i, ""))} <span class="pill ${g.count ? "" : "zero"}">${g.id ? (g.count == null ? "?" : g.count) : "—"}</span></button>`;
-    const deploy = wvGroups.filter((g) => g.kind === "deploy"), persona = wvGroups.filter((g) => g.kind === "persona");
-    $("wvPicker").innerHTML = (deploy.length ? `<span class="mini muted" style="align-self:center">Deploy</span>${deploy.map(btn).join("")}` : '<span class="mini muted">The active baseline has no deployment groups — its persona groups are offered instead.</span>')
-      + (persona.length ? `<span class="mini muted" style="align-self:center;margin-left:8px">Persona</span>${persona.map(btn).join("")}` : "");
+    const option = g => `<option value="${esc(g.id || "")}" ${g.id ? "" : "disabled"}>${esc(g.name)} · ${g.id ? (g.count == null ? "count unknown" : `${g.count} members`) : "not in tenant"}</option>`;
+    const groups = wvGroups || [];
+    $("wvPicker").innerHTML = '<option value="">Choose a group…</option>' + [["deploy", "Deployment groups"], ["persona", "Persona groups"]].map(([kind, label]) => {
+      const rows = groups.filter(g => g.kind === kind);
+      return rows.length ? `<optgroup label="${label}">${rows.map(option).join("")}</optgroup>` : "";
+    }).join("");
+    $("wvPicker").value = wvPick || "";
   }
-  $("wvPicker").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-wv-pick]"); if (!b || !b.dataset.wvPick) return;
-    wvPick = b.dataset.wvPick; $("wvTerm").value = ""; renderWvPicker(); runWave();
+  $("wvPicker").addEventListener("change", (e) => {
+    wvPick = e.target.value || null;
+    if (!wvPick) return;
+    $("wvTerm").value = "";
+    runWave();
   });
   $("wvTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); wvPick = null; renderWvPicker(); runWave(); } });
   $("wvRun").addEventListener("click", () => { if ($("wvTerm").value.trim()) wvPick = null; renderWvPicker(); runWave(); });
@@ -16134,7 +16213,7 @@ This is a directory write. Nothing else changes.`)) return;
     crumb("🚦 Sign-in log");
     show("screen-sessionctl");
     mountToolTabs("signins", "session");
-    $("scHead").innerHTML = `<h3>🛂 Session controls <span class="tag new">BETA</span></h3>
+    $("scHead").innerHTML = `${toolHead("toolSessionCtl")}
       <p style="margin-bottom:6px">What did a session control actually <b>do</b>? The sign-in log stops at “policy applied — Conditional Access App Control”. Everything after that — the download that was blocked, the file that was protected, the step-up that fired — is written by <b>Defender for Cloud Apps</b>. This tool reads that log and joins it back to the Conditional Access policy that routed the session.</p>
       <p class="mini muted" style="margin:0">Reads Defender advanced hunting through Microsoft Graph (<b>ThreatHunting.Read.All</b>, needs Security Reader or a Defender RBAC role with hunting access; 30-day retention) for what Defender did, and the Entra sign-in window 🚦 / 🎚 already read (<b>AuditLog.Read.All</b>) for which policy routed the session. Read-only.</p>`;
     if (!policies.length) { $("scBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
@@ -16280,6 +16359,92 @@ This is a directory write. Nothing else changes.`)) return;
   $("scMd").addEventListener("click", () => { const R = scRes; if (!R) return; showReport("🛂 Session controls", "CA-SessionControls", SessionCtl.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(scDays) })); });
   $("scCsv").addEventListener("click", () => { const R = scRes; if (!R) return; downloadText("CA-SessionControls", "csv", "text/csv", SessionCtl.toCsv(R)); });
 
+  // ---------- 🫥 Apps with no service principal (T39, BETA) ----------
+  // One Graph call for the 30-day app summary, one paged read of the
+  // service principals, the diff in js/spgap.js. Impact per app comes from
+  // WhatIfEval (the 🧪 engine) — no second evaluator. Evidence is the shared
+  // sign-in window, read only on request. Reads only; the CSV is the list
+  // for whoever registers the apps, by hand, on purpose.
+  let sgRes = null, sgBusy = false, sgFilter = "all", sgQ = "", sgRecords = null;
+  const sgProg = makeProgress("sg"); sgProg.by = "🫥 Apps with no service principal";
+
+  function openSpGap() {
+    crumb("🫥 Apps with no service principal");
+    show("screen-spgap");
+    $("sgHead").innerHTML = `${toolHead("toolSpGap")}
+      <p style="margin-bottom:6px">Apps that signed in over the last 30 days and have <b>no service principal</b> in this tenant. Such an app is not in the Conditional Access app picker — it can be neither included nor excluded by name; only a policy on <b>All resources</b> reaches it, and only once it exists. For each one: which policies would apply the moment it does, whether a policy already excludes the id, and what Entra recorded on its newest sign-in.</p>
+      <p class="mini muted" style="margin:0">Reads <b>auditLogs/signInEventsAppSummary</b> (AuditLog.Read.All, asked once on the run click; a fixed 30-day window, at most 1,000 apps) and the tenant's service principals. Evidence comes from the shared sign-in window on request.</p>`;
+    if (!policies.length) { $("sgBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
+    if (sgBusy) { $("sgBody").innerHTML = sgProg.panel("Reading…"); return; }
+    if (sgRes) { renderSpGap(); return; }
+    $("sgBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-sgrun>▶ Read the 30-day app summary</button><p class="mini muted">One call for the summary, one paged read of the service principals. Nothing is written.</p></div>`;
+  }
+  $("toolSpGap").addEventListener("click", () => openSpGap());
+  $("sgBody").addEventListener("click", (e) => { if (e.target.closest("[data-sgrun]")) runSpGap(); });
+  $("sgRescan").addEventListener("click", () => runSpGap());
+  $("sgEvidence").addEventListener("click", () => readSpGapEvidence());
+  let sgQTimer = null;
+  $("sgSearch").addEventListener("input", (e) => { clearTimeout(sgQTimer); sgQTimer = setTimeout(() => { sgQ = e.target.value; if (sgRes) renderSpGap(); }, 200); });
+  $("sgChips").addEventListener("click", (e) => { const c = e.target.closest("[data-sgf]"); if (!c) return; sgFilter = c.dataset.sgf; if (sgRes) renderSpGap(); });
+
+  async function runSpGap() {
+    if (sgBusy) return;
+    sgBusy = true; sgRes = null; sgProg.begin();
+    ["sgRescan", "sgEvidence", "sgMd", "sgCsv"].forEach((id) => { $(id).style.display = "none"; });
+    $("sgBody").innerHTML = sgProg.panel("Reading the 30-day app summary…", "auditLogs/signInEventsAppSummary — one row per app that signed in over the last 30 days.");
+    try {
+      let summary = [], spIds = new Set();
+      if (isDemo) {
+        summary = (typeof DEMO_DATA !== "undefined" && DEMO_DATA.signInAppSummary) || [];
+        spIds = new Set(((typeof DEMO_DATA !== "undefined" && DEMO_DATA.servicePrincipalAppIds) || []).map((x) => String(x).toLowerCase()));
+        sgRecords = logCacheUsable(7) ? logCache.records : null;
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { sgBusy = false; openSpGap(); return; }
+        summary = await Graph.ggetAll("/auditLogs/signInEventsAppSummary");
+        $("sgBody").innerHTML = sgProg.panel("Reading the service principals…", `${summary.length.toLocaleString()} app${summary.length === 1 ? "" : "s"} in the summary.`);
+        const sps = await Graph.ggetAll("/servicePrincipals?$select=appId&$top=999");
+        spIds = new Set(sps.map((x) => String(x.appId || "").toLowerCase()).filter(Boolean));
+        // a window another tool already read is evidence for free
+        sgRecords = (logCache && logCacheUsable(logCache.days)) ? logCache.records : null;
+      }
+      sgRes = SpGap.analyze({ summary, spIds, raws: policies.map((p) => p.raw), names: (id) => id, records: sgRecords, truncated: summary.length >= 1000 });
+      sgBusy = false;
+      ["sgRescan", "sgMd", "sgCsv"].forEach((id) => { $(id).style.display = ""; });
+      $("sgEvidence").style.display = sgRes.hasEvidence ? "none" : "";
+      renderSpGap();
+      if (!sgRes.apps.length) toast("Every app that signed in has a service principal here");
+    } catch (e) {
+      console.error("Apps with no service principal failed:", e);
+      sgBusy = false;
+      $("sgBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">${esc(e.message || e)}<br><span class="muted">This needs AuditLog.Read.All and a Reports Reader / Security Reader role; the summary endpoint is Graph beta.</span></p>`;
+    } finally { sgBusy = false; sgProg.stop(); }
+  }
+  // Evidence on request: the shared 7-day window (reused when another tool
+  // already read it), then the newest sign-in per app.
+  async function readSpGapEvidence() {
+    if (!sgRes || sgBusy) return;
+    sgBusy = true; sgProg.begin();
+    $("sgBody").innerHTML = sgProg.panel("Reading the sign-in window…", "Shared with 🚦 Sign-in failures, 🎚 Report-only impact and 🕵.");
+    try {
+      if (isDemo) sgRecords = demoSignIns();
+      else if (await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { const w = await readSignInWindow(7, sgProg); sgRecords = w.records; }
+      else sgRecords = null;
+      sgRes.apps.forEach((a) => { a.evidence = SpGap.evidenceOf(sgRecords, a.appId); });
+      sgRes.hasEvidence = !!(sgRecords && sgRecords.length);
+      $("sgEvidence").style.display = sgRes.hasEvidence ? "none" : "";
+    } catch (e) { if (!(e && e.stopped)) { console.warn("evidence read failed", e.message); toast("The sign-in window could not be read"); } }
+    finally { sgBusy = false; sgProg.stop(); renderSpGap(); }
+  }
+  function renderSpGap() {
+    const R = sgRes; if (!R) return;
+    const t = R.tiles;
+    const chip = (k, label, n) => `<button class="fchip${sgFilter === k ? " active" : ""}" data-sgf="${k}">${esc(label)}${n != null ? ` <span class="pill zero">${n}</span>` : ""}</button>`;
+    $("sgChips").innerHTML = chip("all", "All", t.total) + chip("uncovered", "No Conditional Access", t.uncovered) + chip("maybe", "Depends", t.maybe) + chip("enforced", "Enforced", t.enforced) + chip("blocked", "Blocked", t.blocked) + chip("phantom", "Phantom exclusions", t.phantom);
+    $("sgBody").innerHTML = SpGap.renderTiles(R) + `<div style="margin-top:14px">${SpGap.renderTable(R, sgFilter, sgQ)}</div>`;
+  }
+  $("sgMd").addEventListener("click", () => { const R = sgRes; if (!R) return; showReport("🫥 Apps with no service principal", "CA-AppsNoServicePrincipal", SpGap.toMd(R, tenantName)); });
+  $("sgCsv").addEventListener("click", () => { const R = sgRes; if (!R) return; downloadText("CA-AppsNoServicePrincipal", "csv", "text/csv", SpGap.toCsv(R)); });
+
   // ---------- User or Group analyzer (BETA) ----------
   // "Where is this group actually used?" The source registry, the matching and
   // the exports live in js/groupuse.js; this is screen, consent and rendering.
@@ -16294,7 +16459,7 @@ This is a directory write. Nothing else changes.`)) return;
   function openGroupUse() {
     crumb("🔗 User or Group analyzer");
     show("screen-groupuse");
-    $("guHead").innerHTML = `<h3>🔗 User or Group analyzer</h3>
+    $("guHead").innerHTML = `${toolHead("toolGroupUse")}
       <p style="margin-bottom:6px">A group is a shared handle: one admin scopes a Conditional Access policy to it, another targets an Intune profile at it, a third grants it a role on a subscription. Paste a <b>group or user</b> and see every place it is referenced — or sweep the tenant and find the groups <b>nothing</b> references.</p>
       <p class="mini muted" style="margin:0">Read-only. Hits inherited from a <b>parent group</b> are marked as such — anything targeting the parent reaches these members too. After Jasper Baes' <i>Microsoft Cloud Group Analyzer</i>.</p>`;
 
@@ -16605,7 +16770,8 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function guNotReadCard(res) {
     const inner = guNotReadBlock(res);
-    return inner ? `<div class="list-card wi-res" id="guNotRead"><h4 class="wi-h">Not read</h4>${inner}</div>` : "";
+    return inner ? `<div class="list-card wo-card" id="guNotRead">
+      <h4 class="wo-h" data-wo-fold="notread">Not read</h4>${inner}</div>` : "";
   }
 
   function renderGroupUse() {
@@ -16615,25 +16781,49 @@ This is a directory write. Nothing else changes.`)) return;
     ["guMd", "guHtml", "guCsv"].forEach((id) => $(id).style.display = "");
 
     const per = GroupUse.byArea(res.rows);
-    const stats = GroupUse.AREAS.map((a) => {
-      const n = (per.get(a.id) || []).length;
-      return guAreas.has(a.id)
-        ? `<span class="gu-stat${n ? " act" : " zero"}"${n ? ` data-gujump="guArea-${a.id}" title="Jump to ${esc(a.label)}"` : ""}>${a.icon} ${esc(a.label)} <b>${n}</b></span>`
-        : "";
-    }).join("");
+    const inScope = GroupUse.AREAS.filter((x) => guAreas.has(x.id));
+    // The counts were grey pills whose only states were grey-when-zero and
+    // green-when-picked, so "2 not read" read exactly like "21 Entra ID".
+    // They are verdict tiles now (25356) and still the jump links they were.
+    const areaTiles = inScope.map((x) => {
+      const n = (per.get(x.id) || []).length;
+      return Verdict.tile({
+        k: `${x.icon} ${esc(x.label)}`, v: String(n), vcls: n ? "" : "muted",
+        s: n ? "jump to the references" : "nothing found",
+        btn: !!n, title: n ? `Jump to ${x.label}` : "",
+        data: n ? { gujump: `guArea-${x.id}` } : null,
+      });
+    });
+    const unread = res.failed.length + (res.partial || []).length;
+    const guTiles = Verdict.tiles([
+      Verdict.tile({ k: "References", v: String(res.rows.length),
+        s: `across ${plural(inScope.length, "area")}` }),
+      ...areaTiles,
+      unread ? Verdict.tile({ k: "Not read", v: String(unread), cls: "warn",
+        s: "permission refused, or the service was unavailable", btn: true,
+        title: "Jump to what could not be read", data: { gujump: "guNotRead" } }) : null,
+    ]);
+    // A count read off an incomplete pass is a floor, and saying so is worth
+    // more than the count: it is the difference between "nothing uses this
+    // group" and "nothing we were allowed to look at uses this group".
+    const guFloor = unread ? Verdict.callout(
+      `Not every service could be read, so <b>these counts are a floor, not a total</b> \u2014 `
+      + `${res.failed.concat(res.partial || []).slice(0, 3).map((x) => esc(x.label)).join(", ")}`
+      + `${unread > 3 ? ` and ${unread - 3} more` : ""}. Nothing found there is not the same as nothing there.`) : "";
 
     const rel = [];
-    if (meta.parents.length) rel.push(`<b>Member of</b> ${meta.parents.map((p) => esc(p.name)).join(", ")}`);
-    if (meta.children.length) rel.push(`<b>Contains groups</b> ${meta.children.map((p) => esc(p.name)).join(", ")}`);
-    if (meta.roles.length) rel.push(`<b>Directory roles</b> ${meta.roles.map((p) => esc(p.name)).join(", ")}`);
+    if (meta.parents.length) rel.push(`<span class="wo-fact">member of <b>${meta.parents.map((x) => esc(x.name)).join(", ")}</b></span>`);
+    if (meta.children.length) rel.push(`<span class="wo-fact">contains <b>${meta.children.map((x) => esc(x.name)).join(", ")}</b></span>`);
+    if (meta.roles.length) rel.push(`<span class="wo-fact warn">holds <b>${meta.roles.map((x) => esc(x.name)).join(", ")}</b></span>`);
 
     const areaCards = GroupUse.AREAS.map((a) => {
       if (!guAreas.has(a.id)) return "";
       const rows = per.get(a.id) || [];
       const groupsOf = GroupUse.grouped(rows);
       const empty = res.ran.filter((r) => r.area === a.id && !r.count);
-      return `<div class="list-card wi-res" id="guArea-${a.id}">
-        <h4 class="wi-h">${a.icon} ${esc(a.label)} <span class="mini muted">${rows.length} reference${rows.length === 1 ? "" : "s"}</span></h4>
+      return `<div class="list-card wo-card" id="guArea-${a.id}">
+        <h4 class="wo-h" data-wo-fold="area-${a.id}">${a.icon} ${esc(a.label)}
+          <span class="mini muted">${plural(rows.length, "reference")}</span></h4>
         ${groupsOf.length ? groupsOf.map((g) => guSourceBlock(g, meta.via)).join("")
           : `<p class="mini muted" style="margin:0">No references found.</p>`}
         ${empty.length ? `<p class="mini muted" style="margin:10px 0 0">Read and clean: ${empty.map((e) => esc(e.label)).join(", ")}.</p>` : ""}</div>`;
@@ -16650,14 +16840,17 @@ This is a directory write. Nothing else changes.`)) return;
       <div class="gu-sticky">
         <span class="gu-who">${meta.principalType === "user" ? "👤" : "👥"} ${esc(meta.principalName)}
           <span class="mini muted">${esc(meta.principalType)}</span></span>
-        <div class="gu-sum"><span class="gu-stat"><b>${res.rows.length}</b> reference${res.rows.length === 1 ? "" : "s"}</span>${stats}${
-          (res.failed.length || (res.partial || []).length) ? `<span class="gu-stat act" data-gujump="guNotRead" title="Jump to what could not be read"><b>${res.failed.length + (res.partial || []).length}</b> not read</span>` : ""}</div>
+        ${guFloor}
+        ${guTiles}
       </div>
-      ${rel.length ? `<div class="list-card wi-res gu-jt">
-        <p class="mini muted" style="margin:0 0 4px">Object ID <code>${esc(meta.principalId)}</code></p>
-        <p class="mini" style="margin:0">${rel.join(" &nbsp;·&nbsp; ")}</p></div>` : ""}
+      <div class="list-card wo-card gu-jt">
+        <h4 class="wo-h" data-wo-fold="about">About this ${esc(meta.principalType)}</h4>
+        <p class="mini muted" style="margin:0">Object ID <code>${esc(meta.principalId)}</code></p>
+        ${rel.length ? `<div class="wo-facts">${rel.join("")}</div>` : ""}</div>
       ${areaCards}
       ${guNotReadCard(res)}`;
+    applyFolds("guBody");
+    syncStickyTops();
   }
 
   // Shown only when a finished sweep is parked behind this single-group view.
@@ -16691,13 +16884,25 @@ This is a directory write. Nothing else changes.`)) return;
       <div class="gu-sticky">
         <span class="gu-who">Tenant sweep
           <span class="mini muted">${guTotals.length} groups${guMeta && guMeta.scopeNote ? ` where ${esc(guMeta.scopeNote)}` : ""} · ${res.rows.length} references</span></span>
-        <div class="gu-sum">
-          <span class="gu-stat act${!guUnusedOnly && !guDanglingOnly && !guQuery ? " on" : ""}" data-gustat="all" title="Show every group in the sweep"><b>${guTotals.length}</b> groups</span>
-          <span class="gu-stat act${guUnusedOnly ? " on" : ""}${unused ? "" : " zero"}" data-gustat="unused" title="Show only the groups nothing references"><b>${unused}</b> with no usage found</span>
-          <span class="gu-stat act${guShowServices ? " on" : ""}" data-gustat="services" title="List every service that was read, and what it found"><b>${res.ran.length}</b> services read</span>
-          <span class="gu-stat act${res.failed.length ? "" : " zero"}" data-gustat="notread" title="Jump to what could not be read"><b>${res.failed.length}</b> not read</span>
-          ${gone ? `<span class="gu-stat act${guDanglingOnly ? " on" : ""}" data-gustat="dangling" title="Ids a policy still names but the directory no longer has"><b>${gone}</b> dangling</span>` : ""}
-        </div>
+        ${guSweepCallout(unused, gone)}
+        ${Verdict.tiles([
+          { k: "Groups swept", v: String(guTotals.length), s: plural(res.rows.length, "reference") + " found",
+            btn: true, on: !guUnusedOnly && !guDanglingOnly && !guQuery,
+            title: "Show every group in the sweep", data: { gustat: "all" } },
+          { k: "No usage found", v: String(unused), cls: unused ? "warn" : "", vcls: unused ? "" : "muted",
+            s: unused ? "nothing references these" : "every group is referenced", btn: true, on: guUnusedOnly,
+            title: "Show only the groups nothing references", data: { gustat: "unused" } },
+          gone ? { k: "Dangling ids", v: String(gone), cls: "bad", btn: true, on: guDanglingOnly,
+            s: "a policy names them, the directory does not",
+            title: "Ids a policy still names but the directory no longer has", data: { gustat: "dangling" } } : null,
+          { k: "Services read", v: String(res.ran.length), cls: "ok", s: "what the sweep actually covered",
+            btn: true, on: guShowServices,
+            title: "List every service that was read, and what it found", data: { gustat: "services" } },
+          { k: "Not read", v: String(res.failed.length), cls: res.failed.length ? "warn" : "",
+            vcls: res.failed.length ? "" : "muted",
+            s: res.failed.length ? "permission refused" : "nothing was skipped", btn: true,
+            title: "Jump to what could not be read", data: { gustat: "notread" } },
+        ])}
         <div class="gu-bar" style="margin:0">
           <div class="search">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
@@ -16724,6 +16929,21 @@ This is a directory write. Nothing else changes.`)) return;
       </div>
       ${guNotReadCard(res)}`;
     wireSearchClears();
+    applyFolds("guBody");
+    syncStickyTops();
+  }
+
+  // The two findings worth acting on, said in words rather than left inside
+  // a count somebody has to click: an id a policy names that the directory
+  // does not have targets nobody, and a group nothing references is cleanup.
+  function guSweepCallout(unused, gone) {
+    if (!gone && !unused) return "";
+    const bits = [];
+    if (gone) bits.push(`<b>${plural(gone, "id")} a policy still names ${gone === 1 ? "does" : "do"} not exist in this directory</b>`);
+    if (unused) bits.push(`${plural(unused, "group")} ${unused === 1 ? "is" : "are"} referenced by nothing at all`);
+    return Verdict.callout(bits.join(", and ") + ". "
+      + (gone ? "The first is a policy repair" : "That is cleanup")
+      + (gone && unused ? ", the second is cleanup." : "."), gone ? "bad" : "");
   }
 
   // What "19 services read" actually means, on demand — which services, what
@@ -16823,6 +17043,9 @@ This is a directory write. Nothing else changes.`)) return;
 
   $("guBody").addEventListener("click", (e) => {
     if (e.target.closest("#guBack")) { restoreGuSweep(); return; }
+    // A card heading folds, remembered per card — the same behaviour 🕵 and
+    // 🌊 have had since 25323, and the reason the area blocks are cards.
+    if (foldClick("guBody", e)) { syncStickyTops(); return; }
 
     // summary chips are filters and jumps, not decoration
     const jump = e.target.closest("[data-gujump]");
@@ -16884,7 +17107,7 @@ This is a directory write. Nothing else changes.`)) return;
     show("screen-mslearn");
     mountToolTabs("checks", "mslearn");
     if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; return; }
-    $("mlHead").innerHTML = '<h3>📘 MS Learn: documented exclusion checks</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
+    $("mlHead").innerHTML = toolHead("toolMsLearn") + '<p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
     mlTab = "findings"; mlFixes = null;
     // baseline tenant → include Off + persona-only; note the scope
@@ -17317,14 +17540,14 @@ This is a directory write. Nothing else changes.`)) return;
     if (!policies.length) { $("gcHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = ""; return; }
     if (gcResult) { renderGapCheck(); return; }   // cached — keep the previous screen
     // idle — wait for the user to start the checks
-    $("gcHead").innerHTML = '<h3>🛡 Best-practice &amp; bypass checks</h3><p class="mini" style="margin:6px 0 0">Check the baseline against known Conditional Access bypasses and the Swiss-cheese model — MFA coverage, break-glass, known bypass apps, and a persona × control matrix.</p>';
+    $("gcHead").innerHTML = toolHead("toolGapCheck") + '<p class="mini" style="margin:6px 0 0">Check the baseline against known Conditional Access bypasses and the Swiss-cheese model — MFA coverage, break-glass, known bypass apps, and a persona × control matrix.</p>';
     $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = "";
     $("gcBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-gcrun>▶ Run checks</button><p class="mini muted">Reads authentication strengths and named locations via Microsoft Graph. Results stay until you refresh.</p></div>';
   }
   async function runGapCheckScan() {
     show("screen-gapcheck");
     if (!policies.length) return;
-    $("gcHead").innerHTML = '<h3>🛡 Best-practice &amp; bypass checks</h3><p class="mini" style="margin:6px 0 0">Running checks…</p>';
+    $("gcHead").innerHTML = toolHead("toolGapCheck") + '<p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("gcMatrix").innerHTML = ""; $("gcChips").innerHTML = ""; $("gcBody").innerHTML = "";
     // baseline tenant → include Off + persona-only; note the scope
     const baseline = isBaselineTenant();
@@ -17337,14 +17560,15 @@ This is a directory write. Nothing else changes.`)) return;
     gcCtx = { strengths: new Map(), namedLocations: [], names: {} };
     try {
       gcCtx.caSettings = await readCaSettings();
+      if (!gcCtx.caSettings) gcCtx.incomplete = "Conditional Access settings not read";
       if (isDemo) {
         Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) gcCtx.strengths.set(v.id, v); });
         gcCtx.names = DEMO_DATA.names || {};
         gcCtx.namedLocations = DEMO_DATA.namedLocations || [];
       } else {
         const [strengths, locations] = await Promise.all([
-          Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(() => []),
-          Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(() => []),
+          Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(e => { gcCtx.incomplete = `Authentication strengths unavailable: ${e.message}`; return []; }),
+          Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(e => { gcCtx.incomplete = [gcCtx.incomplete, `Named locations unavailable: ${e.message}`].filter(Boolean).join("; "); return []; }),
         ]);
         strengths.forEach(s => gcCtx.strengths.set(s.id, s));
         gcCtx.namedLocations = locations;
@@ -17364,13 +17588,13 @@ This is a directory write. Nothing else changes.`)) return;
           } catch (e) { console.warn("Break-glass name lookup failed:", e.message); }
         }
       }
-    } catch (e) { console.warn("Best-practice checks context fetch failed:", e.message); }
+    } catch (e) { gcCtx.incomplete = e.message; }
     runGapCheck();
   }
   function runGapCheck() {
     const scope = checkScope($("gcDisabled").checked);
     gcResult = GapCheck.run(scope.raws, gcCtx, { includeDisabled: scope.includeDisabled });
-    gcMeta = { tenantName, policyCount: scope.raws.length, includeDisabled: scope.includeDisabled, skipped: scope.skipped };
+    gcMeta = { tenantName, incomplete: gcCtx?.incomplete || null, policyCount: scope.raws.length, includeDisabled: scope.includeDisabled, skipped: scope.skipped };
     gcFilter = "all"; gcCats = null; gcExpanded.clear();
     renderGapCheck();
   }
@@ -17397,8 +17621,8 @@ This is a directory write. Nothing else changes.`)) return;
   $("gcDisabled").addEventListener("change", runGapCheck);
   function renderGapCheck() {
     if (!gcResult) return;
-    $("gcHead").innerHTML = GapCheck.renderSummary(gcResult, gcCats);
-    $("gcMatrix").innerHTML = GapCheck.renderPersonaMatrix(gcResult.personas);
+    $("gcHead").innerHTML = toolHead("toolGapCheck") + '<p class="mini">Prioritized configuration findings. Select one to inspect the evidence and next step.</p>' + (gcCtx?.incomplete ? `<div class="workspace-source">Incomplete context: ${esc(gcCtx.incomplete)}. Findings are provisional; summary scores do not establish effective protection.</div>` : "") + `<details class="workspace-review-summary"><summary>Configuration scorecard</summary>${GapCheck.renderSummary(gcResult, gcCats)}</details>`;
+    $("gcMatrix").innerHTML = `<details class="workspace-review-summary"><summary>Persona coverage matrix</summary>${GapCheck.renderPersonaMatrix(gcResult.personas)}</details>`;
     $("gcFull").style.display = gcResult.personas.length ? "" : "none";
     // Severity counts respect an active scorecard category filter, so the
     // chips describe what is actually on screen.
@@ -17409,7 +17633,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("gcChips").innerHTML = catChip + [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
       .filter(([k]) => n(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${gcFilter === k ? "active" : ""}" data-gcf="${k}">${l} (${n(k)})</button>`).join("");
-    $("gcBody").innerHTML = GapCheck.renderFindings(gcResult, gcFilter, gcExpanded, gcCats);
+    $("gcBody").innerHTML = Workspace.review(gcResult, gcFilter, gcCats, { ...gcMeta, readAt: policiesReadAt, demo: isDemo, incomplete: gcCtx?.incomplete });
   }
   $("gcChips").addEventListener("click", (e) => {
     if (e.target.closest("[data-gccatclear]")) { gcCats = null; renderGapCheck(); return; }
@@ -17428,6 +17652,8 @@ This is a directory write. Nothing else changes.`)) return;
     renderGapCheck();
   });
   $("gcBody").addEventListener("click", (e) => {
+    const pick = e.target.closest("[data-review-pick]");
+    if (pick) { Workspace.pickReview(Number(pick.dataset.reviewPick)); renderGapCheck(); $("gcBody").querySelector(`[data-review-pick="${pick.dataset.reviewPick}"]`)?.focus(); return; }
     if (e.target.closest("[data-gcrun]")) { runGapCheckScan(); return; }
     const pl = e.target.closest(".pol-link");
     if (pl) { showDetail(pl.dataset.polid); return; }
@@ -17443,7 +17669,7 @@ This is a directory write. Nothing else changes.`)) return;
   let ciResult = null, ciCtx = null, ciMeta = null;
   let ciFilter = { level: "all", status: "all" };
   const ciExpanded = new Set();
-  const CI_IDLE_HEAD = '<h3>📐 CIS Benchmark alignment <span class="tag new">BETA</span></h3><p class="mini" style="margin:6px 0 0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated CA recommendations of section 5.2.2, with per-control pass/fail and the nearest policy for every gap.</p>';
+  const CI_IDLE_HEAD = toolHead("toolCis") + '<p class="mini" style="margin:6px 0 0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated CA recommendations of section 5.2.2, with per-control pass/fail and the nearest policy for every gap.</p>';
   function openCis() {
     crumb("🛡 Checks");
     show("screen-cis");
@@ -18014,7 +18240,8 @@ This is a directory write. Nothing else changes.`)) return;
       status(`Done — ${users.length} users, ${lookup.length} policies.`);
     } catch (e) {
       console.error("Analysis failed:", e);
-      status("Analysis failed — see browser console.");
+      anReport = null; anCov = null;
+      status(`Analysis incomplete: ${e.message || e}`);
     } finally { $("anRun").disabled = false; $("anBusy").style.display = "none"; $("anBusy").innerHTML = ""; }
   });
 
@@ -18313,29 +18540,13 @@ This is a directory write. Nothing else changes.`)) return;
   // only; the registration consent is asked once, on the run click, and a
   // refusal degrades the report to scope-only instead of killing the run.
   let svRes = null, svBusy = false, svFilter = "";
-  // The dynamic-migration panel keeps its own state, deliberately separate
-  // from svRes: the opt-out is one cheap property and the question people
-  // open this tool for on a Monday morning ("are we still in Microsoft's
-  // September rollout?"), so it must be answerable without the full scan —
-  // and it must survive the scan being re-run, or a write would silently
-  // disappear from the screen that just made it.
-  //   { value: true|false|null, when: Date|null, err: string|null, busy: bool, ack: bool }
-  // The history half (who changed it, from the audit log) is deliberately its
-  // own state with its own busy flag: it needs a scope the rest of the panel
-  // does not, a tenant may refuse that scope, and a failure there must leave
-  // the state strip above it exactly as it was — the value is still true even
-  // when nobody is allowed to read who set it.
-  //   hist: null | SmsVoice.migrationHistory() result
-  let svMig = { value: null, when: null, err: null, busy: false, ack: false,
-    hist: null, histWhen: null, histErr: null, histBusy: false, histOpen: false, histCapped: false };
   const svProg = makeProgress("sv");
   const SV_REG_READ = ["AuditLog.Read.All"];
-  const SV_HIST_PAGES = 10;    // ~10k audit records behind "who changed this?"
   const SV_GROUP_PAGES = 10;   // ~10k members per group
   const SV_USER_PAGES = 25;    // ~25k rows for an all_users scope / registration report
 
   const SV_DEMO = {
-    campaignState: "default", optOut: false,
+    campaignState: "default",
     sms: { state: "enabled", includeTargets: [{ targetType: "group", id: "g-legacy" }] },
     voice: { state: "disabled" },
     names: { "g-legacy": "Legacy MFA users" },
@@ -18352,27 +18563,6 @@ This is a directory write. Nothing else changes.`)) return;
       u4: { methods: [], defaultMethod: "" },
     },
   };
-
-  // Demo audit records for "who changed this?" — the same shape Graph returns,
-  // fed through the same parser, so the demo exercises the parsing rather than
-  // faking its output. They end on FALSE, which is what SV_DEMO.optOut says:
-  // a demo whose history contradicts its own strip teaches the wrong reading.
-  const svDemoAudit = (hoursAgo, name, upn, ip, from, to, activity) => ({
-    id: `demo-au-${hoursAgo}`,
-    activityDateTime: new Date(Date.now() - hoursAgo * 36e5).toISOString(),
-    activityDisplayName: activity || "Update authentication methods policy",
-    result: "success", category: "Policy", loggedByService: "Core Directory",
-    initiatedBy: { user: { displayName: name, userPrincipalName: upn, ipAddress: ip } },
-    targetResources: [{ type: "Policy", displayName: "Authentication Methods Policy",
-      modifiedProperties: [{ displayName: "AuthenticationMethodsPolicy",
-        oldValue: JSON.stringify({ optOutSettings: { passkeyDynamicMigration: from } }),
-        newValue: JSON.stringify({ optOutSettings: { passkeyDynamicMigration: to } }) }] }],
-  });
-  const SV_DEMO_AUDIT = [
-    svDemoAudit(26, "Pieter de Vries", "pieter@contoso.com", "145.53.10.4", true, false),
-    svDemoAudit(52, "Maria Jansen", "maria@contoso.com", "145.53.10.4", false, false, "Update authentication methods policy"),
-    svDemoAudit(196, "Maria Jansen", "maria@contoso.com", "82.174.3.19", false, true),
-  ];
 
   async function svExpandGroup(id, nameOf) {
     const out = [];
@@ -18399,7 +18589,7 @@ This is a directory write. Nothing else changes.`)) return;
         const scope = (cfg) => cfg.state === "enabled" ? SmsVoice.parseScope(cfg) : null;
         const smsScope = scope(SV_DEMO.sms), voiceScope = scope(SV_DEMO.voice);
         const users = SV_DEMO.members["g-legacy"].map((u) => ({ ...u, via: ["group Legacy MFA users"], inSms: true, inVoice: false }));
-        ctx = { campaignState: SV_DEMO.campaignState, optOut: SV_DEMO.optOut,
+        ctx = { campaignState: SV_DEMO.campaignState,
           sms: { state: SV_DEMO.sms.state, scope: smsScope }, voice: { state: SV_DEMO.voice.state, scope: voiceScope },
           names: SV_DEMO.names, users, usersPartial: false, reg: SV_DEMO.reg, regPartial: false };
       } else {
@@ -18413,10 +18603,6 @@ This is a directory write. Nothing else changes.`)) return;
         const authPolicy = await Graph.gget("/policies/authenticationMethodsPolicy");
         const regEnf = authPolicy.registrationEnforcement || {};
         const campaign = regEnf.authenticationMethodsRegistrationCampaign || {};
-        const optOut = SmsVoice.readOptOut(authPolicy);
-        // The scan already holds the answer the panel above it asks for —
-        // seed it rather than making the same call twice.
-        svMig = { ...svMig, value: optOut, when: new Date(), err: null };
         const smsCfg = await Graph.gget("/policies/authenticationMethodsPolicy/authenticationMethodConfigurations/sms");
         const voiceCfg = await Graph.gget("/policies/authenticationMethodsPolicy/authenticationMethodConfigurations/voice");
         const smsScope = smsCfg.state === "enabled" ? SmsVoice.parseScope(smsCfg) : null;
@@ -18552,7 +18738,7 @@ This is a directory write. Nothing else changes.`)) return;
             inSms: inScope(smsScope, u), inVoice: inScope(voiceScope, u) }))
           .filter((u) => u.inSms || u.inVoice);
 
-        ctx = { campaignState: campaign.state || "unknown", optOut,
+        ctx = { campaignState: campaign.state || "unknown",
           sms: { state: smsCfg.state, scope: smsScope }, voice: { state: voiceCfg.state, scope: voiceScope },
           names, users, usersPartial, reg, regPartial };
       }
@@ -18575,264 +18761,27 @@ This is a directory write. Nothing else changes.`)) return;
     ready:    { cls: "ok",    word: "passkey-ready", icon: "✅" },
   };
   const svChip = (k) => `<span class="tag ${SV_RISK[k].cls}">${SV_RISK[k].icon} ${SV_RISK[k].word}</span>`;
+  // The registration record behind the verdict, method by method: a tag per
+  // method with its raw Graph name in the title, the default first and bold,
+  // phones drawn in the retirement colour so the thing that dies on Feb 1 is
+  // visible in the list without reading the verdict. "?" when the report was
+  // not read for this user, "none" when it was and lists nothing.
+  const SV_PHONE_METHODS = new Set(["mobilePhone", "alternateMobilePhone", "officePhone"]);
+  const svMethods = (x) => {
+    const L = SmsVoice.methodsList(x);
+    if (L === null) return "?";
+    if (!L.length) return '<span class="muted">none</span>';
+    return L.map((m) => `<span class="tag${SV_PHONE_METHODS.has(m.m) ? " block" : ""}" title="${esc(m.m)}${m.isDefault ? " — the default: what this user's MFA prompts go to today" : ""}" style="margin:1px 3px 1px 0;white-space:nowrap${m.isDefault ? ";font-weight:700" : ""}">${esc(m.label)}${m.isDefault ? " ★" : ""}</span>`).join("");
+  };
   const SV_TABLE_CAP = 500;
-
-  // ---------- passkey dynamic migration: check, and pause / resume ----------
-  // The only write in this tool, and the reason it needs one: the property has
-  // no control anywhere in the Entra admin center, so without this panel a
-  // tenant cannot see its own setting — and cannot tell "we decided not to opt
-  // out" from "nobody ever looked". Both are read back from Graph after every
-  // write, because a PATCH that returns 204 and a property that actually
-  // changed are not the same claim.
-  async function svMigCheck() {
-    if (svMig.busy) return;
-    // The strip itself goes to READING… with a spinner — the button is small
-    // and the answer is the strip, so that is where the work has to show.
-    svMig.busy = true; renderSvMig();
-    try {
-      if (isDemo) {
-        await new Promise((r) => setTimeout(r, 300));
-        svMig = { ...svMig, value: SV_DEMO.optOut, when: new Date(), err: null };
-      } else {
-        const p = await Graph.gget(SmsVoice.MIGRATION.path);
-        svMig = { ...svMig, value: SmsVoice.readOptOut(p), when: new Date(), err: null };
-      }
-      if (svRes) svRes.optOut = svMig.value;   // the verdict text below must not contradict the panel
-    } catch (e) {
-      console.error("dynamic migration read failed:", e);
-      svMig = { ...svMig, err: e.message || String(e), when: new Date() };
-    } finally {
-      svMig.busy = false;
-      renderSvMig(true);
-      // A read tells you something even when the value did not move, so it
-      // says so out loud — the complaint that started this was a button whose
-      // result looked exactly like its starting state.
-      if (!svMig.err) toast(`Dynamic migration: <span>${esc(SmsVoice.migrationWord(svMig.value))}</span>${svMig.value === null ? " — the property is not set in this tenant" : ""}`);
-      if (svRes) renderSmsVoice();
-    }
-  }
-
-  async function svMigSet(on) {
-    if (svMig.busy) return;
-    // Tenant-wide and invisible in the portal — so it is acknowledged, not
-    // just clicked. The tick is reset afterwards: the next write is its own
-    // decision, not a leftover from this one.
-    if (!svMig.ack) { toast("Tick the acknowledgement first — this is a <span>tenant-wide</span> change"); return; }
-    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SmsVoice.MIGRATION.writeScopes])) return;
-    svMig.busy = true; renderSvMig();
-    try {
-      if (isDemo) {
-        await new Promise((r) => setTimeout(r, 400));
-        // The demo's own write joins the demo's audit log, so "who changed
-        // this?" names the person who just clicked instead of quietly
-        // disagreeing with the strip they changed.
-        SV_DEMO_AUDIT.unshift(svDemoAudit(0, "You (demo)", "you@contoso.com", "", SV_DEMO.optOut, on));
-        if (svMig.hist) svMig.hist = SmsVoice.migrationHistory(SV_DEMO_AUDIT, SmsVoice.MIGRATION_AUDIT.days);
-        SV_DEMO.optOut = on;
-        svMig = { ...svMig, value: on, when: new Date(), err: null, ack: false };
-        toast(`Demo — dynamic migration <span>${on ? "paused" : "resumed"}</span> (simulated)`);
-      } else {
-        await Graph.gpatch(SmsVoice.MIGRATION.path, SmsVoice.optOutBody(on),
-          [...AUTH_CONFIG.scopes, ...SmsVoice.MIGRATION.writeScopes]);
-        // Verify by reading it back. A tenant that does not expose the
-        // property can answer 204 and change nothing, and "it said OK" is not
-        // the same as "it is set" for a control nobody can see in the portal.
-        const p = await Graph.gget(SmsVoice.MIGRATION.path);
-        const now = SmsVoice.readOptOut(p);
-        svMig = { ...svMig, value: now, when: new Date(), err: null, ack: false };
-        if (now === on) toast(`Microsoft's September rollout is <span>${on ? "paused" : "resumed"}</span> for this tenant`);
-        else svMig.err = `The write was accepted but the property still reads ${SmsVoice.migrationWord(now)} — this tenant may not expose passkeyDynamicMigration.`;
-      }
-      if (svRes) svRes.optOut = svMig.value;
-    } catch (e) {
-      console.error("dynamic migration write failed:", e);
-      svMig = { ...svMig, err: e.message || String(e), when: new Date() };
-      toast(`Failed: <span>${esc(e.message || e)}</span>`);
-    } finally {
-      svMig.busy = false;
-      renderSvMig(true);
-      if (svRes) renderSmsVoice();
-    }
-  }
-
-  // ---- who changed it, and when ----
-  // The strip says what the setting IS. This says how it got that way, which
-  // is the next question every time — and the one nothing else can answer,
-  // because the property has no control in the portal and therefore no change
-  // record anybody can click their way to. Its own button, and its own scope
-  // asked for on that click: a tenant that refuses AuditLog.Read.All still
-  // gets the value, it just does not get the name.
-  async function svMigHistory() {
-    if (svMig.histBusy) return;
-    const days = SmsVoice.MIGRATION_AUDIT.days;
-    svMig.histBusy = true; svMig.histErr = null; renderSvMig();
-    try {
-      let records, capped = false;
-      if (isDemo) {
-        await new Promise((r) => setTimeout(r, 350));
-        records = SV_DEMO_AUDIT;
-      } else {
-        // Asked here, on the gesture, and a refusal is reported as a refusal —
-        // not as "nobody ever changed it", which is what an empty list would
-        // have said.
-        if (!await preConsent([...AUTH_CONFIG.scopes, ...SmsVoice.MIGRATION_AUDIT.scopes]))
-          throw new Error(`${SmsVoice.MIGRATION_AUDIT.scopes[0]} was not granted, so the log could not be read.`);
-        // Capped, and the cap is remembered. The window is ordered newest
-        // first, so a truncated read can still be trusted when it FINDS the
-        // change — but "nothing here" from a read that stopped early is a
-        // claim this tool is not entitled to make, and the line below says so.
-        records = [];
-        let next = SmsVoice.MIGRATION_AUDIT.query(days), pages = 0;
-        while (next && pages < SV_HIST_PAGES) {
-          const j = await Graph.gget(next);
-          records = records.concat(j.value || []);
-          next = j["@odata.nextLink"] || null;
-          pages++;
-        }
-        capped = !!next;
-      }
-      svMig.histCapped = capped;
-      svMig.hist = SmsVoice.migrationHistory(records, days);
-      svMig.histWhen = new Date();
-      svMig.histOpen = false;
-      const h = svMig.hist;
-      toast(h.matched === "property"
-        ? `Last changed by <span>${esc(h.last.actor.name)}</span> — ${esc(SmsVoice.migrationMove(h.last))}`
-        : h.matched === "policy"
-          ? `No opt-out change in ${days} days — <span>${h.rows.length}</span> other policy edit${h.rows.length === 1 ? "" : "s"} found`
-          : `No authentication methods policy change in the last <span>${days}</span> days`);
-    } catch (e) {
-      console.error("dynamic migration history failed:", e);
-      svMig.histErr = e.message || String(e);
-      toast(`Could not read the audit log: <span>${esc(svMig.histErr)}</span>`);
-    } finally {
-      svMig.histBusy = false;
-      renderSvMig();
-    }
-  }
-
-  // Reading the log answers one of three questions, and they are not the same
-  // answer dressed differently — so each gets its own sentence. A policy edit
-  // that does not name the property is shown as exactly that, because Entra
-  // does not reliably diff nested fields and pretending otherwise would put a
-  // person's name against a change they may not have made.
-  function svMigHistHtml() {
-    const days = SmsVoice.MIGRATION_AUDIT.days;
-    if (svMig.histBusy) return '<p class="mini muted" style="margin:10px 0 0">🕓 Reading the directory audit log…</p>';
-    if (svMig.histErr) return `<p class="mini" style="margin:10px 0 0;color:var(--off)">🕓 Could not read the audit log: ${esc(svMig.histErr)}
-      <span class="muted">The state above is unaffected — this is who and when, not what. Reading it needs <code>${esc(SmsVoice.MIGRATION_AUDIT.scopes[0])}</code> and a role such as ${esc(SmsVoice.MIGRATION_AUDIT.role)}.</span></p>`;
-    if (!svMig.hist) return "";
-    const h = svMig.hist;
-    const who = (r) => `<b>${esc(r.actor.name)}</b>${r.actor.upn && r.actor.upn !== r.actor.name ? ` <span class="muted">(${esc(r.actor.upn)})</span>` : ""}${r.actor.kind === "app" ? ' <span class="tag">app</span>' : ""}`;
-    const when = (r) => esc(new Date(r.when).toLocaleString());
-    const head = h.matched === "property"
-      ? `<p class="mini" style="margin:10px 0 0">🕓 <b>Last changed ${when(h.last)}</b> by ${who(h.last)} — <b>${esc(SmsVoice.migrationMove(h.last))}</b>${h.last.actor.ip ? ` <span class="muted">· from ${esc(h.last.actor.ip)}</span>` : ""}${h.moved.length > 1 ? ` <span class="muted">· ${h.moved.length} changes in the window</span>` : ""}</p>`
-      : h.matched === "policy"
-        ? `<p class="mini" style="margin:10px 0 0">🕓 <b>No change to <code>passkeyDynamicMigration</code> in the last ${days} days</b> that Entra recorded as such. The authentication methods policy itself was last edited ${when(h.lastTouch)} by ${who(h.lastTouch)}. <span class="muted">Entra does not always diff nested properties, so this edit may or may not be the one — Show all lists every policy edit in the window.</span></p>`
-        : `<p class="mini" style="margin:10px 0 0">🕓 <b>No authentication methods policy change in the last ${days} days.</b> <span class="muted">Audit retention is licence-bound — about 30 days on Entra ID P1/P2, 7 days otherwise — so a change older than that is gone from the log, not absent from history.</span></p>`;
-    // A truncated read that FOUND the change is still right — the window is
-    // ordered newest first. One that found nothing has not earned the word
-    // "no", so the cap is stated wherever the answer is an absence.
-    const cap = svMig.histCapped && h.matched !== "property"
-      ? `<p class="mini" style="margin:4px 0 0;color:var(--off)">⚠ The audit read stopped at the ${(SV_HIST_PAGES * 1000).toLocaleString()}-record cap, so the oldest part of the window was not read — treat this as “not found in what was read”, not as “it never happened”.</p>`
-      : "";
-    const rows = h.rows.slice(0, 40);
-    const list = !svMig.histOpen || !rows.length ? "" : `<ul class="wi-list" style="margin-top:6px">${rows.map((r) => `<li>
-        <div class="wi-pn">${r.moved ? `<span class="tag new">${esc(SmsVoice.migrationMove(r))}</span> ` : r.seen ? '<span class="tag">property unchanged</span> ' : ""}${esc(r.activity)}${r.result && r.result.toLowerCase() !== "success" ? ` <span style="color:var(--off)">${esc(r.result)}</span>` : ""}</div>
-        <div class="wi-why">${when(r)} · by ${who(r)}${r.actor.ip ? ` · from ${esc(r.actor.ip)}` : ""}${r.service ? ` · ${esc(r.service)}` : ""}</div>
-      </li>`).join("")}${h.rows.length > rows.length ? `<li><span class="mini muted">+${h.rows.length - rows.length} more in the window — 🕓 Change audit lists them all.</span></li>` : ""}</ul>`;
-    const toggle = h.rows.length
-      ? `<button class="btn" data-svmighistopen style="margin-top:6px">${svMig.histOpen ? "▲ Hide" : `▼ Show all ${h.rows.length} policy edit${h.rows.length === 1 ? "" : "s"}`}</button>`
-      : "";
-    return `${head}${cap}${toggle}${list}
-      <p class="mini muted" style="margin:6px 0 0">Read ${svMig.histWhen ? esc(svMig.histWhen.toLocaleTimeString()) : ""} from the directory audit log, last ${days} days.</p>`;
-  }
-
-  // The state strip. Four states, and the two that mean "Microsoft's rollout
-  // applies to you" are deliberately drawn the same amber whether the property
-  // says false or is absent — the tenant's exposure is identical, and colouring
-  // them differently would make an implementation detail look like a decision.
-  function svMigState() {
-    const d = SmsVoice.DATES, v = svMig.value;
-    const dN = SmsVoice.daysUntil(d.nudge.iso);
-    const soon = dN >= 0 ? ` — in <b>${dN} day${dN === 1 ? "" : "s"}</b>` : "";
-    if (svMig.busy) return { cls: "idle", ic: '<span class="sv-spin"></span>', title: "READING…",
-      text: "Asking Graph for this tenant's authentication methods policy.", val: "" };
-    if (svMig.err) return { cls: "bad", ic: "⚠", title: "COULD NOT READ",
-      text: `The state is <b>unknown</b>, not “off”. ${esc(svMig.err)}`,
-      val: "optOutSettings.passkeyDynamicMigration = unknown" };
-    if (v === true) return { cls: "on", ic: "⏸", title: "PAUSED — Microsoft's rollout is held off",
-      text: `This tenant is <b>opted out</b> of the ${esc(d.nudge.label)} automatic passkey enablement and the Microsoft-managed registration campaign that comes with it. The ${esc(d.retire.label)} retirement is unaffected and still applies.`,
-      val: "optOutSettings.passkeyDynamicMigration = true" };
-    if (v === false) return { cls: "warn", ic: "▶", title: "NOT PAUSED — the rollout applies",
-      text: `From <b>${esc(d.nudge.label)}</b>${soon}, every user still enabled for SMS or voice is auto-enabled for passkeys and pulled into a Microsoft-managed campaign.`,
-      val: "optOutSettings.passkeyDynamicMigration = false" };
-    if (svMig.when) return { cls: "warn", ic: "▶", title: "NOT PAUSED — never set here",
-      text: `The property is <b>absent</b> from this tenant's policy, so the opt-out has never been used and the rollout applies from <b>${esc(d.nudge.label)}</b>${soon}. (An absent property reads the same as a tenant that cannot expose it — which is why pausing verifies itself afterwards.)`,
-      val: "optOutSettings.passkeyDynamicMigration = (absent)" };
-    return { cls: "idle", ic: "❔", title: "NOT CHECKED YET",
-      text: "One read answers it. This setting appears nowhere in the Entra admin center, so nothing else on screen — here or in the portal — will tell you.",
-      val: "" };
-  }
-
-  function svMigCard() {
-    const d = SmsVoice.DATES, v = svMig.value;
-    const s = svMigState();
-    const state = `<div class="sv-mig ${s.cls}" id="svMigStrip">
-      <div class="sv-mig-ic">${s.ic}</div>
-      <div style="flex:1;min-width:0">
-        <p class="sv-mig-t">${s.title}</p>
-        <p class="mini" style="margin:0">${s.text}</p>
-        ${s.val ? `<p class="sv-mig-v">${esc(s.val)}${svMig.when ? ` · read ${svMig.when.toLocaleTimeString()}` : ""}</p>` : ""}
-      </div>
-    </div>
-    ${svMigHistHtml()}`;
-    const btn = v === true
-      ? `<button class="btn" data-svmigset="off"${svMig.busy ? " disabled" : ""}>▶ Resume Microsoft's rollout</button>`
-      : `<button class="btn primary" data-svmigset="on"${svMig.busy ? " disabled" : ""}>⏸ Pause Microsoft's rollout</button>`;
-    const ackText = v === true
-      ? `I understand this puts the tenant back into Microsoft's ${esc(d.nudge.label)} automatic passkey enablement and campaign.`
-      : `I understand this is <b>tenant-wide</b>, delays only the ${esc(d.nudge.label)} rollout, and does <b>not</b> move the ${esc(d.retire.label)} retirement.`;
-    return `<div class="list-card" style="padding:14px 16px">
-      <p class="mini" style="margin:0 0 8px"><b>MICROSOFT'S SEPTEMBER ROLLOUT — passkey dynamic migration</b> <span class="tag" title="Graph-only: this property has no control in the Entra admin center">not in the portal</span></p>
-      ${state}
-      <p class="mini muted" style="margin:10px 0 0">Pausing sets <code>optOutSettings.passkeyDynamicMigration</code> on the authentication methods policy. It buys time to move people off SMS and voice on your own schedule — it is <b>not</b> an extension: on ${esc(d.retire.label)} Microsoft-provided SMS and voice stop regardless, and a user whose only method is a phone is then blocked until they register a passkey. Writing it needs <b>${esc(SmsVoice.MIGRATION.role)}</b> (or Global Administrator) and <code>${esc(SmsVoice.MIGRATION.writeScopes[0])}</code>, asked for on the click.</p>
-      <label class="chk" style="display:block;margin:10px 0 0"><input type="checkbox" id="svMigAck"${svMig.ack ? " checked" : ""}> <span class="mini">${ackText}</span></label>
-      <div class="row" style="justify-content:flex-start;margin-top:10px">
-        <button class="btn" data-svmigcheck${svMig.busy ? " disabled" : ""}>🔎 ${svMig.when ? "Re-check" : "Check"} dynamic migration</button>
-        <button class="btn" data-svmighist${svMig.histBusy ? " disabled" : ""} title="Reads the directory audit log for changes to the authentication methods policy — needs AuditLog.Read.All, asked for on this click">🕓 ${svMig.hist || svMig.histErr ? "Re-read who changed it" : "Who changed this?"}</button>
-        ${btn}
-      </div>
-      <p class="mini muted" style="margin:8px 0 0">Background: <a href="https://rksolutions.nl/posts/microsoft-entra-passkey-dynamic-migration/" target="_blank" rel="noopener noreferrer">Roy Klooster ↗</a> · <a href="https://learn.microsoft.com/graph/api/authenticationmethodspolicy-update?view=graph-rest-beta" target="_blank" rel="noopener noreferrer">Graph reference ↗</a></p>
-    </div>`;
-  }
-
-  // Its own container, its own render: the tenant scan replaces #svBody
-  // wholesale, and this panel must survive that — a strip that disappears the
-  // moment you start a scan is a strip you cannot trust to still be right.
-  // `flash` is passed by the paths that just LEARNED something, so a read that
-  // returns the same value still visibly answers.
-  function renderSvMig(flash) {
-    const host = $("svMig");
-    if (!host) return;
-    host.innerHTML = svMigCard();
-    if (flash) {
-      const el = $("svMigStrip");
-      if (el) { el.classList.remove("sv-flash"); void el.offsetWidth; el.classList.add("sv-flash"); }
-    }
-  }
 
   function renderSmsVoice() {
     const d = SmsVoice.DATES;
     const dN = SmsVoice.daysUntil(d.nudge.iso), dR = SmsVoice.daysUntil(d.retire.iso);
-    $("svHead").innerHTML = `<h3>📵 SMS &amp; voice retirement <span class="tag new">BETA</span> <span class="tag" title="This tool exists for one dated retirement and is removed once the date has passed">⏳ temporary tool</span></h3>
+    $("svHead").innerHTML = `${toolHead("toolSmsVoice")}
       <p style="margin-bottom:4px">Microsoft-provided SMS and voice MFA delivery <b>retires on ${d.retire.label}</b>${dR >= 0 ? ` (in ${dR} days)` : ""} — and from <b>${d.nudge.label}</b>${dN >= 0 ? ` (in ${dN} day${dN === 1 ? "" : "s"})` : ""} every user still enabled for SMS or voice is auto-enabled for passkeys and nudged at sign-in. After ${d.retire.label} a user whose <b>only</b> MFA method is a phone number gets a <b>blocking</b> passkey-registration prompt — no opt-out. This tool reads the SMS and Voice policy scope the way <a href="https://github.com/microsoft/entra-sms-voice-usage-analyzer" target="_blank" rel="noopener">Microsoft's own script</a> does, then goes further: the actual users, and who really has a phone method registered.</p>
-      <p class="mini muted" style="margin:0">Reads, with <b>one</b> optional write: pausing or resuming Microsoft's September rollout below (<code>passkeyDynamicMigration</code>) — nothing else in this tool changes the tenant. Sources: <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement" target="_blank" rel="noopener">retirement notice</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement-faq" target="_blank" rel="noopener">FAQ</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/how-to-deploy-phishing-resistant-passwordless-authentication" target="_blank" rel="noopener">passkey deployment guide</a> · <a href="https://aka.ms/mfatemplates" target="_blank" rel="noopener">end-user communication templates</a></p>`;
+      <p class="mini muted" style="margin:0">Read-only — no tenant settings are changed. Sources: <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement" target="_blank" rel="noopener">retirement notice</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement-faq" target="_blank" rel="noopener">FAQ</a> · <a href="https://learn.microsoft.com/entra/identity/authentication/how-to-deploy-phishing-resistant-passwordless-authentication" target="_blank" rel="noopener">passkey deployment guide</a> · <a href="https://aka.ms/mfatemplates" target="_blank" rel="noopener">end-user communication templates</a></p>`;
     $("svRun").style.display = svRes && !svBusy ? "" : "none";
-    // The migration strip lives in its own container above #svBody and is
-    // rendered on every pass INCLUDING the busy one — the scan owns svBody,
-    // never this. It is also why the early return below is safe.
-    renderSvMig();
     if (svBusy) return;   // the run panel owns svBody until the read finishes
 
     if (!svRes) {
@@ -18856,7 +18805,7 @@ This is a directory write. Nothing else changes.`)) return;
 
     const verdict = !r.anyEnabled
       ? `<p class="mini" style="margin:0"><span class="tag ok">✅ no action required</span> Both policies are <b>disabled</b> — no user in this tenant is enabled for Microsoft-provided SMS or voice. Nothing is auto-enabled on ${esc(d.nudge.label)} and nothing breaks on ${esc(d.retire.label)}.</p>`
-      : `<p class="mini" style="margin:0">📅 <b>${esc(d.nudge.label)}</b>${dN >= 0 ? ` — in <b>${dN} day${dN === 1 ? "" : "s"}</b>` : " — passed"}: the ${s.total.toLocaleString()} user${s.total === 1 ? "" : "s"} below ${s.total === 1 ? "is" : "are"} auto-enabled for passkeys, the registration campaign goes Microsoft-managed, and MFA sign-ins start nudging. To prevent it: move them out of the SMS/Voice scope first${r.optOut === true ? " (this tenant has the temporary opt-out SET — the Sep 1 enablement is delayed, the Feb 1 enforcement is not)" : r.optOut === false ? ", or set the temporary opt-out (passkeyDynamicMigration) via Graph" : ""}.<br>📅 <b>${esc(d.retire.label)}</b>${dR >= 0 ? ` — in <b>${dR} days</b>` : " — passed"}: Microsoft's SMS/voice delivery stops. ${r.regRead ? `<b>${s.blocking} user${s.blocking === 1 ? "" : "s"}</b> below ha${s.blocking === 1 ? "s" : "ve"} a phone as their <b>only</b> MFA method and would hit the blocking prompt.` : "Whether anyone is phone-only was not read."} A regulatory need for SMS/voice keeps working only through a customer-managed telecom provider from the Microsoft Security Store.</p>`;
+      : `<p class="mini" style="margin:0">📅 <b>${esc(d.nudge.label)}</b>${dN >= 0 ? ` — in <b>${dN} day${dN === 1 ? "" : "s"}</b>` : " — passed"}: the ${s.total.toLocaleString()} user${s.total === 1 ? "" : "s"} below ${s.total === 1 ? "is" : "are"} auto-enabled for passkeys, the registration campaign goes Microsoft-managed, and MFA sign-ins start nudging.<br>📅 <b>${esc(d.retire.label)}</b>${dR >= 0 ? ` — in <b>${dR} days</b>` : " — passed"}: Microsoft's SMS/voice delivery stops. ${r.regRead ? `<b>${s.blocking} user${s.blocking === 1 ? "" : "s"}</b> below ha${s.blocking === 1 ? "s" : "ve"} a phone as their <b>only</b> MFA method and would hit the blocking prompt.` : "Whether anyone is phone-only was not read."} A regulatory need for SMS/voice keeps working only through a customer-managed telecom provider from the Microsoft Security Store.</p>`;
 
     const chips = [
       ["", `SMS ${st((r.sms || {}).state)}`],
@@ -18879,7 +18828,7 @@ This is a directory write. Nothing else changes.`)) return;
     const table = !r.rows.length ? "" : `<div class="list-card" style="padding:14px 16px;margin-top:12px">
       ${filters.length ? `<p class="mini" style="margin:0 0 8px">${filters.map((k) => `<button class="btn${svFilter === k ? " primary" : ""}" data-svfilter="${k}" style="margin-right:6px">${SV_RISK[k].icon} ${SV_RISK[k].word} (${counts[k]})</button>`).join("")}${svFilter ? '<button class="btn" data-svfilter="">✕ All</button>' : ""}</p>` : ""}
       <div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
-        <thead><tr style="text-align:left"><th style="padding:4px 8px">User</th><th style="padding:4px 8px">Enabled</th><th style="padding:4px 8px">SMS</th><th style="padding:4px 8px">Voice</th><th style="padding:4px 8px">Via</th><th style="padding:4px 8px">SMS reg.</th><th style="padding:4px 8px">Voice reg.</th><th style="padding:4px 8px">Phishing-resistant</th><th style="padding:4px 8px" title="What the phone IS to this user: their ONLY MFA method, the DEFAULT their prompts use today, or a backup next to something better">Phone role</th><th style="padding:4px 8px">Verdict</th></tr></thead>
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">User</th><th style="padding:4px 8px">Enabled</th><th style="padding:4px 8px">SMS</th><th style="padding:4px 8px">Voice</th><th style="padding:4px 8px">Via</th><th style="padding:4px 8px">SMS reg.</th><th style="padding:4px 8px">Voice reg.</th><th style="padding:4px 8px">Phishing-resistant</th><th style="padding:4px 8px" title="Every MFA method the registration report lists for this account, the default first, bold and starred; phones in the retirement colour — the record the verdict was made from">Methods registered</th><th style="padding:4px 8px" title="What the phone IS to this user: their ONLY MFA method, the DEFAULT their prompts use today, or a backup next to something better">Phone role</th><th style="padding:4px 8px">Verdict</th></tr></thead>
         <tbody>${shown.slice(0, SV_TABLE_CAP).map((x) => `<tr style="border-top:1px solid var(--line)">
           <td style="padding:4px 8px"><b>${esc(x.upn)}</b>${x.name ? `<br><span class="muted">${esc(x.name)}</span>` : ""}</td>
           <td style="padding:4px 8px">${x.enabled === false ? '<span style="color:var(--off)">no</span>' : x.enabled === true ? "yes" : "?"}</td>
@@ -18889,6 +18838,7 @@ This is a directory write. Nothing else changes.`)) return;
           <td style="padding:4px 8px">${yn(x.sms)}</td>
           <td style="padding:4px 8px">${yn(x.voice)}</td>
           <td style="padding:4px 8px">${yn(x.pr)}</td>
+          <td style="padding:4px 8px;min-width:220px">${svMethods(x)}</td>
           <td style="padding:4px 8px">${x.phoneOnly ? '<b style="color:var(--off)">only method</b>' : x.phoneDefault ? "<b>default</b>" : esc(SmsVoice.phoneRole(x))}</td>
           <td style="padding:4px 8px">${svChip(x.risk)}</td>
         </tr>`).join("")}</tbody>
@@ -18910,19 +18860,6 @@ This is a directory write. Nothing else changes.`)) return;
     const f = e.target.closest("[data-svfilter]");
     if (f) { svFilter = f.dataset.svfilter || ""; renderSmsVoice(); }
   });
-  // The migration panel's own container, so these survive a tenant scan
-  // replacing svBody underneath them.
-  $("svMig").addEventListener("click", (e) => {
-    if (e.target.closest("[data-svmigcheck]")) { svMigCheck(); return; }
-    if (e.target.closest("[data-svmighist]")) { svMigHistory(); return; }
-    if (e.target.closest("[data-svmighistopen]")) { svMig.histOpen = !svMig.histOpen; renderSvMig(); return; }
-    const ms = e.target.closest("[data-svmigset]");
-    if (ms) { svMigSet(ms.dataset.svmigset === "on"); return; }
-  });
-  // The acknowledgement is remembered on the state rather than read off the
-  // DOM at click time — every path in this tool re-renders the panel, and a
-  // tick that vanishes with the render is a tick nobody can keep.
-  $("svMig").addEventListener("change", (e) => { if (e.target.id === "svMigAck") svMig.ack = e.target.checked; });
   // ✉️ Notify users — the recipient list plus a ready-to-send email. The
   // modal is built fresh on every open so it always reflects the current run.
   // mailto: is offered only when the whole link stays under ~1800 chars —
@@ -19266,7 +19203,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   function renderMemberOf() {
     const d = MemberOf.DATES, days = MemberOf.daysUntil(d.retire.iso);
-    $("moHead").innerHTML = `<h3>🧷 memberOf retirement <span class="tag new">BETA</span> <span class="tag" title="This tool exists for one dated retirement and is removed once the date has passed">⏳ temporary tool</span> <span class="tag ok">reads only</span></h3>
+    $("moHead").innerHTML = `${toolHead("toolMemberOf")}
       <p style="margin-bottom:4px">The <code>memberOf</code> dynamic rule operator has been in public preview since 2022, and Microsoft <b>ends that preview on ${d.retire.label}</b>${days >= 0 ? ` (in ${days} day${days === 1 ? "" : "s"})` : ""}. Rules using it do not fail on that date — they <b>stop updating</b> and stay in their last known state. A group frozen that day keeps handing out whatever membership it held, so joiners are never covered and leavers are never removed, with nothing on screen anywhere to say so.</p>
       <p class="mini muted" style="margin:0">Reads all <b>three</b> surfaces Microsoft names — dynamic groups, dynamic administrative units and entitlement-management auto-assignment policies — then crosses every affected group against the Conditional Access policies ENCA already holds: an <b>exclusion</b> that stops shrinking is a permanent bypass; an <b>inclusion</b> that stops growing is an enforcement gap. Nothing here writes. Sources: <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-member-of" target="_blank" rel="noopener">retirement notice</a> · <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-more-efficient" target="_blank" rel="noopener">supported operators</a> · <a href="https://learn.microsoft.com/entra/id-governance/entitlement-management-access-package-auto-assignment-policy" target="_blank" rel="noopener">auto-assignment policies</a> · <a href="https://github.com/kayasax/EMOS" target="_blank" rel="noopener">EMOS</a></p>`;
     $("moRun").style.display = moRes && !moBusy ? "" : "none";
@@ -19654,7 +19591,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   function renderTeamsDev() {
-    $("tdHead").innerHTML = `<h3>📞 Teams devices <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h3>
+    $("tdHead").innerHTML = `${toolHead("toolTeamsDev")}
       <p style="margin-bottom:4px">Every baseline exclusion for Teams Rooms, panels, common-area phones and call-queue accounts rides on <b>one dynamic group</b> — <code>${esc(TeamsDev.CANONICAL)}</code> — and that group is only as good as its membership rule. The rule shipped so far names three <b>Teams Rooms</b> service plans and nothing else: a tenant with hundreds of common-area phones on <b>Teams Shared Space</b> (Teams Shared Devices until April 2026) and a hundred auto-attendant <b>resource accounts</b> has none of them in the group, so sign-in frequency, MFA, device-code blocks and risk policies hit devices that cannot answer them.</p>
       <p style="margin-bottom:4px">A rule cannot say “every Teams SKU”: dynamic membership sees <b>service plans</b>, not licences, and a device SKU is mostly plans every E5 user also holds — naming <code>MCOEV</code> (Teams Phone) would put your whole E5 population in the exclusion group. So this tool reads the tenant's <b>subscribed SKUs</b>, keeps the plans that exist <b>only</b> in device licences, builds the rule from those <b>and</b> a NOT half — an account that also holds a user suite (E1/E3/E5, F1/F3, A3/A5, Business) is a person and stays out, whatever device licence sits on it — previews how many accounts it matches today, names the people holding a device licence on their own account, and replaces the rule on the group after you confirm. <b>Teams Phone Standard</b> stays out on purpose: people hold it.</p>
       <p class="mini muted" style="margin:0">Sources: <a href="https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies" target="_blank" rel="noopener">supported Conditional Access policies for Teams devices</a> · <a href="https://learn.microsoft.com/microsoftteams/rooms/conditional-access-and-compliance-for-devices" target="_blank" rel="noopener">Teams Rooms CA best practices</a> · <a href="https://learn.microsoft.com/entra/identity/users/licensing-service-plan-reference" target="_blank" rel="noopener">service plan reference</a> · <a href="https://learn.microsoft.com/microsoftteams/teams-add-on-licensing/teams-shared-device-license" target="_blank" rel="noopener">Teams Shared Space licensing</a> · <a href="https://learn.microsoft.com/entra/identity/users/groups-dynamic-membership#rules-with-complex-expressions" target="_blank" rel="noopener">assignedPlans rules</a></p>`;
@@ -19949,37 +19886,59 @@ This is a directory write. Nothing else changes.`)) return;
     showReport("📞 Teams devices", "CA-TeamsDevices", TeamsDev.toMd(tdRes, { tenantName }));
   });
 
+  function syncWorkspace() {
+    Workspace.update({ policies, visible: visible(), selected, view: viewMode, tenant: tenantName, demo: isDemo, readAt: policiesReadAt });
+  }
+  function openRollout() { crumb("↗ Guided rollout"); show("screen-rollout"); syncWorkspace(); Workspace.openRollout(); }
+  $("toolDeploy").addEventListener("click", openRollout);
+  Workspace.init({
+    detail: id => showDetail(id, true),
+    fetchJoey: async onStatus => {
+      const status = await BaselineLive.fetchLatest({ force: true, onStatus });
+      return { status, bundle: BaselineLive.bundle() };
+    },
+    prepareJoey: async bundle => {
+      $("toolImport").click();
+      await imLoaded(bundle, `Joey Verlinden ${bundle.release} — fetched at ${String(bundle.commit || '').slice(0, 7)}`);
+    },
+    impact: () => riBusy || riCapped || !riReadAt || riReadAt < policiesReadAt || riReadTenant !== (tenantId || tenantName) ? null : { ...riRes, readAt: riReadAt, days: riDays },
+    state: () => { $("toolPolicies").click(); $("selActState").click(); },
+    action: name => {
+      const ids = { policies: "toolPolicies", baseline: "toolBaseline", groups: "toolCaGroups", checks: "toolGapCheck", whatif: "toolWhatIf", import: "toolImport" };
+      if (name === "deploy") openRollout();
+      else if (name === "cloudfellows") {
+        $("toolImport").click();
+        $("imDesc").textContent = "Choose the CloudFellows baseline backup ZIP. Its policies and dependencies will be listed for review before import.";
+        $("imZip").value = "";
+        $("imZip").click();
+      }
+      else if (name === "impact") openImpact();
+      else if (name === "guide") openGuide();
+      else if (name === "backup") { $("toolPolicies").click(); $("selActBackup").click(); }
+      else if (ids[name]) $(ids[name]).click();
+    },
+  });
+
   // ---------- boot ----------
   // Keep the user informed during a throttle back-off instead of looking hung.
   buildToolNav();
   Graph.setThrottleHandler((ms) => toast(`Microsoft Graph is throttling — waiting <span>${Math.ceil(ms / 1000)}s</span> then continuing…`));
   // The version badge is on the home tile; it belongs on the tool's own header
   // too, which is where somebody actually is when they wonder what changed.
-  // Heads are re-rendered by their tools, so observe rather than stamp once.
-  const HEAD_TOOL = {
-    mlHead: "toolMsLearn", exHead: "toolExclusions", cgHead: "toolCaGroups", prHead: "toolProtect",
-    blHead: "toolBaseline", gcHead: "toolGapCheck", vaHead: "toolValidator", wiHead: "toolWhatIf",
-    guHead: "toolGroupUse", cuHead: "toolCompare", loHead: "toolLocations", auHead: "toolAudit",
-    siHead: "toolSignins", ciHead: "toolCis", acHead: "toolAuthCtx", asHead: "toolAuthStr",
-    rcHead: "toolRecycle", tuHead: "toolTou", riHead: "toolImpact", ruHead: "toolRmau",
-    drHead: "toolDrift", ugHead: "toolGuide", dvHead: "toolDevCheck", lgHead: "toolLicGap",
-    uiHead: "toolUserImpact", svHead: "toolSmsVoice", moHead: "toolMemberOf", tdHead: "toolTeamsDev", woHead: "toolWhoIs", wvHead: "toolWave", scHead: "toolSessionCtl", anIntro: "toolAnalyze",
-  };
-  function stampHeadVersion(el, toolId) {
-    const t = (typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[toolId]) || null;
-    if (!t || !t.v) return;
-    const h = el.querySelector("h3, h4");
-    if (!h || h.querySelector(".tool-ver-head")) return;   // also stops the observer looping
-    const s = document.createElement("span");
-    s.className = "tool-ver-head";
-    s.textContent = `${toolNo(t)}${toolNo(t) ? " · " : ""}v${t.v}`;
-    s.title = `${toolNo(t) ? `${toolNo(t)} — this tool's permanent number. It never changes and is never reused, so it means one thing across both channels, every build and any future language.\n\n` : ""}${t.note || ""}`.trim();
-    h.appendChild(s);
-  }
-  Object.entries(HEAD_TOOL).forEach(([id, toolId]) => {
-    const el = $(id); if (!el) return;
-    stampHeadVersion(el, toolId);
-    new MutationObserver(() => stampHeadVersion(el, toolId)).observe(el, { childList: true, subtree: true });
+  // ---------- the two heads that are static HTML (build 25352) ----------
+  // Until now a 33-entry map of head element ids to tool ids sat here, with a
+  // MutationObserver on every one of them re-appending the version stamp each
+  // time a tool re-rendered its own head — because the tools wrote their head
+  // line themselves and the stamp was added afterwards. toolHead() writes the
+  // whole line now, stamp included, so there is nothing to observe and no map
+  // to keep in step with the tool list.
+  //
+  // These two are the exception: their head line is written into index.html
+  // rather than by a renderer, and neither ever re-renders. They carry
+  // data-tool-head and are filled once, from the same registry entry every
+  // other head reads, so their chips cannot drift from their tool either.
+  document.querySelectorAll("[data-tool-head]").forEach((el) => {
+    el.innerHTML = toolHeadInner(el.dataset.toolHead);
   });
 
   Graph.init().then((resumed) => {
