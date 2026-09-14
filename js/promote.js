@@ -118,6 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 188,
+      title: "\ud83c\udf0a The wave picker stops hiding behind its own controls (T30, R57)",
+      tools: ["Who is the wave to CA", "All tools"],
+      builds: [25354],
+      risk: "low",
+      what: "index.html: screen-wave's two sibling toolbars become one (wvToolbar2 is gone), in slot order \u2014 search, wvPicker chips, the Sign-ins window as a tb-win, \ud83d\udd0e Read wave, the exports. Every control kept its id. tools/check-toolbar-order.js: it now finds every toolbar a screen owns rather than only the first, fails a screen that has two, and that is how the \ud83c\udf0a row was found at all.",
+      why: "Low, and it fixes something a user could hit every time they used the tool: two sticky rows pin to the same offset, so on any scroll the upper one is covered by the lower one. Measured before the fix at a 1500 by 800 window scrolled 700 pixels \u2014 both rows at top 111, overlapping by 24 pixels, the picker entirely behind the controls. The thing to look at after promotion is the wrap: on a tenant with many wave groups the picker chips and the controls now share one wrapping row rather than two fixed ones.",
+      test: [
+        "\ud83d\udd75 Who is \u2014 A group (the wave): the toolbar is one row \u2014 search, then the wave chips, then Sign-ins, then \ud83d\udd0e Read wave, then the exports once there is a result.",
+        "Read a wave, then scroll the result: the whole toolbar stays pinned as ONE block and the chips stay visible and clickable. Before this build the chips disappeared under the controls after about 30 pixels of scroll.",
+        "Pick a wave from a chip, then read a different group by typing in the search box \u2014 both paths still work, and the chips still show which wave is selected.",
+        "A tenant with many wave groups: the row wraps and the actions stay hard right on whichever line they land on; nothing overlaps at 1500, 1100 or 820 pixels.",
+        "node tools/check-toolbar-order.js exits 0. Re-add a second toolbar to any tool screen and it must FAIL naming that screen.",
+      ],
+      files: ["index.html", "tools/check-toolbar-order.js", "js/version.js"],
+    },
+    {
       n: 187,
       title: "\ud83e\uddf1 The last four screens that were not like the others (\ud83d\udd2e \u2696 \ud83d\udd17 \ud83d\udd12, R57)",
       tools: ["What-If", "Compare users", "Group usage", "Protect exclusions", "All tools"],

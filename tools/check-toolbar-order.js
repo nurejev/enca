@@ -117,7 +117,17 @@ while ((s = SEC.exec(html)) !== null) {
   // declared exception: 🔒 Protect exclusions, whose controls are drawn into
   // its result by code shared with 👥 CA groups ⑥.
   const declared = (attrs.match(/data-no-toolbar="([^"]*)"/) || [])[1];
-  const ti = body.indexOf('<div class="toolbar"');
+  // EVERY toolbar the screen owns, not just the first. 🌊 Who is the wave to
+  // CA had a second one under the first, both sticky to the same offset, so
+  // the wave picker vanished behind the controls the moment you scrolled —
+  // and because this file only looked at the first toolbar, it never said so.
+  // Direct children of a section are indented four spaces in this file; a
+  // toolbar nested deeper belongs to a panel inside the screen and is that
+  // panel's business.
+  const tis = [];
+  for (let at = body.indexOf('\n    <div class="toolbar"'); at >= 0;
+       at = body.indexOf('\n    <div class="toolbar"', at + 1)) tis.push(at + 1);
+  const ti = tis.length ? tis[0] : -1;
   if (ti < 0) {
     if (declared) notes.push(`screen-${id}: no toolbar, declared — ${declared}`);
     else fails.push(`screen-${id}: no toolbar, and no data-no-toolbar on the section saying why. `
@@ -125,6 +135,10 @@ while ((s = SEC.exec(html)) !== null) {
     continue;
   }
   if (declared) fails.push(`screen-${id}: declares data-no-toolbar but has a toolbar — remove the attribute`);
+  if (tis.length > 1) {
+    fails.push(`screen-${id}: ${tis.length} toolbars. Two sticky rows pin to the same offset and the `
+      + `upper one disappears behind the lower — the slots exist so one row can hold them all.`);
+  }
   toolbars++;
   const openEnd = body.indexOf(">", ti) + 1;
   // mountToolTabs looks a toolbar up by id, so one without an id can never

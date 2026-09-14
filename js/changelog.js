@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25354, date: "2026-09-14", title: "\ud83c\udf0a The wave picker stops hiding behind its own controls",
+    items: [
+      { kind: "fixed", tool: "Who is the wave to CA", text: "TWO STICKY ROWS PIN TO THE SAME PLACE, so one of them wins. \ud83c\udf0a had a second toolbar under its first \u2014 the wave picker chips on top, the search, the sign-in window, \ud83d\udd0e Read wave and the exports below \u2014 and both were sticky to the same offset. The moment you scrolled a result, the picker slid under the controls row and was gone: the chips you choose a wave from were unreachable without scrolling all the way back up. They are one row now, in the order every other tool uses \u2014 search, the wave chips, the sign-in window, the read button, the exports \u2014 and the row wraps instead of stacking." },
+      { kind: "improved", tool: "All tools", text: "tools/check-toolbar-order.js reads every toolbar a screen owns, not just its first. That is why it had nothing to say about \ud83c\udf0a: the second row was invisible to the check that exists to find exactly this. A screen with two of them now fails outright, and the sign-in window on that second row \u2014 the last of the six inline flex styles build 25351 replaced \u2014 is a tb-win like the other five." },
+    ],
+  },
+  {
     build: 25353, date: "2026-09-14", title: "The last four screens that were not like the others",
     items: [
       { kind: "improved", tool: "What-If", text: "\ud83d\udd2e What-If's buttons are in its toolbar. Its controls are a form, so build 25346 gave it an otherwise EMPTY toolbar purely to hang the mode strip in the place every other host hangs one. The tool's own \u25b6 What If, Reset and Export MD were at the foot of a fourteen-field form; they sit in that toolbar now, where every other tool keeps its actions \u2014 and because the toolbar is sticky, the button you came to press is reachable without scrolling back up. \u2696 Compare users is the same change, and its Differences only tick takes the slot a tool's own controls take everywhere else, to the left of the actions." },
