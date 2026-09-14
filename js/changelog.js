@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25367, date: "2026-09-14", title: "\ud83e\udee5 The verdict stays in its column",
+    items: [
+      { kind: "fixed", tool: "Apps with no service principal", text: "On a real tenant the WOULD BE ENFORCED chip ran over the Would apply column: the verdict chip is uppercase and never wraps, and the column was narrower than the chip. The column is wider, the chip may wrap inside this table, and a cell clips rather than lets its content run into the next one — so NO CONDITIONAL ACCESS, the widest verdict, takes two lines instead of three columns." },
+    ],
+  },
+  {
     build: 25366, date: "2026-09-14", title: "\ud83e\udee5 The apps table is a list, drawn like one",
     items: [
       { kind: "improved", tool: "Apps with no service principal", text: "The only-here chip comes off the tile: the tool is in production as build 312. The BETA chip stays while it proves itself on real tenants." },

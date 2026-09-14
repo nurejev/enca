@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.312",
+  productionBuild: "v1.0.313",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -121,11 +121,12 @@ const PROMOTE = {
       n: 200,
       title: "\ud83e\udee5 The apps table drawn as a list, not as the policy matrix (T39 0.2)",
       tools: ["Apps with no service principal"],
-      builds: [25366],
+      builds: [25366, 25367],
       risk: "low",
-      what: "js/spgap.js renderTable: the wrapper and table classes change from mwrap-x / mtable (the sticky policy-matrix table) to cg-tablewrap / cg-table (the list table 👥 CA groups uses) with sg- hooks; the app id cell and the policy pills lose their inline styles for classes. css/app.css: the sg- rules — sideways scroll on the wrap, fixed column widths on a 1240px table, right-aligned counts, monospace id, policy pills one per line wrapping inside their column; the Sign-ins header drops its (30 d) into a tooltip. No data, verdict or export changes; toMd and toCsv are untouched.",
+      what: "js/spgap.js renderTable: the wrapper and table classes change from mwrap-x / mtable (the sticky policy-matrix table) to cg-tablewrap / cg-table (the list table 👥 CA groups uses) with sg- hooks; the app id cell and the policy pills lose their inline styles for classes. css/app.css: the sg- rules — sideways scroll on the wrap, fixed column widths on a 1240px table, right-aligned counts, monospace id, policy pills one per line wrapping inside their column; the Sign-ins header drops its (30 d) into a tooltip. 25367: the Once it exists column is 180px and the verdict chip may wrap inside it, and every cell clips — WOULD BE ENFORCED ran over the Would apply column on a real tenant. No data, verdict or export changes; toMd and toCsv are untouched.",
       why: "Low: presentation only, one table in one tool. The thing to check is that nothing in the tool relied on the matrix classes — the row click handler reads data-sg-app on the tr, which is unchanged.",
       test: [
+        "Real tenant with an All-resources grant policy: every WOULD BE ENFORCED chip sits inside its own column, nothing runs into Would apply; NO CONDITIONAL ACCESS wraps to two lines inside the column rather than overflowing.",
         "Demo tenant, \ud83e\udee5 Apps with no service principal, \u25b6 Read: the table has padded rows, the App header left-aligned above the names, the app id in monospace under each name on one line, Sign-ins right-aligned, and NO empty surface under the last row — the box ends where the rows end.",
         "Narrow the window to about 800 px: the box scrolls sideways and the App column keeps its width; the page does not scroll sideways.",
         "Filter chips and the search box still filter the same rows; \ud83d\udcd6 Read evidence still fills the Newest sign-in column.",

@@ -340,10 +340,15 @@ table.plist tr:hover td{background:var(--hover)}
    of squeezing the App column; policy pills are one per line and wrap inside
    their column; the app id under the name is monospace and stays whole. */
 .sg-wrap{margin-top:0;overflow:auto}
-.sg-table{min-width:1240px;table-layout:fixed}
+.sg-table{min-width:1300px;table-layout:fixed}
 .sg-table thead th{white-space:normal;vertical-align:bottom}
-.sg-table th:nth-child(1){width:290px}.sg-table th:nth-child(2){width:90px}.sg-table th:nth-child(3){width:118px}
+.sg-table th:nth-child(1){width:290px}.sg-table th:nth-child(2){width:90px}.sg-table th:nth-child(3){width:180px}
 .sg-table th:nth-child(4){width:220px}.sg-table th:nth-child(5){width:250px}.sg-table th:nth-child(6){width:150px}
+/* The verdict chip is uppercase and nowrap by default; NO CONDITIONAL ACCESS is
+   wider than any sane column, so inside this table it may wrap, and a cell
+   never lets its content run into the next column. */
+.sg-table td{overflow:hidden}
+.sg-table td .sev{white-space:normal;text-align:left;line-height:1.35;max-width:100%}
 .sg-table th.num,.sg-table td.num{text-align:right}
 .sg-table td.sg-app b{overflow-wrap:anywhere}
 .sg-table .sg-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;margin-top:2px;overflow-wrap:anywhere}
