@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25360, date: "2026-09-14", title: "\ud83d\udcf5 The methods behind the verdict, in every view",
+    items: [
+      { kind: "new", tool: "SMS & voice retirement", text: "A Methods registered column lists every MFA method the registration report holds for the account — Authenticator push, software TOTP, a device-bound passkey, Windows Hello for Business, a Temporary Access Pass, the phone numbers themselves — instead of only the three yes/no flags the verdict is made from. The default method comes first, bold and starred, so the row says at a glance what this user's prompts go to today; phone methods are drawn in the retirement colour, so the thing that stops on 1 February 2027 is visible in the list without reading the verdict; the raw Graph value is on hover. In the on-screen table, in the Markdown report, and as two columns in the CSV — methodsRegistered with the raw values and methodsRegisteredLabels with the words." },
+      { kind: "improved", tool: "SMS & voice retirement", text: "The difference between the two red-ish verdicts is now on the row rather than in the Help text: a locked out user's list holds a phone and nothing else, a migrate user's list holds a phone and something else that is not phishing-resistant. A method the tool has no label for is printed as its raw Graph name rather than dropped — a method Microsoft adds later is a name to look up, not a hole in the list. Password is left out, because it is not a second factor. No verdict changed; this is the record each one was made from, shown next to it so it can be checked." },
+    ],
+  },
+  {
   "build": 25359,
   "date": "2026-09-14",
   "title": "Tool tabs stay aligned when switching subjects",

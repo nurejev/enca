@@ -118,6 +118,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 196,
+      title: "\ud83d\udcf5 Methods registered — the record behind every verdict, in the table, the Markdown and the CSV (T33 1.5)",
+      tools: ["SMS & voice retirement"],
+      builds: [25360],
+      risk: "low",
+      what: "js/smsvoice.js: METHOD_LABELS (every documented methodsRegistered value to a short label), methodLabel, defaultOf (the default-method field in both its dialects resolved to a registered method), methodsList (default first, password dropped) and methodsWord; classify returns the raw methods array (null when the report was not read); toMd gains a Methods registered column, toCsv gains methodsRegistered (raw values) and methodsRegisteredLabels. js/app.js: svMethods draws the list as tags — default bold and starred, phones in the retirement colour, raw Graph name on hover — in a new column between Phishing-resistant and Phone role. index.html: Help bullet. No verdict logic touched.",
+      why: "Low: a display of data the tool already reads, added beside the columns that summarise it. The one thing to check on a real tenant is the label table — a methodsRegistered value the report returns that is not in METHOD_LABELS prints as the raw value, which is deliberate and harmless, but a value that IS labelled wrongly would mislead. The default marker depends on the preferred-method field arriving as one of the known dialect words; an unknown word leaves no star rather than a wrong one.",
+      test: [
+        "Demo tenant, \u25b6 Check the tenant: Maria's row lists Phone (mobile) \u2605 alone in the retirement colour, verdict locked out Feb 1; Pieter's lists Authenticator push \u2605 then Phone (mobile), verdict migrate; Fatima's lists Passkey (device-bound) \u2605 then Authenticator push, verdict passkey-ready; the scanner account reads none, verdict no phone method.",
+        "Hover a tag: the title shows the raw Graph value (mobilePhone, microsoftAuthenticatorPush) and, on the starred one, the sentence about the default.",
+        "Real tenant with AuditLog.Read.All: every locked-out row lists phone methods and nothing else; every migrate row lists a phone plus at least one non-phone, non-passkey method. A row that contradicts this is a bug in the sets in js/smsvoice.js, not in the column.",
+        "Real tenant: find a user known to have a Temporary Access Pass, a hardware OATH token or Windows Hello for Business — each shows under its label, not as a raw value. Any RAW camelCase value in the column is a methodsRegistered value the label table lacks: note it, it is not an error.",
+        "Real tenant, a user whose default is SMS: Phone (mobile) is starred and first. A user whose default is Authenticator push: that tag is starred and first, the phone after it. Both dialects of the preferred-method field (sms / voiceMobile vs mobilePhone) resolve to the same star.",
+        "Refuse AuditLog.Read.All on the run: the column shows ? on every row, like the three flag columns beside it.",
+        "\ud83d\udcdd Export MD: the table has a Methods registered column carrying the same words with (default) after the starred one. \u2b13 Export CSV: methodsRegistered holds the raw values joined by semicolons and methodsRegisteredLabels the words; password never appears in either.",
+        "The filter chips, the counts in the summary line, the Phone role column and \u2709 Notify users are unchanged: click each chip and compare the counts to a run of build 25359 on the same tenant.",
+      ],
+      files: ["js/smsvoice.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
   "n": 195,
   "title": "Stable tab layout and compact Who is subject controls",
   "tools": [

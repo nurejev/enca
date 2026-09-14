@@ -232,6 +232,72 @@ const SmsVoice = (() => {
   const PHONE_DEFAULTS = new Set(["sms", "voiceMobile", "voiceAlternateMobile", "voiceOffice",
     "mobilePhone", "alternateMobilePhone", "officePhone"]);
 
+  // ---- what is registered, in words -------------------------------------
+  // The verdict compresses the registration record into one sentence; the
+  // Methods column shows the record itself, because the sentence is only as
+  // trustworthy as the sets above and a person checking a verdict should be
+  // able to see the methods it was made from. Every methodsRegistered value
+  // the report documents has a short label; one it does not is printed as
+  // the raw Graph value rather than dropped, so a method Microsoft adds later
+  // shows up as a name to look up instead of a hole in the list.
+  //   learn.microsoft.com/graph/api/resources/userregistrationdetails
+  const METHOD_LABELS = {
+    mobilePhone: "Phone (mobile)",
+    alternateMobilePhone: "Phone (alternate mobile)",
+    officePhone: "Phone (office)",
+    microsoftAuthenticatorPush: "Authenticator push",
+    microsoftAuthenticatorPasswordless: "Authenticator passwordless",
+    softwareOneTimePasscode: "Software TOTP",
+    hardwareOneTimePasscode: "Hardware OATH token",
+    temporaryAccessPass: "Temporary Access Pass",
+    passKeyDeviceBound: "Passkey (device-bound)",
+    passKeyDeviceBoundAuthenticator: "Passkey (Authenticator)",
+    passKeyDeviceBoundWindowsHello: "Passkey (Windows Hello)",
+    windowsHelloForBusiness: "Windows Hello for Business",
+    fido2SecurityKey: "FIDO2 security key",
+    macOsSecureEnclaveKey: "macOS Secure Enclave key",
+    email: "Email (SSPR only)",
+    securityQuestion: "Security questions (SSPR only)",
+    password: "Password",
+  };
+  // The same value in both dialects of the default-method field, so the
+  // default can be marked in the list whatever the report chose to call it.
+  const DEFAULT_ALIASES = {
+    sms: "mobilePhone", voiceMobile: "mobilePhone", voiceAlternateMobile: "alternateMobilePhone",
+    voiceOffice: "officePhone", push: "microsoftAuthenticatorPush", oath: "softwareOneTimePasscode",
+    microsoftAuthenticatorPush: "microsoftAuthenticatorPush",
+  };
+  const methodLabel = (m) => METHOD_LABELS[m] || String(m);
+  // Which registered method the default field points at, if any: a method
+  // name, or null when the field is empty or names something not registered
+  // (the report can say "sms" for a user whose phone was since removed).
+  function defaultOf(rec) {
+    if (!rec) return null;
+    const d = String(rec.defaultMethod || "");
+    if (!d) return null;
+    const m = rec.methods || [];
+    if (m.includes(d)) return d;
+    const a = DEFAULT_ALIASES[d];
+    return a && m.includes(a) ? a : null;
+  }
+  // One list for the exports: labels, the default first and marked, the rest
+  // in the report's own order. Password is left out of the MFA picture — it
+  // is not a second factor and every user has one.
+  function methodsList(rec) {
+    if (!rec || rec.methods === null) return null;   // not read → not a list
+    const m = (rec.methods || []).filter((x) => x !== "password");
+    const d = defaultOf(rec);
+    const rest = m.filter((x) => x !== d);
+    return (d ? [{ m: d, label: methodLabel(d), isDefault: true }] : [])
+      .concat(rest.map((x) => ({ m: x, label: methodLabel(x), isDefault: false })));
+  }
+  const methodsWord = (rec) => {
+    const L = methodsList(rec);
+    if (L === null) return "?";
+    if (!L.length) return "none";
+    return L.map((x) => x.isDefault ? `${x.label} (default)` : x.label).join("; ");
+  };
+
   // ---- policy scope, the way Microsoft's script reads it -----------------
   // includeTargets/excludeTargets of an authenticationMethodConfiguration:
   // targetType "group" (id "all_users" = everyone) or "user".
@@ -268,7 +334,7 @@ const SmsVoice = (() => {
   // people who will FEEL the retirement first, even when a passkey already
   // sits unused next to the phone.
   function classify(rec) {
-    if (!rec) return { risk: "unknown", sms: null, voice: null, pr: null, phoneOnly: null, phoneDefault: null };
+    if (!rec) return { risk: "unknown", sms: null, voice: null, pr: null, phoneOnly: null, phoneDefault: null, methods: null };
     const m = rec.methods || [];
     const sms = m.some((x) => SMS_METHODS.has(x));
     const voice = m.some((x) => VOICE_METHODS.has(x));
@@ -281,7 +347,7 @@ const SmsVoice = (() => {
     else if (phoneOnly) risk = "blocking";
     else if (sms || voice) risk = "migrate";
     else risk = "clean";
-    return { risk, sms, voice, pr, phoneOnly, phoneDefault };
+    return { risk, sms, voice, pr, phoneOnly, phoneDefault, methods: m.slice() };
   }
 
   // One phrase for the new column: what the phone IS to this user.
@@ -298,7 +364,7 @@ const SmsVoice = (() => {
   function analyze(ctx) {
     const rows = (ctx.users || []).map((u) => {
       const rec = ctx.reg ? ctx.reg[u.id] : null;
-      const c = ctx.reg ? classify(rec) : { risk: "unknown", sms: null, voice: null, pr: null };
+      const c = ctx.reg ? classify(rec) : { risk: "unknown", sms: null, voice: null, pr: null, phoneOnly: null, phoneDefault: null, methods: null };
       return { ...u, ...c, defaultMethod: rec ? rec.defaultMethod || "" : "" };
     });
     rows.sort((a, b) => RISK_RANK[a.risk] - RISK_RANK[b.risk] || String(a.upn).localeCompare(String(b.upn)));
@@ -409,10 +475,10 @@ const SmsVoice = (() => {
         ? ` · ${s.phone} with a phone method registered (${s.phoneDefault} as their default) · **${s.blocking} phone-only (blocked after ${DATES.retire.label})** · ${s.migrate} to migrate · ${s.ready} already phishing-resistant · ${s.clean} clean${s.unknown ? ` · ${s.unknown} unknown` : ""}${res.regPartial ? " · registration read was capped — unknowns may be understated" : ""}`
         : " · registration data NOT read (needs AuditLog.Read.All) — the table shows scope only, not who actually uses a phone"), "");
     if (res.rows.length) {
-      L.push("| User | Name | Enabled | SMS scope | Voice scope | Via | SMS reg. | Voice reg. | Phishing-resistant | Phone role | Verdict |", "|---|---|---|---|---|---|---|---|---|---|---|");
+      L.push("| User | Name | Enabled | SMS scope | Voice scope | Via | SMS reg. | Voice reg. | Phishing-resistant | Methods registered | Phone role | Verdict |", "|---|---|---|---|---|---|---|---|---|---|---|---|");
       const yn = (v) => v === null ? "?" : v ? "yes" : "no";
       for (const r of res.rows.slice(0, MD_ROW_CAP))
-        L.push(`| ${r.upn} | ${r.name || ""} | ${r.enabled === false ? "no" : r.enabled === true ? "yes" : "?"} | ${r.inSms ? "yes" : "no"} | ${r.inVoice ? "yes" : "no"} | ${(r.via || []).join("; ")} | ${yn(r.sms)} | ${yn(r.voice)} | ${yn(r.pr)} | ${phoneRole(r)} | ${RISK_WORD[r.risk]} |`);
+        L.push(`| ${r.upn} | ${r.name || ""} | ${r.enabled === false ? "no" : r.enabled === true ? "yes" : "?"} | ${r.inSms ? "yes" : "no"} | ${r.inVoice ? "yes" : "no"} | ${(r.via || []).join("; ")} | ${yn(r.sms)} | ${yn(r.voice)} | ${yn(r.pr)} | ${methodsWord(r)} | ${phoneRole(r)} | ${RISK_WORD[r.risk]} |`);
       if (res.rows.length > MD_ROW_CAP) L.push("", `…and ${res.rows.length - MD_ROW_CAP} more — the CSV export carries the full list.`);
       L.push("");
     }
@@ -428,15 +494,18 @@ const SmsVoice = (() => {
   function toCsv(res) {
     const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
     const yn = (v) => v === null ? "" : v ? "yes" : "no";
-    const L = ["userPrincipalName,displayName,accountEnabled,inSmsScope,inVoiceScope,via,smsRegistered,voiceRegistered,phishingResistantRegistered,phoneIsOnlyMfaMethod,phoneIsDefaultMethod,defaultMethod,verdict"];
+    const L = ["userPrincipalName,displayName,accountEnabled,inSmsScope,inVoiceScope,via,smsRegistered,voiceRegistered,phishingResistantRegistered,methodsRegistered,methodsRegisteredLabels,phoneIsOnlyMfaMethod,phoneIsDefaultMethod,defaultMethod,verdict"];
     for (const r of res.rows)
       L.push([q(r.upn), q(r.name), r.enabled === false ? "no" : r.enabled === true ? "yes" : "",
         r.inSms ? "yes" : "no", r.inVoice ? "yes" : "no", q((r.via || []).join("; ")),
-        yn(r.sms), yn(r.voice), yn(r.pr), yn(r.phoneOnly), yn(r.phoneDefault), q(r.defaultMethod), q(RISK_WORD[r.risk])].join(","));
+        yn(r.sms), yn(r.voice), yn(r.pr),
+        q(r.methods === null ? "" : r.methods.join("; ")), q(r.methods === null ? "" : methodsWord(r)),
+        yn(r.phoneOnly), yn(r.phoneDefault), q(r.defaultMethod), q(RISK_WORD[r.risk])].join(","));
     return L.join("\n");
   }
 
   return { DATES, daysUntil, parseScope, classify, phoneRole, analyze, toMd, toCsv, notifyEmail, stateWord, campaignWord, RISK_WORD, MD_ROW_CAP,
+    METHOD_LABELS, methodLabel, defaultOf, methodsList, methodsWord,
     MIGRATION, readOptOut, optOutBody, migrationWord,
     MIGRATION_AUDIT, migrationHistory, migrationRecord, migrationValueWord, migrationMove };
 })();

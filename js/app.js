@@ -18802,6 +18802,18 @@ This is a directory write. Nothing else changes.`)) return;
     ready:    { cls: "ok",    word: "passkey-ready", icon: "✅" },
   };
   const svChip = (k) => `<span class="tag ${SV_RISK[k].cls}">${SV_RISK[k].icon} ${SV_RISK[k].word}</span>`;
+  // The registration record behind the verdict, method by method: a tag per
+  // method with its raw Graph name in the title, the default first and bold,
+  // phones drawn in the retirement colour so the thing that dies on Feb 1 is
+  // visible in the list without reading the verdict. "?" when the report was
+  // not read for this user, "none" when it was and lists nothing.
+  const SV_PHONE_METHODS = new Set(["mobilePhone", "alternateMobilePhone", "officePhone"]);
+  const svMethods = (x) => {
+    const L = SmsVoice.methodsList(x);
+    if (L === null) return "?";
+    if (!L.length) return '<span class="muted">none</span>';
+    return L.map((m) => `<span class="tag${SV_PHONE_METHODS.has(m.m) ? " block" : ""}" title="${esc(m.m)}${m.isDefault ? " — the default: what this user's MFA prompts go to today" : ""}" style="margin:1px 3px 1px 0;white-space:nowrap${m.isDefault ? ";font-weight:700" : ""}">${esc(m.label)}${m.isDefault ? " ★" : ""}</span>`).join("");
+  };
   const SV_TABLE_CAP = 500;
 
   // ---------- passkey dynamic migration: check, and pause / resume ----------
@@ -19106,7 +19118,7 @@ This is a directory write. Nothing else changes.`)) return;
     const table = !r.rows.length ? "" : `<div class="list-card" style="padding:14px 16px;margin-top:12px">
       ${filters.length ? `<p class="mini" style="margin:0 0 8px">${filters.map((k) => `<button class="btn${svFilter === k ? " primary" : ""}" data-svfilter="${k}" style="margin-right:6px">${SV_RISK[k].icon} ${SV_RISK[k].word} (${counts[k]})</button>`).join("")}${svFilter ? '<button class="btn" data-svfilter="">✕ All</button>' : ""}</p>` : ""}
       <div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
-        <thead><tr style="text-align:left"><th style="padding:4px 8px">User</th><th style="padding:4px 8px">Enabled</th><th style="padding:4px 8px">SMS</th><th style="padding:4px 8px">Voice</th><th style="padding:4px 8px">Via</th><th style="padding:4px 8px">SMS reg.</th><th style="padding:4px 8px">Voice reg.</th><th style="padding:4px 8px">Phishing-resistant</th><th style="padding:4px 8px" title="What the phone IS to this user: their ONLY MFA method, the DEFAULT their prompts use today, or a backup next to something better">Phone role</th><th style="padding:4px 8px">Verdict</th></tr></thead>
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">User</th><th style="padding:4px 8px">Enabled</th><th style="padding:4px 8px">SMS</th><th style="padding:4px 8px">Voice</th><th style="padding:4px 8px">Via</th><th style="padding:4px 8px">SMS reg.</th><th style="padding:4px 8px">Voice reg.</th><th style="padding:4px 8px">Phishing-resistant</th><th style="padding:4px 8px" title="Every MFA method the registration report lists for this account, the default first, bold and starred; phones in the retirement colour — the record the verdict was made from">Methods registered</th><th style="padding:4px 8px" title="What the phone IS to this user: their ONLY MFA method, the DEFAULT their prompts use today, or a backup next to something better">Phone role</th><th style="padding:4px 8px">Verdict</th></tr></thead>
         <tbody>${shown.slice(0, SV_TABLE_CAP).map((x) => `<tr style="border-top:1px solid var(--line)">
           <td style="padding:4px 8px"><b>${esc(x.upn)}</b>${x.name ? `<br><span class="muted">${esc(x.name)}</span>` : ""}</td>
           <td style="padding:4px 8px">${x.enabled === false ? '<span style="color:var(--off)">no</span>' : x.enabled === true ? "yes" : "?"}</td>
@@ -19116,6 +19128,7 @@ This is a directory write. Nothing else changes.`)) return;
           <td style="padding:4px 8px">${yn(x.sms)}</td>
           <td style="padding:4px 8px">${yn(x.voice)}</td>
           <td style="padding:4px 8px">${yn(x.pr)}</td>
+          <td style="padding:4px 8px;min-width:220px">${svMethods(x)}</td>
           <td style="padding:4px 8px">${x.phoneOnly ? '<b style="color:var(--off)">only method</b>' : x.phoneDefault ? "<b>default</b>" : esc(SmsVoice.phoneRole(x))}</td>
           <td style="padding:4px 8px">${svChip(x.risk)}</td>
         </tr>`).join("")}</tbody>
