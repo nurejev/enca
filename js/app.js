@@ -144,8 +144,10 @@
   // Per-screen scroll memory: switching tabs used to jump to the top and lose
   // your place. The position of the screen you leave is saved and restored when
   // you come back; a screen you have not visited yet starts at the top.
+  // Subtab clicks within a host instead keep the shared tab-row anchor.
   const screenScroll = {};
   let shownScreen = null;
+  let tabViewportTop = null, screenTransition = 0;
   // Anonymous usage counting: one event per tool-screen open (GoatCounter,
   // loaded in index.html). Only the tool name and channel — never who, never
   // which tenant, never any policy data. Must never break the app.
@@ -159,6 +161,8 @@
     } catch { /* counting is best-effort */ }
   }
   function show(id) {
+    const transition = shownScreen === id ? screenTransition : ++screenTransition;
+    const tabTop = tabViewportTop;
     if (shownScreen && shownScreen !== id) screenScroll[shownScreen] = window.scrollY;
     if (shownScreen !== id) trackTool(id);
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
@@ -166,7 +170,15 @@
     (window.requestAnimationFrame || setTimeout)(syncStickyTops);
     if (shownScreen !== id) {
       const y = screenScroll[id] || 0;
-      (window.requestAnimationFrame || setTimeout)(() => window.scrollTo(0, y));
+      (window.requestAnimationFrame || setTimeout)(() => {
+        if (transition !== screenTransition) return;
+        syncStickyTops();
+        // Switching a host's subtab starts its content beneath the same tab
+        // row, rather than restoring an unrelated result's saved scroll.
+        const top = tabTop === null ? y : Math.max(0, $(id).getBoundingClientRect().top + window.scrollY - tabTop);
+        window.scrollTo({ top, left: 0, behavior: "instant" });
+        if (tabTop !== null) $(id).querySelector(".tool-tabs button.active")?.focus({ preventScroll: true });
+      });
     }
     shownScreen = id;
     if (navSuppress || !HISTORY_SCREENS.has(id)) return;
@@ -431,6 +443,7 @@
     }
     const seg = bar.querySelector(".tool-tabs");
     [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.tabgo === `${hostKey}:${tabKey}`));
+    observeSticky(tb);
     syncStickyTops();
   }
   // Take the strip back out. Needed for exactly one host: screen-list is both
@@ -449,7 +462,10 @@
     const b = e.target.closest("[data-tabgo]"); if (!b) return;
     const [hostKey, key] = String(b.dataset.tabgo).split(":");
     const h = TAB_HOSTS[hostKey], t = h && h.tabs.find((x) => x.key === key);
-    if (t) t.open();
+    if (t && !b.classList.contains("active")) {
+      tabViewportTop = b.closest(".tool-tabs-bar").getBoundingClientRect().top;
+      try { t.open(); } finally { tabViewportTop = null; }
+    }
   });
   const esc = (s) => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   // ---- <datalist> pick guard --------------------------------------------
@@ -12789,7 +12805,7 @@ This is a directory write. Nothing else changes.`)) return;
     let seg = tb.querySelector(".logsrc-seg");
     if (!seg) {
       const wrap = document.createElement("div"); wrap.innerHTML = logSourceSeg(); seg = wrap.firstChild;
-      const before = beforeSel ? tb.querySelector(beforeSel) : null;
+      const before = tb.querySelector(":scope > .chip-filter, :scope > .tb-win") || (beforeSel ? tb.querySelector(beforeSel) : null);
       before ? tb.insertBefore(seg, before) : tb.appendChild(seg);
     }
     [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.logsrc === logSource));
@@ -15444,9 +15460,9 @@ This is a directory write. Nothing else changes.`)) return;
     crumb("🕵 Who is … to CA");
     show("screen-compare");
     mountToolTabs("whois", "compare");
-    $("cuHead").innerHTML = `${toolHead("toolCompare")}
+    $("cuHead").innerHTML = `${toolHead("toolCompare")}<details class="tool-about"><summary>About this tool · scope and permissions</summary>
       <p style="margin-bottom:6px">Add two or more users and see where Conditional Access treats them differently: per-policy <b>assignment</b> (included, excluded — and why — or not targeted), the <b>group and role memberships</b> behind the differences, and optionally one <b>What-If sign-in</b> evaluated for every user.</p>
-      <p class="mini muted" style="margin:0">Assignment compares user scoping only — location, platform, client and risk conditions only come in through the optional scenario. Read-only.</p>`;
+      <p class="mini muted" style="margin:0">Assignment compares user scoping only — location, platform, client and risk conditions only come in through the optional scenario. Read-only.</p></details>`;
     if (!policies.length) { $("cuBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
     if (isDemo) $("cuUserList").innerHTML = (DEMO_DATA.analyzeUsers || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
     else if (!$("cuUserList").children.length) {
@@ -15617,9 +15633,9 @@ This is a directory write. Nothing else changes.`)) return;
     show("screen-whois");
     mountToolTabs("whois", "user");
     mountLogSourceSeg("woToolbar", "#woRun");
-    $("woHead").innerHTML = `${toolHead("toolWhoIs")}
+    $("woHead").innerHTML = `${toolHead("toolWhoIs")}<details class="tool-about"><summary>About this tool · scope and permissions</summary>
       <p style="margin-bottom:6px">One user, the whole Conditional Access picture: which <b>deployment group</b> she sits in and how she got there, every policy that <b>reaches</b> her (or misses her, and why), what the <b>sign-in log</b> says actually happened to her, and what happens to her the day <b>report-only</b> goes live.</p>
-      <p class="mini muted" style="margin:0">Memberships and policies come from what ENCA already holds. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Registered MFA methods and her Identity Protection <b>risk</b> (risky-user state, detections) are optional extra reads. Read-only.</p>`;
+      <p class="mini muted" style="margin:0">Memberships and policies come from what ENCA already holds. The sign-in half asks for <b>AuditLog.Read.All</b> once, on the click, and reads only this user's sign-ins — or reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Registered MFA methods and her Identity Protection <b>risk</b> (risky-user state, detections) are optional extra reads. Read-only.</p></details>`;
     if (!policies.length) { $("woBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
     if (isDemo) $("woUserList").innerHTML = (DEMO_DATA.analyzeUsers || []).map((u) => `<option value="${esc(u.userPrincipalName)}" label="${esc(u.displayName || "")}"></option>`).join("");
     else if (!$("woUserList").children.length) {
@@ -15889,15 +15905,15 @@ This is a directory write. Nothing else changes.`)) return;
   // the demo policies name scope groups as g-<name>; use that id when they do
   const wvDemoId = (name) => wvRefd().has(`g-${name}`) ? `g-${name}` : name;
   function wvHeadHtml() {
-    return `${toolHead("toolWave")}
+    return `${toolHead("toolWave")}<details class="tool-about"><summary>About this tool · scope and permissions</summary>
       <p style="margin-bottom:6px">The 🕵 Who is Anna to CA picture for a whole <b>deployment group</b>: who is in the wave and how they got there, which policies target the group, what the sign-in log did to its members, and whether the next report-only policy can go live <b>for this wave</b> without locking somebody out.</p>
-      <p class="mini muted" style="margin:0">Members are read transitively (first ${WV_MEMBER_CAP}); every member is resolved against every policy with the same rule 🕵 Who is Anna to CA uses. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Read-only.</p>`;
+      <p class="mini muted" style="margin:0">Members are read transitively (first ${WV_MEMBER_CAP}); every member is resolved against every policy with the same rule 🕵 Who is Anna to CA uses. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Read-only.</p></details>`;
   }
   async function openWave() {
     crumb("🕵 Who is … to CA");
     show("screen-wave");
     mountToolTabs("whois", "group");
-    mountLogSourceSeg("wvToolbar2", "#wvRun");
+    mountLogSourceSeg("wvToolbar", "#wvRun");
     $("wvHead").innerHTML = wvHeadHtml();
     if (!policies.length) { $("wvBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
     if (wvBusy) { $("wvBody").innerHTML = wvProg.panel("Reading the wave…"); return; }
@@ -15913,7 +15929,7 @@ This is a directory write. Nothing else changes.`)) return;
     const deploy = ((cat && cat.predefined) || []).filter((n) => /-DG-/i.test(n));
     const persona = ((cat && cat.personaGroups) || []).filter((p) => p.group).map((p) => p.group);
     const names = [...deploy, ...persona];
-    $("wvPicker").innerHTML = '<span class="mini muted">Reading the deploy groups…</span>';
+    $("wvPicker").innerHTML = '<option value="">Reading groups…</option>';
     const present = await woGroupsPresent(names);
     wvGroups = names.map((n) => ({ name: n, kind: deploy.includes(n) ? "deploy" : "persona", id: (present.get(n.toLowerCase()) || {}).id || null, count: null }));
     if (isDemo) wvGroups.forEach((g) => { if (g.id) g.id = wvDemoId(g.name); });
@@ -15928,14 +15944,19 @@ This is a directory write. Nothing else changes.`)) return;
     renderWvPicker();
   }
   function renderWvPicker() {
-    const btn = (g) => `<button class="fchip${wvPick === g.id ? " active" : ""}${g.id ? "" : " wv-missing"}" data-wv-pick="${esc(g.id || "")}" title="${esc(g.name)}${g.id ? "" : " — this tenant does not have this group"}" ${g.id ? "" : "disabled"}>${esc(g.name.replace(/^CAD-SEC-U-DG-/i, "").replace(/^CAB-SEC-U-Persona-/i, "").replace(/^CAB-SEC-U-/i, ""))} <span class="pill ${g.count ? "" : "zero"}">${g.id ? (g.count == null ? "?" : g.count) : "—"}</span></button>`;
-    const deploy = wvGroups.filter((g) => g.kind === "deploy"), persona = wvGroups.filter((g) => g.kind === "persona");
-    $("wvPicker").innerHTML = (deploy.length ? `<span class="mini muted" style="align-self:center">Deploy</span>${deploy.map(btn).join("")}` : '<span class="mini muted">The active baseline has no deployment groups — its persona groups are offered instead.</span>')
-      + (persona.length ? `<span class="mini muted" style="align-self:center;margin-left:8px">Persona</span>${persona.map(btn).join("")}` : "");
+    const option = g => `<option value="${esc(g.id || "")}" ${g.id ? "" : "disabled"}>${esc(g.name)} · ${g.id ? (g.count == null ? "count unknown" : `${g.count} members`) : "not in tenant"}</option>`;
+    const groups = wvGroups || [];
+    $("wvPicker").innerHTML = '<option value="">Choose a group…</option>' + [["deploy", "Deployment groups"], ["persona", "Persona groups"]].map(([kind, label]) => {
+      const rows = groups.filter(g => g.kind === kind);
+      return rows.length ? `<optgroup label="${label}">${rows.map(option).join("")}</optgroup>` : "";
+    }).join("");
+    $("wvPicker").value = wvPick || "";
   }
-  $("wvPicker").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-wv-pick]"); if (!b || !b.dataset.wvPick) return;
-    wvPick = b.dataset.wvPick; $("wvTerm").value = ""; renderWvPicker(); runWave();
+  $("wvPicker").addEventListener("change", (e) => {
+    wvPick = e.target.value || null;
+    if (!wvPick) return;
+    $("wvTerm").value = "";
+    runWave();
   });
   $("wvTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); wvPick = null; renderWvPicker(); runWave(); } });
   $("wvRun").addEventListener("click", () => { if ($("wvTerm").value.trim()) wvPick = null; renderWvPicker(); runWave(); });

@@ -29,6 +29,23 @@
 // ======================================================================
 const CHANGELOG = [
   {
+  "build": 25359,
+  "date": "2026-09-14",
+  "title": "Tool tabs stay aligned when switching subjects",
+  "items": [
+    {
+      "kind": "fixed",
+      "tool": "All tools",
+      "text": "Tabbed tools keep their tab strip in the same viewport position when switching, instead of restoring a different result scroll position for each subtab. A stable scrollbar gutter prevents horizontal shifts between short and long screens. Toolbar size changes are observed for sticky positioning."
+    },
+    {
+      "kind": "improved",
+      "tool": "Who is … to CA",
+      "text": "A user, A group and Compare users share a compact intro with scope and permission details under About this tool. The group picker is a compact dropdown with member counts and disabled missing groups. The group screen once again shows the shared sign-in log source selector."
+    }
+  ]
+},
+  {
   "build": 25358,
   "date": "2026-09-14",
   "title": "Baseline sources for rollout and a sidebar that follows your brand",

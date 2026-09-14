@@ -118,6 +118,35 @@ const PROMOTE = {
 
   items: [
     {
+  "n": 195,
+  "title": "Stable tab layout and compact Who is subject controls",
+  "tools": [
+    "All tools",
+    "Who is … to CA"
+  ],
+  "builds": [
+    25359
+  ],
+  "risk": "medium",
+  "what": "Keep subtab strip position stable, reserve scrollbar space, observe active toolbar height, give Who is subjects matching compact intros and a group dropdown, and restore the wave log-source selector.",
+  "why": "Changes shared tab navigation and the group selection control; results, permissions and existing write confirmations are unchanged.",
+  "test": [
+    "VERIFIED 2026-09-14: 35 offline tests, toolbar/plain-text checks and browser demo checks passed. Tab anchor and left edges remain stable, the three closed desktop intro cards match, rapid switching/keyboard focus work, and the group dropdown completes a demo read. Responsive checks at 1600/1280/1024/390px and 13 additional host tabs passed. Live-tenant checks remain pending; see review/2026-09-14/BETA-25359.md.",
+    "From a long user result, scroll down and switch A group, Compare users, A user. The tab row keeps its vertical position and all screens keep the same left edge; previous result data and inputs remain available. Repeated or rapid switching must not restore the wrong screen position.",
+    "At desktop width the three closed intro cards have equal heights. Open About this tool with the keyboard: full scope and permission descriptions remain available.",
+    "Choose an existing demo group in the dropdown: it runs the group read and makes report actions available. Names and member counts are shown; missing groups are disabled. Typing a different group still works. Verify the selected sign-in log source agrees between user and group.",
+    "At 1600, 1280, 1024 and 390px: no horizontal document overflow, reachable controls, and no sticky overlap after wrapping. Also check Checks, Baseline, What-If and Policy building blocks subtab alignment.",
+    "REAL TENANT REQUIRED: verify deployment/persona group counts, arbitrary group lookup and both Defender log sources with appropriate permissions. See review/2026-09-14/BETA-25359.md for completed and pending validation."
+  ],
+  "files": [
+    "js/app.js",
+    "css/workspace.css",
+    "index.html",
+    "js/version.js",
+    "tools/regression.test.cjs"
+  ]
+},
+    {
   "n": 194,
   "title": "Workspace, evidence desk and guided rollout",
   "tools": [

@@ -1,8 +1,12 @@
 /* Workspace chrome uses the existing light/dark tokens; policy exports retain their own layout. */
 :root{--workspace-rail:var(--green-deep);--workspace-rail-ink:#fff;--workspace-rail-muted:color-mix(in srgb,var(--workspace-rail-ink) 75%,var(--workspace-rail))}
+html{scrollbar-gutter:stable}
 .workspace-context{font-size:12px;max-width:42vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);border-left:1px solid var(--border);padding-left:16px}
 .workspace-menu{display:none}
-.screen.tool{cursor:default;min-width:0}
+.screen.tool{cursor:default;min-width:0;min-height:calc(100dvh - var(--sticky-nav,106px))}
+#woHead,#wvHead,#cuHead{min-height:110px}
+#wvPicker{width:240px;max-width:100%}
+.tool-about{margin-top:10px;font-size:12px;line-height:1.6}.tool-about>summary{cursor:pointer;color:var(--muted)}.tool-about[open]>summary{margin-bottom:12px}
 .workspace-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:4px 0 22px}
 .workspace-eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700}
 .workspace-heading h1{font-size:30px;letter-spacing:-.035em;margin:5px 0 6px;color:var(--ink)}

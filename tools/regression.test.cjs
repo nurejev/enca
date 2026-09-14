@@ -196,3 +196,15 @@ test('switching tenants while Joey fetches discards the pending import',async()=
  h.update('Other tenant');finish({status:{status:'live'},bundle:rolloutBundle()});await run;
  assert.equal(h.prepared.length,0);assert.doesNotMatch(h.node('rolloutBody').innerHTML,/fixture-release/);
 });
+
+test('shared log-source selectors target existing toolbars',()=>{
+ const app=fs.readFileSync(path.join(root,'js/app.js'),'utf8');
+ const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ const mounted=[...app.matchAll(/mountLogSourceSeg\("([^"]+)"/g)].map(m=>m[1]);
+ assert.ok(mounted.length>0);
+ for(const id of mounted){
+  const element=html.match(new RegExp('<[^>]+id="'+id+'"[^>]*>'));
+  assert.ok(element,`log source toolbar ${id} exists`);
+  assert.match(element[0],/class="[^"]*\btoolbar\b/,`${id} is a toolbar`);
+ }
+});
