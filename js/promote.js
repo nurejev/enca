@@ -118,6 +118,36 @@ const PROMOTE = {
 
   items: [
     {
+  "n": 197,
+  "title": "Remove obsolete September rollout controls (T33 1.6)",
+  "tools": [
+    "SMS & voice retirement"
+  ],
+  "builds": [
+    25361
+  ],
+  "risk": "low",
+  "what": "Remove the migration panel, state, read/write/history handlers and styles. Remove opt-out fields and advice from the report, home tile, Help and tool note. Preserve the SMS/voice scan and registered-method exports.",
+  "why": "Removes obsolete controls and their authentication-method policy write path. No tenant configuration is changed by this release. Existing scan permissions and verdict logic remain unchanged.",
+  "test": [
+    "VERIFIED 2026-09-14: 37 offline regression tests passed, including verdict/method export retention and scope-only fallback. Toolbar ordering and plain-text checks passed.",
+    "VERIFIED 2026-09-14: Edge demo initial screen, scan, all four verdict filters, rescan, registered methods, Markdown, CSV and notification draft passed with no JavaScript errors. Removed panel stays absent. Desktop and mobile screenshots inspected.",
+    "PENDING real tenant: run with AuditLog.Read.All and confirm the same users, verdicts and method lists as build 25360; confirm no pause/resume controls or authentication-method write consent are offered.",
+    "PENDING real tenant: refuse registration consent and confirm scope-only results still show unknown registration data. See review/2026-09-14/BETA-25361.md."
+  ],
+  "files": [
+    "js/app.js",
+    "js/smsvoice.js",
+    "css/app.css",
+    "index.html",
+    "js/version.js",
+    "js/changelog.js",
+    "js/promote.js",
+    "tools/regression.test.cjs",
+    "review/2026-09-14/BETA-25361.md"
+  ]
+},
+    {
       n: 196,
       title: "\ud83d\udcf5 Methods registered — the record behind every verdict, in the table, the Markdown and the CSV (T33 1.5)",
       tools: ["SMS & voice retirement"],

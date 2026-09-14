@@ -13,6 +13,25 @@ const policy=(conditions={})=>({id:'p1',displayName:'Test policy',state:'enabled
 const scenario={userId:'u1',appId:'app1',platform:'windows',clientApp:'browser',deviceState:'compliant',insiderRisk:'minor',isGuest:false};
 const asVm=p=>({raw:p,seq:1,grant:{controls:p.grantControls.builtInControls||[],op:p.grantControls.operator}});
 const maps=()=>({ph:{},group:{},loc:{},strength:{},ctx:{},tou:{},personaGroupIds:{}});
+test('SMS/voice scan retains verdicts and registered methods without migration controls',()=>{
+ const api=load('smsvoice.js','SmsVoice');
+ const reg={phone:{methods:['mobilePhone'],defaultMethod:'sms'},mixed:{methods:['mobilePhone','microsoftAuthenticatorPush'],defaultMethod:'push'},ready:{methods:['passKeyDeviceBound'],defaultMethod:'passKeyDeviceBound'},clean:{methods:[]}};
+ const result=api.analyze({campaignState:'default',sms:{state:'enabled'},voice:{state:'disabled'},users:Object.keys(reg).map(id=>({id,upn:id+'@example.com',enabled:true,inSms:true})),reg});
+ assert.deepEqual(Object.fromEntries(result.rows.map(r=>[r.id,r.risk])),{phone:'blocking',mixed:'migrate',clean:'clean',ready:'ready'});
+ assert.equal(result.summary.total,4);assert.equal(result.summary.phone,2);
+ const md=api.toMd(result),csv=api.toCsv(result);
+ assert.match(md,/Methods registered/);assert.match(md,/Authenticator push \(default\); Phone \(mobile\)/);
+ assert.match(csv,/methodsRegistered,methodsRegisteredLabels/);assert.equal(csv.split('\n').length,5);
+ assert.match(csv,/mobilePhone; microsoftAuthenticatorPush/);
+ assert.doesNotMatch(md,/passkeyDynamicMigration|temporary opt-out|pause the rollout/i);
+ assert.deepEqual(Array.from(api.notifyEmail(result).recipients),['mixed@example.com','phone@example.com']);
+});
+test('SMS/voice scope-only scan keeps unread registration distinct from no methods',()=>{
+ const api=load('smsvoice.js','SmsVoice');
+ const result=api.analyze({sms:{state:'enabled'},users:[{id:'u1',upn:'u1@example.com',enabled:true}],reg:null});
+ assert.equal(result.rows[0].risk,'unknown');assert.equal(api.methodsWord(result.rows[0]),'?');
+ assert.match(api.toMd(result),/registration data NOT read/);assert.equal(api.notifyEmail(result).scopeOnly,true);
+});
 function importer(overrides={}){
   const writes=[],store=new Map([['old-p',{...policy(),id:'old-p'}]]);
   const Graph={

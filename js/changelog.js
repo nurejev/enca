@@ -29,6 +29,18 @@
 // ======================================================================
 const CHANGELOG = [
   {
+  "build": 25361,
+  "date": "2026-09-14",
+  "title": "SMS & voice retirement: obsolete rollout controls removed",
+  "items": [
+    {
+      "kind": "improved",
+      "tool": "SMS & voice retirement",
+      "text": "Removed the Microsoft September rollout panel, including checking dynamic migration, pausing or resuming the rollout and viewing its change history. The tool now reads only. Scans, registered MFA methods, verdict filters, notification drafts and Markdown/CSV exports remain available."
+    }
+  ]
+},
+  {
     build: 25360, date: "2026-09-14", title: "\ud83d\udcf5 The methods behind the verdict, in every view",
     items: [
       { kind: "new", tool: "SMS & voice retirement", text: "A Methods registered column lists every MFA method the registration report holds for the account — Authenticator push, software TOTP, a device-bound passkey, Windows Hello for Business, a Temporary Access Pass, the phone numbers themselves — instead of only the three yes/no flags the verdict is made from. The default method comes first, bold and starred, so the row says at a glance what this user's prompts go to today; phone methods are drawn in the retirement colour, so the thing that stops on 1 February 2027 is visible in the list without reading the verdict; the raw Graph value is on hover. In the on-screen table, in the Markdown report, and as two columns in the CSV — methodsRegistered with the raw values and methodsRegisteredLabels with the words." },
