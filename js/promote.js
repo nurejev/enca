@@ -118,6 +118,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 200,
+      title: "\ud83e\udee5 The apps table drawn as a list, not as the policy matrix (T39 0.2)",
+      tools: ["Apps with no service principal"],
+      builds: [25366],
+      risk: "low",
+      what: "js/spgap.js renderTable: the wrapper and table classes change from mwrap-x / mtable (the sticky policy-matrix table) to cg-tablewrap / cg-table (the list table 👥 CA groups uses) with sg- hooks; the app id cell and the policy pills lose their inline styles for classes. css/app.css: the sg- rules — sideways scroll on the wrap, fixed column widths on a 1240px table, right-aligned counts, monospace id, policy pills one per line wrapping inside their column; the Sign-ins header drops its (30 d) into a tooltip. No data, verdict or export changes; toMd and toCsv are untouched.",
+      why: "Low: presentation only, one table in one tool. The thing to check is that nothing in the tool relied on the matrix classes — the row click handler reads data-sg-app on the tr, which is unchanged.",
+      test: [
+        "Demo tenant, \ud83e\udee5 Apps with no service principal, \u25b6 Read: the table has padded rows, the App header left-aligned above the names, the app id in monospace under each name on one line, Sign-ins right-aligned, and NO empty surface under the last row — the box ends where the rows end.",
+        "Narrow the window to about 800 px: the box scrolls sideways and the App column keeps its width; the page does not scroll sideways.",
+        "Filter chips and the search box still filter the same rows; \ud83d\udcd6 Read evidence still fills the Newest sign-in column.",
+        "\ud83d\udcdd Export MD and \u2b13 Export CSV: byte-identical to build 25365 on the same demo run.",
+        "Real tenant: an app with several Would apply policies wraps its pills inside the column instead of pushing the table wider.",
+      ],
+      files: ["js/spgap.js", "css/app.css", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 34,
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],

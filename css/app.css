@@ -335,6 +335,21 @@ table.plist tr:hover td{background:var(--hover)}
 .cg-table .tag{font-size:10px;padding:1px 6px}
 .cg-mem{white-space:nowrap}
 .btn.sm{padding:3px 10px;font-size:11px;border-radius:8px}
+/* 🫥 Apps with no service principal — the list table (0.2). Seven columns
+   with fixed widths, so the box scrolls sideways on a narrow window instead
+   of squeezing the App column; policy pills are one per line and wrap inside
+   their column; the app id under the name is monospace and stays whole. */
+.sg-wrap{margin-top:0;overflow:auto}
+.sg-table{min-width:1240px;table-layout:fixed}
+.sg-table thead th{white-space:normal;vertical-align:bottom}
+.sg-table th:nth-child(1){width:290px}.sg-table th:nth-child(2){width:90px}.sg-table th:nth-child(3){width:118px}
+.sg-table th:nth-child(4){width:220px}.sg-table th:nth-child(5){width:250px}.sg-table th:nth-child(6){width:150px}
+.sg-table th.num,.sg-table td.num{text-align:right}
+.sg-table td.sg-app b{overflow-wrap:anywhere}
+.sg-table .sg-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;margin-top:2px;overflow-wrap:anywhere}
+.sg-table .sg-pill{display:block;width:fit-content;max-width:100%;text-align:left;white-space:normal;overflow-wrap:anywhere;line-height:1.35;margin:2px 0}
+.sg-table .tag{font-size:10px;padding:1px 6px;vertical-align:middle}
+.sg-table td{line-height:1.45}
 /* persona quick-pick in the assign wizard */
 .persona-row{display:flex;flex-wrap:wrap;gap:6px}
 .persona-chip{background:var(--soft);border-color:var(--border)}

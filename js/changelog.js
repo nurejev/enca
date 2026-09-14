@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25366, date: "2026-09-14", title: "\ud83e\udee5 The apps table is a list, drawn like one",
+    items: [
+      { kind: "improved", tool: "Apps with no service principal", text: "The only-here chip comes off the tile: the tool is in production as build 312. The BETA chip stays while it proves itself on real tenants." },
+      { kind: "fixed", tool: "Apps with no service principal", text: "The table borrowed the policy-MATRIX table's styling, which is built for a sticky grid of users against policies: no cell padding, nothing allowed to wrap, and a 280-pixel minimum height. On a list of five apps that drew cramped rows with the header centred over them and a block of empty surface underneath. It is the list table now, the one 👥 Conditional Access groups uses — padded cells, left-aligned headers, the app id in monospace under its name, sign-in counts right-aligned, policy pills that wrap inside their column, and a box exactly as tall as its rows. Seven columns are wider than a narrow window, so the box scrolls sideways rather than squeezing the App column into two lines." },
+    ],
+  },
+  {
     build: 25365, date: "2026-09-14", title: "Production is 312",
     items: [
       { kind: "fixed", tool: "Help", text: "Items 170 and 185 to 198 — 🫥 Apps with no service principal, the whole R57 frame programme (25351 to 25356), the policy workspace, evidence desk and Guided rollout (25357 and 25358), the tab-layout fix (25359), SMS and voice retirement 1.5 and 1.6, and the sidebar rail (25362, as rewound in 25364) — went to production as build 312. They leave the promotion queue, productionBuild moves to v1.0.312, and the two roadmap cards R57 and R51 read production 312, R51 moving from In beta today to Now. Item 34, the CIS Help section, stays with the CIS tab it describes; item 199 was dropped in 25364 rather than promoted. Also in this build: the offline regression test only checks the promotion queue where js/promote.js exists, so the same test file passes on main, which has no queue." },
