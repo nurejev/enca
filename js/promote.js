@@ -118,6 +118,28 @@ const PROMOTE = {
 
   items: [
     {
+      n: 190,
+      title: "\ud83d\udd17 User or Group analyzer on the shared verdict surface, and js/verdict.js (T19 1.2, R57)",
+      tools: ["User or Group analyzer", "All tools"],
+      builds: [25356],
+      risk: "medium",
+      what: "NEW js/verdict.js: Verdict.tile / Verdict.tiles / Verdict.callout, with the column count derived from the number of tiles instead of a hand-set wo-3 / wo-5 class, and title attributes escaped there rather than at each call site. Loaded right after js/version.js because js/promote.js already holds a tile. css/app.css: wo-2 and wo-6 grid widths, a 760px two-column fallback, and .gu-sticky pins at var(--sticky-tools) instead of 106px with its jump offset measured from --sticky-tools plus --gu-strip. js/app.js: syncStickyTops also sets --sticky-tools (header + tab bar + host strip + this screen toolbar) and --gu-strip; T19 single-subject and sweep headers emit tiles and a callout; the per-area blocks and the not-read card become .wo-card with data-wo-fold and call the shared applyFolds / foldClick; the relationship line becomes wo-fact pills in an About card; plural() added.",
+      why: "Medium: T19 renders live Entra, Intune, Microsoft 365 and Azure configuration, so its two render paths cannot be exercised against the demo set at all \u2014 everything below has to be checked on a real tenant. The counts, jumps and filters are the same data through the same handlers; what changed is how they are drawn. Two things worth watching: the tiles make the sticky strip about 80 pixels taller than the pills were, so a jump has further to travel (measured, not guessed); and --sticky-tools is new machinery that every screen computes, though only this tool reads it so far.",
+      test: [
+        "Real tenant, \ud83d\udd17 Sweep tenant: five tiles across \u2014 groups swept, no usage found, dangling ids (only when there are any), services read, not read. The dangling tile is red, no-usage and not-read are amber when they are not zero and grey when they are. Click each: all clears the filters, no-usage and dangling filter the table, services opens the receipt panel, not-read jumps to that card. Exactly what the pills did.",
+        "The same sweep, above the tiles: a callout naming the dangling ids and the unreferenced groups. With neither, no callout at all.",
+        "Read one group: a tile for the total and one per area in scope, each area tile jumping to its card. An area with nothing found is grey and not clickable. Untick an area in Where to look and its tile goes.",
+        "A subject where a service is refused (no Azure reader, or Purview denied): a Not read tile in amber plus a callout saying the counts are a floor. Both gone on a clean read.",
+        "Click an area heading: the card folds and the chevron turns. Reload and re-read the same subject \u2014 it is still folded. Fold \ud83d\udd75 Who is' cards too and confirm the two tools remember separately.",
+        "THE FIX: scroll a long result. The result strip must pin directly BELOW this screen toolbar with no overlap \u2014 at 1500 by 800 the toolbar reads 111 to 173 and the strip 173 onwards. Before this build the strip sat at 106 and covered the mode buttons.",
+        "Click a jump tile while scrolled: the area card lands clear of the strip, not behind it.",
+        "\ud83d\udcdd Export MD, \u2b13 Export HTML and \u2b13 Export CSV are unchanged \u2014 none of them reads the header markup.",
+        "Every other tool that draws tiles is untouched in this build (\ud83d\udd75 \ud83c\udf0a \ud83d\udd12 \ud83d\udec2 \ud83e\udd25 and the promotion queue): open each and confirm its tiles look exactly as they did. They migrate to the shared helper in a later build.",
+        "At 760 pixels and below, a tile row is two across rather than five or six, and nothing overflows sideways.",
+      ],
+      files: ["js/verdict.js", "js/app.js", "css/app.css", "index.html", "js/version.js"],
+    },
+    {
       n: 189,
       title: "\ud83e\uddf1 The host tab strip moves above the head card, pinned (all eight hosts, R57)",
       tools: ["All tools"],

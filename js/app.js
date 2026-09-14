@@ -75,8 +75,23 @@
     // four tabs and 🧩 Policy building blocks five, and both wrap to a second
     // row on a narrow window.
     const bar = document.querySelector("section.screen.active > .tool-tabs-bar");
-    document.documentElement.style.setProperty("--tabs-h",
-      (bar ? Math.round(bar.getBoundingClientRect().height) : 0) + "px");
+    const barH = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty("--tabs-h", barH + "px");
+    // And one layer further in: a strip that is sticky INSIDE a result, below
+    // the screen's own toolbar. 🔗 User or Group analyzer has one, and it was
+    // pinned at a hard-coded 106px — so when build 25353 gave that screen a
+    // toolbar, the two landed on top of each other and the mode buttons went
+    // under the strip on any scroll. --sticky-tools is where the result
+    // begins: the header, the tab bar, a host strip and this screen's toolbar,
+    // all measured. .cgg-drawer computes the same thing by hand as --cg-tb.
+    const stb = document.querySelector("section.screen.active > .toolbar");
+    const tbH = stb && stb.offsetParent !== null ? Math.round(stb.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty("--sticky-tools", (hh + nh + barH + tbH) + "px");
+    // The jump links in 🔗 land a card below its strip, so that needs the
+    // strip's own height too — taller now that the counts are tiles.
+    const gus = document.querySelector("section.screen.active .gu-sticky");
+    document.documentElement.style.setProperty("--gu-strip",
+      (gus ? Math.round(gus.getBoundingClientRect().height) : 0) + "px");
   }
   const stickyNavTop = () => parseInt(getComputedStyle(document.documentElement).getPropertyValue("--sticky-nav")) || 106;
   window.addEventListener("resize", syncStickyTops);
@@ -181,6 +196,7 @@
   // up in a list and read as the same kind of thing; empty for the three app
   // pages that deliberately carry none.
   const toolNoOf = (id) => toolNo((typeof TOOL_VERSIONS !== "undefined" && TOOL_VERSIONS[id]) || null);
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   // A tool that has been FOLDED into another keeps its T-number (js/version.js
   // rule) and its open function, but its tile is gone — so every in-app link
   // written as data-tool="toolX" would resolve to nothing and toast "not
@@ -16725,7 +16741,8 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function guNotReadCard(res) {
     const inner = guNotReadBlock(res);
-    return inner ? `<div class="list-card wi-res" id="guNotRead"><h4 class="wi-h">Not read</h4>${inner}</div>` : "";
+    return inner ? `<div class="list-card wo-card" id="guNotRead">
+      <h4 class="wo-h" data-wo-fold="notread">Not read</h4>${inner}</div>` : "";
   }
 
   function renderGroupUse() {
@@ -16735,25 +16752,49 @@ This is a directory write. Nothing else changes.`)) return;
     ["guMd", "guHtml", "guCsv"].forEach((id) => $(id).style.display = "");
 
     const per = GroupUse.byArea(res.rows);
-    const stats = GroupUse.AREAS.map((a) => {
-      const n = (per.get(a.id) || []).length;
-      return guAreas.has(a.id)
-        ? `<span class="gu-stat${n ? " act" : " zero"}"${n ? ` data-gujump="guArea-${a.id}" title="Jump to ${esc(a.label)}"` : ""}>${a.icon} ${esc(a.label)} <b>${n}</b></span>`
-        : "";
-    }).join("");
+    const inScope = GroupUse.AREAS.filter((x) => guAreas.has(x.id));
+    // The counts were grey pills whose only states were grey-when-zero and
+    // green-when-picked, so "2 not read" read exactly like "21 Entra ID".
+    // They are verdict tiles now (25356) and still the jump links they were.
+    const areaTiles = inScope.map((x) => {
+      const n = (per.get(x.id) || []).length;
+      return Verdict.tile({
+        k: `${x.icon} ${esc(x.label)}`, v: String(n), vcls: n ? "" : "muted",
+        s: n ? "jump to the references" : "nothing found",
+        btn: !!n, title: n ? `Jump to ${x.label}` : "",
+        data: n ? { gujump: `guArea-${x.id}` } : null,
+      });
+    });
+    const unread = res.failed.length + (res.partial || []).length;
+    const guTiles = Verdict.tiles([
+      Verdict.tile({ k: "References", v: String(res.rows.length),
+        s: `across ${plural(inScope.length, "area")}` }),
+      ...areaTiles,
+      unread ? Verdict.tile({ k: "Not read", v: String(unread), cls: "warn",
+        s: "permission refused, or the service was unavailable", btn: true,
+        title: "Jump to what could not be read", data: { gujump: "guNotRead" } }) : null,
+    ]);
+    // A count read off an incomplete pass is a floor, and saying so is worth
+    // more than the count: it is the difference between "nothing uses this
+    // group" and "nothing we were allowed to look at uses this group".
+    const guFloor = unread ? Verdict.callout(
+      `Not every service could be read, so <b>these counts are a floor, not a total</b> \u2014 `
+      + `${res.failed.concat(res.partial || []).slice(0, 3).map((x) => esc(x.label)).join(", ")}`
+      + `${unread > 3 ? ` and ${unread - 3} more` : ""}. Nothing found there is not the same as nothing there.`) : "";
 
     const rel = [];
-    if (meta.parents.length) rel.push(`<b>Member of</b> ${meta.parents.map((p) => esc(p.name)).join(", ")}`);
-    if (meta.children.length) rel.push(`<b>Contains groups</b> ${meta.children.map((p) => esc(p.name)).join(", ")}`);
-    if (meta.roles.length) rel.push(`<b>Directory roles</b> ${meta.roles.map((p) => esc(p.name)).join(", ")}`);
+    if (meta.parents.length) rel.push(`<span class="wo-fact">member of <b>${meta.parents.map((x) => esc(x.name)).join(", ")}</b></span>`);
+    if (meta.children.length) rel.push(`<span class="wo-fact">contains <b>${meta.children.map((x) => esc(x.name)).join(", ")}</b></span>`);
+    if (meta.roles.length) rel.push(`<span class="wo-fact warn">holds <b>${meta.roles.map((x) => esc(x.name)).join(", ")}</b></span>`);
 
     const areaCards = GroupUse.AREAS.map((a) => {
       if (!guAreas.has(a.id)) return "";
       const rows = per.get(a.id) || [];
       const groupsOf = GroupUse.grouped(rows);
       const empty = res.ran.filter((r) => r.area === a.id && !r.count);
-      return `<div class="list-card wi-res" id="guArea-${a.id}">
-        <h4 class="wi-h">${a.icon} ${esc(a.label)} <span class="mini muted">${rows.length} reference${rows.length === 1 ? "" : "s"}</span></h4>
+      return `<div class="list-card wo-card" id="guArea-${a.id}">
+        <h4 class="wo-h" data-wo-fold="area-${a.id}">${a.icon} ${esc(a.label)}
+          <span class="mini muted">${plural(rows.length, "reference")}</span></h4>
         ${groupsOf.length ? groupsOf.map((g) => guSourceBlock(g, meta.via)).join("")
           : `<p class="mini muted" style="margin:0">No references found.</p>`}
         ${empty.length ? `<p class="mini muted" style="margin:10px 0 0">Read and clean: ${empty.map((e) => esc(e.label)).join(", ")}.</p>` : ""}</div>`;
@@ -16770,14 +16811,17 @@ This is a directory write. Nothing else changes.`)) return;
       <div class="gu-sticky">
         <span class="gu-who">${meta.principalType === "user" ? "👤" : "👥"} ${esc(meta.principalName)}
           <span class="mini muted">${esc(meta.principalType)}</span></span>
-        <div class="gu-sum"><span class="gu-stat"><b>${res.rows.length}</b> reference${res.rows.length === 1 ? "" : "s"}</span>${stats}${
-          (res.failed.length || (res.partial || []).length) ? `<span class="gu-stat act" data-gujump="guNotRead" title="Jump to what could not be read"><b>${res.failed.length + (res.partial || []).length}</b> not read</span>` : ""}</div>
+        ${guFloor}
+        ${guTiles}
       </div>
-      ${rel.length ? `<div class="list-card wi-res gu-jt">
-        <p class="mini muted" style="margin:0 0 4px">Object ID <code>${esc(meta.principalId)}</code></p>
-        <p class="mini" style="margin:0">${rel.join(" &nbsp;·&nbsp; ")}</p></div>` : ""}
+      <div class="list-card wo-card gu-jt">
+        <h4 class="wo-h" data-wo-fold="about">About this ${esc(meta.principalType)}</h4>
+        <p class="mini muted" style="margin:0">Object ID <code>${esc(meta.principalId)}</code></p>
+        ${rel.length ? `<div class="wo-facts">${rel.join("")}</div>` : ""}</div>
       ${areaCards}
       ${guNotReadCard(res)}`;
+    applyFolds("guBody");
+    syncStickyTops();
   }
 
   // Shown only when a finished sweep is parked behind this single-group view.
@@ -16811,13 +16855,25 @@ This is a directory write. Nothing else changes.`)) return;
       <div class="gu-sticky">
         <span class="gu-who">Tenant sweep
           <span class="mini muted">${guTotals.length} groups${guMeta && guMeta.scopeNote ? ` where ${esc(guMeta.scopeNote)}` : ""} · ${res.rows.length} references</span></span>
-        <div class="gu-sum">
-          <span class="gu-stat act${!guUnusedOnly && !guDanglingOnly && !guQuery ? " on" : ""}" data-gustat="all" title="Show every group in the sweep"><b>${guTotals.length}</b> groups</span>
-          <span class="gu-stat act${guUnusedOnly ? " on" : ""}${unused ? "" : " zero"}" data-gustat="unused" title="Show only the groups nothing references"><b>${unused}</b> with no usage found</span>
-          <span class="gu-stat act${guShowServices ? " on" : ""}" data-gustat="services" title="List every service that was read, and what it found"><b>${res.ran.length}</b> services read</span>
-          <span class="gu-stat act${res.failed.length ? "" : " zero"}" data-gustat="notread" title="Jump to what could not be read"><b>${res.failed.length}</b> not read</span>
-          ${gone ? `<span class="gu-stat act${guDanglingOnly ? " on" : ""}" data-gustat="dangling" title="Ids a policy still names but the directory no longer has"><b>${gone}</b> dangling</span>` : ""}
-        </div>
+        ${guSweepCallout(unused, gone)}
+        ${Verdict.tiles([
+          { k: "Groups swept", v: String(guTotals.length), s: plural(res.rows.length, "reference") + " found",
+            btn: true, on: !guUnusedOnly && !guDanglingOnly && !guQuery,
+            title: "Show every group in the sweep", data: { gustat: "all" } },
+          { k: "No usage found", v: String(unused), cls: unused ? "warn" : "", vcls: unused ? "" : "muted",
+            s: unused ? "nothing references these" : "every group is referenced", btn: true, on: guUnusedOnly,
+            title: "Show only the groups nothing references", data: { gustat: "unused" } },
+          gone ? { k: "Dangling ids", v: String(gone), cls: "bad", btn: true, on: guDanglingOnly,
+            s: "a policy names them, the directory does not",
+            title: "Ids a policy still names but the directory no longer has", data: { gustat: "dangling" } } : null,
+          { k: "Services read", v: String(res.ran.length), cls: "ok", s: "what the sweep actually covered",
+            btn: true, on: guShowServices,
+            title: "List every service that was read, and what it found", data: { gustat: "services" } },
+          { k: "Not read", v: String(res.failed.length), cls: res.failed.length ? "warn" : "",
+            vcls: res.failed.length ? "" : "muted",
+            s: res.failed.length ? "permission refused" : "nothing was skipped", btn: true,
+            title: "Jump to what could not be read", data: { gustat: "notread" } },
+        ])}
         <div class="gu-bar" style="margin:0">
           <div class="search">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
@@ -16844,6 +16900,21 @@ This is a directory write. Nothing else changes.`)) return;
       </div>
       ${guNotReadCard(res)}`;
     wireSearchClears();
+    applyFolds("guBody");
+    syncStickyTops();
+  }
+
+  // The two findings worth acting on, said in words rather than left inside
+  // a count somebody has to click: an id a policy names that the directory
+  // does not have targets nobody, and a group nothing references is cleanup.
+  function guSweepCallout(unused, gone) {
+    if (!gone && !unused) return "";
+    const bits = [];
+    if (gone) bits.push(`<b>${plural(gone, "id")} a policy still names ${gone === 1 ? "does" : "do"} not exist in this directory</b>`);
+    if (unused) bits.push(`${plural(unused, "group")} ${unused === 1 ? "is" : "are"} referenced by nothing at all`);
+    return Verdict.callout(bits.join(", and ") + ". "
+      + (gone ? "The first is a policy repair" : "That is cleanup")
+      + (gone && unused ? ", the second is cleanup." : "."), gone ? "bad" : "");
   }
 
   // What "19 services read" actually means, on demand — which services, what
@@ -16943,6 +17014,9 @@ This is a directory write. Nothing else changes.`)) return;
 
   $("guBody").addEventListener("click", (e) => {
     if (e.target.closest("#guBack")) { restoreGuSweep(); return; }
+    // A card heading folds, remembered per card — the same behaviour 🕵 and
+    // 🌊 have had since 25323, and the reason the area blocks are cards.
+    if (foldClick("guBody", e)) { syncStickyTops(); return; }
 
     // summary chips are filters and jumps, not decoration
     const jump = e.target.closest("[data-gujump]");
