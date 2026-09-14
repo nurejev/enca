@@ -663,28 +663,6 @@ const Importer = (() => {
     return o;
   };
 
-  // Strip app ids the tenant has no service principal for. Graph rejects the
-  // whole policy over one unknown app id, so an exclusion the tenant cannot
-  // express is worth dropping to keep the policy — never silently: every drop
-  // is reported, and dropping an EXCLUSION makes the policy broader in scope,
-  // which is exactly what the admin has to review before switching it On.
-  function dropUnknownApps(payload, missing) {
-    if (!missing || !missing.size) return [];
-    const a = payload.conditions?.applications;
-    if (!a) return [];
-    const gone = (list) => (list || []).filter((x) => missing.has(String(x).toLowerCase()));
-    const keep = (list) => (list || []).filter((x) => !missing.has(String(x).toLowerCase()));
-    const removed = [...gone(a.includeApplications).map((id) => ({ id, where: "include" })),
-                     ...gone(a.excludeApplications).map((id) => ({ id, where: "exclude" }))];
-    if (!removed.length) return [];
-    a.excludeApplications = keep(a.excludeApplications);
-    const inc = keep(a.includeApplications);
-    // Never leave an empty include — that would change the policy from
-    // "these apps" to nothing at all. Fall back to All resources.
-    a.includeApplications = inc.length ? inc : ["All"];
-    return removed;
-  }
-
   // keepAssignment: 🔀 switch baseline — the assignment as the baseline
   // ships it (its own groups, remapped to the ones this import created),
   // not the deploy persona group and not the replaced policy's scoping.
@@ -709,10 +687,7 @@ const Importer = (() => {
     const c = p.conditions = p.conditions || {};
     const u = c.users = c.users || {};
 
-    const mapGroups = (arr) => (arr || []).flatMap(id => {
-      try { return [resolveRef(id, maps.group)]; }
-      catch (e) { warnings.push(`${raw.displayName}: ${e.message} — group reference dropped`); return []; }
-    });
+    const mapGroups = (arr) => (arr || []).map(id => resolveRef(id, maps.group));
 
     if (matchFrom) {
       // Match & replace: this CA number already exists in the tenant. Keep the
@@ -739,7 +714,7 @@ const Importer = (() => {
       for (const ref of newExcludeGroups) {
         let id;
         try { id = resolveRef(ref, maps.group); }
-        catch (e) { warnings.push(`${raw.displayName}: new exclusion "${parsePlaceholder(ref)?.name || ref}" could not be added — ${e.message}`); continue; }
+        catch (e) { throw new Error(`Required exclusion could not be resolved: ${e.message}`); }
         if (id && !u.excludeGroups.includes(id)) { u.excludeGroups.push(id); added++; }
       }
       if (added) warnings.push(`${raw.displayName}: kept the current assignment and merged ${added} new exclusion group(s) introduced by this baseline version.`);
@@ -764,10 +739,12 @@ const Importer = (() => {
       } else {
         u.includeGroups = mapGroups(u.includeGroups);
       }
-      // exclude users from the old tenant cannot be mapped — drop non-specials
+      // A source user exclusion cannot be discarded without broadening the policy.
       const specials = ["All", "None", "GuestsOrExternalUsers"];
       const droppedUsers = (u.excludeUsers || []).filter(x => !specials.includes(x) && !parsePlaceholder(x));
-      if (droppedUsers.length) { warnings.push(`${raw.displayName}: dropped ${droppedUsers.length} excluded user(s) from the source tenant`); }
+      if (droppedUsers.length || (u.excludeUsers || []).some(parsePlaceholder)) {
+        throw new Error("Source user exclusions cannot be mapped automatically. Resolve them in the import source before deploying this policy.");
+      }
       u.excludeUsers = (u.excludeUsers || []).filter(x => specials.includes(x));
       u.excludeGroups = mapGroups(u.excludeGroups);
     }
@@ -840,28 +817,45 @@ const Importer = (() => {
       if (opts.shouldStop && opts.shouldStop()) { results.push({ name: it.name, ok: false, stopped: true, error: "stopped before this policy — nothing changed" }); continue; }
       opts.onItem?.(i, "start");
       onStatus?.(`Importing ${it.name} (${i + 1}/${items.length})…`);
+      let createdId = null;
       try {
         const gid = it.personaGroup && !switching ? maps.personaGroupIds?.[it.personaGroup] : null;
         const matchFrom = replace && it.upgrade && it.existing ? it.existing.raw : null;
         const supersedes = (replace || switching) && it.upgrade && it.existing && it.existing.id ? it.existing : null;
         const payload = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom, switching);
-        let dropped = [];
+        const dropped = [];
+        const missing = appRefs([payload]).filter(id => maps.missingApps?.has(String(id).toLowerCase()));
+        if (missing.length) throw new Error(`Required application references are missing: ${missing.map(appLabel).join(", ")}. No policy was created.`);
+        // Create disabled, verify material settings, then restore the approved state.
+        // The previous version remains active until the replacement is read back.
+        const staged = { ...payload, state: "disabled" };
+        const created = await Graph.gpost("/identity/conditionalAccess/policies", staged, [...AUTH_CONFIG.scopes, ...WRITE]);
+        if (!created?.id) throw new Error("Create returned no policy id; verify the tenant before retrying. Previous policy was not changed.");
+        createdId = created.id;
+        const url = `/identity/conditionalAccess/policies/${created.id}`;
+        const canonical = value => {
+          if (Array.isArray(value)) return value.map(canonical).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+          if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).filter(k => !k.startsWith("@odata") && value[k] != null && !(Array.isArray(value[k]) && !value[k].length)).sort().map(k => [k, canonical(value[k])]));
+          return value;
+        };
+        // Compare the properties we sent; Graph may return additional read-only fields.
+        const contains = (actual, expected) => {
+          if (expected == null) return actual == null;
+          if (Array.isArray(expected)) return JSON.stringify(canonical(actual || [])) === JSON.stringify(canonical(expected));
+          if (typeof expected === "object") return Object.entries(expected).every(([k,v]) => contains(actual?.[k],v));
+          return actual === expected;
+        };
+        let saved;
         try {
-          await Graph.gpost("/identity/conditionalAccess/policies", payload, [...AUTH_CONFIG.scopes, ...WRITE]);
-        } catch (e1) {
-          // One retry, and only for the case we can actually explain: the policy
-          // names an app this tenant has no service principal for. Anything else
-          // rethrows untouched.
-          const refs = appRefs([it.raw]).filter((a) => maps.missingApps?.has(a));
-          if (!/\(400\)|BadRequest/i.test(e1.message || "") || !refs.length) throw e1;
-          const retry = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom, switching);
-          dropped = dropUnknownApps(retry, maps.missingApps);
-          onStatus?.(`${it.name}: retrying without ${dropped.length} unknown app reference(s)…`);
-          await Graph.gpost("/identity/conditionalAccess/policies", retry, [...AUTH_CONFIG.scopes, ...WRITE]);
-          warnings.push(`${it.name}: imported **without** ${dropped.map((d) => `${appLabel(d.id)} (${d.where}d)`).join(", ")} — `
-            + `this tenant has no service principal for ${dropped.length === 1 ? "it" : "them"}, and Graph rejects a policy that names one. `
-            + `${dropped.some((d) => d.where === "exclude") ? "A dropped **exclusion** makes the policy apply more widely than the source did — review before switching it On, " : ""}`
-            + `then add the reference back once the service principal exists.`);
+          saved = await Graph.gget(url);
+          if (!contains(saved, staged)) throw new Error("Stored policy differs from the approved plan");
+          if (payload.state !== "disabled") {
+            await Graph.gpatch(url, { state: payload.state }, [...AUTH_CONFIG.scopes, ...WRITE]);
+            saved = await Graph.gget(url);
+            if (!contains(saved, payload)) throw new Error("Activated policy could not be verified");
+          }
+        } catch (e) {
+          throw new Error(`${e.message}. New policy ${created.id} may exist (last verified state: ${saved?.state || "unknown"}); inspect it before retrying. Previous policy was not changed.`);
         }
         const newState = payload.state;
         let disabledOld = false;
@@ -871,12 +865,14 @@ const Importer = (() => {
           // reviews the new one and removes the old when satisfied.
           try {
             await Graph.gpatch(`/identity/conditionalAccess/policies/${supersedes.id}`, { state: "disabled" }, [...AUTH_CONFIG.scopes, ...WRITE]);
+            const oldReadback = await Graph.gget(`/identity/conditionalAccess/policies/${supersedes.id}`);
+            if (oldReadback.state !== "disabled") throw new Error("previous policy did not read back as Off");
             disabledOld = true;
           } catch (e) {
             warnings.push(`${it.name}: the new version was created, but disabling the current policy "${oldName}" failed — disable it manually: ${e.message}`);
           }
         }
-        results.push({ name: it.name, ok: true, persona: it.persona, personaGroup: matchFrom || switching ? null : it.personaGroup, asIs: it.asIs, matched: !!matchFrom, switched: switching, disabledOld, oldName: supersedes ? oldName : null, state: newState, dropped });
+        results.push({ name: it.name, ok: !supersedes || disabledOld, createdId: created.id, verified: true, error: supersedes && !disabledOld ? `Replacement ${created.id} verified as ${newState}, but previous policy ${supersedes.id} is not confirmed Off. Inspect both before retrying.` : null, persona: it.persona, personaGroup: matchFrom || switching ? null : it.personaGroup, asIs: it.asIs, matched: !!matchFrom, switched: switching, disabledOld, oldName: supersedes ? oldName : null, state: newState, dropped });
       } catch (e) {
         console.error("Import failed:", it.name, e);
         // Graph answers most policy-shape problems with a bare 400, so add the
@@ -899,9 +895,9 @@ const Importer = (() => {
         // fails, say so — otherwise a failed upgrade reads as if the existing
         // policy broke, when it is in fact untouched and still enforcing.
         if ((replace || switching) && it.upgrade && it.existing) {
-          hint += ` · an update creates the new version first and only then switches the old one Off — creating the new version is what failed; the current policy "${it.existing.name || it.name}" is untouched and still active`;
+          hint += ` · the previous policy "${it.existing.name || it.name}" is only changed after a verified replacement; inspect the reported state before retrying`;
         }
-        results.push({ name: it.name, ok: false, error: (e.message || String(e)) + hint });
+        results.push({ name: it.name, ok: false, createdId, error: (e.message || String(e)) + hint });
       }
       opts.onItem?.(i, "end", results[results.length - 1]);
     }
@@ -928,7 +924,7 @@ const Importer = (() => {
       `- **Assignment mode:** ${mode === "replace" ? "Match & replace — existing policies keep their current assignment; the superseded version is switched Off"
         : mode === "switch" ? `Switch baseline — policies land with the baseline's own groups (created here), members copied across from the ${depLog.switchFrom ? depLog.switchFrom + " " : ""}counterpart groups; a superseded policy is switched Off`
         : "Deployment groups — includes remapped to the deploy persona group (CAD-SEC-U-DG-*)"}`,
-      `- **Policies imported:** ${results.filter(r => r.ok).length}${replaced.length ? " (new policies land Off; **replacements take over in the state of the policy they supersede**)" : " (all in state **Off/disabled**)"}`,
+      `- **Policies imported:** ${results.filter(r => r.ok).length} (${["enabled", "enabledForReportingButNotEnforced", "disabled"].map(s => `${results.filter(r => r.ok && r.state === s).length} ${stateLabel(s)}`).join(", ")})`,
       ...(replaced.length ? [`- **Policies replaced (old version disabled):** ${replaced.filter(r => r.disabledOld).length} of ${replaced.length}`] : []),
       `- **Policies skipped (already exist):** ${skipped.length}`,
       `- **Failures:** ${results.filter(r => !r.ok).length}`,

@@ -1002,6 +1002,8 @@ const GapCheck = (() => {
   const mdEsc = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
 
   function toMd(result, meta = {}) {
+    // Context incompleteness is part of the evidence, also outside the browser.
+    if (meta.incomplete) return `> INCOMPLETE CONTEXT: ${meta.incomplete}. Findings are provisional.\n\n` + toMd(result, { ...meta, incomplete: null });
     const f = result.findings.slice().sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
     const n = (s) => f.filter((x) => x.severity === s).length;
     const L = [];

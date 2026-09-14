@@ -1,0 +1,111 @@
+// Policy workspace, evidence desk and guided rollout. State stays in this session;
+// all tenant operations are handed to the existing tool and confirmation flow.
+const Workspace = (() => {
+  const $ = id => document.getElementById(id);
+  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let api, current, inspected = null, reviewIndex = 0, step = 0, checks = new Set();
+  const state = s => ({on:"On",report:"Report-only",off:"Off"}[s] || s);
+  const names = p => {
+    const native = p.name || "Unnamed policy";
+    if (!/^CA\d+/i.test(native)) return { title: native, native };
+    const parts = native.split(/\s*-\s*/).filter(x => !/^v\d[.\d]*$/i.test(x));
+    const label = (parts.at(-1) || native).replace(/([a-z])([A-Z])/g,'$1 $2');
+    const audience = parts.length > 3 ? parts[2] : '';
+    return { title: audience ? `${label} · ${audience}` : label, native };
+  };
+  function init(callbacks) {
+    api = callbacks;
+    $('workspaceMenu').addEventListener('click', () => {
+      const open = document.body.classList.toggle('workspace-nav-open');
+      $('workspaceMenu').setAttribute('aria-expanded', String(open));
+    });
+    $('sideNav').addEventListener('click', e => {
+      if (e.target.closest('button')) { document.body.classList.remove('workspace-nav-open'); $('workspaceMenu').setAttribute('aria-expanded','false'); }
+    });
+    $('workspaceInspector').addEventListener('click', e => {
+      if(e.target.closest('[data-inspector-close]')) { inspected=null; renderInspector(); }
+      if(e.target.closest('[data-inspector-detail]') && inspected) api.detail(inspected);
+    });
+    $('rolloutSteps').addEventListener('click', e => {
+      const b=e.target.closest('[data-rollout-step]'); if(!b)return;
+      step=Number(b.dataset.rolloutStep);renderRollout();
+    });
+    $('rolloutBody').addEventListener('change', e => {
+      if(!e.target.matches('[data-rollout-check]'))return;
+      e.target.checked?checks.add(e.target.dataset.rolloutCheck):checks.delete(e.target.dataset.rolloutCheck);
+      renderRollout(e.target.dataset.rolloutCheck);
+    });
+    $('rolloutBody').addEventListener('click', e => {
+      const b=e.target.closest('[data-rollout-action]');if(!b)return;
+      const action=b.dataset.rolloutAction;
+      if(action==='next'){step=Math.min(3,step+1);renderRollout();}
+      else if(action==='state'){if(checks.size===3 && current.selected.size)api.state();}
+      else api.action(action);
+    });
+    document.querySelectorAll('[data-workspace-tool]').forEach(b=>b.addEventListener('click',()=>api.action(b.dataset.workspaceTool)));
+  }
+  function update(data) {
+    if(current && current.tenant!==data.tenant){checks.clear();inspected=null;step=0;}
+    if(current && (current.readAt!==data.readAt || [...current.selected].join()!==[...data.selected].join()))checks.clear();
+    current={...data,selected:new Set(data.selected)};
+    $('workspaceContext').textContent=data.tenant?`${data.tenant} · ${data.demo?'Demo · sample data':APP_BUILD.isBeta?'Beta':'Live'}`:'';
+    $('workspaceContext').hidden=!data.tenant;
+    $('workspaceMenu').hidden=!data.tenant;
+    const p=data.policies;
+    $('workspaceRead').textContent=`${data.demo?'Sample snapshot':'Policy snapshot'} · ${data.readAt?new Date(data.readAt).toLocaleString():'not read'}`;
+    $('workspaceCounts').innerHTML=[['Policies',p.length],['On',p.filter(x=>x.state==='on').length],['Report-only',p.filter(x=>x.state==='report').length],['Off',p.filter(x=>x.state==='off').length]].map(([label,n])=>`<div><span>${label}</span><strong>${n}</strong></div>`).join('');
+    $('workspaceListMeta').textContent=`${data.visible.length} policies shown · ${data.selected.size} selected`;
+    $('workspaceHeading').hidden=data.view==='analyze';
+    $('workspaceCounts').hidden=data.view==='analyze';
+    $('workspaceListMeta').hidden=data.view==='analyze';
+    $('workspaceInspector').hidden=data.view!=='list';
+    $('policyWorkspace').classList.toggle('with-inspector',data.view==='list'&&!!inspected);
+    renderInspector();
+    if($('screen-rollout').classList.contains('active'))renderRollout();
+  }
+  function inspect(id) { inspected=id;renderInspector(); }
+  function renderInspector() {
+    const host=$('workspaceInspector');
+    const p=current?.policies.find(p=>p.id===inspected);
+    host.hidden=!p || current.view!=='list';
+    $('policyWorkspace').classList.toggle('with-inspector',!!p&&current.view==='list');
+    if(!p)return;
+    const n=names(p);
+    host.innerHTML=`<div class="workspace-panel-head"><span>POLICY DETAILS</span><button class="btn sm" data-inspector-close aria-label="Close policy details">✕</button></div>
+      <h2>${esc(n.title)}</h2><p class="workspace-native">${esc(n.native)}</p><span class="state ${esc(p.state)}">${state(p.state)}</span>
+      <dl>${[['Includes',p.users.inc],['Excludes',p.users.exc],['Resources',p.apps.inc],['Grant controls',p.grant.controls]].map(([l,v])=>`<dt>${l}</dt><dd>${esc(v.join(' · ')||'None configured')}</dd>`).join('')}<dt>Operator</dt><dd>${esc(p.raw.grantControls?.operator||'Not configured')}</dd><dt>Modified</dt><dd>${esc(p.modified||'Not available')}</dd></dl>
+      <button class="btn primary" data-inspector-detail>Open full policy & actions →</button><details><summary>Original definition</summary><pre>${esc(JSON.stringify(p.raw,null,2))}</pre></details>`;
+  }
+  function review(result,filter,categories,meta={}) {
+    const order={critical:0,high:1,medium:2,low:3,info:4};
+    const list=result.findings.filter(f=>(filter==='all'||f.severity===filter)&&(!categories?.length||categories.includes(f.category))).sort((a,b)=>(order[a.severity]??5)-(order[b.severity]??5));
+    if(!list.length)return '<div class="workspace-empty">No findings match these filters. This is a configuration review; it does not prove effective access.</div>';
+    reviewIndex=Math.min(reviewIndex,list.length-1);
+    const f=list[reviewIndex];
+    return `<div class="review-desk"><div class="review-queue" aria-label="Findings, ordered by severity">${list.map((f,i)=>`<button data-review-pick="${i}" aria-pressed="${i===reviewIndex}" class="review-item ${i===reviewIndex?'active':''}"><span class="review-severity ${esc(f.severity)}">${esc(f.severity)}</span><b>${esc(f.title)}</b><small>${esc(f.policyName)}</small></button>`).join('')}</div>
+      <article class="review-evidence"><span class="workspace-eyebrow">${esc(f.category)} · Configuration evidence</span><h2>${esc(f.title)}</h2><p class="workspace-native">${esc(f.policyName)}</p>
+      <div class="workspace-source">Source: policy snapshot + Bypass & Swiss cheese rules.<br>${meta.readAt?`Read ${esc(new Date(meta.readAt).toLocaleString())}. `:''}${meta.demo?'Sample data. ':''}${meta.incomplete?'Context incomplete: '+esc(meta.incomplete):'Context read for this review.'} Sign-in impact and effective membership are separate checks.</div>
+      <h3>What was found</h3><p>${esc(f.description)}</p><h3>Recommended next step</h3><p>${esc(f.recommendation)}</p>
+      ${f.policyId?`<button class="btn primary pol-link" data-polid="${esc(f.policyId)}">Inspect affected policy →</button>`:''}
+      <details><summary>How to interpret this result</summary><p>This rule inspects configuration. Review exclusions, actual group membership and sign-in evidence before changing enforcement. No compliance certification or effective-access guarantee is implied.</p></details></article></div>`;
+  }
+  function pickReview(index){reviewIndex=index;}
+  function openRollout(){renderRollout();}
+  function renderRollout(focusCheck) {
+    if(!current)return;
+    const picked=current.policies.filter(p=>current.selected.has(p.id));
+    const impact=api.impact();
+    $('rolloutSteps').innerHTML=['Scope','Plan','Observed impact','Go live'].map((name,i)=>`<button data-rollout-step="${i}" aria-current="${step===i?'step':'false'}" class="${step===i?'active':''}"><span>${i+1}</span>${name}</button>`).join('');
+    const head=`<div class="workspace-source">${esc(current.tenant)} · ${current.demo?'Demo — writes are simulated':'Tenant changes use the existing confirmation flow'} · ${picked.length} selected policies</div>`;
+    const selection=`<div class="rollout-selection">${picked.length?picked.map(p=>`<div><b>${esc(names(p).title)}</b><span class="state ${esc(p.state)}">${state(p.state)}</span><small>${esc(p.name)}</small></div>`).join(''):'No policies selected. Choose policies in the policy workspace, or prepare a new baseline import.'}</div>`;
+    const action=(key,label,primary=false)=>`<button class="btn ${primary?'primary':''}" data-rollout-action="${key}">${label}</button>`;
+    let content;
+    if(step===0)content=`<h2>Start with a deliberate scope</h2><p>Select the policies for this rollout. Keep emergency access and exclusions visible throughout the change.</p>${selection}<div class="workspace-actions">${action('policies','Choose policies',true)}${action('baseline','Compare a baseline')}${action('guide','Check deployment prerequisites')}</div>`;
+    if(step===1)content=`<h2>Prepare the plan and rollback</h2><p>Export the current definitions, review dependencies, and stage new policies. Imports create disabled policies first and read them back before restoring an approved replacement state.</p>${selection}<div class="workspace-actions">${action('backup','Back up selected policies',true)}${action('import','Prepare an import')}${action('groups','Review groups & exclusions')}</div><p class="workspace-source">A backup is a file you must keep. ENCA does not automatically certify that you saved it or that rollback has been tested.</p>`;
+    if(step===2)content=`<h2>Read what report-only would change</h2><p>Use observed sign-ins for the proposed scope. A window with no matching sign-ins gives no evidence of a safe rollout.</p><div class="rollout-metrics">${impact?`<div><b>${impact.records}</b><span>sign-ins in the loaded window</span></div><div><b>${impact.blockedUsers}</b><span>users with a predicted denial</span></div><div><b>${impact.promptedUsers}</b><span>users with a predicted prompt</span></div>`:'No completed impact read in this session.'}</div><p class="workspace-source">${impact?`Read ${esc(new Date(impact.readAt).toLocaleString())}; ${impact.days} days. These totals describe the loaded impact report, not necessarily your selection. Open the report to confirm policy coverage, caps and unresolved records.`:'Impact is not checked yet. Read report-only impact before deciding to enforce.'}</p><div class="workspace-actions">${action('impact','Open report-only impact',true)}${action('checks','Review configuration findings')}${action('whatif','Test a sign-in scenario')}</div>`;
+    if(step===3)content=`<h2>Review before enforcement</h2><p>These are your acknowledgements. They are not automated validation or a claim that the rollout is safe.</p>${selection}<div class="rollout-checks">${[['scope','I reviewed the selected policies, exclusions and emergency access.'],['backup','I saved the current definitions and have a rollback procedure.'],['impact','I reviewed sign-in impact and accept any missing evidence.']].map(([key,label])=>`<label><input type="checkbox" data-rollout-check="${key}" ${checks.has(key)?'checked':''}>${label}</label>`).join('')}</div><button class="btn primary" data-rollout-action="state" ${checks.size!==3||!picked.length?'disabled':''}>Review policy state change →</button><p class="workspace-source">The next screen names each proposed state. Its confirmation and permission checks still apply. Refreshing the policy snapshot or changing selection clears these acknowledgements.</p>`;
+    $('rolloutBody').innerHTML=head+`<div class="rollout-content">${content}${step<3?`<div class="rollout-next">${action('next','Continue →')}</div>`:''}</div>`;
+    if(focusCheck)$('rolloutBody').querySelector(`[data-rollout-check="${focusCheck}"]`)?.focus();
+  }
+  return {init,update,inspect,names,review,pickReview,openRollout};
+})();

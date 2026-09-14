@@ -968,12 +968,12 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 @keyframes ruFlash{0%{box-shadow:0 0 0 3px var(--accent2)}100%{box-shadow:0 0 0 0 transparent}}
 
 
-.tool{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;cursor:pointer;transition:.15s;
+.tool-tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;cursor:pointer;transition:.15s;
   background-image:radial-gradient(300px 160px at 90% -40px,var(--glow) 0%,transparent 60%)}
-.tool:hover{border-color:var(--accent2);transform:translateY(-2px)}
+.tool-tile:hover{border-color:var(--accent2);transform:translateY(-2px)}
 .tool-ic{font-size:30px;margin-bottom:12px}
-.tool h3{font-size:17px;letter-spacing:-.01em;margin-bottom:8px;color:var(--green)}
-.tool p{font-size:13px;color:var(--muted);line-height:1.5}
+.tool-tile h3{font-size:17px;letter-spacing:-.01em;margin-bottom:8px;color:var(--green)}
+.tool-tile p{font-size:13px;color:var(--muted);line-height:1.5}
 .readme{margin-top:26px;padding:26px;max-width:1180px}
 .readme h3{font-size:16px;margin-bottom:10px;color:var(--green)}
 .readme h4{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin:18px 0 6px}
@@ -1127,7 +1127,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 :root[data-theme="dark"] .logo img, :root[data-theme="dark"] .login-card > img{content:url("../assets/logo-mark-dark.svg?v=25163")}
 
 /* the site's own treatment: white card titles, lemon pill, lemon CTA, hero glow */
-:root[data-theme="dark"] .tool h3, :root[data-theme="dark"] .readme h3{color:var(--lemon)}
+:root[data-theme="dark"] .tool-tile h3, :root[data-theme="dark"] .readme h3{color:var(--lemon)}
 :root[data-theme="dark"] .tag.new{background:var(--soft);border-color:var(--ghost-bd);color:var(--lemon);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 :root[data-theme="dark"] .btn.primary{background:var(--lemon);border-color:var(--lemon)}
 :root[data-theme="dark"] .btn.primary:hover{background:var(--lemon-deep);border-color:var(--lemon-deep)}
@@ -1147,7 +1147,7 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn:hover,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x:hover{background:rgba(0,0,0,.12);color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .fs-bg{background:rgba(0,0,0,.62)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .logo img, :root:not([data-theme="light"]):not([data-theme="dark"]) .login-card > img{content:url("../assets/logo-mark-dark.svg?v=25163")}
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .tool h3, :root:not([data-theme="light"]):not([data-theme="dark"]) .readme h3{color:var(--lemon)}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .tool-tile h3, :root:not([data-theme="light"]):not([data-theme="dark"]) .readme h3{color:var(--lemon)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .tag.new{background:var(--soft);border-color:var(--ghost-bd);color:var(--lemon);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary{background:var(--lemon);border-color:var(--lemon)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary:hover{background:var(--lemon-deep);border-color:var(--lemon-deep)}
@@ -1240,7 +1240,7 @@ button.bl-chip.active{box-shadow:0 0 0 2px currentColor inset}
 footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospace,Consolas,monospace}
 
 /* per-tool version, tucked into the tile corner */
-.tool{position:relative}
+.tool-tile{position:relative}
 .tool-ver{position:absolute;top:14px;right:16px;font-size:10.5px;letter-spacing:.04em;
   font-family:ui-monospace,Consolas,monospace;color:var(--muted);background:var(--soft);
   border:1px solid var(--border);border-radius:999px;padding:2px 8px;cursor:help;white-space:nowrap}
@@ -1248,8 +1248,8 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
    ON it. Carrying the T-number as well as the version made it wide enough for
    that to matter, so the heading is kept clear of it and its NEW / UPDATED
    chips wrap instead of sliding underneath. */
-.tool h3{padding-right:104px}
-.tool:hover .tool-ver{border-color:var(--accent2);color:var(--green)}
+.tool-tile h3{padding-right:104px}
+.tool-tile:hover .tool-ver{border-color:var(--accent2);color:var(--green)}
 /* the same stamp, on the tool's own header card */
 .tool-ver-head{margin-left:9px;font-size:10.5px;letter-spacing:.04em;font-weight:400;vertical-align:middle;
   font-family:ui-monospace,Consolas,monospace;color:var(--muted);background:var(--soft);

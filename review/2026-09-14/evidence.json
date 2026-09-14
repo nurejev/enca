@@ -1,0 +1,114 @@
+{
+  "commit": "8ec00e815f4548e0b1aec4d8772fc17cf899b21a",
+  "probes": 10,
+  "findings": [
+    {
+      "name": "Insider risk string ignored: elevated-only block applies to minor risk",
+      "actual": {
+        "blocked": true,
+        "warnings": []
+      }
+    },
+    {
+      "name": "Compound filter: compliant non-hybrid device incorrectly excluded from block",
+      "actual": {
+        "blocked": false,
+        "reason": "Device does not match the policy's device filter"
+      }
+    },
+    {
+      "name": "Shared scope and What-If disagree for legacy guest token",
+      "actual": {
+        "scopeApplies": true,
+        "whatIfApplies": false
+      }
+    },
+    {
+      "name": "Guest type and tenant restriction discarded by scope preparation",
+      "actual": {
+        "applies": true,
+        "preparedGuestFlag": true
+      }
+    },
+    {
+      "name": "Unread exclusion group becomes empty, user reported MFA-covered",
+      "actual": {
+        "mfaCovered": true,
+        "riskyCount": 0,
+        "collectionKeys": [
+          "lookup",
+          "users",
+          "scopeGroups",
+          "ctx"
+        ]
+      }
+    },
+    {
+      "name": "MFA alternative is counted as MFA coverage for an OR grant",
+      "actual": {
+        "controls": {
+          "operator": "OR",
+          "builtInControls": [
+            "mfa",
+            "compliantDevice"
+          ]
+        },
+        "mfaCovered": true
+      }
+    },
+    {
+      "name": "Replacement remains enabled after unresolved new break-glass exclusion",
+      "actual": {
+        "newState": "enabled",
+        "exclusions": [],
+        "oldState": "disabled",
+        "result": {
+          "name": "Review fixture",
+          "ok": true,
+          "personaGroup": null,
+          "matched": true,
+          "switched": false,
+          "disabledOld": true,
+          "oldName": "Previous",
+          "state": "enabled",
+          "dropped": []
+        },
+        "warnings": [
+          "Review fixture: new exclusion \"BreakGlass\" could not be added — unresolved group \"BreakGlass\" — create it in this tenant first"
+        ]
+      }
+    },
+    {
+      "name": "Batch retries exceed retry budget and lose explicit API version",
+      "actual": {
+        "requests": 8,
+        "endpoints": [
+          "https://graph.microsoft.com/v1.0/$batch",
+          "https://graph.microsoft.com/beta/$batch",
+          "https://graph.microsoft.com/beta/$batch",
+          "https://graph.microsoft.com/beta/$batch",
+          "https://graph.microsoft.com/beta/$batch",
+          "https://graph.microsoft.com/beta/$batch",
+          "https://graph.microsoft.com/beta/$batch",
+          "https://graph.microsoft.com/beta/$batch"
+        ]
+      }
+    },
+    {
+      "name": "Demo contains duplicate policy IDs",
+      "actual": {
+        "total": 12,
+        "unique": 11,
+        "duplicateIds": [
+          "d7"
+        ]
+      }
+    },
+    {
+      "name": "All application JavaScript parses",
+      "actual": {
+        "files": 67
+      }
+    }
+  ]
+}

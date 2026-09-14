@@ -179,7 +179,7 @@ const Validator = (() => {
   // simulations where it produced none. The returned field names are unchanged.
   function appliesTo(p, target) {
     const r = CaScope.of(p, target);
-    return { applies: r.applies, included: r.included, excluded: r.excluded, via: r.via, byAll: r.byAll, inc: r.inc, exc: r.exc };
+    return { unknown: r.state === "unknown", reason: r.reason, applies: r.applies, included: r.included, excluded: r.excluded, via: r.via, byAll: r.byAll, inc: r.inc, exc: r.exc };
   }
 
   function simulatePolicy(p, names, target) {
@@ -190,6 +190,7 @@ const Validator = (() => {
     let users, scope = null;
     if (target) {
       const ap = appliesTo(p, target);
+      if (ap.unknown) return { sims: [], skipped: "Scope unknown: " + ap.reason };
       if (!ap.applies) return { sims: [], outOfScope: true, scope: ap };
       scope = ap;
       // the target is in scope → represent it as the single included principal

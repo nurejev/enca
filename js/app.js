@@ -35,7 +35,7 @@
   let tenantLogo = null;      // tenant branding logo (data URL) for neutral exports
   let selected = new Set();
   let collapsedGroups = new Set();  // collapsed persona sections in cards view
-  let stateFilter = "all", query = "", viewMode = "cards", fmt = "png";
+  let stateFilter = "all", query = "", viewMode = "list", fmt = "png";
   let currentExport = [];
   let isDemo = false;
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
@@ -132,7 +132,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
-    "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-rollout", "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -1663,6 +1663,7 @@
     updateSelbar();
     syncCollapseAllBtn();
     syncHkBtn();
+    syncWorkspace();
   }
   function groupIds(key) {
     return visible().filter(p => String(Render.caGroup(p.name).key) === String(key)).map(p => p.id);
@@ -1674,10 +1675,11 @@
   // Which policy view Gap analyse was opened from, so leaving it puts you back
   // where you were instead of always on Cards. Entering from the home tile has
   // no meaningful previous view, and the last one used is the best guess there.
-  let viewBeforeAnalyze = "cards";
+  let viewBeforeAnalyze = "list";
   function setView(v) {
     if (v === "analyze" && viewMode !== "analyze") viewBeforeAnalyze = viewMode || "cards";
     viewMode = v;
+    syncWorkspace();
     $("cardsView").style.display = v === "cards" ? "grid" : "none";
     $("listView").style.display = v === "list" ? "block" : "none";
     $("matrixView").style.display = v === "matrix" ? "block" : "none";
@@ -1776,7 +1778,8 @@
     if (n) setTimeout(() => toast(`⚠ ${n} object name(s) could not be resolved — exports will show raw IDs for these`), 3500);
   }
 
-  function showDetail(id) {
+  function showDetail(id, full = false) {
+    if (!full && viewMode === "list" && $("screen-list").classList.contains("active")) { Workspace.inspect(id); return; }
     const p = policies.find(x => x.id === id); if (!p) return;
     // The what-if flow is opt-in (a button under the card) so the detail stays
     // compact until you actually want to trace what the policy does.
@@ -2410,6 +2413,7 @@
     ["toolRmau", "🛡 Restricted AUs"],
     ["toolUserImpact", "🗣 User impact brief"],
     ["toolImport", "📥 Import"],
+    ["toolDeploy", "↗ Guided rollout"],
   ];
   // Help is a tool too, but always sits last (after the + in the tab bar).
   TOOL_TABS.push(["toolChangelog", "📋 What's new"]);
@@ -3289,9 +3293,9 @@
       imPlan.map((p, i) => `<li data-imrow="${i}" data-imkey="${esc(imPersonaKey(p))}"><label class="chk" style="margin:0">
         <input type="checkbox" data-imp="${i}" ${p.exists || imWidBlocked(p) ? "disabled" : "checked"}>
         ${p.exists ? '<span class="tag">skip</span>' : imWidBlocked(p) ? '<span class="tag block" title="Conditional Access for workload identities requires the Microsoft Entra Workload ID licence">🔒 no Workload ID licence</span>' : p.upgrade ? '<span class="tag grant">update</span>' : p.asIs ? '<span class="tag new">as-is</span>' : `<span class="tag grant">import</span>`}
-        ${p.needsTou ? '<span class="tag block" title="Grants a Terms of use — create the ToU in the portal first, then re-import; it imports now without that control">📜 needs ToU</span>' : ""}
+        ${p.needsTou ? '<span class="tag block" title="Grants a Terms of use — create the ToU in the portal first, then re-import; unresolved controls stop the import">📜 needs ToU</span>' : ""}
         ${esc(p.name)}
-        <span class="mini">${rowHint(p)}${p.needsTou && !p.exists ? ' · <span style="color:var(--off)">imports without the Terms of use until you create it</span>' : ""}</span>
+        <span class="mini">${rowHint(p)}${p.needsTou && !p.exists ? ' · <span style="color:var(--off)">requires a resolved Terms of use before import</span>' : ""}</span>
       </label></li>`).join("") + "</ul>";
     $("imGo").style.display = importable.length ? "inline-flex" : "none";
     updateImGo();
@@ -3515,7 +3519,7 @@
         res.results = chosen.map(p => {
           const matched = imMode === "replace" && p.upgrade;
           const sup = (imMode === "replace" || imMode === "switch") && p.upgrade;
-          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching ? null : p.personaGroup, matched, switched: !!switching, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : "disabled" };
+          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching ? null : p.personaGroup, matched, switched: !!switching, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : p.asIs ? p.raw.state : "disabled", asIs: p.asIs };
         });
         depLog.created = scoped.groups.map(g => "Group: " + g.displayName + " (assigned)");
         if (switching) {
@@ -3541,7 +3545,7 @@
           }
         }
         L.done(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused (simulated)`, "ready");
-        for (let i = 0; i < chosen.length; i++) { L.start(i + 1); await new Promise((r) => setTimeout(r, 40)); L.done(i + 1, "imported, Off (simulated)", "imported"); }
+        for (let i = 0; i < chosen.length; i++) { L.start(i + 1); await new Promise((r) => setTimeout(r, 40)); L.done(i + 1, `imported, ${res.results[i].state === "enabled" ? "On" : res.results[i].state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"} (simulated)`, "imported"); }
       } else {
         const dep = await Importer.ensureDependencies(scoped, depSay, { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
@@ -3556,7 +3560,7 @@
             if (phase === "start") { L.start(i + 1); return; }
             if (!r) return;
             if (r.stopped) { L.skip(i + 1, "stopped"); stoppedEarly = true; return; }
-            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : "created"}, Off${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}`, "imported");
+            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : "created"}, ${r.state === "enabled" ? "On" : r.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"}${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}`, "imported");
             else L.fail(i + 1, r.error || "refused", "refused");
           },
         });
@@ -3581,8 +3585,8 @@
       else { $("imGo").style.display = "none"; imHost.insertAdjacentHTML("beforeend", `<p class="mini" style="margin-top:10px;color:var(--off)"><b>${failed} refused${stoppedEarly ? ", stopped early" : ""}</b> — the reasons are on the rows and in the report; Close when read.</p>`); }
       showReport("📥 Import report", "CA-Import-Report", md);
       toast(failed ? `Import done with <span>${failed} failure(s)</span>`
-        : `Imported <span>${res.results.length}</span> policies (Off)${isDemo ? " (simulated)" : ""}`);
-      if (!isDemo && res.results.some(r => r.ok)) await loadFromGraph(true);
+        : `Imported <span>${res.results.length}</span> policies (${["enabled", "enabledForReportingButNotEnforced", "disabled"].map(s => `${res.results.filter(r => r.ok && r.state === s).length} ${s === "enabled" ? "On" : s === "disabled" ? "Off" : "Report-only"}`).join(", ")})${isDemo ? " (simulated)" : ""}`);
+      if (!isDemo && res.results.some(r => r.ok || r.createdId)) await loadFromGraph(true);
     } catch (e) {
       console.error(e); toast(`Import failed: <span>${esc(e.message || e)}</span>`);
       try { L.finish(); } catch {}
@@ -8921,7 +8925,7 @@ This is a directory write. Nothing else changes.`)) return;
   });
   $("plFull").addEventListener("click", () => Fs.open("Policy settings matrix", { body: $("matrixView") }));
   $("anFull").addEventListener("click", () => Fs.open("Users × policies impact matrix", { body: $("anMatrixWrap") }));
-  $("gcFull").addEventListener("click", () => Fs.open("Persona × control coverage", { body: $("gcMatrix") }));
+  $("gcFull").addEventListener("click", () => { const d = $("gcMatrix").querySelector("details"); if (d) d.open = true; Fs.open("Persona × control coverage", { body: $("gcMatrix") }); });
   $("exSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; renderExclusions(); });
   const EX_TABS = { matrix: "exTabMatrix", users: "exTabUsers", risk: "exTabRisk" };
   for (const [tab, id] of Object.entries(EX_TABS)) {
@@ -13318,6 +13322,7 @@ This is a directory write. Nothing else changes.`)) return;
   // answer needs the denominator, not just the failures.
   let riRes = null, riDays = 7, riView = "policies", riQuery = "", riFilter = "all";
   let riBusy = false, riCapped = false;
+  let riReadAt = null, riReadTenant = "";
   const riOpen = new Set();
   // Same shared fetch-progress visual as Sign-in failures and Change audit.
   const riProg = makeProgress("ri"); riProg.by = "🎚 Report-only impact"; riProg.stoppable = true;
@@ -13382,6 +13387,7 @@ This is a directory write. Nothing else changes.`)) return;
       }
       riReused = reused; riPartial = null;
       riRes = ReportImpact.build(records, riTenantRo());
+      riReadAt = Date.now(); riReadTenant = tenantId || tenantName;
       riOpen.clear(); riFilter = "all";
       riBusy = false;
       $("riRescan").style.display = "";
@@ -15239,7 +15245,7 @@ This is a directory write. Nothing else changes.`)) return;
           });
           wiNames = {};
           mem.forEach((o) => { if (o.displayName) wiNames[o.id] = o.displayName; });
-        } catch (e) { console.warn("what-if: membership lookup failed", e.message); }
+        } catch (e) { sc.groupsComplete = false; sc.rolesComplete = false; }
       }
       // ---- target resource ----
       const appSel = $("wiApp").value;
@@ -15266,7 +15272,7 @@ This is a directory write. Nothing else changes.`)) return;
       // ---- named locations (once) ----
       if (!wiLocations) {
         try { wiLocations = isDemo ? [] : await Graph.ggetAll("/identity/conditionalAccess/namedLocations"); }
-        catch (e) { wiLocations = []; console.warn("what-if: named locations failed", e.message); }
+        catch (e) { throw new Error(`Named locations unavailable: ${e.message}. Evaluation stopped.`); }
       }
       // group names for the "excluded via …" reasons
       try {
@@ -15319,9 +15325,11 @@ This is a directory write. Nothing else changes.`)) return;
       : "";
     const verdict = (r.blocked
       ? `<div class="wi-verdict block">⛔ Access would be <b>blocked</b> by ${(r.blockers || []).length === 1 ? "" : `${r.blockers.length} policies: `}${nameList(r.blockers || [])}</div>`
+      : !r.complete
+        ? `<div class="wi-verdict none">Evaluation incomplete: ${r.indeterminate.length} policies need more evidence. Access cannot be determined.</div>`
       : allControls.length
-        ? `<div class="wi-verdict grant">✅ Access granted after satisfying: <b>${esc(allControls.map(wiCtrl).join(", "))}</b></div>`
-        : `<div class="wi-verdict none">✅ No grant control required by any enforced policy</div>`) + roNote;
+        ? `<div class="wi-verdict grant">Applicable controls to satisfy: <b>${esc(allControls.map(wiCtrl).join(", "))}</b></div>`
+        : `<div class="wi-verdict none">No enforced grant control found for this scenario</div>`) + roNote;
 
     const applied = r.applied.length ? r.applied.map((p) => `<li>
         <div class="wi-pn"><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">report-only</span>' : ""}${(p.grant || []).includes("block") ? (p.state === "enabledForReportingButNotEnforced" ? ' <span class="tag">would block once enforced</span>' : ' <span class="tag block">⛔ this is the block</span>') : ""}</div>
@@ -15377,7 +15385,7 @@ This is a directory write. Nothing else changes.`)) return;
         <ul class="wi-list">${applied}</ul>
       </div>
       <div class="list-card wi-res">
-        <h4 class="wi-h">Policies that do not apply <span class="mini muted">${r.notApplied.length}</span></h4>
+        <h4 class="wi-h">Not applied or unresolved <span class="mini muted">${r.notApplied.length}</span></h4>
         ${naFilters}
         <ul class="wi-list dim">${notApplied || '<li class="mini muted">None — every evaluated policy applies.</li>'}</ul>
       </div>
@@ -15413,15 +15421,15 @@ This is a directory write. Nothing else changes.`)) return;
       // in a list of ten is the version that gets pasted into a ticket.
       `**Result:** ${r.blocked
         ? `access would be **BLOCKED** by ${(r.blockers || []).map((b) => b.name).join(", ")}`
-        : "access granted after satisfying the controls below"}`,
+        : !r.complete ? "INCOMPLETE — access cannot be determined; unresolved policies listed below" : "applicable controls listed below; this simulation does not prove access"}`,
       ...((r.blockersReportOnly || []).length
-        ? [`**Report-only:** ${r.blockersReportOnly.map((b) => b.name).join(", ")} would block once enforced — ${r.blocked ? "in addition to the above" : "today this sign-in succeeds"}.`]
+        ? [`**Report-only:** ${r.blockersReportOnly.map((b) => b.name).join(", ")} would block once enforced — ${r.blocked ? "in addition to the above" : "this simulation does not prove access"}.`]
         : []), "",
       `## Policies that apply (${r.applied.length})`, ""];
     r.applied.forEach((p) => L.push(`- **${p.name}**${p.state === "enabledForReportingButNotEnforced" ? " *(report-only)*" : ""}${(p.grant || []).includes("block") ? (p.state === "enabledForReportingButNotEnforced" ? " ⛔ *would block once enforced*" : " ⛔ **this is the block**") : ""} — grant: ${(p.grant || []).map(wiCtrl).join(", ") || "none"}${(p.session || []).length ? `; session: ${p.session.join(" · ")}` : ""}`));
     const naBy = {};
     r.notApplied.forEach((p) => { naBy[p.why || "other"] = (naBy[p.why || "other"] || 0) + 1; });
-    L.push("", `## Policies that do not apply (${r.notApplied.length})`, "");
+    L.push("", `## Not applied or unresolved (${r.notApplied.length})`, "");
     const naSum = Object.entries(naBy).sort((a, b) => b[1] - a[1])
       .map(([w, n]) => `${n} ${(WhatIfEval.WHY_LABEL || {})[w] || w}`).join(" · ");
     if (naSum) L.push(`_${naSum}_`, "");
@@ -17531,14 +17539,15 @@ This is a directory write. Nothing else changes.`)) return;
     gcCtx = { strengths: new Map(), namedLocations: [], names: {} };
     try {
       gcCtx.caSettings = await readCaSettings();
+      if (!gcCtx.caSettings) gcCtx.incomplete = "Conditional Access settings not read";
       if (isDemo) {
         Object.entries(DEMO_DATA.depSettings || {}).forEach(([k, v]) => { if (k.startsWith("authStrength:")) gcCtx.strengths.set(v.id, v); });
         gcCtx.names = DEMO_DATA.names || {};
         gcCtx.namedLocations = DEMO_DATA.namedLocations || [];
       } else {
         const [strengths, locations] = await Promise.all([
-          Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(() => []),
-          Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(() => []),
+          Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(e => { gcCtx.incomplete = `Authentication strengths unavailable: ${e.message}`; return []; }),
+          Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(e => { gcCtx.incomplete = [gcCtx.incomplete, `Named locations unavailable: ${e.message}`].filter(Boolean).join("; "); return []; }),
         ]);
         strengths.forEach(s => gcCtx.strengths.set(s.id, s));
         gcCtx.namedLocations = locations;
@@ -17558,13 +17567,13 @@ This is a directory write. Nothing else changes.`)) return;
           } catch (e) { console.warn("Break-glass name lookup failed:", e.message); }
         }
       }
-    } catch (e) { console.warn("Best-practice checks context fetch failed:", e.message); }
+    } catch (e) { gcCtx.incomplete = e.message; }
     runGapCheck();
   }
   function runGapCheck() {
     const scope = checkScope($("gcDisabled").checked);
     gcResult = GapCheck.run(scope.raws, gcCtx, { includeDisabled: scope.includeDisabled });
-    gcMeta = { tenantName, policyCount: scope.raws.length, includeDisabled: scope.includeDisabled, skipped: scope.skipped };
+    gcMeta = { tenantName, incomplete: gcCtx?.incomplete || null, policyCount: scope.raws.length, includeDisabled: scope.includeDisabled, skipped: scope.skipped };
     gcFilter = "all"; gcCats = null; gcExpanded.clear();
     renderGapCheck();
   }
@@ -17591,8 +17600,8 @@ This is a directory write. Nothing else changes.`)) return;
   $("gcDisabled").addEventListener("change", runGapCheck);
   function renderGapCheck() {
     if (!gcResult) return;
-    $("gcHead").innerHTML = GapCheck.renderSummary(gcResult, gcCats);
-    $("gcMatrix").innerHTML = GapCheck.renderPersonaMatrix(gcResult.personas);
+    $("gcHead").innerHTML = toolHead("toolGapCheck") + '<p class="mini">Prioritized configuration findings. Select one to inspect the evidence and next step.</p>' + (gcCtx?.incomplete ? `<div class="workspace-source">Incomplete context: ${esc(gcCtx.incomplete)}. Findings are provisional; summary scores do not establish effective protection.</div>` : "") + `<details class="workspace-review-summary"><summary>Configuration scorecard</summary>${GapCheck.renderSummary(gcResult, gcCats)}</details>`;
+    $("gcMatrix").innerHTML = `<details class="workspace-review-summary"><summary>Persona coverage matrix</summary>${GapCheck.renderPersonaMatrix(gcResult.personas)}</details>`;
     $("gcFull").style.display = gcResult.personas.length ? "" : "none";
     // Severity counts respect an active scorecard category filter, so the
     // chips describe what is actually on screen.
@@ -17603,7 +17612,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("gcChips").innerHTML = catChip + [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
       .filter(([k]) => n(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${gcFilter === k ? "active" : ""}" data-gcf="${k}">${l} (${n(k)})</button>`).join("");
-    $("gcBody").innerHTML = GapCheck.renderFindings(gcResult, gcFilter, gcExpanded, gcCats);
+    $("gcBody").innerHTML = Workspace.review(gcResult, gcFilter, gcCats, { ...gcMeta, readAt: policiesReadAt, demo: isDemo, incomplete: gcCtx?.incomplete });
   }
   $("gcChips").addEventListener("click", (e) => {
     if (e.target.closest("[data-gccatclear]")) { gcCats = null; renderGapCheck(); return; }
@@ -17622,6 +17631,8 @@ This is a directory write. Nothing else changes.`)) return;
     renderGapCheck();
   });
   $("gcBody").addEventListener("click", (e) => {
+    const pick = e.target.closest("[data-review-pick]");
+    if (pick) { Workspace.pickReview(Number(pick.dataset.reviewPick)); renderGapCheck(); $("gcBody").querySelector(`[data-review-pick="${pick.dataset.reviewPick}"]`)?.focus(); return; }
     if (e.target.closest("[data-gcrun]")) { runGapCheckScan(); return; }
     const pl = e.target.closest(".pol-link");
     if (pl) { showDetail(pl.dataset.polid); return; }
@@ -18208,7 +18219,8 @@ This is a directory write. Nothing else changes.`)) return;
       status(`Done — ${users.length} users, ${lookup.length} policies.`);
     } catch (e) {
       console.error("Analysis failed:", e);
-      status("Analysis failed — see browser console.");
+      anReport = null; anCov = null;
+      status(`Analysis incomplete: ${e.message || e}`);
     } finally { $("anRun").disabled = false; $("anBusy").style.display = "none"; $("anBusy").innerHTML = ""; }
   });
 
@@ -20141,6 +20153,25 @@ This is a directory write. Nothing else changes.`)) return;
   $("tdMd").addEventListener("click", () => {
     if (!tdRes) { toast("Run the check first — the report is the result."); return; }
     showReport("📞 Teams devices", "CA-TeamsDevices", TeamsDev.toMd(tdRes, { tenantName }));
+  });
+
+  function syncWorkspace() {
+    Workspace.update({ policies, visible: visible(), selected, view: viewMode, tenant: tenantName, demo: isDemo, readAt: policiesReadAt });
+  }
+  function openRollout() { crumb("↗ Guided rollout"); show("screen-rollout"); syncWorkspace(); Workspace.openRollout(); }
+  $("toolDeploy").addEventListener("click", openRollout);
+  Workspace.init({
+    detail: id => showDetail(id, true),
+    impact: () => riBusy || riCapped || !riReadAt || riReadAt < policiesReadAt || riReadTenant !== (tenantId || tenantName) ? null : { ...riRes, readAt: riReadAt, days: riDays },
+    state: () => { $("toolPolicies").click(); $("selActState").click(); },
+    action: name => {
+      const ids = { policies: "toolPolicies", baseline: "toolBaseline", groups: "toolCaGroups", checks: "toolGapCheck", whatif: "toolWhatIf", import: "toolImport" };
+      if (name === "deploy") openRollout();
+      else if (name === "impact") openImpact();
+      else if (name === "guide") openGuide();
+      else if (name === "backup") { $("toolPolicies").click(); $("selActBackup").click(); }
+      else if (ids[name]) $(ids[name]).click();
+    },
   });
 
   // ---------- boot ----------

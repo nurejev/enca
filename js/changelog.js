@@ -29,6 +29,43 @@
 // ======================================================================
 const CHANGELOG = [
   {
+  "build": 25357,
+  "date": "2026-09-14",
+  "title": "A policy workspace with evidence before enforcement",
+  "items": [
+    {
+      "kind": "improved",
+      "tool": "Policies",
+      "text": "List-first policy workspace, original names alongside readable titles, a detail inspector, persistent tenant context, keyboard launchers and mobile navigation. Cards, matrix and export actions remain available."
+    },
+    {
+      "kind": "improved",
+      "tool": "Checks",
+      "text": "Prioritized findings alongside their assessment, recommendation and context limitations."
+    },
+    {
+      "kind": "new",
+      "tool": "Guided rollout",
+      "text": "Scope, plan, observed impact and go-live review, connected to the existing backup, import and state confirmations. Manual acknowledgements are clearly identified."
+    },
+    {
+      "kind": "fixed",
+      "tool": "Import",
+      "text": "Missing exclusions and app references stop the import. Policies are staged Off and verified before restoring an approved state or retiring a previous version; actual states and partial failures are reported."
+    },
+    {
+      "kind": "fixed",
+      "tool": "Analysis",
+      "text": "Unread memberships stop coverage; optional MFA does not count as mandatory MFA. Device expressions, insider risk and restricted external scope no longer produce unsupported certainty."
+    },
+    {
+      "kind": "fixed",
+      "tool": "All tools",
+      "text": "Bounded Graph batch retries, complete-or-failed exports, inherited self-hosting security headers, unique demo policy IDs, offline regression tests and CI checks."
+    }
+  ]
+},
+  {
     build: 25356, date: "2026-09-14", title: "\ud83d\udd17 The group analyzer joins the surface every other tool uses",
     items: [
       { kind: "improved", tool: "User or Group analyzer", text: "ITS COUNTS CAN SAY A NUMBER IS BAD NOW. They were grey pills whose only two states were grey-when-zero and green-when-picked \u2014 so in a tenant sweep, three ids a policy still names that the directory no longer has looked exactly like twenty-four groups. Every count is a verdict tile: the label, the figure, a line saying what it means, and a colour when the figure is something to act on. They are still the jumps and filters they were, so nothing you could click before stopped working." },

@@ -129,7 +129,10 @@ const Graph = (() => {
     // 25326: Graph's edge answered a sign-in page read with nginx's "502 Bad
     // Gateway" HTML wrapped in a JSON error, once, mid-window — transient by
     // definition, and a whole 30-day read died on it.
-    for (let attempt = 0; (r.status === 429 || r.status === 502 || r.status === 503 || r.status === 504) && attempt < MAX_RETRIES; attempt++) {
+    // A gateway failure may arrive after a write was committed. Retrying a
+    // create could duplicate it; only reads retry ambiguous 5xx responses.
+    const isRead = !opts.method || ["GET", "HEAD"].includes(opts.method.toUpperCase());
+    for (let attempt = 0; (r.status === 429 || (isRead && [502, 503, 504].includes(r.status))) && attempt < MAX_RETRIES; attempt++) {
       const ra = parseInt(r.headers.get("Retry-After"), 10);
       const waitMs = Number.isFinite(ra) ? ra * 1000 : Math.min(2 ** attempt * 1000, 20000);
       onThrottle(waitMs, attempt + 1);
@@ -259,7 +262,10 @@ const Graph = (() => {
       body: init && init.body ? JSON.stringify(init.body) : undefined,
     });
     let r = await send(await token(ARM_SCOPES));
-    for (let attempt = 0; (r.status === 429 || r.status === 502 || r.status === 503 || r.status === 504) && attempt < MAX_RETRIES; attempt++) {
+    // A gateway failure may arrive after a write was committed. Retrying a
+    // create could duplicate it; only reads retry ambiguous 5xx responses.
+    const isRead = !opts.method || ["GET", "HEAD"].includes(opts.method.toUpperCase());
+    for (let attempt = 0; (r.status === 429 || (isRead && [502, 503, 504].includes(r.status))) && attempt < MAX_RETRIES; attempt++) {
       const ra = parseInt(r.headers.get("Retry-After"), 10);
       const waitMs = Number.isFinite(ra) ? ra * 1000 : Math.min(2 ** attempt * 1000, 20000);
       onThrottle(waitMs, attempt + 1);
@@ -319,43 +325,47 @@ const Graph = (() => {
   // batch to v1.0 reads v1.0 resources. Needed for disableNesting, which only
   // v1.0 returns on some tenants (see NEST_V1 in js/cagroups.js).
   async function gbatch(requests, onProgress, opts = {}) {
-    const out = {};
+    const out = {}, all = requests || [];
     const endpoint = opts.base ? `${opts.base}/$batch` : "/$batch";
-    const parts = chunk(requests || [], 20);
+    const limit = Math.max(0, Math.min(5, opts.maxRetries ?? 3));
+    const stopped = () => opts.signal?.aborted || opts.shouldStop?.();
     let done = 0;
-    for (const part of parts) {
-      const body = {
-        requests: part.map((r) => ({
-          id: String(r.id), method: r.method || "GET", url: r.url,
-          // a POST with a body (checkMemberGroups) needs its content type
-          // stated inside the batch, or Graph answers 400 for that id alone
-          headers: r.body ? { ConsistencyLevel: "eventual", "Content-Type": "application/json" } : { ConsistencyLevel: "eventual" },
-          ...(r.body ? { body: r.body } : {}),
-        })),
-      };
-      let j = null;
-      try { j = await gpost(endpoint, body); }
-      catch (e) { part.forEach((r) => out[r.id] = { error: e.message || String(e) }); done += part.length; onProgress?.(done, requests.length); continue; }
-
-      // Individual 429s inside a batch carry their own Retry-After; retry those
-      // ids once rather than failing them.
-      const retry = [];
-      for (const resp of (j.responses || [])) {
-        if (resp.status >= 200 && resp.status < 300) out[resp.id] = { body: resp.body };
-        else if (resp.status === 429 || resp.status === 502 || resp.status === 503 || resp.status === 504) retry.push(resp);
-        else out[resp.id] = { error: (resp.body && resp.body.error && resp.body.error.message) || `HTTP ${resp.status}`,
-          code: (resp.body && resp.body.error && resp.body.error.code) || "", status: resp.status };
+    for (const part of chunk(all, 20)) {
+      let pending = part;
+      for (let attempt = 0; pending.length; attempt++) {
+        if (stopped()) { pending.forEach(r => out[r.id] = { error: "Batch cancelled", code: "cancelled" }); break; }
+        let j;
+        try {
+          j = await gpost(endpoint, { requests: pending.map(r => ({
+            id: String(r.id), method: r.method || "GET", url: r.url,
+            headers: { ConsistencyLevel: "eventual", ...(r.body ? { "Content-Type": "application/json" } : {}), ...(r.headers || {}) },
+            ...(r.body ? { body: r.body } : {}),
+          })) }, opts.scopes);
+        } catch (e) { pending.forEach(r => out[r.id] = { error: e.message || String(e) }); break; }
+        const byId = new Map((j.responses || []).map(r => [String(r.id), r]));
+        const again = []; let waitMs = 0;
+        for (const req of pending) {
+          const r = byId.get(String(req.id));
+          if (r && r.status >= 200 && r.status < 300) { out[req.id] = { body: r.body }; continue; }
+          // Retrying an ambiguous write can duplicate it; only reads and throttled
+          // (not executed) requests are eligible for automatic retry.
+          const transient = r && (r.status === 429 || ([502,503,504].includes(r.status) && (!req.method || req.method === "GET")));
+          if (transient && attempt < limit) {
+            again.push(req);
+            const raw = Object.entries(r.headers || {}).find(([k]) => k.toLowerCase() === "retry-after")?.[1];
+            const seconds = Number(raw);
+            const delay = raw && !Number.isFinite(seconds) ? Date.parse(raw) - Date.now() : (raw == null ? 5 : seconds) * 1000;
+            waitMs = Math.max(waitMs, Math.min(60000, Math.max(0, Number.isFinite(delay) ? delay : 5000)));
+          } else out[req.id] = { error: r?.body?.error?.message || (r ? `HTTP ${r.status}; retry limit reached` : "Batch response missing"), code: r?.body?.error?.code || "", status: r?.status };
+        }
+        pending = again;
+        if (pending.length) {
+          onThrottle(waitMs, attempt + 1);
+          // Small waits make cancellation responsive even with Retry-After.
+          for (let remaining = waitMs; remaining > 0 && !stopped(); remaining -= 250) await sleep(Math.min(250, remaining));
+        }
       }
-      if (retry.length) {
-        const waitMs = Math.max(...retry.map((r) => parseInt((r.headers || {})["Retry-After"], 10) || 5)) * 1000;
-        onThrottle(waitMs, 1);
-        await sleep(waitMs + 250);
-        const again = part.filter((r) => retry.some((x) => x.id === String(r.id)));
-        const res2 = await gbatch(again);
-        Object.assign(out, res2);
-      }
-      done += part.length;
-      onProgress?.(done, requests.length);
+      done += part.length; onProgress?.(done, all.length);
     }
     return out;
   }

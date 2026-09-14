@@ -58,8 +58,8 @@ const WhoIs = (() => {
         excUsers: new Set((u.excludeUsers || []).filter((x) => x !== "GuestsOrExternalUsers")),
         incGroups: u.includeGroups || [], excGroups: u.excludeGroups || [],
         incRoles: u.includeRoles || [], excRoles: u.excludeRoles || [],
-        incGuests: !!u.includeGuestsOrExternalUsers || (u.includeUsers || []).includes("GuestsOrExternalUsers"),
-        excGuests: !!u.excludeGuestsOrExternalUsers || (u.excludeUsers || []).includes("GuestsOrExternalUsers"),
+        incGuests: u.includeGuestsOrExternalUsers || (u.includeUsers || []).includes("GuestsOrExternalUsers"),
+        excGuests: u.excludeGuestsOrExternalUsers || (u.excludeUsers || []).includes("GuestsOrExternalUsers"),
         controls: (vm.grant && vm.grant.controls) || [],
         op: (vm.grant && vm.grant.op) || "",
         // the raw grant ids — the labels above are for reading, these are
@@ -548,7 +548,7 @@ const WhoIs = (() => {
       ["any", `Any state ${pill(byAssign.length, "zero")}`], ["on", `${dot("on")}Enforced ${pill(sCount("on"), "green")}`], ["ro", `${dot("ro")}Report-only ${pill(sCount("ro"), "amber")}`], ["off", `${dot("off")}Off ${pill(sCount("off"), "zero")}`],
     ].map(([k, l]) => `<button class="fchip${sfilter === k ? " active" : ""}" data-wo-sfilter="${k}">${l}</button>`).join("");
     const shown = byAssign.filter((r) => sfilter === "any" || r.state === sfilter);
-    const via = (r) => r.s === "inc" ? whyHtml(r.inc)
+    const via = (r) => r.s === "unknown" ? `<span class="mini">Unknown scope: ${esc(r.inc?.text || "External-user metadata unavailable")}</span>` : r.s === "inc" ? whyHtml(r.inc)
       : r.s === "exc" ? `<span class="wo-ex"><b>EXCLUDED</b> · ${whyHtml(r.exc)}</span><div class="mini muted">would reach her via ${whyHtml(r.inc)}</div>`
         : '<span class="mini muted">not targeted</span>';
     const logCell = (r) => !log ? '<span class="mini muted">—</span>'
@@ -710,7 +710,7 @@ const WhoIs = (() => {
     const H = ["ca", "policy", "state", "assignment", "via", "how", "controls", "blocked", "interrupted", "ro_would_block", "ro_would_prompt", "ro_no_change"];
     const L = [H.join(",")];
     res.rows.forEach((r) => L.push([
-      r.seq, r.name, STATE_LABEL[r.state], r.s === "inc" ? "included" : r.s === "exc" ? "excluded" : "not targeted",
+      r.seq, r.name, STATE_LABEL[r.state], r.s === "inc" ? "included" : r.s === "exc" ? "excluded" : r.s === "unknown" ? "unknown scope" : "not targeted",
       r.s === "exc" ? (r.exc || {}).text : (r.inc || {}).text, r.s === "exc" ? (r.exc || {}).how || "" : (r.inc || {}).how || "",
       (r.controls || []).join(" " + (r.op || ",") + " "),
       r.log ? r.log.blocked : "", r.log ? r.log.interrupted : "",
@@ -745,9 +745,9 @@ const WhoIs = (() => {
     }
     L.push("", "## Policies", "", `| CA | Policy | State | Assignment | Via | Controls | Blocked | Interrupted | Forecast |`, "| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
     res.rows.forEach((r) => {
-      const why = r.s === "exc" ? `EXCLUDED — ${e((r.exc || {}).text)}${(r.exc || {}).how ? ` (${e(r.exc.how)})` : ""}` : r.s === "inc" ? `${e((r.inc || {}).text)}${(r.inc || {}).how && r.inc.how !== "member" ? ` (${e(r.inc.how)})` : ""}` : "·";
+      const why = r.s === "exc" ? `EXCLUDED — ${e((r.exc || {}).text)}${(r.exc || {}).how ? ` (${e(r.exc.how)})` : ""}` : r.s === "inc" ? `${e((r.inc || {}).text)}${(r.inc || {}).how && r.inc.how !== "member" ? ` (${e(r.inc.how)})` : ""}` : r.s === "unknown" ? e(r.inc?.text || "Unknown scope") : "·";
       const fcs = r.forecast ? (r.forecast.nodata ? "no data" : r.forecast.scoped ? `out of scope (${r.forecast.notApplied}× not applied)` : `${r.forecast.failure} block / ${r.forecast.interrupted} prompt / ${r.forecast.success} ok`) : "";
-      L.push(`| ${e(r.seq)} | ${e(r.name)} | ${STATE_LABEL[r.state]} | ${r.s === "inc" ? "✓" : r.s === "exc" ? "✗" : "·"} | ${why} | ${e((r.controls || []).join(` ${r.op || ","} `))} | ${r.log ? r.log.blocked : ""} | ${r.log ? r.log.interrupted : ""} | ${fcs} |`);
+      L.push(`| ${e(r.seq)} | ${e(r.name)} | ${STATE_LABEL[r.state]} | ${r.s === "inc" ? "✓" : r.s === "exc" ? "✗" : r.s === "unknown" ? "? unknown" : "·"} | ${why} | ${e((r.controls || []).join(` ${r.op || ","} `))} | ${r.log ? r.log.blocked : ""} | ${r.log ? r.log.interrupted : ""} | ${fcs} |`);
     });
     if (res.risk && ((res.risk.user && res.risk.user.detections || []).length || res.risk.signIns.length)) {
       const rk = res.risk;

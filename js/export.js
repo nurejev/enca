@@ -78,13 +78,14 @@ const Exporter = (() => {
   // and a missing/broken integration simply yields no supplemental pages.
   function restrictedPages(opts = {}) {
     const doc = opts.restrictedDoc;
-    if (!doc || typeof RmauDoc === "undefined") return [];
+    if (!doc) return [];
+    if (typeof RmauDoc === "undefined") throw new Error("Requested restricted-unit pages are unavailable; export cancelled.");
     const out = [];
     try { out.push({ name: "Restricted administrative units — overview", html: RmauDoc.overviewHtml(doc) }); }
-    catch (e) { console.error("Restricted-unit overview could not be rendered", e); }
+    catch (e) { throw new Error("Export cancelled; no complete document could be generated: " + (e.message || e)); }
     for (const unit of (doc.units || [])) {
       try { out.push({ name: unit.name || unit.id || "Restricted administrative unit", html: RmauDoc.unitHtml(doc, unit) }); }
-      catch (e) { console.error(`Restricted-unit page ${unit.name || unit.id || ""} could not be rendered`, e); }
+      catch (e) { throw new Error("Export cancelled; no complete document could be generated: " + (e.message || e)); }
     }
     return out.filter((p) => p.html);
   }
@@ -201,7 +202,7 @@ const Exporter = (() => {
         pdf.text(`${policies[i].seq} — ${policies[i].name}\n\nCould not render this policy card (${e.message || e}).`, MARGIN, 30);
       } finally { st.remove(); }
     }
-    if (failed.length === policies.length) throw new Error("all policy cards failed to render: " + (failed.join(", ")));
+    if (failed.length) throw new Error("all policy cards failed to render: " + (failed.join(", ")));
 
     // Supplemental pages are isolated one by one. An image-rendering problem
     // in an optional AU page is written onto that page and never aborts the
@@ -224,9 +225,7 @@ const Exporter = (() => {
           pdf.setFontSize(8); pdf.setTextColor(120, 130, 140);
           pdf.text(page.name.slice(0, 120), MARGIN, A4.h - 4);
         } catch (e) {
-          console.error(`PDF: ${page.name} failed`, e);
-          pdf.setFontSize(12); pdf.setTextColor(176, 74, 58);
-          pdf.text(`${page.name}\n\nThis optional restricted-unit page could not be rendered (${e.message || e}).\nThe policy documentation is unaffected.`, MARGIN, 30);
+          throw new Error(`Export cancelled: ${page.name}: ${e.message || e}`);
         } finally { st.remove(); }
       }
     }
@@ -238,7 +237,7 @@ const Exporter = (() => {
       try {
         pdf.addPage();
         await addImagePaged(pdf, st.firstElementChild);
-      } catch (e) { console.error("PDF: matrix appendix failed", e); }
+      } catch (e) { throw new Error("Export cancelled; no complete document could be generated: " + (e.message || e)); }
       finally { st.remove(); }
     }
     if (failed.length) onProgress?.(`Done with ${failed.length} card(s) skipped: ${failed.join(", ")}`);
@@ -256,7 +255,7 @@ const Exporter = (() => {
         const url = await nodeToPng(st.firstElementChild);
         const folder = safe(Render.caGroup(policies[i].name).label); // persona folder per CA range
         zip.file(`${folder}/${policies[i].seq}-${safe(policies[i].name)}.png`, url.split(",")[1], { base64: true });
-      } catch (e) { console.error(`ZIP: ${policies[i].seq} failed`, e); }
+      } catch (e) { throw new Error("Export cancelled; no complete document could be generated: " + (e.message || e)); }
       finally { st.remove(); }
     }
     const rpages = restrictedPages(opts);
@@ -267,7 +266,7 @@ const Exporter = (() => {
       try {
         const url = await nodeToPng(st.firstElementChild);
         zip.file(`Restricted-administrative-units/${String(i).padStart(2, "0")}-${safe(page.name)}.png`, url.split(",")[1], { base64: true });
-      } catch (e) { console.error(`ZIP: ${page.name} failed`, e); }
+      } catch (e) { throw new Error("Export cancelled; no complete document could be generated: " + (e.message || e)); }
       finally { st.remove(); }
     }
     // A folder of PNGs has nowhere to write a cover line, so the scope goes in
@@ -489,7 +488,7 @@ ${body.join("\n")}
         const url = await nodeToPng(st.firstElementChild);
         const img = await loadImg(url);
         images.push({ name: `${policies[i].seq} — ${policies[i].name}`, base64: url.split(",")[1], wPx: img.width / 2, hPx: img.height / 2 });
-      } catch (e) { console.error(`DOCX: ${policies[i].seq} failed`, e); }
+      } catch (e) { throw new Error("Export cancelled; no complete document could be generated: " + (e.message || e)); }
       finally { st.remove(); }
     }
     const rpages = restrictedPages(opts);
@@ -502,7 +501,7 @@ ${body.join("\n")}
         const url = await nodeToPng(st.firstElementChild);
         const img = await loadImg(url);
         images.push({ name: page.name, base64: url.split(",")[1], wPx: img.width / 2, hPx: img.height / 2 });
-      } catch (e) { console.error(`DOCX: ${page.name} failed`, e); }
+      } catch (e) { throw new Error("Export cancelled; no complete document could be generated: " + (e.message || e)); }
       finally { st.remove(); }
     }
     if (!images.some(x => x.base64)) throw new Error("no policy cards could be rendered");

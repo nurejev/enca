@@ -38,8 +38,8 @@ const Render = (() => {
 
   function listRow(p, selected) {
     return `<tr>
-        <td><input type="checkbox" data-sel="${esc(p.id)}" ${selected.has(p.id) ? "checked" : ""}></td>
-        <td><div class="pname" data-open="${p.id}">${esc(p.name)}</div>
+        <td><input type="checkbox" data-sel="${esc(p.id)}" aria-label="Select ${esc(p.name)}" ${selected.has(p.id) ? "checked" : ""}></td>
+        <td><button class="pname" data-open="${esc(p.id)}">${esc(Workspace.names(p).title)}</button>${Workspace.names(p).title !== p.name ? `<div class="workspace-native">${esc(p.name)}</div>` : ""}
             <div class="mini">${p.seq}${p.usesNew ? ' · <span class="tag new">uses new CA settings</span>' : ""}</div></td>
         <td>${stateChip(p.state)}</td>
         <td class="mini">${esc(p.users.inc[0] || "")}${p.users.inc.length > 1 ? ` <span class="muted">+${p.users.inc.length - 1} more</span>` : ""}${p.users.exc.length ? `<br><span class="excl-note">− ${p.users.exc.length} excluded</span>` : ""}</td>
@@ -67,7 +67,7 @@ const Render = (() => {
       const isCollapsed = collapsed && collapsed.has(String(key));
       const allSel = g.items.every(x => selected.has(x.p.id));
       let html = `<tr class="grouprow${isCollapsed ? " collapsed" : ""}" data-gkey="${key}">
-        <td><input type="checkbox" data-gsel="${key}" ${allSel ? "checked" : ""} title="Select whole group"></td>
+        <td><input type="checkbox" data-gsel="${key}" aria-label="Select ${esc(g.label)}" ${allSel ? "checked" : ""} title="Select whole group"></td>
         <td colspan="6"><span class="caret">▶</span> <b>${esc(g.label)}</b> <span class="mini">${g.items.length} ${g.items.length === 1 ? "policy" : "policies"}${isCollapsed ? " · click to expand" : ""}</span>
           <button class="btn sm flow-btn" data-flowkey="${key}" title="Visual flow of what applies to this persona (incl. Global)">⑃ Apply flow</button></td>
       </tr>`;
@@ -82,7 +82,7 @@ const Render = (() => {
     const counts = { all: policies.length, on: 0, report: 0, off: 0 };
     policies.forEach(p => counts[p.state]++);
     return [["all", "All"], ["on", "On"], ["report", "Report-only"], ["off", "Off"]]
-      .map(([k, t]) => `<button class="fchip ${active === k ? "active" : ""}" data-state="${k}">${t} (${counts[k]})</button>`).join("");
+      .map(([k, t]) => `<button class="fchip ${active === k ? "active" : ""}" data-state="${k}" aria-pressed="${active === k}">${t} (${counts[k]})</button>`).join("");
   }
 
   // Persona group from the CA number in the policy name (persona-based CA framework):
@@ -119,7 +119,7 @@ const Render = (() => {
       const isCollapsed = collapsed && collapsed.has(String(key));
       const allSel = g.items.every(x => selected.has(x.p.id));
       return `<div class="cardgroup${isCollapsed ? " collapsed" : ""}" data-gkey="${key}">
-        <input type="checkbox" data-gsel="${key}" ${allSel ? "checked" : ""} title="Select whole group">
+        <input type="checkbox" data-gsel="${key}" aria-label="Select ${esc(g.label)}" ${allSel ? "checked" : ""} title="Select whole group">
         <span class="caret">▶</span><h3>${esc(g.label)}</h3>
         <span class="mini">${g.items.length} ${g.items.length === 1 ? "policy" : "policies"}${isCollapsed ? " · click to expand" : ""}</span>
         <button class="btn sm flow-btn" data-flowkey="${key}" title="Visual flow of what applies to this persona (incl. Global)">⑃ Apply flow</button>
@@ -143,7 +143,7 @@ const Render = (() => {
           <h3>${esc(p.name)}</h3>
           <div class="mini">Modified ${p.modified} · ${p.seq}</div>
         </div>
-        <div class="scard-right">${stateChip(p.state)}<input type="checkbox" data-sel="${esc(p.id)}" ${selected && selected.has(p.id) ? "checked" : ""}></div>
+        <div class="scard-right">${stateChip(p.state)}<input type="checkbox" data-sel="${esc(p.id)}" aria-label="Select ${esc(p.name)}" ${selected && selected.has(p.id) ? "checked" : ""}></div>
       </div>
       <div class="scard-grid">
         <div><label>User Scope</label><b>${esc(p.users.inc[0] || "")}${p.users.inc.length > 1 ? ` <span class="muted">+${p.users.inc.length - 1}</span>` : ""}${p.users.exc.length ? ` <span class="excl-note">(−${p.users.exc.length})</span>` : ""}</b></div>

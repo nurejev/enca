@@ -26,33 +26,36 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25356"></script>
+<script src="js/popup-guard.js?v=25357"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25356" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25356">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25357" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25357">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25356"></script>
+<script src="js/selfhost-boot.js?v=25357"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25356"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25356"></script>
+<script src="js/counter.js?v=25357"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25357"></script>
+<link rel="stylesheet" href="css/workspace.css?v=25357">
 </head>
 <body>
 
 <header>
   <div class="hwrap">
+    <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25356" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25357" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
     <!-- The header's own "Tools" home button is gone (build 25258): the tab
          bar under it carries the same home icon, so the two sat one above the
          other doing one job. The logo still goes home too. -->
+    <span class="workspace-context" id="workspaceContext" hidden></span>
     <div class="spacer"></div>
     <button class="btn" id="themeBtn" title="Theme: Auto (follows your device)"><span class="tico">🌗</span></button>
     <div class="tenant" id="tenantBox">
@@ -97,7 +100,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25356" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25357" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -150,7 +153,8 @@
            UPDATED  an existing tool that changed in this release
          Clear UPDATED at the start of the next cycle — a stale flag takes a slot
          from something that genuinely changed. -->
-    <h2 class="home-title">What do you want to do? <span class="home-count" id="homeCount"></span></h2>
+    <div class="workspace-home-intro"><div><span class="workspace-eyebrow">Conditional Access workspace</span><h1>A clear view. A deliberate change.</h1><p>Inspect policies, review the evidence and prepare your next rollout from one workspace.</p></div><div class="workspace-actions"><button class="btn primary" data-workspace-tool="policies">Open policies →</button><button class="btn" data-workspace-tool="deploy">Plan a rollout</button></div></div>
+    <h2 class="home-title">Tools <span class="home-count" id="homeCount"></span></h2>
     <!-- TEMPORARY TOOLS — tools that exist for a dated migration or retirement.
          Each one names the date it stops mattering, and the section is removed
          once its last date has passed. Deliberately FIRST on the page: a
@@ -158,93 +162,94 @@
          opened after the deadline. -->
     <div class="tool-sec"><h3>⏳ Temporary tools</h3><p>Deadline-driven tools for a dated migration or retirement. Each one names the date it stops mattering — and leaves once that date has passed.</p></div>
     <div class="tools">
-      <div class="tool" id="toolSmsVoice">
+      <div class="tool tool-tile" id="toolSmsVoice">
         <div class="tool-ic">📵</div><h3>SMS &amp; voice retirement <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
         <p>Microsoft retires its SMS and voice MFA delivery on <b>1 February 2027</b> — and from <b>1 September 2026</b> everyone still enabled for them is auto-enabled for passkeys and nudged at sign-in. Who is still in the SMS/Voice policy scope, who actually has a phone method registered, and who would be <b>locked out</b> — with Markdown and CSV export. Also reads and, if you want, <b>pauses</b> Microsoft's September rollout — the Graph-only opt-out with no control in the portal — and now says <b>who changed that setting and when</b>, from the directory audit log. <span class="tag block">writes to tenant</span></p>
       </div>
-      <div class="tool" id="toolMemberOf">
+      <div class="tool tool-tile" id="toolMemberOf">
         <div class="tool-ic">🧷</div><h3>memberOf retirement <span class="tag new">BETA</span></h3>
         <p>The <code>memberOf</code> dynamic rule operator leaves preview on <b>3 November 2026</b>. Rules still using it don't fail — they <b>stop updating</b> and keep handing out whatever membership they held that day. Scans all <b>three</b> surfaces Microsoft names — dynamic groups, dynamic administrative units and entitlement-management auto-assignment policies — then says what it costs: which <b>Conditional Access</b> policies point at each group, whether it's an <b>include</b> that quietly stops covering joiners or an <b>exclude</b> that becomes a permanent bypass, which groups carry licensing, and which access packages stop being handed out. Owner notification, Markdown and CSV export. <span class="tag ok">reads only</span></p>
       </div>
     </div>
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
     <div class="tools">
-      <div class="tool" id="toolUserImpact">
+      <div class="tool tool-tile" id="toolUserImpact">
         <div class="tool-ic">🗣</div><h3>User impact brief <span class="tag upd">UPDATED</span></h3>
         <p>The rollout email, written by the tenant itself: what people will notice and what will deliberately no longer be possible, derived from the Conditional Access policies actually deployed — with what is live today kept apart from what changes at go-live. Filter by audience, export as Markdown or a Word document for the communications team.</p>
       </div>
-      <div class="tool" id="toolPolicies">
+      <div class="tool tool-tile" id="toolPolicies">
         <div class="tool-ic">🗂</div><h3>Policies <span class="tag upd">UPDATED</span></h3>
         <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona. One screen, and the action bar does the rest: <b>📄 Create documentation</b> (Word, PDF, PNG or a PNG bundle, with auditor-ready pages for the restricted units protecting exclusion groups), <b>🗄 Backup (JSON)</b> to a zip with its dependencies, <b>🔍 Gap analyse</b>, <b>👥 Assign groups or roles</b> and <b>🎚 Set policy state</b> — the three reads falling back to every visible policy when nothing is selected, the two writes asking for an explicit pick. On a baseline tenant the document and the backup are scoped to the baseline catalog. <span class="tag block">writes to tenant</span></p>
       </div>
     </div>
     <div class="tool-sec"><h3>🔍 Analyse &amp; simulate</h3><p>Work out what your policies actually do, and to whom.</p></div>
     <div class="tools">
-      <div class="tool" id="toolAnalyze">
+      <div class="tool tool-tile" id="toolAnalyze">
         <div class="tool-ic">🔍</div><h3>Gap analyse <span class="tag upd">UPDATED</span></h3>
         <p>Who your policies actually cover, as a funnel: every user, then the ones a policy targets, then the ones an exclusion takes back out, then the ones holding the licence their own policies oblige. The last stage has its own tab — <b>🎫 Licences</b> — because the obligation is the interesting half: Microsoft's licence usage blade counts who <i>triggered</i> a policy last month, while every user your policies <i>target</i> needs Entra ID P1, and risk conditions need P2.</p>
       </div>
-      <div class="tool" id="toolWhatIf">
+      <div class="tool tool-tile" id="toolWhatIf">
         <div class="tool-ic">🧪</div><h3>What-If <span class="tag upd">UPDATED</span></h3>
         <p>Two ways round the same question, one evaluator behind both. <b>🧪 One sign-in</b> — describe a sign-in (user, app, platform, client, location, device state, risk) and see which policies would apply with the controls required, and which would not and why. <b>⚡ Every simulation</b> — turn it around: per policy, every sign-in the policy <i>implies</i> and the control each one should or should not enforce, optionally narrowed to one user or persona group. Ported from Jasper Baes' CA Validator.</p>
       </div>
-      <div class="tool" id="toolWhoIs">
+      <div class="tool tool-tile" id="toolWhoIs">
         <div class="tool-ic">🕵</div><h3>Who is … to CA <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
         <p>Pick the subject; the picture is the same one. <b>🕵 A user</b> — which deployment group she is in and how she got there (direct, or nested via which parent), every policy that reaches her or misses her and why, her sign-ins, her risk, what goes live next. <b>🌊 A group</b> — the same for a whole wave: who is in it and how, which policies target it, how many members an exclusion takes back out, and every member's forecast. <b>⚖ Compare users</b> — two or more side by side, where Conditional Access treats them differently and which group or role membership is behind it. One subject resolver and one policy ladder under all three.</p>
       </div>
-      <div class="tool" id="toolSpGap">
+      <div class="tool tool-tile" id="toolSpGap">
         <div class="tool-ic">🫥</div><h3>Apps with no service principal <span class="tag new">BETA</span> <span class="tag ok" title="This tool runs only on the beta site — it is not in production yet">only here</span></h3>
         <p>Apps that signed in over the last 30 days and have <b>no service principal</b> in this tenant. Such an app is not in the Conditional Access app picker — it can be neither included nor excluded by name; only a policy on All resources reaches it. One Graph call lists them; for each one: which policies would apply the moment it exists, whether a policy already excludes the id (a phantom exclusion), and what Entra recorded on its newest sign-in.</p>
       </div>
-      <div class="tool" id="toolGroupUse">
+      <div class="tool tool-tile" id="toolGroupUse">
         <div class="tool-ic">🔗</div><h3>User or Group analyzer <span class="tag upd">UPDATED</span></h3>
         <p>Where is a group actually used? One group or user checked against Conditional Access, Entra roles, apps and licensing, Intune, Microsoft 365 and Azure RBAC — or sweep every group and find the ones nothing references. <span class="tag grant">extra permissions</span></p>
       </div>
-      <div class="tool" id="toolExclusions">
+      <div class="tool tool-tile" id="toolExclusions">
         <div class="tool-ic">🚪</div><h3>Exclusion analyzer <span class="tag upd">UPDATED</span></h3>
         <p>Every exclusion across all policies — users, groups (expanded to members, with the nested groups they came through), roles, guest types, apps and locations — in an exclusion × policy matrix, with a risk review that flags an exclusion group fed by nesting.</p>
       </div>
-      <div class="tool" id="toolAudit">
+      <div class="tool tool-tile" id="toolAudit">
         <div class="tool-ic">🕓</div><h3>Changes <span class="tag upd">UPDATED</span></h3>
         <p>What moved, from either source. <b>🕓 Audit log</b> — who changed which Conditional Access resource, when, and exactly what changed: a field-level diff of every policy, named location and authentication strength edit, as far back as your licence keeps (about 30 days). <b>📉 Snapshot file</b> — take a snapshot today, compare a later run against it, and see what moved with no retention limit at all, because the history is a file you keep. One diff engine behind both, ranked by severity.</p>
       </div>
-      <div class="tool" id="toolSignins">
+      <div class="tool tool-tile" id="toolSignins">
         <div class="tool-ic">🚦</div><h3>Sign-in log <span class="tag upd">UPDATED</span></h3>
         <p>One read of the sign-in window, three questions of it. <b>🚦 Failures</b> — which sign-ins Conditional Access failed <b>or interrupted</b> and which policy did it, per policy: who, on which app, from where, with the controls that weren't met, CSV export and a one-click replay in What-If. <b>🎚 Report-only impact</b> — what happens the day a staged policy goes live, per policy and per user. <b>🛂 Session controls</b> — what a session control actually <i>did</i>, from Defender. Tabs over one window and one consent, so switching costs no second read.</p>
       </div>
     </div>
     <div class="tool-sec"><h3>🧬 Compare against a baseline</h3><p>Measure this tenant against a reference set of policies.</p></div>
     <div class="tools">
-      <div class="tool" id="toolGapCheck">
+      <div class="tool tool-tile" id="toolGapCheck">
         <div class="tool-ic">🛡</div><h3>Checks <span class="tag upd">UPDATED</span></h3>
         <p>What is wrong with this baseline, judged against four references — each its own tab, each asking for its own permissions on its own run. <b>🛡 Bypass &amp; Swiss cheese</b> — known Conditional Access bypasses and the holes a stack of policies leaves between them: MFA coverage, FOCI token sharing, break-glass coverage, bypass apps, the persona × control matrix. <b>📘 Microsoft Learn</b> — the exclusions and limitations Microsoft documents, with buildable fixes. <b>📐 CIS 5.2.2</b> — the 17 automated Conditional Access recommendations of the CIS Microsoft 365 Foundations Benchmark, per control. <b>🖥 Intune reality</b> — the other half of a require-compliant-device grant: whether the policy's scope is actually assigned an Intune compliance policy at all.</p>
       </div>
-      <div class="tool" id="toolBaseline">
+      <div class="tool tool-tile" id="toolBaseline">
         <div class="tool-ic">🧬</div><h3>Baseline <span class="tag upd">UPDATED</span></h3>
         <p>Match this tenant against a Conditional Access baseline: which baseline policies are present, outdated or missing — then import the gap. <b>Both catalogs are one picker in the toolbar</b> — <b>🧬 CloudFellows</b> R26.6 (v3.x) and <b>🧩 Joey Verlinden</b>, the community baseline read <b>live from his repository</b> (latest release, with the commit it read) with the bundled 2026.6.1 snapshot as the fallback. The ★ active baseline for this tenant — what every group, vault and exclusion-restore tool works against — is chosen here, after a dry run shows what the switch would change. A <b>📖 Deployment guide</b> tab gives the order to deploy it in with the reason for each step, and reads the tenant to say what is missing <i>before</i> each one.</p>
       </div>
     </div>
     <div class="tool-sec"><h3>✍️ Manage the tenant</h3><p>The tools that write. Each one confirms before it changes anything.</p></div>
     <div class="tools">
-      <div class="tool" id="toolCaGroups">
+      <div class="tool tool-tile" id="toolCaGroups">
         <div class="tool-ic">👥</div><h3>Conditional Access groups <span class="tag upd">UPDATED</span></h3>
         <p>One read, then everything is a row: every group the baseline expects or a policy references, with its status, members (direct and nested), the policies that use it and its protection — and a detail panel for the one you click: members as a tree with add and remove, policies, protection, history. Create, assign, protect, migrate, import and compare from the rows you tick. <span class="tag block">writes to tenant</span></p>
       </div>
-      <div class="tool" id="toolProtect">
+      <div class="tool tool-tile" id="toolProtect">
         <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag upd">UPDATED</span></h3>
         <p>Two locks per CA exclusion group on one row: a <b>restricted management administrative unit</b> so only AU-scoped roles can change the members, and <b>nesting disabled</b> so no group can be put inside — with what each group still lacks pre-ticked. <span class="tag block">writes to tenant</span></p>
       </div>
-      <div class="tool" id="toolLocations">
+      <div class="tool tool-tile" id="toolLocations">
         <div class="tool-ic">🧩</div><h3>Policy building blocks <span class="tag upd">UPDATED</span></h3>
         <p>The four kinds of object a policy <i>references</i>, each on its own tab, plus the bin they land in when deleted. <b>🌐 Locations</b> — IP ranges and countries, with what is wrong with them: dangling references, empty country locations, overly broad ranges. <b>💪 Strengths</b> and <b>🎫 Contexts</b> — the authentication strengths a policy grants and the contexts it is scoped to. <b>📜 Terms of use</b> — the agreements it requires. <b>♻ Deleted</b> — everything still inside the 30-day restore window, policies and locations, with one-click restore. Every tab says which policies use each row, from one shared lookup, and refuses a delete that would leave a policy pointing at nothing. <span class="tag block">writes to tenant</span></p>
       </div>
-      <div class="tool" id="toolRmau">
+      <div class="tool tool-tile" id="toolRmau">
         <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag upd">UPDATED</span></h3>
         <p>Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. One vault per persona of the active baseline (CloudFellows or Joey Verlinden). List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
       </div>
-      <div class="tool" id="toolImport">
+      <div class="tool tool-tile" id="toolDeploy"><div class="tool-ic">↗</div><h3>Guided rollout <span class="tag new">NEW</span></h3><p>Scope, plan, observed impact and enforcement. A guided route through the existing tools, with missing evidence and manual acknowledgements clearly separated.</p></div>
+      <div class="tool tool-tile" id="toolImport">
         <div class="tool-ic">📥</div><h3>Import <span class="tag upd">UPDATED</span></h3>
-        <p>Restore a backup (zip or folder): dependencies first, policies imported Off, includes remapped to deploy persona groups. <span class="tag block">writes to tenant</span></p>
+        <p>Restore a backup (zip or folder): dependencies first, policies staged Off and verified; approved replacements and as-is imports can retain their state. <span class="tag block">writes to tenant</span></p>
       </div>
     </div>
     <div class="tool-sec"><h3>❓ Help</h3></div>
@@ -266,9 +271,8 @@
 
     <div class="list-card readme" id="permOverview" style="display:none"></div>
 
-    <div class="list-card readme">
-      <h3>📖 About these tools</h3>
-      <p><b>ENCA</b> (Entra Conditional Access) is a read-only toolset for your Microsoft Entra Conditional Access baseline.
+    <details class="list-card readme workspace-about"><summary>About ENCA, permissions and credits</summary>
+      <p><b>ENCA</b> (Entra Conditional Access) is a toolset for reviewing and managing policies for your Microsoft Entra Conditional Access baseline.
         <b>List Policies</b> shows every policy as cards, a list or a settings matrix, grouped by persona (CA number ranges).
         <b>Create documentation</b> turns all or selected policies into shareable documentation — Word, PDF, PNG or a PNG bundle.
         <b>Gap analyse</b> builds a users × policies impact matrix: which policies apply to whom, who bypasses a policy via exclusions (and why),
@@ -288,8 +292,7 @@
         The read-only tools never write to your tenant, and the signed-in user only needs a reader role such as Security Reader or Global Reader.
         The <b>Conditional Access groups</b> tool additionally requests <code>Policy.ReadWrite.ConditionalAccess</code> on demand (incremental consent) and requires a role
         that can edit Conditional Access, such as Conditional Access Administrator or Security Administrator.
-        Creating missing groups (assigned groups always role-assignable; dynamic groups keep their membership rule) additionally requests
-        <code>Group.ReadWrite.All</code> and <code>RoleManagement.ReadWrite.Directory</code> and requires the Privileged Role Administrator role.</p>
+        Creating missing groups uses ordinary security groups with nesting disabled; dynamic groups retain their rule. This requests <code>Group.ReadWrite.All</code> and <code>Group-NestingSupport.ReadWrite.All</code>. Scoped role grants are a separate privileged operation.</p>
 
       <h4>Credits &amp; thanks</h4>
       <p>These community projects shaped the tools, and all deserve the credit:</p>
@@ -318,20 +321,22 @@
         Kenneth van Surksum, Joey Verlinden, Sebastian F. Markdanner and Claus Jespersen (Zero Trust persona framework).</p>
 
       <h4>Security</h4>
-      <p>Everything runs in your browser — there is no backend and your policy data is never stored or sent anywhere except Microsoft Graph.
+      <p>Everything runs in your browser — there is no backend and tenant data stays in browser memory and is exchanged directly with the relevant Microsoft API; downloaded exports are files you keep.
         Sign-in uses Microsoft Entra (MSAL, authorization code flow with PKCE, no client secret); tokens live in session storage and are gone when the tab closes.
-        Access tokens are only ever attached to <code>graph.microsoft.com</code> (hostname-validated), a strict Content-Security-Policy is enforced,
+        Graph tokens are attached only to <code>graph.microsoft.com</code>; optional Azure RBAC reads use a separate token for <code>management.azure.com</code> (both hostname-validated), a strict Content-Security-Policy is enforced,
         and all JavaScript libraries are self-hosted — nothing loads from third-party CDNs at runtime.
         Exports are generated locally on your machine and carry your tenant's branding, not this tool's.</p>
-    </div>
+    </details>
   </section>
 
   <!-- ============ POLICIES (cards default · list · matrix) ============ -->
   <section id="screen-list" class="screen tool">
+    <div class="workspace-heading" id="workspaceHeading"><div><span class="workspace-eyebrow">Conditional Access</span><h1>Policies</h1><p id="workspaceRead"></p></div><button class="btn primary" data-workspace-tool="deploy">Plan a rollout →</button></div>
+    <div class="workspace-counts" id="workspaceCounts"></div>
     <div class="toolbar" id="plToolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
-        <input id="searchBox" placeholder="Search policies…">
+        <input id="searchBox" aria-label="Search policies" placeholder="Search policies…">
       </div>
       <div class="seg" id="plViewSeg">
         <button class="active" id="viewCards">Cards</button>
@@ -369,18 +374,22 @@
       <button class="btn ghost" id="clearSelBtn">Clear</button>
     </div>
 
+    <p class="workspace-meta" id="workspaceListMeta"></p>
     <div class="cards" id="cardsView"></div>
+    <div class="policy-workspace" id="policyWorkspace">
 
     <div class="list-card" id="listView" style="display:none">
       <table class="plist" id="ptable">
         <thead><tr>
-          <th style="width:36px"><input type="checkbox" id="selAll"></th>
+          <th style="width:36px"><input type="checkbox" id="selAll" aria-label="Select all visible policies"></th>
           <th>Policy</th><th>State</th><th>Users</th><th>Target resources</th><th>Grant</th><th>Modified</th>
         </tr></thead>
         <tbody></tbody>
       </table>
     </div>
 
+      <aside id="workspaceInspector" class="workspace-inspector" aria-label="Policy details" hidden></aside>
+    </div>
     <div class="scroll-hint" id="matrixHint" style="display:none">◂ ▸ Scroll horizontally to see all policies</div>
     <div class="matrix-wrap" id="matrixView" style="display:none">
       <table class="matrix" id="mtable"></table>
@@ -629,6 +638,12 @@
       </div>
     </div>
     <div class="tool-body" id="gcBody"></div>
+  </section>
+
+  <section id="screen-rollout" class="screen tool">
+    <div class="workspace-heading"><div><span class="workspace-eyebrow">Deployment planning</span><h1>Guided rollout</h1><p>One deliberate step at a time.</p></div></div>
+    <div class="toolbar" id="rolloutToolbar"><div class="rollout-steps" id="rolloutSteps" aria-label="Rollout stages"></div><div class="tb-actions"><button class="btn" data-workspace-tool="policies">Back to policies</button></div></div>
+    <div class="tool-body" id="rolloutBody"></div>
   </section>
 
   <!-- ============ CIS BENCHMARK ALIGNMENT ============
@@ -1663,7 +1678,7 @@
   <section id="screen-help" class="screen">
     <div class="help-page">
       <h2 class="home-title" style="margin:0 0 8px">❓ How to use ENCA</h2>
-      <p class="mini muted" style="margin:0 0 10px">A read-only toolset for your Microsoft Entra Conditional Access baseline. Sign in gives read-only Graph access; the four tools that can change your tenant are marked <span class="tag block">writes to tenant</span> and ask for extra permission only when you run them. Every write lands safely — imported policies come in <b>Off</b>, deletes need a typed confirmation.</p>
+      <p class="mini muted" style="margin:0 0 10px">A review and management toolset for your Microsoft Entra Conditional Access baseline. Sign in gives read-only Graph access; tools that can change your tenant are marked <span class="tag block">writes to tenant</span> and ask for extra permission only when you run them. Imports are staged <b>Off</b> and verified. Replacements can then retain the previous state; as-is imports can retain the source state. Deletes need a typed confirmation.</p>
 
     <div class="help-toc" id="helpToc"></div>
 
@@ -3012,69 +3027,71 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25356"></script>
-<script src="js/selfhost.js?v=25356"></script>
-<script src="js/version.js?v=25356"></script>
-<script src="js/verdict.js?v=25356"></script>
-<script src="js/fork.js?v=25356"></script>
-<script src="js/promote.js?v=25356"></script>
-<script src="js/authConfig.js?v=25356"></script>
-<script src="js/labels.js?v=25356"></script>
-<script src="js/graph.js?v=25356"></script>
-<script src="js/model.js?v=25356"></script>
-<script src="js/render.js?v=25356"></script>
-<script src="js/analyze.js?v=25356"></script>
-<script src="js/whatif.js?v=25356"></script>
-<script src="js/mslearn.js?v=25356"></script>
-<script src="js/gapcheck.js?v=25356"></script>
-<script src="js/cisdata.js?v=25356"></script>
-<script src="js/cischeck.js?v=25356"></script>
-<script src="js/exclusions.js?v=25356"></script>
-<script src="js/cascope.js?v=25356"></script>
-<script src="js/validator.js?v=25356"></script>
-<script src="js/whatifeval.js?v=25356"></script>
-<script src="js/compare.js?v=25356"></script>
-<script src="js/whois.js?v=25356"></script>
-<script src="js/wave.js?v=25356"></script>
-<script src="js/sessionctl.js?v=25356"></script>
-<script src="js/spgap.js?v=25356"></script>
-<script src="js/groupuse.js?v=25356"></script>
-<script src="js/iso3166.js?v=25356"></script>
-<script src="js/causes.js?v=25356"></script>
-<script src="js/locations.js?v=25356"></script>
-<script src="js/authcontexts.js?v=25356"></script>
-<script src="js/authstrengths.js?v=25356"></script>
-<script src="js/recycle.js?v=25356"></script>
-<script src="js/rmau.js?v=25356"></script>
-<script src="js/camap.js?v=25356"></script>
-<script src="js/rmaudoc.js?v=25356"></script>
-<script src="js/termsofuse.js?v=25356"></script>
-<script src="js/audit.js?v=25356"></script>
-<script src="js/drift.js?v=25356"></script>
-<script src="js/guide.js?v=25356"></script>
-<script src="js/userimpact.js?v=25356"></script>
-<script src="js/smsvoice.js?v=25356"></script>
-<script src="js/memberof.js?v=25356"></script>
-<script src="js/devcheck.js?v=25356"></script>
-<script src="js/licgap.js?v=25356"></script>
-<script src="js/teamsdev.js?v=25356"></script>
-<script src="js/signins.js?v=25356"></script>
-<script src="js/reportimpact.js?v=25356"></script>
-<script src="js/changelog.js?v=25356"></script>
-<script src="js/baselineData.js?v=25356"></script>
-<script src="js/baselineJoeyData.js?v=25356"></script>
-<script src="js/baselineLive.js?v=25356"></script>
-<script src="js/baseline.js?v=25356"></script>
-<script src="js/baselineCleanup.js?v=25356"></script>
-<script src="js/groupTemplates.js?v=25356"></script>
-<script src="js/assign.js?v=25356"></script>
-<script src="js/cagroups.js?v=25356"></script>
-<script src="js/groupsview.js?v=25356"></script>
-<script src="js/runledger.js?v=25356"></script>
-<script src="js/protect.js?v=25356"></script>
-<script src="js/import.js?v=25356"></script>
-<script src="js/export.js?v=25356"></script>
-<script src="js/demo.js?v=25356"></script>
-<script src="js/app.js?v=25356"></script>
+<script src="js/branding.js?v=25357"></script>
+<script src="js/selfhost.js?v=25357"></script>
+<script src="js/version.js?v=25357"></script>
+<script src="js/verdict.js?v=25357"></script>
+<script src="js/fork.js?v=25357"></script>
+<script src="js/promote.js?v=25357"></script>
+<script src="js/authConfig.js?v=25357"></script>
+<script src="js/labels.js?v=25357"></script>
+<script src="js/graph.js?v=25357"></script>
+<script src="js/model.js?v=25357"></script>
+<script src="js/render.js?v=25357"></script>
+<script src="js/analyze.js?v=25357"></script>
+<script src="js/whatif.js?v=25357"></script>
+<script src="js/mslearn.js?v=25357"></script>
+<script src="js/gapcheck.js?v=25357"></script>
+<script src="js/cisdata.js?v=25357"></script>
+<script src="js/cischeck.js?v=25357"></script>
+<script src="js/exclusions.js?v=25357"></script>
+<script src="js/cascope.js?v=25357"></script>
+<script src="js/validator.js?v=25357"></script>
+<script src="js/whatifeval.js?v=25357"></script>
+<script src="js/compare.js?v=25357"></script>
+<script src="js/whois.js?v=25357"></script>
+<script src="js/wave.js?v=25357"></script>
+<script src="js/sessionctl.js?v=25357"></script>
+<script src="js/spgap.js?v=25357"></script>
+<script src="js/groupuse.js?v=25357"></script>
+<script src="js/iso3166.js?v=25357"></script>
+<script src="js/causes.js?v=25357"></script>
+<script src="js/locations.js?v=25357"></script>
+<script src="js/authcontexts.js?v=25357"></script>
+<script src="js/authstrengths.js?v=25357"></script>
+<script src="js/recycle.js?v=25357"></script>
+<script src="js/rmau.js?v=25357"></script>
+<script src="js/camap.js?v=25357"></script>
+<script src="js/rmaudoc.js?v=25357"></script>
+<script src="js/termsofuse.js?v=25357"></script>
+<script src="js/audit.js?v=25357"></script>
+<script src="js/drift.js?v=25357"></script>
+<script src="js/guide.js?v=25357"></script>
+<script src="js/userimpact.js?v=25357"></script>
+<script src="js/smsvoice.js?v=25357"></script>
+<script src="js/memberof.js?v=25357"></script>
+<script src="js/devcheck.js?v=25357"></script>
+<script src="js/licgap.js?v=25357"></script>
+<script src="js/teamsdev.js?v=25357"></script>
+<script src="js/signins.js?v=25357"></script>
+<script src="js/reportimpact.js?v=25357"></script>
+<script src="js/changelog.js?v=25357"></script>
+<script src="js/baselineData.js?v=25357"></script>
+<script src="js/baselineJoeyData.js?v=25357"></script>
+<script src="js/baselineLive.js?v=25357"></script>
+<script src="js/baseline.js?v=25357"></script>
+<script src="js/baselineCleanup.js?v=25357"></script>
+<script src="js/groupTemplates.js?v=25357"></script>
+<script src="js/assign.js?v=25357"></script>
+<script src="js/cagroups.js?v=25357"></script>
+<script src="js/groupsview.js?v=25357"></script>
+<script src="js/runledger.js?v=25357"></script>
+<script src="js/protect.js?v=25357"></script>
+<script src="js/import.js?v=25357"></script>
+<script src="js/export.js?v=25357"></script>
+<script src="js/demo.js?v=25357"></script>
+<script src="js/workspace.js?v=25357"></script>
+<script src="js/app.js?v=25357"></script>
+<script src="js/accessibility.js?v=25357"></script>
 </body>
 </html>

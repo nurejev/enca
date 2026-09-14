@@ -118,6 +118,112 @@ const PROMOTE = {
 
   items: [
     {
+  "n": 194,
+  "title": "Workspace, evidence desk and guided rollout",
+  "tools": [
+    "Policies",
+    "Checks",
+    "Guided rollout"
+  ],
+  "builds": [
+    25357
+  ],
+  "what": "List-first layout, detail inspector, tenant context, mobile navigation and keyboard dialogs; guided flow delegates to existing tools.",
+  "why": "Changes navigation and modal focus throughout the app.",
+  "test": [
+    "Demo at desktop and 390px: select a policy, inspect its original definition, filter states, switch Cards/List/Matrix and return without losing selection.",
+    "Keyboard: open a home launcher, open nested policy dialogs, Tab stays inside the top dialog and Escape restores focus.",
+    "Run Checks, filter high findings and select two findings: assessment, policy and recommendation must follow the selection.",
+    "Select policies, open Guided rollout, visit all four stages. Go-live stays disabled until all acknowledgements are checked; the next click opens the existing state confirmation. A changed selection clears acknowledgements.",
+    "REAL TENANT REQUIRED: verify impact report scope, timestamps and capped/partial indicators before accepting enforcement. No simulated or unobserved result may be shown as verified."
+  ],
+  "files": [
+    "js/workspace.js",
+    "js/accessibility.js",
+    "css/workspace.css",
+    "js/app.js",
+    "js/render.js",
+    "index.html"
+  ]
+},
+    {
+  "n": 193,
+  "title": "Imports preserve scope and verify replacement state",
+  "tools": [
+    "Import"
+  ],
+  "builds": [
+    25357
+  ],
+  "what": "Refuse missing material references; stage disabled, read back, activate to approved state, verify, then retire previous version.",
+  "why": "Multi-request writes need real Graph readback and consent checks before production.",
+  "test": [
+    "Offline tests: unresolved exclusion and missing app cause zero writes; readback failure or mismatch leaves the old policy unchanged.",
+    "REAL TEST TENANT REQUIRED: replace an enabled policy; observe staged Off, verified On, then old Off, with matching UI and report states.",
+    "REAL TEST TENANT REQUIRED: deny old-policy disable after successful replacement; report partial failure and identify the newly created policy, with no automatic duplicate retry.",
+    "REAL TEST TENANT REQUIRED: normal import, as-is E-Admins, report-only replacement and baseline switch. Confirm target scope and actual states before accepting the result."
+  ],
+  "files": [
+    "js/import.js",
+    "js/app.js"
+  ]
+},
+    {
+  "n": 192,
+  "title": "Analysis distinguishes unsupported evidence from protection",
+  "tools": [
+    "Gap analyse",
+    "What-If",
+    "Who is",
+    "CA validator"
+  ],
+  "builds": [
+    25357
+  ],
+  "what": "Shared restricted guest scope, exact device predicates, string insider risk, mandatory-MFA rules and fail-closed membership collection.",
+  "why": "Restricted external metadata and unsupported expressions intentionally remain unresolved.",
+  "test": [
+    "Run offline regression suite for compound filters, insider risk, guest type and home tenant, unread groups/roles and OR/AND controls.",
+    "REAL TENANT REQUIRED: deny membership reads; no coverage report may be produced from the failed run.",
+    "REAL TENANT REQUIRED: restricted external-user policy without type/home-tenant metadata must be unknown, including exports.",
+    "Run What-If with a compound device filter: result is incomplete with the expression shown, never a definite grant based on the first clause."
+  ],
+  "files": [
+    "js/cascope.js",
+    "js/whatifeval.js",
+    "js/analyze.js",
+    "js/whois.js",
+    "js/validator.js",
+    "js/app.js"
+  ]
+},
+    {
+  "n": 191,
+  "title": "Bounded transport, complete exports and deployment checks",
+  "tools": [
+    "All tools"
+  ],
+  "builds": [
+    25357
+  ],
+  "what": "Bounded Graph batches retain API version; ambiguous gateway errors do not retry writes. Exports abort on missing pages, nginx locations retain headers, demo IDs are unique and CI gates publication.",
+  "why": "Transport and export failure paths need verification as well as happy paths.",
+  "test": [
+    "Offline suite: persistent 429 returns a failure after the retry budget; explicit v1.0 endpoint remains v1.0.",
+    "Inject a renderer failure: ZIP and DOCX do not download a partial archive. Render ordinary demo PDF, PNG and Word exports successfully.",
+    "SELF-HOSTING REQUIRED: request /, /index.html and /selfhost-branding.json; verify X-Content-Type-Options, X-Frame-Options, Referrer-Policy and Permissions-Policy on each.",
+    "GitHub Actions checks must pass before container publish; pull requests run checks without pushing an image."
+  ],
+  "files": [
+    "js/graph.js",
+    "js/export.js",
+    "js/demo.js",
+    "selfhost/nginx.conf",
+    "tools/regression.test.cjs",
+    ".github/workflows/docker.yml"
+  ]
+},
+    {
       n: 190,
       title: "\ud83d\udd17 User or Group analyzer on the shared verdict surface, and js/verdict.js (T19 1.2, R57)",
       tools: ["User or Group analyzer", "All tools"],
